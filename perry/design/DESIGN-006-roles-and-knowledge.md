@@ -478,6 +478,35 @@ call, because that is the question the consumer asked.
 
 ## 9. Changes (append-only after lock)
 
+- 2026-09-02 — **Decision #2 was reversed by `DESIGN-007` decision #2 on
+  2026-08-19, two days after this lock, and nothing here said so until now.**
+  Decision #2 chose `.perry/roles/` and § 4's trade-off note gives the reason:
+  the path *"follows the `hook.md` precedent (tier-1, user-owned, under the
+  anchor Perry already claims)"*. `§ 5.5` restates it under **"Unchanged,
+  deliberately"**: *"`.perry/roles/` is tier-1 user-owned like `hook.md` —
+  Perry proposes, the user declares."*
+
+  `perry/design/DESIGN-007-the-entity-model.md` decision #2 chose the opposite:
+  **"the store is the definition; the card is rendered output"** — the role card
+  becomes a projection of `.perry/agents.jsonl`, so that `may_touch` and
+  `must_escalate` reach a dispatch pre-flight as typed fields rather than as
+  prose a runtime re-extracts, which is what `ADR-007` rule 2 forbids.
+  DESIGN-007 `§ 5.3` states the consequence directly: *"The Agent row used to be
+  the exception and no longer is."*
+
+  **Both sentences above stay as written.** This document is append-only, and a
+  reader needs to see what was decided on 2026-08-17 and what replaced it,
+  rather than a silently corrected page. What changes here is only that the
+  reversal is now findable from the document that defines the role card:
+  DESIGN-007's header carries `> Revisits: DESIGN-006 § 5.2, § 5.5`.
+
+  Two costs DESIGN-007 names and this document should carry beside its own
+  decision: the switch **moves an ownership row**, so it needs a fresh V5 human
+  signature on `SKILL.md § The hand-off contract` before it ships (DESIGN-007
+  implementation step 2 does not start before that signature exists); and the
+  user loses the ability to hand-edit a card without it reading as drift — the
+  same trade `ADR-007` decision 2 accepted for `BOARD.md`.
+
 - 2026-08-17 — § 6.1 handoff payload written into the doc — the PMO session
   consuming it is a different session; chat output would be invisible to it.
   Content is the lock-time `add-task` rendering, not new scope.

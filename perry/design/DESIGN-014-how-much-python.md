@@ -232,6 +232,134 @@ not wait for any of this.
 
 ## 9. Changes     <!-- append-only after lock -->
 
+- **2026-09-02 — `§ 1`'s 10:1 headline counts the test suite as product. The
+  arithmetic is right; the denominator is not. `§ 5.1`'s conclusion survives on
+  the honest number.** The opening sentence — *"It is shipped as 97,474 lines of
+  Python and 9,810 lines of prose"* — sums `bin/` + `viewer/` + `tests/`, and
+  the table below it says so plainly. But a test suite is not shipped and is not
+  the thing "the product is the 10%" is about, and **this document already
+  argues against its own framing twice**: `§ 3`'s first Non-Goal (*"Not a
+  line-count target"*) and `§ 8` open question 2, which quietly uses the right
+  denominator (`62,441 : 35,033`, i.e. `tests/` against `bin/` + `viewer/`).
+  `§ 8` question 3 then asks whether `tests/` should be measured the same way as
+  `bin/` at all — the question `§ 1` answered by assumption.
+
+  **Re-measured 2026-09-02** on `coding/task-247-config-predicate`.
+  *Instrument, stated because the number depends on it*: every path
+  `git ls-tree -r` reports under `bin/`, `viewer/` and `tests/` that is Python
+  source — `*.py`, plus extensionless files whose first line is a `python`
+  shebang — with `__pycache__` excluded, counted by newline. Not a working-tree
+  `find`.
+
+  | | lines | files |
+  |---|---|---|
+  | `bin/` | 29,258 | 16 |
+  | `viewer/` | 4,993 | 2 |
+  | `tests/` | 65,360 | 124 |
+  | **shipped product** — `bin/` + `viewer/` | **34,251** | 18 |
+  | **prose** — `§ 1`'s own definition, re-walked | **9,887** | 53 |
+
+  On `main` at `d49964e` the same instrument returns `bin/` 29,233 ·
+  `viewer/` 4,990 · `tests/` 65,229 — 99,452 total, 34,223 product; **prose is
+  9,887 / 53 files on both**, none of `§ 1`'s prose paths having changed today,
+  so both ratios below round the same either way. Both trees are given because
+  the code figures differ, and a number that reproduces on only one checkout is
+  the defect this entry is about.
+
+  A note on `§ 1`'s own figures, since this entry corrects the framing and not
+  the arithmetic: `viewer/ 4,990` reproduces *exactly* under this instrument on
+  `main`, which is evidence `§ 1` counted Python source rather than sweeping the
+  directory. `bin/ 30,043` and `tests/ 62,441` are one day older and are not
+  re-derivable from this checkout; they are not disputed here.
+
+  - **With `tests/`, as `§ 1` has it: 99,611 : 9,887 — still 10:1.** The
+    headline is not saved by the test suite and does not need it.
+  - **Product against prose: 34,251 : 9,887 — 3.5:1.** This is the ratio
+    `§ 5.1` is actually about, and the one `§ 8` question 2 was already using.
+
+  Two instrument warnings, because this document's numbers get re-cited:
+
+  1. **`find bin -type f -exec wc -l` returns 36,390 and is wrong for this
+     claim.** `__pycache__/*.pyc` is *tracked* in this repository (5,994
+     newline-counted bytes of bytecode under `bin/`), and the naive sweep also
+     picks up `bin/README.md` (296) and 842 lines of `bash`. Compiled artifacts
+     and shell are not "lines of Python".
+  2. **Four `bin/` tools are `bash`, not Python** — `perry-codex-preflight`
+     (150), `perry-detect-host` (101), `perry-dispatch-limit` (404),
+     `perry-update-check` (187). `§ 5.1` places `perry-dispatch-limit` in
+     category C with a line count, so goal 1's scope is *tools*, not Python
+     files. The categories and the ratio are counting two different populations,
+     and that is fine as long as nobody adds them together.
+
+  `§ 1`'s table is left exactly as written.
+
+- **2026-09-02 — goal 1 is not met by this document. Six tools in `bin/` and
+  `viewer/` are placed in no category at all.** Goal 1 requires that *"Every
+  tool in `bin/` and `viewer/` is placed in exactly one of three categories …
+  with the reason stated per tool."* Re-derived 2026-09-02 by taking every tool
+  in `bin/` and `viewer/` (excluding `bin/README.md` and `__pycache__`) and
+  checking it against all three `§ 5.1` tables:
+
+  | unplaced tool | lines | appears in § 5.1? |
+  |---|---|---|
+  | `bin/perry-okr` | 44 | no — named once in `§ 1` prose (*"run `perry-okr render --write`"*), never categorized |
+  | `bin/perry-config` | 46 | no — absent from the document |
+  | `bin/perry-codex-preflight` | 150 | no — absent from the document |
+  | `bin/perry-detect-host` | 101 | no — absent from the document |
+  | `bin/perry-update-check` | 187 | no — absent from the document |
+  | `viewer/tables.py` | 387 | no — `§ 5.1` names `viewer/parsers.py` only |
+
+  **Six tools, 915 lines.** Small, which is why they were missed, and none of
+  them is obviously category A: an unplaced tool is one nobody has asked goal 2's
+  question of, and goal 2 says a tool that cannot answer it *is* category three.
+
+  Seventh, and different in kind: **`bin/perry-goals` (3,380) is placed only by
+  the fragment `perry-goals link`.** `§ 5.1` writes it *"part of 3,380"* — the
+  same admission it makes for `perry-task` and `perry-lint` — but `§ 6` step 1,
+  which is the commitment to *retire* those admissions by measuring the split at
+  the call site, names **`perry-task` and `perry-lint` only**. So `perry-goals`
+  carries the admission with nothing scheduled to discharge it, and it is the
+  third-largest file in `bin/`. `§ 6` step 1's *"40% of `bin/` is two files"*
+  reproduces on both trees: 7,522 + 4,493 = 12,015 of 29,258 on
+  `coding/task-247-config-predicate` (41%), and 7,522 + 4,483 = 12,005 of
+  29,233 on `main` (41%). The six line counts in the table above are identical
+  on both.
+
+  Goal 1's text stays as written; it is a goal this document did not meet, not a
+  goal that was wrong.
+
+- **2026-09-02 — decision 3's stated objection is still unanswered, and `§ 5.1`
+  does not answer it.** `§ 4`'s note on decision 3 raises it sharply and against
+  the decision it then takes:
+
+  > `perry-diagnose` is not adoption and does not depend on the deleted
+  > migrator. But `USER-910` answered that Perry is never pointed at a foreign
+  > project, and `diagnose`'s whole subject is a folder that is not yet
+  > Perry-shaped.
+
+  `§ 5.1`'s category-A justification replies: *"auditing how a folder is
+  structured for agent work is product surface under 'the skill is the product'
+  rather than packaging."* **That answers a different question.** The objection
+  is not what *category* `diagnose` belongs to — it is whether the subject it
+  operates on still exists. A tool can be product surface and still have no
+  folder to point at.
+
+  `§ 2` goal 2 requires every tool that stays to *"state what it computes that
+  an agent reading the stores could get wrong"*, and for `diagnose` the answer
+  depends on the premise the objection puts in doubt. **Marked unanswered
+  rather than answered here**, deliberately: the answer is a user decision and
+  this entry is not the place it gets made.
+
+  One thing that can be settled by measurement, and is: **`USER-910` does not
+  say what the note attributes to it.** Its recorded answer, in
+  `perry/asks.jsonl`, is *"A — delete migration too. `perry-migrate`,
+  `perry_schema.py` and `test_migrate.py` are out; `TASK-097` drops with
+  them."* That deletes the migrator. *"Perry is never pointed at a foreign
+  project"* is a wider claim, and the ask on file does not carry it — see
+  `DESIGN-001 § 9`, 2026-09-02, which measures that both `/perry adopt` and
+  `/perry diagnose` still have callers. Decision 3 is unaffected as a decision;
+  what is unresolved is the ground the objection stands on.
+
 ## 10. References
 
 - `perry/decisions/ADR-011-the-representation-layer-comes-out.md` — the tier plan this doc extends past

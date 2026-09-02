@@ -1,7 +1,7 @@
 # DESIGN-004: The write side has no tool
 
 > Status: locked
-> Date: 2026-08-18 · Locked: 2026-08-16
+> Date: 2026-08-16 · Locked: 2026-08-16
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: — (Perry has no `OKR.md`; declared unlinked, not guessed)
 > Supersedes: —   · Superseded by: —
@@ -417,6 +417,61 @@ it is the one that has to satisfy a person using a different program.
   `agent`, but it interacts with how sign-off is recorded and is unresolved.
 
 ## 9. Changes (append-only after lock)
+
+- **2026-09-02 — `Date:` restored to `2026-08-16`; it had been moved to
+  `2026-08-18` by an edit, which is a thing the header must never record.**
+  The field read `Date: 2026-08-18 · Locked: 2026-08-16` — an authoring date
+  two days *after* the lock, which is unreadable as history and is exactly the
+  claim `ADR-006`, `DESIGN-013` and `DESIGN-014` reason from when they ask
+  *when* a statement in this document became false.
+
+  Settled by git, not by inference:
+
+  | evidence | commit | date |
+  |---|---|---|
+  | `git log --diff-filter=A --follow` — the commit that ADDS this file | `b59a77f` *feat(decide): DESIGN-004 — the write side has no tool* | **2026-08-16** |
+  | `git log -L '4,4:<this file>'` — the commit that first writes `Locked:` | `a7158ae` *DESIGN-004 locked and handed off* (`> Date: 2026-08-16 · Locked: 2026-08-16`) | 2026-08-16 |
+  | the commit that moved the field | `48fffba` *decide(revise): DESIGN-005 — the task store is not the event log (ADR-006)*, whose diff is exactly `-> Date: 2026-08-16` / `+> Date: 2026-08-18` | 2026-08-18 |
+
+  The 2026-08-18 edit itself was correct and is recorded below, in the entry
+  that begins *"`§ 5.3`'s disposability claim was false"*. **What was wrong was
+  the bookkeeping**: an edit after lock belongs in this section and nowhere
+  else, and the header is not a `Changes` entry. `DESIGN-005` carried the same
+  defect from the same commit and is corrected the same way.
+
+- **2026-09-02 — `§ 2` goal 6 and `§ 3`'s "Not a database" Non-Goal promise an
+  architecture three later decisions removed. The sentences stay; this entry is
+  the correction.** `§ 5.1` and `§ 5.3` were amended after lock and `§ 2` / `§ 3`
+  were not — which is the half of the document a reader opens to learn what it
+  commits to.
+
+  Still standing as written, and now false:
+
+  > 6. **The markdown stays canonical and human-editable.** A user who edits
+  > `BOARD.md` in a text editor must not break Perry; the tool is a better path,
+  > never the only path.
+
+  > - **Not a database.** Markdown remains the source of truth. Anything in
+  >   `.perry/` is derived and must be rebuildable from the markdown, or the
+  >   project has two truths and DESIGN-002's whole argument was for nothing.
+
+  Overruled by three active decisions, in order:
+
+  1. `ADR-007 § 6` decision 2 (2026-08-19) — *"Yes — it becomes rendered output,
+     and a hand edit becomes drift."* This ends "never the only path".
+  2. `ADR-010` (2026-08-29, `active`) — *BOARD.md stops existing; the board is
+     what a command prints*, superseding `ADR-007 § 6` decision 2's one
+     sentence. This ends "human-editable" by removing the artifact from the
+     design.
+  3. `DESIGN-013 § 5.1` (locked, adopted as stated) — *"A fact that has a schema
+     lives in exactly one store. A document holds what has no schema. No field
+     lives in both."* This ends "markdown remains the source of truth" as a
+     general rule, and reverses the direction of "rebuildable from the
+     markdown": the store is rebuilt from nothing, and the markdown is rendered
+     from the store.
+
+  Goal 5 — *"No new claimed path in the user's project"* — is a separate
+  question with its own history and is **not** addressed by this entry.
 
 - 2026-08-16 — created — arising from DESIGN-003's five review rounds and a
   front-end integration question from aimark.

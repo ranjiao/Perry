@@ -155,6 +155,47 @@ parser and one migration path, and migrating them separately means running
 `perry-migrate` against the same projects three times. ADR-004's *a project
 migrates once* is the posture; three slices would break it in spirit.
 
+## Status change
+
+**2026-09-02 — the defect this ADR's header narrates is fixed. The header
+stays; this section is where that is recorded.**
+
+The header block above devotes five paragraphs to a live gap found while filing
+this ADR: *"`bin/perry-decide` hardcodes `STATUSES = ("active", "superseded",
+"expired", "archived")` — not in the schema, not in any enum, and with no word
+for drafted, awaiting a decision. So a proposal cannot be filed as one, which is
+why every ADR in this repository reads `active`."* It calls that gap *"this
+ADR's own thesis"*. It is written in the present tense and reads as current;
+it is not. **The header is left exactly as written** — it is the record of what
+was true on 2026-08-19, and this ADR is `active` and append-only.
+
+Confirmed 2026-09-02 by reading the two artifacts, not the rows:
+
+1. **The value space is a schema enum, and it has the missing word.**
+   `schema/state-schema.json § enums.decision_status` is
+   `["proposed", "active", "superseded", "expired", "archived"]` — five values,
+   `proposed` first. There is no `STATUSES` tuple in `bin/perry-decide`.
+2. **The writer refuses rather than falling back to a copy.**
+   `bin/perry-decide § statuses()` reads `enums.decision_status` from the schema
+   and, if the enum is missing, raises `Refused` with *"a writer that fell back
+   to its own copy would be the divergence this enum exists to remove"*. Its
+   docstring names the original defect in this ADR's own terms: *"This used to
+   be a literal here, and that was the bug … Three spellings of one list is how
+   a value gets added to two of them."*
+3. **The binding is re-checked at the write site, not inherited.** `cmd_new`
+   refuses before writing if `BORN_STATUS` is not in `statuses()`; `cmd_status`
+   validates `--status` against the same call; `cmd_list` reports
+   `off_enum_status` for any ADR carrying a value outside it.
+   `tests/test_decide_status_enum.py § TestOneBinding` is what holds it.
+
+**Two things the fix did not change, stated so this is not read as more than it
+is.** The header's observation that *"every ADR in this repository reads
+`active`"* is still nearly true — `perry-decide list` on 2026-09-02 returns 12
+ADRs, 11 `active` and one `superseded`, and none `proposed`. And
+`BORN_STATUS = "active"`, so a new ADR is still *born* `active`; what changed is
+that `proposed` is now a value the schema declares and the writer will accept,
+not that anything routes a draft into it.
+
 ## References
 
 - `perry/decisions/ADR-006-task-store-is-not-the-log.md`

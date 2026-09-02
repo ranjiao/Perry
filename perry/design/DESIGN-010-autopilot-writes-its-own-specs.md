@@ -5,7 +5,7 @@
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: KR-O5.3, KR-O5.4 (`perry/OKR.md` v2, Objective 5 — Tasks are executed by roles that know things)
 > Supersedes: —   · Superseded by: —
-> Revisits: `work/reference/autopilot.md`
+> Revisits: `work/reference/autopilot.md`, `perry/design/DESIGN-007-the-entity-model.md § 5.7`
 
 ## 1. Problem
 
