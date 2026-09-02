@@ -36,6 +36,14 @@ What each store holds
     kind `commitment`  one row of `## Commitments` — the register
                        `bin/perry-goals commit` writes.
     kind `version`     one row of the `## Versioning log` table.
+    kind `objective`   one `### Objective <N> — <title>` heading — DESIGN-009
+                       step 1. The only kind whose site is a HEADING rather
+                       than a row, because an Objective is written as one.
+                       Until it existed an Objective had no record at all: it
+                       was a title string denormalised onto `krs[].objective`,
+                       which is the defect that design is named after. **No
+                       `id` is minted here** — the field is carried and left
+                       empty, and DESIGN-009 step 3 is what fills it.
 
 `.perry/config.jsonl`
 
@@ -195,6 +203,19 @@ TRACK_COLUMNS = table_columns(".perry/config.md", "Tracks")
 STORED: dict[str, tuple[str, ...]] = {
     "kr": ("kind", "version", "objective", "id", "text", "metric", "stretch",
            "deadline", "linked", "qualifier", "form", "order"),
+    # DESIGN-009 § 5.1. `title` and `heading` are two fields on purpose:
+    # `heading` is what the markdown line says, byte for byte, and is what the
+    # renderer reproduces; `title` is what is left after the ordinal prefix,
+    # which is what a consumer displays. One string doing both jobs is why
+    # `krs[].objective` carries `Objective 1 — ` into every KR record.
+    # `version` is ON the record because `OKR.md` holds several version blocks
+    # side by side and each has its own Objectives — the same reason
+    # `okr.jsonl` already carries `KR-O1.1` twice.
+    # `id` is carried and NOT minted (step 1 of that design's plan writes none;
+    # step 3 is the mint). Carrying the empty field rather than adding it later
+    # keeps the field order stable, so the day an id arrives is a changed value
+    # and not a whole-file reshuffle.
+    "objective": ("kind", "id", "version", "title", "heading", "order"),
     "commitment": ("kind", "id", "track", "promise", "to_whom", "due",
                    "status", "by_when_note", "discharged_by", "order"),
     "version": ("kind", "version", "date", "what", "why", "order"),
@@ -240,6 +261,24 @@ def record_key(rec: dict) -> str:
     if kind == "kr":
         return f"kr\x00{rec.get('version','')}\x00{rec.get('objective','')}" \
                f"\x00{rec.get('id','')}"
+    # An Objective is keyed on the path to its heading — the version block it
+    # sits in and the line itself — and NOT on `id`, which is empty here and
+    # minted later (DESIGN-009 step 3). Keying on a field the writer has not
+    # written yet would make all ten of Perry's Objectives one record.
+    #
+    # **So a renamed heading moves the record out of the store's reach**, and
+    # `plan` reports it as `records_not_in_the_file` plus a verbatim line
+    # rather than guessing which record the new heading meant. That is the same
+    # thing the `kr` key above already does — a KR's key embeds the objective
+    # HEADING, so renaming an Objective already orphans every KR under it, and
+    # DESIGN-009 § 1 names that as the cost it exists to remove. Removing it is
+    # steps 3-5 of that design (the mint, the write-back and the two survival
+    # tests), and step 1 must not pre-decide how: the alternative available
+    # here is the `Objective <N>` ordinal, which is the position-derived handle
+    # `schema/goals-list-contract.md § Not here` refuses and decision 1 of the
+    # design calls the trap. Reporting the rename is the honest step-1 answer.
+    if kind == "objective":
+        return f"objective\x00{rec.get('version','')}\x00{rec.get('heading','')}"
     if kind == "commitment":
         return f"commitment\x00{rec.get('id','')}"
     if kind == "version":
@@ -427,6 +466,48 @@ def okr_heading(label: str) -> re.Pattern:
                   f"{label!r}; this tool cannot invent one")
 
 
+#: The prefix of the schema's own label for the Objective heading. Spelled
+#: once, because `okr_objective_heading` reads the LEVEL and the MATCHER off
+#: the entry it finds under it — a second spelling here is how the heading
+#: `perry-lint` validates and the heading this store records would come apart.
+OBJECTIVE_LABEL = "### Objective"
+
+
+def okr_objective_heading() -> tuple[int, re.Pattern]:
+    """`(level, matcher)` for `### Objective <N> — <title>`, off the schema.
+
+    The level matters and is not assumed: `_heading_context` reads `##` as a
+    version block and `###` as the heading inside it, so a scanner that
+    accepted any depth would record `## Objective 1` — a shape `OKR.md` does
+    not declare — as an Objective whose `version` is itself.
+    """
+    for h in _okr_spec().get("headings", []):
+        if h.get("label", "").startswith(OBJECTIVE_LABEL):
+            return int(h.get("level") or 3), heading_pattern(h["match"])
+    raise Refused(f"schema/state-schema.json declares no OKR.md "
+                  f"{OBJECTIVE_LABEL!r} heading; this tool cannot invent one")
+
+
+def objective_title(heading: str, ordinal: re.Pattern) -> str:
+    """`Objective 1 — The four work modes…` → `The four work modes…`.
+
+    DESIGN-009 § 5.1 calls this "the part after the em dash", and an em dash is
+    only what Perry's own file happens to write. `~/proj/gimegime-pmo/OKR.md`
+    writes `### Objective 1: 维持整个资金池的长期稳定收益`, so requiring one
+    separator would store a title with a colon glued to the front of it on the
+    other real project this store is held to.
+
+    So the ORDINAL is what is matched — the schema's own `^(Objective|目标)
+    \\d+`, the same pattern that decided this line is an Objective at all — and
+    whatever separator follows it is stripped. A heading that is nothing but
+    its ordinal yields `""` rather than a guess, and `heading` still carries
+    every byte either way, which is what the renderer reads.
+    """
+    m = ordinal.match(heading)
+    rest = heading[m.end():] if m else heading
+    return rest.lstrip(" \t—–-:：·").strip()
+
+
 def table_under(file_path: str, needle: str) -> re.Pattern:
     """The heading regex one schema-declared table sits under.
 
@@ -516,6 +597,33 @@ def scan_okr(text: str) -> tuple[list[str], list[dict]]:
             "slots": [(shift + m.start(1), shift + m.end(1), "id"),
                       (shift + m.start(3), shift + m.end(3), "text")],
         })
+    # **The Objective headings themselves** — DESIGN-009 step 1. Every other
+    # site in this file is a row of a table or a bullet; this one is a heading,
+    # because that is how an Objective is written. It is scanned AFTER the KR
+    # tables and the KR bullets and lands in the same list, so the heading and
+    # the KRs under it come out of one scan and cannot come to disagree about
+    # which version block they are in.
+    obj_level, obj_ordinal = okr_objective_heading()
+    obj_line = re.compile(r"^(#{%d}\s+)(.*?)\s*$" % obj_level)
+    for i, line in enumerate(lines):
+        m = obj_line.match(line)
+        if not m or not obj_ordinal.match(m.group(2)):
+            continue
+        heading = m.group(2)
+        h2, _h3 = ctx[i]
+        sites.append({
+            "line": i, "kind": "objective", "how": "slots",
+            "values": {"version": h2, "heading": heading,
+                       "title": objective_title(heading, obj_ordinal)},
+            # ONE slot, over the heading text and nothing else. The hashes and
+            # the space after them are literal, and so is any trailing
+            # whitespace the author left — `render_line` puts both back around
+            # the stored value, which is what makes this line rebuildable from
+            # `heading` alone.
+            "slots": [(len(m.group(1)),
+                       len(m.group(1)) + len(heading), "heading")],
+        })
+
     sites.sort(key=lambda s: s["line"])
     return lines, sites
 
@@ -1147,9 +1255,10 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
 # docstring described, goes with it.
 
 
-__all__ = ["CONFIG", "COMMANDS", "CONFIG_TITLE", "DOCS", "OKR", "Doc",
-           "Refused", "STORED", "TRACKS_HEADING", "derive", "field_map",
-           "load_store", "main", "plan", "record", "record_key", "render",
+__all__ = ["CONFIG", "COMMANDS", "CONFIG_TITLE", "DOCS", "OBJECTIVE_LABEL",
+           "OKR", "Doc", "Refused", "STORED", "TRACKS_HEADING", "derive",
+           "field_map", "load_store", "main", "objective_title",
+           "okr_objective_heading", "plan", "record", "record_key", "render",
            "scaffold_config", "scan_config", "scan_okr", "setting_key",
            "store_text", "stored_value", "touches", "validate_records",
            "would_discard"]
