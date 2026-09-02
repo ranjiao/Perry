@@ -15,9 +15,10 @@ staleness became visible, not that the numbers became right** — no figure was
 re-measured, and the round refuses to add automatic regeneration. See
 §6 for what was deliberately not earned.
 
-Final `bash tests/run` at `67dca23`: **exit 0, all green**, 109 modules / 3027
-tests / 511.3s at 8 workers, load 42.27 → 10.06. Baseline at `d49964e` was also
-0 failures, so the round is failure-neutral.
+Final `bash tests/run` at `69ca5eb`: **exit 0, all green**, 109 modules / 3027
+tests / 307.2s at 8 workers, load 5.98 → 9.35, tree guard clean, zero `✗`
+markers. Baseline at `d49964e` was also 0 failures, so the round is
+failure-neutral.
 
 Two things on this page are flagged rather than claimed: §4a is a false signal
 this round's own first version shipped and the suite caught, and §7a is an
@@ -314,23 +315,25 @@ which is what step 0a requires.
 | | ref / tree | modules | tests | step 2 wall | load at start (1/5/15) | load at end | failures |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **before** | `d49964e`, pristine extract in scratchpad | 108 | 3003 | 408.7s @ 8 workers | `13.38 32.30 42.01` | `12.06 26.02 36.06` | **0** |
-| interim | `618bc9b`, worktree | 109 | 3026 | 359.1s @ 8 workers | `9.20 20.28 31.77` | `19.33 21.16 28.51` | **2 modules** (§4a, §7a) |
-| **after** | `67dca23`, worktree | 109 | 3027 | 511.3s @ 8 workers | `42.27 38.45 35.21` | `10.06 26.06 31.83` | **0** |
+| interim | `618bc9b`, worktree | 109 | 3026 | 359.1s @ 8 workers | `9.20 20.28 31.77` | `19.33 21.16 28.51` | **2 modules** — §4a and §7a |
+| interim | `67dca23`, worktree | 109 | 3027 | 511.3s @ 8 workers | `42.27 38.45 35.21` | `10.06 26.06 31.83` | 0, but green via the fourth mark (§7a) |
+| **after** | `69ca5eb`, worktree | 109 | 3027 | 307.2s @ 8 workers | `5.98 10.82 19.17` | `9.35 10.08 16.29` | **0** |
 
-Runner that produced all three: `bash tests/run`, whose step 2 is
-`python3 tests/parallel` at its default `-j 8`. All three with `PERRY_PROJECT`
-and `PERRY_HOME` unset, which step 0a requires. Exit 0 on before and after; tree
-guard clean on all three.
+Runner that produced all four: `bash tests/run`, whose step 2 is
+`python3 tests/parallel` at its default `-j 8`. All four with `PERRY_PROJECT`
+and `PERRY_HOME` unset, which step 0a requires. Exit 0 on the before and after
+rows; tree guard clean on all four (`✓ nothing under … moved`). The after run
+printed **zero** `✗` markers of any kind.
 
 **The wall-clock figures are not comparable to each other and are not offered
-as one.** 408.7s at load 13, 359.1s at load 9→19, 511.3s at load 42→10, with
-four other agents running suites throughout. TASK-230 already established that
-single wall-clock measurements on this machine swing 2x on foreign load, which
-is the reason this row exists at all. The comparable numbers are the **failure
-counts** and the **test counts**: 3003 → 3027, the +24 being this row's new
-module, and 0 → 0.
+as one.** 408.7s at load 13, 359.1s at load 9→19, 511.3s at load 42→10, 307.2s
+at load 6→9, with four other agents running suites throughout. TASK-230 already
+established that single wall-clock measurements on this machine swing 2x on
+foreign load, which is the reason this row exists at all. The comparable numbers
+are the **failure counts** and the **test counts**: 3003 → 3027, the +24 being
+this row's new module, and **0 → 0**.
 
-Baseline ran 22:45:43–22:52:34 CST; the final run 23:12:02–23:20:33.
+Baseline ran 22:45:43–22:52:34 CST; the final run 23:32:42–23:37:57.
 
 The final run's banner, printed with no flag:
 
