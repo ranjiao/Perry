@@ -262,6 +262,211 @@ class TestTheIdParserSeesEveryOutcome(unittest.TestCase):
                          "module ran")
 
 
+def twice_failing_stderr(pad: int = 40) -> str:
+    """`unittest -v` output for a module whose TWO tests both failed.
+
+    Copied line for line from a real run of a two-failure module on
+    2026-09-02, with the assertion body parameterised so the test can push the
+    FIRST failure's `FAIL:` header out of any tail window it likes. That
+    header falling out is the whole defect: at `[-25:]` the excerpt showed one
+    header for two failures and said nothing.
+    """
+    first = "\n".join(f"first-failure detail line {i:02d}" for i in range(pad))
+    bar, dash = "=" * 70, "-" * 70
+    return (
+        "test_first_failure (test_zz.TwiceFailing.test_first_failure) ... FAIL\n"
+        "test_second_failure (test_zz.TwiceFailing.test_second_failure) ... FAIL\n"
+        "\n"
+        f"{bar}\n"
+        "FAIL: test_first_failure (test_zz.TwiceFailing.test_first_failure)\n"
+        f"{dash}\n"
+        "Traceback (most recent call last):\n"
+        '  File "/tmp/test_zz.py", line 10, in test_first_failure\n'
+        "    self.fail(...)\n"
+        "AssertionError: FIRST failure\n"
+        f"{first}\n"
+        "\n"
+        f"{bar}\n"
+        "FAIL: test_second_failure (test_zz.TwiceFailing.test_second_failure)\n"
+        f"{dash}\n"
+        "Traceback (most recent call last):\n"
+        '  File "/tmp/test_zz.py", line 13, in test_second_failure\n'
+        "    self.fail(...)\n"
+        "AssertionError: SECOND failure\n"
+        "\n"
+        f"{dash}\n"
+        "Ran 2 tests in 0.001s\n"
+        "\n"
+        "FAILED (failures=2)\n")
+
+
+def twice_failing_result(pad: int = 40) -> dict:
+    err = twice_failing_stderr(pad)
+    return {"mod": "test_zz.py", "rc": 1, "ran": 2, "sec": 0.1, "err": err,
+            "ids": P.parse_ids(err)}
+
+
+class TestARedModulesFailureCountSurvivesTheExcerpt(unittest.TestCase):
+    """TASK-251. **A failure that only exists inside a 25-line window is a
+    failure the runner can lose, and it lost one.**
+
+    The block printed for a red module used to be the module name and
+    `err.strip().splitlines()[-25:]`, with nothing marking the cut. On
+    2026-08-30 the TASK-249 agent found the mechanism while retracting a
+    failure count this output had produced: a module that fails twice keeps
+    the SECOND failure's `FAIL:` header inside the window and loses the
+    FIRST's, so a reader counting headers counts one failure where there were
+    two — and every spec in this project asks the agent to report a baseline
+    failure count taken from exactly here.
+
+    So the counts and the names are computed from the WHOLE stream and printed
+    ABOVE the excerpt, and the excerpt says when it is a window and how big a
+    bite it took. These tests hold both halves; the class after this one holds
+    the part that is wired into `main()`, because a helper with unit tests and
+    no asserted caller is this repository's named defect shape.
+    """
+
+    def test_the_first_failure_is_named_even_when_its_header_is_truncated_away(self):
+        """The reproduction, as an assertion.
+
+        `pad=40` puts the first `FAIL:` header 47 lines above the end, well
+        outside the 25-line window — exactly as the live repro did.
+        """
+        r = twice_failing_result(pad=40)
+        block = P.failure_block(r)
+        self.assertNotIn("FAIL: test_first_failure", P.excerpt(r["err"]),
+                         "the fixture does not reproduce the truncation this "
+                         "test is about — raise pad")
+        self.assertIn("test_zz.TwiceFailing.test_first_failure", block,
+                      "the first failure is nowhere in what the runner prints")
+        self.assertIn("test_zz.TwiceFailing.test_second_failure", block)
+
+    def test_the_block_states_two_tests_failed(self):
+        self.assertIn("2 of 2 test(s) failed",
+                      P.failure_block(twice_failing_result(pad=40)))
+
+    def test_the_excerpt_says_how_many_lines_it_dropped(self):
+        """The elision is announced, with a number, or it is silent again.
+
+        This is the assertion a bare `[-25:]` slice cannot satisfy.
+        """
+        err = "\n".join(f"line {i}" for i in range(60))
+        out = P.excerpt(err, limit=25)
+        self.assertIn("35 earlier line(s) elided of 60", out)
+        self.assertEqual(out.splitlines()[-1], "line 59")
+        self.assertEqual(len(out.splitlines()), 26, "notice + 25 lines")
+
+    def test_output_that_fits_is_printed_whole_and_claims_no_elision(self):
+        """The other direction, so the test above cannot pass by shouting
+        'truncated' at every module."""
+        err = "\n".join(f"line {i}" for i in range(25))
+        out = P.excerpt(err, limit=25)
+        self.assertEqual(out, err)
+        self.assertNotIn("elided", out)
+
+    def test_the_default_window_is_the_one_the_runner_uses(self):
+        long_err = "\n".join(f"line {i}" for i in range(100))
+        self.assertEqual(P.excerpt(long_err), P.excerpt(long_err, P.TAIL_LINES))
+        self.assertIn("elided", P.excerpt(long_err))
+
+    def test_failing_ids_reads_fails_and_errors_and_nothing_else(self):
+        r = {"ids": [("m.C.a", "ok"), ("m.C.b", "FAIL"), ("m.C.c", "ERROR"),
+                     ("m.C.d", "skipped"), ("m.C.e", "expected")]}
+        self.assertEqual(P.failing_ids(r),
+                         [("m.C.b", "FAIL"), ("m.C.c", "ERROR")])
+
+    def test_unittest_own_tally_is_read_from_its_verdict_line(self):
+        self.assertEqual(P.unittest_bad_count("FAILED (failures=2)\n"), 2)
+        self.assertEqual(
+            P.unittest_bad_count("FAILED (failures=1, errors=3)\n"), 4)
+        self.assertEqual(
+            P.unittest_bad_count("FAILED (errors=1, skipped=9)\n"), 1)
+        self.assertEqual(P.unittest_bad_count("OK\n"), None)
+
+    def test_a_module_with_no_verdict_line_is_not_reported_as_zero_failures(self):
+        """**None is not zero.** A module that died before unittest could
+        total anything has an unknown failed-test count, and printing `0 of 0
+        test(s) failed` under a red module is the same class of wrong number
+        this row exists to remove.
+        """
+        r = {"mod": "test_zz.py", "rc": 7, "ran": 0, "sec": 0.1,
+             "err": "boom, about to die\n", "ids": []}
+        block = P.failure_block(r)
+        self.assertIn("NOT known", block)
+        self.assertNotIn("0 of 0 test(s) failed", block)
+
+    def test_a_disagreement_between_the_two_counts_is_named_and_the_larger_wins(self):
+        """Two origins for one number, and the runner may not quietly pick.
+
+        unittest's own tally and the id parser's are independent. The parser
+        is the one that has understated before — fourteen ids missing out of
+        2899, see `parse_ids` — so the larger is reported and the
+        disagreement is printed rather than smoothed over.
+        """
+        r = {"mod": "test_zz.py", "rc": 1, "ran": 9, "sec": 0.1,
+             "err": "FAILED (failures=3)\n", "ids": [("m.C.a", "FAIL")]}
+        self.assertEqual(P.failed_test_count(r), 3)
+        block = P.failure_block(r)
+        self.assertIn("3 of 9 test(s) failed", block)
+        self.assertIn("unittest counted 3", block)
+        self.assertIn("id parser named 1", block)
+
+
+class TestTheTwoCountsAreWiredIntoMainAndNamedApart(unittest.TestCase):
+    """`failure_block` being right is not the same as `main()` printing it.
+
+    The class below this one already carries that scar: a V4 round deleted a
+    guard's USE and the whole suite stayed green, because the helper had unit
+    tests and its caller had none. So `main()` is driven here with
+    `run_module` stubbed, and the two numbers are asserted to reach stdout as
+    two separately-labelled numbers — because `N module(s) red` alone, read as
+    a test count, is one of the three numbers TASK-251 is about.
+    """
+
+    def _main(self, results: list[dict]) -> tuple[int, str]:
+        by_mod = {r["mod"]: r for r in results}
+        old_run, old_argv = P.run_module, sys.argv
+        P.run_module = lambda name: by_mod[name]
+        sys.argv = ["parallel"] + [r["mod"].removesuffix(".py")
+                                   for r in results]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                rc = P.main()
+        finally:
+            P.run_module, sys.argv = old_run, old_argv
+        return rc, buf.getvalue()
+
+    def test_a_twice_failing_module_reports_two_failed_tests_in_one_red_module(self):
+        """The reproduction, end to end through `main()`.
+
+        One MODULE red and TWO TESTS failed are different numbers. Both are
+        printed, both are labelled, and neither is read off the excerpt.
+        """
+        r = dict(twice_failing_result(pad=40), mod="test_parallel_runner.py")
+        rc, out = self._main([r])
+        self.assertEqual(rc, 1)
+        self.assertIn("1 of 1 MODULE(S) red", out)
+        self.assertIn("2 of 2 TEST(S) failed", out)
+        self.assertIn("test_zz.TwiceFailing.test_first_failure", out)
+        self.assertIn("test_zz.TwiceFailing.test_second_failure", out)
+
+    def test_main_announces_the_elision_rather_than_slicing_silently(self):
+        r = dict(twice_failing_result(pad=40), mod="test_parallel_runner.py")
+        _, out = self._main([r])
+        self.assertIn("earlier line(s) elided", out)
+
+    def test_a_green_run_prints_neither_count(self):
+        """So the two assertions above cannot pass by printing failures
+        unconditionally."""
+        r = {"mod": "test_parallel_runner.py", "rc": 0, "ran": 3, "sec": 0.1,
+             "err": "OK\n", "ids": [(f"m.C.t{i}", "ok") for i in range(3)]}
+        rc, out = self._main([r])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("MODULE(S) red", out)
+        self.assertNotIn("TEST(S) failed", out)
+
+
 class TestTheRefusalIsWiredIntoMainAndNotJustDefined(unittest.TestCase):
     """`unaccounted()` being right is not the same as `main()` using it.
 
