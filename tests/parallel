@@ -281,7 +281,7 @@ def git_ancestor(ref: str, root: pathlib.Path | None = None) -> bool | None:
 def audit(mods: list[str], doc: dict, ancestor=git_ancestor) -> dict:
     """What the durations file says about the tree in front of it.
 
-    `mods` is the live glob. Six conditions, and the first three are drift the
+    `mods` is the live glob. Seven conditions, and the first three are drift the
     file may not be left in — see `drift()` — while the rest are reported
     every run and gate nothing.
 
@@ -337,17 +337,28 @@ def drift(report: dict) -> list[str]:
     have to be switched off on the day it landed; making them visible on every
     run is what the row asked for. `tests/test_durations_provenance.py` is
     what turns this list into a verdict.
+
+    **The module name may not lead the line, and that is not cosmetic.**
+    `main()` already prints `✗ {mod}` to mean "this module is RED", and the
+    first version of this function produced `✗ {mod}: on disk, and …` for a
+    module that had merely never been measured. `tests/test_tree_guard.py`
+    caught it: that class plants a new module into a copied repo, runs the
+    suite narrowed to it, and asserts `✗ {planted module}` is absent from the
+    output because the plant is supposed to PASS. A brand-new module is by
+    definition not in `durations.json`, so the banner claimed a passing module
+    had failed. Leading with the condition instead keeps the runner's one
+    marker meaning one thing.
     """
     lines = []
     for m in report["phantom"]:
-        lines.append(f"{m}: recorded, and there is no such module — a deleted "
+        lines.append(f"no such module, still recorded: {m} — a deleted "
                      f"module's time is not a hint, it is a fossil")
     for m in report["unlisted"]:
-        lines.append(f"{m}: on disk, and the durations file does not mention "
-                     f"it — it will sort as inf and run first by accident")
+        lines.append(f"not in durations.json: {m} — it is on disk and will "
+                     f"sort as inf and run first by accident, not by decision")
     for m, src_id in report["dangling"]:
-        lines.append(f"{m}: names source {src_id!r}, which the file does not "
-                     f"define — a stamp that cannot be read is not a stamp")
+        lines.append(f"undefined source {src_id!r}: {m} — a stamp that "
+                     f"cannot be read is not a stamp")
     return lines
 
 

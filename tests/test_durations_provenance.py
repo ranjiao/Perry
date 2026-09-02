@@ -322,6 +322,39 @@ class TestTheReportNamesWhatIsWrong(unittest.TestCase):
         self.assertIn("every module on disk is accounted for",
                       "\n".join(P.format_audit(r)))
 
+    def test_a_drift_line_never_starts_with_the_runners_module_red_marker(self):
+        """**A regression, and it was a real false signal.**
+
+        `main()` prints `✗ {mod}` to mean "this module is RED". The first
+        version of `drift()` produced `✗ {mod}: on disk, and …` for a module
+        that had merely never been measured — the same marker, for a module
+        that had passed.
+
+        `tests/test_tree_guard.py` caught it: `TestThePlantedWrite` plants a
+        new module into a copied repo, runs the suite narrowed to it, and
+        asserts `✗ {planted module}` is absent because the plant is supposed
+        to pass. A brand-new module is by definition not in `durations.json`,
+        so the banner accused a passing module of failing.
+
+        That test takes 160s and reaches this through two subprocesses. This
+        one is the direct statement of the rule: no drift line may begin with
+        a module name, so the runner's one marker keeps meaning one thing.
+        """
+        r = self._report({"test_gone.py": {"sec": 9.0, "source": "s"}},
+                         ["test_planted.py"])
+        lines = P.drift(r)
+        self.assertEqual(len(lines), 2)
+        for line in lines:
+            self.assertFalse(
+                line.startswith(("test_", "tests/")),
+                f"a drift line leads with a module name: {line!r} — printed "
+                f"after main()'s '✗ ' prefix this is indistinguishable from "
+                f"the marker that means the module FAILED")
+        joined = "\n".join(P.format_audit(r))
+        self.assertNotIn("✗ test_planted.py", joined)
+        self.assertNotIn("✗ test_gone.py", joined)
+        self.assertIn("test_planted.py", joined)   # still named, just not first
+
     def test_the_banner_states_the_counts_a_reader_needs(self):
         r = self._report({"test_a.py": {"sec": 1.0, "source": "s"},
                           "test_b.py": {"sec": None, "source": "s"}},
