@@ -2,7 +2,7 @@
 
 > Design: — (phase KR row, not design-derived)
 > Dispatch mode: auto
-> Executor: codex (self-contained: three call sites in two files, no MCP needed, and the predicate to reuse already exists)
+> Executor: claude-subagent — **switched from `codex` 2026-09-02, and the reason is environmental, not a judgement about the work.** `bin/perry-codex-preflight` PASSED (codex-cli 0.148.0, smoke test green, cached 6h), but this Claude Code session's auto-mode classifier blocks `codex exec` outright — including `codex exec --help` — so the executor is unreachable from here regardless of the CLI being healthy. The original reasoning still holds and is recorded in case a session without that restriction picks the row up: self-contained, three call sites in two files, no MCP needed, and the predicate to reuse already exists.
 > Estimated cycle: small
 > Subjective verification: (none) — the acceptance is a count of call sites plus a mutation
 > Touches architecture: (none) — Perry has no `ARCHITECTURE.md`
