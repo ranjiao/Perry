@@ -47,24 +47,18 @@ import sys
 import tempfile
 import unittest
 
+from store_fixture import StoreFixture
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LINT = ROOT / "bin" / "perry-lint"
 TASKS = ROOT / "bin" / "perry-tasks"
 
 
-class Fixture(unittest.TestCase):
-    """Perry's own project, copied WITH its store — the canonical arrangement."""
+class Fixture(StoreFixture):
+    """A minimal project copied with its canonical task store."""
 
     def project(self) -> pathlib.Path:
-        d = pathlib.Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        shutil.copytree(ROOT / "perry", d / "perry")
-        shutil.copytree(ROOT / ".perry", d / ".perry",
-                        ignore=shutil.ignore_patterns("*.lock"))
-        self.assertTrue((d / "perry" / "tasks.jsonl").exists(),
-                        "this fixture is the WITH-store case; if the repo "
-                        "stopped tracking its store, that is the news")
-        return d
+        return super().project(with_store=True)
 
     def records(self, d: pathlib.Path) -> list[dict]:
         text = (d / "perry" / "tasks.jsonl").read_text(encoding="utf-8")
@@ -273,7 +267,7 @@ class AFindingNamesItsOwnRow(Fixture):
         anywhere in the line made that count as a row, and the finding pointed
         at the dependent's line number.
         """
-        d = self.project()
+        d = self.full_project()
         recs = self.records(d)
         board = (d / "perry" / "BOARD.md").read_text(encoding="utf-8")
 

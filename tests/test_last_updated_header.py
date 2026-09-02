@@ -31,7 +31,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from test_task_writer import PT, TASKS, TOOL, BOARD, Project
+from task_writer_support import PT, TASKS, TOOL, BOARD, Project
 
 TODAY = f"{date.today():%Y-%m-%d}"
 

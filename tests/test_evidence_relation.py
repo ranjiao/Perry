@@ -50,7 +50,7 @@ import unittest
 import sys
 from pathlib import Path as _Path
 
-from test_task_writer import PT, PERRY_HOME, TOOL
+from task_writer_support import PT, PERRY_HOME, TOOL
 
 sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "bin"))
 import lib  # noqa: E402
@@ -278,12 +278,12 @@ class TestTheShapeIsTheOneThatFitsTheCells(unittest.TestCase):
         count survives across two entries, verbatim, and the pair still
         reassembles to the cell."""
         rel = PT.evidence_relations(
-            "bin/perry-task, tests/test_task_writer.py (21 tests, "
+            "bin/perry-task, tests/test_task_writer_core.py (21 tests, "
             "3 mutations verified)", PERRY_HOME, PERRY_HOME)
         self.assertEqual([e["path"] for e in rel],
-                         ["bin/perry-task", "tests/test_task_writer.py", ""])
+                         ["bin/perry-task", "tests/test_task_writer_core.py", ""])
         self.assertEqual(rel[1]["text"],
-                         "tests/test_task_writer.py (21 tests")
+                         "tests/test_task_writer_core.py (21 tests")
         self.assertEqual(rel[2]["text"], "3 mutations verified)")
         self.assertEqual(rel[2]["kind"], "unresolved")
 

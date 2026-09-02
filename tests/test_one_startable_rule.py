@@ -47,7 +47,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import one_startable_rule as guard                      # noqa: E402
-from test_task_writer import PT, PERRY_HOME, Project    # noqa: E402
+from task_writer_support import PT, PERRY_HOME, Project    # noqa: E402
 
 
 #: The fields the rule decides, read out of a payload as one comparable value.

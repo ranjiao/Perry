@@ -59,7 +59,7 @@ import subprocess
 import sys
 import unittest
 
-from test_task_writer import PT, PERRY_HOME, Project
+from task_writer_support import PT, PERRY_HOME, Project
 from test_one_startable_rule import Graph
 
 

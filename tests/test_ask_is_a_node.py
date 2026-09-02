@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import unittest
 
-from test_task_writer import PT, PERRY_HOME, Project
+from task_writer_support import PT, PERRY_HOME, Project
 
 
 #: A board with no `## User Input Queue` at all. Most projects never ask the

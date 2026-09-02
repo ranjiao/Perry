@@ -24,7 +24,7 @@ import subprocess
 import unittest
 from pathlib import Path
 
-from test_task_writer import PT, Project, PERRY_HOME
+from task_writer_support import PT, Project, PERRY_HOME
 
 TOOL = PERRY_HOME / "bin" / "perry-task"
 TASKS = PERRY_HOME / "bin" / "perry-tasks"

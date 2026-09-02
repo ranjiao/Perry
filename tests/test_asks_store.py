@@ -42,7 +42,7 @@ import sys
 import unittest
 from pathlib import Path
 
-from test_task_writer import PT, Project
+from task_writer_support import PT, Project
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))

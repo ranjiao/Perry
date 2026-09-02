@@ -41,13 +41,12 @@ off the suite**, and their finished work had to be recovered by hand.
 Three things changed here, and the third is the only one that could ever have
 altered a verdict, so it is the one with a guard on it.
 
-**1. Longest module first, and it is the whole speedup.** With 99 modules and
-one worker pool the makespan is `max(longest module, total / workers)` only if
-the long modules START early. Alphabetical order does not know which those are,
-and on this suite it is close to worst case: the three most expensive modules —
-`test_task_writer`, `test_store_drift` and `test_store_is_canonical` — sit at
-alphabetical positions **91, 84 and 85 of 99**, so eight workers spend the run
-on short modules and then draw the longest one with nothing left to overlap it
+**1. Longest module first.** With one worker pool the makespan is
+`max(longest module, total / workers)` only if the long modules START early.
+Alphabetical order does not know which those are. On the 2026-08-30 suite the
+three most expensive modules — `test_task_writer`, `test_store_drift` and
+`test_store_is_canonical` — sat near the end, so eight workers spent the run on
+short modules and then drew the longest one with nothing left to overlap it
 with.
 
 Measured 2026-08-30 on a machine that was NOT quiet (another agent's suite runs
@@ -94,16 +93,21 @@ new module landing last — the very pathology above.
 `min(8, cpu_count())` looks like a leftover from when there were 34 modules,
 and raising it to 14 on this 14-core machine was the obvious change. It buys
 **nothing**: the `floor` column above is `max(longest module, total/workers)`
-and it equals the longest module in all four runs, so once the schedule is
-longest-first the binding constraint is no longer how many modules run at once
-— it is `test_task_writer.py` running alone for two minutes. More workers past
-that point buy zero seconds and cost real contention, and this suite has a
+and it equalled the longest module in all four runs, so once the schedule was
+longest-first the binding constraint was no longer how many modules ran at once.
+More workers past that point bought zero seconds and cost real contention, and
+this suite has a
 concurrency test (`test_host_support.TestOpenCodeDispatchLimit`) that is
 already known to flake under it. **A faster-looking suite that flakes is a
-worse gate than a slow one**, so the number stays where it is until the floor
-moves. Moving it means splitting `test_task_writer.py`, which is a different
-row: sharding below the file changes the isolation boundary the fixtures
-assume, and this row deliberately did not do it.
+worse gate than a slow one.**
+
+The floor moved on 2026-09-01 without changing the isolation boundary:
+`test_task_writer.py` was split by test class into five modules, preserving all
+281 normalized `Class.test_method` ids. Its measured wall time moved from
+115.5s to 27.2s, while minimal store fixtures moved the two other former
+long-tail modules to 12.6s together. The worker count remains 8 until a fresh
+controlled comparison shows a higher value improves the new suite rather than
+only adding contention.
 
 **3. `--ids` writes the pass/fail SET, not just its size.** The zero-test guard
 catches a module that stopped loading. It does not catch a module that loaded

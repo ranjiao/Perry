@@ -39,7 +39,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from test_task_writer import PT, Project
+from task_writer_support import PT, Project
 
 
 #: The three families, as (subcommand, argv tail, prefix, board section). One

@@ -36,41 +36,21 @@ import sys
 import tempfile
 import unittest
 
+from store_fixture import StoreFixture
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LINT = ROOT / "bin" / "perry-lint"
 TASKS = ROOT / "bin" / "perry-tasks"
 
 
-class Fixture(unittest.TestCase):
-    """A copy of Perry's own project, which is the only real board there is."""
+class Fixture(StoreFixture):
+    """A minimal project containing only the task store and its projection."""
 
-    def project(self) -> pathlib.Path:
-        """A project with NO store — `self.store(d)` adds one.
-
-        **`perry/tasks.jsonl` now exists in this repository.** TASK-089 made it
-        the write target, so copying `perry/` inherits a store whether the test
-        wants one or not, and every no-store assertion below silently became a
-        with-store assertion. Two tests failed the moment it was tracked, which
-        is the transition working rather than a regression — the fixture has to
-        say which case it is building.
-        """
-        d = pathlib.Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        shutil.copytree(ROOT / "perry", d / "perry",
-                        ignore=shutil.ignore_patterns("tasks.jsonl"))
-        shutil.copytree(ROOT / ".perry", d / ".perry",
-                        ignore=shutil.ignore_patterns("*.lock"))
-        return d
+    def project(self, **kwargs) -> pathlib.Path:
+        return super().project(**kwargs)
 
     def store(self, d: pathlib.Path) -> pathlib.Path:
-        proc = subprocess.run([sys.executable, str(TASKS), "write",
-                               "--from-board",
-                               "--root", str(d)],
-                              capture_output=True, text=True, cwd=ROOT)
-        self.assertEqual(proc.returncode, 0, proc.stderr[-400:])
-        path = d / "perry" / "tasks.jsonl"
-        self.assertTrue(path.exists(), "the fixture wrote no store")
-        return path
+        return self.write_store(d)
 
     def lint(self, d: pathlib.Path, *extra) -> tuple[int, dict]:
         proc = subprocess.run([sys.executable, str(LINT), "--root", str(d),
@@ -326,8 +306,7 @@ class TestBothRowSetDirectionsAreReported(Fixture):
 
     def test_terminal_records_derived_from_history_remain_clean(self):
         """Real done/drop events explain why terminal rows are off the Board."""
-        d = self.project()
-        self.store(d)
+        d = self.full_project()
         terminal = {record["status"]: record["id"]
                     for record in self.records(d)
                     if record.get("status") in ("done", "dropped")}
@@ -433,7 +412,7 @@ class TestSharedStoreValidationIsUsed(Fixture):
         self.assertFalse(payload["store_drift"]["comparison_performed"])
 
 
-class TestOneCheckMayNotKillTheLint(unittest.TestCase):
+class TestOneCheckMayNotKillTheLint(StoreFixture):
     """**Four reachable store states used to kill the whole lint**, rc 2 and no
     `--json` payload — found by a V4 round looking for the case the author had
     not listed.
@@ -448,20 +427,7 @@ class TestOneCheckMayNotKillTheLint(unittest.TestCase):
     """
 
     def project(self, write_store):
-        import shutil
-        import tempfile
-        d = pathlib.Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        (d / "perry").mkdir()
-        (d / ".perry").mkdir()
-        (d / ".perry" / "config.md").write_text("State root: perry\n")
-        shutil.copy(ROOT / "perry" / "BOARD.md", d / "perry" / "BOARD.md")
-        # **The event log, or this fixture asserts nothing (TASK-117).** The
-        # store comparison derives its left-hand side with
-        # `perry-tasks.build()`, which reads the board AND the log, so a
-        # project without one is now reported unchecked and every assertion
-        # about what the comparison FOUND passes vacuously.
-        shutil.copy(ROOT / ".perry" / "events.jsonl", d / ".perry" / "events.jsonl")
+        d = super().project()
         write_store(d / "perry" / "tasks.jsonl")
         return d
 
@@ -758,6 +724,9 @@ class MarkdownStore(Fixture):
     Both stores ship in this repository, so `self.project()` inherits them —
     unlike `tasks.jsonl`, which the fixture strips.
     """
+
+    def project(self) -> pathlib.Path:
+        return super().project(markdown_stores=True)
 
     def edit_a_cell(self, d: pathlib.Path, rel: str, pattern: str,
                     replacement: str) -> None:

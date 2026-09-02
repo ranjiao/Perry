@@ -43,7 +43,7 @@ from __future__ import annotations
 
 import unittest
 
-from test_task_writer import Project
+from task_writer_support import Project
 
 
 class Board:

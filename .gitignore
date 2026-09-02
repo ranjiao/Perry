@@ -5,6 +5,7 @@
 # macOS
 .DS_Store
 .gstack/
+.trae/
 
 # Python bytecode from bin/ + viewer/
 __pycache__/

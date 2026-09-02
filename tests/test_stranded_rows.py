@@ -51,7 +51,7 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from test_task_writer import PT, PERRY_HOME, TOOL, Project
+from task_writer_support import PT, PERRY_HOME, TOOL, Project
 
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 IN_PROGRESS_HOURS = SCHEMA["thresholds"]["in_progress_idle_hours"]["value"]

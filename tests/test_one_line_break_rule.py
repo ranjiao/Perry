@@ -459,7 +459,7 @@ class TestTheIdThatIsNotARowNamesItsFlagToo(unittest.TestCase):
             (self.root / "OKR.md").read_text().replace(
                 "|---|---|---|---|---|---|---|",
                 "|---|---|---|---|---|---|---|\n| ops/9 | gone | p | p "
-                "| 2026-09-01 | active |  |"))
+                "| 2999-01-01 | active |  |"))
         r = self.goals("commit", "--id", "ops/9", "--due", "2027-01-01",
                        "--accept-hand-edit")
         self.assertEqual(1, r.returncode, r.stdout + r.stderr)

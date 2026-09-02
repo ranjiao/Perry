@@ -4,7 +4,7 @@
 ## Why this exists (TASK-249)
 
 `bash tests/run` wrote Perry state into the repository it ran in. One test —
-`tests/test_task_writer.py § test_every_accepted_command_runs_and_is_advertised`
+`tests/test_task_writer_core.py § test_every_accepted_command_runs_and_is_advertised`
 — walked `PT.COMMANDS` and invoked `bin/perry-task <name>` with **no `--root`**.
 `perry-task` resolves its project root from `$PERRY_PROJECT`, else the cwd, and
 `tests/run` cds to the repository root, so 29 real commands ran against the live
