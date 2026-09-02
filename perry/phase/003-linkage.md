@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "003-storage-code"
-updated: "2026-09-02T06:18:42Z"
+updated: "2026-09-02T06:26:55Z"
 objectives:
   - id: O1
     title: "Every declared store exists, and one command checks all of them"
@@ -39,7 +39,7 @@ objectives:
         target: 0
         stretch: false
         linked: "KR-O2.1"
-        tasks: ["TASK-095", "TASK-233", "TASK-247"]
+        tasks: ["TASK-095", "TASK-233", "TASK-247", "TASK-283"]
       - id: P003-O2-KR2
         title: "The adoption reader is fenced into one named module, with a mechanical guard shown able to go red"
         metric: "guard live, and restoring one removed call site turns it red (baseline: no boundary; viewer/parsers.py is 3,973 lines serving both roles). RE-BASELINED 2026-09-01: 4,603 lines serving ONE role. `bin/perry-migrate` was deleted 2026-08-31 and TASK-097 dropped with it, so the module's migration half has no caller — and `/perry adopt` is a user-facing command whose implementation went with it. The fence now separates the adoption reader from the store readers, and whether an unreachable reader is still worth fencing is the open question TASK-099 carries into the pivot rather than an assumption this KR may keep making."
@@ -61,7 +61,7 @@ objectives:
         stretch: false
         linked: "KR-O2.3"
         tasks: ["TASK-276", "TASK-277", "TASK-278", "TASK-279", "TASK-281"]
-unlinked: ["TASK-077", "TASK-097", "TASK-129", "TASK-155", "TASK-173", "TASK-177", "TASK-179", "TASK-181", "TASK-182", "TASK-183", "TASK-184", "TASK-185", "TASK-186", "TASK-187", "TASK-188", "TASK-189", "TASK-190", "TASK-191", "TASK-192", "TASK-193", "TASK-194", "TASK-204", "TASK-206", "TASK-207", "TASK-208", "TASK-211", "TASK-212", "TASK-216", "TASK-217", "TASK-218", "TASK-219", "TASK-220", "TASK-221", "TASK-226", "TASK-139", "TASK-157", "TASK-066", "TASK-112", "TASK-116", "TASK-137", "TASK-172", "TASK-198", "TASK-213", "TASK-214", "TASK-222", "TASK-223", "TASK-224", "TASK-225", "TASK-227", "TASK-228", "TASK-230", "TASK-231", "TASK-232", "TASK-234", "TASK-235", "TASK-236", "TASK-237", "TASK-238", "TASK-239", "TASK-240", "TASK-241", "TASK-242", "TASK-243", "TASK-244", "TASK-245", "TASK-246", "TASK-248", "TASK-249", "TASK-250", "TASK-251", "TASK-252", "TASK-263", "TASK-264", "TASK-265", "TASK-266", "TASK-280", "TASK-282", "TASK-284", "TASK-285", "TASK-286", "TASK-287", "TASK-288"]
+unlinked: ["TASK-077", "TASK-097", "TASK-129", "TASK-155", "TASK-173", "TASK-177", "TASK-179", "TASK-181", "TASK-182", "TASK-183", "TASK-184", "TASK-185", "TASK-186", "TASK-187", "TASK-188", "TASK-189", "TASK-190", "TASK-191", "TASK-192", "TASK-193", "TASK-194", "TASK-204", "TASK-206", "TASK-207", "TASK-208", "TASK-211", "TASK-212", "TASK-216", "TASK-217", "TASK-218", "TASK-219", "TASK-220", "TASK-221", "TASK-226", "TASK-139", "TASK-157", "TASK-066", "TASK-112", "TASK-116", "TASK-137", "TASK-172", "TASK-198", "TASK-213", "TASK-214", "TASK-222", "TASK-223", "TASK-224", "TASK-225", "TASK-227", "TASK-228", "TASK-230", "TASK-231", "TASK-232", "TASK-234", "TASK-235", "TASK-236", "TASK-237", "TASK-238", "TASK-239", "TASK-240", "TASK-241", "TASK-242", "TASK-243", "TASK-244", "TASK-245", "TASK-246", "TASK-248", "TASK-249", "TASK-250", "TASK-251", "TASK-252", "TASK-263", "TASK-264", "TASK-265", "TASK-266", "TASK-280", "TASK-282", "TASK-284", "TASK-285", "TASK-286", "TASK-287", "TASK-288", "TASK-289", "TASK-290", "TASK-291", "TASK-292"]
 agents: []
 projects: []
 ---
