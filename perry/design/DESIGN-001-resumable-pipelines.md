@@ -315,6 +315,31 @@ Phases A–C are the minimum that fixes the reported scenario. D–F can follow.
 
 ## 9. Changes (append-only after lock)
 
+- 2026-09-02 — **Implementation record, added retroactively.** This design was
+  implemented in full on 2026-08-16 by `TASK-001`–`TASK-006`, one per row of
+  § 6's plan, and all six are `done` in `perry/tasks.jsonl`. Verified
+  2026-09-02 on `d49964e` against the artifacts rather than the rows:
+  `schema/state-schema.json` carries `step`, `abandoned` and `declarations[]`;
+  `SKILL.md` carries the interrupted-run gate; `perry-state --section
+  interrupted` runs; and `thresholds.stale_run_days = 30` is read by both
+  `bin/perry-state:1799` and `bin/perry-lint:509` — the "one number, two
+  readers" property the 2026-08-16 entry above promised.
+
+  Recorded because **`perry-state` reports this design as `pending_handoff`
+  and always will.** `impl_refs` counts literal mentions of the design id
+  across board rows and `.perry/events.jsonl`; those six tasks wrote
+  "DESIGN-001" into no title, next action, evidence cell or event, and left no
+  evidence file — they predate the back-reference convention
+  `decide/SKILL.md § Hand-off contract with PMO` states. The rows are closed
+  and the log is append-only, so nothing will heal it. Measured the same day:
+  DESIGN-006 has 24 such mentions, DESIGN-013 twelve, DESIGN-004 nine, this
+  design **zero**.
+
+  This entry does **not** clear the flag — it is prose in a file the counter
+  does not read. It exists so the next session does not spend the time this
+  one did re-deriving whether the work was ever done. The mechanism gap is
+  filed separately.
+
 - 2026-08-16 — Stale-run threshold set to **30 days** (§8 open question) —
   USER-001 answered; declared in `schema/state-schema.json § thresholds` rather
   than hardcoded in either reader.
