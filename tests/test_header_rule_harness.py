@@ -68,7 +68,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from header_rule import offenders_by_symbol, readers_under      # noqa: E402
+from header_rule import (offenders_at, offenders_by_symbol,     # noqa: E402
+                         readers_under)
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 
@@ -85,7 +86,14 @@ NO_SHEBANG = frozenset({"bin/probe-d20", "bin/probe-s12"})
 
 #: Directories a planted copy does not need. `perry/` is 4 MB of evidence
 #: markdown and holds no reader; `tests/` is this file.
-NOT_COPIED = {".git", "perry", "tests", "__pycache__", ".perry"}
+#:
+#: **`.claude` is `TASK-244`'s.** The Agent tool puts a full checkout per
+#: subagent under `.claude/worktrees/`, so on the main checkout this set was
+#: copying ten more copies of the repository into every `tempfile` tree and
+#: then scanning them: `readers_under` returned 219 files where the tree has
+#: 19, and a single scan cost 31.2s instead of 2.7s. `header_rule.NOT_A_READER`
+#: excludes the same directory for the same reason and carries the argument.
+NOT_COPIED = {".git", "perry", "tests", "__pycache__", ".perry", ".claude"}
 
 #: `(label, source, path, body)`.
 #:
@@ -1134,12 +1142,57 @@ def _copy() -> Path:
 
 
 def _hits(root: Path, where: str) -> list[str]:
-    """What the net reports about the file planted at `where`.
+    """What the net reports about the file planted at `where`, **reading only
+    that file**.
+
+    **`TASK-244`: this asks about ONE file and answers from that one file.** It
+    always discarded everything the whole-tree scan said about the other 19
+    readers — the filter on the return line is the proof — but it paid for the
+    scan 112 times per run, once per corpus entry, and that was 260.6s of the
+    module's 263.2s. `offenders_at` runs the identical per-file code on the
+    planted path alone, which is sound because `offenders_by_symbol` carries no
+    state across files, and `TestTheSingleFileScanAgreesWithTheWalk` measures
+    the equality rather than trusting this paragraph.
+
+    **What this function therefore CANNOT see, stated because round 2 was
+    failed for leaving the opposite claim here.** `offenders_at` never calls
+    `readers_under`, so no result routed through `_hits` can observe a defect
+    in the **enumeration** — a walk that never looked at a directory is
+    invisible from here, because there is no walk. That is precisely round 4's
+    historical hole (*"a Python reader outside `bin/` and `viewer/` was
+    invisible"*), so it cannot be left to this function. `_walk_hits` below is
+    the route that can see it, and
+    `TestTheCopyItselfIsClean § test_the_control_is_caught_at_every_path_the_corpus_uses`
+    plus `TestTheDriftCorpusIsCaught §
+    test_the_two_enumeration_entries_are_caught_by_the_walk_itself` take it,
+    one per distinct corpus directory.
+
+    The `startswith` filter is KEPT even though it is now trivially satisfied:
+    it is what keeps this function's answer keyed to the full relative path, so
+    that swapping the two routes in a test changes only the cost.
+    """
+    return [o for o in offenders_at(root, where) if o.startswith(where + ":")]
+
+
+def _walk_hits(root: Path, where: str) -> list[str]:
+    """What the net reports about `where` **after walking the whole tree** —
+    the expensive route, kept for the results that need enumeration.
 
     Matched on the FULL relative path, not the basename: this corpus plants at
     `bin/`, `bin/lib/`, `viewer/` and `packs/`, and a basename match would read
     a hit in one directory as a hit in another — which is how a scan that never
-    looked at a directory reports success there.
+    looked at a directory reports success there. That sentence was true of
+    `_hits` before `TASK-244` and is true of this function after it; the
+    difference is that `offenders_by_symbol` enumerates and `offenders_at` does
+    not, so only this one can be wrong in the way the sentence describes.
+
+    Each call is one whole-tree scan (~2.4s in this worktree), and there are
+    six per run, by construction: four controls, one per distinct corpus
+    directory, from `test_the_control_is_caught_at_every_path_the_corpus_uses`,
+    and two from `test_the_two_enumeration_entries_are_caught_by_the_walk_itself`
+    for `D19` and `D22`, whose entire subject is the enumeration. ~14s, and it
+    is what buys back the discrimination round 1 of `TASK-244` was failed for
+    dropping.
     """
     return [o for o in offenders_by_symbol(root) if o.startswith(where + ":")]
 
@@ -1297,7 +1350,21 @@ class TestTheCopyItselfIsClean(unittest.TestCase):
         proves nothing until a control planted at the SAME PATH is caught —
         otherwise "escaped" and "the scan never looked here" are the same
         result. This plants the same offending body at every distinct directory
-        the corpus uses."""
+        the corpus uses.
+
+        **It goes through `_walk_hits`, not `_hits`, and that is the whole
+        point of the test** (`TASK-244` round 2). `_hits` reads one file and
+        never enumerates, so under it "the scan never looked here" is not a
+        state this test could ever be in and the docstring above would be
+        describing a discrimination the code had stopped making. Round 1 of
+        `TASK-244` made exactly that swap and was failed for it: with
+        `readers_under`'s `rglob` loop blinded to `packs/` — the walk narrowed,
+        the reader gate untouched — the whole module stayed green.
+
+        Four whole-tree scans, one per corpus directory, ~2.4s each. That is
+        what enumeration coverage costs and it is the last place in this module
+        that pays per-directory rather than per-entry.
+        """
         tmp = _copy()
         root = tmp / "t"
         control = ('from tables import squash, split_row\n'
@@ -1311,10 +1378,99 @@ class TestTheCopyItselfIsClean(unittest.TestCase):
                     target = _plant(root, where, control)
                     try:
                         self.assertTrue(
-                            _hits(root, where),
-                            f"the control planted at {where} was NOT caught, "
-                            f"so nothing this corpus reports about {d} means "
-                            f"anything")
+                            _walk_hits(root, where),
+                            f"the control planted at {where} was NOT caught by "
+                            f"the WHOLE-TREE walk, so either the net is blind "
+                            f"to this shape or `readers_under` never "
+                            f"enumerated {d} — and nothing this corpus reports "
+                            f"about {d} means anything either way")
+                    finally:
+                        target.unlink(missing_ok=True)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class TestTheSingleFileScanAgreesWithTheWalk(unittest.TestCase):
+    """**The premise `TASK-244` traded 260 seconds on, asserted rather than
+    argued.**
+
+    Every corpus test below asks `_hits(root, where)` — what the net reports
+    about ONE planted file — and `_hits` now answers by reading that one file
+    instead of walking the tree. The justification is that
+    `offenders_by_symbol` is per-file: it builds a fresh `_RowLocals` from a
+    single file's AST and keys every hit to that file's own `rel`, so nothing
+    else in the tree can change what it says about `where`.
+
+    That is a property of today's `header_rule.py`, and a later round could
+    take it away — a cross-file pass, a project-wide symbol table, an
+    import-following resolver are all plausible next moves for this net, and
+    any of them would make the shortcut silently wrong while every test below
+    stayed green. Nothing else in the suite would notice, because the shortcut
+    and the thing it replaced would simply disagree in one direction.
+
+    So the equality is measured here, on the real whole-tree scan.
+
+    **These are not the only tests that still pay for a walk, and round 2 of
+    `TASK-244` is the reason.** This class establishes that the two routes
+    agree about a file the walk DID look at; it cannot establish that the walk
+    looked. Six further scans buy that, and they live where the claim is made:
+    four in `test_the_control_is_caught_at_every_path_the_corpus_uses`, one per
+    distinct corpus directory, and two in
+    `test_the_two_enumeration_entries_are_caught_by_the_walk_itself`. Eight
+    whole-tree scans in the module in total, against the 112 before `TASK-244`.
+    """
+
+    def test_the_walk_is_the_union_of_its_files(self):
+        """The decomposition, over the tree as it actually is: what the walk
+        reports is exactly what the per-file scan reports, file by file. One
+        whole-tree scan buys the general statement."""
+        tmp = _copy()
+        root = tmp / "t"
+        try:
+            walk = offenders_by_symbol(root)
+            union: list[str] = []
+            for p in readers_under(root):
+                rel = p.relative_to(root).as_posix()
+                per_file = offenders_at(root, rel)
+                self.assertEqual(
+                    per_file,
+                    [o for o in walk if o.startswith(rel + ":")],
+                    f"offenders_at disagrees with the walk about {rel}")
+                union += per_file
+            self.assertEqual(sorted(set(union)), walk)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_a_planted_file_gets_the_same_verdict_either_way(self):
+        """The decomposition again, but on files that do not exist until the
+        test plants them — which is the case every corpus test below is in, and
+        the case where the reader GATE does the work.
+
+        The sample is chosen, not arbitrary: `D20` and `S12` are the two
+        entries planted with no shebang and no suffix, so they are the two
+        whose admission turns on `is_python` parsing the bytes rather than on a
+        filename. If `offenders_at`'s gate ever stopped being `is_reader`,
+        these are the entries that would move first — which is round 9's own
+        finding, in the other direction.
+        """
+        by_path = {e[2]: e for e in DRIFT + CLEAN + SECOND_RULE}
+        sample = sorted(NO_SHEBANG) + [DRIFT[0][2], CLEAN[0][2]]
+        tmp = _copy()
+        root = tmp / "t"
+        try:
+            for where in sample:
+                with self.subTest(where):
+                    self.assertIn(where, by_path)
+                    target = _plant(root, where, by_path[where][3])
+                    try:
+                        walk = [o for o in offenders_by_symbol(root)
+                                if o.startswith(where + ":")]
+                        self.assertEqual(
+                            offenders_at(root, where), walk,
+                            f"the single-file scan and the whole-tree walk "
+                            f"disagree about the planted {where}, so every "
+                            f"result this module reports is measuring "
+                            f"something other than what it claims")
                     finally:
                         target.unlink(missing_ok=True)
         finally:
@@ -1343,6 +1499,50 @@ class TestTheDriftCorpusIsCaught(unittest.TestCase):
                             f"planted the ONE RULE outside `header_index` at "
                             f"{where} ({label}) and the check reported nothing "
                             f"about it. Source: {source}")
+                    finally:
+                        target.unlink(missing_ok=True)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    #: The two drift entries whose subject is not the net's inference but the
+    #: WALK that feeds it. Named here rather than matched by label prefix so
+    #: that renaming an entry breaks this list loudly instead of silently
+    #: emptying it.
+    ENUMERATION_ENTRIES = ("bin/lib/probe_d19.py", "packs/probe_d22.py")
+
+    def test_the_two_enumeration_entries_are_caught_by_the_walk_itself(self):
+        """`D19 planted in a SUBDIRECTORY` and `D22 OUTSIDE 'bin/' and
+        'viewer/'` are not shape entries. Their sources are *"round 3 ... a
+        SUBDIRECTORY was invisible"* and *"round 8 review, Finding 1: ESCAPED
+        R4 · python reader outside bin/ and viewer/ (packs/)"* — both are
+        reports that `readers_under` did not ENUMERATE a place, not reports
+        that the inference misread a body.
+
+        `test_each_drift_shape_is_caught` above asks about them through
+        `_hits`, which reads the planted file directly and would catch them
+        even if the walk had never heard of `bin/lib/` or `packs/`. So the two
+        entries that encode round 4's real hole are asked again here through
+        the walk, where the hole they were written for can actually appear.
+        Two whole-tree scans.
+        """
+        by_path = {e[2]: e for e in DRIFT}
+        tmp = _copy()
+        root = tmp / "t"
+        try:
+            for where in self.ENUMERATION_ENTRIES:
+                with self.subTest(where):
+                    self.assertIn(where, by_path,
+                                  f"{where} is no longer in DRIFT, so this "
+                                  f"test is asserting nothing")
+                    label, source, _where, body = by_path[where]
+                    target = _plant(root, where, body)
+                    try:
+                        self.assertTrue(
+                            _walk_hits(root, where),
+                            f"the WHOLE-TREE walk reported nothing about the "
+                            f"planted {where} ({label}). This entry exists "
+                            f"because the walk once could not see that "
+                            f"directory at all. Source: {source}")
                     finally:
                         target.unlink(missing_ok=True)
         finally:
