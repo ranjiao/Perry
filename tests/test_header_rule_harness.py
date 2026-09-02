@@ -1186,10 +1186,13 @@ def _walk_hits(root: Path, where: str) -> list[str]:
     difference is that `offenders_by_symbol` enumerates and `offenders_at` does
     not, so only this one can be wrong in the way the sentence describes.
 
-    Each call is one whole-tree scan (~2.4s in this worktree). It has six
-    callers, by construction: four controls, one per distinct corpus directory,
-    and the two drift entries — `D19` and `D22` — whose entire subject is the
-    enumeration.
+    Each call is one whole-tree scan (~2.4s in this worktree), and there are
+    six per run, by construction: four controls, one per distinct corpus
+    directory, from `test_the_control_is_caught_at_every_path_the_corpus_uses`,
+    and two from `test_the_two_enumeration_entries_are_caught_by_the_walk_itself`
+    for `D19` and `D22`, whose entire subject is the enumeration. ~14s, and it
+    is what buys back the discrimination round 1 of `TASK-244` was failed for
+    dropping.
     """
     return [o for o in offenders_by_symbol(root) if o.startswith(where + ":")]
 
