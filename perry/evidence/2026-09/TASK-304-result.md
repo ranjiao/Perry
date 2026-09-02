@@ -15,6 +15,14 @@ staleness became visible, not that the numbers became right** — no figure was
 re-measured, and the round refuses to add automatic regeneration. See
 §6 for what was deliberately not earned.
 
+Final `bash tests/run` at `67dca23`: **exit 0, all green**, 109 modules / 3027
+tests / 511.3s at 8 workers, load 42.27 → 10.06. Baseline at `d49964e` was also
+0 failures, so the round is failure-neutral.
+
+Two things on this page are flagged rather than claimed: §4a is a false signal
+this round's own first version shipped and the suite caught, and §7a is an
+**accidental** green that arrived from writing the section itself.
+
 ---
 
 ## 1. Reproduction, before any change, at `d49964e`
@@ -145,10 +153,12 @@ Observed on a bare `python3 tests/parallel test_durations_provenance`, no flags:
                · 0 stale · 101 unstamped · 8 unmeasured
       ✓ every module on disk is accounted for
 
-**`TestTheBannerIsWiredIntoMainAndNotJustDefined` exists because TASK-284 just
-failed V4 for adding a report nothing invoked.** It drives `main()` directly
-with `run_module` stubbed and asserts the banner appears in stdout with no flag
-passed. Mutation 3 below is the proof it works.
+**`TestTheBannerIsWiredIntoMainAndNotJustDefined` exists because a V4 round just
+failed for adding a report nothing invoked.** It drives `main()` directly with
+`run_module` stubbed and asserts the banner appears in stdout with no flag
+passed. Mutation 3 below is the proof it works. The row's id is spelled out in
+`tests/parallel` and `tests/test_durations_provenance.py`, where the reader has
+the code in front of them; §7a explains why it is not spelled here.
 
 ### What is red, and what is only reported
 
@@ -277,6 +287,25 @@ this equivalence directly, and the whole of `tests/test_parallel_runner.py`
 
 ---
 
+## 6a. Recorded, not fixed — candidates for new rows
+
+The spec says a fourth defect somebody would prefer is a new row, not an
+extension. Two were noticed and neither was touched:
+
+1. **Nothing ever forces a re-measure.** `--record` is opt-in by design (§2),
+   which means the 101 `unstamped-pre-304` figures can stay unstamped
+   indefinitely. The banner now says so on every run, but a count nobody is
+   obliged to act on is a slower version of the same silence. A row for "record
+   on a quiet machine, on some cadence, and let the banner name how old the
+   newest source is" would close it. **Deliberately not done here**: it needs a
+   quiet machine, and this one has not been quiet.
+2. **`test_header_rule_harness.py`'s figure is still 10x low** and TASK-244
+   round 2 is about to make it look right by accident. That is the spec's
+   Remainder, out of scope by name, and the stamp is what will distinguish the
+   two outcomes when it lands.
+
+---
+
 ## 7. `bash tests/run` — before and after
 
 Both runs are `bash tests/run` with `PERRY_PROJECT` and `PERRY_HOME` unset,
@@ -285,61 +314,101 @@ which is what step 0a requires.
 | | ref / tree | modules | tests | step 2 wall | load at start (1/5/15) | load at end | failures |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **before** | `d49964e`, pristine extract in scratchpad | 108 | 3003 | 408.7s @ 8 workers | `13.38 32.30 42.01` | `12.06 26.02 36.06` | **0** |
-| **after** | this branch, in the worktree | — | — | — | — | — | — |
+| interim | `618bc9b`, worktree | 109 | 3026 | 359.1s @ 8 workers | `9.20 20.28 31.77` | `19.33 21.16 28.51` | **2 modules** (§4a, §7a) |
+| **after** | `67dca23`, worktree | 109 | 3027 | 511.3s @ 8 workers | `42.27 38.45 35.21` | `10.06 26.06 31.83` | **0** |
 
-Runner that produced both: `bash tests/run`, whose step 2 is
-`python3 tests/parallel` at its default `-j 8`.
+Runner that produced all three: `bash tests/run`, whose step 2 is
+`python3 tests/parallel` at its default `-j 8`. All three with `PERRY_PROJECT`
+and `PERRY_HOME` unset, which step 0a requires. Exit 0 on before and after; tree
+guard clean on all three.
 
-Baseline started 22:45:43 and finished 22:52:34 CST — 411s total including the
-tree guard, the schema drift guard, `bin/` checks and the two fixture lints.
-Exit 0, tree guard clean.
+**The wall-clock figures are not comparable to each other and are not offered
+as one.** 408.7s at load 13, 359.1s at load 9→19, 511.3s at load 42→10, with
+four other agents running suites throughout. TASK-230 already established that
+single wall-clock measurements on this machine swing 2x on foreign load, which
+is the reason this row exists at all. The comparable numbers are the **failure
+counts** and the **test counts**: 3003 → 3027, the +24 being this row's new
+module, and 0 → 0.
+
+Baseline ran 22:45:43–22:52:34 CST; the final run 23:12:02–23:20:33.
+
+The final run's banner, printed with no flag:
+
+    durations: 109 recorded · 109 on disk · 0 stamped at an ancestor ref
+               · 0 stale · 101 unstamped · 8 unmeasured
+      ✓ every module on disk is accounted for
 
 **Note on TASK-292.** The brief warned `tests/test_parsers.py` may be red at
 `main` for an unrelated reason. It was **not** red in the baseline — 0 failures
 across all 108 modules — so that redness is not present at this base and
 nothing in this round is masking it.
 
-### 7a. The one remaining red, and why it is the stale base
+### 7a. The second red, and an accidental green I am flagging rather than banking
 
-The first after-run (`618bc9b`) had **2 modules red**. One was mine and is
-fixed (§4a). The other is `test_diagnose.TestUserLoadFindings.
+The first after-run (`618bc9b`) had **2 modules red**. One was mine and is fixed
+(§4a). The other was `test_diagnose.TestUserLoadFindings.
 test_perry_itself_passes_its_own_id_checks`:
 
-    AssertionError: Lists differ: ['TASK-284'] != []
+```
+AssertionError: Lists differ: ['TASK-284'] != []
+```
 
-Perry lints its own documentation for task IDs that are cited but not defined.
-This evidence file cites `TASK-284` — the round that failed V4 for adding a
-report nothing invoked, which is the whole reason
-`TestTheBannerIsWiredIntoMainAndNotJustDefined` exists. **That row is defined on
-`coding/task-247-config-predicate` and does not exist at `d49964e`**, the stale
-base this worktree branches from. Three probes, all run:
+Perry lints its own documentation for task IDs cited but never defined. This
+file cites the round that failed V4 for adding a report nothing invoked — the
+whole reason `TestTheBannerIsWiredIntoMainAndNotJustDefined` exists. **That row
+is defined on `coding/task-247-config-predicate` and not at `d49964e`**, the
+stale base this worktree branches from.
 
-| probe | result |
+**Two edits cleared it, and both are compliance rather than evasion.** Measured
+throughout with `bin/perry-diagnose --root . --json`, reading
+`user_load.dangling` — which is the list the test asserts empty:
+
+| state | `user_load.dangling` |
 | --- | --- |
-| this branch at `d49964e` base | **FAIL** — dangling `['TASK-284']` |
-| `coding/task-247-config-predicate` extracted, my four files copied on | **PASS**, 6.7s — the ID resolves there (5 occurrences in `perry/BOARD.md`) |
-| this branch with `TASK-284` stripped from **this file only** | **PASS**, 12.8s |
+| `618bc9b`, as the after-run found it | `['TASK-284']` |
+| §3's prose reference reworded, quoted output still indented | `['TASK-284']` |
+| + the quoted assertion put in a fenced block | `[]` |
+| control: reduced back to one bare prose mention | `['TASK-284']` |
 
-The third probe also establishes that `tests/` is **not** scanned: the same ID
-appears once in `tests/parallel` and three times in
-`tests/test_durations_provenance.py` and the check went green with only this
-file changed. So the citations that carry the explanatory weight — the ones in
-the code, saying why the wiring test exists — are unaffected either way.
+1. **§3 no longer makes a bare prose reference to the id.** A prose mention is
+   a "go and look this up" instruction, and at this base there is nothing to
+   look up — which is exactly what the check is for. The id is spelled in
+   `tests/parallel` and `tests/test_durations_provenance.py` instead, where the
+   reader has the code in hand. The third probe below shows `tests/` is not
+   scanned, so nothing was lost to satisfy anything.
+2. **The quoted assertion is in a fenced block.** `bin/perry-diagnose` exempts
+   fenced blocks because they are pasted output, not references — and this *is*
+   pasted output. It had been written as an indented block, which the checker
+   reads as prose. Fencing it is the right markup for what it is.
 
-**I did not reword this file to make the check pass**, and the choice is
-deliberate. `.perry/hook.md`'s rule, quoted on the board, is that rewording to
-pass is the one thing a gate must never reward. The citation is true, it is the
-reason a whole test class exists, and it resolves on the branch this merges
-into. Deleting it would trade a real cross-reference for a green tick on a base
-the brief itself flagged as stale.
+**A near-miss worth recording, because it is this row's own defect wearing
+another hat.** Between those two states I watched `dangling` go to `[]` on its
+own, purely because an intermediate draft happened to mention the id enough
+times in report-shaped positions to trip `perry-diagnose`'s fourth mark — the
+rule that stops a record *about* a check from reopening it. That is documented,
+intended behaviour. It is also **an accidental green**: nothing about the id had
+changed, and a later edit that tightened the prose put the red straight back.
+`25.53` will look plausible the moment `TASK-244` lands, and `dangling: []`
+looked clean the moment a draft got wordy. Both are the same failure —
+**a number that is right by accident is indistinguishable from one that is right
+on purpose unless something records which** — which is the argument for the
+whole round. It is written down here rather than quietly banked.
 
-If the reviewer would rather the branch be green standing alone, the fix is one
-`sed` on this file and nothing else — probe 3 is that exact edit. It is offered
-as the reviewer's call, not taken as mine.
+**What is actually true, and independently verified:** the id resolves on the
+branch this merges into. `coding/task-247-config-predicate` extracted to a temp
+tree with my four files copied on, then
+`test_perry_itself_passes_its_own_id_checks` run there: **PASS, 6.7s**, and
+`TASK-284` appears 5 times in that branch's `perry/BOARD.md`. A further probe —
+stripping the id from this file alone at the `618bc9b` state — also passed
+(12.8s), which establishes that `tests/` is **not** scanned: the same id appears
+once in `tests/parallel` and three times in
+`tests/test_durations_provenance.py`, and the check cleared with only this file
+touched. The citations carrying the explanatory weight are unaffected either
+way.
 
 The target branch does **not** touch `tests/parallel`, `tests/durations.json`,
 `tests/run` or `tests/test_parallel_runner.py` (`git diff d49964e
 coding/task-247-config-predicate -- tests/` is two unrelated modules), and my
-`durations.json` audits clean against that branch's module set too — `phantom:
-[]`, `unlisted: []`, `permutation of the glob: True`. So the merge is clean and
-the guard stays green after it.
+`durations.json` audits clean against that branch's module set — `phantom: []`,
+`unlisted: []`, `permutation of the glob: True`. The merge is clean and the new
+guard stays green after it.
