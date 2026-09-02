@@ -487,6 +487,96 @@ class StateExtractor(unittest.TestCase):
             self.assertFalse(json.loads(out.stdout)["installed"])
 
 
+class TheFixtureAnswersFromItsOwnLogOnly(unittest.TestCase):
+    """TASK-292. The fixture's numbers must not depend on the repository it is
+    run from.
+
+    `walk_design` falls back to a FOUR-PARENT upward search for
+    `.perry/events.jsonl` when the caller passes no `project_root`, and this
+    fixture sits exactly three directories below the repository root. With no
+    log of its own the walk therefore climbed out of the fixture and read
+    PERRY'S OWN log, where every PMO row that merely mentions `DESIGN-001`
+    counted as an implementation reference for the fixture's design.
+
+    Measured 2026-09-02: the fixture's `DESIGN-001` read `impl_refs: 2` at
+    14:0x and `6` at 15:3x with no change to the fixture — only PMO prose
+    accumulating in the live log — and
+    `test_locked_design_without_impl_rows_is_flagged` went red. The row
+    describing the bug was itself four of those six references.
+
+    **Asserting that the fixture's log merely exists would be too weak**, and
+    weak in the specific way that hid this for as long as it did.
+    `.perry/events.jsonl` is git-tracked, so every worktree carries its own
+    copy frozen at its own branch point: the same fixture answered
+    `['DESIGN-001']` in a fresh worktree and `[]` on main, and an agent
+    dispatched into a worktree reported the suite green on the commit range
+    where it was red. A guard that can only fail in unlucky checkouts is not a
+    guard. So this rebuilds the exact geometry in a temporary directory —
+    fixture three levels beneath a project root whose log is thick with the id
+    — and pins the property in every checkout.
+    """
+
+    NOISE = 8
+
+    def _nest(self, tmp):
+        """The fixture, replanted at the depth that made the walk reach out."""
+        import shutil
+        host = Path(tmp) / "hostrepo"
+        (host / ".perry").mkdir(parents=True)
+        (host / "tests" / "fixtures").mkdir(parents=True)
+        shutil.copytree(FIXTURE, host / "tests" / "fixtures" / "sample-project")
+        (host / ".perry" / "events.jsonl").write_text("".join(
+            json.dumps({
+                "ts": "2026-09-02T15:%02d:00+08:00" % i,
+                "event": "next", "id": "TASK-29%d" % i,
+                "title": "a PMO row that merely mentions DESIGN-001",
+                "track": "main", "actor": "PMO Agent", "from": "",
+                "to": "Read DESIGN-001 section 9 first — it carries the "
+                      "measurement",
+            }) + "\n" for i in range(self.NOISE)))
+        return host / "tests" / "fixtures" / "sample-project"
+
+    def _design(self, root):
+        out = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(root), "--json"],
+            capture_output=True, text=True, check=True,
+        )
+        payload = json.loads(out.stdout)["design"]
+        refs = {d["id"]: d["impl_refs"] for d in payload["docs"]}
+        return [d["id"] for d in payload["pending_handoff"]], refs
+
+    def test_a_host_log_thick_with_the_id_does_not_move_the_answer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = self._nest(tmp)
+            self.assertTrue(
+                (fixture / ".perry" / "events.jsonl").exists(),
+                "the fixture has no events.jsonl of its own — TASK-292: "
+                "without one the four-parent walk reads whatever project the "
+                "checkout happens to sit in")
+            pending, refs = self._design(fixture)
+            self.assertEqual(pending, ["DESIGN-001"])
+            self.assertEqual(refs["DESIGN-001"], 0)
+
+    def test_and_the_harness_above_really_does_bite(self):
+        """The negative half, so the positive half cannot pass vacuously.
+
+        Remove the fixture's own log and the very same tree reproduces the
+        defect: the walk's fourth probe lands on the host log and every one of
+        its rows mentioning the id is counted as implementation of the
+        fixture's design. If this ever goes green, the geometry has moved and
+        the test above has stopped testing anything.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = self._nest(tmp)
+            # `missing_ok` so that deleting the fixture's log reddens the test
+            # ABOVE with its own message, rather than erroring here first.
+            (fixture / ".perry" / "events.jsonl").unlink(missing_ok=True)
+            pending, refs = self._design(fixture)
+            self.assertEqual(pending, [])
+            self.assertEqual(refs["DESIGN-001"], self.NOISE)
+
+
 class Linter(unittest.TestCase):
     def _run(self, *args):
         return subprocess.run(
