@@ -7,13 +7,13 @@ indistinguishable from a guard that has been broken for a year. This project
 has failed three rows in two days for shipping one.
 
 So the load-bearing test here is not the unit coverage of `manifest` and
-`compare` below it. It is `TestThePlantedWrite`, which copies this repository
-to a scratch directory, drops a test module into the copy that writes into the
-copy's own root, runs the **real** `bash tests/run` there, and requires that
-the suite comes back red naming the two paths that moved. Its mutation half
-neuters `tree_guard.compare` in a second copy and requires the same planted run
-to come back GREEN — because a red that would have been red anyway proves
-nothing about the guard.
+`compare` below it. It is `TestThePlantedWrite`, which unpacks this repository
+at its last commit into a scratch directory, drops a test module into the copy
+that writes into the copy's own root, runs the **real** `bash tests/run` there,
+and requires that the suite comes back red naming the two paths that moved. Its
+mutation half neuters `tree_guard.compare` in a second copy and requires the
+same planted run to come back GREEN — because a red that would have been red
+anyway proves nothing about the guard.
 
 **Three things here exist because a V4 reviewer defeated the first version.**
 `test_all_three_ignore_lists_are_the_documented_ones` — the first version
@@ -30,16 +30,23 @@ The planting is into a COPY, never the live checkout: `work/reference/
 review-constraints.md` says so, and the reason is that for the seconds the
 plant exists, anything else running the suite sees a real, reproducible-looking
 failure about nothing.
+
+**And the copy is built from a commit, not from the live working tree.** That
+direction matters too and it is the newer half: the first version read the tree
+with `shutil.copytree` and reddened the moment anything else was writing to it.
+See `copy_repo` (TASK-258).
 """
 
 from __future__ import annotations
 
+import io
 import os
 import re
-import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -92,16 +99,140 @@ PLANT_MODULE = "test_zz_task_249_planted_write.py"
 CONTROL_MODULE = "test_zz_task_249_control.py"
 
 
-def copy_repo(dest: Path) -> Path:
-    """This repository, minus `.git` and the bytecode caches, in a scratch dir.
+#: Dropped from the fixture, exactly as the `shutil.copytree` version dropped
+#: them. `git archive` omits all four today — `.git` is not tracked content,
+#: `__pycache__/` and `*.pyc` are in `.gitignore`, and `git ls-files '*.pyo'`
+#: is empty — but the exclusion is spelled out and applied here anyway,
+#: because it is a property this fixture must have rather than a side effect
+#: of whichever tool builds it and of what `.gitignore` says on the day.
+#: `test_the_caches_are_excluded_and_not_merely_absent` is that distinction,
+#: and the reason for wanting the property is unchanged: a stale `.pyc` beside
+#: a source file whose mtime no longer matches is its own class of false
+#: result, and the copy has no reason to carry one.
+EXCLUDED_DIRS = (".git", "__pycache__")
+EXCLUDED_SUFFIXES = (".pyc", ".pyo")
 
-    `__pycache__` is excluded rather than copied: a stale `.pyc` beside a
-    source file its mtime no longer matches is its own class of false result,
-    and the copy has no reason to carry one.
+#: **The fenced exception, and the only read of the live tree left in here.**
+#:
+#: Everything in the fixture is the committed content — which is what makes it
+#: stable — and for almost every file that is also what these tests want, since
+#: they are testing the guard and not the rest of the repository. But three
+#: files decide the ANSWER the copied suite gives: `tests/run` is the wiring
+#: under test, `tests/tree_guard.py` is the guard it wires in, and
+#: `tests/parallel` is what step 2 shells out to. Build those three from HEAD
+#: and an uncommitted fix to any of them is never exercised: you edit
+#: `tests/run`, this module runs the committed version, reports green, and you
+#: have been told about a file you did not write. That is the same false green
+#: this module exists to prevent, so the three are overlaid from the working
+#: tree.
+#:
+#: They are safe to overlay for the same reason the rest is not: they are
+#: hand-edited sources, not state a running process rewrites. The PMO writes
+#: `perry/BOARD.md`, `.perry/events.jsonl` and the journal on every command;
+#: nothing writes `tests/run` except a person or an agent editing it, and both
+#: do it by rename. The residual is stated rather than closed: an uncommitted
+#: edit to a file OUTSIDE this list is not exercised by the copied suite. For
+#: `bin/perry-lint` — the only other file the copied run executes, at step 1 —
+#: that is an improvement, since a locally broken linter reddening this module
+#: was never information about the tree guard.
+LIVE_FILES = ("tests/run", "tests/tree_guard.py", "tests/parallel")
+
+_SNAPSHOT: tuple[str, bytes] | None = None
+
+
+def _snapshot(root: Path) -> tuple[str, bytes]:
+    """`(sha, tarball)` for `root` at HEAD. Built once per process.
+
+    Once, and cached, so that a commit landing mid-run cannot move the fixture
+    between one test and the next — eight copies of two different trees would
+    be a slower version of the same disease.
     """
-    shutil.copytree(PERRY_HOME, dest, symlinks=True,
-                    ignore=shutil.ignore_patterns(".git", "__pycache__",
-                                                  "*.pyc", "*.pyo"))
+    global _SNAPSHOT
+    if _SNAPSHOT is not None and root == PERRY_HOME:
+        return _SNAPSHOT
+    rev = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
+                         capture_output=True, text=True)
+    if rev.returncode != 0:
+        raise RuntimeError(
+            f"tests/test_tree_guard.py builds its fixture from the last commit "
+            f"of {root}, and `git rev-parse HEAD` failed there:\n{rev.stderr}")
+    sha = rev.stdout.strip()
+    tar = subprocess.run(["git", "-C", str(root), "archive", "--format=tar", sha],
+                         capture_output=True)
+    if tar.returncode != 0:
+        raise RuntimeError(
+            f"`git archive {sha}` failed in {root}:\n"
+            f"{tar.stderr.decode('utf-8', 'replace')}")
+    snap = (sha, tar.stdout)
+    if root == PERRY_HOME:
+        _SNAPSHOT = snap
+    return snap
+
+
+def _excluded(name: str) -> bool:
+    return (any(part in EXCLUDED_DIRS for part in name.split("/"))
+            or name.endswith(EXCLUDED_SUFFIXES))
+
+
+def copy_repo(dest: Path, root: Path = PERRY_HOME) -> Path:
+    """This repository **at its last commit**, in a scratch dir.
+
+    The first version of this was `shutil.copytree(PERRY_HOME, ...)` over the
+    LIVE working tree, and it reddened this module the first time it ran
+    anywhere other than a private worktree. A copy of a directory another
+    process is writing is a copy of no state at all: a file that exists at
+    `scandir` and is gone by `copy2` raises `shutil.Error` — seven of the
+    tests here died that way, in `copy_repo`, before reaching an assertion —
+    and a file caught mid-write arrives in the fixture truncated, which is
+    worse because it produces a plausible red instead of a traceback. Neither
+    says anything about the guard.
+
+    Four TASK-249 review rounds missed it because all four ran in private
+    worktrees where nothing else was writing, which is exactly how a test that
+    depends on the tree being still passes review. On the live checkout the
+    PMO writes board, journal and event state on every command and dispatched
+    agents edit `bin/` and `tests/` while the suite runs (TASK-258).
+
+    So the fixture is unpacked from `git archive`: a tarball of a COMMIT, a
+    state no concurrent write can move. That is this project's existing answer
+    rather than a new one: *"Every destructive probe ran against `git archive`
+    copies of `HEAD` and of `main`"* is how the TASK-235 V4 review states its
+    method, and TASK-226, TASK-233 and TASK-243 say the same, for the same
+    reason.
+
+    On a still checkout the two agree exactly: extracting the archive and
+    running the `copytree` this replaces produced the same set of paths with
+    the same modes and the same sizes, measured on `d49964e` (846 entries,
+    zero differences). So nothing downstream of the fixture changes; only the
+    behaviour under a tree that is moving does.
+
+    Three files are then overlaid from the working tree; `LIVE_FILES` above
+    says which and why.
+    """
+    _, tarball = _snapshot(root)
+    dest.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(fileobj=io.BytesIO(tarball), mode="r:") as tf:
+        members = [m for m in tf.getmembers() if not _excluded(m.name)]
+        # `tar` keeps the archive's own mode bits, and the mode is half of
+        # what `manifest` records — a fixture that flattened the executable
+        # bit off `bin/` would be a different tree from the one committed.
+        # The keyword arrived in 3.12 and was backported to 3.11.4; asking
+        # whether this interpreter has it beats both alternatives, since
+        # passing it always breaks the older 3.11s this project still runs on
+        # and omitting it always leaves the policy to whatever the running
+        # Python defaults to.
+        kwargs = {"filter": "tar"} if hasattr(tarfile, "tar_filter") else {}
+        tf.extractall(dest, members=members, **kwargs)
+    for rel in LIVE_FILES:
+        src = root / rel
+        if not src.is_file():
+            continue
+        target = dest / rel
+        data = src.read_bytes()
+        if not target.is_file() or target.read_bytes() != data:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        target.chmod(src.stat().st_mode & 0o7777)
     return dest
 
 
@@ -123,6 +254,144 @@ def run_suite(root: Path, module: str,
     return subprocess.run(
         ["bash", "tests/run", "--only", module.removesuffix(".py")],
         cwd=str(root), capture_output=True, text=True, env=env)
+
+
+class TestTheFixtureIsASnapshotAndNotTheLiveTree(unittest.TestCase):
+    """**The fixture under a tree that is being written to.**
+
+    Every other test in this file needs `copy_repo` to have worked before it
+    can assert anything, so none of them can say what it produced or when it
+    is allowed to fail. This one asks the question directly, and it asks it
+    against a throwaway repository rather than this one, because a test that
+    demonstrated the hazard by writing into the live checkout would be the
+    hazard.
+
+    The two halves are the two claims `copy_repo` makes. A tree being churned
+    while it is copied yields the committed tree anyway — that is the fix. And
+    an uncommitted edit to one of the three `LIVE_FILES` reaches the copy
+    regardless — that is the fence, and without a test it is a comment.
+    """
+
+    def _repo(self, path: Path, files: dict[str, str]) -> Path:
+        path.mkdir(parents=True)
+        for rel, body in files.items():
+            (path / rel).parent.mkdir(parents=True, exist_ok=True)
+            (path / rel).write_text(body)
+        git = ["git", "-C", str(path), "-c", "user.email=t@example.invalid",
+               "-c", "user.name=t", "-c", "commit.gpgsign=false"]
+        for argv in (["init", "-q"], ["add", "-A"],
+                     ["commit", "-qm", "the committed state"]):
+            r = subprocess.run(git + argv, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0,
+                             f"{argv[0]} failed: {r.stdout}{r.stderr}")
+        return path
+
+    def test_a_tree_being_written_to_still_yields_the_committed_tree(self):
+        """The reproduction of TASK-258, small enough to live in the suite.
+
+        `shutil.copytree` here dies with `shutil.Error` on the first file that
+        is unlinked between `scandir` and `copy2`; that is how this module
+        reddened in the live checkout, seven tests at a time, with the message
+        naming a file no test had ever heard of. Unpacking a commit cannot
+        see the writes at all — not "usually does not", cannot: the tarball
+        was built before the loop below started.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            committed = {f"d{d}/f{i}.txt": f"{d}/{i}\n"
+                         for d in range(12) for i in range(40)}
+            repo = self._repo(tmp / "repo", committed)
+
+            stop = threading.Event()
+            churned: list[str] = []
+
+            def churn():
+                # What the live checkout does to itself: state files written
+                # by rename, so paths appear AND disappear under a walk.
+                n = 0
+                while not stop.is_set():
+                    for d in range(12):
+                        rel = f"d{d}/churn-{n}.txt"
+                        (repo / (rel + ".tmp")).write_text("churn\n")
+                        (repo / (rel + ".tmp")).rename(repo / rel)
+                        churned.append(rel)
+                        prev = repo / f"d{d}/churn-{n - 1}.txt"
+                        if prev.exists():
+                            prev.unlink()
+                    n += 1
+
+            writer = threading.Thread(target=churn, daemon=True)
+            writer.start()
+            self.addCleanup(stop.set)
+            try:
+                for attempt in range(4):
+                    dest = tmp / f"copy{attempt}"
+                    got = {str(p.relative_to(dest))
+                           for p in copy_repo(dest, root=repo).rglob("*")
+                           if p.is_file()}
+                    self.assertEqual(
+                        got, set(committed),
+                        "the fixture is not the committed tree — it saw the "
+                        "writes landing while it was built")
+            finally:
+                stop.set()
+                writer.join(timeout=10)
+            self.assertTrue(churned, "the writer never wrote; this test "
+                                     "measured a still tree and proved nothing")
+
+    def test_an_uncommitted_edit_to_a_live_file_reaches_the_copy(self):
+        """The fence, asserted in both directions.
+
+        `tests/run` uncommitted must be the one the copied suite runs, or an
+        unfinished fix to the wiring is reported on by a module that ran the
+        committed version instead. Everything else uncommitted must NOT be,
+        or the stability the snapshot buys is given straight back.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            repo = self._repo(tmp / "repo", {"tests/run": "committed\n",
+                                             "bin/perry-lint": "committed\n"})
+            (repo / "tests" / "run").write_text("uncommitted\n")
+            (repo / "bin" / "perry-lint").write_text("uncommitted\n")
+            (repo / "scratch.txt").write_text("never committed\n")
+
+            root = copy_repo(tmp / "copy", root=repo)
+            self.assertIn("tests/run", LIVE_FILES)
+            self.assertEqual((root / "tests" / "run").read_text(),
+                             "uncommitted\n",
+                             "tests/run is the wiring under test and the copy "
+                             "got the committed version of it")
+            self.assertEqual((root / "bin" / "perry-lint").read_text(),
+                             "committed\n",
+                             "the overlay is not fenced — it carried a file "
+                             "that is not in LIVE_FILES")
+            self.assertFalse((root / "scratch.txt").exists(),
+                             "an untracked file reached the fixture, so the "
+                             "fixture is reading the working tree after all")
+
+    def test_the_caches_are_excluded_and_not_merely_absent(self):
+        """`git archive` omits ignored paths, so this exclusion looks free —
+        which is why it is asserted rather than assumed. A committed
+        `__pycache__` (or a repository whose `.gitignore` stops ignoring one)
+        would otherwise walk straight into the fixture, and a stale `.pyc`
+        beside a source whose mtime no longer matches is its own class of
+        false result.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            repo = self._repo(tmp / "repo", {
+                "keep.py": "x = 1\n",
+                "__pycache__/keep.cpython-313.pyc": "bytecode\n",
+                "sub/stale.pyc": "bytecode\n",
+                "sub/stale.pyo": "bytecode\n"})
+            root = copy_repo(tmp / "copy", root=repo)
+            self.assertTrue((root / "keep.py").is_file())
+            for rel in ("__pycache__/keep.cpython-313.pyc", "sub/stale.pyc",
+                        "sub/stale.pyo"):
+                with self.subTest(excluded=rel):
+                    self.assertFalse((root / rel).exists(),
+                                     f"{rel} was committed and the fixture "
+                                     f"carried it in anyway")
 
 
 class TestTheEnvironmentTheGuardCanSee(unittest.TestCase):
