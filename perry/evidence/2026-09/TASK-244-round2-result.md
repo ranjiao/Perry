@@ -247,6 +247,12 @@ the old rule. The reported 128.03s corresponds to roughly 17 worktrees, the same
 count the 1350-site census was taken at — which is consistent, and is the reason
 it is reported as a slope rather than as a number.
 
+**In the ranking**, live, at 13 tests, green in all four full runs: rank 53, 53,
+43 and 50 of 108, at 4.31s / 10.05s / 7.23s / 14.09s. It is the second-largest
+beneficiary of round 1 and it is now on the list. Its `tests/durations.json`
+entry is **1.85s**, which no run this round came close to — one more sign that
+file is stale.
+
 ## The unattributed red module — attributed
 
 `tests/test_host_support.py` was reported red by an earlier run of this row and
@@ -275,15 +281,105 @@ AssertionError: 4 != 3
 Twenty `perry-register` processes start behind a common gate with
 `PERRY_MAX_DISPATCH_TOTAL=3`, and **four of them were admitted**. That is the
 dispatch limiter over-admitting under contention — a race in the registration
-path, not a slow test. It is outside this Bound (`bin/`'s dispatch limiter, not
-the header-rule harness), so per the Bound's *"a second thing your measurement
-exposes is a new row, recorded and left"* it is recorded here and left. Rate
-observed: 1 in 4 concurrent runs at load ~28; a single quiet run passes.
+path, not a timeout and not a slow test.
+
+The repository already knows this module flakes: `tests/parallel`'s own docstring
+says *"this suite has a concurrency test
+(`test_host_support.TestOpenCodeDispatchLimit`) that is already known to flake
+under it"*, given as one of the reasons the worker count is held at 8. What that
+sentence does not say is **what the flake is**, and the failure mode above is not
+a scheduling artifact — it is the cap being exceeded, which is the one thing the
+test exists to prevent.
+
+It is outside this Bound (`bin/`'s dispatch limiter, not the header-rule
+harness), so per the Bound's *"a second thing your measurement exposes is a new
+row, recorded and left"* it is recorded here and left. Rate observed: 1 in 4
+concurrent runs at load ~28; a single quiet run passes; it was green in all four
+full suite runs of this round (rank 11–19, 19.72–37.67s).
+
+## Round 1's own pin, re-checked against round 2
+
+Round 1's new pin is `test_a_planted_file_gets_the_same_verdict_either_way`, and
+the reviewer proved it fires by truncating `offenders_at` to its first hit —
+subtly wrong rather than empty. Round 2 changes tests around it, so the pin was
+re-run: `sorted(set(_offenders_in_reader(root, p)))[:1]` at load 37.96 gives
+
+```
+FAIL: test_a_planted_file_gets_the_same_verdict_either_way [bin/probe-d20]
+FAIL: test_a_planted_file_gets_the_same_verdict_either_way [bin/perry-probe-d01]
+Ran 16 tests in 47.110s — FAILED (failures=2)
+```
+
+Still red, still **only** there. Round 2 neither broke the pin nor swallowed it.
 
 ## The ranked per-module list
 
-*(filled in below — the suite run is the last thing this round does, and
-everything above is committed before it starts.)*
+`python3 tests/parallel --times`, four full runs, in the order taken. The
+round-1 code is put in place with `git checkout 8829174 -- tests/…` and taken out
+again the same way; the branch is never switched and the tree ends clean
+(verified with `git status` after the last swap). Every run: **108 modules,
+8 workers, all green.** 3005 tests on round 1, **3006 on round 2** — the one
+extra test is `test_the_two_enumeration_entries_are_caught_by_the_walk_itself`.
+
+| # | code | wall | tests | `test_header_rule_harness.py` | `test_one_header_rule.py` | longest module | load before → after |
+|---|---|---|---|---|---|---|---|
+| A | round 2 | 222.7s | 3006 | **68.77s, rank 1/108** | 10.05s, rank 53 | *(itself)* | 12.59 → 60.56 |
+| B | round 1 | **112.2s** | 3005 | 18.43s, rank 18/108 | 4.31s, rank 53 | `test_tree_guard.py` 48.11s | 40.71 → 29.57 |
+| C | round 2 | **135.1s** | 3006 | **29.25s, rank 5/108** | 7.23s, rank 43 | `test_tree_guard.py` 51.87s | 29.57 → 39.97 |
+| D | round 1 | 271.2s | 3005 | 50.46s, rank 11/108 | 14.09s, rank 50 | `test_tree_guard.py` 123.90s | 39.97 → 41.92 |
+
+**B and C are the paired comparison** — adjacent, same schedule hint, same tree,
+minutes apart. Harness 18.43s → 29.25s, suite 112.2s → 135.1s.
+
+**And here is why no per-module figure in that table should be read as a cost.**
+`tests/test_one_header_rule.py` is byte-identical in all four runs — round 1 and
+round 2 differ only in `tests/test_header_rule_harness.py`. It measured **4.31s,
+7.23s, 10.05s and 14.09s: a 3.3× spread on unchanged code.** Run D is round-1
+code and came out at 271.2s with the harness at 50.46s — worse than either
+round-2 run. A machine carrying four other agents does not produce comparable
+per-module wall times, and this round is not going to pretend otherwise.
+
+**So the cost of the fix is the isolated matched-load A/B: 15.378s → 30.094s,
++14.7s.** Everything in the table above is consistent with it and none of it
+measures it.
+
+### Does the module still own the floor? No — and that is the Bound's ending condition
+
+`TASK-230`'s model, quoted in `tests/parallel`: the makespan is
+`max(longest module, total / workers)`. In **every one of the four runs the wall
+clock is far above the longest module** — 222.7 vs 68.8, 112.2 vs 48.1, 135.1 vs
+51.9, 271.2 vs 123.9. The binding constraint is `total / workers`, i.e. the
+bin-packing of 108 modules across 8 workers. **No single module owns the floor
+any more**, which is exactly what changed: before `TASK-244` this module alone
+was 265.996s and the suite could not finish before it did.
+
+The longest module is now `test_tree_guard.py` in three runs of four
+(48.11s / 51.87s / 123.90s). **That is a new row, recorded and left**, per the
+Bound.
+
+### Two corrections to round 1's reported ranking
+
+1. **`test_migrate.py` does not exist.** Round 1 reported the harness "at rank 24
+   (25.53s) behind `test_migrate.py` at 97.25s". `tests/` on this branch has 108
+   modules and `test_migrate.py` is not among them; nor is `test_conformance.py`.
+   Both are still keys in `tests/durations.json`.
+2. **Those two numbers are `tests/durations.json` verbatim** — `test_migrate.py:
+   97.25`, `test_header_rule_harness.py: 25.53` — and that file was last written
+   at `d49964e`, *before* round 1 (`git log -- tests/durations.json`). `--record`
+   rewrites the whole dict from the run's own results, so had round 1 recorded,
+   the two dead keys would have been dropped. They were not. **Round 1's ranked
+   list was read off the stale scheduling hint, not off its own `--times` run**,
+   and "rank 24 of 103" is a ranking of a module set that no longer exists.
+
+Measured live, the harness is **rank 5 of 108 at 29.25s** in the fair paired run
+and rank 18 with round-1 code in the run immediately before it. It is **not**
+"rank ~20"; the review's target came from the same stale file. What is true, and
+is the thing the row asked for, is above: the module is 265.996s → ~30s, and the
+suite's floor is no longer any one module.
+
+`tests/durations.json` is left untouched — refreshing it under this load would
+write four-times-too-large hints into the scheduler, which is the failure
+`tests/parallel`'s own docstring warns about. **That is a new row too.**
 
 ## What this round refused
 
@@ -297,5 +393,28 @@ everything above is committed before it starts.)*
   vanishes mid-walk. Outside this Bound.
 - **Undoing the speedup.** 112 scans → 8, not 112 → 8 → back.
 - **Fixing the dispatch-limiter race** found above. Recorded, left.
+- **Refreshing `tests/durations.json`.** It is stale (two dead keys, and a 1.85s
+  hint for a module that measured 4.3–14.1s), and refreshing it would have made
+  round 1's ranking reproducible. But `--record` under a load average swinging
+  between 9 and 60 writes hints 3–4× too large, which is the exact failure
+  `tests/parallel`'s docstring documents. Recorded as a row, not done here.
+- **`test_tree_guard.py`**, now the longest module at 48–124s. New row.
 - No `schema/state-schema.json`, no declaration files, no other project.
 - No push, no PR, no merge; nothing written in the shared checkout.
+
+## Numbers I could not earn
+
+- **A quiet machine.** The spec asks for one and says so twice. Four other agents
+  ran suites throughout; the 1-minute load average ranged from **8.6 to 60.6**
+  across this round's measurements and is reported with every figure. The
+  isolated matched-load A/B (`15.378s` vs `30.094s`, loads 14.00 and 15.18) is
+  the closest thing to a controlled measurement here, and the
+  `test_one_header_rule.py` control (3.3× spread on unchanged code) is the
+  honest error bar on everything taken inside the pool.
+- **A before/after ranking against round 1's reported one.** It cannot be
+  compared, because round 1's was read off `tests/durations.json` and names a
+  module that does not exist. Four live runs are given instead, two per side.
+- **The 128.03s figure for `tests/test_one_header_rule.py`**, reproduced. It
+  needs a shared checkout at ~17 worktrees; there were 26, and the count moved
+  during the round. What is given instead is the census at 26 (`21.40 + 2 ×
+  86.57 = 194.5s`) and the slope that generates both.
