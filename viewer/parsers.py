@@ -4358,9 +4358,12 @@ def scan_spec_escalations(text: str, fragments: list[str]) -> dict:
     `Files in scope` and no readable `Deliverable` scanned every armed
     fragment against the empty string and returned `touches: {}`,
     `verdict: pass`, byte-identical to a spec that was read in full and found
-    clean. Measured 2026-09-02 on this repository: 119 spec files, **45 of
-    them** in exactly that state — 38%, every one reporting `pass` over a
-    fully armed 35-fragment union. Not one had been reworded to get there:
+    clean. Measured 2026-09-02 on this repository: **45 spec files** in
+    exactly that state — 45 of the 132 under `perry/evidence/` on the live
+    branch (34%), 45 of the 119 this branch was cut from (38%); the count of
+    blind specs is the same 45 either way, because every spec written since is
+    sectioned. Every one of the 45 reports `pass` over a fully armed
+    35-fragment union. Not one had been reworded to get there:
     `add-task` step 3 says the spec carries "the same schema" as the journal
     block, `perry-task add` renders that block as bullets, and `_section`
     matches `^## `. Following the procedure produced the hole. TASK-284.

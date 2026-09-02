@@ -2692,7 +2692,7 @@ def check_provenance(state_root: Path) -> list["Finding"]:
 SPEC_FILE_RE = re.compile(r"-spec\.md$")
 
 
-def check_specs(state_root: Path, project_root: Path) -> list["Finding"]:
+def check_specs(state_root: Path) -> list["Finding"]:
     """Every spec the escalation gate will scan actually offers it something.
 
     `bin/perry-state --escalation-scan` matches the project's high-stakes
@@ -2703,8 +2703,9 @@ def check_specs(state_root: Path, project_root: Path) -> list["Finding"]:
     spec that was read in full and found genuinely clean**. That asymmetry is
     the whole defect: the gate's failure mode looks exactly like its success.
 
-    Measured on this repository 2026-09-02: 119 spec files under `evidence/`,
-    45 of them with no section the gate can read. Every one returned `pass`
+    Measured on this repository 2026-09-02: **45** spec files under
+    `evidence/` with no section the gate can read — 45 of 132 on the live
+    branch, 45 of the 119 this branch was cut from. Every one returned `pass`
     over an armed 35-fragment union. Not one of the 45 is malicious and not
     one was reworded to get there — `add-task` step 3 says the spec carries
     "the same schema" as the journal block, `perry-task add` renders that block
@@ -4304,7 +4305,7 @@ def main(argv: list[str]) -> int:
         # none — the linter would then report exactly the false alarm TASK-201
         # fixed in the gate itself.
         load_glossary(schema)
-        findings = check_specs(state_root, project_root)
+        findings = check_specs(state_root)
         stats = getattr(check_specs, "stats", {"specs": 0, "unscannable": 0})
         if as_json:
             print(json.dumps({

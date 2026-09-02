@@ -15,9 +15,13 @@ procedure verbatim is scanned against the empty string, and the gate reports:
 
 **That output is byte-identical to a spec that was read in full and found
 clean.** The gate's failure mode looks exactly like its success, which is why
-the number went unnoticed: measured on this repository 2026-09-02, 119 spec
-files under `perry/evidence/`, **45 of them** with no section the gate can
-read — 38% — every one of them `pass` over a fully armed union.
+the number went unnoticed: measured on this repository 2026-09-02, **45**
+spec files under `perry/evidence/` with no section the gate can read — 45 of
+132 on the live branch, 45 of the 119 this branch was cut from — every one of
+them `pass` over a fully armed 35-fragment union. None of the 45 uses the
+bullet shape at all: 19 are `### Deliverable` under a `## Schema` umbrella and
+26 carry no such section in any shape, which is why widening `_section` to
+read bullets would have closed none of them.
 
 `scan_spec_escalations` already refuses to call the OTHER empty input clean:
 no fragments is `unarmed`, "deliberately not `pass`". The two halves are the
