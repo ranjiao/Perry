@@ -195,6 +195,10 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DURATIONS = ROOT / "tests" / "durations.json"
+#: Bumped when the shape of `tests/durations.json` changes. 1 is TASK-304's
+#: `{schema, sources, modules}`; the flat `{module: seconds}` that preceded it
+#: is still read, and reports as schema 0.
+SCHEMA = 1
 
 #: `test_x (test_mod.Class.test_x)` opens a record; the outcome may land on
 #: that line or, when the test has a docstring, on a following one.
@@ -206,6 +210,84 @@ _OUTCOME = re.compile(r" \.\.\. " + _VERDICT + r"$")
 _BARE_OUTCOME = re.compile(r"^" + _VERDICT + r"$")
 
 
+def load_document(path: pathlib.Path | None = None) -> dict:
+    """`tests/durations.json`, normalised to one shape, never raising.
+
+    ## TASK-304: a bare number is not evidence
+
+    Until this row the file was a flat `{module: seconds}` map and **nothing in
+    it distinguished a fresh number from one that had drifted**. Measured at
+    `d49964e`: 103 modules recorded against 108 on disk, two of the recorded
+    ones deleted months earlier — `test_migrate.py` at 97.25, the file's
+    largest entry, removed when USER-910 took migration out — and seven live
+    modules unmentioned. The recorded serial total was 1968.9s against a
+    measured 162.4s x 8 workers = 1299 worker-seconds, so the numbers as a set
+    described no run that has ever happened.
+
+    None of that was reported anywhere, and the argument for a stamp is
+    sharper than any single wrong figure: `test_header_rule_harness.py` is
+    recorded at 25.53s and measured 265.996s and 260.74s at the very commit
+    that wrote the file, and `TASK-244` is about to bring that module to
+    roughly 34s — at which point **25.53 starts to look plausible again and
+    nothing in the file would tell you it was never measured.**
+
+    So an entry carries a `source`, and a source carries the ref, the time,
+    the worker count and the machine load its numbers were taken under. Where
+    nobody recorded any of that the source says so rather than guessing; see
+    the `unstamped-pre-304` note in the file itself.
+
+    Returns `{"schema", "sources", "modules", "legacy", "unreadable"}`, where
+    `modules` maps a module name to `{"sec": float | None, "source": str}`. A
+    `sec` of `None` means *listed on purpose with no number* — it sorts as
+    `inf` and so still runs first, which is what an unmentioned module already
+    did, now by declaration instead of by omission.
+
+    **Reading it still may not raise**, for the reason `load_durations` gives:
+    a runner that refuses to start because its stopwatch is unreadable has
+    turned an optimisation into an outage. Anything unparseable comes back as
+    an empty document with `unreadable` set, and the caller reports it.
+    """
+    path = path or DURATIONS
+    empty = {"schema": SCHEMA, "sources": {}, "modules": {},
+             "legacy": False, "unreadable": None}
+    try:
+        raw = json.loads(path.read_text())
+    except Exception as exc:
+        return dict(empty, unreadable=f"{type(exc).__name__}: {exc}")
+
+    if isinstance(raw, dict) and isinstance(raw.get("modules"), dict):
+        mods: dict[str, dict] = {}
+        for name, rec in raw["modules"].items():
+            if not isinstance(name, str):
+                continue
+            if isinstance(rec, dict):
+                sec = rec.get("sec")
+                src = rec.get("source")
+            else:                       # a bare number under the new shape
+                sec, src = rec, None
+            try:
+                sec = None if sec is None else float(sec)
+            except (TypeError, ValueError):
+                sec = None
+            mods[name] = {"sec": sec,
+                          "source": src if isinstance(src, str) else None}
+        srcs = raw.get("sources")
+        return {"schema": raw.get("schema"),
+                "sources": srcs if isinstance(srcs, dict) else {},
+                "modules": mods, "legacy": False, "unreadable": None}
+
+    # The pre-TASK-304 flat shape. Kept readable rather than rejected: this
+    # file is a hint, and refusing to read an old one would cost an order for
+    # nothing. Every entry in it is by definition unstamped.
+    try:
+        flat = {k: float(v) for k, v in raw.items() if isinstance(k, str)}
+    except Exception as exc:
+        return dict(empty, unreadable=f"{type(exc).__name__}: {exc}")
+    return {"schema": 0, "sources": {},
+            "modules": {k: {"sec": v, "source": None} for k, v in flat.items()},
+            "legacy": True, "unreadable": None}
+
+
 def load_durations() -> dict[str, float]:
     """Last run's per-module wall times. Any problem reading it is not an error.
 
@@ -213,12 +295,157 @@ def load_durations() -> dict[str, float]:
     worst a missing or malformed one may do is cost a worse ORDER, and a
     runner that refuses to run because its stopwatch is unreadable has turned
     an optimisation into an outage.
+
+    The contract `schedule()` sees is unchanged by TASK-304: `{module:
+    seconds}`, with modules the file does not give a number for simply absent,
+    so they keep sorting as `inf` and running first.
+    """
+    doc = load_document()
+    return {k: r["sec"] for k, r in doc["modules"].items()
+            if r["sec"] is not None}
+
+
+def git_ancestor(ref: str, root: pathlib.Path | None = None) -> bool | None:
+    """Is `ref` an ancestor of the tree being scheduled? `None` = cannot tell.
+
+    This is the whole of TASK-304's staleness test: a figure taken somewhere
+    `HEAD` does not descend from describes a tree that is not this one. It is
+    deliberately the *only* staleness signal — an age in days would go stale on
+    a quiet weekend and a hash that is still an ancestor genuinely does
+    describe an ancestor of this tree.
+
+    Every failure mode answers `None` rather than raising: no git on the path,
+    not a repository, a ref that has been garbage-collected or that lives on a
+    branch this clone does not have. "I cannot tell" is a third answer and the
+    report prints it as one, because reporting a ref as *stale* because git was
+    missing would be the same class of silent wrongness this row exists to
+    remove.
     """
     try:
-        raw = json.loads(DURATIONS.read_text())
-        return {k: float(v) for k, v in raw.items() if isinstance(k, str)}
+        p = subprocess.run(["git", "merge-base", "--is-ancestor", ref, "HEAD"],
+                           cwd=root or ROOT, capture_output=True, timeout=15)
     except Exception:
-        return {}
+        return None
+    return {0: True, 1: False}.get(p.returncode)      # 128 → None
+
+
+def audit(mods: list[str], doc: dict, ancestor=git_ancestor) -> dict:
+    """What the durations file says about the tree in front of it.
+
+    `mods` is the live glob. Seven conditions, and the first three are drift the
+    file may not be left in — see `drift()` — while the rest are reported
+    every run and gate nothing.
+
+    * `unlisted`  — on disk, not in the file. Seven of these at `d49964e`.
+    * `phantom`   — in the file, not on disk. Two at `d49964e`, one of them
+                    the largest entry in the file.
+    * `dangling`  — an entry whose `source` names no block in `sources`, so
+                    its provenance cannot be read even though it claims some.
+    * `unmeasured`— listed on purpose with no number; runs first by design.
+    * `unstamped` — has a number, and its source records no ref, so there is
+                    nothing to check the number against.
+    * `stale`     — has a number taken at a ref `HEAD` does not descend from.
+    * `unverifiable` — a ref git could not answer for. Not stale, not current.
+    """
+    on_disk, recorded = set(mods), doc["modules"]
+    report = {"listed": len(recorded), "on_disk": len(on_disk),
+              "unlisted": sorted(on_disk - set(recorded)),
+              "phantom": sorted(set(recorded) - on_disk),
+              "dangling": [], "unmeasured": [], "unstamped": [],
+              "stale": [], "unverifiable": [], "current": [],
+              "unreadable": doc["unreadable"], "legacy": doc["legacy"]}
+
+    verdicts: dict[str, bool | None] = {}
+    for name in sorted(recorded):
+        rec = recorded[name]
+        src_id = rec["source"]
+        src = doc["sources"].get(src_id) if isinstance(src_id, str) else None
+        if src_id is not None and src is None:
+            report["dangling"].append((name, src_id))
+        if rec["sec"] is None:
+            report["unmeasured"].append(name)
+            continue
+        ref = (src or {}).get("ref")
+        if not isinstance(ref, str) or not ref:
+            report["unstamped"].append(name)
+            continue
+        if ref not in verdicts:
+            verdicts[ref] = ancestor(ref)
+        {True: report["current"], False: report["stale"],
+         None: report["unverifiable"]}[verdicts[ref]].append((name, ref))
+    return report
+
+
+def drift(report: dict) -> list[str]:
+    """The conditions the file may not be left in, as printable lines.
+
+    Drift only — a module that vanished and a module nobody recorded. Both
+    were silent before TASK-304, and silence is what let a deleted module hold
+    the head of the file's own ranking for months.
+
+    Provenance and staleness are NOT here on purpose. Every figure the file
+    inherited is unstamped, and a check that reddens the suite over that would
+    have to be switched off on the day it landed; making them visible on every
+    run is what the row asked for. `tests/test_durations_provenance.py` is
+    what turns this list into a verdict.
+
+    **The module name may not lead the line, and that is not cosmetic.**
+    `main()` already prints `✗ {mod}` to mean "this module is RED", and the
+    first version of this function produced `✗ {mod}: on disk, and …` for a
+    module that had merely never been measured. `tests/test_tree_guard.py`
+    caught it: that class plants a new module into a copied repo, runs the
+    suite narrowed to it, and asserts `✗ {planted module}` is absent from the
+    output because the plant is supposed to PASS. A brand-new module is by
+    definition not in `durations.json`, so the banner claimed a passing module
+    had failed. Leading with the condition instead keeps the runner's one
+    marker meaning one thing.
+    """
+    lines = []
+    for m in report["phantom"]:
+        lines.append(f"no such module, still recorded: {m} — a deleted "
+                     f"module's time is not a hint, it is a fossil")
+    for m in report["unlisted"]:
+        lines.append(f"not in durations.json: {m} — it is on disk and will "
+                     f"sort as inf and run first by accident, not by decision")
+    for m, src_id in report["dangling"]:
+        lines.append(f"undefined source {src_id!r}: {m} — a stamp that "
+                     f"cannot be read is not a stamp")
+    return lines
+
+
+def format_audit(report: dict) -> list[str]:
+    """The banner every run prints. No flag turns it on; that is the point.
+
+    TASK-284 was failed at V4 for adding a report nothing invoked, and the
+    defect this row is fixing is a file whose wrongness nobody was told about.
+    So this is called unconditionally from `main()`, and
+    `tests/test_parallel_runner.py` asserts that `main()` calls it — because a
+    formatter with unit tests and no caller is the same defect wearing a
+    different hat.
+    """
+    out = [f"durations: {report['listed']} recorded · "
+           f"{report['on_disk']} on disk · "
+           f"{len(report['current'])} stamped at an ancestor ref · "
+           f"{len(report['stale'])} stale · "
+           f"{len(report['unstamped'])} unstamped · "
+           f"{len(report['unmeasured'])} unmeasured"]
+    if report["unreadable"]:
+        out.append(f"  \033[31m! unreadable ({report['unreadable']}) — every "
+                   f"module sorts as inf; the order is alphabetical\033[0m")
+    if report["legacy"]:
+        out.append("  ! pre-TASK-304 flat shape: no entry carries provenance")
+    for line in drift(report):
+        out.append(f"  \033[31m✗ {line}\033[0m")
+    for name, ref in report["stale"]:
+        out.append(f"  \033[33m~ {name}: measured at {ref}, which HEAD does "
+                   f"not descend from\033[0m")
+    if report["unverifiable"]:
+        refs = sorted({r for _, r in report["unverifiable"]})
+        out.append(f"  ~ {len(report['unverifiable'])} entries at refs git "
+                   f"could not resolve: {', '.join(refs)}")
+    if not drift(report) and not report["stale"] and not report["unreadable"]:
+        out.append("  ✓ every module on disk is accounted for")
+    return out
 
 
 def schedule(mods: list[str], durations: dict[str, float]) -> list[str]:
@@ -392,6 +619,65 @@ def failure_block(r: dict) -> str:
         out.append(f"    {o:<5}  {i}")
     out.append(excerpt(r["err"]))
     return "\n".join(out)
+def head_ref(root: pathlib.Path | None = None) -> str | None:
+    """The commit a measurement was taken at, or `None` if that is unknowable.
+
+    `None` is written into the file as a null ref rather than as a plausible
+    string, and the audit then reports the entries as unstamped. A measurement
+    whose ref is a guess is worse than one that admits it has none.
+    """
+    try:
+        p = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root or ROOT,
+                           capture_output=True, text=True, timeout=15)
+    except Exception:
+        return None
+    return p.stdout.strip() or None if p.returncode == 0 else None
+
+
+def write_record(results: list[dict], workers: int,
+                 path: pathlib.Path | None = None) -> str:
+    """Write `tests/durations.json` with this run stamped onto every figure.
+
+    The stamp is the row's deliverable. It carries:
+
+    * **ref** — what tree was measured, so `git_ancestor` can later say
+      whether it is still this one.
+    * **taken** — when, in UTC, so two sources can be ordered.
+    * **workers** — the pool these times came out of. A module's wall time is
+      not independent of how many others were competing with it.
+    * **load1** — the 1-minute load average at the END of the run. The 2026-08
+      measurements in this module's docstring swung 2x on foreign load alone,
+      and TASK-230 quoted its spread whole rather than best-case for exactly
+      that reason. A number recorded at load 30 is a different kind of claim
+      from one recorded on a quiet machine, and the file should say which.
+
+    Sources accumulate: earlier ones are kept, so a file can honestly hold
+    figures from more than one measurement without pretending they came from
+    one run.
+    """
+    path = path or DURATIONS
+    prior = load_document(path)
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    src_id = f"{stamp[:10]}-{stamp[11:19].replace(':', '')}"
+    try:
+        load1 = round(os.getloadavg()[0], 2)
+    except (OSError, AttributeError):
+        load1 = None
+    sources = dict(prior["sources"])
+    sources[src_id] = {"ref": head_ref(), "taken": stamp, "workers": workers,
+                       "load1": load1,
+                       "note": f"`tests/parallel --record -j {workers}`."}
+    modules = {r["mod"]: {"sec": round(r["sec"], 2), "source": src_id}
+               for r in sorted(results, key=lambda r: r["mod"])}
+    # A source no entry points at is not history, it is litter — and a
+    # `sources` block that grows every run makes the ones that matter harder
+    # to see. Pruned rather than kept.
+    used = {rec["source"] for rec in modules.values()}
+    doc = {"schema": SCHEMA,
+           "sources": {k: v for k, v in sources.items() if k in used},
+           "modules": modules}
+    path.write_text(json.dumps(doc, indent=1, sort_keys=False) + "\n")
+    return src_id
 
 
 def run_module(name: str) -> dict:
@@ -425,7 +711,8 @@ def main() -> int:
                          "be re-measured rather than believed")
     args = ap.parse_args()
 
-    mods = sorted(p.name for p in (ROOT / "tests").glob("test_*.py"))
+    all_mods = sorted(p.name for p in (ROOT / "tests").glob("test_*.py"))
+    mods = all_mods
     if args.only:
         mods = [m for m in mods if any(m.startswith(p.removesuffix(".py"))
                                        for p in args.only)]
@@ -452,9 +739,18 @@ def main() -> int:
               f"running is a failure, not a smaller total.")
 
     if args.times:
-        print("\n  seconds  tests  module")
+        # The recorded column is the one that makes a drifted figure visible
+        # at a glance. `test_header_rule_harness.py` sat at 25.53 recorded
+        # against 260-266 measured for weeks with nothing printing the two
+        # side by side (TASK-304).
+        recorded = load_durations()
+        print("\n  seconds  recorded    x  tests  module")
         for r in sorted(results, key=lambda r: -r["sec"]):
-            print(f"  {r['sec']:7.2f}  {r['ran']:5d}  {r['mod']}")
+            was = recorded.get(r["mod"])
+            ratio = (f"{r['sec'] / was:4.1f}"
+                     if was else ("   -" if was is None else "   ∞"))
+            print(f"  {r['sec']:7.2f}  {'      -' if was is None else f'{was:7.2f}'}"
+                  f"  {ratio}  {r['ran']:5d}  {r['mod']}")
 
     short = unaccounted(results)
     if args.ids:
@@ -476,14 +772,27 @@ def main() -> int:
                 f"{i}\t{o}\n" for r in results for i, o in sorted(r["ids"])))
 
     if args.record and not args.only:
-        DURATIONS.write_text(json.dumps(
-            {r["mod"]: round(r["sec"], 2) for r in sorted(
-                results, key=lambda r: r["mod"])}, indent=1) + "\n")
+        # **Still only under `--record`.** TASK-304 deliberately did not make
+        # this automatic: a run that re-measured on every invocation would
+        # replace a stale number with a load-contaminated one, and this
+        # machine has had a foreign load average above 20 for whole evenings.
+        # What the row added is that the numbers now say what they were taken
+        # under, so a reader can decide whether to believe them.
+        src_id = write_record(results, args.j)
         print(f"recorded {len(results)} module times to "
-              f"{DURATIONS.relative_to(ROOT)}")
+              f"{DURATIONS.relative_to(ROOT)} under source {src_id!r}")
 
     print(f"\n{len(results)} modules · {total} tests · {wall:.1f}s "
           f"· {args.j} workers")
+    # Unconditional, and after the verdict so it is the last thing on screen.
+    # No flag turns this on: the defect TASK-304 fixed was a file nobody was
+    # told was wrong, and a report you have to ask for would have left it that
+    # way. It does not change the exit status — `tests/parallel` may not
+    # become an outage over its own stopwatch — and
+    # `tests/test_durations_provenance.py` is what turns drift into a red.
+    print()
+    for line in format_audit(audit(all_mods, load_document())):
+        print(line)
     if failed or empty:
         # **Two counts, named, on two lines — because one number that could be
         # read as either is how TASK-249 mis-reported a baseline.** The module
