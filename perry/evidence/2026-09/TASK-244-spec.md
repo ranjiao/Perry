@@ -120,3 +120,28 @@ result and it belongs to the user, not to you.
 A second slow module your ranking exposes is a **new row**, recorded and left —
 unless it is within a few percent of the binding one, in which case say so and
 ask. The round ends when the binding module no longer owns the floor.
+
+### Correction, 2026-09-02 — the dispatcher widened this in a message and the two disagreed
+
+A message sent mid-run said *"a fix that leaves the other 107 at 286s has not
+finished the job"* and called the other tree-walkers in scope. **That
+contradicted this Bound, and this Bound wins.** `review.md § 1` says an
+unbounded criterion does not fail a round, it fails to END one; a contradictory
+one is worse, because the reviewer cannot tell which bar applies.
+
+The split, stated once:
+
+- **This row is the binding module's cost.** Fix
+  `tests/test_header_rule_harness.py`. If `git archive` is the answer, note that
+  it excludes `.claude/worktrees` **by construction** — it sees tracked files
+  only — so the ten-repositories problem is solved for this module as a side
+  effect rather than as a separate change.
+- **`TASK-303` is the same root across the other 32 tree-walking modules**, and
+  it also carries the correctness half: `test_header_index_is_the_only_fold` is
+  red because it counted 270 reader sites inside agent worktrees.
+
+So: **measure the other tree-walkers and report what they cost — that number is
+wanted and belongs in your ranked list — but do not fix them here.** Handing
+`TASK-303` a measured population is worth more than half-doing it.
+
+The 286s figure is the target `TASK-303` is judged against, not this row.
