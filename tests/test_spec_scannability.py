@@ -46,6 +46,7 @@ Run: python3 tests/test_spec_scannability.py
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -398,6 +399,23 @@ class TestTheDefaultPassIsTheReader(unittest.TestCase):
             ["perry/evidence/2026-09/TASK-001-spec.md"])
 
 
+def visible(text: str) -> str:
+    """A markdown file's text with `<!-- … -->` comments removed.
+
+    Every guard below is a text-presence guard, because the defects they hold
+    down are text defects. A raw grep cannot tell a live paragraph from one
+    somebody commented out — measured: mutating `dispatch.md`'s
+    `scope_scanned` paragraph by prefixing `<!--` left the guard GREEN while
+    the paragraph no longer rendered. It is not a hypothetical shape for a
+    doc to rot into; commenting a section out is how prose gets disabled
+    without being deleted. This does not make a text guard into a semantic
+    one — nothing here can tell a correct paragraph from a plausible one —
+    but it does close the gap between "the bytes are present" and "a reader
+    sees it".
+    """
+    return re.sub(r"<!--.*?-->", "", text, flags=re.S)
+
+
 class TestTheProcedureNamesTheShape(unittest.TestCase):
     """Fix 1, the procedure side — the only one of TASK-284's three fixes that
     can satisfy its Verification item 2 (*"a spec written by following
@@ -415,7 +433,7 @@ class TestTheProcedureNamesTheShape(unittest.TestCase):
     TASK = PERRY_HOME / "bin" / "perry-task"
 
     def step3(self) -> str:
-        src = self.SUB.read_text(encoding="utf-8")
+        src = visible(self.SUB.read_text(encoding="utf-8"))
         return src[src.index("3. **For P0 and P1 tasks**"):
                    src.index("### `close-task")]
 
@@ -438,7 +456,9 @@ class TestTheProcedureNamesTheShape(unittest.TestCase):
         """That sentence is what produced the 45: `perry-task add` renders the
         journal block as bullets, so "the same schema" had one available
         reading and it was the wrong one."""
-        src = self.SUB.read_text(encoding="utf-8")
+        src = self.SUB.read_text(encoding="utf-8")  # raw: a commented-out
+        # copy of the old sentence is still gone from what a reader sees,
+        # and this assertion is a NOT-in, so the strict reading is right.
         self.assertNotIn("containing the same schema", src)
         self.assertNotIn("uses the same template as the journal", src)
 
@@ -457,7 +477,7 @@ class TestTheProcedureNamesTheShape(unittest.TestCase):
         """The asymmetry this round is about: the empty-HOOK half had an exit
         code, a `dispatch.md` paragraph and a mandatory go-ahead in chat; the
         empty-SPEC half had two JSON keys no procedure read."""
-        src = self.DISPATCH.read_text(encoding="utf-8")
+        src = visible(self.DISPATCH.read_text(encoding="utf-8"))
         step4 = src[src.index("4. **Safety re-validation**"):
                     src.index("5. Spec contains a `Subjective verification:")]
         self.assertIn("scope_scanned", step4)
