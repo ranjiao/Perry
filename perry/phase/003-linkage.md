@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "003-storage-code"
-updated: "2026-09-02T06:26:55Z"
+updated: "2026-09-02T06:36:56Z"
 objectives:
   - id: O1
     title: "Every declared store exists, and one command checks all of them"
@@ -40,12 +40,6 @@ objectives:
         stretch: false
         linked: "KR-O2.1"
         tasks: ["TASK-095", "TASK-233", "TASK-247", "TASK-283"]
-      - id: P003-O2-KR2
-        title: "The adoption reader is fenced into one named module, with a mechanical guard shown able to go red"
-        metric: "guard live, and restoring one removed call site turns it red (baseline: no boundary; viewer/parsers.py is 3,973 lines serving both roles). RE-BASELINED 2026-09-01: 4,603 lines serving ONE role. `bin/perry-migrate` was deleted 2026-08-31 and TASK-097 dropped with it, so the module's migration half has no caller — and `/perry adopt` is a user-facing command whose implementation went with it. The fence now separates the adoption reader from the store readers, and whether an unreachable reader is still worth fencing is the open question TASK-099 carries into the pivot rather than an assumption this KR may keep making."
-        stretch: false
-        linked: "KR-O2.3"
-        tasks: ["TASK-099", "TASK-050"]
       - id: P003-O2-KR3
         title: "The render distinguishes what is projected from what is canonical, so a reader can tell truth from projection"
         metric: "the distinction is readable from the render (baseline: nothing marks it — the boundary was invisible in `BOARD.md`, TASK-199). RESTATED 2026-08-29 by USER-907, answer (a): the KR read `BOARD.md`'s two truth models are marked in the file, and ADR-010 deletes that file. The property the KR was buying was never the marking, it was a reader being able to tell truth from projection, and that need survives onto the surface ADR-010 creates. WITHDRAWN AND RESTORED 2026-09-01: a pivot dropped this KR as ADR-010's rejected Option 2 without reading USER-907, which had already chosen (a) over exactly that. The drop is reversed; TASK-199 could not be, because a dropped row is terminal and an id is never reissued, so TASK-262 carries the re-scoped work."

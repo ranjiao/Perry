@@ -72,11 +72,9 @@ document class (`design/`, `DECISIONS.md`, `phase/`, `.perry/roles/`) — phase
   reads it: four call sites move from the markdown to `.perry/config.jsonl`.
   `SKILL.md` promises the user owns that file directly, and this is the half of
   that promise not yet decided.
-- **V5 sign-off on the adoption-reader fence** (`P003-O2-KR2`). ~~It changes
-  which code path a foreign project goes through~~ — **restated 2026-09-01**:
-  none does. `perry-migrate` is deleted and `/perry adopt` has no
-  implementation, so the question became *whether to fence a reader with no
-  caller*, which is a product decision rather than a review.
+- ~~**V5 sign-off on the adoption-reader fence** (`P003-O2-KR2`).~~
+  **Withdrawn 2026-09-02** with the KR itself — there is no adoption reader to
+  fence. `USER-911`; see `## Changes / Pivots`.
 - ~~**Attribution answers for the 40 rows still never asked** (`P003-O3-KR1`). Perry
   never guesses a KR; these can only be declared.~~ **Withdrawn 2026-08-31** —
   the backfill is phase 004's; see `## Changes / Pivots`.
@@ -257,42 +255,38 @@ documented as machine-written* — is about the command that wrote this file.
 ## Changes / Pivots     <!-- append-only -->
 
 2026-08-31 — **`P003-O3-KR1` withdrawn; Objective 3 keeps `P003-O3-KR2` only.**
-*What*: the backfill KR — open `main`-track rows in neither `tasks[]` nor
-`unlinked[]` — is removed from `phase/003-linkage.md`; the `add`-time linkage
-gate stays. Phase KR count 8 → 7. *Why*: the gate is the mechanism that makes
-attribution happen as ordinary project work; the backfill is a one-off cleanup
-that the gate makes cheap afterwards. Doing the cleanup first spends the phase
-on 45 answers and leaves the next 45 rows arriving the same way. The population
-moved 45 → 7 during phase 003 **without the backfill being worked at all**, and
-those 7 (TASK-253…TASK-259) are exactly the rows the gate would have caught at
-`add`. *Who*: the user, asked directly and answering "去掉 KR1, 留下 KR2". The
-cut is the one this phase's own KR-progress trigger already describes, taken at
-day 4 instead of day 10. *Consequences*: DoD Must-Have 5 restated above;
-PROJ-003-LINK's verification restated; the KR-progress trigger marked spent.
-Pre-pivot state preserved at
+The backfill KR is removed from the register, the `add`-time linkage gate
+stays, KR count 8 → 7. The user answered directly; the cut is the one this
+phase's KR-progress trigger already described, taken at day 4 instead of day
+10. Full account and consequences in
 `phase/snapshots/2026-08-31-003-storage-code.md`.
 
 2026-09-01 — **`O1` asserted at 6/6/6; `O2`'s two KRs restated against a
-deleted subsystem.** *What*: `P003-O1-KR1/KR2/KR3` take `current: 6`, each
-metric carrying its own measurement; `P003-O2-KR1` is restated to count
-track-register readings and drops the migration exclusion; `P003-O2-KR2` is
-re-baselined to one role and 4,603 lines. KR count unchanged at 7. *Why*:
-`TASK-261` and `USER-910` deleted the ADR-004 gate and all of migration
-(-10,663 lines, `6c24730..37e9af5`), the subsystem those KRs were phrased
-over; `ADR-011` records the direction. *Who*: the user. *Consequences*: DoD 4
-restated above; Objective 1 is met and its own product — the drift census — is
-Tier B on
-`evidence/2026-08/2026-08-31-representation-layer-delete-list.md`, so nothing
-more should be spent on it. Pre-pivot state at
-`phase/snapshots/2026-09-01-003-storage-code.md`.
+deleted subsystem.** `TASK-261` and `USER-910` deleted the ADR-004 gate and all
+of migration (-10,663 lines), the subsystem those KRs were phrased over. KR
+count unchanged at 7. **Correction, same day**: the pivot first withdrew
+`P003-O2-KR3` without reading `USER-907`, which had already answered (a)
+restate — the KR is restored in the user's terms and `TASK-262` carries
+`TASK-199`'s scope, the drop standing under a reason that was wrong. Full
+account in `phase/snapshots/2026-09-01-003-storage-code.md`.
 
-**Correction, same day.** This pivot first withdrew `P003-O2-KR3` as
-`ADR-010`'s rejected Option 2, and dropped `TASK-199`. `USER-907` had already
-put that choice to the user on 2026-08-29 and the answer was **(a): restate
-the KR, re-scope the row** — the ask was not read before proposing. The KR is
-restored in the user's own terms. `TASK-199` could not be: a dropped row is
-terminal and an id is never reissued, so **`TASK-262`** carries its scope and
-the drop stands in the log under a reason that was wrong.
+2026-09-02 — **`P003-O2-KR2` withdrawn; Objective 2 keeps KR1 and KR3.**
+*What*: the adoption-reader fence KR is removed from the register. Phase KR
+count 7 → 6. *Why*: its metric asks for "the adoption reader fenced into one
+named module", and measurement found no such module and no such reader.
+`viewer/parsers.py` is 4,606 lines imported by **eight** tools and carries no
+adopt- or migrate-specific top-level definition; its mentions of adoption are
+read semantics. `/perry adopt` is not unimplemented — `reference/adoption.md`
+is live and routed — and it does not go through `parsers.py` at all. The
+2026-09-01 re-baseline was right that the file serves one role; that role is
+Perry's shared reader. This is a KR that **cannot be met**, not work that was
+not done. *Who*: the user, `USER-911`. *Consequences*: `TASK-099`'s fence half
+goes with the KR and the row needs re-scoping; `TASK-050` and `TASK-215`
+remain closed under it and are not reopened. *Cap*: writing this entry
+required compacting the two entries above, whose detail stays in the snapshots
+they name; pre-pivot state at
+`phase/snapshots/2026-09-02-003-storage-code.md` and
+`phase/snapshots/2026-09-02-003-linkage-pre-kr2-withdrawal.md`.
 
 ## Mid-phase check     <!-- filled by `okr dashboard` or `pmo mid-phase-review` -->
 
