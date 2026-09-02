@@ -68,7 +68,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from header_rule import offenders_by_symbol, readers_under      # noqa: E402
+from header_rule import (offenders_at, offenders_by_symbol,     # noqa: E402
+                         readers_under)
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 
@@ -85,7 +86,14 @@ NO_SHEBANG = frozenset({"bin/probe-d20", "bin/probe-s12"})
 
 #: Directories a planted copy does not need. `perry/` is 4 MB of evidence
 #: markdown and holds no reader; `tests/` is this file.
-NOT_COPIED = {".git", "perry", "tests", "__pycache__", ".perry"}
+#:
+#: **`.claude` is `TASK-244`'s.** The Agent tool puts a full checkout per
+#: subagent under `.claude/worktrees/`, so on the main checkout this set was
+#: copying ten more copies of the repository into every `tempfile` tree and
+#: then scanning them: `readers_under` returned 219 files where the tree has
+#: 19, and a single scan cost 31.2s instead of 2.7s. `header_rule.NOT_A_READER`
+#: excludes the same directory for the same reason and carries the argument.
+NOT_COPIED = {".git", "perry", "tests", "__pycache__", ".perry", ".claude"}
 
 #: `(label, source, path, body)`.
 #:
@@ -1140,8 +1148,21 @@ def _hits(root: Path, where: str) -> list[str]:
     `bin/`, `bin/lib/`, `viewer/` and `packs/`, and a basename match would read
     a hit in one directory as a hit in another — which is how a scan that never
     looked at a directory reports success there.
+
+    **`TASK-244`: this asks about ONE file and now reads only that file.** It
+    always discarded everything the whole-tree scan said about the other 19
+    readers — the filter on the next line is the proof — but it paid for the
+    scan 112 times per run, once per corpus entry, and that was 260.6s of the
+    module's 263.2s. `offenders_at` runs the identical per-file code on the
+    planted path alone, which is sound because `offenders_by_symbol` carries no
+    state across files, and `TestTheSingleFileScanAgreesWithTheWalk` measures
+    the equality rather than trusting this paragraph.
+
+    The `startswith` filter is KEPT. It is now trivially satisfied, and it
+    stays because it is what makes the path-not-basename claim above true of
+    this function rather than of a function it calls.
     """
-    return [o for o in offenders_by_symbol(root) if o.startswith(where + ":")]
+    return [o for o in offenders_at(root, where) if o.startswith(where + ":")]
 
 
 def _plant(root: Path, where: str, body: str) -> Path:
@@ -1315,6 +1336,85 @@ class TestTheCopyItselfIsClean(unittest.TestCase):
                             f"the control planted at {where} was NOT caught, "
                             f"so nothing this corpus reports about {d} means "
                             f"anything")
+                    finally:
+                        target.unlink(missing_ok=True)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class TestTheSingleFileScanAgreesWithTheWalk(unittest.TestCase):
+    """**The premise `TASK-244` traded 260 seconds on, asserted rather than
+    argued.**
+
+    Every corpus test below asks `_hits(root, where)` — what the net reports
+    about ONE planted file — and `_hits` now answers by reading that one file
+    instead of walking the tree. The justification is that
+    `offenders_by_symbol` is per-file: it builds a fresh `_RowLocals` from a
+    single file's AST and keys every hit to that file's own `rel`, so nothing
+    else in the tree can change what it says about `where`.
+
+    That is a property of today's `header_rule.py`, and a later round could
+    take it away — a cross-file pass, a project-wide symbol table, an
+    import-following resolver are all plausible next moves for this net, and
+    any of them would make the shortcut silently wrong while every test below
+    stayed green. Nothing else in the suite would notice, because the shortcut
+    and the thing it replaced would simply disagree in one direction.
+
+    So the equality is measured here, on the real whole-tree scan, and these
+    two tests are the only ones in the module that still pay for one.
+    """
+
+    def test_the_walk_is_the_union_of_its_files(self):
+        """The decomposition, over the tree as it actually is: what the walk
+        reports is exactly what the per-file scan reports, file by file. One
+        whole-tree scan buys the general statement."""
+        tmp = _copy()
+        root = tmp / "t"
+        try:
+            walk = offenders_by_symbol(root)
+            union: list[str] = []
+            for p in readers_under(root):
+                rel = p.relative_to(root).as_posix()
+                per_file = offenders_at(root, rel)
+                self.assertEqual(
+                    per_file,
+                    [o for o in walk if o.startswith(rel + ":")],
+                    f"offenders_at disagrees with the walk about {rel}")
+                union += per_file
+            self.assertEqual(sorted(set(union)), walk)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_a_planted_file_gets_the_same_verdict_either_way(self):
+        """The decomposition again, but on files that do not exist until the
+        test plants them — which is the case every corpus test below is in, and
+        the case where the reader GATE does the work.
+
+        The sample is chosen, not arbitrary: `D20` and `S12` are the two
+        entries planted with no shebang and no suffix, so they are the two
+        whose admission turns on `is_python` parsing the bytes rather than on a
+        filename. If `offenders_at`'s gate ever stopped being `is_reader`,
+        these are the entries that would move first — which is round 9's own
+        finding, in the other direction.
+        """
+        by_path = {e[2]: e for e in DRIFT + CLEAN + SECOND_RULE}
+        sample = sorted(NO_SHEBANG) + [DRIFT[0][2], CLEAN[0][2]]
+        tmp = _copy()
+        root = tmp / "t"
+        try:
+            for where in sample:
+                with self.subTest(where):
+                    self.assertIn(where, by_path)
+                    target = _plant(root, where, by_path[where][3])
+                    try:
+                        walk = [o for o in offenders_by_symbol(root)
+                                if o.startswith(where + ":")]
+                        self.assertEqual(
+                            offenders_at(root, where), walk,
+                            f"the single-file scan and the whole-tree walk "
+                            f"disagree about the planted {where}, so every "
+                            f"result this module reports is measuring "
+                            f"something other than what it claims")
                     finally:
                         target.unlink(missing_ok=True)
         finally:

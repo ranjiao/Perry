@@ -111,7 +111,26 @@ ROW_PRODUCERS = frozenset({"split_row", "header_index"})
 #: `viewer/tables.py` DEFINES the rule. Both are named with a reason, and
 #: nothing else is skipped — round 4 failed this row for a scan that could not
 #: see a file outside two named directories.
-NOT_A_READER = ("tests", ".git", "__pycache__", ".perry")
+#:
+#: **`.claude` is the fourth, and it is a `TASK-244` measurement rather than a
+#: judgement.** The Agent tool creates a checkout per subagent under
+#: `.claude/worktrees/`, and `.gitignore` names them for what they are:
+#: *"Subagent worktrees — temporary, created by the Agent tool"*. Nothing under
+#: `.claude` is tracked (`git ls-files .claude` is empty), so every reader in
+#: there is a SECOND COPY of a reader this scan already has, at a path that is
+#: not part of the repository. Measured on the main checkout on 2026-09-02 with
+#: ten worktrees live: `readers_under` returned **219 files, 200 of them inside
+#: `.claude/`**, and one `offenders_by_symbol` cost 31.2s instead of 2.7s.
+#:
+#: This is NOT round 4's hole repeated. Round 4 failed a scan that could not see
+#: Perry readers in `packs/`, `modes/`, `decide/`, `goals/` — real code at real
+#: repository paths. Every path excluded here is a duplicate of one still
+#: scanned, and the exclusion is bounded by the tree being untracked: a reader
+#: that only ever exists under `.claude` is not a file this repository ships.
+#: Two live agents' half-finished edits were also being read as this
+#: repository's code, which is how one worktree's work-in-progress could redden
+#: another's `test_one_header_rule`.
+NOT_A_READER = ("tests", ".git", "__pycache__", ".perry", ".claude")
 
 
 def is_python(p: Path) -> bool:
@@ -163,14 +182,27 @@ def readers_under(root) -> list[Path]:
     for p in root.rglob("*"):
         if not p.is_file():
             continue
-        rel = p.relative_to(root).parts
-        if any(part in NOT_A_READER for part in rel):
-            continue
-        if p == root / "viewer" / "tables.py":
-            continue
-        if is_python(p):
+        if is_reader(root, p):
             out.append(p)
     return sorted(out)
+
+
+def is_reader(root, p: Path) -> bool:
+    """Whether ONE path under `root` is a reader `readers_under` would return.
+
+    Factored out of `readers_under` so that a check about a single file asks
+    exactly the question the whole-tree walk asks, rather than a second
+    spelling of it. `offenders_at` is the caller; `readers_under` is still the
+    only place the *walk* lives, so the two cannot disagree about what a reader
+    is (`TASK-244`).
+    """
+    root = Path(root)
+    rel = p.relative_to(root).parts
+    if any(part in NOT_A_READER for part in rel):
+        return False
+    if p == root / "viewer" / "tables.py":
+        return False
+    return is_python(p)
 
 
 def _preserves_elements(comp) -> bool:
@@ -895,50 +927,89 @@ def offenders_by_symbol(root) -> list[str]:
     out: list[str] = []
     root = Path(root)
     for p in readers_under(root):
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                warnings.simplefilter("ignore", SyntaxWarning)
-                tree = ast.parse(p.read_text(errors="replace"))
-        except (SyntaxError, ValueError, RecursionError):
-            continue                            # not importable; not a reader
-        rows = _RowLocals(tree)
+        out += _offenders_in_reader(root, p)
+    return sorted(set(out))
 
-        rel = p.relative_to(root).as_posix()
 
-        def hit(node):
-            out.append(f"{rel}:{node.lineno}: {ast.unparse(node)[:120]}")
+def offenders_at(root, rel) -> list[str]:
+    """`offenders_by_symbol` restricted to the ONE file at `rel`, without
+    reading the rest of the tree.
 
-        for node in ast.walk(tree):
-            # (a) the rule MAPPED across a row.
-            for elt, source in _mapping_sites(node):
-                if rows.source(source) and _blessed_calls(elt, rows.blessed):
-                    hit(node)
-            # (b) a loop over a row that accumulates a blessed fold.
-            if isinstance(node, (ast.For, ast.AsyncFor)) and rows.source(node.iter):
-                for sub in ast.walk(node):
-                    if isinstance(sub, ast.Call) \
-                            and isinstance(sub.func, ast.Attribute) \
-                            and sub.func.attr in {"append", "add", "update",
-                                                  "insert", "setdefault"} \
-                            and sub.args:
-                        if any(_blessed_calls(a, rows.blessed) for a in sub.args):
-                            hit(node)
-                    elif isinstance(sub, ast.AugAssign) \
-                            and _blessed_calls(sub.value, rows.blessed):
+    **This is sound because the analysis is per-file, and that is a property of
+    the code above rather than an assumption about it** (`TASK-244`): the loop
+    in `offenders_by_symbol` builds a fresh `_RowLocals` from a single file's
+    own AST, and every `hit` it records is keyed to the `rel` of the file being
+    parsed. No state crosses a file boundary, so what the whole-tree scan
+    reports *about `rel`* is a function of `rel`'s bytes and of the reader gate
+    — nothing else in the tree can change it.
+
+    The gate is `is_reader`, the same predicate the walk uses, so the two
+    `NO_SHEBANG` corpus entries still turn on `is_python` exactly as they did:
+    a suffix-less file with no shebang is admitted or refused here by the same
+    call that admits or refuses it there.
+
+    `tests/test_header_rule_harness.py § TestTheSingleFileScanAgreesWithTheWalk`
+    pins the equality against the real whole-tree scan, so the shortcut cannot
+    drift away from the thing it is standing in for.
+    """
+    root = Path(root)
+    p = root / rel
+    if not p.is_file() or not is_reader(root, p):
+        return []
+    return sorted(set(_offenders_in_reader(root, p)))
+
+
+def _offenders_in_reader(root: Path, p: Path) -> list[str]:
+    """The per-file body of `offenders_by_symbol`, for one reader `p`.
+
+    Extracted so the whole-tree scan and the single-file scan run the SAME
+    code rather than two copies of it (`TASK-244`).
+    """
+    out: list[str] = []
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            warnings.simplefilter("ignore", SyntaxWarning)
+            tree = ast.parse(p.read_text(errors="replace"))
+    except (SyntaxError, ValueError, RecursionError):
+        return []                               # not importable; not a reader
+    rows = _RowLocals(tree)
+
+    rel = p.relative_to(root).as_posix()
+
+    def hit(node):
+        out.append(f"{rel}:{node.lineno}: {ast.unparse(node)[:120]}")
+
+    for node in ast.walk(tree):
+        # (a) the rule MAPPED across a row.
+        for elt, source in _mapping_sites(node):
+            if rows.source(source) and _blessed_calls(elt, rows.blessed):
+                hit(node)
+        # (b) a loop over a row that accumulates a blessed fold.
+        if isinstance(node, (ast.For, ast.AsyncFor)) and rows.source(node.iter):
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Call) \
+                        and isinstance(sub.func, ast.Attribute) \
+                        and sub.func.attr in {"append", "add", "update",
+                                              "insert", "setdefault"} \
+                        and sub.args:
+                    if any(_blessed_calls(a, rows.blessed) for a in sub.args):
                         hit(node)
-                    elif isinstance(sub, ast.Assign) and any(
-                            isinstance(t, ast.Subscript) for t in sub.targets):
-                        if _blessed_calls(sub.value, rows.blessed) or any(
-                                _blessed_calls(t.slice, rows.blessed)
-                                for t in sub.targets
-                                if isinstance(t, ast.Subscript)):
-                            hit(node)
-            # (c) the rule applied to ONE CELL of a row — the scalar half.
-            if isinstance(node, ast.Call) and len(node.args) == 1:
-                name = (node.func.id if isinstance(node.func, ast.Name)
-                        else node.func.attr if isinstance(node.func, ast.Attribute)
-                        else None)
-                if name in rows.rule and rows.cell(node.args[0]):
+                elif isinstance(sub, ast.AugAssign) \
+                        and _blessed_calls(sub.value, rows.blessed):
                     hit(node)
+                elif isinstance(sub, ast.Assign) and any(
+                        isinstance(t, ast.Subscript) for t in sub.targets):
+                    if _blessed_calls(sub.value, rows.blessed) or any(
+                            _blessed_calls(t.slice, rows.blessed)
+                            for t in sub.targets
+                            if isinstance(t, ast.Subscript)):
+                        hit(node)
+        # (c) the rule applied to ONE CELL of a row — the scalar half.
+        if isinstance(node, ast.Call) and len(node.args) == 1:
+            name = (node.func.id if isinstance(node.func, ast.Name)
+                    else node.func.attr if isinstance(node.func, ast.Attribute)
+                    else None)
+            if name in rows.rule and rows.cell(node.args[0]):
+                hit(node)
     return sorted(set(out))
