@@ -74,6 +74,19 @@ def kr_lines(text: str) -> int:
                if KR_TABLE_ROW.match(line) or KR_BULLET.match(line))
 
 
+#: The same independent-counter trick, one level up: how many `### Objective
+#: <N>` headings a raw `OKR.md` carries, written without importing `scan_okr`
+#: or reading `schema/state-schema.json`. DESIGN-009 step 1's whole claim is
+#: "one record per Objective heading", so a count that came out of the scanner
+#: would be that claim testing itself.
+OBJECTIVE_HEADING = re.compile(r"^###\s+(?:Objective|目标)\s+\d+")
+
+
+def objective_lines(text: str) -> int:
+    return sum(1 for line in text.split("\n")
+               if OBJECTIVE_HEADING.match(line))
+
+
 def run(tool: str, *args, root: pathlib.Path):
     return subprocess.run(
         [sys.executable, str(ROOT / "bin" / tool), *args, "--root", str(root)],
@@ -132,6 +145,23 @@ class TestThisRepositoryIsReproducedByteForByte(unittest.TestCase, RoundTrip):
             len(krs), kr_lines(text),
             "the store holds a different number of KRs than the file has KR "
             "lines — a byte-identical render that dropped rows")
+        # DESIGN-009 step 1, on the file the design measured: one `objective`
+        # record per Objective heading, counted independently of the scanner.
+        # Before this row an Objective had no record at all — it existed only
+        # as the title string repeated in every KR's `objective` field, which
+        # is the defect that design is named after.
+        objectives = [r for r in records if r["kind"] == "objective"]
+        self.assertEqual(
+            len(objectives), objective_lines(text),
+            "the store holds a different number of Objectives than the file "
+            "has Objective headings")
+        # And no id is minted here. Writing one in this row would decide by
+        # accident what DESIGN-009 decision 1 decides on purpose, and step 3
+        # is where the mint lands.
+        self.assertEqual([o["id"] for o in objectives],
+                         [""] * len(objectives),
+                         "an objective id was minted; DESIGN-009 step 1 "
+                         "writes none")
         # `assertGreater(len(krs), 20)` used to close this test (TASK-150). It
         # was a proxy for "the scanner read the whole file", written as a
         # census of what `perry/OKR.md` happens to hold: retiring five KRs
@@ -349,7 +379,9 @@ class TestTheSecondProjectFixture(unittest.TestCase, RoundTrip):
     def test_okr_with_bullet_krs_and_a_commitments_register(self):
         path = FIXTURES / "second-project" / "OKR.md"
         records, report = self.assert_round_trips(
-            M.OKR, path, expect_kinds={"kr": 7, "commitment": 2, "version": 2})
+            M.OKR, path,
+            expect_kinds={"kr": 7, "commitment": 2, "version": 2,
+                          "objective": 3})
         self.assertEqual(len([r for r in records if r["kind"] == "kr"]),
                          kr_lines(path.read_text()))
         # Every KR here came from the bullet form, which is the half of
@@ -435,6 +467,214 @@ class TestTheSecondRealProject(unittest.TestCase, RoundTrip):
         cfg = d / ".perry" / "config.md"
         if cfg.is_file():
             self.assert_round_trips(M.CONFIG, cfg)
+
+
+#: An `OKR.md` whose Objective headings are written every way the two real
+#: projects and the two shipped templates write them, plus the two shapes that
+#: must mint nothing. Written here rather than measured off `perry/OKR.md`,
+#: which carries exactly one of these forms.
+#:
+#:   `— `   Perry's own file and both `OKR_TEMPLATE.md`s
+#:   `: `   `~/proj/gimegime-pmo/OKR.md`, all nine of its Objectives
+#:   `：`   the Chinese ordinal with a full-width colon
+#:   none   an Objective heading that is nothing but its ordinal
+#:   `### Retro — …`   a level-3 heading that is not an Objective
+#:   a REPEATED heading in a second version block — `okr.jsonl` already holds
+#:   `KR-O1.1` twice for the same reason, and DESIGN-009 § 5.1 puts `version`
+#:   on the record so the two do not collapse into one.
+OBJECTIVE_FORMS = """\
+# OKR — an Objective written four ways
+
+## Mission
+
+Prove that an Objective is a record.
+
+## v1: 2026-01-01
+
+### Objective 1 — an em dash, the form Perry's own file writes
+
+| Id | KR | Metric / Target | Stretch? | Deadline |
+|----|----|------------------|----------|----------|
+| KR-O1.1 | do the thing | 1 of 1 | no | 2026-12-31 |
+
+### Objective 2: a colon, the form gimegime-pmo writes
+
+### 目标 3：一个全角冒号
+
+### Objective 4
+
+### Retro — v1
+
+nothing here is an Objective.
+
+## v2: 2026-02-01
+
+### Objective 1 — an em dash, the form Perry's own file writes
+"""
+
+
+class TestAnObjectiveIsARecord(unittest.TestCase, RoundTrip):
+    """DESIGN-009 step 1 — the record shape, on a document this test writes.
+
+    Before this row an Objective existed only as a title string denormalised
+    onto every KR's `objective` field, so `okr.jsonl` held `kr` and `version`
+    records and nothing to hang an Objective's identity on. The design's step 1
+    is the record and the round trip; **the mint is step 3 and nothing here may
+    write an id**, because an id written by accident here is exactly the
+    position-derived handle `schema/goals-list-contract.md § Not here` refuses.
+    """
+
+    def write(self, text: str = OBJECTIVE_FORMS) -> pathlib.Path:
+        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-okr-objective-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        path = d / "OKR.md"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def objectives(self, path: pathlib.Path) -> list[dict]:
+        records, _ = self.assert_round_trips(M.OKR, path)
+        return [r for r in records if r["kind"] == "objective"]
+
+    def test_every_objective_heading_becomes_one_record_and_nothing_else_does(
+            self):
+        path = self.write()
+        objectives = self.objectives(path)
+        self.assertEqual(len(objectives),
+                         objective_lines(path.read_text(encoding="utf-8")))
+        self.assertEqual([o["heading"] for o in objectives], [
+            "Objective 1 — an em dash, the form Perry's own file writes",
+            "Objective 2: a colon, the form gimegime-pmo writes",
+            "目标 3：一个全角冒号",
+            "Objective 4",
+            "Objective 1 — an em dash, the form Perry's own file writes",
+        ])
+        self.assertEqual([o["order"] for o in objectives], [0, 1, 2, 3, 4])
+
+    def test_the_heading_and_the_title_are_two_different_fields(self):
+        """DESIGN-009 § 5.1's split. `heading` is the line, `title` is what a
+        consumer displays — and the separator is whatever the author wrote, so
+        requiring an em dash would store `: a colon…` on the other real
+        project this store is held to."""
+        objectives = self.objectives(self.write())
+        self.assertEqual([o["title"] for o in objectives], [
+            "an em dash, the form Perry's own file writes",
+            "a colon, the form gimegime-pmo writes",
+            "一个全角冒号",
+            "",          # an ordinal and nothing else states no title
+            "an em dash, the form Perry's own file writes",
+        ])
+        for o in objectives:
+            self.assertNotIn("Objective", o["title"].split(" ")[:1])
+            self.assertTrue(o["heading"].endswith(o["title"]) or not o["title"])
+
+    def test_a_level_three_heading_that_is_not_an_objective_mints_nothing(self):
+        """`### Retro — v1` is a section, and `## v1: …` is the version block
+        the Objectives sit in. A scanner that took any `###` would record the
+        first, and one that took any depth would record the second as an
+        Objective whose version is itself."""
+        objectives = self.objectives(self.write())
+        self.assertEqual([o for o in objectives if "Retro" in o["heading"]], [])
+        self.assertEqual(sorted({o["version"] for o in objectives}),
+                         ["v1: 2026-01-01", "v2: 2026-02-01"])
+
+    def test_the_same_heading_in_two_versions_is_two_records(self):
+        """Risk 3 of the design. `okr.jsonl` already carries `KR-O1.1` twice,
+        discriminated by `version`; an Objective repeated in a later version
+        block has to survive the same way, or history collapses into the
+        current version and the store cannot be read back at all."""
+        objectives = self.objectives(self.write())
+        repeated = [o for o in objectives
+                    if o["heading"].startswith("Objective 1 —")]
+        self.assertEqual(len(repeated), 2)
+        self.assertEqual(len({M.record_key(o) for o in repeated}), 2,
+                         "two Objectives one version apart share a record key")
+        _good, findings = M.validate_records(objectives)
+        self.assertEqual(findings, [],
+                         "the store this scan produces cannot be read back")
+
+    def test_no_id_is_minted_in_this_row(self):
+        """DESIGN-009 step 1: *"No id written yet."* The field is carried so
+        the day step 3 mints one is a changed value rather than a reshuffled
+        store; it is empty because deciding its shape here would decide by
+        accident what decision 1 of that design decides on purpose."""
+        objectives = self.objectives(self.write())
+        self.assertIn("id", M.STORED["objective"])
+        self.assertEqual({o["id"] for o in objectives}, {""})
+
+    def rendered_heading(self, line: str, rec: dict) -> tuple:
+        """One heading line, rebuilt from `rec` through the shipped renderer.
+
+        `M.render` cannot carry this leg, and the reason is the record key:
+        an Objective is keyed on `(version, heading)`, so a record whose
+        heading has been changed no longer matches the line it came from and
+        is reported as gone rather than rendered into it. That is the shape
+        DESIGN-009 steps 3-5 are for, and it is deliberate here — see
+        `record_key`. So the anti-echo question is asked one level down, of
+        the descriptor and the renderer that `plan` and `render` are made of:
+        given a record that DISAGREES with the line, what gets printed?
+        """
+        _lines, sites = M.scan_okr(line)
+        site = next(s for s in sites if s["kind"] == "objective")
+        desc, findings = S.slot_descriptor(line.split("\n")[site["line"]],
+                                           site["slots"], rec)
+        return S.render_line(desc, rec), findings
+
+    def test_a_stored_heading_is_what_the_renderer_prints(self):
+        """The anti-echo leg. A renderer that cannot be made to print a wrong
+        heading has not been shown to print a right one — `describe_cell`'s own
+        docstring records the first version of this file getting that
+        backwards, by falling back to verbatim whenever the two disagreed."""
+        line = "### Objective 4\n"
+        rec = {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+               "title": "a title it did not have",
+               "heading": "Objective 4 — a title it did not have", "order": 0}
+        rendered, findings = self.rendered_heading(line, rec)
+        self.assertEqual(rendered, "### Objective 4 — a title it did not have")
+        self.assertEqual([(f["column"], f["file"], f["store"])
+                          for f in findings],
+                         [("heading", "Objective 4",
+                           "Objective 4 — a title it did not have")])
+
+    def test_the_hashes_and_any_trailing_space_are_layout(self):
+        """The heading's `###`, the space after it and whatever the author left
+        at the end of the line are not in the store — the slot covers the
+        heading text and nothing else. A store that swallowed the hashes would
+        render `### ### Objective 1` the first time a value changed, and one
+        that swallowed the trailing spaces would drop them on every render."""
+        path = self.write("## v1: 2026-01-01\n\n"
+                          "###   Objective 1 — spaced out   \n")
+        self.assertEqual([o["heading"] for o in self.objectives(path)],
+                         ["Objective 1 — spaced out"])
+        line = "###   Objective 1 — spaced out   \n"
+        rec = {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+               "title": "renamed", "heading": "Objective 1 — renamed",
+               "order": 0}
+        rendered, _ = self.rendered_heading(line, rec)
+        self.assertEqual(rendered, "###   Objective 1 — renamed   ")
+
+    def test_a_renamed_heading_is_reported_and_never_guessed_at(self):
+        """The other half of the key's consequence, stated as a property.
+
+        A store record whose heading no longer appears in the file is not
+        matched to the nearest line: `plan` reports it under
+        `records_not_in_the_file`, and the line it used to own is reported as
+        one the store does not hold. Both are `perry-okr verify` failures, and
+        neither is silently smoothed over — which is the whole reason that
+        report sits next to a byte comparison rather than instead of one.
+        """
+        path = self.write()
+        text = path.read_text(encoding="utf-8")
+        records = M.derive(M.OKR, text)
+        target = next(r for r in records
+                      if r.get("heading") == "Objective 4")
+        target["heading"] = "Objective 4 — renamed by hand"
+
+        _rendered, report = M.render(M.OKR, text, records)
+        self.assertIn("objective/v1: 2026-01-01/Objective 4 — renamed by hand",
+                      report["records_not_in_the_file"])
+        self.assertEqual(
+            [(v["kind"], v["key"]) for v in report["lines_verbatim"]],
+            [("objective", "objective/v1: 2026-01-01/Objective 4")])
 
 
 class TestAMutatedStoreMovesTheFile(unittest.TestCase):
