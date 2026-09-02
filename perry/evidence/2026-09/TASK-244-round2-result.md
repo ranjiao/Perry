@@ -132,6 +132,9 @@ planted copy measured **2.35s, 2.35s, 2.33s** at load 12.24 in this worktree, an
 6 × 2.35 = 14.1s.
 
 The module is at **30.1s at load 14**, against the review's target of "near 34s".
+A final confirming run on the committed `394ed81`, module alone, load 20.10:
+**`Ran 16 tests in 34.744s, OK`** (31.63s user CPU). `tests/test_one_header_rule.py`
+at the same moment: `Ran 13 tests in 5.479s, OK`.
 Before `TASK-244` it was 265.996s (13 tests). Scans in the module: **112 → 6
 (round 1) → 8 (round 2)**.
 
