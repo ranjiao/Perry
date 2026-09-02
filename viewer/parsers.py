@@ -385,14 +385,17 @@ def configured(project_root: Path) -> bool:
     `perry-config render --write` put it back, is configured and its store says
     so. `bin/perry-goals § tracks_of` already asked it the wide way.
 
-    **Six call sites ask it here; that is not all of them.** Round 1 converted
-    four — `bin/perry-lint § is_adopted` and its project-root walk,
-    `bin/perry-explain`, `parsers § _resolve_project_root` — and claimed they
-    were the rest. They were not: `bin/perry-state § build` and its own copy of
-    the walk kept the markdown test, in the file the row is about, and the V4
-    reviewer reproduced both. Round 2 converted those two.
-    `bin/perry-diagnose § scan_tracking` and `§ diagnose` still ask it the
-    narrow way and are NOT converted — see `TASK-233-result.md § 4`.
+    **Nine call sites ask it here, and the count reached nine in three
+    rounds.** Round 1 converted four — `bin/perry-lint § is_adopted` and its
+    project-root walk, `bin/perry-explain`, `parsers § _resolve_project_root` —
+    and claimed they were the rest. They were not: `bin/perry-state § build`
+    and its own copy of the walk kept the markdown test, in the file the row is
+    about, and the V4 reviewer reproduced both. Round 2 converted those two and
+    named the three it left (`TASK-233-result.md § 4`). TASK-247 converted
+    those three: `bin/perry-diagnose § scan_tracking`, `§ diagnose`, and
+    `bin/perry-lint § _track_context`'s own five-step walk. **Zero narrow sites
+    remain in `bin/` or `viewer/`** — `bin/perry-goals § tracks_of` spells the
+    disjunction out inline and is the only other place it is written.
 
     It answers about `.perry/` only. Every caller ORs it with the state files
     it also accepts — `BOARD.md`, `OKR.md`, `phase/` — because those differ per

@@ -54,6 +54,7 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 from tables import header_index, split_row, squash  # noqa: E402
+import parsers as P  # noqa: E402
 import lib  # noqa: E402
 
 # ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
@@ -1372,8 +1373,16 @@ def scan_tracking(root: Path, state_root: Path, inventory: dict) -> dict:
                 if p.is_file() and re.search(r"(lint|check|verify|validate)", p.name, re.I):
                     checks.append({"kind": "script", "name": str(p.relative_to(root)), "cmd": None})
 
+    # `P.configured` — **either register counts** (TASK-247, P003-O2-KR1).
+    # This asked `is_file()` on `.perry/config.md` alone, so a project
+    # configured by `.perry/config.jsonl` and cloned before `perry-config
+    # render --write` put the projection back reported `config: false`, and
+    # `installed` below then fell through to the `OKR.md and BOARD.md` half —
+    # which is absent on a project that has only just been configured. The
+    # predicate lives in `viewer/parsers.py § configured`; this is a call, not
+    # a fourth spelling of it.
     perry = {
-        "config": (root / ".perry" / "config.md").is_file(),
+        "config": P.configured(root),
         "okr": (state_root / "OKR.md").is_file(),
         "board": (state_root / "BOARD.md").is_file(),
         "phase": (state_root / "phase").is_dir(),
@@ -2512,7 +2521,13 @@ def diagnose(root: Path, max_files: int) -> dict:
     ctx = scan_context_load(root, inv)
     tier0_paths = {f["path"] for f in ctx["always_loaded"]}
 
-    is_perry = (root / ".perry" / "config.md").is_file() or (
+    # The `.perry/` half is `P.configured` — store OR markdown (TASK-247). The
+    # `OKR.md and BOARD.md` half is unchanged: it answers about the state files,
+    # which differ per caller, and `configured` answers about `.perry/` only.
+    # Reading the markdown alone here made `perry_owned` empty on a store-only
+    # project, so every file Perry itself writes was counted as the user's and
+    # the archetype and namespace scans below read a Perry repo as a foreign one.
+    is_perry = P.configured(root) or (
         (state_root / "OKR.md").is_file() and (state_root / "BOARD.md").is_file()
     )
     perry_owned: set[str] = set()

@@ -297,9 +297,11 @@ class TestAStoreAloneIsAConfiguredProject(Fixture):
     `perry-config render --write` put it back, is configured: its store says so,
     and `bin/perry-goals § tracks_of` had already been asking it the wide way.
 
-    Not all of them. `bin/perry-diagnose § scan_tracking` and `§ diagnose` still
-    ask the narrow way and are out of scope here; `TASK-233-result.md § 4` names
-    them rather than claiming a sweep that was not run.
+    Round 1 left `bin/perry-diagnose § scan_tracking`, `§ diagnose` and
+    `bin/perry-lint § _track_context`'s own walk asking the narrow way, and
+    `TASK-233-result.md § 4` named them rather than claiming a sweep that was
+    not run. **TASK-247 converted those three**, and their guards are
+    `TestDiagnoseAndTheLinterWalkAskItToo` below.
     """
 
     def test_a_store_with_no_markdown_is_configured(self):
@@ -419,6 +421,135 @@ class TestPerryStateAsksItToo(Fixture):
         """The control. Neither site may become "store only"."""
         d = self.bare(markdown=MD_SAYS, store=False)
         self.assertTrue(run_state("--root", str(d), cwd=ROOT)["installed"])
+
+
+def run_diagnose(root: pathlib.Path) -> dict:
+    """`bin/perry-diagnose --root <p> --json`, out of process, as shipped.
+
+    `--root` is given so the walk is out of the way and each assertion below
+    measures one predicate. `PERRY_PROJECT` is stripped for the reason
+    `run_state` strips it.
+    """
+    env = dict(os.environ)
+    env.pop("PERRY_PROJECT", None)
+    env["PERRY_HOME"] = str(ROOT)
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "bin" / "perry-diagnose"),
+         "--root", str(root), "--json"],
+        capture_output=True, text=True, cwd=str(ROOT), env=env)
+    if out.returncode != 0:
+        raise AssertionError(
+            f"perry-diagnose exited {out.returncode}\n{out.stdout}\n{out.stderr}")
+    return json.loads(out.stdout)
+
+
+class TestDiagnoseAndTheLinterWalkAskItToo(Fixture):
+    """The last three sites. TASK-247, P003-O2-KR1.
+
+    The population was re-measured on `d49964e`: the row had named
+    `bin/perry-migrate:228` as the third site and that file was deleted by
+    TASK-261, so the count stayed three and the members changed.
+
+        bin/perry-diagnose § scan_tracking  `perry["config"]`, which
+                                            `perry["installed"]` is derived
+                                            from and the text renderer prints
+                                            as "Perry state: installed".
+        bin/perry-diagnose § diagnose       `is_perry`, which gates
+                                            `perry_owned` and therefore the
+                                            archetype, user-load and namespace
+                                            scans. Its `OKR.md and BOARD.md`
+                                            disjunct is unchanged.
+        bin/perry-lint § _track_context     the five-step upward walk that
+                                            typed a track cell.
+
+    **One test each, because they fail differently and a single test over all
+    three would stay green with two of them reverted.** Each fixture is
+    `bare(markdown=None)` — store, no projection, and no `BOARD.md` / `OKR.md`,
+    so no caller's other disjunct can answer in the predicate's place.
+    """
+
+    def nested(self) -> tuple[pathlib.Path, pathlib.Path]:
+        """`<tmp>/checkouts/` with a `config.md`, and a store-only project under it.
+
+        Its own temp root, NOT `bare()`'s parent: `bare()` puts every fixture
+        straight in the system temp directory, so a `.perry/config.md` written
+        beside it would be an ancestor of every other fixture in this file and
+        of whatever else is running in the same tree.
+        """
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="perry-nested-walk-")).resolve()
+        self.addCleanup(__import__("shutil").rmtree, tmp, ignore_errors=True)
+        ancestor = tmp / "checkouts"
+        (ancestor / ".perry").mkdir(parents=True)
+        (ancestor / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n"
+            "## Tracks\n\n"
+            "| Track | Mode | Spine | Default rung |\n"
+            "| --- | --- | --- | --- |\n"
+            "| main | project | phase/ | V4 |\n", encoding="utf-8")
+        proj = ancestor / "store-only"
+        (proj / ".perry").mkdir(parents=True)
+        (proj / ".perry" / "config.jsonl").write_text(
+            store_text(STORE_SETTINGS + STORE_TRACKS), encoding="utf-8")
+        return ancestor, proj
+
+    def test_scan_tracking_calls_a_store_only_project_configured(self):
+        """`tracking.perry.config` is the field, and `installed` follows it.
+
+        Reverted, a project holding a complete `.perry/config.jsonl` reports
+        `config: false`; `installed` then falls through to the `OKR.md and
+        BOARD.md` half, which is exactly what a just-configured project does
+        not have yet, and the diagnosis says Perry is not installed on a Perry
+        project.
+        """
+        payload = run_diagnose(self.bare(markdown=None, store=None))
+        self.assertTrue(
+            payload["tracking"]["perry"]["config"],
+            "a project configured by the store alone reads as unconfigured")
+        self.assertTrue(
+            payload["tracking"]["perry"]["installed"],
+            "`installed` is derived from it and inherits the wrong answer")
+
+    def test_is_perry_counts_a_store_only_project_as_perry(self):
+        """`namespace.applicable` IS `is_perry` — `scan_namespace` returns
+        `{"applicable": False}` for every root it does not read as a Perry
+        project, and nothing else in the payload reports the flag directly.
+
+        Reverted, `perry_owned` comes back empty, so every file Perry wrote is
+        counted as the user's: the namespace scan stops running at all and the
+        archetype scan reads a Perry repository as a foreign one.
+        """
+        payload = run_diagnose(self.bare(markdown=None, store=None))
+        self.assertTrue(
+            payload["namespace"]["applicable"],
+            "`is_perry` was False, so the whole namespace scan was skipped "
+            "on a configured project")
+
+    def test_the_linter_walk_stops_at_the_project_not_at_an_ancestor(self):
+        """`bin/perry-lint § _track_context`, and the failure is not "empty".
+
+        The store-only project is nested under an ancestor that HAS a
+        `.perry/config.md` — the shape of every checkout on a machine that
+        keeps its repositories in one directory. Reverted, the walk finds no
+        `config.md` at the project, climbs, and types the cell against
+        **another repository's** track register: `main` comes back
+        `mode: project`, `default rung: v4`, none of it this project's.
+
+        `{}` is the right answer here: the register is undeclared as far as
+        this reader can see, and `_track_context`'s docstring says an
+        undeclared track is the permissive case. Reading the store's own
+        `## Tracks` is a further conversion and is not this row.
+        """
+        lint = load_bin_module("perry-lint")
+        ancestor, proj = self.nested()
+        self.addCleanup(lint._TRACK_CONTEXTS.clear)
+        lint._TRACK_CONTEXTS.clear()
+
+        row = lint._track_context(proj / "BOARD.md", "main")
+
+        self.assertEqual(
+            row, {},
+            "the walk climbed past the configured project and typed the cell "
+            f"against {ancestor}/.perry/config.md — another project's register")
 
 
 class TestAStoreThatDeclaresNoSettingsSaysSo(Fixture):

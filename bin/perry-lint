@@ -653,8 +653,18 @@ def _track_context(state_file: Path, cell: str) -> dict:
     if not name:
         return {}
     root = state_file.resolve().parent
+    # **The walk stops where the project is CONFIGURED, not where the
+    # projection happens to be on disk** (TASK-247, P003-O2-KR1). It broke on
+    # `.perry/config.md` alone, so on a project configured by
+    # `.perry/config.jsonl` with no rendered markdown the walk ran out its five
+    # steps, and `root` came back as an ancestor of the project — the parent
+    # directory that holds every checkout on this machine. Either that ancestor
+    # has no `.perry/` and the register reads empty, or it has ANOTHER
+    # project's, and a track cell is then typed against a register that belongs
+    # to a different repository. `P.configured` is the predicate
+    # `viewer/parsers.py` already carries for this question.
     for _ in range(5):
-        if (root / ".perry" / "config.md").is_file():
+        if P.configured(root):
             break
         root = root.parent
     cfg = root / ".perry" / "config.md"
