@@ -3340,6 +3340,26 @@ def cmd_add(args, ctx) -> dict:
     line = ctx["board"].append_row(priority, values, group=group)
     jline = (f"- [{tid}] — → not_started · {args.title} · "
              f"owner: {values['owner']} · priority: {priority}")
+    # ── the JOURNAL block. Bullets here are correct and must stay bullets. ──
+    #
+    # This block is written under `## New tasks added` in the day's journal, so
+    # it opens at `###` and its fields are bullets: a `## Deliverable` inside it
+    # would CLOSE the section it lives in and cut the day's journal in half.
+    #
+    # **It is not the spec's shape, and it must not be copied into one.**
+    # `evidence/<YYYY-MM>/<TASK-ID>-spec.md` carries the same FIELDS as `##`
+    # sections, because `dispatch` step 4 re-validates a spec against
+    # `.perry/hook.md § High-stakes operations` through
+    # `parsers._section`, which matches `^## ` only. A spec written in the
+    # shape below presents that gate no scope at all: every high-stakes
+    # fragment is matched against the empty string and the scan returns
+    # `verdict: pass`, exit 0, indistinguishable from a spec read in full and
+    # found clean. `subcommands.md § add-task` step 3 used to tell spec authors
+    # to write "the same schema" as this block, and the only reading this block
+    # supports is "the same shape" — 45 of Perry's own 135 specs are
+    # unscannable as a result. Step 3 now names the `##` shape and says why;
+    # this comment is the other end of that correction, so the two surfaces
+    # cannot drift apart again. TASK-284.
     definition = "\n".join([
         f"### {tid} — {args.title}", "",
         f"- **Owner**: {values['owner']}",

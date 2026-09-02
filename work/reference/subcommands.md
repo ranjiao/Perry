@@ -705,7 +705,24 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    times after, so every tool-created task was one title and nothing else.
    That is ADR-007 rule 3 stated as a defect — the fields were supplied to the
    tool and the document was then expected to appear from somewhere.
-3. **For P0 and P1 tasks**, ALSO write `evidence/<YYYY-MM>/<TASK-ID>-spec.md` containing the same schema PLUS the dispatch-routing fields below. BOARD's Evidence column points at this spec file. P2 / backlog / watch may rely on the journal entry alone — promote a P2 to P1 → write the spec at promotion time.
+3. **For P0 and P1 tasks**, ALSO write `evidence/<YYYY-MM>/<TASK-ID>-spec.md` carrying the same *fields* as the journal block PLUS the dispatch-routing fields below — **in `## ` sections, not in the journal block's bullets.** BOARD's Evidence column points at this spec file. P2 / backlog / watch may rely on the journal entry alone — promote a P2 to P1 → write the spec at promotion time.
+
+   **`Files in scope`, `Deliverable` and `Out of scope` are `## ` headings, with the text underneath them.** Not `### `, not `- **Deliverable**: …`. The spec body is `## ` sections throughout; these three are the ones a machine reads:
+
+   ```
+   ## Files in scope
+   - `path/one.py` — what changes there.
+
+   ## Deliverable
+   What exists when this is done.
+
+   ## Out of scope
+   What this deliberately does not touch.
+   ```
+
+   **Why the shape is load-bearing, and not a style rule.** `dispatch` pre-flight step 4 re-validates the spec against `.perry/hook.md § High-stakes operations` by reading exactly those three sections (`work/reference/dispatch.md` step 4), and its reader — `viewer/parsers.py § _section` — matches `^## <heading>` and nothing else. A scope written as an `h3` or as a bullet is invisible to it. **The spec does not then fail the gate; it disarms it.** Every high-stakes fragment is matched against the empty string, and the scan returns `touches: {}`, `verdict: pass`, **exit 0 — byte-identical to a spec that was read in full and found genuinely clean.** Measured 2026-09-02: a spec whose `Deliverable` named `git push origin main`, `rm -rf` and `gh release` scanned `pass`/exit 0 in the bullet shape and `refuse`/exit 3 on five fragments with the identical words under `## Deliverable`; 45 of this project's own 135 specs are in the first state. `perry-lint --specs` — and the default `perry-lint --root .` — now reports a spec that presents the gate no scope, so the empty scan is visible; but the check reports it, it does not undo it, and the spec is only safe if it is written in the shape above.
+
+   **This step used to say the spec "contains the same schema" as the journal block, and that sentence is what produced the 45.** `bin/perry-task § cmd_add` renders the journal definition block as bullets, and that is correct *there*: the block sits under `### <ID> — <title>` inside `## New tasks added`, so a `## Deliverable` in it would close the section it lives in and cut one day's journal in half. The journal keeps its bullets; the spec takes `## ` headings. Same fields, two shapes, because the two files have two readers — a person scrolling a day, and a safety gate matching sections. "The same schema" was read as "the same shape", which is the only reading the rendered block supports, and following it disarmed the gate. Do not copy the journal block into a spec; write the sections.
 
    **Required header fields in every spec file** (used by `dispatch` and `close-task`):
    ```
@@ -734,7 +751,7 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
 
    Commit to the choice with one inline reason: `> Executor: codex (high confidence — pure analytics task, no MCP needed)`.
 
-The spec uses the same template as the journal `## New tasks added` block; not duplication, two surfaces with different access patterns:
+The spec carries the same *fields* as the journal `## New tasks added` block — in the `## `-section shape of step 3, not the block's bullets; not duplication, two surfaces with different access patterns and different readers:
 
 | File | Purpose | Lifetime |
 |---|---|---|
