@@ -10,9 +10,18 @@ the reason every other pair on this board may not.
 |---|---|---|---|---|---|---|
 | `d146c15` | TASK-247, 181, 293, 292, 258, 251 | 108 | 3031 | **313.8s** | 0 | 3.61 |
 | `f3f4846` | the above **plus TASK-244 round 2** | 108 | 3034 | **106.6s** | 0 | 3.48 |
+| `6e416b6` | the above **plus TASK-284 round 2** | 109 | 3063 | 162.9s | 0 | **9.18** |
 
 **2.94x, and the test count went up rather than down** — 3031 to 3034. Nothing
-was removed to buy it.
+was removed to buy it. Those are rows one and two, and they are the only pair
+here that may be compared.
+
+**Row three is NOT comparable to row two** and is recorded only so it is not
+read as one. It ran at load 9.18 against 3.48, and this project measured 332.6s
+and 313.8s for the same tree at loads 9.4 and 3.6 — the same spread, from load
+alone. TASK-284 is procedure and reporting work; it has no reason to cost 56
+seconds and no measurement here says it does. What row three does establish is
+that the merged tree is green at 109 modules and 3063 tests.
 
 ## What the first row is not
 
