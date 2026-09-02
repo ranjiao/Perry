@@ -5,6 +5,7 @@
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: P002-O3-KR1 (phase 002 — `fields-are-typed`)
 > Supersedes: —   · Superseded by: —
+> Revisits: `perry/design/DESIGN-006-roles-and-knowledge.md § 5.2`, `perry/design/DESIGN-006-roles-and-knowledge.md § 5.5`
 
 > **Signed off: Ran Jiao, 2026-08-19.**
 >
@@ -771,6 +772,55 @@ needed and with its specified verification rung.
    named defect.
 
 ## 9. Changes (append-only after lock)
+
+- 2026-09-02 — **`§ 5.3`'s Goal store names a file that has never existed —
+  the store is `perry/okr.jsonl`.** The `Goal + KR` row of `§ 5.3`'s table
+  reads `| Goal + KR | perry/goals.jsonl | OKR.md |` — line 434 as of this
+  entry; it was line 433 before the `> Revisits:` line above was added, which
+  is why `DESIGN-009`'s footnote cites `§ 5.3` and not a number.
+  Re-measured 2026-09-02:
+  `ls perry/*.jsonl` returns `asks.jsonl`, `intake.jsonl`, `okr.jsonl`,
+  `risks.jsonl`, `tasks.jsonl` and no `goals.jsonl`; the only Goal/KR path in
+  `schema/state-schema.json § claims[]` is `perry/okr.jsonl`. The row is left
+  as written — this document is append-only and the sentence is the record of
+  what was drafted. **`DESIGN-009` already carried this correction, and carried
+  it in the wrong document**: its References say *"that table names it
+  `perry/goals.jsonl`; the file on disk and in `claims[]` is `perry/okr.jsonl`.
+  DESIGN-007 is the stale one"* — a footnote in the newer doc where a `Changes`
+  entry belonged in this one. `DESIGN-009`'s header has pointed back here
+  (`> Revisits: DESIGN-007-the-entity-model.md § 5.3`) since it was written;
+  this entry is the other direction of that edge.
+
+- 2026-09-02 — **`§ 5.7`'s "no exemption" is not what the repository does, and
+  `§ 5.9` is the reconciliation neither document cites.**
+  `DESIGN-010-autopilot-writes-its-own-specs.md` (locked 2026-08-28, nine days
+  after this one) is built on the opposite pattern and argues it is correct:
+  *"the PMO writes a spec at dispatch time, for one row, having first
+  re-verified that row's findings against today's code."* Its `§ 1`
+  measurement — 32 of 36 open rows with no spec — is only possible in a world
+  where decision #5's creation-time refusal was never enforced, and its `§ 1`
+  table gives the reason it should not be: three of three rows dispatched
+  2026-08-21 had to be re-scoped at dispatch, and *"a stale spec is not a slow
+  spec, it is a wrong one."* **`§ 5.9` already dissolves the conflict** — a
+  spec is per-Run, rewritten rather than edited, so a re-verified spec at
+  dispatch is the *second* spec, on run 2, and not a violation of `§ 5.7`.
+  Recorded because DESIGN-010 does not cite this document anywhere, including
+  its References, so a reader arriving at `§ 5.7` meets the strict rule with
+  nothing pointing at the practice or at the section that reconciles them.
+  DESIGN-010's header now carries `> Revisits: … § 5.7`. **`§ 5.7`'s text is
+  unchanged**; what it is missing is the pointer, not a correction.
+
+- 2026-09-02 — **Decision #2 reverses `DESIGN-006` and `DESIGN-006` does not
+  say so.** This document's decision #2 — *"the store is the definition, the
+  card is rendered output"* — overturns `DESIGN-006` decision 2, which put role
+  cards in `.perry/roles/` **because they are tier-1 and user-owned**, and
+  whose `§ 5.5` lists that under *"Unchanged, deliberately"*. The cost is
+  already named here (a fresh V5 signature on `SKILL.md § The hand-off
+  contract`); what was missing is the back-reference, so a reader landing on
+  the document that *defines* the role card was told the opposite of the
+  current decision. This document's header now carries
+  `> Revisits: DESIGN-006 § 5.2, § 5.5`, and `DESIGN-006 § 9` carries the
+  matching entry.
 
 - 2026-08-19 — Added the optional Task `summary` field and required typed
   `TASK-*` lookup in `perry-explain` — the generic Markdown harvester resolved

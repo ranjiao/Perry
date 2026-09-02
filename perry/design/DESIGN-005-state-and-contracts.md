@@ -1,7 +1,7 @@
 # DESIGN-005: Three domains, three different levels of finished
 
 > Status: locked
-> Date: 2026-08-18 · Locked: 2026-08-17
+> Date: 2026-08-17 · Locked: 2026-08-17
 > Author: Perry maintainer   · Implementation owner: Coding Agent (Perry repo)
 > Linked OKR: KR-O2.1, KR-O2.2, KR-O4.2 (`perry/OKR.md` v2). This line
 > previously read *"Perry has no `OKR.md`; declared unlinked, not guessed"*,
@@ -304,6 +304,29 @@ that lets aimark start now, against step 0's contract, in parallel with all four
   goals and decisions, or do they stay markdown-only permanently?
 
 ## 9. Changes (append-only after lock)
+
+- **2026-09-02 — `Date:` restored to `2026-08-17`; it had been moved to
+  `2026-08-18` by the ADR-006 edit.** The field read
+  `Date: 2026-08-18 · Locked: 2026-08-17`, an authoring date after the lock
+  date. This document's history is cited more than most — `ADR-006`,
+  `DESIGN-013` and `DESIGN-014` all reason from *when* a claim in `§ 5.2`
+  became false — so a header that dates the document to its last edit makes
+  those citations unreadable.
+
+  Settled by git:
+
+  | evidence | commit | date |
+  |---|---|---|
+  | `git log --diff-filter=A --follow` — the commit that ADDS this file | `9e1a80f` *design(005): three domains, three different levels of finished* | **2026-08-17** |
+  | all six decisions resolved | `e204cfa` *decide(005): all six user decisions resolved* | 2026-08-17 |
+  | locked and handed off | `7377982` *decide(005): locked, and handed off as four tasks* | 2026-08-17 |
+  | the commit that moved the field | `48fffba` *decide(revise): DESIGN-005 — the task store is not the event log (ADR-006)*, whose diff is exactly `-> Date: 2026-08-17` / `+> Date: 2026-08-18` | 2026-08-18 |
+
+  Authored, resolved and locked inside one day, 2026-08-17. The 2026-08-18 edit
+  was correct and is the third entry in this section; **only its bookkeeping was
+  wrong** — an edit after lock is recorded here, and the header is not a
+  `Changes` entry. `DESIGN-004` carried the same defect from the same commit
+  and is corrected the same way.
 
 - **2026-08-17 · locked.** All six User Decisions resolved the same day; §4
   records what was chosen and §4.1 what each answer settles. `Implementation

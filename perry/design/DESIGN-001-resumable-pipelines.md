@@ -315,6 +315,49 @@ Phases A–C are the minimum that fixes the reported scenario. D–F can follow.
 
 ## 9. Changes (append-only after lock)
 
+- 2026-09-02 — **Both halves of this design's subject still have a caller; the
+  asymmetry between them is that only one has a binary.** The entry below
+  re-verified the resumability *machinery* and said nothing about either
+  pipeline's standing, and this document's contract, its `declarations[]`, its
+  interrupted-run card and its user decision 4 are all reasoned from having two
+  of them — so which of the two still runs is load-bearing here. Measured
+  2026-09-02 on `coding/task-247-config-predicate`:
+
+  - **`/perry diagnose` — a caller and a dedicated binary.** Routed in
+    `SKILL.md:27`, `:38`, `:179` and `:184`; `reference/diagnose.md` is 597
+    lines; `bin/perry-diagnose` is 2,709 lines (2,694 on `main` at `d49964e` —
+    every other figure in this entry is identical on both trees); and
+    `DESIGN-014` decision 3 (2026-09-01) put the keep question to the user and
+    got **keep** — *"it is not adoption, it does not depend on the deleted
+    migrator."*
+  - **`/perry adopt` — a caller, and no binary anywhere.** Routed in
+    `SKILL.md:27`, `:38`, `:171`, `:179` and `:183`, with `first-run` step 4
+    still routing new-vs-existing into it; `reference/adoption.md` (513) and
+    `reference/adoption-sources.md` (171) are intact. **`git ls-tree -r` lists
+    no `bin/perry-adopt`, and never has.** (Measure this by the file listing,
+    not by `grep -rn 'perry-adopt'`: the one pre-existing string match,
+    `reference/adoption.md:302`, is the substring inside the filename
+    `ADR-001-perry-adoption.md`, and this entry is now a second match — a grep
+    for an absent binary is a check that its own evidence invalidates.) The
+    absence is `SKILL.md:179` working as designed — *"`adopt` and `diagnose`
+    span all three lanes, so they are orchestrated here and materialized
+    through the lanes' own subcommands — neither is a fourth writer"* — not an
+    amputation.
+
+  So the machinery below serves both halves, and `bin/perry-state:1873` shows
+  it doing so symmetrically — `for pipeline, sub in (("adopt", "adoption"),
+  ("diagnose", "diagnose"))`.
+
+  **Recorded because the belief that adoption had stopped is in circulation and
+  the ask it is drawn from does not say it.** `USER-910` (answered 2026-08-31)
+  reads in full: *"A — delete migration too. perry-migrate, perry_schema.py and
+  test_migrate.py are out; TASK-097 drops with them."* That deletes the
+  **migrator**. `DESIGN-014 § 4` note on decision 3 restates it as *"USER-910
+  answered that Perry is never pointed at a foreign project"* — a wider claim
+  than the answer on file, and the one `DESIGN-014`'s own objection turns on.
+  Nothing in this entry decides which reading is right; it records that the
+  narrow one is what `perry/asks.jsonl` holds.
+
 - 2026-09-02 — **Implementation record, added retroactively.** This design was
   implemented in full on 2026-08-16 by `TASK-001`–`TASK-006`, one per row of
   § 6's plan, and all six are `done` in `perry/tasks.jsonl`. Verified

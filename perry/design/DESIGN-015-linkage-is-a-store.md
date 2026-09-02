@@ -298,6 +298,49 @@ and should not.
 
 ## 9. Changes (append-only after lock)
 
+- **2026-09-02 — "the other five stores" is six. Three sites say five, and one
+  of them is goal 4, which is written as a checkable acceptance criterion.**
+  Confirmed by running the tool this document cites — `python3 bin/perry-lint
+  --root .` prints **six** store lines, in this order:
+
+  ```
+    · store: …            ← the task store; this line is unlabelled in the output
+    · risks store: …
+    · intake store: …
+    · ask store: …
+    · OKR store: …
+    · config store: …
+  ```
+
+  Six on both trees checked on 2026-09-02 — `main` at `d49964e` and
+  `coding/task-247-config-predicate` at `d3f9f4b`. Only the record counts differ
+  between them (tasks 269 vs 288, asks 14 vs 16), which is why the count of
+  *lines* is the durable fact and the counts inside them are not quoted here.
+  The three sites, left as written:
+
+  | § | as written | should read |
+  |---|---|---|
+  | `§ 2` goal 4 | *"prints a record count and a drift verdict for `linkage.jsonl` **as it does for the other five stores**"* | the other **six** |
+  | `§ 5.1` | *"so it resolves to `perry/linkage.jsonl`, beside **the five stores** already there"* | beside the **six** |
+  | `§ 7`, row 1 mitigation | *"the byte-comparison gate **the other five stores** already use"* | the other **six** |
+
+  **`§ 5.1` is self-contradictory as it stands**: it places a store *beside
+  five*, while `§ 7` row 2 calls the same store *"a seventh store with
+  `owner: perry`"* and `§ 1` says `phase/003-linkage.md` *"is not one of the six
+  stores."* Six is the count this document uses everywhere except these three
+  places, and `linkage.jsonl` is the seventh.
+
+  **Goal 4 is why this is worth an entry rather than a shrug.** It is not prose;
+  it is the acceptance criterion an implementer runs `perry-lint` against. One
+  that names the wrong count is checked against the wrong thing — a reviewer who
+  reads "five" and counts five has confirmed a green gate on a false premise,
+  which is precisely the class of defect `§ 5.2`'s derive-don't-store rule is
+  arguing about one layer down. Read goal 4 as: **seven store lines after this
+  lands, six before.**
+
+  Not corrected in place: this document is `locked`, and `decide/SKILL.md §
+  Status model` allows only a `## Changes` entry after that.
+
 ## 10. References
 
 - `perry/design/DESIGN-013-one-place-per-fact.md` § 5.1 (the rule), § 8 question 2
