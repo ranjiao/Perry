@@ -66,3 +66,38 @@ re-invent: `viewer/parsers.py:402` (the predicate itself) and
   able to go red is not evidence (phase 003 operating rule).
 - `bash tests/run` shows no new failures against the pre-existing baseline;
   name the baseline and which runner produced it.
+
+## Bound
+
+The finite set this round checks, named before the round and countable:
+
+**Three call sites, and only these three.** Line numbers are as of the branch
+tip `b93736d`; re-derive before reading, but the members do not change:
+
+1. `bin/perry-diagnose` — `scan_tracking`'s `perry["config"]`
+2. `bin/perry-diagnose` — the `.perry/` half of `is_perry`
+3. `bin/perry-lint` — `_track_context`'s upward walk
+
+**Size: 3.** The round is over when each of the three has been checked.
+
+The population was derived, not assumed: a grep for existence checks over `bin/`
+and `viewer/` returned five sites before the change — these three plus
+`bin/perry-goals:2158` and `viewer/parsers.py:405`, which already asked the wide
+question and are **out of the set**.
+
+**This is deliberately not the category "no reader anywhere asks the narrow
+question".** That phrasing has no last element, and `TASK-050` spent eleven
+rounds proving it: an unbounded criterion does not fail a round, it fails to end
+one. If the reviewer finds a fourth site, that is a **new row**, not an
+extension of this set — record it and let this round end.
+
+### Out of the set, stated so the reviewer does not chase them
+
+- `bin/perry-goals § tracks_of` (`:2158`) spells the disjunction inline. Already
+  wide; not converted by this row; not a defect.
+- `bin/perry-lint § _track_context` **still reads the track register out of
+  `.perry/config.md` after the walk stops.** The executing agent reported this
+  itself. It is a *data-authority* conversion, not an existence check, so it is
+  a different call-site class from the three above and belongs to a separate row
+  under `P003-O2-KR1`. Filed rather than folded in; do not treat it as this
+  round's failure.
