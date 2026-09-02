@@ -5,6 +5,17 @@
 > (`add-task` step 3), one reader (`scan_spec_escalations` and its consumers),
 > one census. Branch: `coding/task-284-round2b`, cut from `cbc2d8f`.
 
+## Where the things this file cites actually live
+
+This branch is cut from `d49964e`, which is stale. **`TASK-284`'s spec is not
+on this branch** — `perry/evidence/2026-09/TASK-284-spec.md` exists on
+`coding/task-247-config-predicate` and was read from there with `git show`. The
+row, the spec and this result file are on three different refs, so a reviewer
+checking the diff of `coding/task-284-round2b` will find only the six files at
+the bottom of this document; nothing here claims a filed row or a spec edit.
+Round 1 committed no evidence file at all: its record is its commit messages
+and code comments.
+
 ## What round 1 got right, and is not redone here
 
 - The census is **45** on every tree measured.
