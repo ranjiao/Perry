@@ -17,8 +17,9 @@ procedure verbatim is scanned against the empty string, and the gate reports:
 clean.** The gate's failure mode looks exactly like its success, which is why
 the number went unnoticed: measured on this repository 2026-09-02, **45**
 spec files under `perry/evidence/` with no section the gate can read — 45 of
-132 on the live branch, 45 of the 119 this branch was cut from — every one of
-them `pass` over a fully armed 35-fragment union. None of the 45 uses the
+135 on the live branch (`coding/task-247-config-predicate`, `89295085`), 45 of
+the 119 this branch was cut from (`d49964e`) — the SAME 45 files either way,
+and every one of them `pass` over a fully armed 35-fragment union. None of the 45 uses the
 bullet shape at all: 19 are `### Deliverable` under a `## Schema` umbrella and
 26 carry no such section in any shape, which is why widening `_section` to
 read bullets would have closed none of them.
@@ -286,6 +287,267 @@ class TestOneAnswerToWhichSectionsAreScanned(unittest.TestCase):
                 "check_specs spells a scanned section itself — it must read "
                 "P.ESCALATION_TOUCHES so the gate and its report cannot "
                 "disagree about what is scanned")
+
+
+class TestTheDefaultPassIsTheReader(unittest.TestCase):
+    """Round 2's central guard. Round 1 shipped `--specs` and **nothing
+    invoked it** — zero occurrences across `work/`, `modes/`, `decide/`,
+    `goals/`, `reference/`, `packs/`, `SKILL.md`, `AGENTS.md` and `tests/run`,
+    while every other mode of this linter is named by at least one procedure.
+    A report reachable only by a flag nobody types is not a report, and the
+    binding sentence of TASK-284's spec is that a spec must not be able to
+    present zero scope to the gate *without something saying so*.
+
+    So the check runs in the DEFAULT pass. These tests are what fails if
+    someone moves it back behind the flag."""
+
+    def project(self, specs: dict) -> Path:
+        root = Path(tempfile.mkdtemp())
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text("# Config\n")
+        (root / ".perry" / "hook.md").write_text(HOOK)
+        (root / "evidence" / "2026-09").mkdir(parents=True)
+        for name, text in specs.items():
+            (root / "evidence" / "2026-09" / name).write_text(text)
+        return root
+
+    def lint(self, root: Path):
+        """The DEFAULT invocation — `--specs` appears nowhere in this argv."""
+        argv = [sys.executable, str(LINT), "--root", str(root)]
+        self.assertNotIn("--specs", argv)
+        r = subprocess.run(argv + ["--json"], capture_output=True, text=True)
+        text = subprocess.run(argv, capture_output=True, text=True).stdout
+        return r.returncode, json.loads(r.stdout), text
+
+    def test_nobody_has_to_type_the_flag(self):
+        code, out, text = self.lint(self.project(
+            {"TASK-001-spec.md": BULLET_SPEC}))
+        self.assertIn("spec-scope-unscannable",
+                      [f["rule"] for f in out["findings"]])
+        self.assertEqual(out["specs"],
+                         {"specs": 1, "unscannable": 1, "checked": True})
+        self.assertIn("spec-scope-unscannable", text)
+        # Advisory: a WARNING, so a project carrying pre-rule specs lints
+        # green-with-warnings rather than becoming newly broken. The promotion
+        # trigger is RECORDED in `check_specs`, not implemented here.
+        #
+        # The exit code is deliberately not asserted: a bare temp project is
+        # "adopted" the moment `.perry/config.md` exists and then reports its
+        # absent required state files as errors, so this process exits 1 for
+        # reasons that predate TASK-284 and would make the assertion measure
+        # something else. Severity is the property this check owns.
+        self.assertEqual(
+            [f["severity"] for f in out["findings"]
+             if f["rule"] == "spec-scope-unscannable"], ["warn"])
+        self.assertIsInstance(code, int)
+
+    def test_the_count_prints_every_run_not_only_when_it_is_bad(self):
+        """A number that appears only when it is bad teaches a reader that its
+        absence means nothing was checked. Same rule the six store lines
+        printed beside it follow."""
+        _, out, text = self.lint(self.project(
+            {"TASK-002-spec.md": SECTION_SPEC}))
+        self.assertEqual(out["specs"],
+                         {"specs": 1, "unscannable": 0, "checked": True})
+        self.assertIn("all 1 offer the escalation gate a section to scan", text)
+
+    def test_a_scannable_spec_is_still_not_reported(self):
+        _, out, _ = self.lint(self.project({"TASK-002-spec.md": SECTION_SPEC}))
+        self.assertNotIn("spec-scope-unscannable",
+                         [f["rule"] for f in out["findings"]])
+
+    def test_the_named_list_is_capped_and_the_tail_is_counted(self):
+        """45 identical warnings is a check people learn to scroll past —
+        `check_store_drift`'s own reason for `DRIFT_ROWS_SHOWN`. The cap is on
+        the naming, never on the count: `stats` and `--specs --json` still
+        carry every one."""
+        specs = {"TASK-%03d-spec.md" % n: BULLET_SPEC for n in range(1, 26)}
+        _, out, _ = self.lint(self.project(specs))
+        named = [f for f in out["findings"]
+                 if f["rule"] == "spec-scope-unscannable"]
+        self.assertEqual(out["specs"]["unscannable"], 25)
+        self.assertEqual(len(named), 11)          # ten named plus one tail
+        self.assertTrue(named[-1]["message"].startswith("and 15 further"))
+
+    def test_paths_mean_the_same_thing_as_their_neighbours(self):
+        """In the default pass every other finding is relative to the PROJECT
+        root, while the state root may be a subdirectory. A path on the same
+        screen that silently means something else is worse than a long one —
+        on this repository the difference is `perry/evidence/…` and
+        `evidence/…`."""
+        # `.resolve()`d because `resolve_state_root` resolves the declared
+        # root and then requires the project root to be one of its parents;
+        # on macOS `/var/folders/…` is a symlink to `/private/var/…`, so an
+        # unresolved temp root fails that test and this case would silently
+        # skip rather than run.
+        root = Path(tempfile.mkdtemp()).resolve()
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text(
+            "# Config\n\n- State root: perry\n")
+        (root / ".perry" / "hook.md").write_text(HOOK)
+        state = root / "perry"
+        (state / "evidence" / "2026-09").mkdir(parents=True)
+        (state / "evidence" / "2026-09" / "TASK-001-spec.md").write_text(
+            BULLET_SPEC)
+        if P.resolve_state_root(root) != state:
+            self.skipTest("this checkout resolves the state root differently")
+        _, out, _ = self.lint(root)
+        self.assertEqual(
+            [f["file"] for f in out["findings"]
+             if f["rule"] == "spec-scope-unscannable"],
+            ["perry/evidence/2026-09/TASK-001-spec.md"])
+
+
+class TestTheProcedureNamesTheShape(unittest.TestCase):
+    """Fix 1, the procedure side — the only one of TASK-284's three fixes that
+    can satisfy its Verification item 2 (*"a spec written by following
+    `add-task` verbatim, from scratch, scans with a non-empty `touches`"*).
+
+    Round 1 took only the report. A spec written per the then-current step 3
+    still returned `verdict: pass`, `touches: {}`, exit 0 — which `dispatch.md`
+    step 4 reads as proceed — while the identical words under a `## `
+    heading exited 3. These are text guards because the defect was a text
+    defect: the procedure said "the same schema" and the SHAPE is what
+    mattered."""
+
+    SUB = PERRY_HOME / "work" / "reference" / "subcommands.md"
+    DISPATCH = PERRY_HOME / "work" / "reference" / "dispatch.md"
+    TASK = PERRY_HOME / "bin" / "perry-task"
+
+    def step3(self) -> str:
+        src = self.SUB.read_text(encoding="utf-8")
+        return src[src.index("3. **For P0 and P1 tasks**"):
+                   src.index("### `close-task")]
+
+    def test_step_3_names_the_heading_shape(self):
+        step3 = self.step3()
+        for required in ("## Files in scope", "## Deliverable",
+                         "## Out of scope"):
+            self.assertIn(required, step3)
+
+    def test_step_3_says_why_and_not_merely_what(self):
+        """*"and say why"* is the spec's own wording for fix 1. A shape rule
+        with no reason attached is a style note, and the next author
+        reformats it."""
+        step3 = self.step3()
+        self.assertIn("_section", step3)
+        self.assertIn("^## ", step3)
+        self.assertIn("verdict: pass", step3)
+
+    def test_the_procedure_no_longer_says_the_same_schema(self):
+        """That sentence is what produced the 45: `perry-task add` renders the
+        journal block as bullets, so "the same schema" had one available
+        reading and it was the wrong one."""
+        src = self.SUB.read_text(encoding="utf-8")
+        self.assertNotIn("containing the same schema", src)
+        self.assertNotIn("uses the same template as the journal", src)
+
+    def test_the_render_site_and_the_procedure_do_not_contradict(self):
+        """The divergence is resolved by naming which surface each shape
+        belongs to, in BOTH places. The journal block keeps its bullets — it
+        is nested under `## New tasks added`, so a `## ` field inside it would
+        close the section it lives in — and `cmd_add` now says so at the point
+        where somebody would otherwise copy it into a spec."""
+        src = self.TASK.read_text(encoding="utf-8")
+        block = src[src.index("def cmd_add"):src.index("def cmd_start")]
+        self.assertIn("must not be copied into one", block)
+        self.assertIn("TASK-284", block)
+
+    def test_dispatch_step_4_gives_scope_scanned_a_reader(self):
+        """The asymmetry this round is about: the empty-HOOK half had an exit
+        code, a `dispatch.md` paragraph and a mandatory go-ahead in chat; the
+        empty-SPEC half had two JSON keys no procedure read."""
+        src = self.DISPATCH.read_text(encoding="utf-8")
+        step4 = src[src.index("4. **Safety re-validation**"):
+                    src.index("5. Spec contains a `Subjective verification:")]
+        self.assertIn("scope_scanned", step4)
+        self.assertIn("explicit go-ahead in chat", step4)
+        # And the exit code is NOT changed. A new one would refuse dispatch on
+        # 45 of 135 existing specs on the spot — an operational decision
+        # nobody took. `bin/perry-state § SCAN_EXIT` is untouched.
+        self.assertIn("exit code is still 0", step4)
+
+    def test_the_exit_codes_are_unchanged(self):
+        state_src = (PERRY_HOME / "bin" / "perry-state").read_text(
+            encoding="utf-8")
+        self.assertIn('SCAN_EXIT = {"pass": 0, "refuse": 3, "unarmed": 4}',
+                      state_src)
+
+
+class TestTheAdvisoryHasARecordedTrigger(unittest.TestCase):
+    """DESIGN-003 decision 4 is cited accurately for keeping this advisory,
+    but it reads *"Advisory first release, hard gate next"* **with a stated
+    plan** in its §4 note — advisory for one release with `perry-lint`
+    reporting the gap, then hard. Citing the precedent while recording no
+    condition of your own is how an advisory becomes permanent by default."""
+
+    def body(self) -> str:
+        src = LINT.read_text(encoding="utf-8")
+        return src[src.index("def check_specs"):
+                   src.index("\n#: How many drifted rows")]
+
+    def test_the_promotion_condition_is_written_down(self):
+        body = self.body()
+        self.assertIn("Promotion trigger", body)
+        self.assertIn("DESIGN-003", body)
+
+    def test_the_trigger_does_not_route_through_rewording(self):
+        """`.perry/hook.md` calls rewording a spec to pass a gate the one
+        thing a gate must never reward, so "drive the count to 0" must not be
+        readable as "edit the 45"."""
+        flat = " ".join(self.body().split())
+        self.assertIn("not that anyone edits them", flat)
+
+
+class TestTheLinterDoesNotFakeItsLocalization(unittest.TestCase):
+    """Round 1's `--specs` branch called `load_glossary(schema)` under a
+    comment claiming it armed the heading aliases. It does not:
+    `load_glossary` fills `perry-lint`'s own `HEADING_ALIASES`, while
+    `P.alias` reads `parsers._i18n()`, which self-loads from the schema and
+    caches per name. The BEHAVIOUR was right either way — which is why nothing
+    caught it — and a claim a file cannot back is ADR-007 rule 3's defect
+    stated about a comment."""
+
+    def zh_spec(self) -> str:
+        return "# TASK-003 — 标题\n\n## 交付物\n\n" \
+               "改动 `state-schema.json`。\n"
+
+    def hooked(self) -> Path:
+        root = Path(tempfile.mkdtemp())
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text("# Config\n")
+        (root / ".perry" / "hook.md").write_text(HOOK)
+        return root
+
+    def test_the_branch_no_longer_calls_it(self):
+        """Read the CODE, not the comment that explains its absence — a guard
+        that greps the whole branch fails on the sentence recording why the
+        call is gone."""
+        src = LINT.read_text(encoding="utf-8")
+        branch = src[src.index("if mode_specs:"):
+                     src.index("# Localized column headers are legal")]
+        code = [ln for ln in branch.splitlines()
+                if not ln.lstrip().startswith("#")]
+        self.assertNotIn("load_glossary", "\n".join(code))
+
+    def test_a_localized_spec_still_scans(self):
+        """The property the removed call was said to protect, tested directly
+        rather than asserted in a comment."""
+        out = P.scan_spec_escalations(
+            self.zh_spec(), P.escalation_union(self.hooked())["union"])
+        self.assertEqual(out["scope_scanned"], ["Deliverable"])
+        self.assertEqual(out["verdict"], "refuse")
+
+    def test_the_linter_does_not_report_the_localized_spec(self):
+        root = self.hooked()
+        (root / "evidence" / "2026-09").mkdir(parents=True)
+        (root / "evidence" / "2026-09" / "TASK-003-spec.md").write_text(
+            self.zh_spec(), encoding="utf-8")
+        r = subprocess.run(
+            [sys.executable, str(LINT), "--specs", "--root", str(root),
+             "--json"], capture_output=True, text=True)
+        out = json.loads(r.stdout)
+        self.assertEqual((out["specs_scanned"], out["unscannable"]), (1, 0))
 
 
 if __name__ == "__main__":
