@@ -413,7 +413,12 @@ def visible(text: str) -> str:
     but it does close the gap between "the bytes are present" and "a reader
     sees it".
     """
-    return re.sub(r"<!--.*?-->", "", text, flags=re.S)
+    # `\Z` as an alternative terminator on purpose: an UNCLOSED `<!--`
+    # comments out the whole rest of the document, and that is exactly the
+    # mutation that caught this guard the second time — a closed-comment
+    # pattern stripped nothing, so the bytes stayed and the guard stayed
+    # green while the paragraph had stopped rendering.
+    return re.sub(r"<!--.*?(?:-->|\Z)", "", text, flags=re.S)
 
 
 class TestTheProcedureNamesTheShape(unittest.TestCase):
