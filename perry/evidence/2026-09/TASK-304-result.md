@@ -178,10 +178,39 @@ mutation reverted afterwards; `git status` clean, verified.
 | 2 | rename key `test_diagnose.py` → `test_diagnose_renamed_away.py` (no such file) | `TestTheFileIsAboutThisTree.test_no_recorded_module_has_been_deleted` (+ 2 others) |
 | 3 | delete the `format_audit(audit(...))` call from `main()`, leaving the function defined and unit-tested | `TestTheBannerIsWiredIntoMainAndNotJustDefined` — **all three tests** |
 | 4 | `git_ancestor` returns `True` unconditionally — nothing is ever stale | `TestStalenessIsDistinguishableFromCurrent.test_the_real_ancestor_check_answers_for_this_checkout` |
+| 5 | drift lines lead with the module name again (see §4a) | `TestTheReportNamesWhatIsWrong.test_a_drift_line_never_starts_with_the_runners_module_red_marker` |
 
 **No mutation came back green.** The two the spec required are 1 and 2; 3 and 4
 were added because a report nobody calls and a staleness check that always says
-"fine" are the two ways this mechanism could have been theatre.
+"fine" are the two ways this mechanism could have been theatre. 5 is a
+regression guard for a bug the suite caught in this round's own work.
+
+### 4a. A false signal the first version shipped, and the suite caught it
+
+The first `bash tests/run` on this branch came back with **`test_tree_guard.py`
+red**, and the cause was mine, not a flake.
+
+`main()` prints `✗ {mod}` to mean **this module is RED**. My first `drift()`
+produced `✗ {mod}: on disk, and the durations file does not mention it` for a
+module that had merely never been measured — the same marker, for a module that
+had *passed*.
+
+`test_tree_guard.TestThePlantedWrite` plants a new module into a copied repo,
+runs the suite narrowed to it, and asserts `✗ {planted module}` is **absent**,
+because the plant is supposed to pass. **A brand-new module is by definition not
+in `durations.json`**, so my banner accused a passing module of failing — the
+precise failure mode this row exists to remove, reintroduced by the fix for it.
+
+Drift lines now lead with the condition:
+
+    no such module, still recorded: test_x.py — …
+    not in durations.json: test_x.py — …
+    undefined source 's': test_x.py — …
+
+`test_tree_guard.py` is green after the fix: 24 tests, 54.8s, exit 0, run in
+isolation at `46e6816`. Mutation 5 above is the direct regression guard, because
+`test_tree_guard` reaches this through two subprocesses in 160s and names
+nothing about durations.
 
 The failure messages name the module, which is the point — "durations.json is
 wrong" is not actionable:
@@ -269,3 +298,48 @@ Exit 0, tree guard clean.
 `main` for an unrelated reason. It was **not** red in the baseline — 0 failures
 across all 108 modules — so that redness is not present at this base and
 nothing in this round is masking it.
+
+### 7a. The one remaining red, and why it is the stale base
+
+The first after-run (`618bc9b`) had **2 modules red**. One was mine and is
+fixed (§4a). The other is `test_diagnose.TestUserLoadFindings.
+test_perry_itself_passes_its_own_id_checks`:
+
+    AssertionError: Lists differ: ['TASK-284'] != []
+
+Perry lints its own documentation for task IDs that are cited but not defined.
+This evidence file cites `TASK-284` — the round that failed V4 for adding a
+report nothing invoked, which is the whole reason
+`TestTheBannerIsWiredIntoMainAndNotJustDefined` exists. **That row is defined on
+`coding/task-247-config-predicate` and does not exist at `d49964e`**, the stale
+base this worktree branches from. Three probes, all run:
+
+| probe | result |
+| --- | --- |
+| this branch at `d49964e` base | **FAIL** — dangling `['TASK-284']` |
+| `coding/task-247-config-predicate` extracted, my four files copied on | **PASS**, 6.7s — the ID resolves there (5 occurrences in `perry/BOARD.md`) |
+| this branch with `TASK-284` stripped from **this file only** | **PASS**, 12.8s |
+
+The third probe also establishes that `tests/` is **not** scanned: the same ID
+appears once in `tests/parallel` and three times in
+`tests/test_durations_provenance.py` and the check went green with only this
+file changed. So the citations that carry the explanatory weight — the ones in
+the code, saying why the wiring test exists — are unaffected either way.
+
+**I did not reword this file to make the check pass**, and the choice is
+deliberate. `.perry/hook.md`'s rule, quoted on the board, is that rewording to
+pass is the one thing a gate must never reward. The citation is true, it is the
+reason a whole test class exists, and it resolves on the branch this merges
+into. Deleting it would trade a real cross-reference for a green tick on a base
+the brief itself flagged as stale.
+
+If the reviewer would rather the branch be green standing alone, the fix is one
+`sed` on this file and nothing else — probe 3 is that exact edit. It is offered
+as the reviewer's call, not taken as mine.
+
+The target branch does **not** touch `tests/parallel`, `tests/durations.json`,
+`tests/run` or `tests/test_parallel_runner.py` (`git diff d49964e
+coding/task-247-config-predicate -- tests/` is two unrelated modules), and my
+`durations.json` audits clean against that branch's module set too — `phantom:
+[]`, `unlisted: []`, `permutation of the glob: True`. So the merge is clean and
+the guard stays green after it.
