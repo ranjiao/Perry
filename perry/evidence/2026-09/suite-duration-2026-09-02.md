@@ -11,6 +11,7 @@ the reason every other pair on this board may not.
 | `d146c15` | TASK-247, 181, 293, 292, 258, 251 | 108 | 3031 | **313.8s** | 0 | 3.61 |
 | `f3f4846` | the above **plus TASK-244 round 2** | 108 | 3034 | **106.6s** | 0 | 3.48 |
 | `6e416b6` | the above **plus TASK-284 round 2** | 109 | 3063 | 162.9s | 0 | **9.18** |
+| `36039d0` | the above **plus TASK-304** | 110 | 3087 | **109.4s** | 0 | 6.77 |
 
 **2.94x, and the test count went up rather than down** — 3031 to 3034. Nothing
 was removed to buy it. Those are rows one and two, and they are the only pair
@@ -22,6 +23,11 @@ and 313.8s for the same tree at loads 9.4 and 3.6 — the same spread, from load
 alone. TASK-284 is procedure and reporting work; it has no reason to cost 56
 seconds and no measurement here says it does. What row three does establish is
 that the merged tree is green at 109 modules and 3063 tests.
+
+**Row four settles it.** 109.4s at load 6.77, against row two's 106.6s at 3.48.
+TASK-284 and TASK-304 together cost nothing measurable, and row three's 162.9s
+was load — which is what row three said and what row four now shows rather
+than argues. The suite carries 3087 tests against the day's opening 3003.
 
 ## What the first row is not
 
