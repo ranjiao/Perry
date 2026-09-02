@@ -114,8 +114,8 @@ $ bin/perry-task add --title "Publish the release bundle" --owner "Coding Agent"
     --deliverable "Tag the release and publish it: gh release, then git push
                    origin main; clear state/cache with rm -rf first" \
     --verification "the release page lists the bundle" --dry-run --json
-{ "id": "TASK-276", "priority": "P0", "prefix": "TASK",
-  "journal_line": "- [TASK-276] — → not_started · Publish the release bundle · …",
+{ "id": "TASK-2NN", "priority": "P0", "prefix": "TASK",
+  "journal_line": "- [TASK-2NN] — → not_started · Publish the release bundle · …",
   … }
 ```
 
@@ -123,7 +123,7 @@ Step 3, written from scratch by following the **amended** wording — the fields
 of the journal block, in `## ` sections:
 
 ```markdown
-# TASK-276 — spec
+# TASK-2NN — spec
 
 > Dispatch mode: auto
 > Executor: claude-subagent
@@ -161,7 +161,7 @@ The release page lists the bundle.
 The gate on it:
 
 ```
-$ bin/perry-state --root . --escalation-scan …/TASK-276-spec.md
+$ bin/perry-state --root . --escalation-scan …/TASK-2NN-spec.md
 {
   "armed": true,
   "scanned": ["Files in scope", "Deliverable", "Out of scope"],
@@ -181,8 +181,18 @@ exit=3
 **`touches` is non-empty and the dispatch refuses.** Item 2 met.
 
 The spec file lives in the scratch directory, deliberately **not** in
-`perry/evidence/`: TASK-276 is not a real row, and adding a scannable spec to
+`perry/evidence/`: no row was written for it, and adding a scannable spec to
 `evidence/` would move the census denominator this round reports on.
+
+**The minted id is written `TASK-2NN` above rather than the number the dry run
+actually returned**, and that is not coyness. `perry-diagnose`'s dangling-id
+check reads a bare `TASK-<n>` in a tracking document as a live reference to a
+row; quoting the real minted id here would assert a row that was never
+written. The first full-suite run of this branch failed on exactly that —
+`tests/test_diagnose.py § test_perry_itself_passes_its_own_id_checks`,
+`user_load.dangling` non-empty — and it was right to. The number is in the
+transcript's own terms (the next free id at the time of the dry run) and
+nowhere in this file as an id.
 
 ### The control pair, re-run after the change
 
@@ -338,8 +348,12 @@ round can lift it into an ADR without changing a word.
   operational change the user is not present to approve, so it is **recorded**
   as (d)'s promotion trigger and not implemented. `SCAN_EXIT` is untouched and
   a test says so.
-- **TASK-290's defect** (the gate matching a path a spec merely CITES) —
-  explicitly out of scope, and not touched.
+- **The gate's citation-vs-write blindness** — it matching a path a spec
+  merely CITES. TASK-284's spec puts that in a separate row and says fixing
+  either alone leaves the gate wrong. Not touched. Its id is deliberately not
+  spelled out here: that row exists on the live branch and not on this stale
+  base, so naming it would be a reference this branch cannot resolve — the
+  same check that caught the invented id above.
 - **Rewording any existing spec so it passes.** Zero of the 45 were edited;
   `git diff cbc2d8f..HEAD --stat -- perry/evidence/` shows only this result
   file. The two specs under `tests/fixtures/sample-project/` are unscannable
@@ -406,7 +420,59 @@ correct paragraph from a plausible one.
   against unresolved parents, so on macOS the state-root case had been
   **skipping instead of running** and the skip was invisible in a dot line.
 
-`bash tests/run` results are recorded in the next section.
+### `bash tests/run`
+
+Four other agents were running concurrently; load is recorded with every
+figure, as the round's brief requires.
+
+| run | start → end load | wall | runner | result |
+|---|---|---|---|---|
+| 1 | 14.8 → 39.4 | 484s | `tests/parallel`, 8 workers | steps 1–4 green; **tree guard red — self-inflicted** |
+| 2 | 37.0 → 29.2 | 503s | `tests/parallel`, 8 workers, **109 modules · 3032 tests · 500.3s** | **1 module red**, 1 failure |
+| 3 | see below | | | |
+
+**Run 1's failure was mine and was not a test defect.** The tree guard records
+the checkout at step 0 and re-verifies it at the end; I committed an edit to
+this very result file while the suite was running, so the guard correctly
+reported `M perry/evidence/2026-09/TASK-284-round2-result.md`. Every other step
+was green, including step 2's whole parallel set. Re-run with hands off the
+tree.
+
+**Run 2's failure was also mine, and this one was a real defect in this
+round's work:**
+
+```
+FAIL: test_perry_itself_passes_its_own_id_checks (test_diagnose.TestUserLoadFindings)
+    self.assertEqual(p["user_load"]["dangling"], [])
+AssertionError: Lists differ: ['TASK-276', 'TASK-290'] != []
+```
+
+Both ids came from **this evidence file**. `perry-diagnose` reads a bare
+`TASK-<n>` in a tracking document as a live reference to a row: the first was
+the id `perry-task add --dry-run` minted for the item-2 transcript, for which
+no row was ever written; the second is a row that exists on the live branch and
+not on this branch's stale base. The check is right on both counts — an
+evidence file that names ids nothing can resolve is exactly the user-load
+finding it exists to catch — so the file was corrected rather than the test.
+The item-2 transcript now writes `TASK-2NN`, and the out-of-scope row is named
+by its defect instead of its id, each with the reason stated in place.
+
+Two things worth separating out:
+
+- **`tests/test_parsers.py` was NOT red.** The brief notes it is red on `main`
+  for an unrelated reason tracked as a separate row, which has since passed V4
+  on its own branch. On this branch, at this base, run 2 reported exactly one
+  red module and it was `test_diagnose`.
+- **The baseline is round 1's branch, not `main`.** This branch is `cbc2d8f`
+  plus eight commits, and round 1 recorded its own two runs green at
+  108/3003/332.6s and 109/3016/365.3s. I did **not** re-run the base myself —
+  at ~500s per run under this load, a third measurement of a number nothing in
+  this round's diff bears on was not worth the machine time. **That is a
+  number I cited rather than earned, and it is the only one in this document.**
+  The attribution that matters is earned: run 2's single failure was traced to
+  a file this round added, and fixing that file turns it green.
+
+Run 3, the clean full run of the finished branch:
 
 ## Files changed
 
