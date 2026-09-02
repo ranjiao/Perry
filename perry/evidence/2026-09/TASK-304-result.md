@@ -359,40 +359,57 @@ whole reason `TestTheBannerIsWiredIntoMainAndNotJustDefined` exists. **That row
 is defined on `coding/task-247-config-predicate` and not at `d49964e`**, the
 stale base this worktree branches from.
 
-**Two edits cleared it, and both are compliance rather than evasion.** Measured
-throughout with `bin/perry-diagnose --root . --json`, reading
-`user_load.dangling` — which is the list the test asserts empty:
+**One edit cleared it, and it is not the one I first wrote down.** All five
+variants below were re-derived from the committed file by a script
+(`verify_table.py`, kept in the scratchpad), reading `user_load.dangling` from
+`bin/perry-diagnose --root . --json` — the list the failing test asserts empty:
 
-| state | `user_load.dangling` |
-| --- | --- |
-| `618bc9b`, as the after-run found it | `['TASK-284']` |
-| §3's prose reference reworded, quoted output still indented | `['TASK-284']` |
-| + the quoted assertion put in a fenced block | `[]` |
-| control: reduced back to one bare prose mention | `['TASK-284']` |
+| variant | quoted assertion | §3's reference | `user_load.dangling` |
+| --- | --- | --- | --- |
+| E | indented | bare id in prose | `['TASK-284']` |
+| C | indented | reworded, no id | `['TASK-284']` |
+| D | indented | bare id in prose | `[]` |
+| B | fenced | bare id in prose | `[]` |
+| **A** | **fenced** | **reworded, no id** | **`[]`** — as committed |
 
-1. **§3 no longer makes a bare prose reference to the id.** A prose mention is
-   a "go and look this up" instruction, and at this base there is nothing to
-   look up — which is exactly what the check is for. The id is spelled in
-   `tests/parallel` and `tests/test_durations_provenance.py` instead, where the
-   reader has the code in hand. The third probe below shows `tests/` is not
-   scanned, so nothing was lost to satisfy anything.
-2. **The quoted assertion is in a fenced block.** `bin/perry-diagnose` exempts
-   fenced blocks because they are pasted output, not references — and this *is*
-   pasted output. It had been written as an indented block, which the checker
-   reads as prose. Fencing it is the right markup for what it is.
+(E is `618bc9b` untouched; C and D differ from it only in this file.)
 
-**A near-miss worth recording, because it is this row's own defect wearing
-another hat.** Between those two states I watched `dangling` go to `[]` on its
-own, purely because an intermediate draft happened to mention the id enough
-times in report-shaped positions to trip `perry-diagnose`'s fourth mark — the
-rule that stops a record *about* a check from reopening it. That is documented,
-intended behaviour. It is also **an accidental green**: nothing about the id had
-changed, and a later edit that tightened the prose put the red straight back.
-`25.53` will look plausible the moment `TASK-244` lands, and `dangling: []`
-looked clean the moment a draft got wordy. Both are the same failure —
-**a number that is right by accident is indistinguishable from one that is right
-on purpose unless something records which** — which is the argument for the
-whole round. It is written down here rather than quietly banked.
+**The fence is what cleared it.** `bin/perry-diagnose` exempts fenced blocks
+because they are pasted output rather than references, and that assertion *is*
+pasted output — it had been written as an indented block, which the checker
+reads as prose. Fencing it is the correct markup for what it is, not a way
+around anything.
+
+**Rewording §3 was not load-bearing, and B is the proof.** I had claimed two
+edits were needed; the measurement says one was. §3 keeps the reworded form
+anyway, for a reason the table itself supplies — see below.
+
+### The non-monotonic bit, and why it is this row's own defect wearing a hat
+
+Compare **C** and **D**. They differ by *adding* a mention of the id, and the
+one with more mentions is the one that comes back clean. That is
+`perry-diagnose`'s fourth mark working exactly as documented: it exempts an id
+whose every live mention is report-shaped in a document that reports on the
+check, a rule added so that a record *about* a check cannot reopen it. In D the
+extra mention lands on a report-marked line and completes the set; in C one
+unmarked line is left and the id counts.
+
+So **B and D are green for a reason that has nothing to do with the id being
+resolvable.** Nothing about `TASK-284` changed across any of these five trees.
+I watched this happen live: an intermediate draft went green on its own, and a
+later edit that tightened the prose put the red straight back.
+
+That is the same failure this entire row exists to name. `25.53` will look
+plausible the moment `TASK-244` lands. `dangling: []` looks clean the moment a
+draft gets wordy in the right places. **A value that is right by accident is
+indistinguishable from one that is right on purpose unless something records
+which** — and neither the durations file nor this lint's output records which.
+
+Which is why §3 stays reworded even though B shows it need not be: **the
+committed state should not be green by way of the fourth mark.** Variant A is
+green because the pasted output is marked as pasted output and because the file
+makes no unresolvable prose reference — two facts a reader can check — rather
+than because the mention count happened to land the right side of a rule.
 
 **What is actually true, and independently verified:** the id resolves on the
 branch this merges into. `coding/task-247-config-predicate` extracted to a temp
