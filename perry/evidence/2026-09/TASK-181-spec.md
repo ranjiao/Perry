@@ -76,3 +76,41 @@ would decide by accident what `DESIGN-009` decides on purpose.
 - `bash tests/run`: report the baseline failure count you started from and the
   runner that produced it. Two runners in this project disagree, so a bare
   number is not evidence.
+
+## Bound
+
+The finite set this round checks, named before the round:
+
+**One record kind, one store, one document class.** Size 3:
+
+1. The `objective` record shape in `bin/perry_md_store.py § STORED` and its
+   scanner.
+2. `perry/okr.jsonl` — the 10 emitted records, against 10 Objective headings
+   in `perry/OKR.md`, with `kr: 38` and `version: 3` unchanged.
+3. `perry-okr verify` clean, and `perry/OKR.md` byte-unchanged.
+
+The round is over when those three are checked. **Deliberately not the
+category "the record shape is right for every OKR document anywhere"** — that
+has no last element, and step 2 (`TASK-182`) is the declared gate for whether
+this shape was right: `DESIGN-009 § 6` says *"if the renderer cannot rebuild
+the five headings from records, the records are wrong."*
+
+### Out of the set, stated so the reviewer does not chase them
+
+- **The `record_key` choice.** The author keyed an Objective on
+  `(version, heading)`, so a renamed heading is REPORTED rather than followed.
+  That is a deliberate judgement the author flagged: the alternative available
+  at step 1 is the `Objective <N>` ordinal, which `schema/goals-list-contract.md
+  § Not here` refuses and `DESIGN-009` decision 1 calls the trap. Making an id
+  survive a rename is steps 3-5. **Review whether the reasoning is sound and
+  recorded, not whether a different key would be better.**
+- **`goals/state/OKR_TEMPLATE.md`'s third heading** carries a trailing HTML
+  comment that leaks into `title`. `heading` still round-trips and the renderer
+  reads `heading` only, so nothing is broken; the author reported it. It is a
+  NEW ROW if it matters, not this round's failure.
+- **The one red in the after-suite**
+  (`test_host_support…test_concurrent_mixed_registers_do_not_exceed_global_cap`)
+  is already tracked as `TASK-272`, a known flaky mixed-register test. The
+  author judged it load-induced — three other agents' suites were running — and
+  said explicitly that this is their judgement rather than evidence. **Treat it
+  as an open question, not as a settled pass.**
