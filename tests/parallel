@@ -120,6 +120,57 @@ of `parse_ids` returned 2885 ids for 2899 tests and said nothing; `--ids` now
 refuses to write a file whose id count disagrees with unittest's own `Ran N`.
 See `parse_ids`.
 
+## TASK-251: three numbers that all looked like a failure count
+
+A red run printed three readings a reader could take for "how many tests
+failed", they disagreed, and nothing said which was which. Measured on this
+repository on 2026-08-30, four failed tests across three red modules:
+
+| reading | gave | |
+|---|---|---|
+| `grep -cE '^FAIL:'` over this output | **3** | wrong |
+| `✗ N module(s) red` | **3** | right, about MODULES |
+| sum of the per-module `FAILED (failures=N)` | **4** | the failure count |
+
+**Only the third is the number every spec in this project is asking for**, and
+it was the one no line of output stated — a reader had to sum it by hand from
+the per-module verdicts, each of which sits at the bottom of its own excerpt
+looking like the run's total.
+
+The first is wrong because of the line this row is about. A red module's
+stderr was echoed as `err.strip().splitlines()[-25:]` with nothing marking the
+cut. `test_diagnose` fails twice; the SECOND failure's `FAIL:` header fits
+inside that window and the FIRST one's does not, so the first failure reached
+the log as a bare traceback with no prefix and a header count said 3 where 4
+tests had failed. The TASK-249 agent found the mechanism on 2026-08-30 while
+retracting a number this output had produced; it is the third agent the trap
+caught in twelve hours, and one of the others had documented it in its own
+result before walking into it.
+
+The second is not wrong, it is about something else — one red module can hold
+fifty failed tests — and it was the last line printed, which is where a reader
+looks for a total.
+
+So the runner now states both counts, in words that cannot be confused, and
+derives neither from the excerpt:
+
+  * `failure_block` reads the WHOLE stream and prints, above the output, how
+    many of that module's tests failed and their ids. Truncation cannot reach
+    a name or a number that is printed above it.
+  * `failed_test_count` takes unittest's own `FAILED (failures=N, errors=M)`
+    tally and the id parser's count — two origins, as `unaccounted()` already
+    does for `--ids` — and reports the larger, printing the disagreement when
+    there is one. A module that died before writing a verdict line has an
+    UNKNOWN count and says so; None is not zero.
+  * `excerpt` still windows, because a red module can emit thousands of lines,
+    but it announces the elision and its size.
+  * the summary is two labelled lines, `N of M MODULE(S) red` and
+    `N of M TEST(S) failed`, the second being that authoritative sum.
+
+Held by `TestARedModulesFailureCountSurvivesTheExcerpt` and
+`TestTheTwoCountsAreWiredIntoMainAndNamedApart` in
+`tests/test_parallel_runner.py`.
+
 **The rule the schedule obeys: a hint may reorder the work, never select it.**
 `tests/durations.json` is a **sort key over the glob's own result** and is used
 nowhere else. A stale entry, a missing entry, an entry for a module that no
@@ -232,6 +283,117 @@ def unaccounted(results: list[dict]) -> list[dict]:
     return [r for r in results if len(r["ids"]) != r["ran"]]
 
 
+#: unittest's own trailing verdict, e.g. `FAILED (failures=2, errors=1)`.
+_FAILED_SUMMARY = re.compile(r"^FAILED \((?P<body>.*)\)$", re.MULTILINE)
+_BAD_COUNT = re.compile(r"\b(?:failures|errors)=(\d+)")
+
+#: How many lines of a red module's own output are echoed. The number is not
+#: the point; SAYING that it is a window is (TASK-251).
+TAIL_LINES = 25
+
+
+def failing_ids(r: dict) -> list[tuple[str, str]]:
+    """The (test id, outcome) pairs this module reported FAIL or ERROR.
+
+    Read from the whole verbose stream, never from the excerpt — which is the
+    entire point of this function existing. See `failure_block`.
+    """
+    return [(i, o) for i, o in r["ids"] if o in ("FAIL", "ERROR")]
+
+
+def unittest_bad_count(stderr: str) -> int | None:
+    """failures+errors as **unittest itself** totalled them, or None if it
+    never got as far as saying.
+
+    A second origin for a number `failing_ids` also produces, on the same
+    principle `unaccounted()` already runs on: the id parser reads the verbose
+    stream test by test, this reads the one line unittest writes at the end.
+    They have to agree, and when they do not the runner says so instead of
+    picking one silently.
+
+    None is not zero. A module killed mid-run, or one whose import exploded
+    before the runner was built, writes no verdict line at all — and reporting
+    that as "0 tests failed" under a red module is the kind of number this
+    row exists to remove.
+    """
+    n = None
+    for m in _FAILED_SUMMARY.finditer(stderr):
+        n = (n or 0) + sum(int(v) for v in _BAD_COUNT.findall(m.group("body")))
+    return n
+
+
+def failed_test_count(r: dict) -> int:
+    """How many TESTS this module failed — the count the summary line sums.
+
+    unittest's own tally and the id parser's are combined with `max`, not
+    averaged and not silently preferred: the failure this project keeps
+    finding is a number that UNDERSTATES and still looks right, so when the
+    two disagree the larger is the one that cannot hide a failure. The
+    disagreement itself is printed by `failure_block`.
+    """
+    claimed = unittest_bad_count(r["err"])
+    named = len(failing_ids(r))
+    return named if claimed is None else max(claimed, named)
+
+
+def excerpt(err: str, limit: int = TAIL_LINES) -> str:
+    """A module's output, tail-windowed — and **the window says so**.
+
+    This printed `splitlines()[-25:]` with nothing marking the cut. On
+    2026-08-30 the TASK-249 agent was retracting a failure count it had got
+    from this output when it found why: when a module fails twice, the second
+    failure's `FAIL:` header fits inside the window and the first one's does
+    not, so a reader counting headers counts one failure where there were two.
+    Every spec in this project asks for a baseline failure count from this
+    runner, so a silent elision here corrupts the evidence every row rests on.
+
+    Truncation stays — a red module can emit thousands of lines — but it is
+    now announced, with the count of what was dropped and the total it was
+    dropped from, so the reader knows the excerpt is an excerpt. The
+    authoritative counts are printed ABOVE it by `failure_block`, where no
+    window can reach them.
+    """
+    lines = err.strip().splitlines()
+    if len(lines) <= limit:
+        return "\n".join(lines)
+    dropped = len(lines) - limit
+    return "\n".join(
+        [f"  \033[33m… {dropped} earlier line(s) elided of {len(lines)}; "
+         f"the last {limit} follow — re-run this module alone for all of "
+         f"it\033[0m"] + lines[-limit:])
+
+
+def failure_block(r: dict) -> str:
+    """Everything printed about one red module. Counts first, excerpt last.
+
+    The order is the fix. `failing_ids` and `unittest_bad_count` both read the
+    WHOLE stream, so the names and the number of failed tests are established
+    before any windowing happens and are printed above it. The excerpt below
+    them is then free to be a window, because nothing a reader needs to count
+    lives only inside it.
+    """
+    bad = failing_ids(r)
+    claimed = unittest_bad_count(r["err"])
+    out = []
+    if claimed is None:
+        out.append(f"\n\033[31m✗ {r['mod']}\033[0m — exited {r['rc']} "
+                   f"without a unittest verdict line, so how many tests failed "
+                   f"is NOT known from this run; the {len(bad)} named below "
+                   f"are only the ones the stream got as far as reporting.")
+    else:
+        out.append(f"\n\033[31m✗ {r['mod']}\033[0m — "
+                   f"{failed_test_count(r)} of {r['ran']} test(s) failed")
+        if claimed != len(bad):
+            out.append(f"  \033[31m! unittest counted {claimed} failed test(s) "
+                       f"and the id parser named {len(bad)}\033[0m — the "
+                       f"list below is the parser's and is short; the count "
+                       f"above is the larger of the two on purpose.")
+    for i, o in bad:
+        out.append(f"    {o:<5}  {i}")
+    out.append(excerpt(r["err"]))
+    return "\n".join(out)
+
+
 def run_module(name: str) -> dict:
     t = time.time()
     proc = subprocess.run(
@@ -283,8 +445,7 @@ def main() -> int:
     total = sum(r["ran"] for r in results)
 
     for r in failed:
-        print(f"\n\033[31m✗ {r['mod']}\033[0m")
-        print("\n".join(r["err"].strip().splitlines()[-25:]))
+        print(failure_block(r))
     for r in empty:
         print(f"\n\033[31m✗ {r['mod']} ran zero tests\033[0m — it loaded "
               f"without error and contributed nothing. A module that stops "
@@ -324,7 +485,20 @@ def main() -> int:
     print(f"\n{len(results)} modules · {total} tests · {wall:.1f}s "
           f"· {args.j} workers")
     if failed or empty:
-        print(f"\033[31m✗ {len(failed) + len(empty)} module(s) red\033[0m")
+        # **Two counts, named, on two lines — because one number that could be
+        # read as either is how TASK-249 mis-reported a baseline.** The module
+        # count is what the exit status is about; the test count is what every
+        # spec asking for "the baseline failure count" wants. Neither is
+        # derived from the printed excerpts, so truncation cannot move them.
+        bad_tests = sum(failed_test_count(r) for r in failed)
+        unknown = [r for r in failed if unittest_bad_count(r["err"]) is None]
+        print(f"\033[31m✗ {len(failed) + len(empty)} of {len(results)} "
+              f"MODULE(S) red\033[0m"
+              + (f" — {len(empty)} of them ran zero tests" if empty else ""))
+        print(f"\033[31m✗ {bad_tests} of {total} TEST(S) failed\033[0m"
+              + (f" — plus {len(unknown)} module(s) that exited without a "
+                 f"unittest verdict line, whose failed-test count is unknown "
+                 f"and is NOT in that total" if unknown else ""))
         return 1
     if args.ids and short:
         return 1
