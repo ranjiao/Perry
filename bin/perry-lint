@@ -9,7 +9,7 @@ templates) against the one declared schema.
 
 Usage:
   perry-lint [--root <project_root>] [--templates | --claims | --verification |
-              --provenance | --knowledge | --reviews | --glossary]
+              --provenance | --knowledge | --reviews | --glossary | --specs]
              [--json]
              [--state-root <path>] [--strict] [--quiet]
 
@@ -81,6 +81,16 @@ otherwise be no way to accept one.
                 every `SRC-n` cited anywhere resolves to a digest under
                 knowledge/, every digest carries an id, an origin and a
                 fetch date, and no id is reused. Never exits non-zero.
+  --specs       advisory pass over `evidence/**/*-spec.md`: every spec the
+                dispatch escalation gate will scan actually offers it a
+                `## Files in scope` or `## Deliverable` section to scan.
+                A spec with neither is matched against the empty string and
+                reports `verdict: pass` with `touches: {}` — output identical
+                to a spec read in full and found clean, which is why an empty
+                scan has to be REPORTED rather than inferred from a green
+                verdict (TASK-284). Prints the spec count even at zero
+                findings. With --strict this mode EXITS NON-ZERO, so a
+                dispatcher can refuse to run a pre-flight over nothing.
   --state-root  with --claims, test a candidate state root other than the one
                 .perry/config.md declares (or `.` when there is none).
   --json        machine-readable findings
@@ -2674,6 +2684,69 @@ def check_provenance(state_root: Path) -> list["Finding"]:
     return findings
 
 
+#: `evidence/<YYYY-MM>/<TASK-ID>-spec.md` — the file `add-task` step 3 writes
+#: and `dispatch.md` pre-flight step 4 scans. Named by the pattern rather than
+#: by "every `.md` under `evidence/`", because that directory also holds
+#: dispatch records, result reports and working artifacts, and none of those
+#: are ever fed to the escalation gate.
+SPEC_FILE_RE = re.compile(r"-spec\.md$")
+
+
+def check_specs(state_root: Path, project_root: Path) -> list["Finding"]:
+    """Every spec the escalation gate will scan actually offers it something.
+
+    `bin/perry-state --escalation-scan` matches the project's high-stakes
+    fragments against a spec's `Files in scope` and `Deliverable` sections. A
+    spec carrying neither — under any spelling `alias("headings", …)` knows —
+    is scanned against the empty string. It reports `touches: {}` and
+    `verdict: pass`, **and that output is byte-identical to the output for a
+    spec that was read in full and found genuinely clean**. That asymmetry is
+    the whole defect: the gate's failure mode looks exactly like its success.
+
+    Measured on this repository 2026-09-02: 119 spec files under `evidence/`,
+    45 of them with no section the gate can read. Every one returned `pass`
+    over an armed 35-fragment union. Not one of the 45 is malicious and not
+    one was reworded to get there — `add-task` step 3 says the spec carries
+    "the same schema" as the journal block, `perry-task add` renders that block
+    as bullets, and `_section` only matches `^## `. Following the procedure
+    produced the hole.
+
+    So this is the REPORTING half of TASK-284: the check does not prevent an
+    empty scan and is not meant to. It makes one impossible to mistake for a
+    clean pass — which is the property `scan_spec_escalations` already gives
+    the other input, where an empty fragment list is `unarmed` and pointedly
+    not `pass`.
+
+    Advisory, on the `--verification` and `--provenance` precedent: 45 rows of
+    this project's own history predate the rule, and a hard gate on day one
+    would stop every dispatch that touches them. `--strict` promotes it, which
+    is what lets a dispatcher choose to be stopped.
+    """
+    findings: list[Finding] = []
+    edir = state_root / "evidence"
+    specs = [md for md in (sorted(edir.rglob("*.md")) if edir.exists() else [])
+             if SPEC_FILE_RE.search(md.name)]
+    # The gate's own list, read from the gate. A second copy of "which sections
+    # are scanned" here is exactly the two-answers-to-one-question defect
+    # `ESCALATION_TOUCHES`' own comment records — the check would keep
+    # reporting on a section the scan had stopped reading.
+    labels = " or ".join(f"`## {lbl}`" for lbl in P.ESCALATION_TOUCHES)
+    unscannable = 0
+    for md in specs:
+        rel = md.relative_to(state_root).as_posix()
+        out = P.scan_spec_escalations(md.read_text(errors="replace"), [])
+        if out["scope_scanned"]:
+            continue
+        unscannable += 1
+        findings.append(Finding(
+            "warn", rel, "spec-scope-unscannable",
+            f"no {labels} — the escalation gate matches every high-stakes "
+            f"fragment against nothing here and still reports `pass`",
+        ))
+    check_specs.stats = {"specs": len(specs), "unscannable": unscannable}
+    return findings
+
+
 #: How many drifted rows are named one by one before the tail is summarised.
 #: `perry-tasks verify` caps its own mismatch list at ten for the same reason:
 #: a stale store drifts on EVERY row, and a hundred warnings saying one thing
@@ -3970,7 +4043,7 @@ def main(argv: list[str]) -> int:
     root_arg = None
     mode_templates = mode_claims = mode_verification = False
     mode_provenance = mode_knowledge = mode_reviews = False
-    mode_glossary = False
+    mode_glossary = mode_specs = False
     as_json = strict = quiet = False
     state_root_arg = None
     i = 0
@@ -3996,6 +4069,8 @@ def main(argv: list[str]) -> int:
             mode_reviews = True
         elif a == "--glossary":
             mode_glossary = True
+        elif a == "--specs":
+            mode_specs = True
         elif a == "--state-root":
             i += 1
             state_root_arg = argv[i] if i < len(argv) else None
@@ -4218,6 +4293,57 @@ def main(argv: list[str]) -> int:
                 # Same discipline as --verification: an empty scan is not a pass.
                 print("\n  · no digests under knowledge/ and no citations to check")
         return 0
+
+    if mode_specs:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        # Arms `alias("headings", …)`, without which a spec whose sections are
+        # written in the project's declared document language reads as having
+        # none — the linter would then report exactly the false alarm TASK-201
+        # fixed in the gate itself.
+        load_glossary(schema)
+        findings = check_specs(state_root, project_root)
+        stats = getattr(check_specs, "stats", {"specs": 0, "unscannable": 0})
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "specs_scanned": stats["specs"],
+                "unscannable": stats["unscannable"],
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --specs · {project_root}")
+            # Named one by one up to the same cap `store-drift` uses, and for
+            # the same reason: 45 identical warnings is a check people learn
+            # to scroll past. `--json` still carries every one, because "every
+            # member of the set is reported" is the acceptance here.
+            for f in findings[:DRIFT_ROWS_SHOWN]:
+                print(f)
+            if len(findings) > DRIFT_ROWS_SHOWN:
+                print(f"  · … and {len(findings) - DRIFT_ROWS_SHOWN} more "
+                      f"(--json names every one)")
+            if findings:
+                print(f"\n  {stats['unscannable']} of {stats['specs']} spec(s) "
+                      f"present the escalation gate no scope to scan — its "
+                      f"`pass` on those is a scan of nothing, not a clean one")
+            elif stats["specs"]:
+                print(f"\n  ✓ all {stats['specs']} spec(s) offer the "
+                      f"escalation gate a section to scan")
+            else:
+                # The count prints at zero for the reason --knowledge prints
+                # its card count: "0 unscannable" over 0 specs is trivially
+                # true, and a number that cannot tell "the gate can see every
+                # spec" from "there are no specs" is not a measurement.
+                print("\n  · no `*-spec.md` under evidence/ — the check is "
+                      "live and has nothing to judge")
+        # `--strict` promotes, on the `--reviews` precedent and for the same
+        # reason: the pre-flight this reports on is a SAFETY gate, so a
+        # dispatcher must be able to make "the gate could not see the spec"
+        # stop the round rather than cost one.
+        return 1 if (strict and findings) else 0
 
     # Localized column headers are legal in whatever the project's document
     # language is; the glossary that says which spellings count lives in the

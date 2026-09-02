@@ -4349,16 +4349,47 @@ def scan_spec_escalations(text: str, fragments: list[str]) -> dict:
     is deliberately not `pass`: an empty list matches nothing and would wave
     everything through, which is the one outcome a gate must not report as
     clean. Callers refuse or escalate on it exactly as `dispatch.md` says.
+
+    **`scanned` says which of the three sections the spec actually offered**,
+    and it is the other half of that same rule. `armed` reports whether the
+    HOOK had anything to match with; `scanned` reports whether the SPEC had
+    anything to match against. Both inputs can be empty and only one of them
+    was ever visible in the result — so a spec carrying no readable
+    `Files in scope` and no readable `Deliverable` scanned every armed
+    fragment against the empty string and returned `touches: {}`,
+    `verdict: pass`, byte-identical to a spec that was read in full and found
+    clean. Measured 2026-09-02 on this repository: 119 spec files, **45 of
+    them** in exactly that state — 38%, every one reporting `pass` over a
+    fully armed 35-fragment union. Not one had been reworded to get there:
+    `add-task` step 3 says the spec carries "the same schema" as the journal
+    block, `perry-task add` renders that block as bullets, and `_section`
+    matches `^## `. Following the procedure produced the hole. TASK-284.
+
+    `verdict` is deliberately NOT given a fourth value here. This is the
+    reporting half: `bin/perry-lint --specs` turns an empty scan into a named
+    finding, and `--escalation-scan`'s JSON carries `scanned` beside the
+    verdict so the two `pass`es stop being indistinguishable. Hardening it
+    into a refusal would retroactively stop every dispatch touching those 45
+    specs — the trap DESIGN-003 decision 4 keeps `--verification` advisory
+    for.
     """
     body = _strip_comments(text or "")
     touches: dict[str, list[str]] = {}
+    scanned: list[str] = []
     for label in ESCALATION_TOUCHES:
-        hits = matching_escalations(_section(body, *alias("headings", label)),
-                                    fragments)
+        section = _section(body, *alias("headings", label))
+        # A heading with nothing under it is a heading, not scope: `_section`
+        # returns the empty string for both, and counting the heading alone
+        # would report a scan that did not happen.
+        if section.strip():
+            scanned.append(label)
+        hits = matching_escalations(section, fragments)
         if hits:
             touches[label] = hits
-    disclaims = matching_escalations(
-        _section(body, *alias("headings", ESCALATION_DISCLAIMS)), fragments)
+    disclaim_section = _section(body, *alias("headings", ESCALATION_DISCLAIMS))
+    if disclaim_section.strip():
+        scanned.append(ESCALATION_DISCLAIMS)
+    disclaims = matching_escalations(disclaim_section, fragments)
 
     green = set(disclaims)
     refuse: list[str] = []
@@ -4369,6 +4400,14 @@ def scan_spec_escalations(text: str, fragments: list[str]) -> dict:
 
     return {
         "armed": bool(fragments),
+        # Which of `ESCALATION_TOUCHES` + `ESCALATION_DISCLAIMS` were present
+        # and non-empty. `[]` means the scan below ran against nothing at all.
+        "scanned": scanned,
+        # The two touch sections alone. `Out of scope` can only green-light,
+        # never surface scope, so a spec offering that one and neither of the
+        # others still presented the gate zero scope — which is what
+        # `perry-lint --specs` reports on.
+        "scope_scanned": [s for s in scanned if s in ESCALATION_TOUCHES],
         "touches": touches,
         "disclaims": disclaims,
         "green_lit": [f for hits in touches.values() for f in hits
