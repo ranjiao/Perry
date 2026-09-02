@@ -194,6 +194,29 @@ written. The first full-suite run of this branch failed on exactly that —
 transcript's own terms (the next free id at the time of the dry run) and
 nowhere in this file as an id.
 
+### One thing to notice about this file itself
+
+A document that demonstrates the `## ` shape necessarily **contains** it. The
+markdown fence above puts `## Files in scope`, `## Deliverable` and
+`## Out of scope` at column 0 of this file, and `_section` has no idea what a
+code fence is — so if this result file were ever handed to the gate it would
+scan as scope and refuse:
+
+```
+$ bin/perry-state --root . --escalation-scan perry/evidence/2026-09/TASK-284-round2-result.md
+scope_scanned = ['Files in scope', 'Deliverable']   verdict = refuse
+```
+
+It cannot be handed to the gate. `dispatch.md` step 4 scans
+`evidence/<YYYY-MM>/<TASK-ID>-spec.md` and `check_specs` matches `-spec\.md$`
+— named by the pattern for exactly this reason, since `evidence/` also holds
+dispatch records, result reports and working artifacts. Confirmed rather than
+assumed: `perry-lint --specs --json` on this branch scans **119** files and
+this one is not among them.
+
+Recorded because a reviewer will see those headings in the diff and should not
+have to work out whether they matter.
+
 ### The control pair, re-run after the change
 
 Identical scope words, two shapes, same command, same 35-fragment armed union:
