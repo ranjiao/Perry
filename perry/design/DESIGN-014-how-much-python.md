@@ -279,11 +279,27 @@ not wait for any of this.
 
   Two instrument warnings, because this document's numbers get re-cited:
 
-  1. **`find bin -type f -exec wc -l` returns 36,390 and is wrong for this
-     claim.** `__pycache__/*.pyc` is *tracked* in this repository (5,994
-     newline-counted bytes of bytecode under `bin/`), and the naive sweep also
-     picks up `bin/README.md` (296) and 842 lines of `bash`. Compiled artifacts
-     and shell are not "lines of Python".
+  1. **`find bin -type f -exec wc -l` is the wrong instrument for this claim,
+     because it walks the filesystem and git does not.** It counts
+     `__pycache__/*.pyc` — **untracked machine-local build artefacts**, present
+     on a developer's disk and in no commit — and it also picks up
+     `bin/README.md` (296) and 842 lines of `bash`. Compiled artefacts and
+     shell are not "lines of Python".
+
+     The reproducible figure comes from git rather than from a disk: at
+     `d3f9f4b`, every tracked file under `bin/` totals **30,396** lines, of
+     which **29,258** are Python. At `d49964e` the same instrument gives
+     30,371. A `find` sweep on any particular machine will differ by however
+     much bytecode happens to be sitting there, which is why no such number is
+     quoted here.
+
+     **Corrected 2026-09-02 after a V4 FAIL.** This warning first said the
+     `.pyc` were *tracked*, and cited 5,994 and 36,390 on that basis. They are
+     not tracked: `git ls-files` returns none, no `.pyc` appears in any commit
+     in the repository's whole history, and `.gitignore` lines 11-12 cover
+     them. The reviewer's proof was that the false claim sat inside a warning
+     written *"because this document's numbers get re-cited"* — so the wrong
+     part was the part written to be reused, in a locked append-only file.
   2. **Four `bin/` tools are `bash`, not Python** — `perry-codex-preflight`
      (150), `perry-detect-host` (101), `perry-dispatch-limit` (404),
      `perry-update-check` (187). `§ 5.1` places `perry-dispatch-limit` in
