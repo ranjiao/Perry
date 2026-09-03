@@ -189,7 +189,13 @@ class TestTheLinterReportsIt(unittest.TestCase):
         code, out = self.lint(root)
         self.assertEqual(out["unscannable"], 1)
         self.assertEqual(out["specs_scanned"], 1)
-        self.assertEqual([f["rule"] for f in out["findings"]],
+        # Scoped to the rule under test. `BULLET_SPEC` is reproduced verbatim
+        # from what `perry-task add` renders, and it carries no `## Bound`
+        # either, so since TASK-308 it legitimately trips `spec-unbounded` as
+        # well. Widening the fixture to silence that would falsify this file's
+        # claim that BULLET_SPEC is what the documented procedure produces.
+        self.assertEqual([f["rule"] for f in out["findings"]
+                          if f["rule"] == "spec-scope-unscannable"],
                          ["spec-scope-unscannable"])
         self.assertEqual(out["findings"][0]["file"],
                          "evidence/2026-09/TASK-001-spec.md")
@@ -202,7 +208,9 @@ class TestTheLinterReportsIt(unittest.TestCase):
         everything, which is a check people learn to scroll past."""
         root = self.project({"TASK-002-spec.md": SECTION_SPEC})
         code, out = self.lint(root)
-        self.assertEqual((out["unscannable"], out["count"]), (0, 0))
+        self.assertEqual(out["unscannable"], 0)
+        self.assertEqual([f["rule"] for f in out["findings"]
+                          if f["rule"] == "spec-scope-unscannable"], [])
         self.assertEqual(out["specs_scanned"], 1)
         self.assertEqual(code, 0)
 
@@ -327,7 +335,8 @@ class TestTheDefaultPassIsTheReader(unittest.TestCase):
         self.assertIn("spec-scope-unscannable",
                       [f["rule"] for f in out["findings"]])
         self.assertEqual(out["specs"],
-                         {"specs": 1, "unscannable": 1, "checked": True})
+                         {"specs": 1, "unscannable": 1, "unbounded": 1,
+                          "checked": True})
         self.assertIn("spec-scope-unscannable", text)
         # Advisory: a WARNING, so a project carrying pre-rule specs lints
         # green-with-warnings rather than becoming newly broken. The promotion
@@ -350,7 +359,8 @@ class TestTheDefaultPassIsTheReader(unittest.TestCase):
         _, out, text = self.lint(self.project(
             {"TASK-002-spec.md": SECTION_SPEC}))
         self.assertEqual(out["specs"],
-                         {"specs": 1, "unscannable": 0, "checked": True})
+                         {"specs": 1, "unscannable": 0, "unbounded": 1,
+                          "checked": True})
         self.assertIn("all 1 offer the escalation gate a section to scan", text)
 
     def test_a_scannable_spec_is_still_not_reported(self):
@@ -868,6 +878,304 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
             with self.subTest(path=path.name):
                 src = self.seen(path)
                 self.assertNotIn("this repository is public", src.lower())
+
+
+# ── TASK-308 ─────────────────────────────────────────────────────────────
+#: A spec carrying a bound. The bound's CONTENT is deliberately ordinary: this
+#: check reads presence and shape, never quality, and a fixture whose bound is
+#: unusually well drawn would hide a check that had started grading them.
+BOUND_SPEC = """# TASK-003 — a title
+
+## Deliverable
+
+Edits `bin/perry-lint`.
+
+## Bound
+
+```
+Enumeration: ls bin/perry-*
+Size:        9 scripts
+Remainder:   none
+```
+"""
+
+#: The same spec with the bound removed and nothing else changed.
+UNBOUND_SPEC = BOUND_SPEC[:BOUND_SPEC.index("## Bound")]
+
+
+class TestABoundIsRequiredBeforeTheRoundNotAfterIt(unittest.TestCase):
+    """`spec-unbounded` — the SPEC-side half of `review.md § 1` (TASK-308).
+
+    The rule was already implemented and already correct, and could not fire in
+    time. `criteria-unbounded` reads `criteria:` out of a `=== VERDICT ===`
+    block, and such a block exists only once a round has ALREADY scored against
+    the spec. So the check that would have bounded the round could only speak
+    after it. Measured on `548f206`: 146 specs, 19 carrying a `## Bound`, 127
+    not, and `criteria-unbounded` reporting **0** across all 127. TASK-285 and
+    TASK-323 both reached V4 unbounded on 2026-09-03 and both discovered it
+    mid-round.
+
+    The binding property is the one in `test_the_whole_point` below: the
+    fixture must contain **no review document anywhere**, or the test cannot
+    tell the new check from the old one.
+    """
+
+    def project(self, specs: dict, extra: dict | None = None) -> Path:
+        root = Path(tempfile.mkdtemp())
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text("# Config\n")
+        (root / ".perry" / "hook.md").write_text(HOOK)
+        (root / "evidence" / "2026-09").mkdir(parents=True)
+        for name, text in specs.items():
+            (root / "evidence" / "2026-09" / name).write_text(text)
+        for name, text in (extra or {}).items():
+            (root / "evidence" / "2026-09" / name).write_text(text)
+        return root
+
+    def assert_no_review_anywhere(self, root: Path) -> None:
+        """The fixture's load-bearing property, asserted rather than assumed.
+
+        If ANY file in this tree carried a verdict block, a green result would
+        be consistent with the old verdict-side check having fired, and the
+        test would prove nothing about reporting before a round.
+        """
+        for f in root.rglob("*"):
+            if not f.is_file():
+                continue
+            body = f.read_text(errors="replace")
+            self.assertNotIn(
+                "=== VERDICT ===", body,
+                f"{f} carries a verdict block — this fixture must contain no "
+                f"review document anywhere or it cannot distinguish the "
+                f"spec-side check from the verdict-side one")
+            self.assertNotIn(
+                "review", f.name.lower(),
+                f"{f} is named like a review document")
+
+    def lint(self, root: Path, *extra: str):
+        """The DEFAULT invocation. `--specs` appears nowhere in this argv —
+        the whole finding is that a report behind a flag nobody types is not a
+        report."""
+        argv = [sys.executable, str(LINT), "--root", str(root), *extra]
+        self.assertNotIn("--specs", argv)
+        r = subprocess.run(argv + ["--json"], capture_output=True, text=True)
+        text = subprocess.run(argv, capture_output=True, text=True).stdout
+        return r.returncode, json.loads(r.stdout), text
+
+    def rules(self, out) -> list[str]:
+        return [f["rule"] for f in out["findings"]]
+
+    # ── the property ─────────────────────────────────────────────────────
+    def test_the_whole_point(self):
+        """A spec with no bound, and NO review document anywhere, is reported
+        by the default pass. This is the entire row."""
+        root = self.project({"TASK-003-spec.md": UNBOUND_SPEC})
+        self.assert_no_review_anywhere(root)
+        _, out, text = self.lint(root)
+        self.assertIn("spec-unbounded", self.rules(out))
+        self.assertEqual(out["specs"]["unbounded"], 1)
+        self.assertEqual(
+            [f["file"] for f in out["findings"]
+             if f["rule"] == "spec-unbounded"],
+            ["evidence/2026-09/TASK-003-spec.md"])
+        self.assertIn("spec-unbounded", text)
+
+    # ── the control ──────────────────────────────────────────────────────
+    def test_a_spec_that_has_a_bound_is_silent(self):
+        """Half 2, and the one that makes half 1 mean anything. A check that
+        fires on all 146 satisfies `test_the_whole_point` and is useless."""
+        root = self.project({"TASK-003-spec.md": BOUND_SPEC})
+        self.assert_no_review_anywhere(root)
+        _, out, text = self.lint(root)
+        self.assertNotIn("spec-unbounded", self.rules(out))
+        self.assertEqual(out["specs"]["unbounded"], 0)
+        self.assertIn("all 1 spec(s) carry a `## Bound`", text)
+
+    def test_the_two_fixtures_differ_only_in_the_bound(self):
+        """Guards the control itself. If the bounded and unbounded fixtures
+        drifted apart in some other way, the pair above would be measuring
+        that difference instead."""
+        self.assertTrue(BOUND_SPEC.startswith(UNBOUND_SPEC))
+        self.assertNotIn("## Bound", UNBOUND_SPEC)
+        self.assertIn("## Bound", BOUND_SPEC)
+        # The scope sections — the OTHER rule over this same file set — are
+        # identical in both, so neither fixture can pass by being unscannable.
+        self.assertIn("## Deliverable", UNBOUND_SPEC)
+        self.assertIn("## Deliverable", BOUND_SPEC)
+
+    def test_neither_fixture_trips_the_other_rule(self):
+        """The two rules share a file set and a reporting pass. If either
+        fixture were also unscannable, `spec-unbounded` findings and
+        `spec-scope-unscannable` findings would be indistinguishable in a
+        count."""
+        for name, spec in (("bound", BOUND_SPEC), ("unbound", UNBOUND_SPEC)):
+            with self.subTest(fixture=name):
+                _, out, _ = self.lint(
+                    self.project({"TASK-003-spec.md": spec}))
+                self.assertEqual(out["specs"]["unscannable"], 0)
+
+    # ── presence and shape, never quality ────────────────────────────────
+    def test_a_bound_is_not_judged_on_its_content(self):
+        """`review.md § 1` gives the reviewer the judgement of whether a bound
+        is WELL DRAWN. A checker that scored it would be the fifth
+        guard-over-English attempt on this board. An empty bound is a bound."""
+        root = self.project(
+            {"TASK-003-spec.md": UNBOUND_SPEC + "## Bound\n\nTBD.\n"})
+        _, out, _ = self.lint(root)
+        self.assertNotIn("spec-unbounded", self.rules(out))
+
+    def test_a_nested_bound_still_counts(self):
+        """Same reading as the verdict-side check, which this shares
+        `_BOUND_RE` with: the requirement is that the bound is written down,
+        not where. Two matchers would be two answers to one question."""
+        root = self.project(
+            {"TASK-003-spec.md":
+             UNBOUND_SPEC + "## Verification\n\n### Bound\n\nSize: 4\n"})
+        _, out, _ = self.lint(root)
+        self.assertNotIn("spec-unbounded", self.rules(out))
+
+    def test_the_word_alone_is_not_a_bound(self):
+        """Shape, not substring. A spec that merely mentions bounds in prose
+        has not written one, and a check that accepted that would report clean
+        on the case it exists for."""
+        for prose in ("The bound is obvious.\n",
+                      "- **Bound**: four files\n",
+                      "Bound: four files\n"):
+            with self.subTest(prose=prose.strip()):
+                _, out, _ = self.lint(self.project(
+                    {"TASK-003-spec.md": UNBOUND_SPEC + prose}))
+                self.assertIn("spec-unbounded", self.rules(out))
+
+    # ── it reports, it does not refuse ───────────────────────────────────
+    def test_it_is_advisory(self):
+        """`Out of scope`, explicitly: report, do not refuse — the
+        `DESIGN-003 § 4` decision 4 and TASK-284 `scope_scanned` precedent. An
+        error here would retroactively block the 127 rows already in the
+        tree."""
+        _, out, _ = self.lint(self.project({"TASK-003-spec.md": UNBOUND_SPEC}))
+        self.assertEqual(
+            [f["severity"] for f in out["findings"]
+             if f["rule"] == "spec-unbounded"], ["warn"])
+
+    def test_only_spec_files_are_judged(self):
+        """`evidence/` also holds dispatch records, results and working notes.
+        None of those is a criteria file, and `review.md § 1` does not ask them
+        for a bound."""
+        root = self.project({}, extra={"TASK-003-result.md": UNBOUND_SPEC,
+                                       "TASK-003-dispatch-1.md": UNBOUND_SPEC})
+        _, out, _ = self.lint(root)
+        self.assertNotIn("spec-unbounded", self.rules(out))
+        self.assertEqual(out["specs"]["unbounded"], 0)
+
+    # ── the severity decision, as behaviour ──────────────────────────────
+    def test_the_named_list_is_capped_but_the_count_is_not(self):
+        """The chosen severity: name the first N, carry the exact count, and
+        let `--specs --json` name every one. 127 warnings is a wall of red that
+        gets scrolled past, which `reference/diagnose.md` calls strictly worse
+        than no check."""
+        specs = {"TASK-%03d-spec.md" % n: UNBOUND_SPEC for n in range(1, 26)}
+        root = self.project(specs)
+        _, out, _ = self.lint(root)
+        named = [f for f in out["findings"]
+                 if f["rule"] == "spec-unbounded" and f["file"] != "evidence/"]
+        tail = [f for f in out["findings"]
+                if f["rule"] == "spec-unbounded" and f["file"] == "evidence/"]
+        self.assertEqual(len(named), 10)
+        self.assertEqual(len(tail), 1)
+        self.assertIn("15 further", tail[0]["message"])
+        # The CAP is on the naming. The COUNT is exact.
+        self.assertEqual(out["specs"]["unbounded"], 25)
+
+    def test_the_flag_names_every_one(self):
+        specs = {"TASK-%03d-spec.md" % n: UNBOUND_SPEC for n in range(1, 26)}
+        root = self.project(specs)
+        r = subprocess.run(
+            [sys.executable, str(LINT), "--specs", "--root", str(root),
+             "--json"], capture_output=True, text=True)
+        out = json.loads(r.stdout)
+        self.assertEqual(out["unbounded"], 25)
+        self.assertEqual(
+            len([f for f in out["findings"] if f["rule"] == "spec-unbounded"]),
+            25)
+
+    def test_the_census_prints_every_run_not_only_when_it_is_bad(self):
+        """A number that appears only when it is bad teaches a reader that its
+        absence means nothing was checked — the rule the store lines beside it
+        follow. This one was 127 for the project's whole life and was never
+        printed, which is why two rows reached V4 unbounded."""
+        _, _, bad = self.lint(self.project({"TASK-003-spec.md": UNBOUND_SPEC}))
+        self.assertIn("bounds:", bad)
+        _, _, good = self.lint(self.project({"TASK-003-spec.md": BOUND_SPEC}))
+        self.assertIn("bounds:", good)
+
+    def test_strict_promotes_so_a_dispatcher_can_choose_to_be_stopped(self):
+        root = self.project({"TASK-003-spec.md": UNBOUND_SPEC})
+        code = subprocess.run(
+            [sys.executable, str(LINT), "--specs", "--root", str(root),
+             "--strict", "--quiet"], capture_output=True, text=True).returncode
+        self.assertEqual(code, 1)
+
+
+class TestBothHalvesOfTheBoundRuleSurvive(unittest.TestCase):
+    """Two checks, one rule. This class is what fails if a later reader
+    "unifies" them (TASK-308).
+
+    They answer different questions. `spec-unbounded` — *this spec offers a
+    round no finite set to check*, and needs no verdict to say so.
+    `criteria-unbounded` — *this round scored against an unbounded criterion*,
+    and can see a criteria file that is not a `*-spec.md`, which the spec-side
+    pass never reads. Deleting either trades one blind spot for another.
+    """
+
+    def test_both_checks_are_present_in_the_source(self):
+        src = LINT.read_text(encoding="utf-8")
+        self.assertIn('"criteria-unbounded"', src,
+                      "the verdict-side half was deleted")
+        self.assertIn('"spec-unbounded"', src,
+                      "the spec-side half was deleted")
+
+    def test_each_docstring_says_which_question_it_answers(self):
+        """So the next reader does not have to derive the difference from the
+        call sites — which is how one of them gets removed as a duplicate."""
+        src = LINT.read_text(encoding="utf-8")
+        reviews = src[src.index("def check_reviews"):]
+        reviews = reviews[:reviews.index('"""', reviews.index('"""') + 3)]
+        specs = src[src.index("def check_specs"):]
+        specs = specs[:specs.index('"""', specs.index('"""') + 3)]
+        for name, body in (("check_reviews", reviews), ("check_specs", specs)):
+            with self.subTest(fn=name):
+                self.assertIn("question", body.lower())
+                self.assertIn("TASK-308", body)
+
+    def test_they_share_one_matcher(self):
+        """Two regexes would be two answers to "what counts as a bound", which
+        is the defect `check_specs` reads `P.ESCALATION_TOUCHES` to avoid."""
+        src = LINT.read_text(encoding="utf-8")
+        self.assertEqual(src.count("_BOUND_RE = re.compile"), 1)
+        self.assertEqual(src.count("_BOUND_RE.search"), 2)
+
+    def test_the_spec_side_check_reads_no_verdict(self):
+        """The property that makes it fire in time. If `check_specs` learned to
+        read verdict blocks or board state, it would be back to speaking only
+        after a round — and scoping it to rows at `review` was the option this
+        row considered and rejected for exactly that reason."""
+        src = LINT.read_text(encoding="utf-8")
+        start = src.index("def check_specs")
+        body = src[start:src.index("\n#: How many drifted rows", start)]
+        # Docstring off, then comment lines off. The assertion is about what
+        # the check READS, not what its prose is allowed to mention — the
+        # comment beside the new call site necessarily names `parse_verdicts`
+        # to explain why the verdict-side half cannot do this job.
+        code = body[body.index('"""', body.index('"""') + 3):]
+        code = "\n".join(ln for ln in code.splitlines()
+                         if not ln.lstrip().startswith("#"))
+        for forbidden in ("parse_verdicts", "BOARD.md", "events.jsonl",
+                          "tasks.jsonl"):
+            self.assertNotIn(
+                forbidden, code,
+                f"check_specs consults {forbidden} — the spec-side check must "
+                f"decide from the spec alone, or it cannot speak before a "
+                f"round has been dispatched")
 
 
 if __name__ == "__main__":

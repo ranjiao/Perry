@@ -82,13 +82,24 @@ otherwise be no way to accept one.
                 every `SRC-n` cited anywhere resolves to a digest under
                 knowledge/, every digest carries an id, an origin and a
                 fetch date, and no id is reused. Never exits non-zero.
-  --specs       the full, uncapped form of a check the DEFAULT pass already
+  --specs       the full, uncapped form of TWO checks the DEFAULT pass already
                 runs — `perry-lint --root .` reports `spec-scope-unscannable`
-                on its own, names the first ten and counts the rest, so this
-                flag is for the whole list, not for turning the check on.
+                and `spec-unbounded` on its own, names the first ten of each
+                and counts the rest, so this flag is for the whole list, not
+                for turning the checks on.
                 Advisory pass over `evidence/**/*-spec.md`: every spec the
                 dispatch escalation gate will scan actually offers it a
-                `## Files in scope` or `## Deliverable` section to scan.
+                `## Files in scope` or `## Deliverable` section to scan, and
+                every spec carries a `## Bound` so a round against it has a
+                finite set to check and a last element (`review.md § 1`).
+                `spec-unbounded` is the SPEC-side half of the bound rule and
+                answers "this spec cannot end a round"; `criteria-unbounded`
+                under --reviews is the verdict-side half and answers "this
+                round scored against an unbounded criterion". The second
+                cannot speak until a round has already run, which is why on
+                2026-09-03 it read 0 across 127 unbounded specs (TASK-308).
+                Presence and shape only — whether a bound is WELL DRAWN is the
+                reviewer's judgement and is deliberately not checked.
                 A spec with neither is matched against the empty string and
                 reports `verdict: pass` with `touches: {}` — output identical
                 to a spec read in full and found clean, which is why an empty
@@ -2378,6 +2389,20 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
       round has no finite set to check. TASK-050 ran ELEVEN rounds against a
       universal negative and passed on the round the criterion became
       decidable, not on the round the last hole closed (`review.md § 1`).
+
+      **The question this one answers**: *this round scored against an
+      unbounded criterion.* It is the VERDICT-side half of `review.md § 1`.
+      The SPEC-side half is `spec-unbounded` in `check_specs`, which answers
+      *this spec offers a round no finite set to check* and needs no verdict
+      to say so. **Do not unify them** (TASK-308). This one reads `criteria:`
+      out of a `parse_verdicts` block, and such a block exists only once a
+      round has already scored — so on 2026-09-03 it was reporting 0 across
+      127 unbounded specs, and TASK-285 and TASK-323 both reached V4 without
+      a bound. Deleting either check trades one blind spot for the other: this
+      one alone cannot speak before a round, and `spec-unbounded` alone cannot
+      see a criteria file that is not a `*-spec.md` — `review.md § 1` allows a
+      `## What must be true when this is done` section in a task's own
+      evidence file, and `spec-unbounded` does not read those.
     """
     findings: list[Finding] = []
     seen: dict[str, list[tuple[str, dict, int]]] = {}
@@ -2962,6 +2987,54 @@ def check_specs(state_root: Path, project_root: Path | None = None,
     `cap` names at most that many specs one by one and summarises the rest,
     the way `check_store_drift` does and for its reason — `stats` still counts
     every one, and `--specs --json` still names every one.
+
+    ── The second rule this pass reports: `spec-unbounded` (TASK-308) ──────
+
+    **The question it answers**: *this spec offers a round no finite set to
+    check, and no round has run yet.* The verdict-side `criteria-unbounded` in
+    `check_reviews` answers *this round scored against an unbounded criterion*.
+    Two checks, one rule from `review.md § 1`, and they are not redundant: the
+    verdict-side one reads `criteria:` out of a `parse_verdicts` block, which
+    exists only AFTER a round has scored, so on the 127 specs that have never
+    been reviewed it has never spoken. Measured on `548f206`: 146 specs, 19
+    bound, 127 not, `criteria-unbounded` = 0.
+
+    **Severity, decided and argued** — the spec required a choice among three
+    and forbade "127 warnings, done":
+
+      Chosen: **`warn`, capped at `cap` named individually plus one summary
+      finding carrying the remainder, with the exact count in `stats` and every
+      path in `--specs --json`.** In the default pass that is 11 lines, not
+      127.
+
+      Why this one. It is the precedent already set in this very function for
+      the identical shape of problem — 45 unscannable specs reported as 10 + 1
+      — and in `check_summaries` (89) and the six store-drift checks
+      (`DRIFT_ROWS_SHOWN`). `reference/diagnose.md` names a wall of red as
+      strictly worse than no check, and the cap is this codebase's settled
+      answer to that; inventing a second answer here would mean two rules for
+      "how does a check report a large true set".
+
+      Why NOT "only specs newer than a date": the check's answer would then
+      depend on when it is asked, and would drift silently as the tree ages. It
+      is also not enumerable — you cannot state the last element of "specs
+      newer than X" the way this row's own `## Bound` states one, so the check
+      would violate the rule it enforces.
+
+      Why NOT "only rows at `review` or being dispatched": that reintroduces
+      the exact defect being fixed. Scoping to board state would make the
+      spec-side check consult a row's status the way the verdict-side one
+      consults a verdict — and the whole property is that this speaks knowing
+      nothing about verdicts or the board, from the spec alone, BEFORE anyone
+      decides to dispatch.
+
+      Why `warn` and not `error`: the row's `Out of scope` is explicit —
+      report, do not refuse, on the `DESIGN-003 § 4` decision 4 and TASK-284
+      `scope_scanned` precedent. An `error` here would retroactively block 127
+      existing rows, and `.perry/hook.md` forbids rewriting history to make a
+      gate pass. `--strict` still promotes it per-run, which is what lets one
+      dispatcher choose to be stopped without that choice being made for
+      everyone.
     """
     findings: list[Finding] = []
     project_root = project_root or state_root
@@ -2992,12 +3065,58 @@ def check_specs(state_root: Path, project_root: Path | None = None,
             f"escalation gate no scope to scan — `perry-lint --specs --json` "
             f"names every one",
         ))
+
+    # ── `spec-unbounded` — the SPEC-side half of the bound rule ───────────
+    # **Which question this one answers**: *this spec has no finite set to
+    # check, and no round has been dispatched against it yet.* The verdict-side
+    # `criteria-unbounded` at `check_reviews` answers a DIFFERENT question —
+    # *this round scored against an unbounded criterion* — and the two are
+    # deliberately not unified. See that check's own note; deleting either
+    # trades one blind spot for another.
+    #
+    # The gap this closes, measured on `548f206`: 146 specs, 19 carrying a
+    # `## Bound`, 127 without, and `criteria-unbounded` reporting **0** on
+    # every one of the 127. The verdict-side check reads `criteria:` out of a
+    # `parse_verdicts` block, and a verdict block exists only once a round has
+    # already scored against the spec. So the check that would have BOUNDED
+    # the round can only speak after it. `review.md § 1`: an unbounded
+    # criterion "does not fail a round. It fails to **end** one" — TASK-050
+    # spent eleven rounds on that and TASK-067 two, and TASK-285 and TASK-323
+    # both reached V4 unbounded on 2026-09-03 because nothing said so before
+    # dispatch.
+    #
+    # **Presence and shape only.** Whether a bound is WELL DRAWN is the
+    # judgement `review.md § 1` gives a reviewer, and a checker that scored it
+    # would be the fifth guard-over-English attempt on this board this week.
+    # `_BOUND_RE` is the same matcher the verdict-side check uses — one answer
+    # to "what counts as a bound", for the reason `labels` above reads
+    # `ESCALATION_TOUCHES` from the gate rather than restating it.
+    unbounded: list[str] = []
+    for md in specs:
+        if not _BOUND_RE.search(strip_comments(md.read_text(errors="replace"))):
+            unbounded.append(_rel(md, project_root))
+    for rel in (unbounded[:cap] if cap is not None else unbounded):
+        findings.append(Finding(
+            "warn", rel, "spec-unbounded",
+            "no `## Bound` — a round against this spec has no finite set to "
+            "check and no last element, so it cannot know when it is done "
+            "(work/reference/review.md § 1). Write the bound BEFORE the "
+            "round, not during it",
+        ))
+    if cap is not None and len(unbounded) > cap:
+        findings.append(Finding(
+            "warn", "evidence/", "spec-unbounded",
+            f"and {len(unbounded) - cap} further spec(s) carry no `## Bound` "
+            f"— `perry-lint --specs --json` names every one",
+        ))
+
     # `checked` exists because "this ran and found no specs" and "this never
     # ran" are different answers, and the second is what a folder that is not
     # a Perry project yet produces. Printing them the same way is the defect
     # the store-drift lines above were corrected for.
     check_specs.stats = {"specs": len(specs),
                          "unscannable": len(unscannable),
+                         "unbounded": len(unbounded),
                          "checked": True}
     return findings
 
@@ -4605,12 +4724,18 @@ def main(argv: list[str]) -> int:
         # that is the property worth keeping true: one answer to "which
         # spellings count", owned by the reader that does the matching.
         findings = check_specs(state_root, project_root)
-        stats = getattr(check_specs, "stats", {"specs": 0, "unscannable": 0})
+        stats = getattr(check_specs, "stats",
+                        {"specs": 0, "unscannable": 0, "unbounded": 0})
         if as_json:
             print(json.dumps({
                 "project_root": str(project_root),
                 "specs_scanned": stats["specs"],
                 "unscannable": stats["unscannable"],
+                # Carried beside `unscannable` and not folded into it: they are
+                # two different rules over the same file set, and a caller that
+                # wants "how many specs cannot bound a round" must not have to
+                # subtract one from the other. TASK-308.
+                "unbounded": stats["unbounded"],
                 "findings": [f.as_dict() for f in findings],
                 "count": len(findings),
             }, ensure_ascii=False, indent=2))
@@ -4625,13 +4750,24 @@ def main(argv: list[str]) -> int:
             if len(findings) > DRIFT_ROWS_SHOWN:
                 print(f"  · … and {len(findings) - DRIFT_ROWS_SHOWN} more "
                       f"(--json names every one)")
-            if findings:
+            # Each rule reports its OWN count. Folding them into one
+            # `if findings:` line would print "0 of 146 present the escalation
+            # gate no scope" whenever the only findings were unbounded ones —
+            # a true sentence attached to the wrong measurement. TASK-308.
+            if stats["unscannable"]:
                 print(f"\n  {stats['unscannable']} of {stats['specs']} spec(s) "
                       f"present the escalation gate no scope to scan — its "
                       f"`pass` on those is a scan of nothing, not a clean one")
             elif stats["specs"]:
                 print(f"\n  ✓ all {stats['specs']} spec(s) offer the "
                       f"escalation gate a section to scan")
+            if stats["specs"] and stats["unbounded"]:
+                print(f"  {stats['unbounded']} of {stats['specs']} spec(s) "
+                      f"carry no `## Bound` — a round against those has no "
+                      f"finite set to check and no last element "
+                      f"(work/reference/review.md § 1)")
+            elif stats["specs"]:
+                print(f"  ✓ all {stats['specs']} spec(s) carry a `## Bound`")
             else:
                 # The count prints at zero for the reason --knowledge prints
                 # its card count: "0 unscannable" over 0 specs is trivially
@@ -4659,7 +4795,8 @@ def main(argv: list[str]) -> int:
     check_intake_store_drift.stats = _empty_intake_store_drift_stats()
     check_ask_store_drift.stats = _empty_ask_store_drift_stats()
     check_md_store_drift.stats = _empty_md_store_drift_stats_all()
-    check_specs.stats = {"specs": 0, "unscannable": 0, "checked": False}
+    check_specs.stats = {"specs": 0, "unscannable": 0, "unbounded": 0,
+                         "checked": False}
 
     if mode_templates:
         root = PERRY_HOME
@@ -4806,7 +4943,8 @@ def main(argv: list[str]) -> int:
             # cannot see a third of the specs.
             payload["specs"] = dict(getattr(
                 check_specs, "stats",
-                {"specs": 0, "unscannable": 0, "checked": False}))
+                {"specs": 0, "unscannable": 0, "unbounded": 0,
+                 "checked": False}))
             # Carried for the reason the drift stats are: the human pass caps
             # the findings at ten, so the COUNT has to reach a caller that
             # wants to know how many rows a reader cannot identify.
@@ -4938,6 +5076,25 @@ def main(argv: list[str]) -> int:
             else:
                 print(f"  · specs: all {_sst['specs']} offer the escalation "
                       f"gate a section to scan")
+            # The bound census, printed on the same rule and every run — for
+            # TASK-308's reason: this number was 127 for the whole life of the
+            # project and nothing ever said it out loud, so two rows reached V4
+            # unbounded on the day the check was written. A count that only
+            # appears when it is bad teaches a reader that its absence means
+            # nothing was checked. Its own line, because "the gate can read
+            # this spec" and "a round against this spec can end" are different
+            # questions with different remedies.
+            if _sst and not mode_templates and _sst.get("checked") \
+                    and _sst["specs"]:
+                if _sst["unbounded"]:
+                    print(f"  · bounds: {_sst['unbounded']} of {_sst['specs']} "
+                          f"spec(s) carry no `## Bound` — a round against "
+                          f"those has no finite set to check and no last "
+                          f"element (`perry-lint --specs --json` names every "
+                          f"one)")
+                else:
+                    print(f"  · bounds: all {_sst['specs']} spec(s) carry a "
+                          f"`## Bound`")
         # And a line for the summaries, on the same rule as the seven above:
         # the findings themselves are capped at ten, so without this the reader
         # of a board with 89 blank rows sees ten warnings and no total. Printed
