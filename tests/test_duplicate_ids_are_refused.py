@@ -195,6 +195,26 @@ class TestABoardDuplicateIsRefused(unittest.TestCase):
         self.assertIn("USER-001", r.stderr)
         self.assertEqual(f.raw("asks.jsonl"), before)
 
+    def test_a_DECORATED_duplicate_id_is_still_a_duplicate(self):
+        """`~~RX-001~~` and `RX-001` are one id, and the check must agree with
+        the derivation about that.
+
+        A cleared risk wears a strikethrough on this board — the shape
+        `risk_record` exists to replace — so a struck-out row carrying an id a
+        live row also carries is the realistic way this defect arrives, not a
+        contrived one. `risk_records` reads both through `strip_handle`; a
+        check that read the raw cell would see two different ids, report
+        nothing, and let the collapse happen behind it.
+        """
+        f = Fixture(
+            board(risks=[risk_row("RX-001", "first"),
+                         risk_row("~~RX-001~~", "the struck-out twin")]),
+            risks=[risk_rec("RX-001", "first", order=0)])
+        r = f.run(*ADD)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("carries the same id on more than one row", r.stderr)
+        self.assertIn("RX-001", r.stderr)
+
     def test_every_duplicate_is_named_not_only_the_first(self):
         """One pass through the refusal has to be enough to fix the board."""
         f = Fixture(
@@ -349,36 +369,52 @@ class TestARepeatedValueThatIsNotAnIdIsNotCaught(unittest.TestCase):
             [{"id": "", "risk": "a"}, {"id": "", "risk": "b"}])
         self.assertEqual(dupes, [])
 
-    def test_two_layout_rows_on_the_BOARD_are_not_a_duplicate_either(self):
-        """A SECOND GREEN MUTATION FOUND THIS TEST.
+    def test_rows_with_an_empty_id_cell_are_not_two_rows_sharing_a_blank_id(self):
+        """TWO GREEN MUTATIONS LED HERE, and the second one taught the lesson.
 
         The round planted `if not rid:` → `if rid is None:` in
-        `duplicate_row_ids` and nothing went red: the store-side test above
-        exercises `duplicate_record_ids`, a different function, and no test
-        reached the board-side line at all. `ops.strip_handle("")` returns
-        `""` and never `None`, so under the mutation two layout rows would
-        both key on the empty id and an ordinary write would be refused for a
-        board that is perfectly fine — control 2's failure, on the door
-        control 2 was not watching.
+        `duplicate_row_ids` and nothing went red. The first attempt at a test
+        used prose in the `ID` cell and stayed green too — `strip_handle` only
+        removes decoration, so prose comes back as prose and two DIFFERENT
+        notes are two different ids, not a duplicate.
 
-        A prose row under a register table is layout, `risk_records` says so
-        in as many words, and two of them are not two rows sharing an id.
+        The reason the branch could not be reached from a board at all is the
+        one `intake_records` states in its own docstring: **`markdown_tables`
+        already drops a line with no first cell**, so `risk_table` never yields
+        a row whose id cell is empty. `if not rid` is a guard against a caller
+        that does not exist yet, not against any board a human can write.
+
+        So it is tested where it IS reachable — directly, on a table handed in
+        by hand. That keeps the contract true for the next caller that builds
+        a table some other way, and it says out loud that no board fixture can
+        exercise it, which is the thing a reader would otherwise have to
+        rediscover with a mutation.
         """
+        table = {"header": ["ID", "Risk", "Opened", "Status"],
+                 "keys": ["id", "risk", "opened", "status"],
+                 "rows": [{"line": 10, "cells": ["", "a note", "", ""],
+                           "values": {"id": "", "risk": "a note"}},
+                          {"line": 11, "cells": ["", "another note", "", ""],
+                           "values": {"id": "", "risk": "another note"}}]}
+        self.assertEqual(S.duplicate_row_ids(table, PT, "id"), [])
+
+    def test_a_row_whose_id_cell_is_blank_never_reaches_the_check(self):
+        """The reachability claim above, asserted rather than believed."""
         text = board(risks=[risk_row("RX-001", "a real risk"),
-                            "| a prose note about the section | | | |",
-                            "| another prose note | | | |"])
+                            "|  | a prose note | | |"])
         tmp = Path(tempfile.mkdtemp()) / "BOARD.md"
         tmp.write_text(text)
-        b = PT.Board(tmp)
-        self.assertEqual(S.duplicate_row_ids(S.risk_table(b, PT), PT, "id"),
-                         [])
+        table = S.risk_table(PT.Board(tmp), PT)
+        self.assertEqual(len(table["rows"]), 1)
+        self.assertEqual(
+            [PT.strip_handle(r["values"].get("id", "")) for r in table["rows"]],
+            ["RX-001"])
 
-    def test_a_board_with_layout_rows_still_writes(self):
-        """And the same thing end to end, through the refusal itself."""
+    def test_a_board_carrying_such_a_line_still_writes(self):
+        """Control 1 again, on a board with a non-row line under the table."""
         f = Fixture(
             board(risks=[risk_row("RX-001", "a real risk"),
-                         "| a prose note about the section | | | |",
-                         "| another prose note | | | |"]),
+                         "|  | a prose note | | |"]),
             risks=[risk_rec("RX-001", "a real risk", order=0)])
         r = f.run(*ADD)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
