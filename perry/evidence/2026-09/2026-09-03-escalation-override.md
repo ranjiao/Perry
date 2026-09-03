@@ -46,3 +46,34 @@ decision.
 `TASK-290` is the row that removes the need for overrides of this class: it is
 currently blocking `TASK-308`, `TASK-219`, `TASK-263` and `TASK-099` on
 citations.
+
+
+---
+
+## Correction, 2026-09-03, after TASK-290 landed
+
+**This record was wrong about `TASK-219`.** It listed four rows as blocked "on
+citations". `TASK-219` was not one of them: its refusal is `state-schema.json`
+in `## Deliverable` — the claim surface, legitimate — and it **still refuses**
+after TASK-290's fix. Verified. Only `TASK-308`, `TASK-263` and `TASK-099` were
+citation-blocked, and all three pass now.
+
+**The override is spent and is not needed again for this class.** `TASK-290`'s
+own spec now scans `exit 0`; `TASK-308`'s did too, before it was dispatched
+under this override and has since landed. Any future refusal gets its own
+decision, as this record already said.
+
+## What the override bought that nobody expected
+
+TASK-290's round found **seven** specs passing on a green light, not the one its
+spec described — and **three of them named `schema/state-schema.json` in their
+own `Files in scope`**, the write-intent section, cancelled by a mention in
+`Out of scope`. `TASK-047`'s body says outright that it "really does edit" it.
+
+**`TASK-139` is one of the three, and the PMO dispatched it twice on 2026-09-03
+while the gate reported clean.** Nothing was harmed: both briefs told the agent
+not to touch the schema. But that was the brief doing the gate's job.
+
+So the override, taken to unblock a citation false-positive, surfaced a
+false-**pass** over the claim surface that had been live the whole time. Both
+directions of the same defect, and only one of them was visible.
