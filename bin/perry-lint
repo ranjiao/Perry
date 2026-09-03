@@ -648,11 +648,54 @@ def _accepts(kind: str) -> str:
     return (_TYPED_CELL_KINDS.get(kind) or {}).get("accepts") or f"the {kind} shape"
 
 
+#: `_track_context`'s answer per PROJECT ROOT, not per projection path.
+#:
+#: It was keyed on `str(root / ".perry" / "config.md")` — the file this
+#: function used to parse, which on a store-only project is a path that does
+#: not exist. The register is a property of the ROOT (either register may
+#: answer for it), so the root is what identifies the answer; keying on one of
+#: the two sources named a source in a cache whose whole point is that the
+#: caller no longer chooses one.
 _TRACK_CONTEXTS: dict = {}
+
+_STATE = None
+
+
+def _state_module():
+    """`bin/perry-state`, loaded on first use — for `declared_tracks_detail`.
+
+    Same loader `_tasks_module` uses, and for the same reason: the filename
+    carries a dash, so `import` cannot reach it. LAZY, unlike `_store_module`
+    and `_md_store_module` above, because a run that types no `Track` cell
+    never needs the register at all — `--templates`, `--claims` and
+    `--glossary` all finish without asking it a question, and an import at
+    module scope would make every one of them pay for `bin/perry-state`.
+
+    No cycle, and it is not the import `perry-state § stored_settings`
+    documents as impossible: that note is about `parsers.py` callers which run
+    BEFORE any tool has started. `bin/perry-state` names this file in prose
+    only and imports nothing from it.
+    """
+    global _STATE
+    if _STATE is None:
+        import importlib.machinery
+        import importlib.util
+        path = HERE / "perry-state"
+        spec = importlib.util.spec_from_loader(
+            "perry_state_mod",
+            importlib.machinery.SourceFileLoader("perry_state_mod", str(path)))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _STATE = mod
+    return _STATE
 
 
 def _track_context(state_file: Path, cell: str) -> dict:
-    """A track cell → its declared row from `.perry/config.md § Tracks`.
+    """A track cell → its declared row from the project's track REGISTER.
+
+    Through `bin/perry-state § declared_tracks_detail`, which is the register.
+    Not from `.perry/config.md § Tracks`, which is a projection of it and which
+    this function used to parse itself — see the comment on the read below.
 
     The root is walked up from the file being linted rather than passed in, so
     `check_file`'s signature — which `bin/perry-conform` also calls — does not
@@ -661,7 +704,10 @@ def _track_context(state_file: Path, cell: str) -> dict:
     An undeclared track reports `{}`, which every predicate treats as the
     permissive case. A typo in the register must not silently make a column
     stricter: `perry-lint` already reports an unknown mode as `bad-enum`, and
-    two findings for one typo is how a check gets switched off.
+    two findings for one typo is how a check gets switched off. **A store that
+    is present and unusable reports `{}` for the same reason** — it is the
+    permissive answer, and it is not the projection's answer dressed up as
+    the register's.
     """
     name = squash(cell or "")
     if not name:
@@ -681,32 +727,57 @@ def _track_context(state_file: Path, cell: str) -> dict:
         if P.configured(root):
             break
         root = root.parent
-    cfg = root / ".perry" / "config.md"
-    key = str(cfg)
+    # **The register is `.perry/config.jsonl`; `.perry/config.md` is a
+    # PROJECTION of it** (USER-903, TASK-233). This read the projection, with
+    # a parser of its own written out below — a FIFTH register reader that
+    # `P003-O2-KR1`'s baseline never enumerated, because it does not call
+    # `parse_tracks` and so did not answer to the name the count was taken
+    # over. TASK-247 fixed the walk above and named this line as still
+    # outstanding rather than folding it in (TASK-283).
+    #
+    # The visible cost was not "no register": it was the WRONG contract,
+    # silently. On a project configured by the store alone the parse read an
+    # absent file, every track resolved to `{}`, and every typed `Due` cell
+    # was then checked under the permissive default instead of its own
+    # track's rule — a `pipeline` track accepted the duration tokens it
+    # exists to reject, and a `queue` track with no declared clock accepted
+    # a populated `Due` that `lib.classify_due` reserves for a track that
+    # has one. A check that reports nothing is indistinguishable from a
+    # check that passes.
+    #
+    # `declared_tracks_detail` is the one reader this project settled on
+    # (TASK-095 V4 round 1) and the only one that reports WHICH register
+    # answered — the half a caller that must not take the projection as
+    # truth needs. `bin/perry-goals § tracks_of` and `bin/perry-state § build`
+    # are the two callers whose shape this now matches.
+    key = str(root)
     if key not in _TRACK_CONTEXTS:
-        table: dict = {}
-        try:
-            text = cfg.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            text = ""
-        header: list = []
-        canonical_header: list[str] = []
-        for line in text.split("\n"):
-            if not line.lstrip().startswith("|"):
-                continue
-            cells = header_index(split_row(line))
-            track_i = column_index(cells, "Track")
-            mode_i = column_index(cells, "Mode")
-            if track_i >= 0 and mode_i >= 0:
-                header = cells
-                canonical_header = [canonical_column(cell) for cell in header]
-                continue
-            if not header or set(cells) <= {"", "-", "--", "---", ":---", "---:"}:
-                continue
-            row = dict(zip(canonical_header, cells))
-            if row.get("track"):
-                table[row["track"]] = row
-        _TRACK_CONTEXTS[key] = table
+        ps = _state_module()
+        tracks, source = ps.declared_tracks_detail(root)
+        if source in ps.TRACKS_STORE_UNUSABLE:
+            # A store is on disk and could not be used, so `tracks` holds the
+            # PROJECTION's rows and `declared_tracks_detail`'s own docstring
+            # forbids treating them as truth. Take the PERMISSIVE branch, not
+            # a second-best one: `{}` is already this function's answer for an
+            # undeclared track, and the docstring above says why a register
+            # this tool cannot trust must never be the thing that makes a
+            # column STRICTER. The unusable store is not swallowed — the
+            # config store census reports it on its own terms, in the same
+            # run, and `TRACKS_STORE_WHY` is where its wording lives.
+            _TRACK_CONTEXTS[key] = {}
+        else:
+            # `if row.get("track")` is DEFENCE, not a live branch, and a
+            # mutation of it comes back green on purpose. Both halves of
+            # `declared_tracks_detail` already guarantee a named row —
+            # `stored_tracks` filters on `(r.get("track") or "").strip()` and
+            # `parse_tracks` ends `[r for r in rows if r["track"]]` — and the
+            # `if not name: return {}` above means a blank key could never be
+            # looked up even if one arrived. The invariant is pinned upstream
+            # by `test_the_register_never_hands_back_a_blank_track_name`
+            # rather than by a fixture here faking a state neither reader can
+            # produce.
+            _TRACK_CONTEXTS[key] = {
+                row["track"]: row for row in tracks if row.get("track")}
     return _TRACK_CONTEXTS[key].get(name, {})
 
 

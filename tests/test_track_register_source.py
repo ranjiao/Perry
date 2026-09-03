@@ -1136,5 +1136,263 @@ class TestDiagnoseSaysWhichRegisterItRead(Fixture):
         self.assertNotIn("MODE-02", [f["id"] for f in pay["findings"]])
 
 
+def _lint_module():
+    """`bin/perry-lint` as a module — same loader, same reason, as `PS`."""
+    import importlib.machinery
+    import importlib.util
+    sys.path.insert(0, str(ROOT / "viewer"))
+    loader = importlib.machinery.SourceFileLoader("perry_lint_mod", str(LINT))
+    spec = importlib.util.spec_from_loader("perry_lint_mod", loader)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+PL = _lint_module()
+
+
+class TestLintTypesACellAgainstTheRegister(Fixture):
+    """`perry-lint § _track_context` asks the STORE. TASK-283.
+
+    **The fifth site, and the one `P003-O2-KR1`'s baseline never counted.**
+    That baseline enumerated four `parse_tracks` call sites and fixed them.
+    `_track_context` does not call `parse_tracks` — it carried an inline
+    parser of `.perry/config.md § Tracks` all its own — so it never answered
+    to the name the count was taken over, and the KR read 0 while a register
+    reader sat in `bin/perry-lint`.
+
+    TASK-247 fixed the WALK above it (`P.configured`, so the root of a
+    store-only project resolves to that project instead of to an ancestor
+    holding some other repository's `.perry/`) and named this read as still
+    outstanding rather than folding it in. This class is that read.
+
+    **Why `{}` was never a safe wrong answer.** `_track_context` feeds
+    `lib.classify_due`, and `{}` there means mode `project` with no clock —
+    the most PERMISSIVE contract there is. So on a store-only project a
+    `pipeline` track accepted the duration tokens it exists to reject and a
+    `queue` track with no declared clock accepted a populated `Due`. The
+    column did not report a wrong answer; it stopped asking the question,
+    which is the one failure a linter cannot show you.
+    """
+
+    #: The store declares BOTH tracks and `CONFIG_MD` declares only `main`,
+    #: so `intake` resolving is proof the store was read and `{}` is proof the
+    #: projection was. Same instrument as `TestTheInstrumentWorks`, and it is
+    #: why these tests do not need to delete `.perry/config.md` to be honest.
+    RESOLVED_FROM_THE_STORE = "intake"
+
+    def setUp(self):
+        # Module-level cache, and these fixtures are fresh directories each
+        # time. Left dirty, the first test's answer would be served to the
+        # rest and a broken read would still look right.
+        PL._TRACK_CONTEXTS.clear()
+
+    def store_only(self, store: str = GOOD_STORE) -> pathlib.Path:
+        """A project configured by `.perry/config.jsonl` ALONE.
+
+        The shape a clone made before `perry-config render --write` has, and
+        the shape `project()` cannot produce — it always writes the
+        projection, because the twenty tests above measure divergence between
+        the two files and need both.
+        """
+        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-track-storeonly-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / ".perry").mkdir()
+        (d / ".perry" / "config.jsonl").write_text(store)
+        (d / "BOARD.md").write_text(BOARD)
+        self.assertFalse((d / ".perry" / "config.md").exists(),
+                         "the fixture is only worth running store-only")
+        return d
+
+    def context(self, d: pathlib.Path, name: str) -> dict:
+        return PL._track_context(d / "BOARD.md", name)
+
+    # ── the defect ────────────────────────────────────────────────────────
+
+    def test_a_store_only_project_resolves_a_track_it_declares(self):
+        """**The before-state, stated as the assertion that catches it.**
+
+        Before TASK-283 every name here came back `{}` — including `main`,
+        which every store declares — because the read was of a
+        `.perry/config.md` that is not on disk.
+        """
+        d = self.store_only()
+        got = self.context(d, self.RESOLVED_FROM_THE_STORE)
+        self.assertTrue(got, "the store declares this track and it resolved "
+                             "to `{}` — the register was not read")
+        self.assertEqual(got.get("track"), self.RESOLVED_FROM_THE_STORE)
+        self.assertEqual(got.get("mode"), "queue",
+                         "the MODE is the half `lib.classify_due` types a "
+                         "`Due` cell against; a name with no mode is not a "
+                         "resolved track")
+
+    def test_it_reads_the_store_and_not_the_projection_when_BOTH_exist(self):
+        """The divergence instrument, pointed at the linter.
+
+        `CONFIG_MD` declares `main` only; `GOOD_STORE` declares `main` and
+        `intake`. A reader of the projection cannot produce `intake` here, so
+        this is the assertion an inline `config.md` parser cannot pass however
+        well written it is.
+        """
+        d = self.project(GOOD_STORE)
+        self.assertEqual((d / ".perry" / "config.md").exists(), True,
+                         "both files must be present or this proves nothing")
+        got = self.context(d, self.RESOLVED_FROM_THE_STORE)
+        self.assertTrue(got, "`intake` is in the store and not in the table, "
+                             "so `{}` means the projection was read")
+        self.assertEqual(got.get("mode"), "queue")
+
+    # ── the controls ──────────────────────────────────────────────────────
+
+    def test_a_genuinely_undeclared_track_is_still_permissive(self):
+        """A fix that resolves EVERYTHING passes the two above and is wrong.
+
+        `{}` is the documented permissive case and the reason a typo in the
+        register does not silently make a column stricter.
+        """
+        for d in (self.store_only(), self.project(GOOD_STORE)):
+            with self.subTest(store_only=not (d / ".perry" / "config.md").exists()):
+                PL._TRACK_CONTEXTS.clear()
+                self.assertEqual(self.context(d, "no-such-track"), {})
+
+    def test_an_unusable_store_does_not_hand_back_the_projections_row(self):
+        """**The `TRACKS_STORE_UNUSABLE` half, which is the whole point.**
+
+        `declared_tracks_detail` still ANSWERS when a store is present and
+        could not be read — with the projection's rows and a `source` saying
+        so, and its own docstring forbids treating those as truth. A caller
+        that takes them silently is the defect the V4 round 1 review found;
+        this asserts `perry-lint` is not that caller.
+
+        `main` is the probe, not `intake`: `CONFIG_MD` declares `main`, so the
+        projection HAS a row to hand back here. Probing a track the table does
+        not carry would pass on a reader that took the projection.
+        """
+        d = self.project(GOOD_STORE + '{"kind": "track", "track": "hal')
+        self.assertIn(self.detail(d)[1], PS.TRACKS_STORE_UNUSABLE,
+                      "the fixture must actually be unusable")
+        self.assertTrue([t for t in self.detail(d)[0] if t["track"] == "main"],
+                        "the projection must have a `main` row to hand back, "
+                        "or this test cannot tell the two readers apart")
+        self.assertEqual(self.context(d, "main"), {},
+                         "the projection's row was returned as the "
+                         "register's answer")
+
+    def test_no_store_at_all_still_reads_the_projection(self):
+        """The adoption path the KR EXCLUDES, so it must keep working."""
+        d = self.project(None)
+        self.assertEqual(self.detail(d)[1], PS.TRACKS_STORE_ABSENT)
+        self.assertEqual(self.context(d, "main").get("mode"), "project")
+
+    # ── the cache ─────────────────────────────────────────────────────────
+
+    def test_the_cache_is_keyed_on_the_root_not_on_a_projection_path(self):
+        """It was keyed on `str(root / ".perry" / "config.md")` — a path that
+        does not exist on any project this row is about.
+
+        Two store-only projects declaring DIFFERENT registers must not collapse
+        onto one entry, and the key must name the root rather than a file
+        neither of them has.
+        """
+        one = self.store_only()
+        two = self.store_only(track_record("main", "project", 0) + "\n")
+        self.assertTrue(self.context(one, "intake"))
+        self.assertEqual(self.context(two, "intake"), {},
+                         "the second project's register does not declare "
+                         "`intake`; a shared cache entry would resolve it")
+        for key in PL._TRACK_CONTEXTS:
+            self.assertFalse(key.endswith("config.md"),
+                             f"cache key {key!r} names the projection")
+
+    def test_the_register_never_hands_back_a_blank_track_name(self):
+        """**Why `_track_context`'s own blank filter mutates GREEN.**
+
+        The round planted six mutations and this is the one that survived:
+        dropping `if row.get("track")` from the index build changed no test.
+        It is not a missing guard on that line — it is that the line is
+        DEFENCE over an invariant two readers upstream already hold.
+        `stored_tracks` filters `(r.get("track") or "").strip()` and
+        `parse_tracks` returns `[r for r in rows if r["track"]]`, so no
+        `declared_tracks_detail` answer can carry a nameless row; and
+        `_track_context` returns `{}` for an empty cell before any lookup, so
+        a blank key would be unreachable even if one existed.
+
+        Pinning it HERE is the honest place: the day a reader upstream starts
+        emitting a nameless row, this reddens and that filter starts
+        mattering. A fixture in `_track_context` faking a state neither reader
+        can produce would assert nothing about the code that actually runs.
+        """
+        setting = json.dumps({"kind": "setting", "key": "language",
+                              "value": "English", "order": 0})
+        # **A shape where each reader has something to filter**, or the
+        # assertion is over rows that were never at risk. The first draft of
+        # this test used only the fixtures above, none of which carries a
+        # nameless row — so dropping `parse_tracks`' filter mutated GREEN
+        # through it, and the test was measuring the store side alone.
+        # `Track` is deliberately not the first column: `parse_tracks` skips a
+        # row on an empty `cells[0]`, so a nameless row in a table whose first
+        # column IS `Track` never reaches the filter under test.
+        nameless = self.project(None)
+        (nameless / ".perry" / "config.md").write_text(
+            CONFIG_MD.split("## Tracks")[0] + """
+## Tracks
+
+| Mode | Track | Spine | Stages | WIP | SLA | Cycle | Default rung |
+|---|---|---|---|---|---|---|---|
+| project |  | phase/ | — | — | — | — | V3 |
+| queue | intake | standing | new→done | 6 | 5d | weekly | V3 |
+""")
+        nameless_store = self.project(
+            track_record("main", "project", 0) + "\n"
+            + json.dumps({"kind": "track", "track": "   ", "mode": "queue",
+                          "spine": "", "stages": "", "wip": "", "sla": "",
+                          "cycle": "", "default_rung": "V3", "order": 1}) + "\n")
+        shapes = {
+            "healthy store": self.project(GOOD_STORE),
+            "no store": self.project(None),
+            "trackless store": self.project(setting + "\n", md_declares=False),
+            "unreadable store": self.project(
+                GOOD_STORE + '{"kind": "track", "track": "hal'),
+            "empty store": self.project(""),
+            "table declares two": self.project(None, md_declares_two=True),
+            "table carries a nameless row": nameless,
+            "store carries a nameless record": nameless_store,
+        }
+        for label, d in shapes.items():
+            with self.subTest(label):
+                tracks, _source = self.detail(d)
+                self.assertTrue(tracks, "the register is never empty")
+                for row in tracks:
+                    self.assertTrue(
+                        (row.get("track") or "").strip(),
+                        f"{label}: the register handed back a nameless row "
+                        f"{row!r} — `perry-lint § _track_context`'s blank "
+                        f"filter is now load-bearing and needs its own test")
+
+    # ── the KR's own condition ────────────────────────────────────────────
+
+    def test_perry_lint_holds_no_reader_of_the_track_register_projection(self):
+        """`P003-O2-KR1`, asserted against the file rather than against a count.
+
+        The KR targets ZERO `bin/` call sites reading the track register from
+        `.perry/config.md` while the store exists. The four it enumerated were
+        `parse_tracks` callers; this one was not, which is exactly how it went
+        uncounted. A grep for `parse_tracks` would not have found it and does
+        not guard it now — the inline parser's own shape is what does.
+
+        `bin/perry-lint` still names `.perry/config.md` in prose and still
+        reads a SETTING out of it when no store is there (`§ review_rounds`,
+        store-first, the legitimate `absent` fallback). Neither is a register
+        read, so this asserts the parser's shape and not the filename.
+        """
+        text = LINT.read_text(encoding="utf-8")
+        self.assertNotIn('column_index(cells, "Mode")', text,
+                         "the inline `## Tracks` header probe is back")
+        self.assertNotIn("canonical_header", text,
+                         "the inline track-row parser is back")
+        self.assertIn("declared_tracks_detail", text,
+                      "the one register reader is not being used")
+
+
 if __name__ == "__main__":
     unittest.main()

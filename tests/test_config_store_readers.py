@@ -529,15 +529,22 @@ class TestDiagnoseAndTheLinterWalkAskItToo(Fixture):
 
         The store-only project is nested under an ancestor that HAS a
         `.perry/config.md` — the shape of every checkout on a machine that
-        keeps its repositories in one directory. Reverted, the walk finds no
-        `config.md` at the project, climbs, and types the cell against
-        **another repository's** track register: `main` comes back
-        `mode: project`, `default rung: v4`, none of it this project's.
+        keeps its repositories in one directory. With TASK-247's walk
+        reverted, the walk finds no `config.md` at the project, climbs, and
+        types the cell against **another repository's** track register:
+        `main` comes back `default rung: V4`, which is the ancestor's.
 
-        `{}` is the right answer here: the register is undeclared as far as
-        this reader can see, and `_track_context`'s docstring says an
-        undeclared track is the permissive case. Reading the store's own
-        `## Tracks` is a further conversion and is not this row.
+        **The expected answer changed at TASK-283, as this test predicted.**
+        It asserted `{}` and said so in its own words: *"Reading the store's
+        own `## Tracks` is a further conversion and is not this row."* That
+        conversion is TASK-283, and `_track_context` now reads the register
+        through `perry-state § declared_tracks_detail`. So the project's own
+        store answers, and `{}` would today mean the store went unread.
+
+        What the fixture measures is unchanged and is now measured harder:
+        the ancestor declares `main` at rung **V4** and declares no `intake`
+        at all, while the project's store declares `main` at **V3** and an
+        `intake`. Every assertion below fails if the walk climbs.
         """
         lint = load_bin_module("perry-lint")
         ancestor, proj = self.nested()
@@ -546,10 +553,20 @@ class TestDiagnoseAndTheLinterWalkAskItToo(Fixture):
 
         row = lint._track_context(proj / "BOARD.md", "main")
 
+        self.assertTrue(
+            row,
+            "`{}` means the project's own `.perry/config.jsonl` went unread — "
+            "TASK-283 converted this reader to the store")
         self.assertEqual(
-            row, {},
+            row.get("default_rung"), "V3",
             "the walk climbed past the configured project and typed the cell "
-            f"against {ancestor}/.perry/config.md — another project's register")
+            f"against {ancestor}/.perry/config.md — another project's "
+            "register, which declares `main` at V4")
+        self.assertEqual(
+            lint._track_context(proj / "BOARD.md", "intake").get("mode"),
+            "queue",
+            "`intake` exists only in THIS project's store; the ancestor's "
+            "register has no such row, so a climbing walk cannot produce it")
 
 
 class TestAStoreThatDeclaresNoSettingsSaysSo(Fixture):
