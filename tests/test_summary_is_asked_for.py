@@ -261,6 +261,47 @@ class TestOnePlaceDefinesWhatASummaryIs(unittest.TestCase):
         self.assertIn("lib.summary_shape(", src)
         self.assertNotIn("def summary_shape(", src)
 
+    def test_the_contract_enumerates_exactly_the_rules_the_predicate_emits(self):
+        """`task-list-contract.md`'s `summary` row names the live rules and no others.
+
+        The contract is the READ interface a front-end builds against, so an
+        enumeration in it is a PROMISE about what the tools can report. It was
+        wrong for the length of one row: TASK-330 removed
+        `summary-has-no-sentence` and `summary-is-a-fragment`, and the field
+        definition went on requiring "at least one complete sentence" and
+        listing "equal to the title, no sentence, under five words" — two
+        validations no tool performed any more. A consumer trusting that
+        enumeration would have treated a one-word summary as impossible.
+
+        The rule set is read from the CODE with `ast`, never from the
+        predicate's docstring: a docstring is prose and agreeing with prose is
+        not the property. Removed rules belong in `§ Changelog`, which this
+        test deliberately does not police — the changelog's job is to name
+        what left.
+        """
+        import ast
+        import re
+
+        src = (ROOT / "bin" / "lib" / "__init__.py").read_text(encoding="utf-8")
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "summary_shape")
+        emitted = {n.value for n in ast.walk(fn)
+                   if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                   and n.value.startswith("summary-")}
+        self.assertTrue(emitted, "found no rule names in summary_shape — the "
+                                 "extraction broke, not the contract")
+
+        contract = (ROOT / "schema" / "task-list-contract.md").read_text(encoding="utf-8")
+        rows = [l for l in contract.splitlines()
+                if l.startswith("| `summary` | string |")]
+        self.assertEqual(len(rows), 1, "expected exactly one `summary` field row")
+        named = set(re.findall(r"summary-[a-z-]+", rows[0]))
+
+        self.assertEqual(named, emitted,
+                         f"the contract's `summary` row names {sorted(named)} "
+                         f"but the predicate emits {sorted(emitted)} — one of "
+                         "the two was changed without the other")
+
     def test_the_writer_and_the_linter_agree_over_a_corpus(self):
         """Not 'both import it' — both ANSWER the same, over cases that differ."""
         project = Project(self)
