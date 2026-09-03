@@ -288,6 +288,34 @@ class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
                          "an unrelated write rebuilt the store from the board "
                          "and dropped the edge")
 
+    def test_a_row_that_has_already_closed_can_still_be_linked(self):
+        """The historical case, and the one the whole row is about.
+
+        `DESIGN-001`'s six implementation rows closed months before the field
+        existed. If the writer could only reach rows still on the board, the
+        edge would be unwritable for exactly the designs whose hand-off is in
+        question. `cell_writer` refuses an off-board row on purpose; this verb
+        must not.
+        """
+        root = self.project(with_store=True)
+        (root / "perry" / "design").mkdir()
+        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
+
+        self.perry_task(root, "done", "TASK-001", "--rung", "V1",
+                        "--evidence", "evidence/x.md")
+        board = (root / "perry" / "BOARD.md").read_text()
+        self.assertFalse(
+            [ln for ln in board.splitlines() if ln.startswith("| TASK-001 |")],
+            "the row must be off the board before this proves anything")
+
+        self.perry_task(root, "design-link", "TASK-001",
+                        "--design", "DESIGN-009")
+        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"])
+
+        docs = P.walk_design(root / "perry", None, project_root=root)
+        by_id = {d.id: d for d in docs}
+        self.assertEqual(by_id["DESIGN-009"].impl_refs, 1)
+
     def test_closing_the_linked_row_does_not_clear_the_edge(self):
         """The lifecycle event the row was FILED about. `done` removes the
         line from `BOARD.md`; the record and its edge must remain."""
