@@ -196,7 +196,14 @@ docstring.
 3. **One green mutation occurred and is reported above** rather than being
    quietly re-paired. The finding was in the harness, and the evidence for that
    claim is the mutation run against three different targets, not an assertion.
-4. Four pre-existing assertions in `tests/test_spec_scannability.py` needed
+4. **`main` advanced during this round**, from `548f206` to `9c9670e`
+   (`TASK-273`'s spec and its `in_progress` transition). Neither commit touches
+   `bin/perry-lint` or `tests/test_spec_scannability.py`, so there is no
+   conflict. It does move the census: post-merge it reads **147 specs / 20 with
+   a bound / 127 without** — the new spec carries one, so the unbounded count is
+   unchanged and the after-state line above stays true. All numbers in this
+   document are stated against `548f206`, the commit this branch is cut from.
+5. Four pre-existing assertions in `tests/test_spec_scannability.py` needed
    updating: they pinned the exact `specs` stats dict or the exact findings
    list, and the existing fixtures legitimately trip the new orthogonal rule.
    Scoped to the rule under test rather than adding a bound to `BULLET_SPEC`,
