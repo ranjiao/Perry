@@ -1,12 +1,11 @@
-# TASK-219 — `retro-cites-phase-scores`, the check that the retro cites rather than re-derives
+# TASK-219 — typed provenance from phase scores to retro
 
 > Design: **DESIGN-012** § 5.4 and User Decision 4 (`design/DESIGN-012-close-phase.md`), locked 2026-08-28.
->
 > Dispatch mode: manual
-> Executor: manual — **not a judgement call, a gate result.** `.perry/hook.md § High-stakes operations` lists `state-schema.json` under *the claim surface*, and this row's deliverable edits it, so `/perry work dispatch` refuses. The refusal is arguably over-broad — a `cross_file` row changes no path Perry writes into anyone's project — but the hook says in its own words that the cheapest way to pass this gate is to reword the spec, and that is the one thing a safety gate must never reward. The wording stands and the row is dispatched by hand.
+> Executor: manual — this changes Perry's own typed provenance contract
 > Estimated cycle: small
-> Subjective verification: whether the described surface is the surface actually compared
-> Touches architecture: (none)
+> Subjective verification: whether the typed provenance is the complete input used by the retro agent
+> Touches architecture: DESIGN-012 mechanism revised by ADR-007; outcome unchanged
 > Deployed: no
 
 - **Owner**: Coding Agent · **Priority**: P1 · **Rung**: V3
@@ -15,47 +14,43 @@
 
 ## Why
 
-Decision 1 put the retro after scoring, which makes "the retro cites the
-verdicts rather than re-deriving them" a comparison between two files that both
-exist. Under *retro before score* it would not have been checkable at all —
-there would be nothing to compare against yet.
+Decision 1 put the retro after scoring, so its inputs can cite authoritative
+phase-score records. That invariant should be represented directly: each retro
+generation records the typed KR/status references it consumed.
 
-Without it, the `goals` / `work` split holds only because someone did it by
-hand, which is exactly what happened on 2026-08-28.
+Python must not re-derive agreement by parsing the phase and retro Markdown.
+The agent generates the retro from the typed payload; the tool verifies only
+that the cited records exist and match the recorded ids and versions.
 
 ## Deliverable
 
-One row in `schema/state-schema.json § cross_file`:
+A structured phase-score/retro provenance contract containing the phase id,
+score-record version, and the complete typed list of KR ids and statuses passed
+to the retro agent. The generated retro links to that provenance record but
+remains an opaque natural-language artifact.
 
-```
-{ "id": "retro-cites-phase-scores", "severity": "warn",
-  "description": "Each per-KR status in evidence/<YYYY-MM>/retro.md must equal
-                  the status for that KR id in phase/<NNN>-<slug>.md § Retro." }
-```
+The verification path validates ids, versions and typed values only. It does
+not scan headings, tables or status words in `retro.md` or a phase document.
 
-plus its implementation in `bin/perry-lint`.
+## Bound
 
-**`warn`, not `error`.** The boundary settled 2026-08-21
-(`phase/002-fields-are-typed.md § User Commitments`): errors are shape
-violations, warnings are quality signals. A retro disagreeing with the scores
-is a content disagreement inside a well-shaped file.
+One typed phase-score/retro provenance record, the tool path that creates and
+validates it, the agent input assembled from it, and their direct tests. No
+other evidence-document or phase-close behavior is in this round.
 
 ## Verification — V3
 
-1. **Mutation**: change one per-KR status in a retro; the check must go red. A
-   gate whose green is a tautology is worse than no gate (phase #002 lesson 4).
-2. **The surface is the one described.** `linkage-objective-agrees` is declared
-   at `error`, **is** implemented, and still let the 002-linkage misnesting pass
-   at 0 errors — because it reads a linkage row's `Objective` column rather than
-   the frontmatter's `objectives[].id` nesting. Assert which two spans this
-   check compares, in a test, so the description cannot drift from the code.
+1. Mutate a typed KR status or score-record version; the retro input/provenance
+   must change or validation must fail.
+2. Mutate only wording or layout in `retro.md`; typed validation must be
+   unchanged, proving Python does not interpret the document.
 3. Full suite green.
 
 ## Out of scope
 
-- A `files[]` spec for `evidence/`. Decisions 3 and 4 both refused to add a
-  claim or a shape surface; `evidence/` stays outside the conformance gate, so
-  no project's retro becomes unwritable for failing to match a heading set.
+- A `files[]` spec or cross-file prose check for `evidence/`.
+- Any quality judgement about whether the retro explains the scores well; that
+  remains agent/human review.
 
 ## Attribution
 
