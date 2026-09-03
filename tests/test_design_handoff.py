@@ -246,6 +246,48 @@ class TestTheWriter(unittest.TestCase):
                                      self.ctx(record))
 
 
+class TestTheFieldIsDeclared(unittest.TestCase):
+    """`design_refs` must be in `perry_store.STORED`, not merely present in
+    whatever dict happened to be written.
+
+    **The mutation that caught this.** Deleting it from `STORED` left every
+    round-trip test green, because the carry re-adds the key to the record dict
+    afterwards and `store_text` serialises whatever keys it finds. What is lost
+    is the TYPE CHECK: `validate_records` skips fields it does not know, so an
+    undeclared field is a field nothing validates — a string where a list
+    belongs would reach `walk_design` and be iterated character by character.
+    """
+
+    def setUp(self):
+        sys.path.insert(0, str(ROOT / "bin"))
+        import perry_store
+        self.store = perry_store
+
+    def test_it_is_declared(self):
+        self.assertIn("design_refs", self.store.STORED)
+
+    def test_a_string_where_a_list_belongs_is_reported(self):
+        good, findings = self.store.validate_records(
+            [{"id": "TASK-900", "design_refs": "DESIGN-009"}])
+        self.assertEqual(good, [])
+        self.assertEqual(len(findings), 1)
+        self.assertIn("design_refs", findings[0]["message"])
+        self.assertIn("list of strings", findings[0]["message"])
+
+    def test_a_list_of_strings_is_accepted(self):
+        good, findings = self.store.validate_records(
+            [{"id": "TASK-900", "design_refs": ["DESIGN-009"]}])
+        self.assertEqual(findings, [])
+        self.assertEqual(good[0]["design_refs"], ["DESIGN-009"])
+
+    def test_a_record_written_before_the_field_existed_stays_valid(self):
+        """Additive, exactly as `summary` was under TASK-106. No migration."""
+        good, findings = self.store.validate_records(
+            [{"id": "TASK-900", "title": "written in August"}])
+        self.assertEqual(findings, [])
+        self.assertEqual(good[0].get("design_refs"), None)
+
+
 class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
     """The edge is store-only, and `store_records` DERIVES the store from the
     board on every mutating command.
@@ -272,6 +314,51 @@ class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
             if line.strip() and json.loads(line)["id"] == tid:
                 return json.loads(line).get("design_refs")
         self.fail("%s left the store" % tid)
+
+    def test_a_whole_store_rebuild_does_not_clear_the_edge(self):
+        """**The mutation that caught the weak test beside this one.**
+
+        `perry-tasks write --from-board` re-derives EVERY record through
+        `store_records`, which is the only path where the explicit carry is
+        load-bearing. The neighbouring test cannot reach it: `commit` copies
+        every non-subject row out of the store byte-for-field, so an unrelated
+        write never rebuilds the linked row at all. Removing the carry left
+        that test green and this one red.
+        """
+        root = self.project(with_store=True)
+        (root / "perry" / "design").mkdir()
+        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
+        self.perry_task(root, "design-link", "TASK-001",
+                        "--design", "DESIGN-009")
+
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / "perry-tasks"), "write",
+             "--from-board", "--root", str(root)],
+            capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"],
+                         "a store rebuild derived the record from the board "
+                         "and the board has no column for the edge")
+
+    def test_it_can_be_linked_with_the_event_log_deleted(self):
+        """**The mutation that caught the second weak test.**
+
+        `commit`'s off-board branch only fires when the projection cannot be
+        rebuilt at all. With the log present, `store_records` reconstructs a
+        terminal row from the `done` event, so the branch is never reached and
+        removing it stays green. Delete the log — which `bin/perry-task:42`
+        says is allowed at any time — and it is the only path left.
+        """
+        root = self.project(with_store=True)
+        (root / "perry" / "design").mkdir()
+        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
+        self.perry_task(root, "done", "TASK-001", "--rung", "V1",
+                        "--evidence", "evidence/x.md")
+        (root / ".perry" / "events.jsonl").write_text("")
+
+        self.perry_task(root, "design-link", "TASK-001",
+                        "--design", "DESIGN-009")
+        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"])
 
     def test_an_unrelated_write_does_not_clear_the_edge(self):
         root = self.project(with_store=True)
