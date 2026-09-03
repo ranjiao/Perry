@@ -27,6 +27,7 @@ A project-management skill that fits the four shapes agent work actually takes, 
 - **The working directory is the scope.** No registry, no index, no state that outlives the thing it describes (`ADR-002`).
 - **Never ask a question the user cannot evaluate**, and **an ID never travels alone** (`reference/user-load.md`).
 - **A tool must be able to say what an agent would get wrong without it.** One sentence, in its own first lines. A tool that cannot is prose that was never written (`DESIGN-014 § 2`, added v3).
+- **Python judges only what is typed; a document's meaning goes to an agent.** Bounded value spaces and filesystem facts are code's to decide. Five regex rounds have been lost here to a word boundary, a full stop and a pair of asterisks — no fix to the regex ends it, because the question has no determinate answer in prose (`ADR-007` decisions 2 and 3, restated by the user 2026-09-03).
 
 ## Anti-Goals
 
