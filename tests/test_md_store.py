@@ -94,7 +94,21 @@ def run(tool: str, *args, root: pathlib.Path):
 
 
 class RoundTrip:
-    """The three-way guard, in one place so no case can quietly skip a leg."""
+    """The three-way guard, in one place so no case can quietly skip a leg.
+
+    **What this guard does NOT check, and TASK-182 measured it.** `records`
+    below is `M.derive(doc, text)` — built out of the very file it is then
+    compared against — so every assertion here is about the SCANNER and the
+    RENDERER being inverses. It never opens the store on disk. Deleting all ten
+    `objective` records from `perry/okr.jsonl` and re-running
+    `TestThisRepositoryIsReproducedByteForByte.test_okr` leaves it GREEN,
+    `cells_verbatim == {}` assertion included.
+
+    That is correct for what it tests and it is not the DESIGN-009 § 7 risk 2
+    gate, which asks whether the STORE produced the file.
+    `TestTheByteGateCanFail` is that one, and it reads `perry/okr.jsonl` off
+    disk. Do not read the two assertions below as covering it.
+    """
 
     def assert_round_trips(self, doc, path: pathlib.Path, *,
                            expect_kinds=None):
@@ -1357,6 +1371,35 @@ class TestTheByteGateCanFail(unittest.TestCase):
                          "the row fell out of the store's reach entirely; "
                          "this case is about a matched row with a copied cell")
         self.assertNotEqual(out["cells_verbatim"], {})
+        self.assertIs(out["every_line_and_cell_came_from_the_store"], False)
+        self.assertEqual(proc.returncode, 3, proc.stdout)
+
+    def test_a_cell_wearing_unstored_words_fails_the_gate(self):
+        """The third register, and the third way `cmp` passes on nothing.
+
+        An edit that APPENDS to a cell rides `describe_cell`'s decoration
+        branch: the stored value is still in there, the extra words are kept as
+        a suffix, and the line renders back byte for byte.
+        `test_an_appended_hand_edit_is_counted_rather_than_hidden` already pins
+        that `identical` stays true and the counter moves — it does not assert
+        an exit code, and on `5e88be8` `diff` exited 0. This case is the exit
+        code, so `cells_wearing_decoration` cannot be dropped from
+        `FELL_BACK_TO_COPYING` without a test going red.
+        """
+        p = Project(self).copy_the_real_stores()
+        path = p.root / "perry" / "OKR.md"
+        before = path.read_text()
+        path.write_text(before.replace("| 3 of 3 modes live |",
+                                       "| 3 of 3 modes live, honest |", 1))
+        self.assertNotEqual(path.read_text(), before,
+                            "the fixture cell moved; this case edits a cell "
+                            "that must exist to be decorated")
+
+        proc = p.okr("diff")
+        out = json.loads(proc.stdout)
+        self.assertIs(out["identical"], True)
+        self.assertEqual(out["cells_wearing_decoration"],
+                         {"Metric / Target": 1})
         self.assertIs(out["every_line_and_cell_came_from_the_store"], False)
         self.assertEqual(proc.returncode, 3, proc.stdout)
 

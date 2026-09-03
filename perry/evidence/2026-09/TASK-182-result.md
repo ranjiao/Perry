@@ -196,6 +196,98 @@ ever emptied the same way, it now fails the same way, for free.
    new row.
 3. The worktree was 32 commits stale (§ 0).
 
-## 7. Verification
+## 7. After-state
 
-Filled in below after the runs.
+Same `git archive` copy, same deletion of all 10 `objective` records, **fixed
+code**:
+
+```
+identical:                              true    ← still true, and still correct
+every_line_and_cell_came_from_the_store: false
+lines_verbatim:                         10
+exit:                                   3
+
+stderr: perry-okr: the bytes match and the store did not produce them — 10
+        line(s)/cell(s) of OKR.md were copied through because no record could
+        rebuild them (lines_verbatim). `identical: true` here means the FILE
+        reproduced itself.
+```
+
+And on risk 2's own signal (one KR's `metric` blanked in the store):
+
+```
+identical: true · cells_verbatim {"Metric / Target": 1} · exit 3
+    (unfixed: exit 0)
+```
+
+## 8. The control
+
+Store intact, nothing touched:
+
+```
+python3 bin/perry-okr diff --root .   exit 0
+    identical                                true
+    every_line_and_cell_came_from_the_store  true
+    lines_verbatim                           []
+    cells_verbatim                           {}
+    cells_wearing_decoration                 {}
+    kinds  objective 10 · kr 38 · version 3
+```
+
+`test_the_store_intact_is_a_pass` pins it, and mutation **M2** (predicate
+always `False`) reddens exactly that case — so a fix that refuses everything
+does not pass this row.
+
+## 9. Mutations — 9 planted, 9 red, 0 green
+
+Anchored by line number **with an assert on the old text** (a non-matching
+anchor aborts rather than reporting a meaningless OK), `__pycache__` cleared
+before every run, mtime pushed past the whole-second boundary, restored from
+bytes snapshotted **before** the edit. `bin/perry_md_store.py` md5
+`4468159da5a7f7eae70652e76460c9f4` before and after the whole battery.
+
+| # | Mutation | Verdict | Named test that reddened |
+|---|---|---|---|
+| M1 | `every_line_and_cell_came_from_the_store` → `return True` (the original vacuity, restored) | RED | all three failing cases |
+| M2 | → `return False` (**the control**) | RED | `test_the_store_intact_is_a_pass` |
+| M3 | `lines_verbatim` dropped from `FELL_BACK_TO_COPYING` | RED | `test_removing_the_objective_records_fails_the_gate` |
+| M4 | `cells_verbatim` dropped — risk 2's own signal | RED | `test_a_cell_the_store_forgot_fails_the_gate` |
+| M5 | `cells_wearing_decoration` dropped | RED | `test_a_cell_wearing_unstored_words_fails_the_gate` |
+| M6 | `return 3` → `return 0` | RED | all three |
+| M7 | the payload key hardcoded `True` | RED | all three |
+| M8 | the exit branch stops consulting the predicate | RED | all three |
+| **M9** | **data, not source**: the 10 `objective` records deleted from this repository's own `perry/okr.jsonl` | **RED** | `test_no_line_or_cell_of_the_live_okr_is_copied_through` |
+
+**M9 is the one that matters, and it was run against both tests at once:**
+
+```
+RED    NEW (this row)     test_no_line_or_cell_of_the_live_okr_is_copied_through
+GREEN  OLD (pre-existing) TestThisRepositoryIsReproducedByteForByte.test_okr
+```
+
+The old test asserts `lines_verbatim == []` **and** `cells_verbatim == {}` and
+stayed green with the store's ten Objectives gone, because it derives its
+records from the file. That is the § 1d claim, measured. `RoundTrip`'s
+docstring now says so, so the next reader does not take those two assertions
+for the gate.
+
+`perry/okr.jsonl` md5 `b6bc3b99ca79be09f84b443e4f094c40` before and after M9.
+
+## 10. Runs
+
+```
+python3 tests/parallel -j 4
+    110 modules · 3102 tests · 165.4s · 4 workers · exit 0 · all green
+
+python3 bin/perry-lint --root .
+    exit 0 · 0 error(s), 16 warning(s)
+    OKR store: 51 record(s), 0 row(s) drifted
+  baseline (5e88be8, git archive copy):
+    exit 0 · 0 error(s), 16 warning(s)      ← identical
+
+md5 -q perry/OKR.md
+    5f400212ba724adb6246b91ab60857e4        before
+    5f400212ba724adb6246b91ab60857e4        after
+```
+
+`perry/OKR.md` was never written. This row changed the checker.
