@@ -6,6 +6,8 @@
     perry-config render  [--root <p>] [--write]    the store → .perry/config.md
     perry-config write   [--root <p>] --from-file  .perry/config.md → the store
     perry-config diff    [--root <p>]              render and byte-compare
+                                                   (exit 3: the bytes match and
+                                                    the store did not produce them)
 
 The store is `.perry/config.jsonl`. It holds the preamble's `- Key: value`
 settings and every row of `## Tracks`. Every prose section — Perry's own

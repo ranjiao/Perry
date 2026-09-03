@@ -937,6 +937,53 @@ def render(doc: Doc, text: str, records: list[dict]) -> tuple[str, dict]:
             p["report"])
 
 
+#: The three registers in `plan`'s report that each mean **the renderer copied
+#: text it could not rebuild**. Named once, here, because `every_line_and_cell
+#: _came_from_the_store` and the sentence `diff` prints when it fails both have
+#: to agree about what a fallback is, and two lists would drift.
+FELL_BACK_TO_COPYING = ("lines_verbatim", "cells_verbatim",
+                        "cells_wearing_decoration")
+
+
+def every_line_and_cell_came_from_the_store(report: dict) -> bool:
+    """Did the STORE produce these bytes, or did the file produce them itself?
+
+    **`identical` cannot answer this and never could — TASK-182.** `render`
+    passes through verbatim any line it has no record for, so a byte
+    comparison between the file and its own render is satisfied whether the
+    records did the work or the file did. Measured on this repository: deleting
+    all ten `objective` records from `perry/okr.jsonl` left `identical: true`
+    and moved `lines_verbatim` from `[]` to ten entries, and `perry-okr diff`
+    still exited 0. A gate that cannot fail is not a gate.
+
+    So the property step 2 of DESIGN-009 actually needs is not "the render
+    matches" but "the render matches AND the store is what produced it", and
+    this is the second half. Three registers, all three fallbacks, all three
+    invisible to `cmp`:
+
+      `lines_verbatim`            no record for this line at all — it was
+                                  copied whole. The `TASK-182` case.
+      `cells_verbatim`            a cell inside a claimed line was copied
+                                  rather than rebuilt. **This is the signal
+                                  `DESIGN-009 § 7` risk 2 names in so many
+                                  words** ("`cells_verbatim` must be `{}`") and
+                                  nothing implemented it until this row.
+      `cells_wearing_decoration`  the stored value came back with unstored text
+                                  kept around it, which `cmp` also cannot see.
+
+    **`records_not_in_the_file` is deliberately NOT one of them.** It reports
+    the store holding a record the file renders no line for — the store having
+    MORE than the file, not the file's bytes coming from somewhere other than
+    the store. That is a real hole and it is a different question, asked and
+    answered by `verify` (which exits non-zero on it) and by `perry-lint §
+    check_md_store_drift` (which counts it as a drifted row). Folding it in
+    here would make this predicate mean "the projection is complete in both
+    directions", which is `verify`'s sentence, and leave the two commands
+    differing only in how they print.
+    """
+    return not any(report[key] for key in FELL_BACK_TO_COPYING)
+
+
 def touches(line: str, touched) -> bool:
     """Does one `would_discard` line belong to a record the caller just wrote?
 
@@ -996,6 +1043,12 @@ USAGE = """\
     {tool} render  [--root <p>] [--write]      the store → {file}
     {tool} write   [--root <p>] --from-file    {file} → the store
     {tool} diff    [--root <p>]                render and byte-compare with the file
+
+`diff` exits 0 only when the bytes match **and** the store is what produced
+them: 1 when they differ, 3 when they match because the renderer copied a line
+or cell it had no record for, and 2 when there is nothing usable to compare.
+Exit 3 and the report's `every_line_and_cell_came_from_the_store` are the same
+answer — `identical: true` alone means the file reproduced itself (TASK-182).
 
 The store is `{store}`. **It is canonical and `{file}` is rendered output**, the
 same contract ADR-007 decision 2 gives `perry/tasks.jsonl` and `BOARD.md`. So a
@@ -1151,11 +1204,43 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
             return 0
 
         report["identical"] = rendered == text
+        # **`identical` still means exactly what it says: the bytes match.**
+        # TASK-182 considered redefining it to mean "matches AND came from the
+        # store" so every existing reader got the stronger property for free,
+        # and did not: `verify` prints this same boolean four lines below under
+        # the name `byte_identical`, so redefining it would make that label a
+        # lie inside this function. Byte-identity is also a true and separately
+        # useful fact, and collapsing two properties into one boolean is what
+        # made this gate unreadable to begin with. The second property gets its
+        # own key instead.
+        report["every_line_and_cell_came_from_the_store"] = \
+            every_line_and_cell_came_from_the_store(report)
         if not report["identical"]:
             report["first_difference"] = _first_difference(text, rendered)
         if cmd == "diff":
             print(json.dumps(report, ensure_ascii=False, indent=2))
-            return 0 if report["identical"] else 1
+            if not report["identical"]:
+                return 1
+            if report["every_line_and_cell_came_from_the_store"]:
+                return 0
+            # **Exit 3, not 1 — TASK-182.** These are two different findings
+            # and a caller that cannot tell them apart cannot act on either.
+            # `1` has meant "the file and the store's projection differ in
+            # bytes" since TASK-092, and `bin/perry-goals` and `bin/README.md`
+            # describe it that way; `2` already means "the input is unusable"
+            # (no store, malformed store, a scaffold that will not round-trip).
+            # So the new answer — "the bytes match and the store is not what
+            # produced them" — takes the next free code rather than borrowing
+            # a taken one. Every caller testing `!= 0` gains the gate; every
+            # caller testing `== 1` keeps the meaning it was written against.
+            print(f"{tool}: the bytes match and the store did not produce "
+                  f"them — {sum(len(report[k]) for k in FELL_BACK_TO_COPYING)} "
+                  f"line(s)/cell(s) of {doc.rel_file} were copied through "
+                  f"because no record could rebuild them "
+                  f"({', '.join(k for k in FELL_BACK_TO_COPYING if report[k])})"
+                  f". `identical: true` here means the FILE reproduced itself.",
+                  file=sys.stderr)
+            return 3
 
         # `verify` — the field comparison, in the store's own vocabulary
         # rather than in bytes, so a drifted cell is named as a cell.
@@ -1255,8 +1340,10 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
 # docstring described, goes with it.
 
 
-__all__ = ["CONFIG", "COMMANDS", "CONFIG_TITLE", "DOCS", "OBJECTIVE_LABEL",
+__all__ = ["CONFIG", "COMMANDS", "CONFIG_TITLE", "DOCS", "FELL_BACK_TO_COPYING",
+           "OBJECTIVE_LABEL",
            "OKR", "Doc", "Refused", "STORED", "TRACKS_HEADING", "derive",
+           "every_line_and_cell_came_from_the_store",
            "field_map", "load_store", "main", "objective_title",
            "okr_objective_heading", "plan", "record", "record_key", "render",
            "scaffold_config", "scan_config", "scan_okr", "setting_key",
