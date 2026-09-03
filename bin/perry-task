@@ -2776,14 +2776,19 @@ def commit(project_root: Path, state_root: Path, board: Board,
         projected = derived_by_id.get(subject)
         old = current_by_id.get(subject)
         event_name = event.get("event")
-        if projected is None and event_name in ("summary", "design-link") and old is not None:
+        if projected is None and event_name == "summary" and old is not None:
             # A terminal Task remains editable even if its disposable event log
             # is gone and therefore cannot reconstruct a Board row.
             #
-            # `design-link` is here for a reason `summary` does not have
-            # (TASK-139): the rows a design most needs to claim are the ones
-            # that already CLOSED, so "the subject has no projection row" is
-            # the normal case for this verb rather than the damaged one.
+            # **`design-link` was added here and then taken back out (TASK-139),
+            # because a mutation proved the line unreachable.** The rows a
+            # design most needs to claim are the ones that have already CLOSED,
+            # so this looked like the branch that verb depends on. It is not:
+            # `store_records` derives the projection from `ctx["task_records"]`
+            # — the STORE — and the store keeps terminal records, so a closed
+            # row still has a `projected` even with the event log deleted.
+            # Measured, not reasoned: the branch never fired for `design-link`
+            # in any state, log present, emptied or removed.
             projected = dict(old)
         if off_board and event_name == "retitle" and old is not None:
             # **TASK-166.** The subject has no Board line to mutate, so the
