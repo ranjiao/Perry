@@ -77,6 +77,7 @@ class Base(unittest.TestCase):
             f"# Board\n\n## {heading}\n\n" + HEAD, encoding="utf-8")
         for n in range(rows):
             self.ok(root, "add", "--title", f"row {n + 1}",
+                    "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                     "--deliverable", "an artifact with a test",
                     "--verification", "perry-lint clean", "--next", "n",
                     *(["--group", heading]
@@ -169,6 +170,7 @@ class TestSixRowsMove(Base):
         tid, = self.tasks(root)
         self.ok(root, "track", tid, "--track", "intake")
         born = self.ok(root, "add", "--title", "born on the track",
+                           "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                            "--deliverable", "an artifact with a test",
                            "--verification", "v", "--next", "n",
                            "--track", "intake")["id"]

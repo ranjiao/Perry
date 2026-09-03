@@ -131,7 +131,7 @@ counts; without it, `closed` is a constant.
 |---|---|---|
 | `id` | string | **An opaque stable string.** Conventionally `TASK-NNN`, but a real board carries ids under several project-declared prefixes, some with no number at all — a board's own `## ID prefixes` section is where a project states them. Never reused, including after close, which is the part you may depend on. **Do not parse a number out of it** or sort by a numeric suffix. |
 | `title` | string | |
-| `summary` | string | Optional stable explanation of why the task exists and the intended outcome. `""` means unset. It is stored explicitly and is never inferred from `title`, `next_action`, specifications, evidence or journal prose. Added in 1.11. |
+| `summary` | string | **Why the task exists and what is true when it is done, written for a reader who was not in the conversation that filed it** — plain language, in the project's declared document language, at least one complete sentence. That audience clause is the field's whole point and was missing until TASK-325: the definition said *"explanation of why the task exists and the intended outcome"* and never said **who reads it or in what language**, and the field reached 25 of 114 open rows on Perry's own board because nothing asked for it and nothing checked it. `title` is shorthand for people who already know; this is the field `perry-explain` prints and a front-end renders, so a blank one costs exactly the reader it exists for. `""` means unset. It is stored explicitly and **never inferred** from `title`, `next_action`, specifications, evidence or journal prose. **Required by `perry-task add` since TASK-325** — a row minted after that carries one, and `perry-lint --summaries` reports the ones minted before. Both refuse/report on STRUCTURE only (equal to the title, no sentence, under five words); neither judges whether the prose reads well, and no consumer should read either as a quality signal. Added in 1.11; audience and structure stated in 1.18 without a bump — see § Changelog. |
 | `owner` | string | free text; the project's own owner model |
 | `priority` | string | `P0` \| `P1` \| `P2`. May be `""` for a closed task whose creating event predates the field. |
 | `status` | string | the typed current status from `tasks.jsonl`: one of `schema § enums.task_status` — `not_started`, `blocked`, `in_progress`, `review`, `done`, `dropped` — or `""` for a legacy record that predates a known value. `BOARD.md` is a projection and cannot change this value. |
@@ -599,6 +599,42 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### Not a version — `summary` gains an audience, 2026-09-03 (TASK-325)
+
+**The contract stays at `perry-task/list/1.18`. This is the stated version
+consequence, not a silent hold.**
+
+What changed is `tasks[].summary`'s DEFINITION — it now says who reads it and
+in what language — and the WRITE path: `perry-task add` refuses to mint a row
+without one, and `perry-task summary` refuses to replace one with something
+structurally unusable.
+
+Why that is not a bump, against this document's own three rules:
+
+- **Rule 2 is untouched.** No key was added, removed or retyped. `summary` is
+  the same key, the same `string`, and `""` still means unset.
+- **`semantics` is not the right home either.** That array exists for a value
+  whose MEANING was corrected — the 1.5 precedent, where a field started
+  answering a different question. `summary` answers exactly the question it
+  answered in 1.11; the definition now states the audience it always implied.
+  A consumer's code reading this key needs no change, and emitting a
+  `semantics` entry would tell `aimark` to go and re-read a payload that has
+  not moved.
+- **This contract is the READ interface.** Its opening sentence says so. A
+  gate on a writing subcommand is outside what it governs.
+
+**The one consumer-visible fact, stated rather than versioned:** rows minted
+after 2026-09-03 always carry a non-empty `summary`, where before it was
+usually empty. That is a change in the DATA, not in the contract — the same
+class as a project filing more tasks. A front-end that renders `summary` only
+when non-empty keeps working unchanged and simply shows it more often.
+
+**Left for whoever next opens this document:** if the PMO judges "a row minted
+after this date always carries one" to be a guarantee consumers should be able
+to branch on, that is a `1.19` with a `semantics` entry, and it is a decision
+about the contract rather than about this row. It was deliberately not taken
+here.
 
 ### 1.18 — 2026-08-28
 

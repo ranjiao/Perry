@@ -92,10 +92,20 @@ class Project:
 
     ADD_DEFAULTS = ("--deliverable", "a thing that exists afterwards",
                     "--verification", "the suite is green")
+    #: `--summary` joined the refusals under TASK-325. Injected separately so a
+    #: test that passes its own still gets the deliverable pair, and shaped to
+    #: satisfy the structural rules the tool enforces without folding onto any
+    #: fixture title.
+    SUMMARY_DEFAULT = ("--summary",
+                       "A fixture row that exists so the writer has something "
+                       "to write. It carries no meaning beyond that.")
 
     def task(self, *argv) -> tuple[int, dict | str]:
         if argv and argv[0] == "add" and "--title" in argv:
             argv = (*argv, *self.ADD_DEFAULTS)
+        if argv and argv[0] == "add" and "--summary" not in argv \
+                and "--title" in argv:
+            argv = (*argv, *self.SUMMARY_DEFAULT)
         r = subprocess.run([sys.executable, str(TASK), *argv,
                             "--root", str(self.root), "--json"],
                            capture_output=True, text=True)

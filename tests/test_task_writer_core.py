@@ -139,6 +139,9 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         procs = [subprocess.Popen(
             ["python3", str(TOOL), "add", "--title", f"concurrent {i}",
              "--priority", "P0", *Project.ADD_DEFAULTS,
+             # Spelled out because this call builds argv itself rather than
+             # going through `Project.run`, which is where the injection lives.
+             *Project.SUMMARY_DEFAULT,
              "--root", str(p.root), "--json"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             for i in range(n)]

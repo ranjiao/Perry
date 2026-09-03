@@ -149,11 +149,23 @@ class Project:
     # by `TestATaskMustCarryItsDefinition`.
     ADD_DEFAULTS = ("--deliverable", "a thing that exists afterwards",
                     "--verification", "the suite is green")
+    #: `--summary` joined the refusals under TASK-325, and is injected
+    #: SEPARATELY from the pair above because a test that supplies its own
+    #: deliverable inline still needs one. It has to satisfy the same
+    #: structural rules the tool enforces — a sentence, five words or more,
+    #: and not the title again — so it is deliberately generic enough never to
+    #: fold onto any fixture title.
+    SUMMARY_DEFAULT = ("--summary",
+                       "A fixture row that exists so the writer has something "
+                       "to write. It carries no meaning beyond that.")
 
     def run(self, *argv) -> tuple[int, dict | str]:
         if argv and argv[0] == "add" and "--deliverable" not in argv \
                 and "--title" in argv:
             argv = (*argv, *self.ADD_DEFAULTS)
+        if argv and argv[0] == "add" and "--summary" not in argv \
+                and "--title" in argv:
+            argv = (*argv, *self.SUMMARY_DEFAULT)
         r = subprocess.run(
             ["python3", str(TOOL), *argv, "--root", str(self.root), "--json"],
             capture_output=True, text=True)

@@ -9,7 +9,8 @@ templates) against the one declared schema.
 
 Usage:
   perry-lint [--root <project_root>] [--templates | --claims | --verification |
-              --provenance | --knowledge | --reviews | --glossary | --specs]
+              --provenance | --knowledge | --reviews | --glossary | --specs |
+              --summaries]
              [--json]
              [--state-root <path>] [--strict] [--quiet]
 
@@ -95,6 +96,23 @@ otherwise be no way to accept one.
                 verdict (TASK-284). Prints the spec count even at zero
                 findings. With --strict this mode EXITS NON-ZERO, so a
                 dispatcher can refuse to run a pre-flight over nothing.
+  --summaries   the full, uncapped form of a check the DEFAULT pass already
+                runs, like --specs above. Advisory pass over every OPEN task
+                row's `summary` — the field `perry-explain` prints and a
+                front-end renders, which is why a blank one costs a reader
+                who was not in the conversation that filed the row.
+                STRUCTURAL ONLY. It reports four things: the field is absent
+                (`summary-missing`); it restates the title after folding case
+                and punctuation (`summary-repeats-title`); it contains no
+                sentence (`summary-has-no-sentence`); it is under five tokens,
+                a CJK character counting as one so the rule does not silently
+                mean "in English" (`summary-is-a-fragment`).
+                It does NOT judge whether the prose
+                is readable, plain, well-written, or true, and must not be
+                quoted as though it does — see `summary_shape`'s docstring for
+                the list of properties deliberately not checked and why,
+                including the one this row's own spec proposed and the corpus
+                refuted. Closed rows are not scanned; they are history.
   --state-root  with --claims, test a candidate state root other than the one
                 .perry/config.md declares (or `.` when there is none).
   --json        machine-readable findings
@@ -1716,6 +1734,109 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     check_verification.rows_seen = rows_seen
     return findings
 
+
+# ── task summaries (TASK-325) ─────────────────────────────────────────────
+
+
+#: The structural predicate, and the ONE place it is defined. `bin/perry-task`
+#: refuses on it at write time and this reports on it afterwards; a second
+#: copy is how those two start disagreeing about what they are for.
+summary_shape = lib.summary_shape
+SUMMARY_MIN_WORDS = lib.SUMMARY_MIN_WORDS
+
+
+def check_summaries(state_root: Path) -> list["Finding"]:
+    """Advisory pass over every OPEN task row's `summary`.
+
+    **Open rows only.** 205 of this board's 319 rows are closed and are
+    history; backfilling them was ruled out of scope by TASK-325's spec, and a
+    check that reported them would make its own remedy impossible to finish.
+
+    Advisory rather than an error, on the `check_specs` precedent one register
+    over: 89 of 114 open rows are blank at the moment this ships, and promoting
+    that to an error turns every project's CI red for a field that was
+    optional until today. `--strict` does not promote it; branch on the
+    `--json` count. The HARD half of TASK-325 is at the other end —
+    `perry-task add` refuses to mint a new row without `--summary`, so the
+    population this reports is bounded and shrinking rather than replenished.
+    """
+    findings: list[Finding] = []
+    check_summaries.stats = {"store_present": False, "open_rows": 0,
+                             "carrying": 0, "blank": 0, "shape_findings": 0}
+    store = state_root / "tasks.jsonl"
+    if not store.exists():
+        # Not a pass. Same rule as `check_store_drift`'s "no store" line: a
+        # census that did not happen must not print like a clean one.
+        return findings
+    check_summaries.stats["store_present"] = True
+
+    try:
+        raw = store.read_text(errors="replace")
+    except OSError:
+        # `tasks.jsonl` is a DIRECTORY, or is unreadable. `exists()` is true
+        # for both, and `read_text` then raises — one check taking the whole
+        # lint run down with it. `check_store_drift` owns reporting the
+        # condition; `TestOneCheckMayNotKillTheLint` is what says this one may
+        # not crash on it.
+        return findings
+
+    rows = []
+    for line in raw.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            # `check_store_drift` owns reporting an unreadable store; saying it
+            # twice from two checks is two findings for one defect.
+            return findings
+
+    closed = {"done", "dropped"}
+    shape_hits = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        # **Every field here is coerced before it is used.** A store record is
+        # not trusted to be well-typed: `check_store_drift` owns reporting a
+        # badly-typed one, and `ABadlyTypedStoreIsReportedNotFatal` pins that
+        # no shape of no field may kill the lint. The first draft of this loop
+        # wrote `r.get("status") in closed`, which raises `TypeError:
+        # unhashable type` on a `status` holding a list or a dict — one check
+        # taking the whole run down with it, on a file whose entire purpose is
+        # to report that the store is malformed.
+        status = r.get("status")
+        if isinstance(status, str) and status in closed:
+            continue
+        check_summaries.stats["open_rows"] += 1
+        # Same coercion rule as `status` above, and for the same reason: a
+        # non-string `title` reaches `.lower()` inside the fold and a
+        # non-string `summary` reaches `.strip()`. Both are `TypeError`s that
+        # would take the whole lint down on a store this run exists to report.
+        def _s(key: str) -> str:
+            v = r.get(key)
+            return v if isinstance(v, str) else ""
+        tid = _s("id") or "(unnamed row)"
+        hits = summary_shape(_s("title"), _s("summary"))
+        if not hits:
+            check_summaries.stats["carrying"] += 1
+            continue
+        if hits[0][0] == "summary-missing":
+            check_summaries.stats["blank"] += 1
+        else:
+            check_summaries.stats["carrying"] += 1
+            shape_hits += len(hits)
+        for rule, why in hits:
+            # The remedy is appended HERE rather than carried in `lib`: the
+            # same predicate is read by `perry-task add`, where "write one
+            # with `perry-task summary`" is the wrong instruction, because at
+            # that point the row does not exist yet.
+            findings.append(Finding(
+                "warn", "tasks.jsonl", rule,
+                f"{tid}: {why} — `perry-task summary {tid} "
+                f"--summary \"…\"` writes it"))
+    check_summaries.stats["shape_findings"] = shape_hits
+    return findings
 
 
 # ── provenance (DESIGN-003 § 5.4) ──────────────────────────────────────────
@@ -4177,7 +4298,7 @@ def main(argv: list[str]) -> int:
     root_arg = None
     mode_templates = mode_claims = mode_verification = False
     mode_provenance = mode_knowledge = mode_reviews = False
-    mode_glossary = mode_specs = False
+    mode_glossary = mode_specs = mode_summaries = False
     as_json = strict = quiet = False
     state_root_arg = None
     i = 0
@@ -4205,6 +4326,8 @@ def main(argv: list[str]) -> int:
             mode_glossary = True
         elif a == "--specs":
             mode_specs = True
+        elif a == "--summaries":
+            mode_summaries = True
         elif a == "--state-root":
             i += 1
             state_root_arg = argv[i] if i < len(argv) else None
@@ -4300,6 +4423,41 @@ def main(argv: list[str]) -> int:
         # existed. `--strict` does NOT promote these; branch on --json `count`.
         return 0
 
+
+    if mode_summaries:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        findings = check_summaries(state_root)
+        st = getattr(check_summaries, "stats", {})
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "summaries": dict(st),
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --summaries · {project_root}")
+            # Uncapped here — this is the mode you type when you want the list.
+            for f in findings:
+                print(f)
+            if not st.get("store_present"):
+                print("\n  · no `tasks.jsonl` — summaries are unchecked, "
+                      "not clean")
+            elif not st.get("open_rows"):
+                print("\n  · no open rows to check")
+            else:
+                print(f"\n  {st['carrying']} of {st['open_rows']} open row(s) "
+                      f"carry a summary · {st['blank']} blank · "
+                      f"{st['shape_findings']} shape finding(s) on rows that "
+                      f"do carry one")
+        # Advisory, like `--verification` and `--specs`, and for the same
+        # reason: the field was optional until today and a hard gate here
+        # would redden every existing project's CI over history it cannot
+        # change. The hard half is `perry-task add`, which refuses.
+        return 0
 
     if mode_glossary:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg
@@ -4600,6 +4758,16 @@ def main(argv: list[str]) -> int:
             # specs still lints green-with-warnings rather than newly broken.
             findings.extend(check_specs(root, project_root,
                                         cap=DRIFT_ROWS_SHOWN))
+            # **In the DEFAULT pass, for the reason `check_specs` is** — "a
+            # flag nobody types is not a report". TASK-325's whole measured
+            # cause is that nothing ever ASKED for this field: it has existed
+            # since contract 1.11, has two writers and three readers, and
+            # reached 25 of 114 open rows because no procedure and no check
+            # ever mentioned it. Putting the report behind `--summaries` only
+            # would reproduce that exactly. Capped like the drift checks so 89
+            # findings do not bury the other fifteen; `--summaries` and
+            # `--json` both name every one.
+            findings.extend(check_summaries(root)[:DRIFT_ROWS_SHOWN])
         label = str(project_root)
         if root != project_root:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
@@ -4639,6 +4807,13 @@ def main(argv: list[str]) -> int:
             payload["specs"] = dict(getattr(
                 check_specs, "stats",
                 {"specs": 0, "unscannable": 0, "checked": False}))
+            # Carried for the reason the drift stats are: the human pass caps
+            # the findings at ten, so the COUNT has to reach a caller that
+            # wants to know how many rows a reader cannot identify.
+            payload["summaries"] = dict(getattr(
+                check_summaries, "stats",
+                {"store_present": False, "open_rows": 0, "carrying": 0,
+                 "blank": 0, "shape_findings": 0}))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not quiet:
         print(f"perry-lint · {label}")
@@ -4763,6 +4938,25 @@ def main(argv: list[str]) -> int:
             else:
                 print(f"  · specs: all {_sst['specs']} offer the escalation "
                       f"gate a section to scan")
+        # And a line for the summaries, on the same rule as the seven above:
+        # the findings themselves are capped at ten, so without this the reader
+        # of a board with 89 blank rows sees ten warnings and no total. Printed
+        # every run, findings or none.
+        _sum = getattr(check_summaries, "stats", None)
+        if _sum and not mode_templates:
+            if not _sum["store_present"]:
+                print("  · no `tasks.jsonl` — summaries are unchecked, "
+                      "not clean")
+            elif not _sum["open_rows"]:
+                print("  · no open rows — summaries unchecked, not clean")
+            elif _sum["blank"] or _sum["shape_findings"]:
+                print(f"  · summaries: {_sum['carrying']} of "
+                      f"{_sum['open_rows']} open row(s) carry one · "
+                      f"{_sum['blank']} blank · {_sum['shape_findings']} shape "
+                      f"finding(s) (`perry-lint --summaries` names every one)")
+            else:
+                print(f"  · summaries: all {_sum['open_rows']} open row(s) "
+                      f"carry one that is not just the title again")
 
     if errors:
         return 1

@@ -629,6 +629,7 @@ class TestTheInvariantIsStillACountRule(Base):
         # removal over its own bound. One test would leave the other branch
         # untested and neither is the whole rule.
         rc, out = f.run("add", "--title", "an unrelated task",
+                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                         "--deliverable", "d", "--verification", "v")
         self.assertNotEqual(rc, 0, "an ordinary shrink was permitted:\n" + out)
         self.assertIn("may never make a canonical store smaller", out)

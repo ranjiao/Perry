@@ -15,14 +15,33 @@ ROOT = Path(__file__).resolve().parent.parent
 EXPLAIN = ROOT / "bin" / "perry-explain"
 TASK = ROOT / "bin" / "perry-task"
 
+#: The sentinel other writers must not disturb. It is a SENTENCE rather than
+#: the bare token it used to be because `add` now refuses a summary that
+#: carries none (TASK-325); the token is still in it, so the assertions still
+#: name exactly what they are looking for.
+SENTINEL = ("SUMMARY-SENTINEL must survive every unrelated write "
+            "that this row receives.")
+
 
 class TaskSummaryContract(unittest.TestCase):
     def add(self, project: Project, summary: str | None = None) -> str:
+        """Create a row carrying `summary`, or carrying none when it is None.
+
+        **`summary=None` adds and then CLEARS**, because `add` refuses a row
+        with no summary since TASK-325. The state under test is unchanged — a
+        stored `summary` of `""` — and it is still reachable, because `--clear`
+        is deliberately not gated: a summary that turns out to be wrong must
+        stay removable, an empty field being better than a confident lie. What
+        is no longer reachable is MINTING a row that way, which is the point.
+        """
         argv = ["add", "--title", "Compact label", "--priority", "P1"]
-        if summary is not None:
-            argv += ["--summary", summary]
+        argv += ["--summary", summary if summary is not None else
+                 "A row created so that its summary can be cleared again."]
         rc, out = project.task(*argv)
         self.assertEqual(rc, 0, out)
+        if summary is None:
+            rc, cleared = project.task("summary", out["id"], "--clear")
+            self.assertEqual(rc, 0, cleared)
         return out["id"]
 
     def listed(self, project: Project, task_id: str) -> dict:
@@ -88,19 +107,19 @@ class TaskSummaryContract(unittest.TestCase):
 
     def test_dedicated_update_and_clear_touch_only_summary(self):
         project = Project(self)
-        task_id = self.add(project, "old purpose")
+        task_id = self.add(project, "The purpose this row was filed with, before anyone revised it.")
         before = project.record(task_id)
 
-        rc, out = project.task("summary", task_id, "--summary", "新的稳定说明")
+        rc, out = project.task("summary", task_id, "--summary", "新的稳定说明：这条记录为什么存在。")
         self.assertEqual(rc, 0, out)
         after = project.record(task_id)
-        self.assertEqual(after["summary"], "新的稳定说明")
+        self.assertEqual(after["summary"], "新的稳定说明：这条记录为什么存在。")
         self.assertEqual({k: v for k, v in after.items() if k != "summary"},
                          {k: v for k, v in before.items() if k != "summary"})
         event = json.loads((project.root / ".perry" / "events.jsonl")
                            .read_text(encoding="utf-8").splitlines()[-1])
         self.assertEqual((event["event"], event["field"], event["from"], event["to"]),
-                         ("summary", "summary", "old purpose", "新的稳定说明"))
+                         ("summary", "summary", "The purpose this row was filed with, before anyone revised it.", "新的稳定说明：这条记录为什么存在。"))
         timeline = self.listed(project, task_id)["timeline"][-1]
         self.assertEqual(timeline["field"], "summary")
 
@@ -113,23 +132,23 @@ class TaskSummaryContract(unittest.TestCase):
                          {k: v for k, v in before_clear.items() if k != "summary"})
 
         terminal = Project(self)
-        terminal_id = self.add(terminal, "before close")
+        terminal_id = self.add(terminal, "The purpose this row carried before it was closed out.")
         rc, out = terminal.task("done", terminal_id, "--evidence", "proof.md",
                                 "--rung", "V3")
         self.assertEqual(rc, 0, out)
         rc, out = terminal.task("summary", terminal_id,
-                                "--summary", "still editable after close")
+                                "--summary", "A closed row can still have its summary corrected afterwards.")
         self.assertEqual(rc, 0, out)
         self.assertEqual(terminal.record(terminal_id)["status"], "done")
         self.assertEqual(terminal.record(terminal_id)["summary"],
-                         "still editable after close")
+                         "A closed row can still have its summary corrected afterwards.")
 
     def test_summary_update_preserves_store_record_order(self):
         project = Project(self)
         before = [record["id"] for record in project.store()]
 
         rc, out = project.task("summary", "TASK-002", "--summary",
-                               "metadata only")
+                               "This write touches metadata only and no other stored field.")
 
         self.assertEqual(rc, 0, out)
         self.assertEqual([record["id"] for record in project.store()], before)
@@ -139,13 +158,13 @@ class TaskSummaryContract(unittest.TestCase):
 
         written = subprocess.run(
             [sys.executable, str(TASK), "summary", "TASK-002", "--summary",
-             "ROUND-2 purpose", "--root", str(project.root)],
+             "ROUND-2 is prose here and must not be read as an identifier.", "--root", str(project.root)],
             capture_output=True, text=True)
 
         self.assertEqual(written.returncode, 0, written.stderr)
         self.assertNotIn("reads as an id", written.stderr)
         self.assertEqual(project.record("TASK-002")["summary"],
-                         "ROUND-2 purpose")
+                         "ROUND-2 is prose here and must not be read as an identifier.")
 
     def test_every_unrelated_task_writer_preserves_the_sentinel(self):
         cases = {
@@ -164,11 +183,11 @@ class TaskSummaryContract(unittest.TestCase):
         for name, command in cases.items():
             with self.subTest(command=name):
                 project = Project(self)
-                task_id = self.add(project, "SUMMARY-SENTINEL")
+                task_id = self.add(project, SENTINEL)
                 rc, out = project.task(*command(task_id))
                 self.assertEqual(rc, 0, out)
                 self.assertEqual(project.record(task_id)["summary"],
-                                 "SUMMARY-SENTINEL")
+                                 SENTINEL)
 
     def test_pipeline_stage_mutation_preserves_the_sentinel(self):
         from tests.test_store_is_the_write_target import BOARD
@@ -192,7 +211,7 @@ class TaskSummaryContract(unittest.TestCase):
             "| ops | pipeline | OKR.md | brief,draft | — | 3d | — | V2 |\n",
             encoding="utf-8")
         rc, out = project.task("summary", "TASK-002", "--summary",
-                               "SUMMARY-SENTINEL")
+                               SENTINEL)
         self.assertEqual(rc, 0, out)
 
         rc, out = project.task("stage", "TASK-002", "--stage", "draft")
@@ -200,7 +219,7 @@ class TaskSummaryContract(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertEqual(project.record("TASK-002")["stage"], "draft")
         self.assertEqual(project.record("TASK-002")["summary"],
-                         "SUMMARY-SENTINEL")
+                         SENTINEL)
 
     def test_legacy_record_stays_empty_after_the_next_write(self):
         project = Project(self)

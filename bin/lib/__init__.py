@@ -1038,3 +1038,140 @@ def declared_id_families(root: Path) -> set[str]:
     """
     return {fam for path in walk_md(root)
             if (fam := id_family(path.stem)) is not None}
+
+
+# ── what a task summary has to be, structurally (TASK-325) ────────────────
+
+
+#: Fewer words than this and the value cannot be an explanation of anything.
+#: **Set against the corpus rather than by taste.** The shortest genuine
+#: summary on Perry's own board is 22 words, so 5 leaves better than 4x
+#: headroom and this rule can only ever fire on a stub. It is the one rule in
+#: `summary_shape` that is a proxy rather than a structural fact, and it is
+#: named as such there rather than hidden among the others.
+SUMMARY_MIN_WORDS = 5
+
+#: **`\W` under Unicode, not `[^0-9a-z]`.** The first draft folded away
+#: everything outside ASCII, so every Chinese summary folded to the EMPTY
+#: string — and since `"a title".startswith("")` is true, every one of them was
+#: reported as repeating its title. Same root cause as the length floor's:
+#: a rule that calls itself structural while quietly meaning "in English".
+_SUMMARY_FOLD = re.compile(r"[\W_]+", re.UNICODE)
+#: Latin and CJK sentence terminators. NOT a grammar test — the only claim
+#: made is that a value with no terminator anywhere is not a sentence.
+_SUMMARY_SENTENCE = re.compile(r"[.!?。！？]")
+#: CJK ideographs, kana and Hangul — scripts that do not put spaces between
+#: words. **This exists because the first draft of the length floor counted
+#: `str.split()` and nothing else, which makes `新的稳定说明` exactly ONE word
+#: and would have refused every Chinese summary ever written.** Perry declares
+#: a document language per project, ships zh fixtures, and states in
+#: `SKILL.md` that its field names stay English precisely so the rest need not
+#: — so a "structural" rule that silently means "structural, in English" is
+#: the same defect as a denylist over English, one layer down.
+_SUMMARY_CJK = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯]")
+
+
+def summary_tokens(s: str) -> int:
+    """Length of a summary in a way that does not assume spaces between words.
+
+    A CJK character counts as one token and each whitespace-separated run of
+    everything else counts as one. So `新的稳定说明` is 6 rather than 1, and an
+    English sentence counts the way `str.split()` already counted it.
+    """
+    cjk = len(_SUMMARY_CJK.findall(s))
+    rest = len(_SUMMARY_CJK.sub(" ", s).split())
+    return cjk + rest
+
+
+def summary_fold(s: str) -> str:
+    """Case- and punctuation-insensitive key for comparing summary to title."""
+    return _SUMMARY_FOLD.sub(" ", (s or "").lower()).strip()
+
+
+def summary_shape(title: str, summary: str) -> list[tuple[str, str]]:
+    """Every STRUCTURAL rule this summary breaks, as `(rule, why)` pairs.
+
+    **It lives in `lib` because two tools have to agree about it.**
+    `bin/perry-task` refuses a bad summary at the moment of writing and
+    `bin/perry-lint` reports one already written; a second copy of the
+    predicate is how those two quietly start disagreeing about what they are
+    for, which is DESIGN-013's whole subject. `tests/test_task_summary.py`
+    pins that they answer identically over one corpus.
+
+    **This function judges structure and nothing else, and the list of things
+    it does not judge is part of its contract.** Twice on 2026-09-02 a guard
+    on this project tried to recognise bad English and lost — a hedge denylist
+    defeated by a retraction using none of its eight words, a push-order regex
+    by two synonyms — and the reviewer's verdict was that a denylist over
+    English had lost the argument twice. So:
+
+    CHECKED, each a fact about bytes rather than about prose:
+
+    - `summary-missing` — absent, empty, or whitespace only.
+    - `summary-repeats-title` — equal to the title once case and punctuation
+      are folded away, or one is a prefix of the other. A summary that IS the
+      title adds nothing to it by construction; saying so involves no
+      judgement of quality.
+    - `summary-has-no-sentence` — no sentence terminator anywhere.
+    - `summary-is-a-fragment` — fewer than `SUMMARY_MIN_WORDS` tokens, counted
+      by `summary_tokens`, which counts a CJK character as a token so the rule
+      does not silently mean "structural, in English".
+
+    NOT CHECKED, deliberately, each for a measured reason:
+
+    - **Whether the summary opens with a bare id.** TASK-325's spec proposed
+      exactly this predicate and named `TASK-218` ("DESIGN-012 I1") as its
+      example. Measured over the 49 summaries on this board: ten open with a
+      bare citation and **all ten are good summaries**, so implemented as
+      proposed the rule would have shipped at zero precision over its entire
+      true-positive set. A leading citation followed by an explanation is this
+      project's house style.
+    - **Whether it contains ids, paths or backticks.** 39 of 49 do. That is a
+      summary citing its source, which is the behaviour to keep.
+    - **Readability, reading level, vocabulary, hedging, tone.** No test of
+      any kind. This function does not measure whether a summary is plain
+      language and must not be quoted as though it does.
+    - **Whether the summary is TRUE of its row.** Nothing structural can
+      establish that. It is why TASK-325's backfill left rows blank rather
+      than guessing: a confidently wrong summary is worse than an empty field,
+      because the empty field at least tells the reader to go and look.
+    - **Whether it is shorter than its title.** Considered and rejected: a
+      good plain-language gloss of a long shorthand title is frequently
+      shorter than it, which is the outcome this whole row wants.
+    """
+    s = (summary or "").strip()
+    if not s:
+        return [("summary-missing",
+                 "no summary — `perry-explain` on this row prints its title "
+                 "back at the reader and nothing else")]
+    out: list[tuple[str, str]] = []
+    ft, fs = summary_fold(title), summary_fold(s)
+    # BOTH must be non-empty. `x.startswith("")` is true for every `x`, so a
+    # summary that folds to nothing would otherwise "repeat" every title.
+    #
+    # **A bare prefix test is not enough, and the fixture that proved it is a
+    # row titled "A".** `"a fixture row that exists…"` starts with `"a"`, so
+    # every summary on that row read as a repeat of its title. The defect this
+    # rule is for is "the summary ADDS NOTHING to the title", so that is what
+    # it measures: identical after folding, or one contains the other and the
+    # difference between them is smaller than the fragment floor. A summary
+    # that opens by restating its title and then explains for another forty
+    # words is not the defect — it is wordy, and wordiness is a matter of
+    # taste, which this check does not have.
+    if ft and fs:
+        added = abs(summary_tokens(fs) - summary_tokens(ft))
+        if fs == ft or ((fs.startswith(ft) or ft.startswith(fs))
+                        and added < SUMMARY_MIN_WORDS):
+            out.append(("summary-repeats-title",
+                        "the summary restates the title rather than "
+                        "explaining it — a reader who did not understand the "
+                        "title learns nothing new from it"))
+    if not _SUMMARY_SENTENCE.search(s):
+        out.append(("summary-has-no-sentence",
+                    "the summary contains no sentence — the contract asks "
+                    "for prose a reader outside the conversation can act on"))
+    if summary_tokens(s) < SUMMARY_MIN_WORDS:
+        out.append(("summary-is-a-fragment",
+                    f"the summary is {summary_tokens(s)} word(s); fewer than "
+                    f"{SUMMARY_MIN_WORDS} cannot carry why the row exists"))
+    return out

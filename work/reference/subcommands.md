@@ -571,7 +571,18 @@ For every User Input Queue item idle ≥5 days, surface a one-line reminder in c
 ### `add-task` (interactive)
 After OKR `plan-week` (or any other source) proposes a task and the user approves, PMO does THREE things — the third is conditional on priority.
 
-**First, an input-quality pass** (`$PERRY_HOME/reference/input-quality.md § 4 Task`): check the task's Verification is falsifiable (not "looks good"), Deliverable is an artifact (not an activity), Owner is a single value from the Owner model, Priority is justified (P0 only if it blocks a Must-Have), and a `kr:` linkage is present when the task came from `plan-week`. Surface ≤3 issues, advisory + override — fix with the user or write as-is with a one-line journal reason. Never silently rewrite. (Tasks arriving already-clean from `plan-week`, which ran the same §4 pass, usually pass with `✓ Input quality: clean`.)
+**First, an input-quality pass** (`$PERRY_HOME/reference/input-quality.md § 4 Task`): check the task's Verification is falsifiable (not "looks good"), Deliverable is an artifact (not an activity), **Summary is written for a reader who was not in this conversation** (§4.6), Owner is a single value from the Owner model, Priority is justified (P0 only if it blocks a Must-Have), and a `kr:` linkage is present when the task came from `plan-week`. Surface ≤3 issues, advisory + override — fix with the user or write as-is with a one-line journal reason. Never silently rewrite. (Tasks arriving already-clean from `plan-week`, which ran the same §4 pass, usually pass with `✓ Input quality: clean`.)
+
+**Write the `--summary`, and write it for a stranger.** This is the one field on the row whose whole job is to be legible to somebody who was not here. The title is shorthand — `D009 step 3 — the O-1 mint and the write-back to the store` is perfectly clear to the two of you and says nothing to the person who opens the board in three weeks. The summary is what `perry-explain <ID>` prints and what a front-end renders, so a row without one is a row nobody can pick up without re-reading a design document.
+
+`perry-task add` **refuses without it** — the same hard refusal `--deliverable` and `--verification` already carry, and for the same reason. It is a hard gate rather than an advisory because **the advisory version has already been tried on this exact field and measured**: `--summary` was an optional flag from contract 1.11, nothing asked for it and nothing checked it, and it reached 25 of 114 open rows. `DESIGN-003 § 4` decision 4's "advisory first, hard gate next" does not apply here, because its stated reason is retroactive invalidation and `add` has no retroactive half — it governs only rows minted from now on. The rows minted before are reported, not refused, by `perry-lint --summaries`.
+
+Two or three sentences of plain language: *why this row exists* and *what is true when it is done*. Cite the design or decision it comes from if there is one — a leading `DESIGN-012 § 5.1.` then the explanation is this project's house style and is encouraged, not penalised. What `add` refuses is **structural only**: a summary that folds to the title again, one containing no sentence, one under five words. It does not judge whether the prose reads well, and you should not write to please it — write to be understood.
+
+```
+--summary "Perry ships two opposite orderings of the phase-close pipeline.
+           Nothing picks one, so whoever runs it picks by which page they read."
+```
 
 **Then, the KR-attribution gate** (`$PERRY_HOME/reference/okr-linkage.md`) — hard, not advisory: resolve the task's KR by stable ID through `phase/<NNN>-linkage.md` (explicit `kr:` → Project ID → registered alias). If it resolves to exactly one KR, set `kr:` and continue. If it resolves to zero or many — a drifted/ambiguous name, or a Project no registry row claims — **do NOT fuzzy-match**: ask the user (`AskUserQuestion`, header `"KR attribution"`, options = the candidate KR IDs + text, plus "Other → new/none"). Record the chosen KR in the spec, then **hand the result to `okr`**, which is the only writer of `phase/` (`goals/reference/linkage.md`):
 
@@ -604,9 +615,17 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
 
    ```
    "$PERRY_HOME/bin/perry-task" add --title "<title>" --owner "<owner>" \
+       --summary "<why this row exists, for a reader who was not here>" \
+       --deliverable "<the artifact>" --verification "<the falsifiable check>" \
        --priority <P0|P1|P2> [--track <track>] [--next "<next action>"] \
        [--parent <ID>] [--commitment <Id>]
    ```
+
+   **`--summary`, `--deliverable` and `--verification` are all required and
+   all three are refused if absent.** They used to be shown as optional here
+   while two of them were already hard refusals in the tool, so the block a
+   reader copied did not run — which is the shape TASK-325 exists to stop one
+   field further along.
 
    It mints the ID from board ∪ journal ∪ events (never reused, never
    accidentally gapped), stamps the timestamp at call time, sets `Stage` /
