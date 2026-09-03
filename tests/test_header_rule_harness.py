@@ -1337,11 +1337,41 @@ class TestTheCopyItselfIsClean(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_the_copy_carries_the_readers(self):
-        """A copy that lost the tree would make every scan below vacuous."""
+        """A copy that lost the tree would make every scan below vacuous.
+
+        **Compare like with like.** This asserted the copy's reader count
+        against `readers_under(PERRY_HOME)`, which walks the WHOLE tree —
+        including the directories `NOT_COPIED` deliberately drops. The two
+        numbers were equal only because none of those directories held a
+        Python file, and on 2026-09-03 one did: a bound-generating script was
+        committed to `perry/evidence/2026-09/` as a row's evidence, and this
+        control went red (19 != 20) reporting a copy defect that did not
+        exist. The control is that the copy did not LOSE readers, so the live
+        side must exclude what the copy was never given.
+
+        **The exclusion is spelled a SECOND time on purpose.** Deriving the
+        expectation from `NOT_COPIED` itself makes this a tautology: adding
+        `viewer` to that set then drops it from both sides, and the control
+        goes green on a copy that lost 20 readers. Measured — that is exactly
+        what the first attempt at this fix did. `SOURCELESS` below is an
+        independent spelling, so the two disagreeing is itself the failure.
+        """
+        # Directories that hold no Python reader: Perry's state root (prose and
+        # data), the harness's own tests, and VCS/tooling scratch. Written out
+        # rather than imported from `NOT_COPIED` — see the docstring.
+        SOURCELESS = {".git", "perry", "tests", "__pycache__", ".perry",
+                      ".claude"}
         tmp = _copy()
         try:
-            self.assertEqual(len(readers_under(tmp / "t")),
-                             len(readers_under(PERRY_HOME)))
+            got = {p.relative_to(tmp / "t")
+                   for p in readers_under(tmp / "t")}
+            expected = {p.relative_to(PERRY_HOME)
+                        for p in readers_under(PERRY_HOME)
+                        if not (set(p.relative_to(PERRY_HOME).parts)
+                                & SOURCELESS)}
+            # Set equality, not count equality: a copy that swapped one reader
+            # for another would pass a count check.
+            self.assertEqual(got, expected)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
