@@ -2651,8 +2651,18 @@ def escalation_scan(project_root: Path, spec_arg: str | None) -> int:
                                   union["union"])
     out["spec"] = spec.as_posix()
     out["fragments_scanned"] = len(union["union"])
+    # `contradictions` and `discounted` join the two lists that were already
+    # attributed. A fragment the scan *stopped* counting is exactly the one a
+    # reader needs a source for — "which bullet, hook or role, did this come
+    # from" is the first question asked of a discount, and answering it only
+    # for the fragments that still refuse would leave the quiet half unsourced.
+    # TASK-290.
+    attributed = list(out["refuse"]) + list(out["green_lit"])
+    attributed += list(out.get("contradictions", []))
+    for per_section in out.get("discounted", {}).values():
+        attributed += list(per_section)
     out["origins"] = {f: union["origins"].get(f, [])
-                      for f in out["refuse"] + out["green_lit"]}
+                      for f in dict.fromkeys(attributed)}
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return SCAN_EXIT[out["verdict"]]
 
