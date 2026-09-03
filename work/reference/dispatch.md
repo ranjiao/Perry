@@ -46,13 +46,78 @@ who is being hired, the `Executor:` field says what instantiates it, and
 `bin/perry-dispatch-limit` counts the latter only. A card's `executors` field
 may narrow which runtimes are acceptable; it never grants a slot.
 
+## The tree the agent works in
+
+> **A dispatched agent works in its own git worktree. The primary checkout is
+> never switched by an agent; it merges the agent's branch afterwards, and that
+> merge is the only code operation it performs.**
+
+This is the rule; `git-boundaries.md` and `delegate.md` reference it and do not
+restate it. It governs every executor, not only the native subagents.
+
+**Why it is a rule and not a preference.** This file used to say "work on a
+feature branch" and nothing about the tree, and a branch instruction with no
+isolation instruction is an instruction to run `git checkout -b` *in the shared
+working tree*. Observed live, twice, in one day:
+
+- **2026-09-02** — TASK-247 was dispatched as a `claude-subagent` told to create
+  `coding/task-247-config-predicate`. It did, in the shared tree, so the PMO's
+  own checkout moved onto that branch. Every PMO write afterwards — journal,
+  evidence, board — committed there. A `git add -A` in the agent's commit would
+  have swept two lanes into one code commit.
+- **2026-09-03** — the bill arrived: four V4 review documents and 91 journal
+  lines were on that branch and not on `main`, while a merge commit bearing the
+  branch's name sat in `main`'s history and a commit message asserted the work
+  was live on `main`. True of the code, false of the records.
+
+The failure is also **invisible from inside**: TASK-247's own agent reported that
+every `bash tests/run` step 0 failed naming only PMO-lane paths, and that this
+"cannot be distinguished from a real tree-guard failure by the guard's own
+output".
+
+**What each side does.**
+
+- The agent gets an isolated worktree and commits on its own branch. **Whether
+  it then pushes is the project's answer, not this file's** — where `git push`
+  and `origin` are in `.perry/hook.md § High-stakes operations`, which is the
+  default list bootstrap writes, the agent commits and stops there
+  (`git-boundaries.md`).
+- **State the worktree's branch point in the prompt.** A worktree branches from
+  wherever the tool cuts it, which is not necessarily where the work being
+  reviewed lives. On 2026-09-02 four agents were cut from a `main` that
+  contained none of the specs they were told to read. Worktrees share the object
+  database, so `git show <branch>:<path>` reaches anything committed — say so,
+  or inline the spec.
+- The primary checkout merges with `git merge --no-ff <branch>` once the row's
+  verification allows it, keeping the row's work one identifiable commit, then
+  removes the worktree and deletes the branch.
+
+**The merge cannot be delegated into the worktree**, and this was measured
+rather than assumed — git refuses both routes while the primary checkout holds
+`main`:
+
+```
+$ git checkout main                      # from the second worktree
+fatal: 'main' is already used by worktree '…'
+$ git push <primary> HEAD:main
+ ! [remote rejected] HEAD -> main (branch is currently checked out)
+```
+
+So a merge outside the primary checkout means a merge on the *remote* — a PR,
+which needs the hook to permit a push. **A project therefore has exactly two
+shapes available, and its hook already chooses between them**: push escalated →
+agent commits, primary checkout merges; push permitted → agent opens a PR and
+the verifying lane merges it. Read the hook once per dispatch; do not re-derive
+the argument.
+
 ### `Executor: claude-subagent` (Claude Code only)
 
 - **Host gate**: requires `$HOST = claude-code`. On OpenCode or Codex this executor is unavailable — refuse per the strict matrix in `../../reference/host-capabilities.md`.
 - Use the `Agent` tool with `subagent_type: general-purpose`.
 - Build prompt = **`ARCHITECTURE.md` full text + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + RESULT format including the mandatory `ARCHITECTURE COMPLIANCE` block (see § Architecture compliance RESULT).
 - Async-ness from spec's size hint: `Estimated cycle: small` → `run_in_background: false`; `medium | large` → `run_in_background: true`.
-- Sub-agent shares parent cwd. For split-repo projects: instruct sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
+- **Pass `isolation: "worktree"`. It is not optional** — see § The tree the agent works in, below.
+- Sub-agent shares parent cwd, and that is a fact about the *process*, not a licence for the *tree*: without `isolation`, the agent's `git checkout -b` moves the shared working tree, and every other lane's writes land on its branch. For split-repo projects: instruct sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
 
 ### `Executor: opencode-subagent` (OpenCode only)
 

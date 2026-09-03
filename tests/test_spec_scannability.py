@@ -575,5 +575,103 @@ class TestTheLinterDoesNotFakeItsLocalization(unittest.TestCase):
         self.assertEqual((out["specs_scanned"], out["unscannable"]), (1, 0))
 
 
+class TestTheAgentGetsItsOwnTree(unittest.TestCase):
+    """TASK-285. `dispatch.md` told an agent to branch and said nothing about
+    the tree, and a branch instruction with no isolation instruction is an
+    instruction to run `git checkout -b` in the SHARED working tree.
+
+    Measured 2026-09-03, before the fix: neither `worktree` nor `isolation`
+    appeared anywhere in `dispatch.md`. Observed live the day before — TASK-247's
+    subagent switched the shared tree to its own branch, and every PMO write
+    after that landed there; the bill was four V4 review documents and 91
+    journal lines sitting on a code branch while a merge commit bearing that
+    branch's name sat in `main`'s history.
+
+    These are text guards for the same reason the guards above are: the defect
+    was a text defect — a rule that was not written down. `visible()` is used so
+    that commenting the rule out, including with an unclosed `<!--`, reddens
+    this rather than leaving it green.
+    """
+
+    DISPATCH = PERRY_HOME / "work" / "reference" / "dispatch.md"
+    BOUNDARIES = PERRY_HOME / "work" / "reference" / "git-boundaries.md"
+    DELEGATE = PERRY_HOME / "work" / "reference" / "delegate.md"
+
+    def seen(self, path: Path) -> str:
+        return visible(path.read_text(encoding="utf-8"))
+
+    def test_dispatch_states_the_rule_and_names_the_flag(self):
+        """A reader who reaches the executor section must learn the flag to
+        pass, not merely that isolation is a good idea."""
+        src = self.seen(self.DISPATCH)
+        # Pinned to a whole line, not a substring. `assertIn` on the heading
+        # text was GREEN under a mutation that renamed the heading to
+        # `## The tree the agent works in RENAMED-AWAY` — the renamed heading
+        # still *contains* the asserted string, so the guard could not see a
+        # section that no longer exists under that name. Anchoring both ends
+        # is what makes the assertion about a heading rather than about bytes.
+        self.assertRegex(src, r"(?m)^## The tree the agent works in$")
+        self.assertIn('isolation: "worktree"', src)
+        self.assertIn("never switched by an agent", src)
+
+    def test_the_shared_cwd_line_no_longer_reads_as_a_licence(self):
+        """`Sub-agent shares parent cwd.` was true and was read as permission.
+        It is corrected in place rather than deleted — it is a fact about the
+        process — so the assertion is that the correction travels with it."""
+        src = self.seen(self.DISPATCH)
+        i = src.index("Sub-agent shares parent cwd")
+        sentence = src[i:i + 400]
+        self.assertIn("not a licence", sentence)
+
+    def test_dispatch_says_why_not_merely_what(self):
+        """A rule with no reason attached is a style note, and the next author
+        deletes it. The two observed failures are the reason."""
+        src = self.seen(self.DISPATCH)
+        section = src[src.index("## The tree the agent works in"):
+                      src.index("### `Executor: claude-subagent`")]
+        self.assertIn("TASK-247", section)
+        self.assertIn("branch is currently checked out", section)
+
+    def test_the_merge_side_is_stated_where_the_rule_is(self):
+        """The half that makes the rule usable: something has to merge, and it
+        cannot be the worktree. Stating isolation without stating who merges
+        leaves the branch stranded, which is the failure this row is about."""
+        section = self.seen(self.DISPATCH)
+        section = section[section.index("## The tree the agent works in"):
+                          section.index("### `Executor: claude-subagent`")]
+        self.assertIn("git merge --no-ff", section)
+
+    def test_the_other_two_files_reference_the_rule(self):
+        """One rule, one copy. Both files must point at it, and neither may
+        restate it — a second authoritative copy is what rots."""
+        for path in (self.BOUNDARIES, self.DELEGATE):
+            with self.subTest(path=path.name):
+                src = self.seen(path)
+                self.assertIn("own worktree", src)
+                self.assertIn("The tree the agent works in", src)
+
+    def test_no_shipped_procedure_orders_an_unconditional_push(self):
+        """`git-boundaries.md` and `delegate.md` both said *"push the branch and
+        open a PR"* flatly, while `git push` and `origin` are in the default
+        hook list Perry's own bootstrap writes — so following the procedure
+        tripped the gate the same procedure arms. The fix is conditional
+        wording, and this is the NOT-in that holds it."""
+        for path in (self.BOUNDARIES, self.DELEGATE):
+            with self.subTest(path=path.name):
+                src = self.seen(path)
+                self.assertNotIn("Push the branch and open a PR", src)
+                self.assertNotIn("Code commits go through PR by default", src)
+                self.assertIn(".perry/hook.md", src)
+
+    def test_the_rule_is_generic_not_perry_specific(self):
+        """These files ship to every project. A sentence asserting something
+        about THIS repository would be false in every other one — and it was
+        written that way first, which is why the assertion exists."""
+        for path in (self.DISPATCH, self.BOUNDARIES, self.DELEGATE):
+            with self.subTest(path=path.name):
+                src = self.seen(path)
+                self.assertNotIn("this repository is public", src.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

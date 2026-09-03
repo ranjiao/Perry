@@ -4,21 +4,24 @@
 
 Each role owns its own deliverable's commit. PMO never commits code; Coding never edits PMO docs. This boundary keeps commit history readable and prevents one agent from silently rewriting another's lane.
 
-| Role | Commits | Pushes | Opens PR | Merges to main |
-|---|---|---|---|---|
-| **Coding Agent** | Code + tests on a **feature branch** | ✓ | ✓ (own work) | ✗ |
-| **Research Agent** | Generated reports / evidence files | ✓ | ✓ (own work) | ✗ |
-| **PMO Agent** | work docs (`BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`) — **not** `decisions/`, which belongs to `decide` | ✓ | direct push to main acceptable for low-risk doc updates | ✓ for own PMO doc commits only |
-| **Review Agent** | Review notes / approval comments | ✓ | — | reviews; does not merge |
-| **User** | Anything on the user's behalf | ✓ | ✓ | ✓ for code PRs |
+| Role | Works in | Commits | Pushes | Opens PR | Merges to main |
+|---|---|---|---|---|---|
+| **Coding Agent** | its **own worktree** | Code + tests on a **feature branch** | only if the hook does not escalate `git push` | same condition | ✗ |
+| **Research Agent** | its **own worktree** | Generated reports / evidence files | only if the hook does not escalate `git push` | same condition | ✗ |
+| **PMO Agent** | the **primary checkout** | work docs (`BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`) — **not** `decisions/`, which belongs to `decide` | direct push to main acceptable for low-risk doc updates, subject to the hook | — | ✓ for own PMO doc commits, plus the `--no-ff` merge of a verified agent branch |
+| **Review Agent** | its **own worktree** | Review notes / approval comments | same condition | — | reviews; does not merge |
+| **User** | anywhere | Anything on the user's behalf | ✓ | ✓ | ✓ |
 
 ### Rules
 
-- **Coding Agent commits its own work.** Do NOT instruct delegation prompts to "not commit / not push". Default expectation: Coding Agent pushes a feature branch and opens a PR; the PR link is included in the RESULT block.
-- **Coding Agent does not merge its own PR.** Merge belongs to User or Review Agent.
+- **A dispatched agent works in its own git worktree, and the primary checkout is never switched by an agent.** This is the premise the table above depends on: "one agent must not silently rewrite another's lane" is a claim about trees, and two lanes sharing one working tree makes it false by construction. The rule and the two observed failures behind it are in `dispatch.md § The tree the agent works in`; it is stated there once and referenced here.
+- **Coding Agent commits its own work.** Do NOT instruct delegation prompts to "not commit". Default expectation: Coding Agent commits code and tests on its own branch inside its own worktree, and names that branch in the RESULT block.
+- **Whether the agent pushes is the project's answer, not this file's.** If `git push` / `origin` appear in `.perry/hook.md § High-stakes operations` — they are in the default list Perry's bootstrap writes — then an agent push is an escalation and the default is **commit on the branch, do not push, do not open a PR**. A project that has removed them from its hook gets the PR flow, and then the PR link goes in the RESULT block. Read the hook; do not assume either.
+- **Where push is escalated, the primary checkout merges, and that merge is the only code operation it performs.** `git merge --no-ff <branch>` once the row's verification allows it, so the row's work stays one identifiable commit; then remove the worktree and delete the branch. It **cannot** be delegated into the worktree — git refuses both `git checkout main` and `git push <primary> HEAD:main` while the primary checkout holds `main`. A merge outside the primary checkout is therefore a merge on the remote, which is the PR flow and needs the hook to allow it.
+- **No agent merges its own work.** The merge belongs to the User or to the lane that verified it, never to the lane that produced it.
 - **PMO Agent does not commit code.** If Coding Agent failed to commit due to error or scope confusion, PMO escalates to the user; PMO does not silently commit code on Coding Agent's behalf.
-- **Direct push to main is acceptable** for: (a) PMO Agent's own doc commits with low risk; (b) trivial typo fixes the user explicitly authorizes. Code commits go through PR by default.
-- **Branch naming**: `<owner-prefix>/<task-id>-<slug>` (e.g. `coding/task-007-cli-lifecycle`, `pmo/2026-05-board-update`). PMO Agent may push directly to main when not on a feature branch.
+- **Direct push to main is acceptable** for: (a) PMO Agent's own doc commits with low risk; (b) trivial typo fixes the user explicitly authorizes — both still subject to the project's hook, which is what decides whether pushing is escalated at all. Code lands on `main` through the merge of a verified agent branch, or through a PR where the hook permits one.
+- **Branch naming**: `<owner-prefix>/<task-id>-<slug>` (e.g. `coding/task-007-cli-lifecycle`, `pmo/2026-05-board-update`). PMO Agent commits to `main` in the primary checkout; it is the one lane that does not need a worktree, because it is the lane the primary checkout belongs to.
 
 If `.perry/config.md` records `Repo layout: split` (PMO docs and code in separate repos), every delegation prompt MUST state which repo the work targets (absolute path), and evidence files MUST reference code via `<commit-SHA> path/to/file`. The split layout itself is documented in the top-level Perry SKILL.md; PMO is responsible for honoring it in delegation prompts and evidence files.
 
