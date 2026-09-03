@@ -305,6 +305,10 @@
    "sec": null,
    "source": "never-measured"
   },
+  "test_restore_check.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
   "test_resume.py": {
    "sec": 7.46,
    "source": "unstamped-pre-304"

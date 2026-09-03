@@ -52,7 +52,7 @@ host's skills directory, and on a developer machine those are real installs.
 
 ## Verify a restore against an independent source
 
-A mutation round (`review.md § 2 rule 2`) ends by putting the file back.
+A mutation round (`review.md § 2`, rule 2) ends by putting the file back.
 **Verify that restore against `git show <ref>:<path>` — never against the bytes
 your own harness snapshotted.**
 

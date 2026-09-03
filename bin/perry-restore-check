@@ -2,8 +2,8 @@
 """
 perry-restore-check — did the file come back to what it is supposed to be?
 
-A mutation round (`work/reference/review.md § 2 rule 2`) ends by putting the
-file back. The pattern this project prescribed for years verified that restore
+A mutation round (`work/reference/review.md § 2`, rule 2) ends by putting
+the file back. The pattern this project prescribed for years verified that restore
 against the bytes the harness itself had snapshotted:
 
     BASE = (f.read_bytes(), md5(f))   # snapshot before mutating

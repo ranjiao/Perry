@@ -22,7 +22,7 @@ This file holds three things:
   **missed by the old check and caught by the new one**. If someone ever
   "simplifies" the guidance back to a self-comparison, this goes red.
 - `TestGuidanceSaysIt` — the rule is stated in `review-constraints.md`, is
-  referenced (not re-copied) from `review.md § 2 rule 2`, and exists in exactly
+  referenced (not re-copied) from `review.md § 2`, rule 2, and exists in exactly
   one place. "One rule, one home" is a defect this project has paid for
   repeatedly, so it is asserted rather than trusted.
 - `TestHelper` / `TestHelperSelfCheck` — `bin/perry-restore-check` catches a
@@ -187,6 +187,35 @@ class TestHelper(_HelperCase):
         r = self.run_helper("--allow-modified-self", "HEAD", str(f))
         self.assertEqual(r.returncode, 1,
                          "the shipped tool must catch what the old check misses")
+
+    def test_the_ref_argument_is_honoured(self):
+        """A non-HEAD ref must actually be read. Found by a GREEN mutation.
+
+        Every other test in this file happens to pass `HEAD`, so replacing
+        `f"{ref}:{rel}"` with `f"HEAD:{rel}"` inside `blob_at` came back green:
+        the tool took a `<ref>` argument and nothing proved it used it. That is
+        not academic — a round verifies a restore against the commit it was cut
+        from while `HEAD` moves underneath it, which is exactly when a silent
+        fallback to `HEAD` would compare against the wrong bytes and report OK.
+        """
+        f = self.d / "subject.py"
+        first = subprocess.run(
+            ["git", "-C", str(self.d), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True).stdout.strip()
+
+        f.write_bytes(b"def add(a, b):\n    return a * b\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "second")
+
+        at_head = self.run_helper("--allow-modified-self", "HEAD", str(f))
+        self.assertEqual(at_head.returncode, 0, at_head.stdout + at_head.stderr)
+
+        at_first = self.run_helper("--allow-modified-self", first, str(f))
+        self.assertEqual(
+            at_first.returncode, 1,
+            "the <ref> argument is being ignored — this file matches HEAD but "
+            "not " + first + ", and the tool reported a match anyway",
+        )
 
     def test_bad_ref_is_a_usage_error_not_a_pass(self):
         r = self.run_helper("--allow-modified-self", "nosuchref",
