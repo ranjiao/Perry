@@ -50,8 +50,33 @@ where it is measured absent is worse than none.
    own row, not fixed here.
 5. **`bin/perry-task:7431`** (`_v.strip() == exc.value`) is covered by neither
    this rule nor reading (A): message quality, not a corruption path.
+6. **Nothing outside Python is in the domain.** A row built by a shell script
+   or a template expansion is invisible to an AST walk, and no member of the
+   census's 88 is one. Not measured, and stated so rather than left implied.
+7. **Dot-directories are not walked** — `.git`, and `.claude/worktrees/`,
+   which on the main checkout holds one full clone of this repository per live
+   agent. `.github/` therefore has no net; it holds no Python today.
+8. **A value computed at run time is out of reach.** `chr(124)` and
+   `"@".replace("@", "|")` are silent. An AST literal walk cannot do better,
+   and both are obfuscation rather than idiom — unlike the five `SEP`
+   spellings round 5 found silent, which are now covered.
+
+## What round 6 changed, and why the docstrings above are worth re-measuring
+
+Round 5 FAILed this module on the gap between what it *claimed* and what it
+*enforced*, in three independent directions — and the spec's own warning is
+that prose written into a deliverable becomes what the next round relies on
+instead of re-measuring. So, concretely: `_domain()` said DISCOVERED and read
+`for d in ("bin", "viewer")`, leaving a tracked hand-built builder in
+`packs/` completely silent; `TestTheChokePointsOwnInterior` closed two named
+functions and left the category open; and
+`test_the_guard_follows_a_separator_constant` asserted the `SEP` hole was
+closed while five ordinary spellings walked through it. All three are fixed
+here **and each fix has a control test beside it**, because the failure mode
+was never a missing fix — it was a claim nobody re-measured.
 """
 import ast
+import os
 import unittest
 from pathlib import Path
 
@@ -81,6 +106,48 @@ NOT_A_ROW = {
         "console. Never reaches a state file.",
     ("viewer/parsers.py", "`|`.join()"):
         "a regex ALTERNATION — `\"|\".join(...)` of alternatives, not cells.",
+}
+
+#: **The choke point's own interior, enumerated.** The rule above exempts
+#: `viewer/tables.py` by name — it must, or the choke point would flag itself
+#: — so nothing above can see inside it. Round 5's F3: appending
+#:
+#:     def render_header(cells):
+#:         return "| " + " | ".join(str(c) for c in cells) + " |"
+#:
+#: to the choke point left all thirteen tests green. Two mutations to this
+#: module's interior had already come back GREEN in round 4, and the round-4
+#: answer was two behavioural tests of two named functions — which closes two
+#: instances and leaves the category open. Review rule 1 is *enumerate the
+#: category, do not find the next instance*.
+#:
+#: So this is `NOT_A_ROW`'s construction turned inward: every `|`-literal
+#: row-building node inside the choke point must be one of a named few. The
+#: key is `(function, what)` and **not** a line number, for the reason
+#: `NOT_A_ROW` states — line numbers move on their own. A new function is a
+#: new key and fails; a new *shape* in an existing function is a new key and
+#: fails.
+#:
+#: **Declared limit of this construction**: a second node of an
+#: already-named shape inside an already-named function is covered by the
+#: existing entry — `append_separator_cell` has two `+`-concat nodes under one
+#: key today. Keying per line would catch that and would rot on the first
+#: edit above it, which is the trade `NOT_A_ROW` already made deliberately.
+CHOKE_POINT_INTERIOR = {
+    ("render_row", "`+`-concat onto a `|` literal"):
+        "the choke point itself — the one place a row is allowed to be built.",
+    ("render_row", "` | `.join()"):
+        "the same expression's join half.",
+    ("render_separator", "`+`-concat onto a `|` literal"):
+        "assembles the separator from `render_row`'s OWN output — the count "
+        "comes from `split_row(render_row(...))`, never from `n` a second "
+        "time. This is what routing the eight sites bought.",
+    ("append_cell", "f-string with a `|` literal part"):
+        "splices one cell into an existing line without re-rendering the "
+        "rest of it; byte preservation is the module's whole argument.",
+    ("append_separator_cell", "`+`-concat onto a `|` literal"):
+        "widens a separator in the file's own dashes-and-colons style, and "
+        "asserts the widened row gained exactly one cell.",
 }
 
 
@@ -116,12 +183,37 @@ class RowBuilders(ast.NodeVisitor):
     """W2: row text built from a literal containing `|` without a W1 call.
 
     Names resolve through `NAME = "..."` bindings, so a `SEP = "|"`
-    indirection is found exactly as the inline literal is.
+    indirection is found exactly as the inline literal is — **in every shape,
+    not only in the two that happened to be tested.** Round 5's F2 found the
+    resolution wired into `visit_BinOp`'s operands and `visit_Call`'s receiver
+    and nowhere else, so `SEP + SEP.join(c) + SEP` fired while five ordinary
+    spellings walked straight through:
+
+        f"{SEP}{body}{SEP}"              f"{SEP} {a} {SEP} {b} {SEP}"
+        f"{SEP}" + f"---{SEP}" * n       L = "| "; R = " |"; f"{L}{a}{R}"
+        "%s %s %s" % (SEP, a, SEP)
+
+    None of those is obfuscation; `f"{SEP} {a} {SEP}"` is how a person writes
+    a row. The classifier handled f-strings and `%` correctly when the pipe
+    was a literal and handled the constant correctly under `+` and `.join`;
+    it was the *combination* that was uncovered. So resolution now happens in
+    one place per shape: `_fstring_text` for interpolations and
+    `_mod_operand_has_pipe` for `%` arguments, both going through `_strval`.
+
+    `chr(124)` and `"@".replace("@", "|")` remain silent and are **not**
+    counted as holes: an AST literal walk cannot be asked to catch a value
+    computed at run time, and both are obfuscation rather than idiom.
+
+    `self.scoped` carries the same hits keyed by enclosing function, which is
+    what `interior_offenders` uses to hold the choke point's own interior to
+    a named few.
     """
 
     def __init__(self, src):
         self.hits = []
+        self.scoped = []
         self.stack = []
+        self.funcs = []
         self.consts = {}
         tree = ast.parse(src)
         for n in ast.walk(tree):
@@ -138,12 +230,21 @@ class RowBuilders(ast.NodeVisitor):
         super().generic_visit(node)
         self.stack.pop()
 
+    def visit_FunctionDef(self, node):
+        self.funcs.append(node.name)
+        self.generic_visit(node)
+        self.funcs.pop()
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
     def _add(self, node, what):
         if _excluded(node, reversed(self.stack)):
             return
         row = (node.lineno, what)
         if row not in self.hits:
             self.hits.append(row)
+            self.scoped.append(
+                (self.funcs[-1] if self.funcs else "<module>",) + row)
 
     def _strval(self, node):
         v = _lit(node)
@@ -153,15 +254,48 @@ class RowBuilders(ast.NodeVisitor):
             return self.consts.get(node.id)
         return None
 
+    def _fstring_text(self, node):
+        """An f-string's constant parts **and its resolvable interpolations**.
+
+        `f"{SEP}{body}{SEP}"` has no constant part at all: reading only the
+        constants sees an empty string and calls it clean. Reading the
+        interpolations through `_strval` sees `"||"`.
+        """
+        out = []
+        for v in node.values:
+            if isinstance(v, ast.Constant):
+                out.append(_lit(v) or "")
+            elif isinstance(v, ast.FormattedValue):
+                out.append(self._strval(v.value) or "")
+        return "".join(out)
+
     def visit_JoinedStr(self, node):
-        parts = "".join(_lit(v) or "" for v in node.values
-                        if isinstance(v, ast.Constant))
-        if "|" in parts and any(isinstance(v, ast.FormattedValue)
-                                for v in node.values):
+        if "|" in self._fstring_text(node) and any(
+                isinstance(v, ast.FormattedValue) for v in node.values):
             self._add(node, "f-string with a `|` literal part")
         self.generic_visit(node)
 
+    def _mod_operand_has_pipe(self, node):
+        """A `%` right-hand side: the value itself, or any tuple element.
+
+        `"%s %s %s" % (SEP, a, SEP)` puts the pipe in the *arguments*, not in
+        the format string, so checking only the BinOp's two sides sees a
+        format string with no `|` and stops.
+        """
+        s = self._strval(node)
+        if s is not None and "|" in s:
+            return True
+        if isinstance(node, ast.Tuple):
+            return any(self._strval(e) is not None and "|" in self._strval(e)
+                       for e in node.elts)
+        return False
+
     def visit_BinOp(self, node):
+        if isinstance(node.op, ast.Mod) and self._mod_operand_has_pipe(
+                node.right):
+            self._add(node, "`%` onto a `|` literal")
+            self.generic_visit(node)
+            return
         for side, other in ((node.left, node.right), (node.right, node.left)):
             s = self._strval(side)
             if s is None or "|" not in s:
@@ -188,19 +322,57 @@ class RowBuilders(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def _domain():
-    """Every shipped Python source file, DISCOVERED, not listed.
+#: Directory names never walked. An **exclusion** list, not an inclusion list,
+#: and the difference is the whole of round 5's F1: a directory nobody has
+#: created yet is in the domain the day it appears, instead of out of it until
+#: somebody remembers to add it.
+#:
+#: - `__pycache__` — build output.
+#: - dot-directories — `.git`, and `.claude/worktrees/`, which on the main
+#:   checkout holds a full clone of this repository per live agent. Walking
+#:   those would scan other agents' trees and report their probe files as this
+#:   tree's offenders.
+SKIP_DIRS = {"__pycache__"}
 
-    `tests/` is excluded — a fixture is not a write path — and so is the
-    choke point itself. `rglob`, because `bin/lib/` exists and a guard that
-    cannot see a subdirectory is a guard against the files that already had
-    the bug.
+#: Excluded at the top level only, exactly as the census excludes `tests/`:
+#: a fixture is not a write path. Scoped to the root so that a `tests`
+#: directory *inside* a shipped package would still be walked.
+SKIP_TOP = {"tests"}
+
+
+def _domain():
+    """Every shipped Python source file in the repository, DISCOVERED.
+
+    **The whole tree**, which is the domain `TASK-323-bound.py` measures with
+    `git ls-files`. Round 5 found this function scanning `for d in ("bin",
+    "viewer")` under a docstring that claimed discovery, and measured what the
+    two-directory version cost: a *tracked* `" | ".join` row builder placed in
+    `packs/software-ops/` left **the rule itself green**. The only test that
+    noticed was `test_the_guard_agrees_with_the_census_rule`, which reports a
+    guard/census disagreement rather than a hand-built row — and which skips
+    itself by design when the evidence file is archived, so archiving it made
+    a hand-built builder in the tree completely silent.
+
+    It also measured what the wider domain adds: **zero** findings. The
+    property was available for free and was not taken.
+
+    Discovery is a **walk, not `git ls-files`**, and that is deliberate rather
+    than incidental. The census script shells out to git, so in a `git
+    archive` copy — which is how this project's reviewers do all destructive
+    work — it returns nothing. A domain that silently becomes empty is a guard
+    that silently passes, which is the failure mode this function just had.
+    A walk cannot be put into that state.
+
+    `test_the_guard_domain_is_the_censuss_domain` asserts the two agree.
     """
     out = []
-    for d in ("bin", "viewer"):
-        for p in sorted((PERRY_HOME / d).rglob("*")):
-            if not p.is_file() or "__pycache__" in p.parts:
-                continue
+    for root, dirs, files in os.walk(PERRY_HOME):
+        rel_root = Path(root).relative_to(PERRY_HOME).as_posix()
+        dirs[:] = sorted(d for d in dirs
+                         if d not in SKIP_DIRS and not d.startswith(".")
+                         and not (rel_root == "." and d in SKIP_TOP))
+        for name in sorted(files):
+            p = Path(root) / name
             rel = p.relative_to(PERRY_HOME).as_posix()
             if rel == CHOKE_POINT:
                 continue
@@ -236,6 +408,15 @@ def offenders(paths=None):
                 continue
             found.append((rel, line, what))
     return found
+
+
+def interior_offenders(src=None):
+    """`[(function, line, what)]` inside the choke point that no
+    `CHOKE_POINT_INTERIOR` entry names."""
+    if src is None:
+        src = (PERRY_HOME / CHOKE_POINT).read_text(encoding="utf-8")
+    return [(fn, line, what) for fn, line, what in RowBuilders(src).scoped
+            if (fn, what) not in CHOKE_POINT_INTERIOR]
 
 
 class TestNothingOutsideTheChokePointBuildsARow(unittest.TestCase):
@@ -362,20 +543,163 @@ class TestNothingOutsideTheChokePointBuildsARow(unittest.TestCase):
                 d.rmdir()
 
     def test_the_guard_follows_a_separator_constant(self):
-        """`SEP = "|"` then `SEP.join(...)`. The bound resolves names, and the
-        read half's `SPLIT_RE` demonstrably does not — declared limit 3. The
-        write half must not inherit that hole."""
-        probe = PERRY_HOME / "bin" / "perry-constprobe"
-        probe.write_text('#!/usr/bin/env python3\n'
-                         'SEP = "|"\n'
-                         'def r(cells):\n'
-                         '    return SEP + SEP.join(cells) + SEP\n',
-                         encoding="utf-8")
+        """`SEP = "|"` in **every shape**, not just the two that were tested.
+
+        The bound resolves names and the read half's `SPLIT_RE` demonstrably
+        does not — declared limit 3 — so the write half must not inherit that
+        hole. Round 5's F2 found it half-inherited: resolution ran in
+        `visit_BinOp`'s operands and `visit_Call`'s receiver only, so the two
+        spellings below marked `[r5]` fired and the five below them, none of
+        them obfuscated, were silent under a test asserting the opposite.
+
+        These are parsed as source rather than written to disk because the
+        point is the classifier, not the walk.
+        """
+        for name, src in (
+                ("[r5] SEP + SEP.join(c) + SEP",
+                 'SEP = "|"\ndef r(c):\n    return SEP + SEP.join(c) + SEP\n'),
+                ("[r5] f-string around a resolved join",
+                 'SEP = "|"\ndef r(c):\n'
+                 '    return f"{SEP}{SEP.join(c)}{SEP}"\n'),
+                ("f-string, constant has no pipe at all",
+                 'SEP = "|"\ndef r(body):\n    return f"{SEP}{body}{SEP}"\n'),
+                ("f-string, a whole row of resolved pipes",
+                 'SEP = "|"\ndef r(a, b):\n'
+                 '    return f"{SEP} {a} {SEP} {b} {SEP}"\n'),
+                ("f-string separator built by repetition",
+                 'SEP = "|"\ndef r(n):\n'
+                 '    return f"{SEP}" + f"---{SEP}" * n\n'),
+                ("two constants, one for each end",
+                 'L = "| "\nR = " |"\ndef r(a):\n    return f"{L}{a}{R}"\n'),
+                ("`%` with the pipe in the ARGUMENTS",
+                 'SEP = "|"\ndef r(a):\n'
+                 '    return "%s %s %s" % (SEP, a, SEP)\n')):
+            with self.subTest(shape=name):
+                self.assertTrue(
+                    RowBuilders(src).hits,
+                    f"a `SEP = \"|\"` indirection walked past: {name}")
+
+    def test_a_resolved_constant_does_not_make_the_guard_cry_wolf(self):
+        """**The control for the test above.** Resolving names into f-strings
+        and `%` arguments widens what the classifier reaches, and a widened
+        classifier that flags regex alternations or `render_row` callers gets
+        exempted around until it means nothing — the exact failure
+        `test_row_integrity.py`'s docstring records (14 offenders, 11 fine).
+
+        Measured over the real tree as well as here: the whole-repo domain
+        with this resolution in place yields the same two `NOT_A_ROW` nodes
+        and nothing else.
+        """
+        for name, src in (
+                ("regex alternation through a constant",
+                 'import re\nSEP = "|"\ndef r(alts):\n'
+                 '    return re.search(SEP.join(alts), "x")\n'),
+                ("regex alternation inline",
+                 'import re\ndef r(alts):\n'
+                 '    return re.compile("|".join(alts))\n'),
+                ("a legitimate render_row caller",
+                 'from tables import render_row\ndef r(c):\n'
+                 '    return render_row(c)\n'),
+                ("same shapes, no pipe anywhere",
+                 'S = ","\ndef r(c):\n    return f"{S}{S.join(c)}{S}"\n'),
+                ("`%` with no pipe",
+                 'def r(a, b):\n    return "%s / %s" % (a, b)\n'),
+                ("a diagnostic, not a write path",
+                 'SEP = "|"\ndef r(c):\n    return print(f"{SEP}{c}{SEP}")\n')):
+            with self.subTest(shape=name):
+                self.assertEqual(
+                    RowBuilders(src).hits, [],
+                    f"the guard cried wolf on {name}")
+
+    def test_the_guard_sees_a_row_builder_in_any_shipped_directory(self):
+        """**Round 5's F1, as a test.** The rule is over the repository.
+
+        `_domain()` scanned `for d in ("bin", "viewer")` under a docstring
+        that said DISCOVERED. A tracked builder in the author's own canonical
+        shape, placed in `packs/software-ops/`, left THE RULE green — the only
+        test that fired was the census-agreement one, whose message is about a
+        guard/census disagreement and which skips itself when the evidence
+        file is archived.
+
+        So: plant that builder in every top-level shipped directory the tree
+        actually has, discovered the same way the domain is, plus the
+        repository root. Each one must be seen. A directory added tomorrow is
+        covered by this test the day it appears, because nothing here is
+        listed either.
+
+        All the probes are planted, measured in ONE pass and removed, rather
+        than one plant-measure-remove cycle per directory. That is not only
+        speed: `work/reference/review-constraints.md` records this project
+        paying once for probes planted into a live tree, and round 5's F5
+        reproduced a walker in another module erroring on a probe that
+        vanished mid-walk. One short window is a smaller one.
+        """
+        body = ('def render(cells):\n'
+                '    return "| " + " | ".join(cells) + " |"\n')
+        targets = [PERRY_HOME]
+        for d in sorted(PERRY_HOME.iterdir()):
+            if (not d.is_dir() or d.name.startswith(".")
+                    or d.name in SKIP_DIRS or d.name in SKIP_TOP):
+                continue
+            targets.append(d)
+        self.assertGreater(len(targets), 5,
+                           "the domain walk found almost nothing to test")
+        probes = [d / "perry_f1probe.py" for d in targets]
         try:
-            self.assertTrue(offenders([probe]),
-                            "a `SEP = \"|\"` indirection walked past")
+            for probe in probes:
+                probe.write_text(body, encoding="utf-8")
+            found = {f[0] for f in offenders()}
         finally:
-            probe.unlink(missing_ok=True)
+            for probe in probes:
+                probe.unlink(missing_ok=True)
+        for probe in probes:
+            rel_dir = probe.parent.relative_to(PERRY_HOME).as_posix()
+            with self.subTest(directory=rel_dir or "<repo root>"):
+                self.assertIn(
+                    probe.relative_to(PERRY_HOME).as_posix(), found,
+                    f"a hand-built row in {rel_dir or '<repo root>'} is "
+                    f"invisible to the rule")
+
+    def test_the_guard_domain_is_the_censuss_domain(self):
+        """The walk and `git ls-files` must agree on which files are in scope.
+
+        `_domain()` deliberately does not shell out to git — a `git archive`
+        copy has none, and a domain that silently empties is a guard that
+        silently passes. That independence is only safe if the two are checked
+        against each other where git IS available, which is here.
+
+        Skipped only when this is not a git checkout. Unlike the census
+        *agreement* test, nothing depends on this one alone: the rule itself
+        now walks the whole repository, so a narrowed domain fails
+        `test_the_guard_sees_a_row_builder_in_any_shipped_directory` too.
+        """
+        import subprocess
+        r = subprocess.run(["git", "ls-files"], cwd=str(PERRY_HOME),
+                           capture_output=True, text=True)
+        if r.returncode != 0 or not r.stdout.strip():
+            self.skipTest("not a git checkout")
+        census = set()
+        for f in r.stdout.split():
+            if f.startswith("tests/") or "__pycache__" in f:
+                continue
+            p = PERRY_HOME / f
+            if not p.is_file() or f == CHOKE_POINT:
+                continue
+            if p.suffix == ".py":
+                census.add(f)
+                continue
+            try:
+                with p.open("rb") as fh:
+                    first = fh.readline().decode("utf-8", "replace")
+            except OSError:
+                continue
+            if first.startswith("#!") and "python" in first:
+                census.add(f)
+        mine = {p.relative_to(PERRY_HOME).as_posix() for p in _domain()}
+        self.assertEqual(
+            census - mine, set(),
+            "these tracked Python files are in the census's domain and NOT "
+            "in this guard's — the rule is narrower than it claims")
 
     def test_the_two_exempt_nodes_still_exist_and_are_still_not_rows(self):
         """`NOT_A_ROW` is an allowlist, and an allowlist rots into a place
@@ -400,11 +724,25 @@ class TestNothingOutsideTheChokePointBuildsARow(unittest.TestCase):
 
         Skipped, not failed, when the evidence file is not present: an
         archived measurement must not be able to break the guard.
+
+        Skipped **also when this is not a git checkout**, because the census
+        script discovers its domain with `git ls-files` and therefore measures
+        nothing in a `git archive` copy — which is how this project's
+        reviewers do all destructive work. Round 5 hit exactly that and had to
+        `git init` two scratch copies to get past it; a guard that reports a
+        defect that does not exist is the hazard
+        `work/reference/review-constraints.md` records. Nothing is lost by
+        skipping: since round 6 the rule itself walks the whole repository and
+        needs no census to see a hand-built row.
         """
         script = PERRY_HOME / "perry/evidence/2026-09/TASK-323-bound.py"
         if not script.exists():
             self.skipTest("census script not in the tree")
         import subprocess
+        if subprocess.run(["git", "ls-files"], cwd=str(PERRY_HOME),
+                          capture_output=True,
+                          text=True).returncode != 0:
+            self.skipTest("not a git checkout; the census measures nothing")
         out = subprocess.run(
             ["python3", str(script), str(PERRY_HOME)],
             capture_output=True, text=True, cwd=str(PERRY_HOME)).stdout
@@ -438,6 +776,71 @@ class TestTheChokePointsOwnInterior(unittest.TestCase):
         sys.path.insert(0, str(PERRY_HOME / "viewer"))
         import tables
         self.T = tables
+
+    def test_every_row_builder_inside_the_choke_point_is_named(self):
+        """**The category, not the next instance.** Round 5's F3.
+
+        The two tests below this one exist because two mutations to this
+        module's interior came back green; they are behavioural tests of two
+        named functions, and a *third* hand-built helper appended to
+        `viewer/tables.py` was still silent — all thirteen tests green, no
+        mutation needed:
+
+            def render_header(cells):
+                return "| " + " | ".join(str(c) for c in cells) + " |"
+
+        `NOT_A_ROW` already had the shape of the answer: an allowlist keyed on
+        something that does not move, with a rot-detector beside it. This is
+        that construction pointed at the choke point's interior, which the
+        rule above cannot see by construction.
+        """
+        self.assertEqual(
+            interior_offenders(), [],
+            "these build row text inside the choke point and no "
+            "CHOKE_POINT_INTERIOR entry names them. Adding a row builder here "
+            "is a real decision — the module docstring says every row of "
+            "every state file goes through render_row — so name it and say "
+            "why, or route it through render_row like everything else.")
+
+    def test_a_new_row_builder_in_the_choke_point_is_caught(self):
+        """The control that makes the test above a rule and not a listing.
+
+        `render_header` verbatim from F3's proof, plus the `f"{SEP}"` shape
+        F2 found silent, appended to the real module source in memory. The
+        file on disk is never written — the round-5 review records this
+        project paying once already for probes planted into a live tree.
+        """
+        src = (PERRY_HOME / CHOKE_POINT).read_text(encoding="utf-8")
+        for name, extra in (
+                ("render_header, F3's own probe",
+                 '\n\ndef render_header(cells):\n'
+                 '    return "| " + " | ".join(str(c) for c in cells) + " |"\n'),
+                ("a resolved constant inside the choke point",
+                 '\n\n_S = "|"\n\n\ndef render_head2(a, b):\n'
+                 '    return f"{_S} {a} {_S} {b} {_S}"\n')):
+            with self.subTest(shape=name):
+                found = interior_offenders(src + extra)
+                self.assertTrue(
+                    found,
+                    f"a hand-built row builder inside the choke point walked "
+                    f"past: {name}")
+
+    def test_the_named_interior_builders_still_exist(self):
+        """`CHOKE_POINT_INTERIOR` is an allowlist and allowlists rot into a
+        place people park things — the same argument
+        `test_the_two_exempt_nodes_still_exist_and_are_still_not_rows` makes
+        for `NOT_A_ROW`. A dead entry is cover for a future real builder in
+        the same function, so it must be deleted rather than left."""
+        live = {(fn, what)
+                for fn, _, what in RowBuilders(
+                    (PERRY_HOME / CHOKE_POINT).read_text(
+                        encoding="utf-8")).scoped}
+        for key in CHOKE_POINT_INTERIOR:
+            with self.subTest(node=f"{key[0]} {key[1]}"):
+                self.assertIn(
+                    key, live,
+                    f"{key[0]} no longer contains {key[1]}; the entry is dead "
+                    f"and should be deleted, not left as cover")
 
     def test_render_separator_inherits_render_rows_refusal(self):
         """**Mutation M8 was green.** `render_separator` was replaced by the
