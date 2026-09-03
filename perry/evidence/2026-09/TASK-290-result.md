@@ -348,6 +348,14 @@ would have shipped as a hole in the foreign-root half.
 - **The census is 146/26 here, not 145/25.** The extra spec is `TASK-323`,
   added between `47fa45a` and `548f206`, refusing on `evidence/`. Every other
   number in the spec's table reproduces exactly.
+- **`main` advanced mid-round**, from `548f206` to `0e60ee5`, carrying
+  `TASK-308`'s and `TASK-273`'s lanes. This branch is based on the stated
+  baseline `548f206` and was not rebased. **No overlap**: `main`'s new commits
+  touch none of the four files changed here. One new spec landed —
+  `perry/evidence/2026-09/TASK-273-spec.md` — which makes the denominator 147
+  on a merged tree; scanned through this branch's gate it is `verdict: pass`
+  with an empty `refuse` and an empty `discounted`, so **both halves of the
+  census are unchanged** by it: still 16 refused, still the same 13 cleared.
 - **`TASK-219` was never blocked on a citation.** The override record lists it
   among the four rows `TASK-290` unblocks "on citations". Its `evidence/` hit
   was already green-lit by its own `Out of scope`; its refusal was
