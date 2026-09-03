@@ -423,5 +423,87 @@ class TestNothingOutsideTheChokePointBuildsARow(unittest.TestCase):
             "outside the choke point build row text")
 
 
+class TestTheChokePointsOwnInterior(unittest.TestCase):
+    """**Both of these exist because a mutation came back GREEN.**
+
+    The rule above exempts `viewer/tables.py` by name — it has to, or the
+    choke point would flag itself — which means the guard cannot see inside
+    the choke point at all. Two mutations to the module's own interior went
+    green against the whole affected suite, and a green mutation is the
+    finding. These are the tests that make them red.
+    """
+
+    def setUp(self):
+        import sys
+        sys.path.insert(0, str(PERRY_HOME / "viewer"))
+        import tables
+        self.T = tables
+
+    def test_render_separator_inherits_render_rows_refusal(self):
+        """**Mutation M8 was green.** `render_separator` was replaced by the
+        hand-built `"|" + "---|" * n` it exists to remove, and nothing went
+        red — because the two produce identical bytes for every n a real
+        caller passes, so no round-trip or byte test can tell them apart.
+
+        Routing has exactly one observable consequence, and this is it: the
+        refusals are inherited. `render_row([])` refuses an empty cell list,
+        so `render_separator(0)` refuses too. The hand-built version returns
+        `"|"` — a separator row for a table with no columns, written under a
+        header `render_row` would have refused to write.
+        """
+        with self.assertRaises(self.T.UnrenderableCell):
+            self.T.render_separator(0)
+
+    def test_render_separator_agrees_with_render_row_on_the_cells(self):
+        """The other half of routing: the separator's cell count is
+        `render_row`'s, not a second count computed from `n` again. A header
+        and its separator disagreeing is the ragged row this row is about.
+        """
+        for n in range(1, 16):
+            with self.subTest(n=n):
+                self.assertEqual(
+                    self.T.split_row(self.T.render_separator(n)),
+                    self.T.split_row(self.T.render_row(["---"] * n)))
+
+    def test_render_separator_is_byte_identical_to_what_it_replaced(self):
+        """Deliberate, and asserted so a later 'tidy-up' cannot quietly
+        rewrite every table in every state file. All three spellings the
+        eight routed sites used produced the same bytes; so does this."""
+        for n in range(1, 16):
+            with self.subTest(n=n):
+                out = self.T.render_separator(n)
+                self.assertEqual(out, "|" + "|".join(["---"] * n) + "|")
+                self.assertEqual(out, "|" + "---|" * n)
+
+    def test_a_separator_row_that_cannot_be_widened_is_refused(self):
+        """**Mutation M9 was green.** The count assertion in
+        `append_separator_cell` was replaced by `if False:` and nothing went
+        red.
+
+        The assertion is not dead code — a brute-force sweep of 50526
+        separator-shaped lines fires it on 9399 of them. It was green because
+        nothing exercised it. A hand-edited separator ending in a lone
+        backslash is the realistic case: copying its last cell yields a row
+        one cell short, which is the 7-header/6-separator ragged widen the
+        function's own docstring is about.
+        """
+        for line in ("|", "|---|---\\"):
+            with self.subTest(line=line):
+                with self.assertRaises(self.T.UnrenderableCell):
+                    self.T.append_separator_cell(line)
+
+    def test_widening_a_separator_keeps_its_style_and_adds_one_cell(self):
+        """The control for the test above: the shapes that are fine stay
+        fine, in the file's own dashes-and-colons style."""
+        for line, want in (("|---|---|", "|---|---|---|"),
+                           ("|-----|:---:|", "|-----|:---:|:---:|"),
+                           ("|---|---", "|---|---|---|")):
+            with self.subTest(line=line):
+                out = self.T.append_separator_cell(line)
+                self.assertEqual(out, want)
+                self.assertEqual(len(self.T.split_row(out)),
+                                 len(self.T.cell_spans(line)) + 1)
+
+
 if __name__ == "__main__":
     unittest.main()
