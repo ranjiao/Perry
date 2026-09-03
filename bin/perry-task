@@ -2203,13 +2203,17 @@ REGISTER_EVENTS = {
 REGISTER_SPEC = {
     "risks": ("Top risks", perry_store.risk_store_path,
               perry_store.risk_records, perry_store.validate_risk_records,
-              perry_store.risk_section_shape),
+              perry_store.risk_section_shape,
+              (perry_store.risk_table, "id")),
     "intake": ("Intake", perry_store.intake_store_path,
                perry_store.intake_records, perry_store.validate_intake_records,
-               perry_store.intake_section_shape),
+               perry_store.intake_section_shape,
+               # `None`, not a column name: see `REGISTER_ID_KEYED`.
+               None),
     "asks": ("User Input Queue", perry_store.ask_store_path,
              perry_store.ask_records, perry_store.validate_ask_records,
-             perry_store.ask_section_shape),
+             perry_store.ask_section_shape,
+             (perry_store.ask_table, "user-id")),
 }
 
 #: **What identifies a record of each register, for the substitution report.**
@@ -2244,6 +2248,22 @@ REGISTER_IDENTITY = {
 #: count — a report that shortened its own number to fit the terminal would be
 #: the exact failure this row exists to close.
 SUBSTITUTION_RECORDS_SHOWN = 5
+
+#: The registers whose key IS an id, and which a repeated id therefore breaks.
+#:
+#: TASK-273. `intake` is absent and that is the decision, not an omission: its
+#: key is the row's POSITION, `perry_store.intake_records` carries no `seen`
+#: set and no id column, and two `## Intake` rows with the same Request on the
+#: same day is the ordinary shape of a thing filed twice — the shape
+#: `dropped — duplicate` exists for and the shape
+#: `carry_forward_is_addressable` already declines to guess about. A
+#: uniqueness rule here would refuse that ordinary board.
+REGISTER_ID_KEYED = frozenset({"risks", "asks"})
+
+#: How many repeated ids are named before the tail is summarised.
+#: `SUBSTITUTION_RECORDS_SHOWN`'s rule, and for its reason: the cap is on the
+#: OUTPUT and never on the count.
+DUPLICATE_IDS_SHOWN = 5
 
 
 def substituted_away(key: str, current: list[dict],
@@ -2484,7 +2504,7 @@ def refuse_to_shrink(store: str, path: Path, event: dict,
         f"only by the number of records they remove.")
 
 
-def load_register_records(path: Path) -> list[dict]:
+def load_register_records(path: Path, key: str = "") -> list[dict]:
     """A register store as it is ON DISK, or `[]` when it does not exist yet.
 
     A corrupt line is a **refusal**, not a skipped line, and that is the
@@ -2499,6 +2519,23 @@ def load_register_records(path: Path) -> list[dict]:
     shape `load_task_records` uses for the same failure one register over. It
     used to let `json.JSONDecodeError` escape as a bare traceback — the one
     failure in this file that had no way forward attached to it.
+
+    **A repeated id is the same failure with a different spelling, and TASK-273
+    is why it is refused HERE.** The paragraph above forbids dropping a record
+    this function cannot read. A store holding two records with one id is a
+    store one of whose records the CALLER cannot read: `risk_records` and
+    `ask_records` both open with `by_id = {r.get("id"): r for r in current}`,
+    the dict keeps whichever came last, and the survivor's `cleared` is then
+    carried forward onto the row the other record described. Measured
+    2026-09-03 on a throwaway project — an open `RX-001` came out of one
+    ordinary `risk-add` carrying a cleared duplicate's `2026-02-02`, exit code
+    0. Returning the list intact and letting the collapse happen one frame up
+    would be this function dropping a record after all, just not with its own
+    hands.
+
+    `key` is empty for a caller that has no register in mind, and the check is
+    skipped: `intake` has no id, and a store type this function was not told
+    about is not one it may invent a uniqueness rule for.
     """
     if not path.exists():
         return []
@@ -2514,6 +2551,28 @@ def load_register_records(path: Path) -> list[dict]:
                 f"register store is canonical, so a line this tool cannot read "
                 f"is not a line it may drop — nothing was written. Repair the "
                 f"line, or restore the file from the event log.") from None
+    dupes = (perry_store.duplicate_record_ids(out)
+             if key in REGISTER_ID_KEYED else [])
+    if dupes:
+        named = "; ".join(f"`{d['id']}` on lines "
+                          f"{', '.join(str(n) for n in d['lines'])}"
+                          for d in dupes[:DUPLICATE_IDS_SHOWN])
+        more = ("" if len(dupes) <= DUPLICATE_IDS_SHOWN else
+                f" …and {len(dupes) - DUPLICATE_IDS_SHOWN} more repeated id(s)")
+        raise Refused(
+            f"{path} holds more than one record for the same id — {named}"
+            f"{more}. A record store keyed on an id cannot hold two of them: "
+            f"this write would keep whichever record came last and carry ITS "
+            f"`cleared` onto the other's row, and nothing would say so "
+            f"(TASK-273). Nothing was written. `perry-lint --root .` names "
+            f"every one of these under `{key[:-1]}-store-badly-typed`; delete "
+            f"or repair the surplus line(s) and run this again.\n"
+            f"The linter reports this state and this tool refuses it because "
+            f"they are asked different questions: the linter is asked what is "
+            f"wrong with the store as it stands, and this tool is asked to "
+            f"REPLACE it — and a write that reads a corrupt store launders it, "
+            f"leaving the wrong value behind with the duplicate that explained "
+            f"it gone.")
     return out
 
 
@@ -2599,10 +2658,51 @@ def register_change(state_root: Path, board: Board,
     key = REGISTER_EVENTS.get(event.get("event") or "")
     if key is None:
         return None
-    _section, path_of, records_of, validate, _shape_of = REGISTER_SPEC[key]
+    _section, path_of, records_of, validate, _shape_of, id_col = \
+        REGISTER_SPEC[key]
     path = path_of(state_root)
-    current = load_register_records(path)
+    current = load_register_records(path, key)
     shape = register_section_shape(board, key)
+    # **The board half of TASK-273, refused before anything is derived.**
+    #
+    # Read AFTER the command's own mutation, deliberately, and it changes
+    # nothing: `risk-add` appends a row carrying a freshly minted id, so a
+    # duplicate here was on the board when the command started. Reading it
+    # here instead means one call site covers every door into this function
+    # rather than one per command — USER-915's choke point, one week old.
+    #
+    # What it stops is not the `seen` skip itself. Measured 2026-09-03: two
+    # rows sharing an id lose the SECOND row's prose on the next render, but
+    # the record set is intact, so nothing is destroyed by the skip alone. The
+    # casualty comes one step later — the suppressed id is absent from the
+    # board TEXT, `mint_risk_id` reads that text, and the next `risk-add`
+    # reissues a live id and overwrites its record at exit code 0.
+    # `refuse_to_shrink` sees no shrink and `substituted_away` joins on the id
+    # and sees it on both sides. Refusing the duplicate is what closes it;
+    # teaching either guard a second question is the thing USER-906's
+    # amendment forbids by name.
+    if id_col is not None and shape == "table":
+        table_of, column = id_col
+        dupes = perry_store.duplicate_row_ids(table_of(board, _ops()),
+                                              _ops(), column)
+        if dupes:
+            named = "; ".join(
+                "`%s` on lines %s" % (
+                    d["id"], ", ".join(str(r["line"]) for r in d["rows"]))
+                for d in dupes[:DUPLICATE_IDS_SHOWN])
+            more = ("" if len(dupes) <= DUPLICATE_IDS_SHOWN else
+                    f" …and {len(dupes) - DUPLICATE_IDS_SHOWN} more repeated "
+                    f"id(s)")
+            raise Refused(
+                f"`## {_section}` carries the same id on more than one row — "
+                f"{named}{more}. This store is keyed on that id, so the second "
+                f"row is not a second record: the derivation keeps the FIRST "
+                f"row and the second row's cells are dropped, the id vanishes "
+                f"from the section's text, and the next minted id reuses a "
+                f"number a stored record still holds — overwriting it at exit "
+                f"code 0 with nothing said (TASK-273). Nothing was written. "
+                f"Give each row its own id, or delete the surplus row, and run "
+                f"this again.")
     # `<register>_records` returns `[]` for every shape but `table`. That is
     # the derivation answering honestly, not a special case to be routed
     # around — so it is computed the same way and counted the same way.
