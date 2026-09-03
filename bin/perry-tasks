@@ -278,13 +278,19 @@ def refuse_duplicate_ids(section: str, dest, dupes: list[dict]) -> str:
     more = ("" if len(dupes) <= DUPLICATE_IDS_SHOWN else
             f" …and {len(dupes) - DUPLICATE_IDS_SHOWN} more repeated id(s)")
     rows = sum(len(d["rows"]) for d in dupes)
+    # The rows themselves, not only their line numbers. "Line 23 differs" is
+    # the thing the byte gate's refusal was built to avoid saying, and this
+    # refusal now runs ahead of it — so it carries the same obligation.
+    listing = "".join(
+        f"\n    line {r['line']}: {r['text']!r}"
+        for d in dupes[:DUPLICATE_IDS_SHOWN] for r in d["rows"])
     return (
         f"perry-tasks: refusing to write {dest}.\n\n"
         f"  `## {section}` carries the same id on more than one row — "
         f"{named}{more}. This store is keyed on that id, so those {rows} rows "
         f"would import as {len(dupes)} record(s): the derivation keeps the "
         f"FIRST row for each repeated id and the rest of its cells are "
-        f"dropped.\n\n"
+        f"dropped.\n{listing}\n\n"
         f"  The byte gate below this check does not see it when the duplicate "
         f"rows carry IDENTICAL cells — they render back byte for byte and the "
         f"gate has no question to fail (TASK-273). Give each row its own id, "

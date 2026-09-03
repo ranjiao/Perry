@@ -368,6 +368,26 @@ class TestTheByteGateIsLoadBearingHere(unittest.TestCase):
             "survived, because the store never claimed that column")
 
     def test_the_duplicate_is_refused_before_a_byte_is_written(self):
+        """**TASK-273 changed WHICH refusal speaks here, and not whether one
+        does.** The outcome this test was written to protect — exit 1, and the
+        store byte-identical afterwards — is asserted unchanged below.
+
+        What moved is the reason given. This class used to be caught
+        incidentally, by the byte gate noticing that the collapsed record
+        renders the second line wearing the first row's cells. That catch is
+        real and `test_a_repeated_user_id_is_caught_by_the_bytes` above still
+        measures it at the render level. It is also INCOMPLETE, which TASK-273
+        measured: two rows sharing an id AND carrying identical cells render
+        back byte for byte, the gate has no question to fail, and three board
+        rows imported as two records at exit code 0. A gate asked about bytes
+        cannot be asked about counts.
+
+        So a dedicated duplicate-id check now runs ahead of the byte gate and
+        refuses the whole class, and it speaks first because it is the more
+        specific diagnosis: "these two rows share an id" is what a human can
+        act on, where "the section does not render back" leaves them to work
+        out why.
+        """
         p = _imported(self)
         before = (p.root / "asks.jsonl").read_bytes()
         board = p.root / "BOARD.md"
@@ -376,8 +396,11 @@ class TestTheByteGateIsLoadBearingHere(unittest.TestCase):
             "| USER-002 | confirm the retention window", 1))
         out = _tasks(p.root, "asks-write", "--from-board")
         self.assertEqual(out.returncode, 1, out.stdout)
+        self.assertIn("carries the same id on more than one row", out.stderr)
+        self.assertIn("USER-002", out.stderr)
+        # The gate below is still named, so a reader of this refusal is told
+        # the byte check exists and what it cannot see.
         self.assertIn("byte for byte", out.stderr)
-        self.assertIn("REPEATED `USER-` id", out.stderr)
         self.assertEqual((p.root / "asks.jsonl").read_bytes(), before)
 
     def test_the_inputs_the_gate_cannot_see(self):

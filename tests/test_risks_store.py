@@ -719,10 +719,21 @@ class TestTheOneWayImport(unittest.TestCase):
         back carrying the first row's `Risk`. The bytes catch it; the refusal
         has to name the row and the column, because "line 23 differs" does not
         tell anyone which of their rows the store misread.
+
+        **TASK-273 moved which check speaks first, and carried the obligation
+        across rather than dropping it.** A dedicated duplicate-id check now
+        runs ahead of the byte gate, because the gate catches this class only
+        when the duplicate rows differ — two rows sharing an id AND carrying
+        identical cells render back byte for byte and were imported at exit
+        code 0. The requirement this test states is unchanged and is still
+        asserted: name the ROW, not the line number. What is no longer
+        asserted is `column Risk`, because the new refusal does not diagnose
+        by column — it says which two lines share the id and prints both rows,
+        which answers the same question one step earlier.
         """
         _p, out = self._refused(self.DUPLICATED)
         self.assertIn("RX-001", out.stderr)
-        self.assertIn("column Risk", out.stderr)
+        self.assertIn("carries the same id on more than one row", out.stderr)
         self.assertIn("a duplicate somebody pasted", out.stderr)
         self.assertIn("Nothing was written", out.stderr)
 

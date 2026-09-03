@@ -779,8 +779,14 @@ def duplicate_row_ids(table, ops, column: str) -> list[dict]:
         if rid not in rows:
             rows[rid] = []
             order.append(rid)
+        # The line number AND the row's own text. "Line 23 differs" does not
+        # tell anyone which of their rows the tool misread — the rule
+        # `tests/test_risks_store.py § test_a_section_the_records_cannot_
+        # reproduce_is_refused_by_row_and_cell` states about the byte gate's
+        # refusal, and a refusal that replaces it inherits the requirement.
         rows[rid].append({"line": row["line"] + 1,
-                          "cell": row["cells"][0][:60]})
+                          "cell": row["cells"][0][:60],
+                          "text": " | ".join(row["cells"])[:80]})
     return [{"id": rid, "rows": rows[rid]} for rid in order
             if len(rows[rid]) > 1]
 
