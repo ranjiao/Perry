@@ -50,6 +50,43 @@ Read tools are safe and are the point: `perry-task list --json`,
 **Never run `setup`.** Its `sweep_legacy_links` step removes symlinks under the
 host's skills directory, and on a developer machine those are real installs.
 
+## Verify a restore against an independent source
+
+A mutation round (`review.md § 2 rule 2`) ends by putting the file back.
+**Verify that restore against `git show <ref>:<path>` — never against the bytes
+your own harness snapshotted.**
+
+```python
+TRUE = subprocess.run(["git", "-C", root, "show", f"{REF}:{REL}"],
+                      capture_output=True, check=True).stdout   # independent
+...
+f.write_bytes(BASE[0])                                          # restore
+assert f.read_bytes() == TRUE                                   # verify
+```
+
+The reason, because a rule with no reason attached gets reverted by the next
+author: this project prescribed `BASE = (f.read_bytes(), md5(f))` before the
+mutation and `assert md5(f) == BASE[1]` after the restore, and **that assertion
+cannot fail when the write succeeds** — `BASE[1]` is the digest of `BASE[0]`,
+and `BASE[0]` is what was just written back. It verifies that the write
+happened, not that the file is right. So a file already carrying a mutation
+when your harness started is restored *to that mutation* and reported OK:
+
+```
+                     old check | new check | actual file state
+honest restore     :      True |      True | file is ORIGINAL
+corrupted baseline :      True |     False | file is ALREADY-WRONG
+```
+
+Not hypothetical. `TASK-325` found `bin/perry-task` already mutated at a point
+before its harness had run and could not account for how; every round that
+restored onto a baseline like that reported OK without checking anything.
+
+`bin/perry-restore-check <ref> <path> …` does exactly this, exits non-zero on a
+mismatch, and refuses to answer while its own bytes differ from the copy
+committed in its repository. Use it or hand-roll it — but the comparison is
+against the ref either way.
+
 ## Do not mint identifiers
 
 Example IDs written into a state file become dangling references the next lint

@@ -154,7 +154,10 @@ not converge.
    `__pycache__` **and wait past the second boundary** — CPython validates
    bytecode on mtime-in-whole-seconds plus size, so a same-size edit reverted
    within one second runs the stale `.pyc` and shows you a result that never
-   happened.
+   happened. Then verify the restore against `git show <ref>:<path>`, never
+   against the bytes you snapshotted — `review-constraints.md § Verify a
+   restore against an independent source` has the reason and
+   `bin/perry-restore-check` does it.
 
 3. **Do not trust the previous round's verdict, including a PASS.**
    Every round in Perry's own history found real defects in what the previous
