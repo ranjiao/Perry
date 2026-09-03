@@ -236,6 +236,18 @@ class TestTheWriter(unittest.TestCase):
         with self.assertRaises(self.mod.Refused):
             self.mod.cmd_design_link(self.args(), self.ctx(record))
 
+    def test_it_collapses_a_repeated_id(self):
+        """**Mutation M9.** One design named twice is one edge, not two — the
+        count is edges, and a doubled id would report a design as twice as
+        implemented as it is."""
+        record = {"id": "TASK-900", "status": "done", "design_refs": []}
+        captured = {}
+        self.mod.commit = lambda *a, **k: captured.update(event=a[4]) or {}
+        out = self.mod.cmd_design_link(
+            self.args(design="DESIGN-009, DESIGN-009, design-009"),
+            self.ctx(record))
+        self.assertEqual(out["design_refs"], ["DESIGN-009"])
+
     def test_it_refuses_a_no_op(self):
         """"Which designs does this row implement" must not have an answer
         that depends on how many times the flag was run."""
@@ -279,6 +291,26 @@ class TestTheFieldIsDeclared(unittest.TestCase):
             [{"id": "TASK-900", "design_refs": ["DESIGN-009"]}])
         self.assertEqual(findings, [])
         self.assertEqual(good[0]["design_refs"], ["DESIGN-009"])
+
+    def test_record_builds_the_field_as_a_list(self):
+        """**Mutation M11.** `record()` rebuilds each record in `STORED` key
+        order and needs the list branch, or `design_refs` is written as the
+        empty STRING.
+
+        The round-trip tests cannot see it: `store_records` overwrites the
+        value from the canonical store immediately afterwards — but only when
+        the store parses. On the malformed-store path the carry is skipped and
+        this is the value that gets written, and a `""` where a list belongs is
+        the exact shape `validate_records` rejects.
+        """
+        built = self.store.record({"id": "TASK-900",
+                                   "design_refs": ["DESIGN-009"]}, 0)
+        self.assertEqual(built["design_refs"], ["DESIGN-009"])
+
+    def test_record_defaults_the_field_to_an_empty_list(self):
+        built = self.store.record({"id": "TASK-900"}, 0)
+        self.assertEqual(built["design_refs"], [],
+                         "a missing edge set is [], never the empty string")
 
     def test_a_record_written_before_the_field_existed_stays_valid(self):
         """Additive, exactly as `summary` was under TASK-106. No migration."""
@@ -359,6 +391,31 @@ class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
         self.perry_task(root, "design-link", "TASK-001",
                         "--design", "DESIGN-009")
         self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"])
+
+    def test_linking_does_not_move_the_record_in_the_store(self):
+        """**Mutation M8**, the `in_place` clause.
+
+        `design_refs` is store-only metadata, so writing it must not turn a
+        one-field edit into a whole-store reorder by moving the record to the
+        last JSONL line. `summary` carries the same rule for the same reason:
+        a store whose lines reshuffle turns every write into a whole-file diff.
+        """
+        root = self.project(with_store=True)
+        (root / "perry" / "design").mkdir()
+        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
+
+        def ids():
+            return [json.loads(ln)["id"] for ln
+                    in (root / "perry" / "tasks.jsonl").read_text().splitlines()
+                    if ln.strip()]
+
+        before = ids()
+        self.assertEqual(before[0], "TASK-001", "fixture assumption")
+        self.perry_task(root, "design-link", "TASK-001",
+                        "--design", "DESIGN-009")
+        self.assertEqual(ids(), before,
+                         "the edit reordered the store; a field write is not a "
+                         "reason to move history")
 
     def test_an_unrelated_write_does_not_clear_the_edge(self):
         root = self.project(with_store=True)
