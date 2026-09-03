@@ -79,7 +79,7 @@ def shipped_tools() -> list[Path]:
 #
 # The lookbehind keeps `/perry work triage` out — the live form has a name
 # character immediately before the lane word, not a slash. The trailing
-# `(?![\w-])` keeps `evidence/<YYYY-MM>/okr-vN-retro.md` out: a `\b` there
+# `(?![\w-])` keeps `phase/snapshots/okr-vN.md` out: a `\b` there
 # treats the hyphen as a boundary and reads a filename as a command.
 WITHDRAWN = re.compile(
     r"(?<!\w)/(?:okr|pmo|design)(?![\w-])"

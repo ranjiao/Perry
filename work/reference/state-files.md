@@ -39,7 +39,7 @@ All at the **project root** unless noted. Greppable, version-controlled.
 
 Tiers are about **who reads the file**: tier 1 the user reads raw (hard caps), tier 2 the agent reads for its own purposes (soft caps), tier 3 is the consumption surface — which Perry does not write. See `work/SKILL.md § Two file models` and `$PERRY_HOME/schema/README.md`.
 
-- `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md`; main file keeps current version + version log.
+- `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `phase/snapshots/okr-vN.md`; main file keeps current version + version log.
 - `ARCHITECTURE.md` ≤ **500** lines. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file keeps §-section TOC + 1-paragraph summaries.
 - `phase/<NNN>-<slug>.md` ≤ **300** lines. Overflow → move long narrative / Stretch trackers / project lists to `evidence/<YYYY-MM>/phase-<NNN>-<topic>.md`.
 - `runbook/<component>.md` ≤ **150** lines. Overflow → split troubleshooting matrix to `runbook/<component>-troubleshooting.md` (still tier 1; just chaptered).

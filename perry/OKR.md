@@ -3,7 +3,7 @@
 > **Owner**: `goals` lane (only writer). Other lanes read for snapshots.
 > **Period**: 3 months (2026-08-17 → 2026-11-17)
 > **Status**: Active
-> **Tier 1 hard cap**: ≤ 200 lines. Overflow → move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md`; main file keeps current version + version log only.
+> **Tier 1 hard cap**: ≤ 200 lines. Overflow → move historical `## v<N>` retro blocks to `phase/snapshots/okr-vN.md`; main file keeps current version + version log only.
 
 This document is the long-term reference for the system. The `goals` lane uses it to derive phase OKRs (`phase/<NNN>-<slug>.md`) and weekly task proposals (handed off to `work`). Versions are append-only — never overwrite an old version block.
 
@@ -42,7 +42,9 @@ A project-management skill that fits the four shapes agent work actually takes, 
 
 ---
 
-> **`## v1: 2026-08-17` moved to `evidence/2026-09/okr-v1.md` on 2026-09-01**
+> **`## v1: 2026-08-17` moved out of this file on 2026-09-01, and to
+> `phase/snapshots/okr-v1.md` on 2026-09-03** — the first destination was
+> `evidence/`, which `state-schema.json § claims` owns to `work`.
 > for the tier-1 cap. Its fifteen KR records were byte-identical to v2's, so
 > nothing left the store but a duplicate version label; the rationale
 > paragraphs are preserved in that file.

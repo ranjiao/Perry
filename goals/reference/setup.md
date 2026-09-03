@@ -47,4 +47,4 @@ Used when goals materially change between versions (new constraints, new mission
 5. Re-check the current phase OKR — does it still serve the new overall? If not, suggest `/okr score-phase` (close current) + `/okr plan-phase` (start new aligned with revised goals).
 6. Tell **`decide`** to record it: `/perry decide adr <slug> --type Process`. Not PMO — `decisions/` moved to the `decide` lane on 2026-08-16.
 
-**Tier 1 cap**: `OKR.md` ≤ 200 lines. If appending a version would exceed it, move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md` and keep the current version + version log in the main file. Verify before writing, not after.
+**Tier 1 cap**: `OKR.md` ≤ 200 lines. If appending a version would exceed it, move historical `## v<N>` retro blocks to `phase/snapshots/okr-vN.md` and keep the current version + version log in the main file. Verify before writing, not after.
