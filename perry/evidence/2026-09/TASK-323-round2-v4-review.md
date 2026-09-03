@@ -286,9 +286,17 @@ archive copy:
   --title 'ship it '   -> rc=0  wrote ADR-020
 ```
 
-ADR-018 carries the stray blank line the census describes, fields intact.
-**ADR-020 is worse than the census says**, and neither the census nor round 1
-recorded it — the U+2028 survives *verbatim into the H1 text*:
+> **PMO note, 2026-09-03.** The two ids below were minted in the reviewer's own
+> throwaway repository and resolve to nothing in this project — the highest real
+> ADR here is `ADR-017`. They are left inside the fenced transcripts, where the
+> id scanner skips them, and taken out of the prose, where `perry-diagnose`
+> correctly reported them as dangling and where a reader would have gone looking.
+> Nothing about the finding changes.
+
+The first of those ADRs carries the stray blank line the census describes,
+fields intact. **The second is worse than the census says**, and neither the
+census nor round 1 recorded it — the U+2028 survives *verbatim into the H1
+text*:
 
 ```
   ADR-018:  1 '# ADR-018 — ship it'   2 ''   3 ''   4 '> Status: active'
