@@ -14,6 +14,13 @@
    "workers": null,
    "load1": null,
    "note": "Listed with no number because none has ever been taken. sec:null sorts as inf, so these still run FIRST - which is what an unmentioned module already did, now by declaration instead of by omission. Being listed is what lets the drift check tell 'nobody has measured this yet' apart from 'somebody deleted the entry'; those were the same thing before TASK-304."
+  },
+  "task-067-one-choke-point": {
+   "ref": "47ffa26",
+   "taken": "2026-09-03",
+   "workers": 1,
+   "load1": 3.16,
+   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_one_choke_point with __pycache__ cleared before each — 1.49 / 1.54 / 1.52s, median 1.52 — at load1 3.16 on the machine that ran the TASK-067 suite the same hour. Serial rather than under the parallel runner on purpose: a 1.5s module's figure is a sort key and a worker-contended number would be a worse one. The spread is quoted whole rather than best-case, as tests/parallel's own docstring asks."
   }
  },
  "modules": {
@@ -224,6 +231,10 @@
   "test_okr_store_is_the_source.py": {
    "sec": 11.79,
    "source": "unstamped-pre-304"
+  },
+  "test_one_choke_point.py": {
+   "sec": 1.52,
+   "source": "task-067-one-choke-point"
   },
   "test_one_header_rule.py": {
    "sec": 1.85,
