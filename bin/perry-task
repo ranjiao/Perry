@@ -4326,13 +4326,15 @@ def cmd_design_link(args, ctx) -> dict:
              "track": record.get("track") or "main", "actor": args.actor,
              "design_refs": ids,
              "from": ", ".join(prev), "to": shown}
-    # A CLOSED row is the normal subject here, not the damaged one, so the
-    # off-board path is taken on the row's status rather than offered as a
-    # repair. `commit` reads the new value out of the event either way, because
-    # the projection has no cell to read it from.
-    off_board = not _row_is_on_the_board(ctx, tid)
+    # **No `off_board=` flag, and a mutation is why.** A closed row is the
+    # normal subject of this verb, so passing one looked obviously right. It
+    # does nothing: inside `commit`, `off_board` reaches exactly two clauses —
+    # one gated on `retitle`, and the `in_place` decision, which this event
+    # already satisfies by name. Setting it to `False` changed no test, so it
+    # is not passed. `commit` reads the new value out of the event regardless,
+    # because the projection has no cell to read it from.
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
-                  jline, event, args.dry_run, off_board=off_board)
+                  jline, event, args.dry_run)
     return {"id": tid, "design_refs": ids, **plan}
 
 
