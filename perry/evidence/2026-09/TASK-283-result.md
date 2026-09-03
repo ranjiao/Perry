@@ -2,7 +2,9 @@
 
 > Branch: `coding/task-283-track-context-store`
 > Baseline: `main` at `5e88be8`
-> Files changed: 2 — `bin/perry-lint`, `tests/test_track_register_source.py`
+> Files changed: 4 — `bin/perry-lint`, `tests/test_track_register_source.py`,
+> `tests/test_config_store_readers.py`, `tests/test_header_index_is_the_only_fold.py`
+> (the last two are consequential updates; see *Two tests the conversion moved*)
 
 ## What was wrong, confirmed rather than taken on trust
 
@@ -111,6 +113,34 @@ It reuses the module's existing instrument rather than inventing one:
 `intake`, so `intake` resolving is proof the store was read and `{}` is proof
 the projection was.
 
+## Two tests the conversion moved
+
+Both were green on `5e88be8` and went red on this branch. Neither is a
+weakened assertion; both are the same invariant restated over a reader that
+now answers from the register.
+
+**1. `tests/test_config_store_readers.py § test_the_linter_walk_stops_at_the_project_not_at_an_ancestor`**
+— TASK-247's own test. It asserted `_track_context(...) == {}` on a store-only
+project nested under a foreign ancestor, and **its docstring named this row as
+what would change it**: *"Reading the store's own `## Tracks` is a further
+conversion and is not this row."*
+
+The fixture already contained the sharper instrument, unused: the ancestor
+declares `main` at rung **V4** and no `intake`; the project's store declares
+`main` at **V3** and an `intake`. The assertion is now that the row comes back
+V3 and that `intake` resolves to `queue` — both impossible if the walk climbs.
+Mutations M1 and M4 are caught by it, so it is a live guard and not a
+loosened one.
+
+**2. `tests/test_header_index_is_the_only_fold.py § WATCHED`** — that module
+asserts SET EQUALITY between the readers it claims to watch and the converted
+readers the workload actually folds a header cell through. `_track_context`
+folded one because it held its own header row; it no longer holds one, so it
+was removed from the list. The workload still DRIVES it, and the fold it now
+reaches is `parse_tracks`' — which is the point of the conversion: one reader
+of that table, watched once. The failure was the module working as designed:
+`Extra in the list (claimed and not observed): ['_track_context']`.
+
 ## Mutations — 8 planted, 7 red, 1 green
 
 Anchored by line number **with an assert on the old text** (a non-matching
@@ -120,10 +150,10 @@ mtime pushed past the whole-second boundary, restored against bytes snapshotted
 
 | # | mutation | verdict |
 |---|---|---|
-| M1 | `declared_tracks_detail` → parse the `.perry/config.md` projection (the defect itself) | **RED** ×4 |
+| M1 | `declared_tracks_detail` → parse the `.perry/config.md` projection (the defect itself) | **RED** ×5 |
 | M2 | `if source in ps.TRACKS_STORE_UNUSABLE:` → `if False:` | **RED** |
 | M3 | cache key back to `str(root / ".perry" / "config.md")` | **RED** |
-| M4 | `P.configured(root)` → `.is_file()` (reverts TASK-247's walk) | **RED** ×2 |
+| M4 | `P.configured(root)` → `.is_file()` (reverts TASK-247's walk) | **RED** ×3 |
 | M5 | unusable branch returns the projection's rows instead of `{}` | **RED** |
 | M6 | drop `if row.get("track")` from the index build | **GREEN** |
 | M7 | drop `parse_tracks`' blank-name filter (upstream, projection side) | **RED** |
@@ -210,8 +240,25 @@ widening of this one.
    called" by it. That sentence was preserved verbatim rather than edited — it
    is outside this row's deliverable — but a new comment of mine that would
    have repeated the claim was rewritten to drop it. Worth a row.
+   `tests/test_header_index_is_the_only_fold.py` carries the same stale
+   reference in a comment about `read_legacy_conformance` at
+   `perry-conform migrate`.
 4. **`bin/perry-lint § canonical_column` (`:362`) is now dead.** Its only caller
    was the inline parser removed here, and its own docstring says so: *"its one
    caller (`_track_context`)"*. `bin/perry-task` has a separate copy that is
    still live. It was left in place — `:362` is outside the `:654-709` the spec
    scopes — and is reported here as a follow-up row rather than folded in.
+5. **Full suite: 3104/3104 green** (`python3 tests/parallel -j 4`, 418s). One
+   earlier run showed two failures in `tests/test_host_support.py`
+   (`test_a_marker_older_than_any_measured_cycle_is_flagged_before_reaping`,
+   `test_concurrent_mixed_registers_do_not_exceed_global_cap`). They are
+   FLAKY, not caused by this branch: the module is green at `5e88be8` on an
+   unmodified `git archive` copy, green on this branch when run alone, and did
+   not recur on the full re-run. Both are timing/concurrency tests. Worth a row.
+6. **The scratchpad mutation harness was overwritten twice mid-round** by an
+   unrelated workload sharing the session scratchpad — the second time it
+   returned an 11-mutation report for a different task ("repeats-title rule",
+   "fragment floor") under my invocation. Those results were discarded, not
+   reported. The final table above comes from
+   `task283_mutate_v2.py`, named uniquely for this reason and re-run against
+   the final bytes with all anchors re-resolved.

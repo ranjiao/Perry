@@ -89,7 +89,15 @@ WATCHED = [
     "is_intake_register_header", "is_user_register_header",
     # bin/
     "parse_tracks",            # bin/perry-state
-    "_track_context",          # bin/perry-lint
+    # `_track_context` (bin/perry-lint) was listed here until TASK-283 and is
+    # deliberately gone. It held a header row of its own because it carried an
+    # inline parser of `.perry/config.md § Tracks`; it now reads the register
+    # through `perry-state § declared_tracks_detail` and folds no cell itself.
+    # The workload still DRIVES it (`parse_everything`), and the fold it
+    # reaches is `parse_tracks`' one line above — which is the point of the
+    # conversion: one reader of that table, watched once. Re-adding the name
+    # without re-adding a fold goes red on the "claimed and not observed"
+    # half of the set equality.
     "md_table",                # bin/perry-diagnose
     "harvest",                 # bin/perry-explain
     "header_language",         # bin/perry-task AND bin/perry-goals
@@ -433,6 +441,11 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
                    "request": {"request"}, "outcome": {"outcome"}}
         for section in BOARD.split("\n## "):
             diagnose.md_table(section.split("\n"), aliases)
+        # Still driven after TASK-283, and no longer its own fold: the fixture
+        # has a `.perry/config.md` and no store, so this reaches the register
+        # through `declared_tracks_detail`'s `absent` branch and folds in
+        # `parse_tracks`. Driving the real linter entry point is what keeps
+        # that route covered rather than assumed.
         lint._track_context(self.tmp / "BOARD.md", "ops")
         explain.harvest(self.tmp)
         # **Round 8's workload stopped here**, and its reviewer measured the
