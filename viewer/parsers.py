@@ -4337,12 +4337,71 @@ def escalation_pattern(frag: str) -> re.Pattern:
 #: WIDER than `_ESC_WORD`. `_ESC_WORD` answers "where does this token end for
 #: matching"; this answers "what path is this match sitting inside", which is a
 #: bigger span by construction — `bin/perry-diagnose` is one path and three
-#: `_ESC_WORD` runs. It swallows the separators (`/`), the joiners (`-`, `_`),
-#: the extension dot, the anchors (`~`, `$`) and the placeholder/glob brackets
-#: (`<YYYY-MM>`, `**`), and stops at whitespace, backticks, commas, brackets
-#: and quotes — the characters that end a path in ordinary prose.
+#: `_ESC_WORD` runs. It stops at whitespace, backticks, commas, brackets and
+#: quotes — the characters that end a path in ordinary prose.
+#:
+#: **Every admitted character, and the job it does** — this class is one half
+#: of a safety decision, so the set is written down rather than inferred:
+#:
+#:   ``A-Za-z0-9``  the names themselves
+#:   ``/``          the separator, and what makes a token a path at all
+#:   ``_`` ``-``    the joiners — `state-schema`, `sample_project`
+#:   ``.``          the extension dot, and the leading dot of `.perry/`
+#:   ``~`` ``$``    the anchors `path_root_is_foreign` reads a HOME- or
+#:                  variable-rooted path by (`~/them/`, `$PERRY_HOME/`)
+#:   ``<`` ``>``    the placeholder brackets of an unresolved root
+#:   ``{`` ``}``    the other placeholder spelling (`{{project}}/design/`)
+#:   ``*``          the glob (`evidence/**/*-spec.md`, `*/evidence/`)
+#:   ``@`` ``+``    carried, not load-bearing: no path in this repository uses
+#:                  them, and dropping them is the one mutation here that
+#:                  changes no behaviour (see the class-pinning test)
+#:
+#: **Why this class is NOT narrowed to filename characters.** `. ~ $ * < > { }`
+#: are not filename characters, and TASK-290 round 1 was failed for a hole that
+#: looks like it wants them removed: `**schema/state-schema.json**` was read as
+#: a longer name than `state-schema.json`. Removing them from HERE closes that
+#: hole and opens three worse ones — `path_root_is_foreign` recognises a
+#: foreign root BY `~`, `$`, `<` and `{`, so a narrowed class re-roots
+#: `~/other-project/evidence/` as `project/evidence/2026` and
+#: `$PERRY_HOME/inputs/` as `perry_home/inputs/`, both of which then read as
+#: **this project's own tree** and stop refusing. Writing into a namespace
+#: Perry was never given is this hook's signature risk; trading it for a
+#: markdown-emphasis hole is not a fix.
+#:
+#: The two questions were collapsed onto one constant. This one answers "how
+#: far does this path run", which needs the wide class. "Is this component a
+#: longer NAME" is `_NAME_EDGE` below, and that is the one the discount hangs
+#: on.
 _PATH_CHAR = "[A-Za-z0-9_./~$*<>{}@+-]"
 _PATH_RUN = re.compile(_PATH_CHAR + "+")
+
+#: What a path component may BEGIN and END with — the filename half of the
+#: question `_PATH_CHAR` answers the path half of.
+#:
+#: Rule 1 in `_discount_reason` discounts an occurrence when the component
+#: around it is *strictly longer* than the fragment, on the argument that the
+#: text then names a longer file. That argument only holds if the extra
+#: characters are part of a **name**. Measured off `_PATH_CHAR`, they need not
+#: be: `**` is markdown emphasis and a trailing `.` is a sentence, and either
+#: one adjacent to the match made the component longer and cleared a
+#: declaration of the claim surface. `schema/state-schema.json.` names exactly
+#: `schema/state-schema.json`.
+#:
+#: So the component is trimmed inward, from each end, to the first character a
+#: filename can actually be bounded by. Letters, digits and `_` can; `.` and
+#: `-` cannot — **but only at the edges**. Both stay inside the component and
+#: keep doing their work there, which is what holds `reference/diagnose.md`,
+#: `bin/perry-diagnose` and `schema/state-schema.json.bak` discounted: the trim
+#: only ever removes characters OUTSIDE the match, and stops at the match, so
+#: it can shrink a component to the fragment's own length but never below it.
+#:
+#: Deliberately its own constant and not `_ESC_WORD`, which today has the same
+#: value. `_ESC_WORD` answers "where does a match's word edge fall" for the
+#: Chinese-hook reason argued at its own definition; this answers "what can
+#: bound a filename". Folding them together would mean a future change to
+#: either silently moving the other, and one of them is a safety gate's
+#: measuring stick.
+_NAME_EDGE = "[A-Za-z0-9_]"
 
 
 def path_token_around(hay: str, start: int, end: int) -> tuple[str, int]:
@@ -4503,6 +4562,22 @@ def _discount_reason(frag: str, token: str, start: int, end: int) -> str | None:
         comp_start = token.rfind("/", 0, start) + 1
         comp_end = token.find("/", end)
         comp_end = len(token) if comp_end == -1 else comp_end
+        # The component is about to be measured for LENGTH, so it has to be
+        # trimmed to what a filename can be bounded by first. `_PATH_CHAR`
+        # admits `**` and a sentence-final `.` on purpose — see there — and
+        # measured raw, either one made `**schema/state-schema.json**` a
+        # "longer file" than `state-schema.json` and cleared a declared write
+        # to the claim surface at exit 0. It names no longer file; it names
+        # that one, in bold. TASK-290 round 1's finding.
+        #
+        # Both loops stop at the match, so this only ever removes characters
+        # OUTSIDE the fragment: a genuinely longer component (`perry-diagnose`,
+        # `diagnose.md`, `state-schema.json.bak`) keeps every character that
+        # made it longer and stays discounted.
+        while comp_start < start and not re.match(_NAME_EDGE, token[comp_start]):
+            comp_start += 1
+        while comp_end > end and not re.match(_NAME_EDGE, token[comp_end - 1]):
+            comp_end -= 1
     if (comp_start != -1 and comp_start <= start and end <= comp_end
             and (comp_end - comp_start) > (end - start)):
         return DISCOUNT_LONGER_NAME

@@ -687,6 +687,237 @@ class TestACitedPathIsNotAWrittenOne(unittest.TestCase):
                                        "this guard without replacing it")
 
 
+class TestTheCharacterClassesTheDiscountHangsOn(unittest.TestCase):
+    """The two character classes, pinned — TASK-290 round 2.
+
+    Round 1 shipped rule 1 measuring its "component" off `_PATH_CHAR`, which
+    admits `. ~ $ * < > { } @ + -` on purpose. Any one of them adjacent to a
+    match made the component strictly longer than the fragment, so a
+    `Files in scope` declaration of the claim surface written in **markdown
+    bold** or ending a **sentence** went from `refuse`/exit 3 to `pass`/exit 0:
+
+        - **schema/state-schema.json**        ->  pass, exit 0
+        - This round rewrites schema/state-schema.json.   ->  pass, exit 0
+
+    Ending a sentence with a path is ordinary prose, not a trick input, and
+    passing the gate then required no rewording at all — only formatting, which
+    `.perry/hook.md`'s own preamble calls *the one thing a safety gate must
+    never reward*.
+
+    **Nothing in this repository tested the contents of either class.** Round 1
+    planted two mutations at the `_PATH_CHAR` line — dropping `*`, and dropping
+    `+` and `@` — and both came back GREEN against the full suite. That absence
+    is as much the finding as the characters were, and it is what this class
+    exists to end.
+
+    Two halves again, and both are needed:
+
+    1. **The membership of each class is asserted outright.** `*` is the case
+       that proves this half cannot be behavioural: dropping `*` from
+       `_PATH_CHAR` changes no verdict anywhere, because every path that
+       carries a glob also carries a `/` that reaches the same answer. A
+       character whose absence is invisible is exactly the character a silent
+       edit removes.
+    2. **The safety property is pinned per character, not per corpus.** Six of
+       the sixteen refusing specs hold on a single occurrence of their
+       fragment, so a regression here loses a refusal silently and a census
+       count would not notice. Every admitted character is therefore driven
+       through a real declaration of the claim surface, in both positions.
+
+    And a third guard against satisfying half 2 by deleting rule 1 altogether:
+    a component that is genuinely longer must still be discounted.
+    """
+
+    HOOK = TestACitedPathIsNotAWrittenOne.HOOK
+
+    #: Characters `_PATH_CHAR` admits that are NOT part of a name — the eleven
+    #: the round-1 review enumerated. Alphanumerics, `/` and `_` are excluded
+    #: for three different reasons, each stated where it is tested below.
+    NOT_NAME_CHARS = ".~$*<>{}@+-"
+
+    def scan(self, spec: str) -> dict:
+        root = Path(tempfile.mkdtemp())
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text("# Config\n")
+        (root / ".perry" / "hook.md").write_text(self.HOOK)
+        return P.scan_spec_escalations(
+            spec, P.escalation_union(root)["union"])
+
+    def files(self, body: str) -> dict:
+        return self.scan(f"## Files in scope\n\n{body}\n")
+
+    # ── half 1: the classes are what they say they are ───────────────────
+
+    def test_the_path_class_admits_exactly_these_characters(self):
+        """`_PATH_CHAR` answers *how far does this path run*, and each admitted
+        character earns its place — the separator, the joiners, the extension
+        dot, the two root anchors, the two placeholder spellings and the glob.
+
+        Pinned by membership rather than by spelling, so reordering the class
+        is free and changing it is not. If you are here because this failed:
+        the constant is one half of a safety decision and its docstring gives
+        the reason for every character. Add the reason, then the character.
+        """
+        self.assertEqual(
+            set(P._PATH_CHAR.strip("[]").replace("A-Za-z0-9", "")),
+            set("_./~$*<>{}@+-"),
+            "the class the escalation discount measures paths with changed")
+
+    def test_the_name_edge_class_admits_exactly_these_characters(self):
+        """`_NAME_EDGE` answers *what may bound a filename*, which is the
+        question rule 1's length comparison actually needs. `.` and `-` are
+        deliberately absent: both belong INSIDE a component and neither ends
+        one, and admitting either re-opens the sentence-final-period hole."""
+        self.assertEqual(
+            set(P._NAME_EDGE.strip("[]").replace("A-Za-z0-9", "")),
+            set("_"),
+            "the class rule 1 trims a component to changed")
+
+    def test_the_name_edge_class_is_its_own_literal_not_an_alias(self):
+        """`_NAME_EDGE` and `_ESC_WORD` have the same value today and answer
+        different questions — one is a matcher's word edge (the ADR-007
+        Chinese-hook argument), the other is a filename's boundary. Writing
+        `_NAME_EDGE = _ESC_WORD` would make a future edit to either silently
+        move the other, and one of them is this gate's measuring stick.
+
+        Asserted on the source rather than on the objects: equal string
+        literals are interned, so an identity check here would pass for an
+        alias and fail for two honest literals — testing CPython, not the
+        property."""
+        src = (PERRY_HOME / "viewer" / "parsers.py").read_text(encoding="utf-8")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            tree = ast.parse(src)
+        found = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            for t in node.targets:
+                if isinstance(t, ast.Name) and t.id == "_NAME_EDGE":
+                    found.append(node.value)
+        self.assertEqual(len(found), 1,
+                         "_NAME_EDGE is assigned somewhere other than its "
+                         "documented definition")
+        self.assertIsInstance(
+            found[0], ast.Constant,
+            "_NAME_EDGE is aliased to another class instead of stating its "
+            "own — the two questions must be able to diverge")
+
+    # ── half 2: per character, on a real claim-surface declaration ────────
+
+    def test_no_admitted_character_can_clear_a_declared_claim_surface_write(self):
+        """The finding itself, swept over the whole class rather than the two
+        spellings that were reported.
+
+        `schema/state-schema.json` is a genuine `Files in scope` declaration of
+        the claim surface in every one of these; the only thing that changes is
+        a character of punctuation or markup beside it. None of them names a
+        longer file, so all of them must refuse at exit 3."""
+        for ch in self.NOT_NAME_CHARS:
+            for label, body in (
+                    ("append", f"- schema/state-schema.json{ch}"),
+                    ("wrap", f"- {ch}schema/state-schema.json{ch}"),
+                    ("inner", f"- schema/{ch}state-schema.json{ch}")):
+                with self.subTest(char=ch, position=label):
+                    out = self.files(body)
+                    self.assertEqual(
+                        out["refuse"], ["state-schema.json"],
+                        f"{body!r} declares a write to the claim surface and "
+                        f"the gate cleared it on a {ch!r}")
+
+    def test_the_same_sweep_on_the_other_claim_surface_fragment(self):
+        """`claims` is the other half of the claim surface and the shorter
+        fragment, so it sits inside its component with more room to spare."""
+        for ch in self.NOT_NAME_CHARS:
+            with self.subTest(char=ch):
+                out = self.files(f"- .perry/{ch}claims{ch}")
+                self.assertEqual(out["refuse"], ["claims"],
+                                 f"a declared write to .perry/claims was "
+                                 f"cleared on a {ch!r}")
+
+    def test_the_two_reported_spellings_by_name(self):
+        """The exact two lines the round-1 review reproduced, kept as named
+        cases so a future reader can find them without decoding the sweep."""
+        self.assertEqual(
+            self.files("- **schema/state-schema.json** — the conformance "
+                       "default only.")["refuse"], ["state-schema.json"])
+        self.assertEqual(
+            self.files("- This round rewrites schema/state-schema.json."
+                       )["refuse"], ["state-schema.json"])
+
+    def test_markdown_emphasis_around_only_the_filename_also_refuses(self):
+        """`- schema/**state-schema.json**` is how an author bolds the part
+        that matters. This is the case that pins the LEFT trim specifically:
+        in the wrapped spellings the component already begins at the match, so
+        only an emphasis mark sitting between the separator and the fragment
+        exercises that loop."""
+        self.assertEqual(self.files("- schema/**state-schema.json**")["refuse"],
+                         ["state-schema.json"])
+        self.assertEqual(self.files("- schema/**state-schema.json")["refuse"],
+                         ["state-schema.json"])
+
+    # ── the counter-half: rule 1 still discounts a real longer name ──────
+
+    def test_a_genuinely_longer_component_is_still_discounted(self):
+        """Without this, everything above is satisfiable by deleting rule 1 —
+        which would hand back the 13 false refusals the row exists to clear.
+
+        The trim only ever removes characters OUTSIDE the match and stops at
+        the match, so a component that is longer because of its own NAME keeps
+        every character that made it longer."""
+        for body, frag in (
+                ("- `bin/perry-diagnose`", "diagnose"),
+                ("- `reference/diagnose.md`", "diagnose"),
+                ("- **bin/perry-diagnose**", "diagnose"),
+                ("- cite bin/perry-diagnose.", "diagnose"),
+                ("- bin/**perry-diagnose**", "diagnose"),
+                ("- `schema/state-schema.json.bak`", "state-schema.json"),
+                ("- `bin/perry-claims-report`", "claims")):
+            with self.subTest(body=body):
+                out = self.files(body)
+                self.assertEqual(out["refuse"], [],
+                                 f"{body!r} names a longer file and the "
+                                 f"citation started refusing again")
+                self.assertEqual(
+                    [e["why"] for e in
+                     out["discounted"]["Files in scope"][frag]],
+                    [P.DISCOUNT_LONGER_NAME])
+
+    # ── why `_PATH_CHAR` may NOT simply be narrowed to name characters ────
+
+    def test_the_root_anchors_must_stay_in_the_path_class(self):
+        """The reason the fix is not "delete the eleven characters".
+
+        `path_root_is_foreign` recognises a foreign root BY `~`, `$`, `<` and
+        `{`. Narrowing `_PATH_CHAR` to filename characters closes the markdown
+        hole and opens a worse one: `~/other-project/evidence/` re-roots to
+        `project/evidence/2026` and `$PERRY_HOME/inputs/` to
+        `perry_home/inputs/`, both of which then read as **this project's own
+        tree** and stop refusing. Writing into a namespace Perry was never
+        given is this hook's signature risk.
+
+        Measured: with the eleven characters dropped from `_PATH_CHAR`, three
+        of these go from refuse to a `this-project's-own-tree` discount."""
+        for path in ("~/other-project/evidence/2026-09/",
+                     "$PERRY_HOME/inputs/",
+                     "<target>/evidence/",
+                     "{{project}}/design/",
+                     "/srv/theirs/design/",
+                     "../victim/knowledge/topics.md"):
+            with self.subTest(path=path):
+                self.assertTrue(
+                    self.files(f"- overwrite `{path}`")["refuse"],
+                    f"{path} is not this project's tree and the gate "
+                    f"stopped refusing it")
+
+    def test_a_foreign_root_in_markdown_bold_also_still_refuses(self):
+        """The same paths written the way the finding was written."""
+        for path in ("~/other/evidence/", "$PERRY_HOME/inputs/",
+                     "<target>/evidence/"):
+            with self.subTest(path=path):
+                self.assertTrue(self.files(f"- overwrite **{path}**")["refuse"])
+
+
 class TestOutOfScopeCannotCancelFilesInScope(unittest.TestCase):
     """The green-light asymmetry — TASK-290, and the half nobody had tested.
 
