@@ -109,6 +109,11 @@ Usage:
   perry-task status <ID> --status blocked|review|not_started|in_progress
                     [--on "TASK-050"] [--reason "…"] [--next "…"]
   perry-task depends <ID> --on "TASK-050, TASK-051" | --clear
+  perry-task design-link <ID> --design "DESIGN-001, DESIGN-004" | --clear
+                    declare which designs this row IMPLEMENTS. Store-only —
+                    no board column — so it survives `done`, which is the
+                    point: `pending hand-off` is a question about finished
+                    work. Refuses a design id with no document. (TASK-139)
   perry-task next   <ID> --next "…"        rewrite Next action, nothing else
   perry-task retitle <ID> --title "…"      rewrite Title, nothing else
   perry-task summary <ID> --summary "…" | --clear
@@ -1977,6 +1982,16 @@ def store_records(project_root: Path, state_root: Path, board: Board,
         summaries = {r["id"]: r.get("summary") or "" for r in current}
         for rec in records:
             rec["summary"] = summaries.get(rec["id"], "")
+        # `design_refs` has no Board column either, and for a stronger reason
+        # than `summary` (TASK-139): the close path removes the row, so a
+        # projected design edge would be destroyed by the lifecycle — which is
+        # the defect the field exists to end. Deriving it from prose is what
+        # `walk_design` used to do and is exactly what must stop, so like
+        # `summary` it is preserved from the canonical store and from nowhere
+        # else.
+        design_refs = {r["id"]: list(r.get("design_refs") or []) for r in current}
+        for rec in records:
+            rec["design_refs"] = design_refs.get(rec["id"], [])
     if preserve_terminal:
         # The event log is derived and disposable. If it is deleted, completed
         # rows are no longer derivable from the open-only board, but they remain
@@ -2761,9 +2776,14 @@ def commit(project_root: Path, state_root: Path, board: Board,
         projected = derived_by_id.get(subject)
         old = current_by_id.get(subject)
         event_name = event.get("event")
-        if projected is None and event_name == "summary" and old is not None:
+        if projected is None and event_name in ("summary", "design-link") and old is not None:
             # A terminal Task remains editable even if its disposable event log
             # is gone and therefore cannot reconstruct a Board row.
+            #
+            # `design-link` is here for a reason `summary` does not have
+            # (TASK-139): the rows a design most needs to claim are the ones
+            # that already CLOSED, so "the subject has no projection row" is
+            # the normal case for this verb rather than the damaged one.
             projected = dict(old)
         if off_board and event_name == "retitle" and old is not None:
             # **TASK-166.** The subject has no Board line to mutate, so the
@@ -2804,6 +2824,7 @@ def commit(project_root: Path, state_root: Path, board: Board,
                 "track": ("track", "stage", "stage_since", "arrived"),
                 "status": ("status", "next_action", "depends_on"),
                 "depends": ("depends_on",),
+                "design-link": ("design_refs",),
                 "next": ("next_action",),
                 "retitle": ("title",),
                 "summary": ("summary",),
@@ -2814,8 +2835,16 @@ def commit(project_root: Path, state_root: Path, board: Board,
                 "prioritize": ("priority", "group"),
             }.get(event_name, ())
             for field in changed:
-                target[field] = (event.get("to") or "" if field == "summary"
-                                 else projected.get(field))
+                if field == "summary":
+                    target[field] = event.get("to") or ""
+                elif field == "design_refs":
+                    # Not projected — `BOARD.md` has no column for it — so the
+                    # value comes from the event for the same reason
+                    # `summary`'s does: a field the projection cannot hold
+                    # cannot be read back out of it.
+                    target[field] = list(event.get("design_refs") or [])
+                else:
+                    target[field] = projected.get(field)
 
         # Summary is store-only metadata. Updating it must not turn one
         # field edit into a whole-store reorder by moving the record to the
@@ -2823,7 +2852,8 @@ def commit(project_root: Path, state_root: Path, board: Board,
         # reason and one more: the record it edits is FINISHED, and its
         # position in the store is the order the work actually happened in.
         # Rewriting a name is not a reason to move history.
-        in_place = old is not None and (event_name == "summary" or off_board)
+        in_place = old is not None and (
+            event_name in ("summary", "design-link") or off_board)
         if in_place:
             records = [target if record["id"] == subject else dict(record)
                        for record in current]
@@ -4198,6 +4228,107 @@ def cmd_depends(args, ctx) -> dict:
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
     return {"id": tid, "depends_on": ids, "row": line, **plan}
+
+
+def known_design_ids(state_root: Path) -> set[str]:
+    """The design ids that have a document, upper-cased.
+
+    Read off the filenames for the same reason `viewer/parsers.py § walk_design`
+    reads them off the filenames: the id is the part of a design's identity that
+    the document's freeform bilingual header cannot get wrong.
+    """
+    base = Path(state_root) / "design"
+    out: set[str] = set()
+    if not base.is_dir():
+        return out
+    for md in base.glob("*.md"):
+        if md.name.upper() == "README.MD":
+            continue
+        m = re.match(r"([A-Za-z]+-\d+)", md.name)
+        if m:
+            out.add(m.group(1).upper())
+    return out
+
+
+def cmd_design_link(args, ctx) -> dict:
+    """Declare, replace or clear the designs a row implements.
+
+    **TASK-139.** The edge lives in the STORE field `design_refs` and nowhere
+    else. The three candidates are the same three `depends` weighed, and they
+    come out differently here because the lifecycle is part of the question:
+
+    - a board cell — which is what the row was FILED against. `done` removes
+      the row from `BOARD.md`, so an edge in a cell is destroyed at exactly the
+      moment it becomes interesting: a design's hand-off is a question you ask
+      about FINISHED work.
+    - the event log alone — `.perry/events.jsonl` is DERIVED AND DISPOSABLE and
+      this file's own header says anything load-bearing that lives only there
+      is a bug. `walk_design` had that bug: it scanned raw log lines to see
+      closed rows, so deleting a file the tool says may be deleted would have
+      put every locked design back into `pending hand-off`.
+    - **a store field, with the log recording the transition.** The record
+      survives closure — `perry/tasks.jsonl` holds every terminal row — so the
+      edge survives with it, and the log goes back to carrying history.
+
+    It costs `BOARD.md` nothing at all, because it is not projected: there is
+    no column, so no section grows a cell and `files[id=board].tables` in
+    `schema/state-schema.json` does not move. That is also why this is not a
+    `cell_writer`; every one of those writes a column.
+
+    Like `depends`, this REPLACES the set rather than appending to it, and for
+    the same reason: "which designs does this row implement" must not have an
+    answer that depends on the order the flags were run in.
+
+    A design id with no document is REFUSED. The whole point of the field is
+    that it cannot be faked by prose, and an edge to a design that does not
+    exist would be a typo the count reports as implementation.
+    """
+    tid = args.id
+    if not args.clear and not args.design:
+        raise Refused(
+            f"{tid}: --design is required, naming the design id(s) this row "
+            f"implements — or --clear to record that it implements none")
+    if args.clear and args.design:
+        raise Refused("--clear and --design contradict each other")
+    record = task_record(ctx, tid)
+    prev = list(record.get("design_refs") or [])
+    ids: list[str] = []
+    if not args.clear:
+        known = known_design_ids(ctx["state_root"])
+        seen: set[str] = set()
+        for raw in str(args.design).split(","):
+            did = raw.strip().upper()
+            if not did:
+                continue
+            if did not in known:
+                raise Refused(
+                    f"{did} has no document under "
+                    f"{Path(ctx['state_root']) / 'design'}. A design edge to a "
+                    f"design that does not exist is a typo the hand-off count "
+                    f"would read as implementation."
+                    + (f" Known: {', '.join(sorted(known))}." if known else ""))
+            if did not in seen:
+                seen.add(did)
+                ids.append(did)
+    if prev == ids:
+        raise Refused(f"{tid} already implements "
+                      f"{', '.join(ids) if ids else 'no design'}")
+    shown = ", ".join(ids) or "—"
+    jline = f"- [{tid}] implements · {', '.join(prev) or '—'} → {shown}"
+    event = {"ts": lib.event_stamp(),
+             "event": "design-link", "id": tid,
+             "title": record.get("title") or "",
+             "track": record.get("track") or "main", "actor": args.actor,
+             "design_refs": ids,
+             "from": ", ".join(prev), "to": shown}
+    # A CLOSED row is the normal subject here, not the damaged one, so the
+    # off-board path is taken on the row's status rather than offered as a
+    # repair. `commit` reads the new value out of the event either way, because
+    # the projection has no cell to read it from.
+    off_board = not _row_is_on_the_board(ctx, tid)
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run, off_board=off_board)
+    return {"id": tid, "design_refs": ids, **plan}
 
 
 #: The board columns, keyed the other way round. `off_board_repair` reaches a
@@ -7031,6 +7162,7 @@ def parse(argv: list[str]) -> Args:
     a.frequency = a.on = None
     a.needed = a.blocks = a.answer = a.opened = None
     a.deliverable = a.verification = a.depends = a.out_of_scope = a.kr = None
+    a.design = None
     # The V5 sign-off. Four of these are LISTS: one offered item is one flag,
     # so an item containing a comma is still one item. `--checked` accepts both
     # spellings because the host without a selection UI hands back `1,3`.
@@ -7054,6 +7186,7 @@ def parse(argv: list[str]) -> Args:
              "--opened": "opened", "--deliverable": "deliverable",
              "--verification": "verification", "--depends": "depends",
              "--out-of-scope": "out_of_scope", "--kr": "kr",
+             "--design": "design",
              "--group": "group", "--prefix": "prefix", "--role": "role",
              "--also": "also", "--signer": "signer",
              "--signed-on": "signed_on"}
@@ -7113,7 +7246,8 @@ def parse(argv: list[str]) -> Args:
 # contracts derive their event vocabulary from.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "track", "status",
                          "next", "retitle", "summary", "rung", "evidence",
-                         "prioritize", "depends", "done", "drop", "purge"})
+                         "prioritize", "depends", "design-link",
+                         "done", "drop", "purge"})
 # **What a timeline entry's `from`/`to` pair actually refers to.** One row per
 # task event, no default — `tests/test_prioritize.py` asserts this map's keys
 # are exactly `TASK_EVENTS`, so an event cannot be added without declaring what
@@ -7155,6 +7289,10 @@ EVENT_FIELD = {
     "rung": "verification",
     "evidence": "evidence",
     "depends": "depends_on",
+    # TASK-139. The pair is the design edge set, not a status: a consumer told
+    # otherwise would read `— → DESIGN-001` as a `task_status` value that the
+    # enum does not carry.
+    "design-link": "design_refs",
 }
 
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
@@ -7312,6 +7450,7 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "evidence": cmd_evidence, "prioritize": cmd_prioritize,
             "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "depends": cmd_depends,
+            "design-link": cmd_design_link,
             "list": cmd_list, "events": cmd_events,
             "signoff-offer": cmd_signoff_offer}
 
