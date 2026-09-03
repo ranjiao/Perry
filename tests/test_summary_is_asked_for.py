@@ -81,18 +81,30 @@ class TestAddRefusesWithoutASummary(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("restates the title", r.stdout + r.stderr)
 
-    def test_add_refuses_a_fragment_and_a_value_with_no_sentence(self):
-        r = add_raw(self.project.root, "--title", "a title",
-                    "--summary", "It broke.",
-                    "--deliverable", "d", "--verification", "v")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("word(s)", r.stdout + r.stderr)
+    def test_add_accepts_a_fragment_and_a_value_with_no_sentence(self):
+        """The inverse of the test that stood here until TASK-330.
 
-        r = add_raw(self.project.root, "--title", "a title",
-                    "--summary", "a value carrying no sentence terminator",
-                    "--deliverable", "d", "--verification", "v")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("no sentence", r.stdout + r.stderr)
+        Until 2026-09-03 `add` refused both of these — the first on
+        `summary-is-a-fragment` ("word(s)"), the second on
+        `summary-has-no-sentence`. The user removed both rules: whether prose
+        reads like prose is the writing agent's responsibility, not a check's.
+        Kept as an assertion rather than deleted, because the writer is where
+        a reverted removal would actually bite a user.
+
+        Asserted on `"refused"` rather than on the two old refusal strings:
+        the second fixture literally CONTAINS the words "no sentence", so a
+        `assertNotIn("no sentence", ...)` fires on the accepted payload
+        echoing the summary back and reports a pass as a failure. Found by
+        this row's own mutation round.
+        """
+        for summary in ("It broke.", "a value carrying no sentence terminator"):
+            with self.subTest(summary=summary):
+                r = add_raw(self.project.root, "--title", "a title",
+                            "--summary", summary,
+                            "--deliverable", "d", "--verification", "v")
+                out = r.stdout + r.stderr
+                self.assertEqual(r.returncode, 0, out)
+                self.assertNotIn("refused", out)
 
     def test_the_control_a_good_summary_is_accepted_and_stored(self):
         """THE CONTROL. A gate that refuses everything satisfies every test above."""
