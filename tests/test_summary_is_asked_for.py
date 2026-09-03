@@ -252,11 +252,18 @@ class TestOnePlaceDefinesWhatASummaryIs(unittest.TestCase):
     def test_the_writer_and_the_linter_agree_over_a_corpus(self):
         """Not 'both import it' — both ANSWER the same, over cases that differ."""
         project = Project(self)
+        # The last two were refused until TASK-330 (2026-09-03) removed the
+        # two rules that judged language. They stay in the corpus with their
+        # verdicts flipped rather than being dropped: the property under test
+        # is that the writer and the linter ANSWER THE SAME, and a case they
+        # now both ACCEPT tests that as sharply as one they both refuse — more
+        # so, since a removal that reached only one of the two tools would
+        # show up right here.
         cases = [
             ("a title", "", True),
             ("a title", "A title.", True),
-            ("a title", "It broke.", True),
-            ("a title", "no terminator anywhere in this value", True),
+            ("a title", "It broke.", False),
+            ("a title", "no terminator anywhere in this value", False),
             ("the parser drops zh headers", GOOD, False),
         ]
         for title, summary, expect_refused in cases:
@@ -350,14 +357,25 @@ class TestTheCheckDoesNotJudgeLanguage(unittest.TestCase):
             "A", "A fixture row that exists so the writer has something to "
                  "write. It carries no meaning beyond that."), [])
 
-    def test_the_word_floor_has_measured_headroom_over_the_real_corpus(self):
-        """The one rule that is a proxy rather than a structural fact.
+    def test_neither_a_fragment_nor_a_sentenceless_value_is_a_finding(self):
+        """The two rules TASK-330 removed, pinned as absences.
 
-        The shortest genuine summary on Perry's own board is 22 words. The
-        floor is 5. If someone raises it toward the real population this test
-        is what says so.
+        Until 2026-09-03 `summary-has-no-sentence` and `summary-is-a-fragment`
+        refused both of these. The user removed them: whether prose reads like
+        prose is the writing agent's responsibility, not a check's. This test
+        is the replacement for the one that used to guard the word floor's
+        headroom — the floor is gone, and what needs guarding now is that it
+        stays gone.
         """
-        self.assertLessEqual(lib.SUMMARY_MIN_WORDS, 22 // 4)
+        self.assertEqual(lib.summary_shape("a title", "Short."), [])
+        self.assertEqual(lib.summary_shape("a title", "short"), [])
+        self.assertEqual(
+            lib.summary_shape("a title", "no terminator anywhere here"), [])
+        # `SUMMARY_MIN_WORDS` survives as `summary-repeats-title`'s threshold
+        # and must not drift back into being a length floor: this value is
+        # three tokens with no terminator — both removed rules at once — and
+        # is accepted.
+        self.assertEqual(lib.summary_shape("a title", "太短了"), [])
 
 
 if __name__ == "__main__":
