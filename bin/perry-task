@@ -179,7 +179,7 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P
 from tables import (UnrenderableCell, header_index,  # noqa: E402
-                    render_row, split_row, squash)
+                    render_row, render_separator, split_row, squash)
 import lib  # noqa: E402
 import perry_store  # noqa: E402
 
@@ -989,8 +989,7 @@ class Board:
             shown = [display_name(c, header_language(header)) for c in missing]
             widened = header + shown
             self.lines[table["header_line"]] = render_row(widened)
-            self.lines[table["separator"]] = \
-                "|" + "|".join(["---"] * len(widened)) + "|"
+            self.lines[table["separator"]] = render_separator(len(widened))
             for item in table["rows"]:
                 self.lines[item["line"]] = render_row(
                     item["cells"] + [""] * len(shown))
@@ -1039,7 +1038,7 @@ class Board:
                         if PRIORITY_RE["P0"].match(l)), len(self.lines))
                   if before_p0 else len(self.lines))
         block = [f"## {shown}", "", render_row(columns),
-                 "|" + "|".join(["---"] * len(columns)) + "|", ""]
+                 render_separator(len(columns)), ""]
         self.lines[anchor:anchor] = block
 
     def named_section(self, heading: str) -> tuple[int, int]:
@@ -1116,8 +1115,7 @@ class Board:
             shown = [display_name(c, header_language(header)) for c in missing]
             widened = header + shown
             self.lines[table["header_line"]] = render_row(widened)
-            self.lines[table["separator"]] = \
-                "|" + "|".join(["---"] * len(widened)) + "|"
+            self.lines[table["separator"]] = render_separator(len(widened))
             for item in table["rows"]:
                 self.lines[item["line"]] = render_row(
                     item["cells"] + [""] * len(shown))
@@ -5236,8 +5234,7 @@ def ensure_risk_table(board: Board, events: list[dict],
         rows.append(render_row([rid, text, "", status]))
         migrated.append({"id": rid, "risk": text, "status": status})
 
-    block = [render_row(header),
-             "|" + "|".join(["---"] * len(header)) + "|"] + rows
+    block = [render_row(header), render_separator(len(header))] + rows
     # Replace the whole body of the section, preserving the heading line and
     # any prose the project keeps under it. Only the bullet lines go.
     keep = [l for i, l in enumerate(board.lines[start + 1:end], start + 1)

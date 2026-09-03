@@ -128,8 +128,10 @@ TEMPLATE_PATH = PERRY_HOME / "goals" / "state" / "OKR_TEMPLATE.md"
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P  # noqa: E402
-from tables import (UnrenderableCell, append_cell, cell_spans,  # noqa: E402
-                    header_index, render_row, splice_cell, split_row, squash)
+from tables import (UnrenderableCell, append_cell,  # noqa: E402
+                    append_separator_cell, cell_spans, header_index,
+                    render_row, render_separator, splice_cell, split_row,
+                    squash)
 import lib  # noqa: E402
 # TASK-092. The store `OKR.md` is now a projection of, and its renderer. This
 # tool does not carry a second copy of either, for the same reason it parses
@@ -308,24 +310,9 @@ def display_name(canonical: str, lang: str) -> str:
 SEPARATOR_RE = re.compile(r"^\s*\|[\s:|-]+\|?\s*$")
 
 
-def append_separator_cell(line: str) -> str:
-    """One more column on a table's separator row, in that row's own style.
-
-    `|---|---|` and `|-------|:-----:|` are both real and both in this repo.
-    Copying the last cell keeps whichever one the file uses instead of
-    imposing a third.
-    """
-    spans = cell_spans(line)
-    last = line[spans[-1][0]:spans[-1][1]] if spans else " --- "
-    body = line.rstrip()
-    # **A separator row need not end in `|` either.** This assumed one where
-    # `append_cell` explicitly handles its absence, so widening a table written
-    # without trailing pipes produced a 7-cell header, a 6-cell separator and
-    # 7-cell rows — rc 0, no warning, and `perry-lint` silent. The two halves
-    # of one widen have to make the same assumption or the widen is not atomic.
-    if not body.endswith("|") or body.endswith("\\|"):
-        return body + "|" + last + "|"
-    return body + last + "|"
+#: TASK-067: `append_separator_cell` moved to `viewer/tables.py`, beside the
+#: `append_cell` it has to agree with. Imported above; this comment is here
+#: because the name is used below and grep should find where it went.
 
 
 class Okr:
@@ -3090,7 +3077,7 @@ def render_krs(result: dict) -> str:
             out.append("_no key results declared under this objective_")
             continue
         out.append(render_row(columns))
-        out.append("|" + "|".join("---" for _ in columns) + "|")
+        out.append(render_separator(len(columns)))
         for kr in obj["krs"]:
             out.append(render_row([kr["id"], kr["text"],
                                    kr["metric"] or "—",
