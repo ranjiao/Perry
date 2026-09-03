@@ -258,7 +258,13 @@ mechanical:
   The text becomes a console message, never a line of a state file.
 
 **The rule is a script, not a paragraph**, which is what makes the set closed:
-`bound.py` in TASK-323's scratch, reproduced by re-running it over the tree.
+`evidence/2026-09/TASK-323-bound.py`, reproduced by re-running it over the tree.
+(It was written to TASK-323's scratch directory and this line pointed there.
+A scratch directory does not survive the session, so the bound's own argument —
+*"the rule is a script, not a paragraph, which is what makes the set closed"* —
+rested on a file that was in no commit. Moved into `evidence/` by the PMO at
+merge time, and re-run from there: **89 members, 27 W1 / 18 W2 / 38 R1 / 6 R2,
+last element `viewer/tables.py:280`**, matching the census independently.)
 Applying it mechanically returns **89 members and nothing else** — 27 W1,
 18 W2, 38 R1, 6 R2 — and drops 8 by exclusion (5 × E1, 1 × E2, 1 × E3, and
 `viewer/parsers.py:2362` E1).
