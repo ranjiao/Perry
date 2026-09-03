@@ -78,7 +78,8 @@ sys.path.insert(0, str(HERE))
 import lib  # noqa: E402
 import parsers as P  # noqa: E402
 import perry_store  # noqa: E402
-from tables import render_row, split_row, squash  # noqa: E402
+from tables import (render_row, render_separator,  # noqa: E402
+                    split_row, squash)
 
 markdown_tables = perry_store.markdown_tables
 
@@ -771,7 +772,7 @@ def scaffold_config(records: list[dict]) -> str:
         columns = list(TRACK_COLUMNS)
         out += ["", TRACKS_HEADING, "",
                 render_row(columns),
-                "|" + "---|" * len(columns)]
+                render_separator(len(columns))]
         out += [render_row([shown(rec.get(TRACK_COLUMNS[c])) for c in columns])
                 for rec in tracks]
     return "\n".join(out) + "\n"

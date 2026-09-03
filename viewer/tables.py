@@ -16,6 +16,52 @@ Extracted from `bin/perry-task` for TASK-037: `bin/perry-goals` needs the same
 operations, and copying them would make one rule two implementations — the
 defect five review rounds kept finding. The extraction itself changed no
 behaviour; `perry-task`'s suite passed unedited across it.
+
+## The rule this module is (TASK-067, `USER-915`)
+
+**Nothing outside this module builds a table row.** Every row of every state
+file — header, body, *and separator* — is constructed by `render_row` or by
+one of the three functions below that route through it: `render_separator`,
+`append_cell`, `append_separator_cell`. `tests/test_one_choke_point.py`
+enforces it by enumerating the surface with the census rule's own AST
+classifier, not by recognising row-shaped strings.
+
+Separator rows were the leak. Until TASK-067, eight sites built them by hand —
+`perry-task` 985/1034/1112/5174, `perry-goals` 327/328/3093,
+`perry_md_store.py` 774 — two of them (`perry_md_store.py:773` and `:775`)
+sitting *between* two `render_row` calls. They agreed with their headers only
+by the accident that each derived its count from the same list it handed
+`render_row`, and that `render_row` happened to be evaluated first. Routing
+them turns that accident into an invariant, which is the whole of what
+`USER-915` bought.
+
+## What `ragged-row` does NOT cover — declared, because it is measured
+
+`bin/perry-lint`'s `ragged-row` finding is often described as this rule's
+backstop. **It is not, and the measurements are specific.** Read this before
+relying on it; a backstop presented as working where it is measured absent is
+worse than none, because the next round stops looking.
+
+- **It fires only inside a schema-recognised table.** TASK-323 round 1
+  confirmed with a control: the identical 8-cell row placed in a section whose
+  headers the schema does not recognise produces **0 errors**. A project
+  filing work under its own headings — which `perry-task add --group`
+  explicitly supports — **has no net at all.**
+- **It covers the write shapes and not the read shapes.** Present for w4–w7
+  (`" | ".join`, `%`, `.format`, `+`-concat); **absent** for r2, r3, r4, r7,
+  r8.
+- **No count-based check can ever cover the read side.** `.split("|", 6)`
+  returns the *right* cell count with *truncated* content, so there is no
+  count for `ragged-row` to disagree with.
+- **`tests/test_row_integrity.py`'s `SPLIT_RE` has four demonstrated blind
+  spots** on the read half — a `maxsplit` argument, `re.split`, a `SEP = "|"`
+  constant, and `.rsplit`/`.partition` — because it is
+  `\\.split\\((['\"])\\|\\1\\)` and matches none of them.
+
+The read side is therefore **out of this rule's reach by construction**: the
+rule is about who *writes* a row. `split_row` is the single reader and
+`test_row_integrity.py § test_no_tool_splits_a_row_on_a_raw_pipe` guards it as
+far as a regex can, which is exactly as far as the four blind spots above.
 """
 
 from __future__ import annotations
@@ -162,6 +208,32 @@ def render_row(cells: list[str]) -> str:
     return out
 
 
+def render_separator(n: int) -> str:
+    """The separator row under an `n`-column header — **through `render_row`**.
+
+    Six sites built this string by hand (`perry-task` 985/1034/1112/5174,
+    `perry-goals` 3093, `perry_md_store.py` 774) in three different spellings
+    that happen to produce identical bytes:
+
+        "|" + "|".join(["---"] * n) + "|"
+        "|" + "|".join("---" for _ in cols) + "|"
+        "|" + "---|" * n
+
+    Identical bytes is why nothing ever caught them, and it is not a reason to
+    keep three copies: a separator row is a row, and the rule is that rows come
+    from here. The count is the only thing a separator carries, and the count
+    is exactly what has to agree with the header — so it is derived from
+    `render_row`'s own output rather than from `n` a second time. Bytes are
+    unchanged from all three old spellings, deliberately: a separator whose
+    style changed would rewrite every table in every state file and drift
+    `perry_md_store`'s byte comparison against files nobody edited.
+
+    `n == 0` raises, because `render_row([])` does. A zero-column table has no
+    header either, and every one of the six sites renders its header first.
+    """
+    return "|" + "".join(c + "|" for c in split_row(render_row(["---"] * n)))
+
+
 def check_cell(value) -> str:
     """One cell, escaped — **or refused, on the same rule `render_row` uses.**
 
@@ -278,6 +350,43 @@ def append_cell(line: str, value: str) -> str:
         # ran.
         return render_row(split_row(line) + [raw])
     return body + (f" {check_cell(raw)} |" if raw else "  |")
+
+
+def append_separator_cell(line: str) -> str:
+    """One more column on a table's separator row, in that row's own style.
+
+    The separator half of the widen `append_cell` performs on the header, and
+    it lives beside it for the reason the pair keeps breaking apart: **a widen
+    is atomic or the table is ragged.** It was `bin/perry-goals`'s private
+    function until TASK-067, one import away from the sibling it has to agree
+    with, which is how it came to assume a trailing `|` that `append_cell`
+    explicitly handles the absence of — producing a 7-cell header, a 6-cell
+    separator and 7-cell rows, rc 0, no warning, `perry-lint` silent.
+
+    `|---|---|` and `|-------|:-----:|` are both real and both in this repo.
+    Copying the last cell raw keeps whichever style the file uses instead of
+    imposing a third, and it is why this cannot simply be `append_cell(line,
+    "---")` — that pads to `| --- |` and would rewrite the separator of every
+    table it touches.
+
+    The count is asserted rather than assumed: widening adds exactly one cell.
+    """
+    spans = cell_spans(line)
+    last = line[spans[-1][0]:spans[-1][1]] if spans else " --- "
+    body = line.rstrip()
+    # **A separator row need not end in `|` either.** See above: the two halves
+    # of one widen have to make the same assumption or the widen is not atomic.
+    if not body.endswith("|") or body.endswith("\\|"):
+        out = body + "|" + last + "|"
+    else:
+        out = body + last + "|"
+    if len(split_row(out)) != len(spans) + 1:
+        raise UnrenderableCell(
+            len(spans), last,
+            f"separator row {line.strip()!r} cannot be widened: copying its "
+            f"last cell yields {len(split_row(out))} cell(s), not "
+            f"{len(spans) + 1}. Nothing was written")
+    return out
 
 
 def squash(s: str) -> str:
