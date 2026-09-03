@@ -102,6 +102,35 @@ authoritative copy to rot:
 - A named test in `tests/test_spec_scannability.py` that fails when the rule
   stops being visible in each file it must appear in.
 
+## Bound
+
+Written **before** the round, per `work/reference/review.md § 1`. Without it
+this round inherits TASK-067's failure — the criterion "the rule is stated
+where it needs to be" is a universal negative over a growing set of files.
+
+```
+Enumeration: grep -l "The tree the agent works in" work/reference/*.md
+Size:        3 on this commit — dispatch.md defines the rule;
+             git-boundaries.md and delegate.md reference it
+Remainder:   work/reference/autopilot.md dispatches rows and carries NO copy.
+             Out of scope, and deliberately: autopilot.md:218 runs "the full
+             /pmo dispatch flow (see dispatch.md)", so it inherits the rule by
+             reference. A fourth copy would be this project's own
+             "N implementations of one rule" defect.
+```
+
+Two further bounds, both finite and both countable today:
+
+```
+Guard:       tests/test_spec_scannability.py::TestTheAgentGetsItsOwnTree
+Size:        7 tests
+Mutations:   9 named mutations, each with a stated anchor; the round may
+             re-run them and must treat any GREEN as a finding
+```
+
+A K+1th file that should carry the rule is **a new row, not a re-opening of
+this one**.
+
 ## Verification
 
 1. `worktree` and `isolation` appear in `work/reference/dispatch.md`, in the

@@ -75,6 +75,30 @@ reader-side `.split("|", 6)`, `re.split(r"\|", …)`, a `SEP` constant. Re-measu
 each on today's HEAD and put it in the census with its current verdict. A shape
 that has since acquired a guard is as much a finding as one that has not.
 
+## Bound
+
+Added by the PMO **after delivery and before the review round**, and said
+plainly rather than dated quietly: this spec went out without one, which is the
+defect the row itself is about. It is a description of what was delivered, not
+a bar moved to fit it — every number below is read off the delivered artifact,
+and the round's job is to disagree with them.
+
+```
+Enumeration: python3 perry/evidence/2026-09/TASK-323-bound.py
+Size:        89 members — 27 W1 · 18 W2 · 38 R1 · 6 R2
+             last element viewer/tables.py:280
+             (re-derived by the PMO on c7627cd, matching the report)
+Census:      21 rows — 13 caught, 8 uncaught
+Shapes:      13 rows — 4 red controls, 9 green
+Remainder:   the 5 bash tools contribute 0 members and were checked for
+             `cut -d'|'`, `awk -F'|'`, `IFS='|'` and row-shaped `echo`;
+             8 nodes dropped by the three exclusion clauses E1/E2/E3
+```
+
+**The round judges the census, not the fix.** Whether either reading is the
+right one is a user decision this row exists to inform, and a verdict that
+picks one is out of the bound. A 90th member found by the round is a new row.
+
 ## Verification
 
 Each census row is a claim, and each claim is a plant with an observed outcome.
