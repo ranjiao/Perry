@@ -64,11 +64,42 @@ on a `git archive` copy of `267abb1`, driving each site's expression verbatim:
 | column name carrying `\n` | `render_row` **refuses** (`cell 1: contains a line break`). The separator expression would have produced a 3-cell row, but never runs. |
 | separator whose last cell holds `\\\|`, widened | header 3 cells, separator 3 cells. **Match.** |
 
-**So the honest before-state is: no plant through the eight sites corrupted a
-file.** At all six fresh-separator sites `render_row` is evaluated *before* the
-separator — `perry_md_store.py:773` before `:774`, `perry-task:5173` before
-`:5174`, and at `perry-task:1033` / `perry-goals:3092` inside the same list
-literal — so a value it refuses takes the separator down with it.
+**So the honest before-state is: no plant through the SIX fresh-separator
+sites corrupted a file — and two of the eight are not covered by that
+sentence at all.** At all six `render_row` is evaluated *before* the separator
+— `perry_md_store.py:773` before `:774`, `perry-task:5173` before `:5174`, and
+at `perry-task:1033` / `perry-goals:3092` inside the same list literal — so a
+value it refuses takes the separator down with it.
+
+**The two widen sites, `perry-goals:327/328`, take no cell value at all**, so
+the plants above never reach them: their input is the file's own existing
+separator line, and state files are hand-editable by design. Round 5's F4
+found this sentence over-broad by those two sites, and round 6 re-derived it
+rather than inheriting it — the pre-fix `append_separator_cell` from `267abb1`
+run verbatim, cells counted with `cell_spans` / `split_row`:
+
+| separator line in the file | cells in | wanted | pre-fix output | got | |
+|---|---|---|---|---|---|
+| `\|---\|---\|` | 2 | 3 | `\|---\|---\|---\|` | 3 | ok |
+| `\|---\|---` | 2 | 3 | `\|---\|---\|---\|` | 3 | ok |
+| `\|-----\|:---:\|` | 2 | 3 | `\|-----\|:---:\|:---:\|` | 3 | ok |
+| `\|---\|` | 1 | 2 | `\|---\|---\|` | 2 | ok |
+| `\|:-:\|:-:\|:-:\|` | 3 | 4 | `\|:-:\|:-:\|:-:\|:-:\|` | 4 | ok |
+| `\|---\|---\` | 2 | 3 | `\|---\|---\\|---\\|` | **2** | **RAGGED** |
+| `\|` | 1 | 2 | `\|\|` | **1** | **RAGGED** |
+
+**2 of 7 realistic widen inputs wrote a header/separator mismatch to a file,
+silently** — the exact defect class this row exists to close. This does not
+contradict the row; it is what M9's own note already measured (9399 of 50526
+separator-shaped lines fire the new assertion) and what
+`test_a_separator_row_that_cannot_be_widened_is_refused` now holds. The two
+sections simply did not reference each other, and the headline sentence took
+the broader of the two readings. It now takes the narrower one.
+
+*Declared limit on this correction:* `perry/BOARD.md` repeats the broad
+version. `BOARD.md` is the PMO's file and a write to it from a coding branch
+is discarded, so round 6 did not edit it. **The board row still needs the
+same narrowing** and that is left as a hand-off, not as done.
 
 That is not a reason to leave them; it is precisely the reason to route them.
 **The agreement was an accident, not an invariant**: each site derived its count
