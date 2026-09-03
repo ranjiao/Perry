@@ -39,13 +39,16 @@ import importlib.util
 import json
 import pathlib
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "viewer"))
+sys.path.insert(0, str(ROOT / "tests"))
 import parsers as P  # noqa: E402
+import store_fixture  # noqa: E402
 
 DOC = """# DESIGN-009 — a thing
 
@@ -241,6 +244,74 @@ class TestTheWriter(unittest.TestCase):
         with self.assertRaises(self.mod.Refused):
             self.mod.cmd_design_link(self.args(design="DESIGN-009"),
                                      self.ctx(record))
+
+
+class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
+    """The edge is store-only, and `store_records` DERIVES the store from the
+    board on every mutating command.
+
+    So without an explicit carry, `design_refs` would be rebuilt as `[]` by the
+    next unrelated `perry-task` call on any other row — the field would look
+    like it worked and would empty itself the first time somebody moved a
+    different task. `summary` has the same shape and the same guard beside it.
+
+    This is the failure mode a test that only calls `design-link` and reads
+    back cannot see.
+    """
+
+    def perry_task(self, root, *argv):
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / "perry-task"), *argv,
+             "--root", str(root)],
+            capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        return proc
+
+    def refs_of(self, root, tid):
+        for line in (root / "perry" / "tasks.jsonl").read_text().splitlines():
+            if line.strip() and json.loads(line)["id"] == tid:
+                return json.loads(line).get("design_refs")
+        self.fail("%s left the store" % tid)
+
+    def test_an_unrelated_write_does_not_clear_the_edge(self):
+        root = self.project(with_store=True)
+        (root / "perry" / "design").mkdir()
+        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
+
+        self.perry_task(root, "design-link", "TASK-001",
+                        "--design", "DESIGN-009")
+        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"])
+
+        # A write against a DIFFERENT row. Nothing about TASK-001 changed.
+        self.perry_task(root, "next", "TASK-002", "--next", "something else")
+        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"],
+                         "an unrelated write rebuilt the store from the board "
+                         "and dropped the edge")
+
+    def test_closing_the_linked_row_does_not_clear_the_edge(self):
+        """The lifecycle event the row was FILED about. `done` removes the
+        line from `BOARD.md`; the record and its edge must remain."""
+        root = self.project(with_store=True)
+        (root / "perry" / "design").mkdir()
+        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
+
+        self.perry_task(root, "design-link", "TASK-001",
+                        "--design", "DESIGN-009")
+        self.perry_task(root, "done", "TASK-001", "--rung", "V1",
+                        "--evidence", "evidence/x.md")
+
+        # The ROW, not the string: `TASK-002` still names it in `Depends on`,
+        # which is the projection doing its job, not the row surviving.
+        board = (root / "perry" / "BOARD.md").read_text()
+        self.assertFalse(
+            [ln for ln in board.splitlines() if ln.startswith("| TASK-001 |")],
+            "the fixture must actually exercise row removal")
+        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"])
+
+        docs = P.walk_design(root / "perry", None, project_root=root)
+        by_id = {d.id: d for d in docs}
+        self.assertEqual(by_id["DESIGN-009"].impl_refs, 1,
+                         "a closed row must still count — ae505b3's property")
 
 
 if __name__ == "__main__":
