@@ -4455,11 +4455,19 @@ def _discount_reason(frag: str, token: str, start: int, end: int) -> str | None:
     """
     if "/" not in token:
         return None
-    comp_start = token.rfind("/", 0, start) + 1
-    comp_end = token.find("/", end)
-    comp_end = len(token) if comp_end == -1 else comp_end
-    within_one_component = comp_start <= start and end <= comp_end
-    if within_one_component and (comp_end - comp_start) > (end - start):
+    # A match that carries a `/` of its own is not "inside a component" — it
+    # spans one. Without this clause `evidence/` in `~/theirs/evidence/2026/`
+    # read its component as `evidence/2026`, called that a longer name and
+    # discounted a FOREIGN path, which is the one thing the second rule exists
+    # to keep refusing. `TestACitedPathIsNotAWrittenOne` caught it.
+    if "/" in token[start:end]:
+        comp_end = comp_start = -1
+    else:
+        comp_start = token.rfind("/", 0, start) + 1
+        comp_end = token.find("/", end)
+        comp_end = len(token) if comp_end == -1 else comp_end
+    if (comp_start != -1 and comp_start <= start and end <= comp_end
+            and (comp_end - comp_start) > (end - start)):
         return DISCOUNT_LONGER_NAME
     if is_bare_directory_fragment(frag) and not path_root_is_foreign(token):
         return DISCOUNT_OWN_TREE
