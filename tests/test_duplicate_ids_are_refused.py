@@ -375,6 +375,74 @@ class TestIntakeIsNotServedByTheseLines(unittest.TestCase):
         self.assertEqual(len(f.store("intake.jsonl")), 3)
 
 
+class TestTheFromBoardImportIsGuardedToo(unittest.TestCase):
+    """The other caller of the same two lines — and the one whose existing
+    guard was measured and found to have a hole.
+
+    `bin/perry-tasks § cmd_asks_write` documents eleven measured inputs and
+    concludes its byte gate catches the duplicate-id class. It catches the ten
+    whose PROSE differs. Two rows carrying the same id AND identical cells
+    render back byte for byte, so the gate has no question to fail, and three
+    board rows imported as two records at exit code 0.
+
+    This is not a fourth site under the spec's Bound: it is one more caller of
+    `risk_records` / `ask_records`, and the lines being guarded are still the
+    `by_id` collapse and the `seen` skip.
+    """
+
+    def run_tasks(self, root, *argv):
+        return subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-tasks"), *argv,
+             "--root", str(root)], capture_output=True, text=True)
+
+    def test_a_duplicate_with_identical_prose_is_refused(self):
+        """The one the byte gate cannot see."""
+        f = Fixture(board(risks=[risk_row("RX-001", "first"),
+                                 risk_row("RX-002", "second"),
+                                 risk_row("RX-001", "first")]))
+        r = self.run_tasks(f.root, "risks-write", "--from-board")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("carries the same id on more than one row", r.stderr)
+        self.assertIn("would import as 1 record(s)", r.stderr)
+        self.assertFalse((f.root / "risks.jsonl").exists())
+
+    def test_a_duplicate_with_different_prose_is_refused_before_the_byte_gate(self):
+        f = Fixture(board(risks=[risk_row("RX-001", "first"),
+                                 risk_row("RX-001", "quite different")]))
+        r = self.run_tasks(f.root, "risks-write", "--from-board")
+        self.assertEqual(r.returncode, 1)
+        # The duplicate refusal, not the byte gate's "do not render back".
+        self.assertIn("carries the same id on more than one row", r.stderr)
+
+    def test_the_ask_importer_is_guarded_the_same_way(self):
+        f = Fixture(board(risks=[risk_row("RX-001", "first")],
+                          asks=[ask_row("USER-001", "q one"),
+                                ask_row("USER-001", "q one")]))
+        r = self.run_tasks(f.root, "asks-write", "--from-board")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("carries the same id on more than one row", r.stderr)
+        self.assertFalse((f.root / "asks.jsonl").exists())
+
+    def test_a_clean_board_still_imports(self):
+        """Control 1, on this door."""
+        f = Fixture(board(risks=[risk_row("RX-001", "first"),
+                                 risk_row("RX-002", "second")]))
+        r = self.run_tasks(f.root, "risks-write", "--from-board")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual([x["id"] for x in f.store("risks.jsonl")],
+                         ["RX-001", "RX-002"])
+
+    def test_repeated_non_id_cells_still_import(self):
+        """Control 2, on this door: same date, same prose, different ids."""
+        f = Fixture(board(risks=[risk_row("RX-001", "same words",
+                                          opened="2026-01-01"),
+                                 risk_row("RX-002", "same words",
+                                          opened="2026-01-01")]))
+        r = self.run_tasks(f.root, "risks-write", "--from-board")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(len(f.store("risks.jsonl")), 2)
+
+
 class TestTasksJsonlDoesNotShareTheHole(unittest.TestCase):
     """Deliverable 3, decided. `perry/tasks.jsonl` is SAFE, and three separate
     things make it so — none of which is care taken at the duplicate site.

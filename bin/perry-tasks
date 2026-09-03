@@ -252,6 +252,46 @@ def risk_board(root: Path):
     return mod.Board(P.resolve_state_root(root) / "BOARD.md"), mod
 
 
+#: How many repeated ids the refusal names before summarising the tail.
+#: `bin/perry-task § DUPLICATE_IDS_SHOWN`'s value and its rule: the cap is on
+#: the OUTPUT and never on the count.
+DUPLICATE_IDS_SHOWN = 5
+
+
+def refuse_duplicate_ids(section: str, dest, dupes: list[dict]) -> str:
+    """The message for a board section carrying one id on more than one row.
+
+    TASK-273. Written once and used by both `--from-board` importers, because
+    two spellings of this refusal is how the risks register ends up telling a
+    human something the asks register does not.
+
+    **The wording differs from `perry-task`'s on purpose.** That one interrupts
+    an ordinary command whose author was not thinking about the register at
+    all; this one interrupts an explicit, consented board-to-store import, so
+    it says what the import would have produced — a record count lower than the
+    row count — rather than what a later mint would go on to overwrite.
+    """
+    named = "; ".join(
+        "`%s` on lines %s" % (d["id"],
+                              ", ".join(str(r["line"]) for r in d["rows"]))
+        for d in dupes[:DUPLICATE_IDS_SHOWN])
+    more = ("" if len(dupes) <= DUPLICATE_IDS_SHOWN else
+            f" …and {len(dupes) - DUPLICATE_IDS_SHOWN} more repeated id(s)")
+    rows = sum(len(d["rows"]) for d in dupes)
+    return (
+        f"perry-tasks: refusing to write {dest}.\n\n"
+        f"  `## {section}` carries the same id on more than one row — "
+        f"{named}{more}. This store is keyed on that id, so those {rows} rows "
+        f"would import as {len(dupes)} record(s): the derivation keeps the "
+        f"FIRST row for each repeated id and the rest of its cells are "
+        f"dropped.\n\n"
+        f"  The byte gate below this check does not see it when the duplicate "
+        f"rows carry IDENTICAL cells — they render back byte for byte and the "
+        f"gate has no question to fail (TASK-273). Give each row its own id, "
+        f"or delete the surplus row, and re-run.\n\n"
+        f"  Nothing was written.")
+
+
 def load_risk_store(root: Path) -> tuple[list[dict], Path]:
     """The risks store as it is ON DISK — never the one just derived.
 
@@ -560,6 +600,25 @@ def cmd_risks_write(root: Path, argv: list[str]) -> int:
                           "store_findings": malformed},
                          ensure_ascii=False, indent=2), file=sys.stderr)
         return 2
+
+    # **The byte gate below does not catch every duplicate id, and TASK-273
+    # measured which ones it misses.** Two `## Top risks` rows sharing an id
+    # with DIFFERENT prose render differently and the gate refuses — that is
+    # the class `bin/perry-tasks § cmd_intake_write` names as the reason the
+    # gate is not a tautology here, and it is real. Two rows sharing an id with
+    # IDENTICAL prose render byte-for-byte identical: measured 2026-09-03,
+    # three board rows became two records at exit code 0. The gate is a
+    # question about BYTES and cannot be asked a question about counts.
+    #
+    # So the same refusal `perry-task § register_change` raises is raised here,
+    # ahead of it, for the same reason and out of the same report. This is one
+    # more caller of `risk_records`, not a new site: the two lines being
+    # guarded are still `:748` and `:759-761`.
+    dupes = perry_store.duplicate_row_ids(
+        perry_store.risk_table(board, ops), ops, "id")
+    if dupes:
+        print(refuse_duplicate_ids("Top risks", dest, dupes), file=sys.stderr)
+        return 1
 
     records = perry_store.risk_records(board, ops, on_disk)
 
@@ -1192,6 +1251,18 @@ def cmd_asks_write(root: Path, argv: list[str]) -> int:
                           "store_findings": malformed},
                          ensure_ascii=False, indent=2), file=sys.stderr)
         return 2
+
+    # `cmd_risks_write`'s TASK-273 paragraph, and it bites HARDER here. The
+    # docstring above measured eleven inputs and concluded the byte gate
+    # catches the duplicate-id class; it catches the duplicates whose prose
+    # DIFFERS, which is ten of those eleven. Two `USER-` rows carrying the same
+    # id AND the same cells render identically and were written at exit code 0.
+    dupes = perry_store.duplicate_row_ids(
+        perry_store.ask_table(board, ops), ops, "user-id")
+    if dupes:
+        print(refuse_duplicate_ids("User Input Queue", dest, dupes),
+              file=sys.stderr)
+        return 1
 
     records = perry_store.ask_records(board, ops, on_disk)
 
