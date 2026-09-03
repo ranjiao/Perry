@@ -734,6 +734,94 @@ def risk_record(values: dict, order: int | None, stored: dict | None = None) -> 
     return out
 
 
+def duplicate_row_ids(table, ops, column: str) -> list[dict]:
+    """Ids that appear on more than one row of a register table, with the rows.
+
+    **The report, not the resolution.** `risk_records` and `ask_records` both
+    walk their table with a `seen` set and `continue` past the second row
+    carrying an id they already have. That skip is not a policy anyone chose —
+    it is a loop guard that happens to mean "the first row wins", it is written
+    nowhere, and it is unreachable to say no. This function is what lets a
+    caller say no instead: it names every repeated id and every line it sits
+    on, and decides nothing.
+
+    Measured 2026-09-03, TASK-273, on a throwaway project: two `## Top risks`
+    rows carrying `RX-001` where the second was a mistyped `RX-003` suppress
+    `RX-003` from the board text entirely, so the next `perry-task risk-add`
+    mints `RX-003` a second time — `mint_risk_id` reads the BOARD, and its own
+    docstring names reissue as the failure it fears — and the live stored
+    `RX-003` is overwritten at exit code 0 with nothing said. `refuse_to_shrink`
+    sees three records become three; `substituted_away` joins on the id and
+    sees `RX-003` on both sides. Every existing guard is looking at something
+    else, and each is right about the thing it looks at.
+
+    **Every duplicate, not the first.** A caller that stopped at the first
+    repeated id would send a human to fix one row, and the next write would
+    refuse again on the next one. The refusal is worth its interruption only if
+    one pass through it is enough.
+
+    `intake` is not served by this function and must not be: its key is the
+    row's POSITION, `intake_records` has no `seen` set and no id at all, and
+    two intake rows with the same Request on the same day is the ordinary shape
+    of a thing filed twice — the shape `dropped — duplicate` exists for.
+    """
+    if table is None:
+        return []
+    rows: dict[str, list[dict]] = {}
+    order: list[str] = []
+    for row in table["rows"]:
+        rid = ops.strip_handle(row["values"].get(column, ""))
+        # A cell with no handle in it is layout, not a row with a blank id —
+        # the rule `risk_records` states — so two layout rows are not two rows
+        # sharing the empty id.
+        if not rid:
+            continue
+        if rid not in rows:
+            rows[rid] = []
+            order.append(rid)
+        rows[rid].append({"line": row["line"] + 1,
+                          "cell": row["cells"][0][:60]})
+    return [{"id": rid, "rows": rows[rid]} for rid in order
+            if len(rows[rid]) > 1]
+
+
+def duplicate_record_ids(records: list[dict]) -> list[dict]:
+    """Ids held by more than one record of a register store, with their lines.
+
+    The store-side half of `duplicate_row_ids`, and the state that makes
+    `by_id = {r.get("id"): r for r in current}` in `risk_records` /
+    `ask_records` a silent choice: the dict keeps the LAST record for a
+    repeated id, and `risk_record` then carries that survivor's `cleared`
+    forward onto the row the other record described.
+
+    Measured 2026-09-03, TASK-273: a store holding `RX-001` open with
+    `cleared: ""` and a stale second `RX-001` with `cleared: "2026-02-02"`
+    comes out of one ordinary `perry-task risk-add` as a single `RX-001`,
+    `status: open`, `cleared: "2026-02-02"`, at exit code 0.
+
+    **`perry-lint` already reports this and that is not enough.** It reports it
+    only while the duplicate is still on disk; the first ordinary write
+    LAUNDERS it — the store is rewritten from the collapsed set, the duplicate
+    is gone, the wrong `cleared` stays, and the linter has nothing left to say.
+    So the report is the linter's and the refusal is the writer's, and neither
+    substitutes for the other.
+    """
+    lines: dict[str, list[int]] = {}
+    order: list[str] = []
+    for n, rec in enumerate(records, 1):
+        if not isinstance(rec, dict):
+            continue
+        rid = rec.get("id")
+        if not isinstance(rid, str) or not rid.strip():
+            continue
+        if rid not in lines:
+            lines[rid] = []
+            order.append(rid)
+        lines[rid].append(n)
+    return [{"id": rid, "lines": lines[rid]} for rid in order
+            if len(lines[rid]) > 1]
+
+
 def risk_records(board, ops, current: list[dict] | None = None) -> list[dict]:
     """The risks store, derived from `## Top risks` as it stands.
 
@@ -741,6 +829,16 @@ def risk_records(board, ops, current: list[dict] | None = None) -> list[dict]:
     migration derives cannot differ. Rows whose `ID` cell holds no handle are
     not records — they are layout, and `risk_plan` reports them as verbatim
     rather than minting an id for them.
+
+    **The two lines below that once GUESSED are now guarded, not smartened**
+    (TASK-273). `by_id` keeps the last record for a repeated id and the `seen`
+    skip keeps the first row for a repeated id; neither choice was written
+    anywhere and neither could be said no to. Both bad states are refused
+    before this function is reached — `perry-task § load_register_records`
+    for the store, `perry-task § register_change` for the board — so what is
+    left here is a derivation over inputs that have been checked, and the two
+    lines stay exactly as blunt as they were. Making either cleverer is the
+    move `USER-904`, `USER-906` and `USER-915` each declined.
     """
     table = risk_table(board, ops)
     if table is None:
@@ -1368,6 +1466,11 @@ def ask_records(board, ops, current: list[dict] | None = None) -> list[dict]:
     the wrong one one register over: intake keys on position, so skipping a row
     there would renumber everything under it. Here the key is the id, so
     skipping a layout row moves nothing.
+
+    `risk_records`' TASK-273 paragraph holds here word for word: the `by_id`
+    collapse and the `seen` skip below are guarded upstream rather than taught
+    to resolve, and a `USER-` row has an id, so this register is in the same
+    class its sibling is and NOT in the class `intake` is.
     """
     table = ask_table(board, ops)
     if table is None:
@@ -1534,4 +1637,7 @@ __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "ASK_STORED", "ASK_FIELD_BY_COLUMN", "ASK_SECTION",
            "ask_store_path", "ask_section_shape", "ask_table",
            "ask_record", "ask_records", "ask_plan", "ask_render",
-           "validate_ask_records"]
+           "validate_ask_records",
+           # TASK-273. Shared by the two registers whose key is an id, and
+           # deliberately not by `intake`, whose key is a row position.
+           "duplicate_row_ids", "duplicate_record_ids"]
