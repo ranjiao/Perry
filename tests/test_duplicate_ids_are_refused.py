@@ -354,6 +354,30 @@ class TestIntakeIsNotServedByTheseLines(unittest.TestCase):
     """The spec's out-of-scope question, answered: `## Intake` is out, and what
     keeps it out is that it has no id at all."""
 
+    def test_intake_is_declared_out_on_both_sides_not_merely_harmless(self):
+        """A GREEN MUTATION FOUND THIS TEST CLASS, and it is recorded here.
+
+        TASK-273's mutation round planted `"intake"` INTO `REGISTER_ID_KEYED`
+        and the behavioural test below stayed green. The mutation is inert:
+        `INTAKE_STORED` has no `id` field at all, so `duplicate_record_ids`
+        returns `[]` for an intake store however the set is spelled. The
+        behavioural test could never have caught it.
+
+        That makes `REGISTER_ID_KEYED` a second lock on a door the missing `id`
+        field already locks — which is fine to keep and NOT fine to leave
+        undefended, because the next reader has no way to tell a deliberate
+        exclusion from an oversight. So the decision is asserted directly, on
+        both sides: the store side by the set, the board side by the `None` in
+        `REGISTER_SPEC` that stops `duplicate_row_ids` ever being called for
+        `## Intake`.
+        """
+        self.assertNotIn("intake", PT.REGISTER_ID_KEYED)
+        self.assertEqual(PT.REGISTER_ID_KEYED, frozenset({"risks", "asks"}))
+        self.assertIsNone(PT.REGISTER_SPEC["intake"][5])
+        self.assertIsNotNone(PT.REGISTER_SPEC["risks"][5])
+        self.assertIsNotNone(PT.REGISTER_SPEC["asks"][5])
+        self.assertNotIn("id", S.INTAKE_STORED)
+
     def test_intake_records_has_no_seen_set_and_no_id(self):
         import inspect
         src = inspect.getsource(S.intake_records)
