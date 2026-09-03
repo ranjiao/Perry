@@ -88,7 +88,13 @@ Enumeration: python3 perry/evidence/2026-09/TASK-323-bound.py
 Size:        89 members — 27 W1 · 18 W2 · 38 R1 · 6 R2
              last element viewer/tables.py:280
              (re-derived by the PMO on c7627cd, matching the report)
-Census:      21 rows — 13 caught, 8 uncaught
+Census:      20 rows — 12 caught, 8 uncaught
+             (was written "21 rows — 13 caught, 8 uncaught": the PMO copied
+             that figure out of the delivering agent's RESULT block and never
+             counted the table. Corrected 2026-09-03 after the V4 round parsed
+             it. Counting the delivered table: 20 data rows, 12 `caught`.
+             A criteria file carrying a false number is the defect this row
+             is about, in the file that decides its own PASS.)
 Shapes:      13 rows — 4 red controls, 9 green
 Remainder:   the 5 bash tools contribute 0 members and were checked for
              `cut -d'|'`, `awk -F'|'`, `IFS='|'` and row-shaped `echo`;

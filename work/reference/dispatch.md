@@ -248,7 +248,8 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 
 0. **Release the concurrency slot first thing**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`. Do this BEFORE any verification work, so a slow verification step doesn't keep blocking other dispatches. (Stale markers auto-clean after `PERRY_DISPATCH_STALE_TTL` seconds — **default 4h**, raised from 1h by TASK-160 because the sweep was reaping markers 72 minutes into live runs and the cap silently stopped being the cap — covering the case where PMO crashed mid-completion. **Every reap now prints `⚠️  Reaped dispatch slot: <marker>` on stderr.** If you see that line while the agent it names is still running, the cap is short by one for the rest of that run: treat it as a real event, not noise, and raise `PERRY_DISPATCH_STALE_TTL` for the session rather than dispatching into the gap.)
 1. Read the agent's RESULT block. Required fields:
-   - `PR URL:` (or "n/a — direct push" with explicit reason)
+   - `Branch: <name>` — always. It is what the primary checkout merges (`git-boundaries.md`), so it is required on every project whatever the push answer is.
+   - `PR URL:` — **only where the project's hook permits a push.** Where `git push` / `origin` are escalated, the compliant agent opened no PR and has no truthful value for this field; requiring one there would make the honest answer unwritable and step 4 below gates the `review` transition on required fields being present. On such a project the field is `n/a — push is escalated on this project`, and that is a complete answer rather than an excuse.
    - `Files changed: <count>` + bullet list
    - `Tests: <pass>/<total>` + command used
    - `Cycle time: <minutes>` (for calibration)
@@ -294,7 +295,9 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 
 ```
 === RESULT ===
-PR URL: <url>           # or "n/a — direct push" with reason
+Branch: <name>          # always — this is what the primary checkout merges
+PR URL: <url>           # only where the hook permits a push; otherwise
+                        #   "n/a — push is escalated on this project"
 Files changed: <count>
   - path/file1.py
   - path/file2.py

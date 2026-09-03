@@ -600,6 +600,44 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
     def seen(self, path: Path) -> str:
         return visible(path.read_text(encoding="utf-8"))
 
+    def rule_block(self) -> str:
+        """The blockquote that states the rule, isolated.
+
+        Assertions about the rule are made against THIS, not against the whole
+        file, so a hedge added anywhere in the section cannot be excused by the
+        word appearing legitimately somewhere else.
+        """
+        src = self.seen(self.DISPATCH)
+        start = src.index("## The tree the agent works in")
+        return src[start:src.index("\n\n", src.index(">", start))]
+
+    def test_the_rule_is_mandatory_and_not_merely_available(self):
+        """**The finding this test exists for, and it was a green mutation.**
+        The V4 round softened the rule to *"A dispatched agent MAY work in its
+        own git worktree where convenient"* and softened the flag bullet to
+        *"optional otherwise"* — and all seven guards reported OK. The row's
+        headline deliverable could be inverted from mandatory to optional
+        without reddening its own guard, because every assertion pinned the
+        PRESENCE of words and none pinned their MODALITY.
+
+        A rule that reads as a preference is the state this row exists to
+        leave, so the guard has to be able to see the difference.
+        """
+        block = self.rule_block()
+        # The imperative, pinned whole. Not `assertIn` on a fragment: the
+        # mutation that defeated this guard kept every fragment intact.
+        self.assertRegex(
+            block,
+            r"A dispatched agent works in its own git worktree\.")
+        for hedge in ("MAY ", "may work", "where convenient", "if convenient",
+                      "optional", "recommended", "should work", "prefer"):
+            with self.subTest(hedge=hedge):
+                self.assertNotIn(hedge, block)
+        # And the flag bullet says the flag is not optional, in the section.
+        src = self.seen(self.DISPATCH)
+        flag = src[src.index('Pass `isolation: "worktree"`'):][:200]
+        self.assertIn("not optional", flag)
+
     def test_dispatch_states_the_rule_and_names_the_flag(self):
         """A reader who reaches the executor section must learn the flag to
         pass, not merely that isolation is a good idea."""
@@ -655,13 +693,79 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         open a PR"* flatly, while `git push` and `origin` are in the default
         hook list Perry's own bootstrap writes — so following the procedure
         tripped the gate the same procedure arms. The fix is conditional
-        wording, and this is the NOT-in that holds it."""
+        wording.
+
+        **Two exact literals was not enough**, and the V4 round proved it: the
+        same order restored in different words stayed green in both files. So
+        this asserts the PROPERTY — every line that commands a push or a PR
+        carries a condition — rather than the absence of two sentences.
+        """
+        ordering = re.compile(
+            r"(?<!not )\b(push(es|ing)? the branch|open (a|the) PR|"
+            r"opens? a pull request|go through PR)", re.I)
+        conditional = re.compile(
+            r"only if|only where|where the|unless|subject to|permits?|"
+            r"escalat|hook|condition", re.I)
+        # **Per CLAUSE, not per line.** A line-level check was still green on
+        # three of the round's mutations: the rest of a long bullet, or a
+        # neighbouring table cell, supplied a word like "hook" or "condition"
+        # and rescued an order that carried none of its own. Split table rows
+        # on `|` and prose on sentence ends, then test only the piece that
+        # actually contains the order.
+        def clauses(line: str) -> list[str]:
+            parts = line.split("|") if line.lstrip().startswith("|") else [line]
+            out = []
+            for part in parts:
+                # `\*{0,2}` because a bolded lead sentence ends `.**` and a
+                # bare `(?<=[.;])\s+` does not split there — which left the
+                # round's M3 mutation green: the rest of the bullet supplied
+                # the word "hook" for an order that carried no condition.
+                out.extend(re.split(r"(?<=[.;])\*{0,2}\s+", part))
+            return out
+
+        for path in (self.BOUNDARIES, self.DELEGATE, self.DISPATCH):
+            src = self.seen(path)
+            for line in src.splitlines():
+                for clause in clauses(line):
+                    if ordering.search(clause):
+                        with self.subTest(path=path.name,
+                                          clause=clause.strip()[:60]):
+                            self.assertRegex(
+                                clause, conditional,
+                                f"{path.name} orders a push/PR in a clause "
+                                f"carrying no condition: "
+                                f"{clause.strip()[:120]}")
         for path in (self.BOUNDARIES, self.DELEGATE):
             with self.subTest(path=path.name):
-                src = self.seen(path)
-                self.assertNotIn("Push the branch and open a PR", src)
-                self.assertNotIn("Code commits go through PR by default", src)
-                self.assertIn(".perry/hook.md", src)
+                self.assertIn(".perry/hook.md", self.seen(path))
+
+    def test_the_result_block_does_not_require_a_field_a_compliant_agent_cannot_fill(self):
+        """**V4 finding 1, and the change created it.** `dispatch.md` still
+        listed `PR URL:` first among the RESULT block's REQUIRED fields, with
+        `"n/a — direct push"` as its only alternative, while the rule this file
+        now lands says *commit, do not push, do not open a PR* wherever the
+        hook escalates a push. A compliant agent then had no truthful value for
+        a required field, and step 4 gates the `review` transition on required
+        fields being present.
+
+        `git-boundaries.md` also began requiring the branch name in the RESULT
+        block, which the RESULT format never defined — three files, three
+        answers.
+        """
+        src = self.seen(self.DISPATCH)
+        required = src[src.index("Read the agent's RESULT block. Required "
+                                 "fields:"):][:1400]
+        # The branch is unconditional — it is what the merge consumes. Assert
+        # the MODALITY, not the field's presence: `Branch: <name>` — sometimes.
+        # left this green in the round's own mutation.
+        self.assertRegex(required, r"`Branch: <name>` — always\.")
+        # The PR URL is not.
+        pr = required[required.index("`PR URL:`"):][:400]
+        self.assertRegex(pr, r"only where|only if|permits")
+        # And the template agrees with the prose.
+        block = src[src.index("=== RESULT ==="):src.index("=== END RESULT ===")]
+        self.assertIn("Branch:", block)
+        self.assertNotIn('# or "n/a — direct push" with reason', block)
 
     def test_the_rule_is_generic_not_perry_specific(self):
         """These files ship to every project. A sentence asserting something

@@ -369,6 +369,26 @@ against a 7-cell header and `perry-lint` reports:
 ✗ perry/BOARD.md:12 [ragged-row] row 'TASK-900 | T | me | Doing | audit | then ship | — |' has 8 cell(s) but its header has 7
 ```
 
+> **Corrected 2026-09-03, after the V4 round.** *That output is from a synthetic
+> fixture, not from the baseline the line names.* At `5720730`,
+> `perry/BOARD.md:12` is prose and no table in the file has a 7-column header —
+> the widths present are 3, 4, 6, 11 and 15 — and `TASK-900` is not a row that
+> exists. The quote was presented as if read off the named baseline, which is a
+> `citation-not-on-branch` in everything but the linter's reach.
+>
+> **The claim itself is true and was reproduced.** The reviewer planted w4–w7
+> into the real `## P0` table and got 16 cells against a 15-cell header, and the
+> line-break value truncated to 5, with `render_row` clean on the same input.
+> Only the exhibit was wrong.
+>
+> **And the round found a limit this section did not record**, which matters to
+> reading (B) because (B)'s whole backstop is this check: **`ragged-row` fires
+> only inside a table the schema recognises.** The identical rows placed in an
+> unrecognised section produce **0 errors**. So "the write shapes have a real
+> backstop" holds where the schema is looking and nowhere else, and a project
+> filing work under its own headings — which `add --group` explicitly supports —
+> is outside it.
+
 The same four on `'need one\n\nneed two'` emit a 5-cell truncated row and
 `ragged-row` fires again. Through `render_row` the same cells give
 `| … | audit \| then ship | … |`, 7 cells, no finding.
