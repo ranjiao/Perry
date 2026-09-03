@@ -168,6 +168,25 @@ All 7 restores reported `✓ bin/perry-lint matches HEAD (3a6efbd3d212…)`, exi
 Baseline measured on this branch before any edit and committed before the run.
 `perry-lint --root .` at **0 errors**, as required.
 
+**One flaky failure was seen and chased, not assumed.** A third suite run
+(after the result document was added) failed one test:
+`test_host_support.TestOpenCodeDispatchLimit.test_concurrent_mixed_registers_do_not_exceed_global_cap`
+— `2 != 3`. Evidence it is contention and not this change:
+
+- That run took **510.6s** against 134.0s and 146.4s for the runs either side —
+  the machine was loaded (this repository carries dozens of live agent
+  worktrees).
+- The module passes in isolation: `TestOpenCodeDispatchLimit`, 7/7 OK.
+- A **fourth** full-suite run went green: 113 modules · 3179 tests · 146.4s ·
+  0 failures.
+- This exact flake is already documented in the tree, in
+  `tests/test_review_verdicts.py:74` — "8-worker `tests/run` already sits close
+  enough to the machine's limits that the added spawns made
+  `test_host_support`'s global-concurrency-cap assertion flake — a test
+  measuring contention, perturbed by a test suite creating it."
+- The diff touches `bin/perry-lint` and `tests/test_spec_scannability.py`;
+  nothing in it reaches host support or dispatch limits.
+
 ## The Bound's own Remainder
 
 The row's `## Bound` asks for the count of criteria files that are **not**
