@@ -784,9 +784,16 @@ def duplicate_row_ids(table, ops, column: str) -> list[dict]:
         # `tests/test_risks_store.py § test_a_section_the_records_cannot_
         # reproduce_is_refused_by_row_and_cell` states about the byte gate's
         # refusal, and a refusal that replaces it inherits the requirement.
+        #
+        # Joined with ` · ` and NOT with ` | `. This is a diagnostic preview,
+        # not a row, and a pipe-joined cell list here is indistinguishable
+        # from a second row builder — the thing `tests/test_one_choke_point.py`
+        # exists to keep at one. It caught this on its first run; the rule is
+        # right and "it is only for an error message" is how the second
+        # builder always starts.
         rows[rid].append({"line": row["line"] + 1,
                           "cell": row["cells"][0][:60],
-                          "text": " | ".join(row["cells"])[:80]})
+                          "text": " · ".join(row["cells"])[:80]})
     return [{"id": rid, "rows": rows[rid]} for rid in order
             if len(rows[rid]) > 1]
 

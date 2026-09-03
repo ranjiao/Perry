@@ -21,6 +21,13 @@
    "workers": 1,
    "load1": 3.16,
    "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_one_choke_point with __pycache__ cleared before each — 1.49 / 1.54 / 1.52s, median 1.52 — at load1 3.16 on the machine that ran the TASK-067 suite the same hour. Serial rather than under the parallel runner on purpose: a 1.5s module's figure is a sort key and a worker-contended number would be a worse one. The spread is quoted whole rather than best-case, as tests/parallel's own docstring asks."
+  },
+  "task-273-duplicate-ids": {
+   "ref": "942c79a",
+   "taken": "2026-09-03",
+   "workers": 1,
+   "load1": 25.41,
+   "note": "Measured, not guessed. Three serial runs of tests.test_duplicate_ids_are_refused with __pycache__ cleared before each: 2.20s, 1.84s, 2.06s wall. The LARGEST is recorded, so the hint never under-books the module. **Taken under load1 25.4**, immediately after an 8-worker suite run on the same machine, and that is stated rather than rounded away: the number is very likely PESSIMISTIC on an idle machine. That is the safe direction for a sort key whose only job is to start the long modules first, and it is the reason no attempt was made to wait for a quiet machine and report a prettier figure. TASK-273."
   }
  },
  "modules": {
@@ -103,6 +110,10 @@
   "test_dispatch_limit_honesty.py": {
    "sec": 3.12,
    "source": "unstamped-pre-304"
+  },
+  "test_duplicate_ids_are_refused.py": {
+   "sec": 2.2,
+   "source": "task-273-duplicate-ids"
   },
   "test_durations_provenance.py": {
    "sec": null,
