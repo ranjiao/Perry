@@ -94,7 +94,21 @@ def run(tool: str, *args, root: pathlib.Path):
 
 
 class RoundTrip:
-    """The three-way guard, in one place so no case can quietly skip a leg."""
+    """The three-way guard, in one place so no case can quietly skip a leg.
+
+    **What this guard does NOT check, and TASK-182 measured it.** `records`
+    below is `M.derive(doc, text)` — built out of the very file it is then
+    compared against — so every assertion here is about the SCANNER and the
+    RENDERER being inverses. It never opens the store on disk. Deleting all ten
+    `objective` records from `perry/okr.jsonl` and re-running
+    `TestThisRepositoryIsReproducedByteForByte.test_okr` leaves it GREEN,
+    `cells_verbatim == {}` assertion included.
+
+    That is correct for what it tests and it is not the DESIGN-009 § 7 risk 2
+    gate, which asks whether the STORE produced the file.
+    `TestTheByteGateCanFail` is that one, and it reads `perry/okr.jsonl` off
+    disk. Do not read the two assertions below as covering it.
+    """
 
     def assert_round_trips(self, doc, path: pathlib.Path, *,
                            expect_kinds=None):
@@ -1128,6 +1142,30 @@ class Project:
     def config(self, *args):
         return run("perry-config", *args, root=self.root)
 
+    def copy_the_real_stores(self):
+        """This repository's own `okr.jsonl`, as bytes, beside its own `OKR.md`.
+
+        `Project` otherwise carries the two documents and NO store, because
+        every case above it is about the migration that mints one. TASK-182
+        needs the opposite starting point: the store this repository actually
+        ships, so that removing records from it is a real subtraction rather
+        than a subtraction from something a test just derived out of the file
+        it is about to compare against.
+        """
+        shutil.copy2(ROOT / "perry" / "okr.jsonl",
+                     self.root / "perry" / "okr.jsonl")
+        return self
+
+    def okr_records(self) -> list:
+        return [json.loads(line) for line
+                in (self.root / "perry" / "okr.jsonl")
+                .read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    def write_okr_records(self, records: list):
+        (self.root / "perry" / "okr.jsonl").write_text(
+            "".join(json.dumps(r, ensure_ascii=False, sort_keys=False) + "\n"
+                    for r in records), encoding="utf-8")
+
     def okr_text(self) -> str:
         return (self.root / "perry" / "OKR.md").read_text()
 
@@ -1183,6 +1221,205 @@ class TestTheCommandLine(unittest.TestCase):
         self.assertEqual(p.okr("diff").returncode, 1)
         self.assertEqual(p.okr("render", "--write").returncode, 0)
         self.assertEqual(p.okr_text(), before)
+
+
+class TestTheByteGateCanFail(unittest.TestCase):
+    """DESIGN-009 § 6 step 2 and § 7 risk 2 — TASK-182.
+
+    **The gate this class guards passed for a day and could not fail.**
+    `TASK-181` landed ten `objective` records and `render` already existed, so
+    `perry-okr diff` reported `identical: true` on this repository without
+    anyone building the thing the row asked for. Measured on `main` at
+    `5e88be8`, on a `git archive` copy with all ten `objective` records deleted
+    from `perry/okr.jsonl`:
+
+        records left: 41    identical: true    lines_verbatim: 10    exit 0
+
+    `render` passes through verbatim any line it has no record for, so a byte
+    comparison between the file and its own render is satisfied whether the
+    records did the work or the file did. `DESIGN-009 § 7` risk 2 names the
+    right bar — "**`cells_verbatim` must be `{}`**" — and nothing implemented
+    it.
+
+    **Every case here reads the store OFF DISK.** That is the whole point and
+    it is what `TestThisRepositoryIsReproducedByteForByte` above does not do:
+    that class calls `M.derive(doc, text)`, which builds the records out of the
+    very file it then compares them against, so its `lines_verbatim == []` and
+    `cells_verbatim == {}` assertions cannot go red no matter what
+    `perry/okr.jsonl` holds — emptying the store entirely leaves them green.
+    They assert that the scanner and the renderer are inverses, which nobody
+    doubted. The two below assert that the STORE is what produced the file.
+    """
+
+    def _report_from_the_store_on_disk(self) -> dict:
+        """`perry/OKR.md` planned against `perry/okr.jsonl` **as shipped**."""
+        okr = ROOT / "perry" / "OKR.md"
+        store = ROOT / "perry" / "okr.jsonl"
+        self.assertTrue(store.exists(), f"{store} — nothing to gate on")
+        records, findings = M.validate_records(M.load_store(store))
+        self.assertEqual(findings, [], f"{store} does not validate")
+        text = okr.read_text(encoding="utf-8")
+        rendered, report = M.render(M.OKR, text, records)
+        self.assertEqual(
+            rendered, text,
+            f"{okr} is not reproduced byte-identically from the store on "
+            f"disk; first difference "
+            f"{json.dumps(_first_difference(text, rendered), ensure_ascii=False)}")
+        return report
+
+    def test_no_line_or_cell_of_the_live_okr_is_copied_through(self):
+        """Deliverable 2 — risk 2's bar, on this repository's own `OKR.md`.
+
+        Asserted on the two registers the design names and on the third that
+        hides in the same way, then on the predicate that reads all three, so
+        the test fails on the finding rather than only on the summary.
+        """
+        report = self._report_from_the_store_on_disk()
+        self.assertEqual(
+            report["lines_verbatim"], [],
+            "a line of perry/OKR.md was copied through because the store on "
+            "disk holds no record for it — byte-identity that proves nothing")
+        self.assertEqual(
+            report["cells_verbatim"], {},
+            "DESIGN-009 § 7 risk 2: `cells_verbatim` must be `{}` — a cell "
+            "came out of the FILE rather than out of perry/okr.jsonl")
+        self.assertEqual(
+            report["cells_wearing_decoration"], {},
+            "a cell rendered the stored value and kept unstored text around "
+            "it — the third way `cmp` passes on nothing")
+        self.assertTrue(
+            M.every_line_and_cell_came_from_the_store(report),
+            "the predicate disagrees with the three registers it reads")
+
+    def test_the_store_intact_is_a_pass(self):
+        """**The control.** A gate that fails everything is not a gate either.
+
+        `perry-okr diff` on an untouched copy of this repository's own file and
+        store: exit 0, and both halves of the answer true. Without this, the
+        two red cases below are satisfied by a change that always refuses.
+        """
+        p = Project(self).copy_the_real_stores()
+        proc = p.okr("diff")
+        self.assertEqual(proc.returncode, 0,
+                         f"stdout={proc.stdout}\nstderr={proc.stderr}")
+        out = json.loads(proc.stdout)
+        self.assertIs(out["identical"], True)
+        self.assertIs(out["every_line_and_cell_came_from_the_store"], True)
+        self.assertEqual(out["lines_verbatim"], [])
+        self.assertEqual(out["cells_verbatim"], {})
+        self.assertEqual(out["kinds"]["objective"], 10)
+
+    def test_removing_the_objective_records_fails_the_gate(self):
+        """Deliverable 3 — **the control the row exists to add.**
+
+        The exact subtraction the spec measured. `identical` is still `true`
+        and that is correct and left alone: the bytes really do match, because
+        the ten headings were copied out of the file. What must move is the
+        second half of the answer and the exit code.
+        """
+        p = Project(self).copy_the_real_stores()
+        records = p.okr_records()
+        kept = [r for r in records if r.get("kind") != "objective"]
+        removed = len(records) - len(kept)
+        self.assertEqual(removed, 10,
+                         "the fixture no longer carries ten Objective "
+                         "records; this case measures a subtraction of ten")
+        p.write_okr_records(kept)
+
+        proc = p.okr("diff")
+        out = json.loads(proc.stdout)
+        # The vacuity, still visible and still honest about the bytes.
+        self.assertIs(out["identical"], True,
+                      "the premise moved: the ten headings are no longer "
+                      "reproduced verbatim, so this case is measuring "
+                      "something else")
+        self.assertEqual(len(out["lines_verbatim"]), removed)
+        self.assertEqual({v["kind"] for v in out["lines_verbatim"]},
+                         {"objective"})
+        # And the gate that could not fail.
+        self.assertIs(out["every_line_and_cell_came_from_the_store"], False)
+        self.assertEqual(proc.returncode, 3,
+                         f"the gate passed with {removed} lines copied "
+                         f"through: stdout={proc.stdout}")
+        self.assertIn("the store did not produce them", proc.stderr)
+
+    def test_a_cell_the_store_forgot_fails_the_gate(self):
+        """Risk 2's own signal, which the spec's measurement never moved.
+
+        Deleting whole records moves `lines_verbatim`; `cells_verbatim` — the
+        register `DESIGN-009 § 7` risk 2 actually names — stayed `{}` through
+        that subtraction, so a gate written only against the spec's numbers
+        would still not implement the design's sentence. Blanking one non-key
+        field of one KR record leaves the row matched and its `Metric / Target`
+        cell copied through: `identical: true`, `cells_verbatim` non-empty. On
+        `main` at `5e88be8` this exited 0.
+        """
+        p = Project(self).copy_the_real_stores()
+        records = p.okr_records()
+        for rec in records:
+            if rec.get("kind") == "kr" and rec.get("metric"):
+                rec["metric"] = ""
+                break
+        else:                                       # pragma: no cover
+            self.fail("no KR record carries a `metric` to forget")
+        p.write_okr_records(records)
+
+        proc = p.okr("diff")
+        out = json.loads(proc.stdout)
+        self.assertIs(out["identical"], True)
+        self.assertEqual(out["lines_verbatim"], [],
+                         "the row fell out of the store's reach entirely; "
+                         "this case is about a matched row with a copied cell")
+        self.assertNotEqual(out["cells_verbatim"], {})
+        self.assertIs(out["every_line_and_cell_came_from_the_store"], False)
+        self.assertEqual(proc.returncode, 3, proc.stdout)
+
+    def test_a_cell_wearing_unstored_words_fails_the_gate(self):
+        """The third register, and the third way `cmp` passes on nothing.
+
+        An edit that APPENDS to a cell rides `describe_cell`'s decoration
+        branch: the stored value is still in there, the extra words are kept as
+        a suffix, and the line renders back byte for byte.
+        `test_an_appended_hand_edit_is_counted_rather_than_hidden` already pins
+        that `identical` stays true and the counter moves — it does not assert
+        an exit code, and on `5e88be8` `diff` exited 0. This case is the exit
+        code, so `cells_wearing_decoration` cannot be dropped from
+        `FELL_BACK_TO_COPYING` without a test going red.
+        """
+        p = Project(self).copy_the_real_stores()
+        path = p.root / "perry" / "OKR.md"
+        before = path.read_text()
+        path.write_text(before.replace("| 3 of 3 modes live |",
+                                       "| 3 of 3 modes live, honest |", 1))
+        self.assertNotEqual(path.read_text(), before,
+                            "the fixture cell moved; this case edits a cell "
+                            "that must exist to be decorated")
+
+        proc = p.okr("diff")
+        out = json.loads(proc.stdout)
+        self.assertIs(out["identical"], True)
+        self.assertEqual(out["cells_wearing_decoration"],
+                         {"Metric / Target": 1})
+        self.assertIs(out["every_line_and_cell_came_from_the_store"], False)
+        self.assertEqual(proc.returncode, 3, proc.stdout)
+
+    def test_the_three_registers_the_predicate_reads_are_the_named_three(self):
+        """`FELL_BACK_TO_COPYING` is the list, and it is not restated here.
+
+        The predicate and the sentence `diff` prints on failure both read this
+        tuple, so a register added to `plan`'s report and forgotten here is a
+        new way to pass on nothing. Asserted against `plan`'s own report keys
+        rather than against a literal, so the two cannot drift apart silently.
+        """
+        report = self._report_from_the_store_on_disk()
+        for key in M.FELL_BACK_TO_COPYING:
+            self.assertIn(key, report,
+                          f"{key} is named as a fallback register and `plan` "
+                          f"does not report it")
+        # `records_not_in_the_file` is deliberately excluded — it is the store
+        # holding MORE than the file, not the file's bytes coming from
+        # somewhere else, and `verify` and `perry-lint` both fail on it.
+        self.assertNotIn("records_not_in_the_file", M.FELL_BACK_TO_COPYING)
 
 
 class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(

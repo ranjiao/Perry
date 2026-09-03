@@ -6,6 +6,8 @@
     perry-okr render  [--root <p>] [--write]    the store → OKR.md
     perry-okr write   [--root <p>] --from-file  OKR.md → the store
     perry-okr diff    [--root <p>]              render and byte-compare
+                                                (exit 3: the bytes match and
+                                                 the store did not produce them)
 
 The store is `okr.jsonl`, beside `OKR.md` in the state root. It holds what is
 WRITTEN — every KR (from a KR table or from the legacy `- KR1: …` bullet form),
