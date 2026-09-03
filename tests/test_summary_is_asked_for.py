@@ -323,6 +323,33 @@ class TestTheCheckDoesNotJudgeLanguage(unittest.TestCase):
             "under the wrong objective lints clean",
             "The linter misses a misfiled KR."), [])
 
+    def test_a_chinese_summary_is_not_refused_for_being_chinese(self):
+        """The check must not silently mean "structural, IN ENGLISH".
+
+        Both halves of this were real defects, found by this row's own suite
+        rather than by reading. `str.split()` makes `新的稳定说明` exactly ONE
+        word, so any length floor refused every Chinese summary ever written;
+        and an ASCII-only fold sent every Chinese summary to `""`, which
+        `"a title".startswith("")` reports as repeating its title. Perry
+        declares a document language per project and ships zh fixtures, so
+        both would have been live.
+        """
+        self.assertEqual(lib.summary_shape(
+            "an English title",
+            "这一行说明了这条记录为什么存在，以及完成之后会得到什么。"), [])
+        # And the rule still WORKS in Chinese rather than merely not firing:
+        # a Chinese summary that is its Chinese title is still caught.
+        self.assertIn("summary-repeats-title", [r for r, _ in lib.summary_shape(
+            "板子写错了。", "板子写错了。")])
+
+    def test_a_one_character_title_does_not_swallow_every_summary(self):
+        """`"a fixture row…"` starts with `"a"`, so a bare prefix test made a
+        row titled "A" repeat its title with EVERY possible summary. The rule
+        measures what the summary ADDS, not that it starts the same way."""
+        self.assertEqual(lib.summary_shape(
+            "A", "A fixture row that exists so the writer has something to "
+                 "write. It carries no meaning beyond that."), [])
+
     def test_the_word_floor_has_measured_headroom_over_the_real_corpus(self):
         """The one rule that is a proxy rather than a structural fact.
 

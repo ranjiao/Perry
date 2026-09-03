@@ -104,8 +104,10 @@ otherwise be no way to accept one.
                 STRUCTURAL ONLY. It reports four things: the field is absent
                 (`summary-missing`); it restates the title after folding case
                 and punctuation (`summary-repeats-title`); it contains no
-                sentence (`summary-has-no-sentence`); it is under five words
-                (`summary-is-a-fragment`). It does NOT judge whether the prose
+                sentence (`summary-has-no-sentence`); it is under five tokens,
+                a CJK character counting as one so the rule does not silently
+                mean "in English" (`summary-is-a-fragment`).
+                It does NOT judge whether the prose
                 is readable, plain, well-written, or true, and must not be
                 quoted as though it does — see `summary_shape`'s docstring for
                 the list of properties deliberately not checked and why,
