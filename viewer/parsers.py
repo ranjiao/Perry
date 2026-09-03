@@ -1281,7 +1281,13 @@ class DesignDoc:
     locked: str = ""
     linked_okr: str = ""
     rel: str = ""           # design/<file>.md
-    impl_refs: int = 0      # # of BOARD tasks referencing this design ID
+    #: Store records that DECLARE this design id in `design_refs` — open and
+    #: closed alike, because the close path leaves the record in
+    #: `perry/tasks.jsonl` (TASK-139). It said "BOARD tasks referencing this
+    #: design ID", and both halves were the defect: the board cannot hold a
+    #: closed row, and "referencing" meant a substring of the row's prose, so
+    #: mentioning a design in a `next_action` counted as implementing it.
+    impl_refs: int = 0
     section_count: int = 0
     mermaid: bool = False
 
@@ -3273,45 +3279,76 @@ def walk_design(root: Path, board: BoardState | None = None,
     if not base.is_dir():
         return out
 
-    # Pre-index BOARD task text once for impl back-reference counting.
-    task_blobs: list[str] = []
-    if board is not None:
-        for t in board.all_tasks:
-            task_blobs.append(
-                " ".join([t.id or "", t.title or "", t.next_action or "", t.evidence or ""])
-            )
-
-    # **And the closures that have already left the board.** `perry-task done`
-    # REMOVES the row it closes, so a board-only count reports `impl_refs: 0`
-    # for a design whose implementation tasks are all FINISHED — and
-    # `perry-state` turns that into "pending hand-off". `DESIGN-004` is
-    # `bin/perry-task` itself, 3,300 lines shipping with 11 close events
-    # against its id, and Perry reported it as never handed off.
+    # Pre-index the DECLARED design edges once, per design id (TASK-139).
     #
-    # The same trap `bin/perry-lint § check_verification` documents in its own
-    # docstring, in a second reader that did not know about it. Counted here
-    # rather than in the caller so every consumer of `walk_design` gets the
-    # corrected number.
-    # `.perry/` is anchored to the PROJECT root and this function receives the
-    # STATE root, which may be a subdirectory of it (`perry/` here).
-    # `load_snapshot` now hands over the exact project root — `resolve_project_root`
-    # is the stored inverse this comment used to say nobody had written (TASK-159)
-    # — so the first probe below lands. The bounded walk stays for the callers
-    # that pass no `project_root` at all, where a guess still beats no log.
-    log = None
-    probe = project_root or root
-    for _ in range(4):
-        cand = probe / ".perry" / "events.jsonl"
-        if cand.exists():
-            log = cand
-            break
-        if probe.parent == probe:
-            break
-        probe = probe.parent
-    if log is not None:
-        for line in log.read_text(errors="replace").split("\n"):
-            if line.strip():
-                task_blobs.append(line)
+    # This counted a SUBSTRING of each board row's `id + title + next_action +
+    # evidence`, plus every raw line of `.perry/events.jsonl`. Two things were
+    # wrong with that and they pulled in opposite directions.
+    #
+    # It counted prose. Measured on `b4799f9`: `DESIGN-001` reported
+    # `impl_refs=18` — three store blobs and fifteen log lines — and every one
+    # of the eighteen was a row that merely MENTIONED the id in a sentence
+    # (`TASK-212`, `TASK-282`, `TASK-292`, …). Two of them were `TASK-139`'s
+    # own dispatch events, so the row filed to fix the count was inflating it.
+    #
+    # And it could not count the implementation. `DESIGN-001`'s six real rows,
+    # `TASK-001`…`TASK-006`, all `done` at V3 with evidence, contributed ZERO:
+    # they never wrote the id in any field, and they are not on the board to be
+    # read anyway. So a locked, shipped design stayed out of `pending_handoff`
+    # for reasons unrelated to whether it had shipped — a false NEGATIVE, which
+    # is worse than the false positive the row was filed against because it is
+    # invisible.
+    #
+    # Both are answered by counting a declared edge instead of a text match.
+    # `design_refs` is a store field (`bin/perry_store.py § STORED`), so prose
+    # cannot fake it and no `perry-task` verb clears it.
+    #
+    # **Read the STORE, not `board.all_tasks`.** `perry-task done` removes the
+    # row from `BOARD.md`, which is a projection (ADR-007) — the record stays
+    # in `perry/tasks.jsonl` at `"status": "done"`. Reading the projection is
+    # what made a closed row uncountable in the first place, and reading the
+    # store is what keeps `ae505b3`'s property true STRUCTURALLY rather than by
+    # scanning a log that `bin/perry-task:42` calls derived and disposable.
+    edge_counts: dict[str, int] = {}
+    store = load_task_store(root)
+    if store is None and board is not None:
+        # Unadopted: no store to read. The board is all there is, and it can
+        # only carry rows that are still open. Counting nothing here is the
+        # honest answer — `pending_handoff` says "pending", which is the
+        # visible failure rather than the invisible one.
+        store = []
+    for rec in store or []:
+        if not isinstance(rec, dict):
+            continue
+        refs = rec.get("design_refs") or []
+        if not isinstance(refs, list):
+            continue
+        for ref in refs:
+            if isinstance(ref, str) and ref.strip():
+                key = ref.strip().upper()
+                edge_counts[key] = edge_counts.get(key, 0) + 1
+
+    # **The closures that have already left the board are counted above, not
+    # here.** `ae505b3` bought that property by scanning every raw line of
+    # `.perry/events.jsonl`, because a board-only count reported `impl_refs: 0`
+    # for a design whose implementation rows had all FINISHED — `DESIGN-004` is
+    # `bin/perry-task` itself, shipping, and Perry called it never handed off.
+    #
+    # The property is kept and the scan is gone. Reading `perry/tasks.jsonl`
+    # keeps the closed rows in view directly, because the close path never took
+    # them out of the store — only out of the projection. That is strictly
+    # stronger than the log scan was: `bin/perry-task:42` states that the event
+    # log is "DERIVED AND DISPOSABLE" and that "anything load-bearing that
+    # lives only in this file is a bug in the same class", and until this
+    # change `pending_handoff` was exactly such a thing — deleting a file the
+    # tool says may be deleted would have dropped every locked design back into
+    # "pending hand-off". `project_root` is now unused here for that reason,
+    # and is kept in the signature because every caller passes it.
+    #
+    # `bin/perry-lint § check_verification` documents the same closed-row trap
+    # in its own docstring and is a SECOND reader with its own copy of the
+    # rule. Named, not touched here — that is its own row (TASK-139 § Bound).
+    _ = project_root
 
     for md in sorted(base.glob("*.md")):
         if md.name.upper() == "README.MD":
@@ -3359,7 +3396,7 @@ def walk_design(root: Path, board: BoardState | None = None,
 
         linked_okr = field_line(r"Linked OKR|关联\s*OKR|关联目标")
 
-        impl_refs = sum(1 for blob in task_blobs if doc_id in blob)
+        impl_refs = edge_counts.get(doc_id.upper(), 0)
 
         out.append(
             DesignDoc(
