@@ -478,7 +478,12 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         payload_keys = set(self.mod.LIST_TASK_KEYS) if hasattr(
             self.mod, "LIST_TASK_KEYS") else None
         allowed = {"status", "section", "stage", "track", "title", "summary",
-                   "next_action", "verification", "evidence", "depends_on"}
+                   "next_action", "verification", "evidence", "depends_on",
+                   # TASK-139. A STORE field rather than a board cell — there
+                   # is no `Design` column and there must not be one, because
+                   # the close path clears cells and the whole point of the
+                   # edge is that closing must not destroy it.
+                   "design_refs"}
         self.assertLessEqual(set(self.mod.EVENT_FIELD.values()), allowed)
 
     def test_a_section_move_is_not_reported_as_a_status_move(self):
@@ -606,7 +611,7 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         words = {"three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
                  "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
                  "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
-                 "sixteen": 16}
+                 "sixteen": 16, "seventeen": 17, "eighteen": 18}
         for word, total, listed in claims:
             self.assertEqual(
                 words.get(word), len(mislabelled),
@@ -616,7 +621,11 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
                 words.get(total), len(self.mod.TASK_EVENTS),
                 f"doc says the writer has {total!r} task events; TASK_EVENTS "
                 f"holds {len(self.mod.TASK_EVENTS)}")
-            self.assertEqual(sorted(re.findall(r"`([a-z_]+)`", listed)),
+            # `-` as well as `_`: `design-link` (TASK-139) is the first task
+            # event whose name is hyphenated, and a pattern that cannot spell
+            # it would drop it from the doc side and compare a short list to a
+            # short list — the guard passing because it cannot see the entry.
+            self.assertEqual(sorted(re.findall(r"`([a-z_-]+)`", listed)),
                              mislabelled,
                              "the doc names different events than the map")
 

@@ -293,8 +293,8 @@ Its value, per event:
 The map's keys are asserted equal to the writer's own event set, so an event
 cannot ship without declaring what its pair means. The ask that produced this
 proposed `status` for everything except `prioritize`; that would have been
-false for **eight** of the sixteen — `stage`, `track`, `retitle`, `summary`,
-`next`, `rung`, `evidence` and `depends` — and a wrong word in the field whose job is to stop
+false for **nine** of the seventeen — `stage`, `track`, `retitle`, `summary`,
+`next`, `rung`, `evidence`, `depends` and `design-link` — and a wrong word in the field whose job is to stop
 you guessing is worse than no field.
 
 ### `conformance` — what task truth or its projection could not classify
@@ -1028,10 +1028,10 @@ were all shipping and none was named, so a front-end building its event handling
 from the spec met them first at runtime.
 
 `field` is `status` on seven events, and `section` / `stage` / `track` / `title` /
-`summary` / `next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
+`summary` / `next_action` / `verification` / `evidence` / `depends_on` / `design_refs` on the rest. The ask
 proposed `status` for everything except `prioritize`; that is false for
-**eight** of the sixteen — `stage`, `track`, `retitle`, `summary`, `next`, `rung`,
-`evidence` and `depends` — and a wrong word in the field whose job is to stop you guessing is
+**nine** of the seventeen — `stage`, `track`, `retitle`, `summary`, `next`, `rung`,
+`evidence`, `depends` and `design-link` — and a wrong word in the field whose job is to stop you guessing is
 worse than no field.
 One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out
