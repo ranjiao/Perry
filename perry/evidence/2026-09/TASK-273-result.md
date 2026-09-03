@@ -23,3 +23,33 @@
 
 Reproduction, controls, mutations and the tasks.jsonl verdict are filled in
 below as they land.
+
+## Reproduction — first pass
+
+Harness: a throwaway project (`State root: .`, so the register stores sit at
+the project root, not under `perry/`), three P-sections and a four-column
+`## Top risks` table, driven through `bin/perry-task risk-add`.
+
+**Direction 2 REPRODUCES, exactly as the spec describes it.**
+
+Store before (two records, one id, differing on `cleared`):
+
+```
+{"id":"RX-001","title":"first risk","status":"open","cleared":""}
+{"id":"RX-001","title":"a stale duplicate of RX-001","status":"cleared 2026-02-02","cleared":"2026-02-02"}
+{"id":"RX-002","title":"second risk","status":"open","cleared":""}
+```
+
+After an ordinary `perry-task risk-add --title "another new risk"` (rc **0**):
+
+```
+{"id":"RX-001","risk":"first risk","opened":"2026-01-01","cleared":"2026-02-02","status":"open","order":0}
+```
+
+`RX-001` is `status: open` and now carries `cleared: 2026-02-02` — a date that
+belonged to the other record. `by_id` (`:748`) kept the LAST record for the id,
+and `risk_record`'s `if stored is not None and stored.get("cleared")` carried
+its `cleared` onto the surviving row. Exit code 0.
+
+**Direction 1 does NOT reproduce as written**, and the reason matters — see the
+matrix below.
