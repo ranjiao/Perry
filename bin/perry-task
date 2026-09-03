@@ -52,7 +52,15 @@ same class — the file is allowed to make Perry *slower to explain itself*, nev
 
 Usage:
   perry-task add   --title "…" --deliverable "…" --verification "…"
-                   [--summary "…"]
+                   --summary "…"   REQUIRED. Why the row exists and what is
+                                   true when it is done, in plain language,
+                                   for a reader who was not in the
+                                   conversation. The title is shorthand for
+                                   people who already know; this is the field
+                                   `perry-explain` prints. Refused if it is
+                                   only the title again, has no sentence, or
+                                   is under five words — structure only,
+                                   never a judgement of the prose.
                    [--rung V1..V6]  fills the Verification COLUMN; --verification
                                     is the spec's prose and does not
                    [--role <name>]  required once the project declares any
@@ -3262,6 +3270,44 @@ def cmd_add(args, ctx) -> dict:
             f"check. Pass the rung as --rung {args.verification.strip()} and "
             f"give --verification the falsifiable check it is graded against "
             f"— what someone else would run to disagree with you")
+    # **A HARD GATE HERE, advisory in `perry-lint` — TASK-325.** The two halves
+    # split on the axis DESIGN-003 § 4 decision 4 actually cares about. That
+    # decision chose "advisory first release, hard gate next" for the
+    # verification ladder, and its stated reason is retroactive invalidation:
+    # a gate on day one would have invalidated every `done` row ever written,
+    # since none carried a rung. **`add` has no retroactive half.** It only
+    # governs rows minted from now on; the 89 existing blank rows are untouched
+    # by it, and they are what `perry-lint --summaries` reports instead.
+    #
+    # The stronger argument is that the advisory option has ALREADY BEEN TRIED
+    # on this exact field and measured. `--summary` has been an optional flag
+    # on this subcommand since contract 1.11. Nothing refused, nothing
+    # reported, no procedure asked — and it reached 25 of 114 open rows. An
+    # advisory here would be a second run of the experiment that produced the
+    # defect this row exists to fix.
+    #
+    # Shaped like the two refusals above it: the FIELD is required, and one
+    # CATEGORY of answer is refused — a summary that is only the title again,
+    # which is what the field degrading would look like. The predicate is
+    # `lib.summary_shape`, the same one `perry-lint` reports through, so the
+    # writer and the linter cannot come to disagree about what a summary is.
+    if not args.summary or not args.summary.strip():
+        raise Refused(
+            "--summary is required: one or two sentences of plain language "
+            "saying why this row exists and what is true when it is done, "
+            "for a reader who was not in the conversation that filed it. "
+            "The title is shorthand for people who already know; this is the "
+            "field `perry-explain` prints and a front-end renders. "
+            "`perry-lint --summaries` lists the rows already filed without "
+            "one")
+    _shape = lib.summary_shape(args.title, args.summary)
+    if _shape:
+        _why = "; ".join(w for _, w in _shape)
+        raise Refused(
+            f"--summary is not usable as one: {_why}. It is checked for "
+            f"STRUCTURE only — never for whether the prose reads well, which "
+            f"is not a thing a tool can judge and not a thing this one claims "
+            f"to")
     track = track_of(ctx["config"], args.track or "main")
     mode = track["mode"]
     minting = minting_records(ctx)
@@ -4336,6 +4382,26 @@ def cmd_summary(args, ctx) -> dict:
     value = "" if args.clear else args.summary
     if previous == value:
         raise Refused(f"{args.id}'s summary is already that")
+    # The same structural gate `add` applies, for the reason `evidence` and
+    # `rung` have their own writers at all: a field that can only be set
+    # correctly at creation is a field nobody repairs. Without this, `add`'s
+    # refusal is one `perry-task summary` away from being undone, and the
+    # linter would then report a row the tool had just accepted.
+    #
+    # `--clear` is deliberately NOT gated. Removing a summary that turned out
+    # to be WRONG must stay available: a confidently wrong summary is worse
+    # than an empty field, because the empty field tells the reader to go and
+    # look. The linter reports the row afterwards, which is the correct
+    # outcome — it is blank, and it is honestly blank.
+    if not args.clear:
+        shape = lib.summary_shape(record.get("title") or "", value)
+        if shape:
+            why = "; ".join(w for _, w in shape)
+            raise Refused(
+                f"{args.id}: that is not usable as a summary — {why}. "
+                f"Checked for STRUCTURE only, never for whether the prose "
+                f"reads well. To remove a summary rather than replace it, "
+                f"pass --clear")
     shown = value or "—"
     jline = f"- [{args.id}] summary · {previous or '—'} → {shown}"
     event = {

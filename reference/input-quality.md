@@ -87,6 +87,9 @@ time the user hears about a thin Non-Goals.
 | 4.3 | **Single owner from the Owner model** — not "team" / unassigned | "Owner: someone" | "Owner: Coding Agent" |
 | 4.4 | **Priority is justified** — P0 must plausibly block a Must-Have | everything P0 | P0 only if it blocks a DoD Must-Have; else P1/P2 |
 | 4.5 | **Linked to a KR** (from `plan-week`) — orphan tasks are scope creep | no `kr:` tag | `kr:P<NNN>-O1-KR2` |
+| 4.6 | **Summary is written for a stranger** — why the row exists and what is true when it is done, in plain language, for somebody who was not in this conversation. The title is shorthand; this is what `perry-explain` prints. | the title again, or `D009 step 3` | "Perry ships two opposite orderings of the phase-close pipeline. Nothing picks one, so whoever runs it picks by which page they read." |
+
+> **4.1, 4.2 and 4.6 are also hard refusals in `perry-task add`** (`--verification`, `--deliverable`, `--summary`). They are listed here as well because this pass runs *before* the tool does, and catching them in conversation is cheaper than catching them at the command line. The tool's half of 4.6 is **structural only** — it refuses a summary that folds to the title, has no sentence, or is under five words. Whether the prose is genuinely readable is this pass's job and a human's, not the tool's; do not treat a green `perry-task add` as evidence that 4.6 passed.
 
 ---
 
