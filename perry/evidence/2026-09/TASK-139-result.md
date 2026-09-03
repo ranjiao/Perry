@@ -32,3 +32,28 @@ This worktree was cut at `d49964e`, **143 commits behind `main`**, where
 - Guard it with the two controls the spec names, and mutate every line claimed.
 
 Sections below are filled as the round proceeds.
+
+## Before-state, reproduced on `b4799f9` (§ Verification 1)
+
+**The spec's number has drifted. `DESIGN-001` reports `impl_refs=18`, not 11.**
+The spec measured 11 on `5c76aa2`; on the dispatch's own baseline `b4799f9` the
+count is 18 — 3 store blobs and 15 event-log lines.
+
+| source | count | rows |
+|---|---|---|
+| store blobs | 3 | `TASK-212`, `TASK-297`, `TASK-282` |
+| event log lines | 15 | `TASK-282`(x3), `TASK-212`, `TASK-292`(x4), `TASK-293`, `TASK-284`, `TASK-297`, `TASK-258`, `TASK-139`(x2), one bare `intake` |
+
+Every one is an incidental prose mention. **`TASK-001`…`TASK-006`, the six rows
+that actually implement `DESIGN-001`, contribute zero** — they are absent from
+the board entirely (closed and removed) and no event line names both a
+`TASK-00[1-6]` id and `DESIGN-001` as that row's own subject. The three log
+lines that contain both strings are prose: two are `TASK-139`'s own dispatch
+notes and one is `TASK-282`'s, each quoting the task range inside a sentence.
+
+**The count is self-inflating.** Two of the 18 are `TASK-139`'s own dispatch
+events — the row filed to fix the false negative is now feeding it. The signal
+gets further from honest every time the PMO writes about the problem.
+
+`DESIGN-001` is `locked` (2026-08-16) with `impl_refs=18 > 0`, so it does not
+appear in `pending_handoff`. That is the false negative, reproduced.
