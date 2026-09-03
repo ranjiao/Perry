@@ -4629,11 +4629,17 @@ def scan_spec_escalations(text: str, fragments: list[str]) -> dict:
     contradictions = [f for f in touches.get(ESCALATION_UNCANCELLABLE, [])
                       if f in green]
     refuse: list[str] = []
-    for label, hits in touches.items():
+    for hits in touches.values():
         for f in hits:
-            cancelled = f in green and label != ESCALATION_UNCANCELLABLE
-            if cancelled and f not in declared:
-                continue
+            # ONE condition, not two. This read `label != ESCALATION_UNCANCELLABLE
+            # and f not in declared`, and the two clauses are the same clause:
+            # `declared` IS the set of fragments hit in the uncancellable
+            # section, so the label test can never decide a case the membership
+            # test has not already decided. A mutation deleting either half
+            # stayed green — the redundancy was load-bearing for nothing and
+            # hid which rule was doing the work. TASK-290.
+            if f in green and f not in declared:
+                continue                  # disclaimed, and never declared
             if f not in refuse:
                 refuse.append(f)
 
@@ -4653,9 +4659,8 @@ def scan_spec_escalations(text: str, fragments: list[str]) -> dict:
         # never listed here even when `Out of scope` also names it — it appears
         # in `contradictions` and in `refuse` instead. Before TASK-290 those
         # were the same list and the cancellation won.
-        "green_lit": [f for label, hits in touches.items() for f in hits
-                      if f in green and label != ESCALATION_UNCANCELLABLE
-                      and f not in declared],
+        "green_lit": [f for hits in touches.values() for f in hits
+                      if f in green and f not in declared],
         # Named in `Files in scope` AND in `Out of scope`. The spec says both
         # "this round writes it" and "this round does not"; the gate reports
         # the disagreement rather than picking the reading that dispatches.

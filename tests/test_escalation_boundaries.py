@@ -564,6 +564,19 @@ class TestACitedPathIsNotAWrittenOne(unittest.TestCase):
         self.assertEqual(sorted(out["refuse"]),
                          ["adopt", "diagnose", "relocate"])
 
+    def test_a_bare_identifier_with_no_path_around_it_still_refuses(self):
+        """The conservative half of the first rule, and the case a mutation
+        found untested: `perry-diagnose` written WITHOUT a directory is a
+        longer name, but there is no path around it to prove it names a file.
+
+        Both rules require a `/` in the token before they will discount
+        anything, so this refuses — the safe direction. Deleting that guard
+        left every other test in this file green, which is why it is pinned
+        here on its own rather than left to the eight tests that happen to
+        exercise paths."""
+        out = self.files("- run `perry-diagnose` by hand afterwards")
+        self.assertEqual(out["refuse"], ["diagnose"])
+
     def test_a_foreign_root_still_refuses(self):
         """The hook's actual meaning, restored rather than removed: overwriting
         someone ELSE's state directory. Four spellings of not-here."""
