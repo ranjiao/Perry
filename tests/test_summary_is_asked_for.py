@@ -302,6 +302,35 @@ class TestOnePlaceDefinesWhatASummaryIs(unittest.TestCase):
                          f"but the predicate emits {sorted(emitted)} — one of "
                          "the two was changed without the other")
 
+    def test_a_removed_rule_stays_named_in_the_not_checked_register(self):
+        """A rule that left must keep saying it left, and why.
+
+        `summary_shape`'s `NOT CHECKED` list is how the next author tells a
+        deliberate omission from an oversight — the difference between "we
+        measured this and declined" and "nobody thought of it". TASK-330's own
+        mutation M5 deleted the entry it had just been required to write and
+        **the whole suite stayed green**, so the register was load-bearing
+        documentation with nothing holding it.
+
+        This pins only what the register must NAME: both removed rules, the
+        date, and the row that removed them. It says nothing about how the
+        entry is worded, which is the author's, and it deliberately does not
+        pin the other `NOT CHECKED` entries — re-proposing one of those is a
+        judgement call, while silently dropping the record of a removal is not.
+        """
+        src = (ROOT / "bin" / "lib" / "__init__.py").read_text(encoding="utf-8")
+        head, sep, rest = src.partition("NOT CHECKED")
+        self.assertTrue(sep, "summary_shape no longer has a NOT CHECKED "
+                             "register — that register IS the deliverable of "
+                             "TASK-330 and TASK-332")
+        register = rest.split('"""')[0]
+        for owed in ("summary-has-no-sentence", "summary-is-a-fragment",
+                     "2026-09-03", "TASK-330"):
+            self.assertIn(owed, register,
+                          f"the NOT CHECKED register no longer names {owed!r}. "
+                          "A removed rule without its reason reads as an "
+                          "oversight to the next author (TASK-332).")
+
     def test_the_writer_and_the_linter_agree_over_a_corpus(self):
         """Not 'both import it' — both ANSWER the same, over cases that differ."""
         project = Project(self)
