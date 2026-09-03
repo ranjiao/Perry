@@ -207,8 +207,14 @@ Both now have tests, in `TestTheChokePointsOwnInterior`:
 ```
 python3 bin/perry-lint --root .    ->  0 error(s), 16 warning(s)
                                        0 row(s) drifted in all six stores
-python3 tests/parallel -j 4        ->  3126/3126, 111 modules   (baseline 3112/3112, 110)
+python3 tests/parallel -j 4        ->  3125/3125, 111 modules, 144.4s, all green
+                                       (baseline 3112/3112, 110 modules, 215.8s)
+                                       durations: 111 recorded · 111 on disk ·
+                                       1 stamped at an ancestor ref · 0 stale
 ```
+
+The 13 new tests are this row's: 8 on the rule and its controls, 5 on the choke
+point's own interior (the two M8/M9 findings and their controls).
 
 Baseline **measured, not assumed**: `3112/3112 green` at `267abb1`, 110 modules,
 215.8s. **The brief's claim that "the suite has not been green all day" does not
