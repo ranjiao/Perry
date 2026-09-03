@@ -1,23 +1,43 @@
 # TASK-308 — result (IN PROGRESS)
 
 - **Branch**: `coding/task-308-bound-before-the-round`
-- **Branched from**: `548f206` ("Escalation override recorded before either row is dispatched"), which is `main` at dispatch time.
+- **Branched from**: `548f206` ("Escalation override recorded before either row is dispatched"), `main` at dispatch time.
 - **Worktree cut at**: `d49964e` — ~140 commits behind, the stale cut the brief warned of. Re-branched onto `548f206` before any work.
 
-## What this row is about to do
+## Before-state — re-derived on `548f206`, not copied from the spec
 
-Make a spec's missing `## Bound` reportable **before** a review round, from the
-spec-side pass in `bin/perry-lint` that already reports `spec-scope-unscannable`
-and runs under the default `perry-lint --root .`. The existing verdict-side
-check at `bin/perry-lint:2458` stays — it answers a different question.
+The spec quotes `47fa45a`: 144 specs / 17 bound / 127 without. On `548f206`:
 
-Steps, in order:
+```
+specs on disk (evidence/*/*-spec.md) : 146     (spec said 144)
+specs carrying a `## Bound`          :  19     (spec said 17)
+specs without                        : 127     (unchanged — both moved together)
+`criteria-unbounded` reported        :   0
+```
 
-1. Measure the before-state (specs on disk / carrying a bound / `criteria-unbounded` reported).
-2. Add the spec-side check with a chosen, argued severity — not 127 warnings.
-3. Fixture for the main property: a spec with no bound and **no review document anywhere**.
-4. Control: a spec that has a bound is silent.
-5. Mutation-test the new call site; verify restores against `git show`.
-6. Full suite vs. measured baseline.
+The two new specs since `47fa45a` both carry a bound, so the *missing* count is
+unmoved at 127. The headline number in the spec is stale by two on each side and
+correct on the one that matters.
 
-_This stub exists so the round survives a watchdog. It is replaced on completion._
+`criteria-unbounded` reporting **0** is confirmed on two surfaces:
+
+- `perry-lint --root .` (default pass) — 0 errors, 26 warnings:
+  `NS-01` 5, `spec-scope-unscannable` 11, `summary-missing` 10. The rule does
+  not appear at all.
+- `perry-lint --root . --reviews` — 23 findings:
+  `verdict-malformed` 9, `v4-close-without-verdict` 10,
+  `review-rounds-exhausted` 2, `review-with-no-verdict` 2. Again absent.
+
+The cause is as the spec states. `bin/perry-lint:2463` reads
+`fields.get("criteria", "")` inside `for fields, line in parse_verdicts(text)` —
+the loop body only runs for a spec that a verdict block already cites, and a
+verdict block exists only after a round scored. On 127 specs it has never spoken.
+
+## Plan
+
+Host the spec-side check in `check_specs` (`bin/perry-lint:2901`) — the pass that
+already reports `spec-scope-unscannable`, already walks `evidence/**/*-spec.md`
+via `SPEC_FILE_RE`, already runs in the default `perry-lint --root .`, and
+already carries the cap/stats/summary machinery the severity decision needs.
+
+_This is a checkpoint commit. Replaced on completion._
