@@ -2,7 +2,7 @@
 
 > Branch: `coding/task-139-design-backref-w2`
 > Baseline: `main` at `b4799f9`
-> Status: IN PROGRESS — committed before the baseline suite run, per dispatch.
+> Status: DONE. Full suite green, `perry-lint --root .` at 0 errors.
 
 ## Provenance and two corrections to the dispatch brief
 
@@ -135,4 +135,136 @@ strengthens `ae505b3`'s property rather than merely preserving it.
 six historical rows is explicitly out of scope ("*a migration is its own row and
 its own decision*"), so this round makes the count honest and does not invent
 the edges.
+
+## After-state
+
+`DESIGN-001` reports **`impl_refs=0`** and appears in `pending_handoff` —
+**pending, honestly**, which § Verification 2 names as a pass. All 18 prose
+mentions stopped counting; no edge was invented to replace them, because
+backfilling the six historical rows is explicitly out of scope
+(*"a migration is its own row and its own decision"*).
+
+The mechanism is proven live rather than asserted. In a disposable copy of this
+repository, `perry-task design-link TASK-001 --design DESIGN-001` — against a
+row that closed months ago and has no line on the board — wrote
+`design_refs: ["DESIGN-001"]` into the record and moved `DESIGN-001` from
+`impl_refs=0` to `1` and out of `pending_handoff`. That is the deliverable
+working end to end on exactly the row the spec names.
+
+## The two controls
+
+**Control 1 — a prose mention must not count.**
+`TestProseDoesNotCount` adds a row whose `title`, `next_action` AND `evidence`
+all name `DESIGN-009` with an empty `design_refs`, and `impl_refs` stays `0`.
+Three further cases: a mention beside a real edge does not add to it (1, not
+4); prose in the event log does not count; and `DESIGN-0091` no longer bleeds
+into `DESIGN-009`, which a substring match did.
+
+**Control 2 — a closed row must still count.**
+`TestAClosedRowStillCounts` counts a record at `"status": "done"`, and
+`test_closing_the_linked_row_does_not_clear_the_edge` runs the real lifecycle:
+link, then `perry-task done`, then assert the row is gone from `BOARD.md` and
+the edge and the count both survive. `ae505b3`'s property is intact.
+
+It is also now **stronger than `ae505b3` left it**.
+`test_it_survives_the_event_log_being_deleted` empties and then deletes
+`.perry/events.jsonl` and the count does not move. Before this round it would
+have collapsed to zero for every design: the property depended on a file
+`bin/perry-task:42` says may be deleted at any time.
+
+## Mutations — 12 planted, 11 red, and the green ones changed the code
+
+Every mutation asserts the old text at its anchor before replacing it, so a
+stale anchor raises instead of silently no-op'ing. Restores come from
+`git show HEAD:<path>` and are re-verified with `bin/perry-restore-check`.
+
+| # | mutation | first verdict | final |
+|---|---|---|---|
+| M1 | `store = load_task_store(root)` → `None` | RED | RED |
+| M2 | count a substring of the record again | RED | RED |
+| M3 | edge count capped at 1 | RED | RED |
+| M4 | `design_refs` dropped from `STORED` | **GREEN** | RED |
+| M5 | the carry in `store_records` removed | **GREEN** | RED |
+| M6 | `design-link` dropped from `changed` | RED | RED |
+| M7 | unknown design id accepted | RED | RED |
+| M8 | `design-link` dropped from `in_place` | **GREEN** | RED |
+| M9 | repeated design ids not collapsed | **GREEN** | RED |
+| M10 | `validate_records` skips the list type | RED | RED |
+| M11 | `record()` drops the list branch | **GREEN** | RED |
+| M12 | `off_board=` forced to `False` | **GREEN** | *code deleted* |
+
+**Six mutations came back green, and each was a real finding.**
+
+*Two of them were dead code I had written, and they were deleted rather than
+tested.*
+
+- **M12.** `cmd_design_link` computed `off_board = not _row_is_on_the_board(…)`
+  and passed it to `commit`. It does nothing: inside `commit`, `off_board`
+  reaches one clause gated on `retitle` and the `in_place` decision, which this
+  event already satisfies by name. Forcing it to `False` changed no test.
+- The off-board branch in `commit` — `if projected is None and event_name in
+  ("summary", "design-link")` — was **unreachable**. Instrumented rather than
+  reasoned about: `projected is None` was `False` for `design-link` on a closed
+  row with the log present, emptied, and deleted. `store_records` derives the
+  projection from `ctx["task_records"]`, which is the STORE, and the store
+  keeps terminal records. I had added the branch on the assumption that a
+  closed row has no projection; the assumption was wrong and the mutation is
+  what said so.
+
+*Four were tests that named a line they never reached.*
+
+- **M4 / M5.** `test_an_unrelated_write_does_not_clear_the_edge` cannot reach
+  the carry at all: `commit` copies every non-subject row out of the store
+  byte-for-field, so an unrelated write never rebuilds the linked row. The path
+  where the carry is load-bearing is a whole-store rebuild —
+  `perry-tasks write --from-board` — which now has its own test. `STORED`
+  membership is load-bearing for the TYPE CHECK, not the write, so it is
+  guarded by `validate_records` tests instead.
+- **M8.** Nothing asserted that a store-only field write does not reorder the
+  store. It does not, and a test now says so.
+- **M9 / M11.** Deduplication of repeated ids, and `record()`'s list branch,
+  had no coverage. Note M11's first test still passed the key explicitly, so
+  the mutation was invisible to it; the sibling case — a record with the key
+  ABSENT, where `task.get(k, "")` returns `""` instead of `[]` — is the one
+  that bites.
+
+## Files changed
+
+| file | what |
+|---|---|
+| `viewer/parsers.py` | `impl_refs` counts declared edges from the store; the substring match and the four-level event-log walk are gone |
+| `bin/perry_store.py` | `design_refs` added to `STORED`, `record()` and `validate_records` |
+| `bin/perry-task` | `design-link` subcommand, event kind, `changed` whitelist, `in_place`, and the carry in `store_records` |
+| `tests/test_design_handoff.py` | rewritten: both controls, the writer, the round trips |
+| `tests/test_parsers.py` | TASK-292's negative control **inverted** — see below |
+| `tests/test_project_root_resolution.py` | probe re-pointed off the deleted walk |
+| `tests/test_prioritize.py` | `design_refs` allowed; word map and regex widened for the first hyphenated task event |
+| `schema/task-list-contract.md` | the pair rebuttal: eight of sixteen → nine of seventeen |
+| `schema/events-list-contract.md` | the `design-link` row |
+
+**`schema/state-schema.json` is untouched, and so is everything under
+`claims`.** The escalation was not needed; see § Design chosen.
+
+## A defect removed in passing, named not closed
+
+`walk_design` no longer reads `.perry/events.jsonl` at all, which makes
+**TASK-292**'s defect — a fixture test reading the host repository's event log,
+so a PMO prose edit reddens the suite — unreachable from this reader.
+`tests/test_parsers.py`'s negative control asserted that removing a fixture's
+own log REPRODUCED the leak; it cannot any more, so it is inverted to assert
+the answer does not move. TASK-292 is named here, not closed here — its own row
+covers other readers.
+
+`bin/perry-lint § check_verification` is the second reader the § Bound names.
+Untouched, per § Bound and `review.md § 1`.
+
+## Verification summary
+
+| | |
+|---|---|
+| Baseline suite | 113 modules · **3162 tests** · all green at `b4799f9` |
+| Final suite | 113 modules · **3184 tests** · all green |
+| `perry-lint --root .` | **0 errors**, 26 warnings — none from this change |
+| Mutations | 12 planted · 11 red · 6 green findings, all resolved |
+| Restores | `bin/perry-restore-check HEAD …` — 9 paths, all match |
 
