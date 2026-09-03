@@ -349,6 +349,40 @@ class TestARepeatedValueThatIsNotAnIdIsNotCaught(unittest.TestCase):
             [{"id": "", "risk": "a"}, {"id": "", "risk": "b"}])
         self.assertEqual(dupes, [])
 
+    def test_two_layout_rows_on_the_BOARD_are_not_a_duplicate_either(self):
+        """A SECOND GREEN MUTATION FOUND THIS TEST.
+
+        The round planted `if not rid:` → `if rid is None:` in
+        `duplicate_row_ids` and nothing went red: the store-side test above
+        exercises `duplicate_record_ids`, a different function, and no test
+        reached the board-side line at all. `ops.strip_handle("")` returns
+        `""` and never `None`, so under the mutation two layout rows would
+        both key on the empty id and an ordinary write would be refused for a
+        board that is perfectly fine — control 2's failure, on the door
+        control 2 was not watching.
+
+        A prose row under a register table is layout, `risk_records` says so
+        in as many words, and two of them are not two rows sharing an id.
+        """
+        text = board(risks=[risk_row("RX-001", "a real risk"),
+                            "| a prose note about the section | | | |",
+                            "| another prose note | | | |"])
+        tmp = Path(tempfile.mkdtemp()) / "BOARD.md"
+        tmp.write_text(text)
+        b = PT.Board(tmp)
+        self.assertEqual(S.duplicate_row_ids(S.risk_table(b, PT), PT, "id"),
+                         [])
+
+    def test_a_board_with_layout_rows_still_writes(self):
+        """And the same thing end to end, through the refusal itself."""
+        f = Fixture(
+            board(risks=[risk_row("RX-001", "a real risk"),
+                         "| a prose note about the section | | | |",
+                         "| another prose note | | | |"]),
+            risks=[risk_rec("RX-001", "a real risk", order=0)])
+        r = f.run(*ADD)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
 
 class TestIntakeIsNotServedByTheseLines(unittest.TestCase):
     """The spec's out-of-scope question, answered: `## Intake` is out, and what
