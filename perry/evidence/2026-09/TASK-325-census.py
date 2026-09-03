@@ -54,13 +54,26 @@ CLOSED = {"done", "dropped"}
 #: so that it can only ever fire on a stub.
 MIN_WORDS = 5
 
-_FOLD = re.compile(r"[^0-9a-z]+")
+#: `\W` under Unicode, not `[^0-9a-z]`. An ASCII-only fold sends every Chinese
+#: summary to the empty string, and `"a title".startswith("")` is true — so the
+#: ASCII version reports every non-Latin summary as repeating its title. Found
+#: while running this row's own suite; the same bug was in the shipped
+#: predicate and is fixed there too.
+_FOLD = re.compile(r"[\W_]+", re.UNICODE)
 _SENTENCE = re.compile(r"[.!?。！？]")
+#: Scripts that do not space their words. `str.split()` makes 新的稳定说明 one
+#: word, which would refuse every Chinese summary under any length floor.
+_CJK = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯]")
 
 
 def fold(s: str) -> str:
     """Case- and punctuation-insensitive comparison key."""
     return _FOLD.sub(" ", s.lower()).strip()
+
+
+def tokens(s: str) -> int:
+    """Length that does not assume spaces between words."""
+    return len(_CJK.findall(s)) + len(_CJK.sub(" ", s).split())
 
 
 def shape_findings(title: str, summary: str) -> list[str]:
@@ -70,13 +83,11 @@ def shape_findings(title: str, summary: str) -> list[str]:
         return ["missing"]
     out = []
     ft, fs = fold(title or ""), fold(s)
-    if ft and fs == ft:
-        out.append("repeats-title")
-    elif ft and (fs.startswith(ft) or ft.startswith(fs)):
+    if ft and fs and (fs == ft or fs.startswith(ft) or ft.startswith(fs)):
         out.append("repeats-title")
     if not _SENTENCE.search(s):
         out.append("no-sentence")
-    if len(s.split()) < MIN_WORDS:
+    if tokens(s) < MIN_WORDS:
         out.append("fragment")
     return out
 

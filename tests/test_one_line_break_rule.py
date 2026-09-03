@@ -157,6 +157,7 @@ class TestTheRefusalNamesTheFlag(unittest.TestCase):
 
     def a_row(self) -> str:
         r = self.run_task("add", "--title", "A row this test owns",
+                          "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                           "--deliverable", "d", "--verification", "V2 lint",
                           "--json")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -178,7 +179,7 @@ class TestTheRefusalNamesTheFlag(unittest.TestCase):
         lands under `--root` in a temp directory.
         """
         tid = self.a_row()
-        a = self.run_task("add", "--title", "x\ny", "--deliverable", "d",
+        a = self.run_task("add", "--title", "x\ny", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
                           "--verification", "V2 lint").stderr
         b = self.run_task("next", tid, "--next", "x\ny").stderr
         self.assertIn("--title", a)

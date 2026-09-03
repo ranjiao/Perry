@@ -1051,10 +1051,36 @@ def declared_id_families(root: Path) -> set[str]:
 #: named as such there rather than hidden among the others.
 SUMMARY_MIN_WORDS = 5
 
-_SUMMARY_FOLD = re.compile(r"[^0-9a-z]+")
+#: **`\W` under Unicode, not `[^0-9a-z]`.** The first draft folded away
+#: everything outside ASCII, so every Chinese summary folded to the EMPTY
+#: string — and since `"a title".startswith("")` is true, every one of them was
+#: reported as repeating its title. Same root cause as the length floor's:
+#: a rule that calls itself structural while quietly meaning "in English".
+_SUMMARY_FOLD = re.compile(r"[\W_]+", re.UNICODE)
 #: Latin and CJK sentence terminators. NOT a grammar test — the only claim
 #: made is that a value with no terminator anywhere is not a sentence.
 _SUMMARY_SENTENCE = re.compile(r"[.!?。！？]")
+#: CJK ideographs, kana and Hangul — scripts that do not put spaces between
+#: words. **This exists because the first draft of the length floor counted
+#: `str.split()` and nothing else, which makes `新的稳定说明` exactly ONE word
+#: and would have refused every Chinese summary ever written.** Perry declares
+#: a document language per project, ships zh fixtures, and states in
+#: `SKILL.md` that its field names stay English precisely so the rest need not
+#: — so a "structural" rule that silently means "structural, in English" is
+#: the same defect as a denylist over English, one layer down.
+_SUMMARY_CJK = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯]")
+
+
+def summary_tokens(s: str) -> int:
+    """Length of a summary in a way that does not assume spaces between words.
+
+    A CJK character counts as one token and each whitespace-separated run of
+    everything else counts as one. So `新的稳定说明` is 6 rather than 1, and an
+    English sentence counts the way `str.split()` already counted it.
+    """
+    cjk = len(_SUMMARY_CJK.findall(s))
+    rest = len(_SUMMARY_CJK.sub(" ", s).split())
+    return cjk + rest
 
 
 def summary_fold(s: str) -> str:
@@ -1087,7 +1113,9 @@ def summary_shape(title: str, summary: str) -> list[tuple[str, str]]:
       title adds nothing to it by construction; saying so involves no
       judgement of quality.
     - `summary-has-no-sentence` — no sentence terminator anywhere.
-    - `summary-is-a-fragment` — fewer than `SUMMARY_MIN_WORDS` words.
+    - `summary-is-a-fragment` — fewer than `SUMMARY_MIN_WORDS` tokens, counted
+      by `summary_tokens`, which counts a CJK character as a token so the rule
+      does not silently mean "structural, in English".
 
     NOT CHECKED, deliberately, each for a measured reason:
 
@@ -1118,17 +1146,32 @@ def summary_shape(title: str, summary: str) -> list[tuple[str, str]]:
                  "back at the reader and nothing else")]
     out: list[tuple[str, str]] = []
     ft, fs = summary_fold(title), summary_fold(s)
-    if ft and (fs == ft or fs.startswith(ft) or ft.startswith(fs)):
-        out.append(("summary-repeats-title",
-                    "the summary restates the title rather than explaining "
-                    "it — a reader who did not understand the title learns "
-                    "nothing new from it"))
+    # BOTH must be non-empty. `x.startswith("")` is true for every `x`, so a
+    # summary that folds to nothing would otherwise "repeat" every title.
+    #
+    # **A bare prefix test is not enough, and the fixture that proved it is a
+    # row titled "A".** `"a fixture row that exists…"` starts with `"a"`, so
+    # every summary on that row read as a repeat of its title. The defect this
+    # rule is for is "the summary ADDS NOTHING to the title", so that is what
+    # it measures: identical after folding, or one contains the other and the
+    # difference between them is smaller than the fragment floor. A summary
+    # that opens by restating its title and then explains for another forty
+    # words is not the defect — it is wordy, and wordiness is a matter of
+    # taste, which this check does not have.
+    if ft and fs:
+        added = abs(summary_tokens(fs) - summary_tokens(ft))
+        if fs == ft or ((fs.startswith(ft) or ft.startswith(fs))
+                        and added < SUMMARY_MIN_WORDS):
+            out.append(("summary-repeats-title",
+                        "the summary restates the title rather than "
+                        "explaining it — a reader who did not understand the "
+                        "title learns nothing new from it"))
     if not _SUMMARY_SENTENCE.search(s):
         out.append(("summary-has-no-sentence",
                     "the summary contains no sentence — the contract asks "
                     "for prose a reader outside the conversation can act on"))
-    if len(s.split()) < SUMMARY_MIN_WORDS:
+    if summary_tokens(s) < SUMMARY_MIN_WORDS:
         out.append(("summary-is-a-fragment",
-                    f"the summary is {len(s.split())} word(s); fewer than "
+                    f"the summary is {summary_tokens(s)} word(s); fewer than "
                     f"{SUMMARY_MIN_WORDS} cannot carry why the row exists"))
     return out

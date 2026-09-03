@@ -83,6 +83,7 @@ class Base(unittest.TestCase):
         env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
         return subprocess.run(
             [sys.executable, str(TOOL), "add", "--title", "t",
+             "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
              "--deliverable", "an artifact with a test",
              "--verification", "the test passes",
              "--next", "n", *extra, "--root", str(root)],

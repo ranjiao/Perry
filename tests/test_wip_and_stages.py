@@ -102,6 +102,7 @@ class TestTheReaderAndTheWriterAgreeAboutStages(Base):
         """The property the disagreement broke, asserted across both tools."""
         root = self.project(self.ROW)
         subprocess.run([sys.executable, str(TASK), "add", "--title", "t",
+                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                         "--deliverable", "d with a test", "--verification", "v",
                         "--next", "n", "--track", "ops", "--root", str(root)],
                        capture_output=True, text=True)
@@ -198,7 +199,7 @@ class TestCustomTaskGroupsReachTheStateReader(Base):
     def test_pipeline_add_is_visible_to_tasks_open_counts_and_wip(self):
         root = self.project(self.PIPELINE, heading="Release train")
         added = self.task(
-            root, "add", "--title", "publish notes", "--deliverable",
+            root, "add", "--title", "publish notes", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable",
             "published notes with a test", "--verification", "fresh review",
             "--next", "draft them", "--track", "rel", "--stage", "review",
             "--group", "Release train")

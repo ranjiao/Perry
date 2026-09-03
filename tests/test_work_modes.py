@@ -376,6 +376,7 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
         r = subprocess.run(
             ["python3", str(PERRY_HOME / "bin" / "perry-task"), "add",
              "--root", str(self.root), "--title", "probe",
+             "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
              "--deliverable", "d", "--verification", "v",
              "--track", "intake", "--dry-run", "--json"],
             capture_output=True, text=True)
@@ -1155,6 +1156,7 @@ class TestVerificationSeesToolClosedWork(unittest.TestCase):
             "|---|---|---|---|---|---|\n")
         tool = str(PERRY_HOME / "bin" / "perry-task")
         subprocess.run(["python3", tool, "add", "--title", title,
+                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                         "--deliverable", "d", "--verification", "v",
                         "--priority", "P0", "--root", str(root)],
                        capture_output=True, text=True)

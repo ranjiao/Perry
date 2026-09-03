@@ -202,6 +202,7 @@ class TestTheWriterRefusesAndWritesNothing(unittest.TestCase):
         return subprocess.run(
             [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "add",
              "--root", str(self.root), "--title", "probe", "--priority", "P0",
+             "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
              "--deliverable", "a file that exists",
              # A real check, not the rung. `--verification` takes the
              # falsifiable check; `--rung` takes the rung. This fixture said

@@ -173,8 +173,15 @@ class TestAnUntouchedFileIsNotReported(Fixture):
         d = self.project()
         path = self.store(d)
         _, payload = self.lint(d)
+        # **Filtered by RULE, not just by filename.** Filtering on the file
+        # alone was exact only while the namespace check was the sole thing
+        # that ever named `tasks.jsonl`; TASK-325's `summary-*` rules report
+        # against the same file and are about its CONTENT, which is a
+        # different claim from "Perry did not write this". The subject here is
+        # the stray-file verdict, so that is what is asserted.
         self.assertEqual([f for f in payload["findings"]
-                          if path.name in f["file"]], [])
+                          if path.name in f["file"]
+                          and not f["rule"].startswith("summary-")], [])
 
 
 class TestNoStoreIsSilent(Fixture):

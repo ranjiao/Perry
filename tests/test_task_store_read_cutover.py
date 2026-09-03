@@ -248,6 +248,7 @@ class TestTaskStoreReadCutover(unittest.TestCase):
             encoding="utf-8")
         code, result, stderr = project.run(
             "add", "--title", "New", "--priority", "P0",
+            "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
             "--deliverable", "artifact", "--verification", "test passes")
         self.assertEqual(code, 0, result or stderr)
         self.assertEqual(result["id"], "TASK-003")

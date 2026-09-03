@@ -508,7 +508,7 @@ class TestOneTableTwoStoresOneVerdict(Fixture):
                              ("no record", SETTING_ONLY)):
             with self.subTest(label):
                 d = self.declaring(store)
-                out = self.run_task(d, "add", "--title", "t", "--deliverable",
+                out = self.run_task(d, "add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable",
                                     "d", "--verification", "v")
                 self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
                 self.assertIn("the track register disagrees", out.stderr)
@@ -711,6 +711,7 @@ class TestAWriteAgainstADefaultedRegisterIsRefused(Fixture):
     def test_a_write_is_refused_and_nothing_is_written(self):
         d = self.project(SETTING_ONLY, md_declares_two=True)
         out = self.run_task(d, "add", "--title", "t",
+                            "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                             "--deliverable", "d", "--verification", "v")
         self.assertNotEqual(out.returncode, 0)
         self.assertFalse((d / "tasks.jsonl").exists(),
@@ -722,6 +723,7 @@ class TestAWriteAgainstADefaultedRegisterIsRefused(Fixture):
         it. The store is the register that answered; say so."""
         d = self.project(SETTING_ONLY, md_declares_two=True)
         out = self.run_task(d, "add", "--title", "t",
+                            "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                             "--deliverable", "d", "--verification", "v")
         blob = out.stdout + out.stderr
         self.assertIn("the track register does not carry", blob)
@@ -742,7 +744,7 @@ class TestAWriteAgainstADefaultedRegisterIsRefused(Fixture):
         shape, and round 2 hard-blocked every one of them."""
         out = self.run_task(
             self.project(SETTING_ONLY, md_declares=False),
-            "add", "--title", "t", "--deliverable", "d",
+            "add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
             "--verification", "v")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
 
@@ -811,7 +813,7 @@ class TestTheThreeHandEditWorkflowsStillWrite(Fixture):
     def hand_edit_then_write(self, before: str, after: str):
         d = self.derived(before)
         (d / ".perry" / "config.md").write_text(after)
-        out = self.tool(TASK, d, "add", "--title", "t", "--deliverable", "d",
+        out = self.tool(TASK, d, "add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
                        "--verification", "v")
         return d, out
 
@@ -882,7 +884,7 @@ class TestTheThreeHandEditWorkflowsStillWrite(Fixture):
                           if f["rule"] == "config-store-drift"})
         self.assertEqual(drifted, ["setting/document_language"],
                          "the fixture does not carry the drift it is for")
-        out = self.tool(TASK, d, "add", "--title", "t", "--deliverable", "d",
+        out = self.tool(TASK, d, "add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
                         "--verification", "v")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertNotIn(

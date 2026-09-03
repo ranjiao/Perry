@@ -284,9 +284,11 @@ class TestTheFixturesAreTheShapeUnderTest(Base):
         """
         f = self.fixture(build_board(intake=None), tracks=OPS_QUEUE, mint=())
         self.assertEqual(f.run("add", "--title", "a project row",
+                               "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                                "--deliverable", "d", "--verification", "v")[0], 0)
         self.assertNotIn("## Intake", f.board_text())
         self.assertEqual(f.run("add", "--title", "a queue row", "--track", "ops",
+                               "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                                "--deliverable", "d", "--verification", "v")[0], 0)
         self.assertIn("## Intake", f.board_text())
 
@@ -339,7 +341,7 @@ class TestTheReproduction(Base):
 
     def test_an_ordinary_add_on_a_queue_track_cannot_empty_a_present_intake_store(self):
         rc, out = self.f.run("add", "--title", "a queue task probe",
-                             "--track", "ops", "--deliverable", "d",
+                             "--track", "ops", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
                              "--verification", "v")
         self.assertNotEqual(rc, 0, "the write was not refused:\n" + out)
         self.assertEqual(self.f.raw("intake.jsonl"), self.before,
@@ -355,7 +357,7 @@ class TestTheReproduction(Base):
         `perry-tasks tasks-write`, which there is no such thing as.
         """
         _rc, out = self.f.run("add", "--title", "a queue task probe",
-                              "--track", "ops", "--deliverable", "d",
+                              "--track", "ops", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
                               "--verification", "v")
         self.assertIn("intake.jsonl", out)
         self.assertIn("perry-tasks intake-write --from-board", out)
@@ -375,7 +377,7 @@ class TestTheReproduction(Base):
         write the tool would refuse is exactly that.
         """
         rc, out = self.f.run("add", "--title", "a queue task probe",
-                             "--track", "ops", "--deliverable", "d",
+                             "--track", "ops", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
                              "--verification", "v", "--dry-run")
         self.assertNotEqual(rc, 0, "the dry run previewed a refused write:\n"
                                    + out)
@@ -386,6 +388,7 @@ class TestTheReproduction(Base):
         board = self.f.board_text()
         tasks = self.f.raw("tasks.jsonl")
         self.f.run("add", "--title", "a queue task probe", "--track", "ops",
+                   "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                    "--deliverable", "d", "--verification", "v")
         self.assertEqual(self.f.board_text(), board)
         self.assertEqual(self.f.raw("tasks.jsonl"), tasks)
@@ -409,6 +412,7 @@ class TestTheFourDoors(Base):
         shrunk = "\n".join(rows[:2] + rows[3:])        # one row removed by hand
         f.write_board(build_board(intake=shrunk))
         rc, out = f.run("add", "--title", "an unrelated task",
+                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                         "--deliverable", "d", "--verification", "v")
         self.assertNotEqual(rc, 0, out)
         self.assertEqual(f.raw("intake.jsonl"), before)
@@ -429,6 +433,7 @@ class TestTheFourDoors(Base):
         f.write_board(build_board(
             intake="\n".join(rows[:2] + rows[3:])))     # the dropped one goes
         rc, out = f.run("add", "--title", "an ordinary task",
+                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                         "--deliverable", "d", "--verification", "v")
         self.assertNotEqual(rc, 0, out)
         after = f.records("intake.jsonl")
@@ -959,6 +964,7 @@ class TestTheCarryForwardJoin(Base):
                              ["| 2026-08-05 | a brand new request | — |", ""])
         f.write_board(build_board(intake=replaced))
         rc, out = f.run("add", "--title", "an ordinary task",
+                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                         "--deliverable", "d", "--verification", "v")
         self.assertEqual(rc, 0, out)
         after = f.records("intake.jsonl")
@@ -1044,6 +1050,7 @@ class TestTheOrdinaryWriteReachesItsStore(Base):
         f2 = self.fixture(build_board(intake=None, asks=None, risks=None),
                           mint=())
         _rc, out = f2.run("add", "--title", "a plain task",
+                          "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                           "--deliverable", "d", "--verification", "v")
         self.assertIn("tasks.jsonl", out)
         self.assertNotIn("intake.jsonl", out)

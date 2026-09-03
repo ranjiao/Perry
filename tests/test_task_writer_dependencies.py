@@ -241,7 +241,8 @@ class TestAClosedRowKeepsItsName(unittest.TestCase):
         p.run("rung", a["id"], "--rung", "V3")
         p.run("evidence", a["id"], "--evidence", "e.md")
         p.run("retitle", a["id"], "--title", "renamed")
-        p.run("summary", a["id"], "--summary", "a summary")
+        p.run("summary", a["id"], "--summary",
+              "A stable explanation of why this row exists.")
         p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
         p.run("retitle", a["id"], "--title", "renamed after closing")
         events = [e for e in p.events() if e.get("id", "").startswith("TASK-")]

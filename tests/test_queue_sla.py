@@ -184,6 +184,7 @@ class TestTheNoClockReportThatMustKeepWorking(Base):
         # A tool-written row beside it, so an event log exists — without one
         # `rows_with_no_computable_age` is deliberately empty (contract 1.9).
         self.task(root, "add", "--title", "tool written",
+                  "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                   "--deliverable", "d with a test", "--verification", "v",
                   "--next", "n", "--track", "ops")
 
@@ -237,6 +238,7 @@ class TestAHandWrittenDashIsNoClockToEitherReader(Base):
         root = self.project(OPS_5D, row(tid, cell))
         self.import_board(root)
         self.task(root, "add", "--title", "tool written",
+                  "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                   "--deliverable", "d with a test", "--verification", "v",
                   "--next", "n", "--track", "ops")
         return root
@@ -303,6 +305,7 @@ class TestAHandWrittenDashIsNoClockToEitherReader(Base):
               "ops | triaged | — | — | — |\n", encoding="utf-8")
         self.import_board(root)
         self.task(root, "add", "--title", "tool written",
+                  "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                   "--deliverable", "d with a test", "--verification", "v",
                   "--next", "n", "--track", "ops")
         listed = self.task(root, "list", "--all")

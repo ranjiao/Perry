@@ -389,6 +389,10 @@
    "sec": 71.98,
    "source": "unstamped-pre-304"
   },
+  "test_summary_is_asked_for.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
   "test_task_store.py": {
    "sec": 58.41,
    "source": "unstamped-pre-304"

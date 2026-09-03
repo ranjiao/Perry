@@ -110,6 +110,7 @@ class Project:
 
     def a_task(self) -> str:
         _, a = self.run("add", "--title", "Flip the conformance default",
+                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                         "--deliverable", "the gate enforces",
                         "--verification", "the suite is green")
         return a["id"]

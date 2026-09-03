@@ -1697,8 +1697,18 @@ def check_summaries(state_root: Path) -> list["Finding"]:
         return findings
     check_summaries.stats["store_present"] = True
 
+    try:
+        raw = store.read_text(errors="replace")
+    except OSError:
+        # `tasks.jsonl` is a DIRECTORY, or is unreadable. `exists()` is true
+        # for both, and `read_text` then raises — one check taking the whole
+        # lint run down with it. `check_store_drift` owns reporting the
+        # condition; `TestOneCheckMayNotKillTheLint` is what says this one may
+        # not crash on it.
+        return findings
+
     rows = []
-    for line in store.read_text(errors="replace").split("\n"):
+    for line in raw.split("\n"):
         line = line.strip()
         if not line:
             continue
@@ -1712,11 +1722,29 @@ def check_summaries(state_root: Path) -> list["Finding"]:
     closed = {"done", "dropped"}
     shape_hits = 0
     for r in rows:
-        if (r.get("status") or "") in closed:
+        if not isinstance(r, dict):
+            continue
+        # **Every field here is coerced before it is used.** A store record is
+        # not trusted to be well-typed: `check_store_drift` owns reporting a
+        # badly-typed one, and `ABadlyTypedStoreIsReportedNotFatal` pins that
+        # no shape of no field may kill the lint. The first draft of this loop
+        # wrote `r.get("status") in closed`, which raises `TypeError:
+        # unhashable type` on a `status` holding a list or a dict — one check
+        # taking the whole run down with it, on a file whose entire purpose is
+        # to report that the store is malformed.
+        status = r.get("status")
+        if isinstance(status, str) and status in closed:
             continue
         check_summaries.stats["open_rows"] += 1
-        tid = r.get("id") or "(unnamed row)"
-        hits = summary_shape(r.get("title") or "", r.get("summary") or "")
+        # Same coercion rule as `status` above, and for the same reason: a
+        # non-string `title` reaches `.lower()` inside the fold and a
+        # non-string `summary` reaches `.strip()`. Both are `TypeError`s that
+        # would take the whole lint down on a store this run exists to report.
+        def _s(key: str) -> str:
+            v = r.get(key)
+            return v if isinstance(v, str) else ""
+        tid = _s("id") or "(unnamed row)"
+        hits = summary_shape(_s("title"), _s("summary"))
         if not hits:
             check_summaries.stats["carrying"] += 1
             continue

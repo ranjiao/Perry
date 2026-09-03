@@ -422,20 +422,20 @@ class TestARungPassedAsTheCheckIsRefused(Base):
 
     def test_every_rung_token_is_refused_as_a_check(self):
         for rung in ("V0", "V1", "V2", "V3", "V4", "V5", "V6", "  V4  "):
-            out = self.run_tool("add", "--title", "t", "--deliverable", "d",
+            out = self.run_tool("add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
                                 "--verification", rung, "--priority", "P1")
             self.assertEqual(out.returncode, 1, f"{rung!r} was accepted")
             self.assertIn("is a rung, not a check", out.stderr)
 
     def test_the_refusal_names_the_flag_that_would_have_worked(self):
-        out = self.run_tool("add", "--title", "t", "--deliverable", "d",
+        out = self.run_tool("add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
                             "--verification", "V4", "--priority", "P1")
         self.assertIn("--rung V4", out.stderr)
 
     def test_a_real_check_that_merely_mentions_a_rung_is_accepted(self):
         """Prose is not a rung token. A guard that matched a substring would
         refuse the most natural check anyone would write."""
-        out = self.run_tool("add", "--title", "t", "--deliverable", "d",
+        out = self.run_tool("add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
                             "--verification", "V4 review by a fresh reviewer",
                             "--rung", "V4", "--priority", "P1")
         self.assertEqual(out.returncode, 0, out.stderr)
