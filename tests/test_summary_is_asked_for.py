@@ -81,18 +81,30 @@ class TestAddRefusesWithoutASummary(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("restates the title", r.stdout + r.stderr)
 
-    def test_add_refuses_a_fragment_and_a_value_with_no_sentence(self):
-        r = add_raw(self.project.root, "--title", "a title",
-                    "--summary", "It broke.",
-                    "--deliverable", "d", "--verification", "v")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("word(s)", r.stdout + r.stderr)
+    def test_add_accepts_a_fragment_and_a_value_with_no_sentence(self):
+        """The inverse of the test that stood here until TASK-330.
 
-        r = add_raw(self.project.root, "--title", "a title",
-                    "--summary", "a value carrying no sentence terminator",
-                    "--deliverable", "d", "--verification", "v")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("no sentence", r.stdout + r.stderr)
+        Until 2026-09-03 `add` refused both of these — the first on
+        `summary-is-a-fragment` ("word(s)"), the second on
+        `summary-has-no-sentence`. The user removed both rules: whether prose
+        reads like prose is the writing agent's responsibility, not a check's.
+        Kept as an assertion rather than deleted, because the writer is where
+        a reverted removal would actually bite a user.
+
+        Asserted on `"refused"` rather than on the two old refusal strings:
+        the second fixture literally CONTAINS the words "no sentence", so a
+        `assertNotIn("no sentence", ...)` fires on the accepted payload
+        echoing the summary back and reports a pass as a failure. Found by
+        this row's own mutation round.
+        """
+        for summary in ("It broke.", "a value carrying no sentence terminator"):
+            with self.subTest(summary=summary):
+                r = add_raw(self.project.root, "--title", "a title",
+                            "--summary", summary,
+                            "--deliverable", "d", "--verification", "v")
+                out = r.stdout + r.stderr
+                self.assertEqual(r.returncode, 0, out)
+                self.assertNotIn("refused", out)
 
     def test_the_control_a_good_summary_is_accepted_and_stored(self):
         """THE CONTROL. A gate that refuses everything satisfies every test above."""
@@ -252,11 +264,18 @@ class TestOnePlaceDefinesWhatASummaryIs(unittest.TestCase):
     def test_the_writer_and_the_linter_agree_over_a_corpus(self):
         """Not 'both import it' — both ANSWER the same, over cases that differ."""
         project = Project(self)
+        # The last two were refused until TASK-330 (2026-09-03) removed the
+        # two rules that judged language. They stay in the corpus with their
+        # verdicts flipped rather than being dropped: the property under test
+        # is that the writer and the linter ANSWER THE SAME, and a case they
+        # now both ACCEPT tests that as sharply as one they both refuse — more
+        # so, since a removal that reached only one of the two tools would
+        # show up right here.
         cases = [
             ("a title", "", True),
             ("a title", "A title.", True),
-            ("a title", "It broke.", True),
-            ("a title", "no terminator anywhere in this value", True),
+            ("a title", "It broke.", False),
+            ("a title", "no terminator anywhere in this value", False),
             ("the parser drops zh headers", GOOD, False),
         ]
         for title, summary, expect_refused in cases:
@@ -350,14 +369,25 @@ class TestTheCheckDoesNotJudgeLanguage(unittest.TestCase):
             "A", "A fixture row that exists so the writer has something to "
                  "write. It carries no meaning beyond that."), [])
 
-    def test_the_word_floor_has_measured_headroom_over_the_real_corpus(self):
-        """The one rule that is a proxy rather than a structural fact.
+    def test_neither_a_fragment_nor_a_sentenceless_value_is_a_finding(self):
+        """The two rules TASK-330 removed, pinned as absences.
 
-        The shortest genuine summary on Perry's own board is 22 words. The
-        floor is 5. If someone raises it toward the real population this test
-        is what says so.
+        Until 2026-09-03 `summary-has-no-sentence` and `summary-is-a-fragment`
+        refused both of these. The user removed them: whether prose reads like
+        prose is the writing agent's responsibility, not a check's. This test
+        is the replacement for the one that used to guard the word floor's
+        headroom — the floor is gone, and what needs guarding now is that it
+        stays gone.
         """
-        self.assertLessEqual(lib.SUMMARY_MIN_WORDS, 22 // 4)
+        self.assertEqual(lib.summary_shape("a title", "Short."), [])
+        self.assertEqual(lib.summary_shape("a title", "short"), [])
+        self.assertEqual(
+            lib.summary_shape("a title", "no terminator anywhere here"), [])
+        # `SUMMARY_MIN_WORDS` survives as `summary-repeats-title`'s threshold
+        # and must not drift back into being a length floor: this value is
+        # three tokens with no terminator — both removed rules at once — and
+        # is accepted.
+        self.assertEqual(lib.summary_shape("a title", "太短了"), [])
 
 
 if __name__ == "__main__":

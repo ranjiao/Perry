@@ -112,12 +112,12 @@ otherwise be no way to accept one.
                 row's `summary` — the field `perry-explain` prints and a
                 front-end renders, which is why a blank one costs a reader
                 who was not in the conversation that filed the row.
-                STRUCTURAL ONLY. It reports four things: the field is absent
+                STRUCTURAL ONLY. It reports two things: the field is absent
                 (`summary-missing`); it restates the title after folding case
-                and punctuation (`summary-repeats-title`); it contains no
-                sentence (`summary-has-no-sentence`); it is under five tokens,
-                a CJK character counting as one so the rule does not silently
-                mean "in English" (`summary-is-a-fragment`).
+                and punctuation (`summary-repeats-title`). It used to report
+                two more — no sentence terminator, and under five tokens —
+                until TASK-330 removed them on 2026-09-03, because how well a
+                summary reads is the writing agent's job and not this one's.
                 It does NOT judge whether the prose
                 is readable, plain, well-written, or true, and must not be
                 quoted as though it does — see `summary_shape`'s docstring for
@@ -1753,7 +1753,6 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
 #: refuses on it at write time and this reports on it afterwards; a second
 #: copy is how those two start disagreeing about what they are for.
 summary_shape = lib.summary_shape
-SUMMARY_MIN_WORDS = lib.SUMMARY_MIN_WORDS
 
 
 def check_summaries(state_root: Path) -> list["Finding"]:
