@@ -136,7 +136,7 @@ bullets arm anything (TASK-202).
 - Safety constraints — the escalation union above, plus anything else the
   project's `.perry/hook.md` states
 - Expected response format (file diff list + test output + 1-line summary, OR the RESULT block format from `dispatch.md`)
-- **Git expectation** — see `git-boundaries.md`. For agents that produce commits, state explicitly: branch name pattern, push expectation, PR open expectation, and that the PR link must appear in the RESULT block.
+- **Git expectation** — see `git-boundaries.md`. For agents that produce commits, state explicitly: **which worktree to create and that the primary checkout is not it**, the worktree's branch point, the branch name pattern, and the push / PR expectation the project's hook actually permits — with the PR link required in the RESULT block only where a PR is permitted.
 
 ## Roleless projects — the unchanged path
 
@@ -155,10 +155,11 @@ agent types the system knows about.
 - Relevant tests before/after the change.
 - No unrelated refactors.
 - Clear list of changed files.
+- **Work in its own worktree**, not in the checkout the user is sitting in — `dispatch.md § The tree the agent works in` is the rule and the reason, and it applies here too. A pasted prompt is executed by an agent in whatever tree that session happens to hold, so the prompt must say which tree to create and that the primary checkout is not it. State the worktree's branch point in the prompt: an agent cannot tell that its baseline is stale, and four have run against one.
 - **Commit code + tests on a feature branch** named `coding/<task-id>-<slug>` (do NOT commit directly to main).
-- **Push the branch and open a PR**; provide PR URL in the RESULT block.
-- **Do NOT merge own PR**; merge belongs to the user or a reviewing agent.
-- If push or PR fails (auth, permissions, network), the RESULT block MUST say so explicitly so PMO can escalate.
+- **Push and PR only if the project's hook permits it.** Where `git push` / `origin` are in `.perry/hook.md § High-stakes operations`, the prompt says *commit, do not push, do not open a PR*, and the primary checkout merges the branch afterwards. Where they are not, push and open a PR and put the URL in the RESULT block. Read the hook before rendering the prompt; do not default to either.
+- **Do NOT merge own work**; the merge belongs to the user or to the lane that verified it.
+- If a permitted push or PR fails (auth, permissions, network), the RESULT block MUST say so explicitly so PMO can escalate.
 
 ### For research work, always require
 

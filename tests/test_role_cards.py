@@ -269,7 +269,12 @@ class TestGoal7NoRolesChangesNothing(Base):
         names, arriving as a documentation edit rather than a code one."""
         text = (PERRY_HOME / "work" / "reference" / "delegate.md").read_text()
         self.assertIn("Roleless projects", text)
-        for owed in ("coding/<task-id>-<slug>", "Do NOT merge own PR",
+        # `Do NOT merge own PR` until TASK-285, which made the PR conditional
+        # on the project's hook: where `git push` is escalated there is no PR
+        # to not-merge, and the block said otherwise. What this test is
+        # protecting is that the *no-self-merge* requirement survives the
+        # roleless path, so it pins the requirement and not the noun.
+        for owed in ("coding/<task-id>-<slug>", "Do NOT merge own work",
                      "Hypothesis / data period / universe"):
             self.assertIn(owed, text, owed)
 
