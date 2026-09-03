@@ -16,9 +16,9 @@ resolved by `squash` and its glossary aliases, here as everywhere.
 
 Two things go into a rendered board and they are different things:
 
-  the STORE      the typed values — the twenty fields of `STORED`. Every one
-                 of them is read out of `perry/tasks.jsonl` and out of nothing
-                 else.
+  the STORE      the typed values — the twenty-one fields of `STORED`. Every
+                 one of them is read out of `perry/tasks.jsonl` and out of
+                 nothing else.
   the LAYOUT     the projection's shape — the preamble, the section order and
                  headings, the separator rows, which column sits where, and the
                  padding and decoration each cell wears. Derived from the board
@@ -52,10 +52,21 @@ from tables import cell_spans, header_index, split_row  # noqa: E402
 #: change nobody can then review") and what ADR-004 means by a migration being
 #: reviewable. It is not a derived value: nothing else in the record determines
 #: where triage decided a row should sit.
+#: `design_refs` is TASK-139 and is additive in the same way `summary` was
+#: under TASK-106: `validate_records` skips fields it does not know, so a store
+#: written before this line stays valid and reads as "no design linked".
+#:
+#: It is a STORE field and NOT a board column on purpose. The close path
+#: removes a row from `BOARD.md` — the projection — and keeps the record, so a
+#: design edge held here survives closure while the same edge held in a cell
+#: would not. That is the whole of TASK-139: `walk_design` counted the
+#: projection, so a design's finished implementation rows were invisible to it.
+#: Nothing is added to `FIELD_BY_COLUMN`, so no rendered column moves and
+#: `files[id=board].tables` in `schema/state-schema.json` is untouched.
 STORED = ("id", "title", "summary", "owner", "status", "priority", "track", "stage",
           "stage_since", "arrived", "verification", "evidence", "next_action",
-          "depends_on", "commitment", "parent", "group", "role", "created",
-          "order")
+          "depends_on", "design_refs", "commitment", "parent", "group", "role",
+          "created", "order")
 
 #: `norm(header cell)` → the store field that column is rendered from. The keys
 #: are exactly what `bin/perry-task § cmd_list` zips its cells under, so a
@@ -143,8 +154,8 @@ def record(task: dict, order: int | None) -> dict:
     for k in STORED:
         if k == "order":
             out[k] = order
-        elif k == "depends_on":
-            out[k] = list(task.get("depends_on") or [])
+        elif k in ("depends_on", "design_refs"):
+            out[k] = list(task.get(k) or [])
         else:
             out[k] = task.get(k, "")
     return out
@@ -219,7 +230,7 @@ def validate_records(records: list) -> tuple[list[dict], list[dict]]:
                 ok = value is None or (isinstance(value, int)
                                        and not isinstance(value, bool))
                 expected = "integer or null"
-            elif field == "depends_on":
+            elif field in ("depends_on", "design_refs"):
                 ok = value is None or (
                     isinstance(value, list)
                     and all(isinstance(item, str) for item in value)

@@ -61,7 +61,7 @@ has to know which way the cursor walked.
 | `event` | string | which kind of event this is. **The twenty-six kinds are § The event kinds**, below — ten of them do not describe a task at all |
 | `task` | string | the id this event is about — **not always a `TASK-` id, and on four kinds `""`.** § The event kinds says which, and what a consumer indexing on this key has to do about it |
 | `title_then` | string | **the title as written when the event was appended.** A retitled task's earlier events still carry the old name — correct for a history view, wrong the moment you render it as the row's *current* name. `perry-task/list § title` has that one |
-| `field` | string | which cell `from`/`to` describe — `status` on seven events, `section`, `stage`, `track`, `title`, `summary`, `next_action`, `verification`, `evidence` or `depends_on` on the rest of the task kinds, and **`""` on the ten kinds that are not about a task** |
+| `field` | string | which cell `from`/`to` describe — `status` on seven events, `section`, `stage`, `track`, `title`, `summary`, `next_action`, `verification`, `evidence`, `depends_on` or `design_refs` on the rest of the task kinds, and **`""` on the ten kinds that are not about a task** |
 | `from`, `to` | string | the movement, in the `field`'s terms |
 | `actor` | string | who wrote it |
 | `reason` | string | populated on 16 events in this project's own log and **exposed by no contract surface until 1.0** |
@@ -108,6 +108,7 @@ of the task cells `field` names.
 | `rung` · `perry-task rung` | `TASK-` id | the verification rung was set |
 | `evidence` · `perry-task evidence` | `TASK-` id | the evidence cell was written |
 | `depends` · `perry-task depends` | `TASK-` id | `depends_on` was rewritten |
+| `design-link` · `perry-task design-link` | `TASK-` id | `design_refs` was rewritten — the design(s) this row IMPLEMENTS. A STORE field with no board column, so unlike every other kind above, this one is routinely written against a row that has already CLOSED: which designs a finished row implemented is exactly the question `pending hand-off` asks. `design_refs` rides along as the new set (TASK-139) |
 | `done` · `perry-task done` | `TASK-` id | the row closed. `rung`, `evidence`, `owner` and `role` ride along |
 | `drop` · `perry-task drop` | `TASK-` id | the row closed unfinished. `owner`, `role` and `reason` ride along. `rung` and `evidence` are **`""`** — the writer does not carry them on a drop, and rule 1 supplies the key |
 | `purge` · `perry-task purge` | `TASK-` id | **the record left `tasks.jsonl` altogether** — the store's only removal. `from` is the status it was removed at (always `done` or `dropped`; the writer refuses an open row) and `to` is **`""`**, because there is no destination status once there is no record. `record` rides along on the LOG LINE and carries the removed record verbatim, so the row is reconstructible; it is not projected onto this feed — see § The keys above. The id is retired, never reissued. A consumer holding this task drops it, and one that derives a store from this log must honour the removal, which is what `perry-task list` does |

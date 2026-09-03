@@ -127,15 +127,22 @@ def roots_of(root: Path) -> tuple[Path, Path]:
 
 
 class TestTheInverseReachesWhatTheBoundedWalkCannot(unittest.TestCase):
-    """`walk_design` looks for `.perry/events.jsonl` by walking up FOUR levels
+    """`walk_design` looked for `.perry/events.jsonl` by walking up FOUR levels
     from the state root, because when it was written there was no inverse to
     ask. Four is a guess, and this fixture is the fifth level.
 
-    Asserted on `DesignDoc.impl_refs`, where the count is the difference
-    between "1 task" and "no refs" — the design-handoff signal `walk_design`'s
-    own docstring says shipped code was reported as never handed off for.
-    TASK-178 moved this off the `/design` page and onto the snapshot the page
-    was reading; the number and its meaning are unchanged."""
+    **TASK-139 deleted the walk rather than lengthening it.** `impl_refs` no
+    longer reads `.perry/` at all: it counts a declared `design_refs` edge in
+    the task store, which is anchored to the STATE root the function is handed
+    and needs no walk to find. So the probe changed and the subject did not —
+    what is asserted is still that `load_snapshot` hands the exact project root
+    down instead of guessing at it, now asserted on the inverse itself rather
+    than on a symptom of getting it wrong.
+
+    The old probe is kept as the second assertion, inverted: a log five levels
+    up, thick with the design id, must NOT move the count. That is the same
+    property the bounded walk was failing at, stated as a guarantee rather than
+    as a guess that happens to land."""
 
     DOC = ("# DESIGN-009 — a thing\n\n"
            "> **Status**: locked 2026-08-01\n> **Date**: 2026-08-01\n\n"
@@ -152,17 +159,42 @@ class TestTheInverseReachesWhatTheBoundedWalkCannot(unittest.TestCase):
             fh.write(json.dumps({"ts": "2026-08-12T09:00:00", "event": "done",
                                  "id": "TASK-004",
                                  "next": "implements DESIGN-009"}) + "\n")
+        (state / "tasks.jsonl").write_text(json.dumps(
+            {"id": "TASK-004", "status": "done",
+             "design_refs": ["DESIGN-009"]}) + "\n")
 
-    def test_the_design_is_not_reported_as_never_handed_off(self):
+    def test_the_snapshot_hands_down_the_project_root_it_resolved(self):
         proj, state = roots_of(self.root)
         self.assertNotEqual(proj, state,
                             "the fixture's state root is not a subdirectory — "
                             "this test would pass on the defect")
         import parsers
         snap = parsers.load_snapshot(state)
+        self.assertEqual(snap.project_root, proj,
+                         "five levels is past the bounded walk's reach; the "
+                         "inverse must be taken, not guessed")
+
+    def test_the_design_is_not_reported_as_never_handed_off(self):
+        proj, state = roots_of(self.root)
+        self.assertNotEqual(proj, state)
+        import parsers
+        snap = parsers.load_snapshot(state)
         docs = {d.id: d for d in snap.design}
         self.assertIn("DESIGN-009", docs)
+        # The row is CLOSED and is counted anyway: the store keeps terminal
+        # records, which is why the edge lives there (TASK-139).
         self.assertEqual(docs["DESIGN-009"].impl_refs, 1)
+
+    def test_a_log_five_levels_up_does_not_move_the_count(self):
+        """The bounded walk's failure mode, now unreachable by construction."""
+        proj, state = roots_of(self.root)
+        (state / "tasks.jsonl").unlink()
+        import parsers
+        snap = parsers.load_snapshot(state)
+        docs = {d.id: d for d in snap.design}
+        self.assertEqual(docs["DESIGN-009"].impl_refs, 0,
+                         "the only DESIGN-009 mention left is in a log five "
+                         "levels up, and prose is not an edge")
 
 
 # ── item 2 — a project whose state IS its root, unchanged ─────────────────

@@ -558,23 +558,38 @@ class TheFixtureAnswersFromItsOwnLogOnly(unittest.TestCase):
             self.assertEqual(pending, ["DESIGN-001"])
             self.assertEqual(refs["DESIGN-001"], 0)
 
-    def test_and_the_harness_above_really_does_bite(self):
-        """The negative half, so the positive half cannot pass vacuously.
+    def test_removing_the_fixtures_own_log_changes_nothing(self):
+        """The negative half, **inverted by TASK-139, and this is the point.**
 
-        Remove the fixture's own log and the very same tree reproduces the
-        defect: the walk's fourth probe lands on the host log and every one of
-        its rows mentioning the id is counted as implementation of the
-        fixture's design. If this ever goes green, the geometry has moved and
-        the test above has stopped testing anything.
+        It used to assert that removing the fixture's log REPRODUCED the
+        defect: the walk's fourth probe landed on the host log and all
+        `NOISE` rows mentioning the id counted as implementation of the
+        fixture's design, so `impl_refs` read `8` and `pending_handoff`
+        emptied. That was the negative control for a leak that could still
+        happen.
+
+        It cannot happen any more. `walk_design` no longer reads
+        `.perry/events.jsonl` at all — not the fixture's and not the host's —
+        because `impl_refs` counts a declared `design_refs` edge in the task
+        store instead of substring-matching raw log lines. So the honest
+        negative control is the opposite assertion: the host log is thick with
+        the id, the fixture's own log is GONE, and the answer does not move.
+
+        A count that cannot be reached by prose cannot be reached by somebody
+        else's prose either. TASK-292 is the row that carries the leak; it is
+        named here, not closed here.
         """
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self._nest(tmp)
-            # `missing_ok` so that deleting the fixture's log reddens the test
-            # ABOVE with its own message, rather than erroring here first.
+            with_log, refs_with = self._design(fixture)
             (fixture / ".perry" / "events.jsonl").unlink(missing_ok=True)
-            pending, refs = self._design(fixture)
-            self.assertEqual(pending, [])
-            self.assertEqual(refs["DESIGN-001"], self.NOISE)
+            without_log, refs_without = self._design(fixture)
+            self.assertEqual(with_log, without_log)
+            self.assertEqual(refs_with["DESIGN-001"],
+                             refs_without["DESIGN-001"])
+            self.assertEqual(refs_without["DESIGN-001"], 0,
+                             "the host log carries %d rows naming the id; none "
+                             "of them is an implementation edge" % self.NOISE)
 
 
 class Linter(unittest.TestCase):
