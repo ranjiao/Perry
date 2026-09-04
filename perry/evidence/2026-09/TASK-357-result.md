@@ -257,3 +257,167 @@ admission is invisible. Two things make that acceptable rather than a hole:
    claim that the cap survives a race — and M3, the actual race defect, is caught by
    both contended tests under load, at `15 != 3` and `20 != 2`.
 
+---
+
+## 8. Timing-assumption census — `tests/test_host_support.py`, 35 tests
+
+Method: every class run under 16 burners at base (this row touches only
+`TestOpenCodeDispatchLimit`, so every other class was measured unmodified), plus
+inspection of every assertion that reads a clock or counts a race.
+
+**3 of 35 tests carry a timing assumption**, plus one shared helper.
+
+| # | test | kind | margin | status |
+|---|---|---|---|---|
+| 1 | `test_concurrent_mixed_registers_do_not_exceed_global_cap` | race count | none — 6 of 6 red under load | **fixed** |
+| 2 | `test_concurrent_registers_do_not_exceed_opencode_cap` | race count | none — 2 of 4 replica rounds under load | **fixed** |
+| 3 | `test_a_reap_is_announced_and_names_the_slot_it_took` | elapsed wall clock | ~60s, up to **30.3s consumed** under load | **reported, not fixed** |
+| — | `run_contended`'s `communicate(timeout=20)` (helper for 1 and 2) | wall-clock budget | rounds measured to 42.7s > 20s | **fixed** |
+
+### 1 and 2 — the same defect, twice
+
+Identical shape: 20 contenders, an exact-equality assertion on the winner count and
+on the marker count. The sibling at cap 2 was measured with the same instrumented
+replica: **2, 1, 2, 1 winners** across four rounds under 16 burners, against a
+required 2 — so it would have been red in 2 of those 4. It was never reported as
+flaky only because it happens to be listed first and the run stops caring once its
+sibling fails. Both are fixed by `assert_cap_held`.
+
+### 3 — real, latent, and worth a note before it bites someone
+
+`test_a_reap_is_announced_and_names_the_slot_it_took` backdates a marker by
+`4*60+1` minutes and then asserts the **literal string** `"241m old"`. The limiter
+prints `age / 60` with integer division, so the string survives only while fewer
+than ~60 seconds elapse between the backdating and the `list` call. Measured
+directly, under 16 burners:
+
+```
+round 0: gap backdate->read = 30.29s, printed 241m old  -> OK
+round 1: gap backdate->read = 19.07s, printed 241m old  -> OK
+round 2: gap backdate->read = 15.79s, printed 241m old  -> OK
+```
+
+Green, but **half the budget is already gone** at this load, and the gap is one
+subprocess spawn wide — the same quantity that went from 0.25s to 5.7s in §3. It has
+not been observed to fail and is not fixed here: it is a different mechanism
+(elapsed time, not a race), it is one line, and changing it would mean weakening an
+assertion that is deliberately exact. **Named so the next reader does not have to
+rediscover it**, with the number attached: if this test ever prints `242m old`,
+that is this, and not their row.
+
+The two sibling tests in the same class that use the same 241-minute backdating —
+`test_a_crashed_agent_still_frees_its_slot`,
+`test_every_counting_path_announces_a_reap_not_just_list` — are **safe in principle,
+not by luck**: they assert only that the marker was reaped, and elapsed time makes a
+marker *more* stale, never less. Time pushes them the safe way.
+
+### The other 31 tests — clear, and why
+
+* `TestTheMarkerOutlivesARealCycle`'s remaining tests backdate mtimes with wide
+  margins in the safe direction: 72m and 135m against a 240m TTL (105m of room),
+  72m against 60m (12m), 200m against the 135m flag and the 240m TTL (40m either
+  side). `test_the_default_is_the_top_of_the_window...` reads three constants out of
+  source and JSON — no clock at all.
+* `test_stale_markers_are_cleaned_before_counting` backdates 120s against a 1s TTL.
+* `test_dead_process_lock_is_recovered` turns on `kill -0` of a dead pid, which is
+  deterministic regardless of age.
+* `TestHostDetection` (7), `TestMtimeIsPortable` (4), `TestOpenCodeSetup` (6) and
+  `TestOpenCodeDocumentationContract` (4) contain no concurrency and no wall-clock
+  arithmetic; the third asserts on a fake `stat` shim, the last two on file contents.
+
+**Measured, not only inspected**: the five non-dispatch classes ran **green under 16
+burners**, and `TestTheMarkerOutlivesARealCycle` ran **green under 16 burners on its
+own**. Both of those runs were stopped after their first pass rather than repeated —
+see §10 for why, and for what continuing would have cost.
+
+---
+
+## 9. Relationship to TASK-313 — different defects, and the board currently conflates them
+
+**TASK-313** is titled *"the dispatch limiter has a race, found while three rounds ran
+concurrently"*. It was reported by TASK-244 round 2, deliberately left outside that
+round's bound, and filed with `evidence: —` — so it has never been reproduced.
+
+**TASK-341's** correction note identifies TASK-313 with this red directly: *"it is the
+open TASK-313, the concurrent dispatch-limiter test asserting 2 != 3."*
+
+That identification is now measurably wrong, and this row's measurement separates the
+two cleanly:
+
+* The `2 != 3` red is **not a race in the limiter**. It is the test's assertion. Every
+  observed failure under-counts, the cap held in every run, and the losers were
+  refused by a *lock timeout* rather than by any concurrency defect. That is
+  **TASK-357**, and it is fixed here.
+* There **is** a real race in the limiter, and it is exactly what TASK-313's title
+  says — but it is the lock-protocol hole in §5: a holder's lock directory removed
+  underneath it between `mkdir` and the `owner` write, surfacing as an `mv:` failure
+  and an exit 1 indistinguishable from a cap refusal. §5 is, as far as this row can
+  tell, the **first concrete reproduction** of it.
+
+**Neither row absorbs the other.** Recommended:
+
+1. **TASK-357 closes here.** It owns the assertion defect and the `2 != 3` symptom.
+2. **TASK-313 stays open**, re-pointed at its own subject — the lock protocol — with
+   §5 attached as the evidence it never had. It is a change to
+   `bin/perry-dispatch-limit`, which this row deliberately did not touch.
+3. **TASK-341's note should be amended.** It currently tells the next reader that
+   TASK-313 *is* the `2 != 3` red. Once TASK-357 lands, that sentence would send
+   someone chasing a fixed symptom under a row about a different, still-live defect.
+   Its enumeration of mechanisms is otherwise correct and gains a fifth member.
+
+---
+
+## 10. What this verification cost, and the constraint it puts on the board
+
+The row's verification rule — *"an idle-machine green proves nothing here"* — is
+correct, and it is also the most expensive verification method this project has used.
+Recording the price so the next row can choose with its eyes open.
+
+**Load shape.** 16 `bash` busy-loops (`while :; do :; done`) on a 14-core machine, one
+per measurement, started 1s before the command and killed on exit. Every run leaves
+`survivors=0` verified by `pgrep`; the burners are tagged `PERRYBURNER` so they can be
+counted and proven dead rather than inferred.
+
+**Measured cost of the under-load phases**
+
+| phase | burners | runs | wall under load |
+|---|---|---|---|
+| reproduction at base (2 tests) | 16 | 6 | ~5 min |
+| instrumented replica (exit-code histogram) | 16 | 6 | 1.5 min (89.9s of rounds) |
+| critical-section cost | 16 | 12 registers | ~1.3 min |
+| sibling replica | 16 | 4 | 1.8 min (105.6s of rounds) |
+| anomaly hunt (found §5) | 16 | 8 × 20 procs | ~8 min |
+| post-fix re-verification (2 tests) | 16 | 6 | ~5 min |
+| mutations M1 + M3 × 4 tests | 16 | 8 test runs | ~5 min |
+| census, all classes | 16 | 1 of 4 (stopped) | 12 min |
+| census, marker-TTL class | 16 | 3 | see §8 |
+
+**Roughly 45-60 minutes of a 14-core machine held at 3-8× oversubscription**, in
+scattered blocks between 15:10 and 16:30. The single most expensive line is the broad
+census at ~12 minutes *per run*; it was stopped after one run precisely because the
+targeted class (§8) buys the same information for a fraction of the machine time. If a
+future row needs this method, budget an hour and prefer the narrowest class that can
+carry the property.
+
+### The constraint, stated plainly
+
+**Load-sensitive verification is mutually exclusive with parallel dispatch.** Not
+because load should gate what gets dispatched, but because the two corrupt each
+other's measurements in both directions:
+
+* A deliberate 16-burner run makes every *other* agent's timings meaningless, and any
+  test with a wall-clock budget anywhere in the suite may go red in their worktree for
+  a reason that has nothing to do with their row. That is the misattribution mechanism
+  this row exists to remove, reintroduced from the other end.
+* Conversely, the other agents corrupt *this* measurement. This machine sat at load
+  averages of **109-121 on 14 cores** throughout, with four other agents working, and
+  **none of that was mine** — my burners were verified dead between phases. So the
+  "idle" baseline in §1 was never truly idle; it was merely *not deliberately loaded*.
+  The reproduction survives that (0 of 6 versus 6 of 6 is not a subtle margin), but a
+  finer measurement would not have.
+
+The practical rule: a row whose verification requires deliberate CPU load needs the
+machine to itself. It should be dispatched alone, announced before it starts, and its
+window recorded — otherwise its own numbers are as untrustworthy as the reds it
+causes in everyone else's.
+
