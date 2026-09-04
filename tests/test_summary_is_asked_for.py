@@ -312,24 +312,70 @@ class TestOnePlaceDefinesWhatASummaryIs(unittest.TestCase):
         **the whole suite stayed green**, so the register was load-bearing
         documentation with nothing holding it.
 
-        This pins only what the register must NAME: both removed rules, the
-        date, and the row that removed them. It says nothing about how the
-        entry is worded, which is the author's, and it deliberately does not
-        pin the other `NOT CHECKED` entries — re-proposing one of those is a
-        judgement call, while silently dropping the record of a removal is not.
+        This pins only what the register must NAME: every rule in
+        `lib.SUMMARY_RULES_REMOVED`, with its date and its row. It says nothing
+        about how the entry is worded, which is the author's, and it
+        deliberately does not pin the other `NOT CHECKED` entries —
+        re-proposing one of those is a judgement call, while silently dropping
+        the record of a removal is not.
+
+        **The register is located with `ast`, not by searching the file for
+        English.** The first version of this test did
+        `src.partition("NOT CHECKED")` over the whole 2100-line module and
+        never located `summary_shape` at all — it pinned whichever `NOT
+        CHECKED` came first in the file, which was this one only by
+        coincidence. TASK-332's V4 review broke it in both directions: delete
+        this register in full, put a decoy `NOT CHECKED` in `summary_fold`'s
+        docstring one function earlier, and the test stayed GREEN (M5 again,
+        surviving the fix meant to close it); leave this register untouched and
+        give `summary_fold` an ordinary register of its own — the very reuse
+        this pattern is advertising — and the test went RED, blaming a register
+        that was fine.
+
+        That is the `USER-916` rule broken by the LOCATOR rather than by the
+        assertion. `assertIn` on an identifier is a fact about bytes and stays
+        (the control below rewrites a neighbouring entry end to end and nothing
+        moves); "whatever follows the first `NOT CHECKED` in the file" is
+        Python judging document structure, and it lost the same way five rounds
+        of regex on this project lost to a full stop. "The docstring of the
+        function named `summary_shape`" is deterministic and `ast` gives it for
+        free — the same three lines the test above this one already uses.
         """
+        import ast
+
         src = (ROOT / "bin" / "lib" / "__init__.py").read_text(encoding="utf-8")
-        head, sep, rest = src.partition("NOT CHECKED")
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "summary_shape")
+        head, sep, register = (ast.get_docstring(fn) or "").partition("NOT CHECKED")
         self.assertTrue(sep, "summary_shape no longer has a NOT CHECKED "
                              "register — that register IS the deliverable of "
                              "TASK-330 and TASK-332")
-        register = rest.split('"""')[0]
-        for owed in ("summary-has-no-sentence", "summary-is-a-fragment",
-                     "2026-09-03", "TASK-330"):
-            self.assertIn(owed, register,
-                          f"the NOT CHECKED register no longer names {owed!r}. "
-                          "A removed rule without its reason reads as an "
-                          "oversight to the next author (TASK-332).")
+
+        # Driven by the constant, not by a list retyped here: a rule removed
+        # tomorrow is pinned by adding it to `SUMMARY_RULES_REMOVED`, and a
+        # removal recorded there but never explained is red on the next run.
+        self.assertTrue(lib.SUMMARY_RULES_REMOVED,
+                        "SUMMARY_RULES_REMOVED is empty — the record of what "
+                        "left has been deleted rather than the register failing")
+        for rule, (date, row) in sorted(lib.SUMMARY_RULES_REMOVED.items()):
+            for owed in (rule, date, row):
+                self.assertIn(owed, register,
+                              f"the NOT CHECKED register no longer names {owed!r}. "
+                              "A removed rule without its reason reads as an "
+                              "oversight to the next author (TASK-332).")
+
+        # The constant holds the record; the docstring owes the REASON. Naming
+        # the four tokens on one bare line would satisfy every assert above and
+        # tell the next author nothing. This is an emptiness floor and not a
+        # content pin — it says the register is still prose, never what the
+        # prose says. It cannot catch one bullet being gutted while six others
+        # stand; judging that would mean asking Python whether English reads
+        # like an explanation, which is the question this module refuses.
+        self.assertGreater(
+            len(register), 600,
+            "the NOT CHECKED register has shrunk to roughly its identifiers — "
+            "the reason each rule left is the half a constant cannot hold, and "
+            "it is why the register is in the docstring at all (TASK-332)")
 
     def test_the_writer_and_the_linter_agree_over_a_corpus(self):
         """Not 'both import it' — both ANSWER the same, over cases that differ."""

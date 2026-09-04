@@ -1097,6 +1097,32 @@ def summary_fold(s: str) -> str:
     return _SUMMARY_FOLD.sub(" ", (s or "").lower()).strip()
 
 
+#: Rules `summary_shape` used to emit, as `rule -> (date, row)`.
+#:
+#: **This is the half of the NOT CHECKED register that is data rather than
+#: prose.** The *reason* each rule left stays in `summary_shape`'s docstring,
+#: where it is on the same screen as the predicate someone is reading when they
+#: wonder why there is no sentence check; moving that to a sidecar would
+#: separate the reason from the code it explains and make a second artifact to
+#: keep in sync, which is DESIGN-013's subject. But the `(rule, date, row)`
+#: tuple is not prose — it is a record with one spelling per field, and until
+#: TASK-332 round 2 its only home was a hardcoded tuple inside
+#: `tests/test_summary_is_asked_for.py`. That was a THIRD copy, and an
+#: invisible one: the next author to remove a rule would have written the
+#: docstring entry, left this list alone, and the guard would have stayed green
+#: over a removal it was not pinning — TASK-330's M5 again, one removal later.
+#:
+#: The guard now iterates THIS dict and requires every field of every entry to
+#: appear in the register. So adding a row here is what arms the guard, and the
+#: two copies cannot drift apart silently, which is the property DESIGN-013
+#: actually asks for. It is not a licence to delete the prose: the names live
+#: inside the reasoning paragraph, so prose and record fall together.
+SUMMARY_RULES_REMOVED: dict[str, tuple[str, str]] = {
+    "summary-has-no-sentence": ("2026-09-03", "TASK-330"),
+    "summary-is-a-fragment": ("2026-09-03", "TASK-330"),
+}
+
+
 def summary_shape(title: str, summary: str) -> list[tuple[str, str]]:
     """Every STRUCTURAL rule this summary breaks, as `(rule, why)` pairs.
 
