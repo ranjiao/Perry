@@ -522,3 +522,120 @@ already written one test above, close it.
 ---
 
 ## Closing state
+
+The tree is byte-identical to `BASE` apart from this document. Every one of the
+nine mutations was restored single-path and checked against
+`$(git merge-base HEAD main)`, never against `main`:
+
+```
+$ git diff --stat c5cbf793a88f953d736a1734dc3ba0ee7dbeb63c
+ perry/evidence/2026-09/TASK-331-332-v4-review.md | … | …
+
+$ git status --porcelain
+(empty)
+```
+
+Final full suite, on the restored tree:
+
+```
+$ bash tests/run
+114 modules · 3251 tests · 156.3s · 8 workers
+✓ all green
+0. tree guard — ✓ nothing under <worktree> moved
+exit=0
+```
+
+Fully green this run — `test_host_support` did not race, and none of
+`test_contract_key_parity` (TASK-335), `test_one_primitive` or
+`test_one_choke_point` (TASK-341) fired in either the baseline or the final run.
+
+```
+$ bin/perry-lint --root .
+  0 error(s), 37 warning(s)
+```
+
+### Mutation ledger
+
+| | row | mutation | expected | observed |
+|---|---|---|---|---|
+| M1 | 331 | field row re-lists the two removed rules | red | **RED** |
+| M2 | 331 | predicate emits a name the contract does not list | red | **RED** |
+| C1 | 331 | Changelog names the removed rules again | green | **GREEN** |
+| C2 | 331 | docstring-only edit inside `summary_shape` | green | **GREEN** |
+| V1 | 331 | extraction finds nothing and contract names nothing | red | **RED** |
+| V2 | 331 | a second `summary` field row | red | **RED** |
+| M3 | 332 | TASK-330's M5 — strip names, date, row id | red | **RED** |
+| M4 | 332 | rename the `NOT CHECKED` heading | red | **RED** |
+| C3 | 332 | reword the bare-id entry | green | **GREEN** |
+| C | 332 | register deleted in full, decoy `NOT CHECKED` earlier | red | **GREEN — finding** |
+| D | 332 | register intact, innocent second register earlier | green | **RED — false alarm** |
+
+Nine planted mutations plus two probes: eight red, three green, of which **one
+green is a finding** (Probe C) and one red is a false alarm (Probe D).
+
+### What each row owes
+
+- **TASK-331 — nothing.** It passes. The scope note about TASK-337 is a finding
+  against the method, not a condition on the artifact.
+- **TASK-332 — the three-line `ast` locator.** `ast.parse` → find the
+  `FunctionDef` named `summary_shape` → `ast.get_docstring(fn)` → partition
+  *that*. Re-run M3, M4, C3 and Probes C and D against it; C must go red and D
+  must go green. The separate `SUMMARY_RULES_REMOVED` constant is a good idea and
+  a different row — it is not owed here.
+
+This reviewer wrote no state files: `perry/tasks.jsonl`, `perry/BOARD.md`,
+`perry/journal/`, `.perry/events.jsonl`, `schema/state-schema.json` and `claims`
+are untouched, and this branch was never pushed and no PR was opened.
+
+---
+
+```
+=== RESULT ===
+Branch: review/task-331-332-v4
+TASK-331 verdict: PASS   (criteria 5 of 5)
+TASK-332 verdict: FAIL   (criteria 4 of 5)
+Criteria NOT met: TASK-332 criterion 5 — the guard partitions the whole of
+  bin/lib/__init__.py on the English phrase "NOT CHECKED" and never locates
+  summary_shape, so it pins the FIRST such register in a 2100-line module
+  rather than the one it is named after. Probe C deletes summary_shape's
+  register in full and the test stays GREEN once any earlier "NOT CHECKED"
+  exists; Probe D leaves the register intact and turns the test RED by giving
+  a neighbouring function an ordinary register of its own. Wrong in both
+  directions. The row's own Deliverable — "a guard that fails when
+  summary_shape's NOT CHECKED list loses an entry" — is therefore not met.
+  Fix is three lines of ast, already written one test above it in the same
+  file by the same author an hour earlier.
+Mutations planted: 11, 8 red, 3 GREEN (C1, C2, C3 are intended controls; the
+  finding is Probe C, the one green that should have been red)
+Controls that should stay green and did: C1 (Changelog names the removed
+  rules), C2 (docstring-only edit inside summary_shape), C3 (reword the
+  bare-id NOT CHECKED entry)
+Is a docstring the right home for the NOT CHECKED register: Yes for the
+  reason, no for the record, and this test is NOT the USER-916 mistake. The
+  assertion is a token check on identifiers with one spelling each, not a
+  judgement about whether prose reads like prose — C3 proves it, since a full
+  rewrite of a neighbouring entry moved nothing. The prose reason must stay in
+  the docstring: its value is being on the same screen as the predicate, and a
+  sidecar would recreate the DESIGN-013 two-copies defect this module is
+  organised against. But the machine-checkable part — (removed rule, date,
+  row) — is data pretending to be prose and belongs in a module-level
+  SUMMARY_RULES_REMOVED constant. The USER-916 rule was broken not by what the
+  test asserts but by how it LOCATES what to assert on: str.partition on a
+  human-authored heading is a Python judgement about document structure, and
+  Probes C and D are that judgement losing, exactly as the regex rounds lost
+  to a full stop.
+Was leaving TASK-337 out of TASK-331's scope correct: The EDIT, yes — TASK-331
+  exists only because TASK-330's Bound said an out-of-scope stale document is
+  "a finding to report, not a file to edit", and widening past its own
+  Deliverable would repudiate the discipline that created it. The DISCOVERY,
+  no. TASK-331 never found the two pages: they were named twelve hours later
+  by an independent reviewer (2036f5be, 2026-09-04 10:24, not an ancestor of
+  TASK-331's filing at 5601e45). One grep -rln "under five words" --include=*.md
+  returns all three surfaces. A row whose subject is "a document promises
+  validation the tools no longer perform" owes that census; the right output
+  was fix one, guard one, file TASK-337 itself the same night. Finding against
+  the method, not a defect in the artifact — TASK-331 still PASSes.
+Tree clean: (git status --porcelain returns empty; git diff --stat against
+  BASE c5cbf79 names only perry/evidence/2026-09/TASK-331-332-v4-review.md)
+=== END RESULT ===
+```
