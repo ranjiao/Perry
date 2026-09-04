@@ -1,32 +1,45 @@
-"""A spec that presents the escalation gate no scope is REPORTED — TASK-284.
+"""A spec that declares no scope for the dispatch pre-flight is REPORTED.
 
-`test_escalation_boundaries.py` guards where a fragment may match. This file
-guards the case where there is nothing to match *against*, which is a different
-failure and had no test at all.
+TASK-284, and **rewritten for TASK-339** — the gate this file was written
+against no longer exists. `bin/perry-state --escalation-scan` matched the
+project's high-stakes fragments against a spec's prose and returned a verdict;
+`USER-916` removed it on 2026-09-04 because `ADR-007` decision 3 says the Python
+layer never parses a document, and five rounds ended with the measurement that
+formatting alone moved the verdict in both directions. The judgement is
+`work/reference/dispatch.md` pre-flight step 4's, and the agent performs it.
 
-`scan_spec_escalations` reads three sections through `_section`, which matches
-`^## <heading>`. `work/reference/subcommands.md § add-task` step 3 says the
-spec file carries "the same schema" as the journal block, and `perry-task add`
-renders that block as **bullets** — `- **Deliverable**: …`. A bullet is
-invisible to `_section`. So a spec written by following the documented
-procedure verbatim is scanned against the empty string, and the gate reports:
+**What did not change is the failure this file is about**, which is why the file
+survived the deletion: the pre-flight — code or agent — reads a spec's
+`## Files in scope` and `## Deliverable` to learn what a round will write, and a
+spec offering neither gives it nothing. `P.spec_scope_sections` is what is left
+in Python: it locates those two headings through `_section`, which matches
+`^## <heading>`, and it renders no verdict and matches no fragment.
+
+`work/reference/subcommands.md § add-task` step 3 says the spec file carries
+"the same schema" as the journal block, and `perry-task add` renders that block
+as **bullets** — `- **Deliverable**: …`. A bullet is invisible to `_section`. So
+a spec written by following the documented procedure verbatim declared no scope,
+and the old gate reported:
 
     "armed": true, "fragments_scanned": 35, "touches": {}, "verdict": "pass"
 
-**That output is byte-identical to a spec that was read in full and found
-clean.** The gate's failure mode looks exactly like its success, which is why
-the number went unnoticed: measured on this repository 2026-09-02, **45**
-spec files under `perry/evidence/` with no section the gate can read — 45 of
-135 on the live branch (`coding/task-247-config-predicate`, `89295085`), 45 of
-the 119 this branch was cut from (`d49964e`) — the SAME 45 files either way,
-and every one of them `pass` over a fully armed 35-fragment union. None of the 45 uses the
-bullet shape at all: 19 are `### Deliverable` under a `## Schema` umbrella and
-26 carry no such section in any shape, which is why widening `_section` to
-read bullets would have closed none of them.
+**That output was byte-identical to a spec that was read in full and found
+clean.** The failure mode looked exactly like its success, which is why the
+number went unnoticed: measured 2026-09-02, **45** spec files under
+`perry/evidence/` with no section the gate could read — 45 of 135 on the live
+branch (`coding/task-247-config-predicate`, `89295085`), 45 of the 119 this
+branch was cut from (`d49964e`) — the SAME 45 files either way, and every one of
+them `pass` over a fully armed 35-fragment union. Re-measured 2026-09-04: still
+the same 45, now of 149. None of the 45 uses the bullet shape at all: 19 are
+`### Deliverable` under a `## Schema` umbrella and 26 carry no such section in
+any shape, which is why widening `_section` to read bullets would have closed
+none of them.
 
-`scan_spec_escalations` already refuses to call the OTHER empty input clean:
-no fragments is `unarmed`, "deliberately not `pass`". The two halves are the
-same rule and only one of them was implemented.
+The old gate already refused to call the OTHER empty input clean: no fragments
+was `unarmed`, "deliberately not `pass`". The two halves are the same rule and
+only one of them was implemented — and step 4.1 / 4.2 now say both halves in
+prose, with `TestTheProcedureNamesTheShape` holding that neither loses its
+go-ahead in a rewrite.
 
 The tests below are written as two halves that must both hold, because either
 alone is trivially satisfiable by breaking the other:
