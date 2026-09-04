@@ -157,16 +157,28 @@ class TestGuidanceSaysIt(unittest.TestCase):
         sentence, because a reader who knows there is an override knows there is
         something to override.
 
+        Both pages must also name `--root <copy>`. Round-2 V4 review § 5
+        measured that a reviewer working destructively in a scratch copy needs
+        no override at all — pointing the *live* repository's helper at the
+        copy answers correctly in both directions — while the refusal message
+        names only the flag. A page that mentions the override and not `--root`
+        steers every reader to the blunter instrument. Round 3 added the
+        sentence; without this line, deleting it again was a green mutation.
+
         This is a literal-substring guard and is worth exactly what that is: it
         catches the claim being reverted or the flag being renamed, not a
         paraphrase that reintroduces the overstatement.
         """
         for page in (CONSTRAINTS, README):
             with self.subTest(page=page.name):
-                self.assertIn("--allow-modified-self",
-                              page.read_text(encoding="utf-8"),
+                text = page.read_text(encoding="utf-8")
+                self.assertIn("--allow-modified-self", text,
                               f"{page} describes the helper's self-check "
                               "without naming the flag that overrides it")
+                self.assertIn("`--root <copy>`", text,
+                              f"{page} names the override but not `--root "
+                              "<copy>`, which is the answer for a scratch copy "
+                              "and needs no override")
 
     def test_the_section_exists_in_exactly_one_file(self):
         homes = [
@@ -444,17 +456,40 @@ class TestHelperSelfCheck(_HelperCase):
         helper gets edited. Gating only on `modified` meant a mutated helper
         run from such a copy exited 0 over a file whose own reported digests
         disagreed.
+
+        The precondition is decided by **git**, never by the helper. Round 2
+        wrote this test asking the subject for its own verdict and skipping
+        when the answer was not `unverifiable`, so mutating
+        `bin/perry-restore-check:118` from `"unverifiable"` to `"clean"` made
+        this test skip itself — printing a reason that was false — and left the
+        whole module green (round-2 V4 review § 3). A helper that misreports
+        its verdict must not be able to switch off the guard that exists to
+        catch it misreporting its verdict.
         """
         loose = pathlib.Path(tempfile.mkdtemp(prefix="t256-loose-"))
         self.addCleanup(shutil.rmtree, loose, ignore_errors=True)
         dest = loose / "perry-restore-check"
         dest.write_bytes(HELPER.read_bytes())
 
+        toplevel = subprocess.run(
+            ["git", "-C", str(loose), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True)
+        if toplevel.returncode == 0:
+            self.skipTest(
+                "TMPDIR is itself inside a git repository "
+                f"({toplevel.stdout.strip()}), so a helper placed there is not "
+                "outside every repository and this case is unreachable on this "
+                "machine — git said so, not the tool under test")
+
         probe = self.run_helper("--allow-modified-self", "--json", "HEAD",
                                 str(self.d / "subject.py"), helper=dest)
-        if json.loads(probe.stdout)["self_check"] != "unverifiable":
-            self.skipTest("the temp directory is itself inside a git "
-                          "repository, so this case is not reachable here")
+        self.assertEqual(
+            json.loads(probe.stdout)["self_check"], "unverifiable",
+            "precondition: git reports no work tree containing " + str(loose) +
+            ", so self_check() must return 'unverifiable' — a helper that says "
+            "anything else here is misreporting, which is the whole point of "
+            "this test and must not be allowed to skip it",
+        )
 
         r = self.run_helper("HEAD", str(self.d / "subject.py"), helper=dest)
         self.assertEqual(

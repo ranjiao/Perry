@@ -87,8 +87,10 @@ restored onto a baseline like that reported OK without checking anything.
 been *shown* to match the copy committed in its repository — including when
 there is no committed copy to compare against, which is the case in a `git
 archive` scratch copy and is the more dangerous one, not the safer. Pass
-`--allow-modified-self` to override, and mean it. Use it or hand-roll it — but
-the comparison is against the ref either way.
+`--allow-modified-self` to override, and mean it — but from a scratch copy the
+better move is usually to point the **live** repository's helper at the copy
+with `--root <copy>`, which answers correctly and needs no override. Use it or
+hand-roll it — but the comparison is against the ref either way.
 
 ## Do not mint identifiers
 
