@@ -304,6 +304,28 @@ regions were drawn:
 | `3971-4115` | 93 | `check_md_store_drift` | OKR.md / .perry/config.md vs their stores |
 | `4116-4164` | 23 | `_order_drift` | row ORDER in the render vs the store |
 
+
+### 4.5 Authored support regions — 535 code lines
+
+These are **code** lines placed in a named support bucket, listed here so the
+region list is reconstructable in full from this document. The other four
+support buckets (`docstring`, `comment`, `blank`, `shebang`) are derived
+mechanically and need no table.
+
+| lines | code | bucket | owning function | what it is |
+|---|---:|---|---|---|
+| `141-150` | 8 | `SUPPORT:imports` | `module` | stdlib imports |
+| `157-162` | 5 | `SUPPORT:imports` | `module` | sys.path bootstrap + lib/parsers/tables imports |
+| `166-191` | 16 | `SUPPORT:cli-plumbing` | `Finding` | the finding record and its two renderers |
+| `693-721` | 13 | `SUPPORT:imports` | `_state_module` | lazy SourceFileLoader import of bin/perry-state |
+| `3151-3167` | 10 | `SUPPORT:imports` | `_tasks_module` | SourceFileLoader import of bin/perry-tasks |
+| `3233-3266` | 14 | `SUPPORT:imports` | `_store_module/_md_store_module` | SourceFileLoader imports |
+| `4398-4414` | 15 | `SUPPORT:cli-plumbing` | `render_claims` | claims table output |
+| `4415-4470` | 54 | `SUPPORT:cli-plumbing` | `main` | argv parsing, --help, schema load |
+| `4471-4799` | 239 | `SUPPORT:cli-plumbing` | `main` | one dispatch arm per --flag: call, count, print |
+| `4913-5138` | 155 | `SUPPORT:cli-plumbing` | `main` | severity tally, --json payload, human report, exit code |
+| `5139-5144` | 6 | `SUPPORT:cli-plumbing` | `module` | __main__ guard |
+
 ## 5. `bin/perry-task` — 7,851 lines
 
     TYPED / DETERMINISTIC        2,029
@@ -601,6 +623,30 @@ in opposite sets. `cmd_add`, for example, comes out as five regions:
 | `5973-6103` | 46 | `board_sections` | `## Top risks`, `## User Input Queue` and board drift |
 | `6424-6477` | 25 | `ask_register` | the `## User Input Queue` board table read back |
 | `6631-6697` | 45 | `_cmd_list_from_board` | the BOARD.md task-table walk |
+
+
+### 5.5 Authored support regions — 463 code lines
+
+These are **code** lines placed in a named support bucket, listed here so the
+region list is reconstructable in full from this document. The other four
+support buckets (`docstring`, `comment`, `blank`, `shebang`) are derived
+mechanically and need no table.
+
+| lines | code | bucket | owning function | what it is |
+|---|---:|---|---|---|
+| `166-178` | 11 | `SUPPORT:imports` | `module` | stdlib imports |
+| `183-191` | 7 | `SUPPORT:imports` | `module` | sys.path bootstrap + lib/perry_store/parsers imports |
+| `192-199` | 1 | `SUPPORT:cli-plumbing` | `Refused` | the refusal exception |
+| `200-321` | 100 | `SUPPORT:cli-plumbing` | `module` | LIST_CONTRACT/LIST_SEMANTICS — the published payload contract |
+| `322-357` | 23 | `SUPPORT:cli-plumbing` | `module` | EVENTS_CONTRACT/EVENTS_SEMANTICS |
+| `745-770` | 24 | `SUPPORT:cli-plumbing` | `module` | NON_TASK_REFUSAL — refusal copy |
+| `7194-7228` | 13 | `SUPPORT:imports` | `perry_state` | SourceFileLoader import of bin/perry-state |
+| `7229-7234` | 4 | `SUPPORT:cli-plumbing` | `module` | READ_ONLY_COMMANDS / TASK_ROW_COMMANDS |
+| `7256-7353` | 69 | `SUPPORT:cli-plumbing` | `Args/parse` | argv parsing |
+| `7354-7409` | 23 | `SUPPORT:cli-plumbing` | `module` | TASK_EVENTS / EVENT_FIELD / SECTION_EVENTS output tables |
+| `7547-7564` | 16 | `SUPPORT:cli-plumbing` | `module` | COMMANDS dispatch table |
+| `7583-7844` | 167 | `SUPPORT:cli-plumbing` | `main` | dispatch, ctx assembly, output, exit codes |
+| `7845-7851` | 5 | `SUPPORT:cli-plumbing` | `module` | __main__ guard |
 
 ## 6. Destinations — every non-typed entry
 
