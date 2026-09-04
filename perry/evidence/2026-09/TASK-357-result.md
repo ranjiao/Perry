@@ -185,3 +185,75 @@ should not be fixed here: it is a change to the lock protocol in
 `bin/perry-dispatch-limit`, and this row is not touching that file, deliberately,
 so that the mutation in §7 measures the cap and nothing else.
 
+---
+
+## 6. The fix
+
+`tests/test_host_support.py` only. `bin/perry-dispatch-limit` is **not** touched —
+deliberately, so that the mutations in §7 measure the cap and nothing else.
+
+* New `TestOpenCodeDispatchLimit.assert_cap_held(home, results, cap)` carries the
+  property and the reasoning. Both contended tests call it.
+* `test_concurrent_registers_do_not_exceed_opencode_cap` (cap 2) and
+  `test_concurrent_mixed_registers_do_not_exceed_global_cap` (cap 3) drop
+  `winners == cap` for `winners == min(cap, decided)`, `markers == winners`, and
+  `winners >= 1`.
+* The mixed test additionally asserts that every *cap* refusal names the **global**
+  cap, since both per-executor caps are set to 20 and a per-executor refusal would
+  mean the round measured the wrong limit.
+* `run_contended`'s per-process `communicate(timeout=20)` becomes 180s. A contended
+  round was measured at up to 42.7s under 16 burners, so 20s was itself a
+  load-sensitive failure — and it fails as an `ERROR`, not a `FAIL`, which reads
+  even less like a timing problem.
+
+### One mistake worth recording
+
+The first version of the "must name the global cap" assertion tested *every* exit-1
+contender, not just the ones refused by the cap. That went red immediately, because
+the lock-protocol defect in §5 also exits 1 — so the assertion re-imported exactly
+the load sensitivity this row exists to remove. It now constrains only the `capped`
+bucket. The classifier's third bucket is what keeps that honest: a contender that
+failed for neither reason is counted as undecided rather than being quietly read as
+a cap refusal.
+
+---
+
+## 7. The property still bites
+
+Mutations planted in `bin/perry-dispatch-limit`, each anchored by line number **and**
+an assert on the old text, with `__pycache__` cleared and a wait past the whole-second
+boundary before and after, and the file restored and re-compared in a `finally`.
+
+| mutation | contended global | contended opencode | serial global | serial per-executor |
+|---|---|---|---|---|
+| **M1** L330 `-ge`→`-gt` (global cap admits one extra) | **RED** `4 != 3` | green (n/a) | **RED** `0 != 1` | green (n/a) |
+| **M2** L325 `-ge`→`-gt` (per-executor cap admits one extra) | green (n/a) | **RED** `3 != 2` | green (n/a) | **RED** `0 != 1` |
+| **M3** L313 `acquire_lock`→`:` (no mutual exclusion) | **RED** `17 != 3` | **RED** `20 != 2` | green (n/a) | green (n/a) |
+
+3 planted, 3 caught, **0 green**. The "green (n/a)" cells are by construction: each
+mutation moves one cap, and the tests that do not exercise that cap's boundary
+correctly stay green. `test_global_cap_still_wins` uses `TOTAL=1` and
+`test_opencode_has_an_independent_configurable_cap` uses `OPENCODE=1`, so each pins
+its own cap's arithmetic serially, with no concurrency at all.
+
+### And the same two mutations under 16 burners
+
+| mutation | contended global | contended opencode | serial global |
+|---|---|---|---|
+| **M1** global off-by-one | green — **escapes** | green (n/a) | **RED** `0 != 1` |
+| **M3** no mutual exclusion | **RED** `15 != 3` | **RED** `20 != 2` | green (n/a) |
+
+Stated plainly, because it is the honest limit of the new form: **under heavy load
+the contended test cannot detect an off-by-one cap.** With only two or three
+contenders reaching a decision, `min(cap, decided)` equals `decided`, and one extra
+admission is invisible. Two things make that acceptable rather than a hole:
+
+1. **No detection power was lost.** The old `== 3` was red 6-of-6 *at base* under
+   this load. A test that is red whether or not the defect is present carries no
+   information about the defect; it could not detect M1 under load either.
+2. **The arithmetic is pinned where load cannot reach it.** `test_global_cap_still_wins`
+   is serial and stayed **RED on M1 under 16 burners**. That is the right division of
+   labour: the serial tests own the cap's arithmetic, the contended tests own the
+   claim that the cap survives a race — and M3, the actual race defect, is caught by
+   both contended tests under load, at `15 != 3` and `20 != 2`.
+
