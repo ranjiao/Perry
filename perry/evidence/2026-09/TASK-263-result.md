@@ -561,7 +561,7 @@ in opposite sets. `cmd_add`, for example, comes out as five regions:
 | `2014-2058` | 36 | `refuse_store_drift` | board and store compared before a write |
 | `2059-2073` | 3 | `parsed_status` | a `Status` CELL -> the enum value in it |
 | `2074-2087` | 2 | `unstorable_status_rows` | rows whose board Status the store cannot hold |
-| `2579-2594` | 3 | `register_section_shape` | absent|table|prose|foreign for a board section |
+| `2579-2594` | 3 | `register_section_shape` | `absent` \| `table` \| `prose` \| `foreign` for a board section |
 | `2595-2642` | 16 | `carry_forward_is_addressable` | stored records vs the rows now at those keys |
 | `2643-2738` | 51 | `register_change` | the register store DERIVED FROM THE BOARD as mutated |
 | `2792-2794` | 1 | `module` | LAST_UPDATED_RE |
@@ -600,7 +600,7 @@ in opposite sets. `cmd_add`, for example, comes out as five regions:
 | `5177-5233` | 30 | `cmd_cadence_add` | write a row into the cadence board table |
 | `5234-5305` | 47 | `cmd_cadence_done` | record an occurrence, recompute Next due, in the board |
 | `5306-5329` | 5 | `module` | RISK_ID_RE / RISK_COLUMNS / is_risk_header / _RISK_* patterns |
-| `5330-5343` | 3 | `risk_section_shape` | table | bullets | foreign for `## Top risks` |
+| `5330-5343` | 3 | `risk_section_shape` | `table` \| `bullets` \| `foreign` for `## Top risks` |
 | `5344-5361` | 16 | `refuse_foreign_risk_table` | refuse a `## Top risks` Perry did not write |
 | `5382-5398` | 8 | `risk_bullets` | risk bullets located in the markdown |
 | `5399-5488` | 39 | `ensure_risk_table` | convert `## Top risks` bullets to a table in place |
