@@ -1,6 +1,6 @@
 # TASK-332 round 2 — V4 fresh-context review
 
-Status: IN PROGRESS.
+Status: COMPLETE.
 
 Reviewer: fresh-context V4. Branch `review/task-332-round2-v4`, cut from `main`
 at `9923a08`. `BASE=$(git merge-base HEAD main)` =
@@ -410,3 +410,223 @@ venue. An `assertNotIn(rule, live_rules)` inside **this** test's existing loop
 would have been in scope by the same reasoning that admitted the constant. Not a
 fault — the round answered the question it was asked — but the narrower framing
 is the one to file.
+
+---
+
+## Criterion 7 — full suite and lint · MET
+
+```
+$ bash tests/run
+114 modules · 3253 tests · 188.4s · 8 workers
+✗ test_board_render.py — 1 of 13 test(s) failed
+✗ 1 of 3253 TEST(S) failed
+  0. tree guard — ✓ nothing under <worktree> moved
+
+$ bin/perry-lint --root .
+  0 error(s), 37 warning(s)
+
+$ python3 -m unittest tests.test_summary_is_asked_for
+Ran 24 tests in 3.344s
+OK
+```
+
+Identical to the baseline: the same single red, `test_board_render`, attributed
+above to board content that landed **after** TASK-332 round 2 merged and that
+the row's two files cannot reach. Lint at **0 errors**. None of the four named
+known reds fired in the final run.
+
+---
+
+## Mutation ledger
+
+Eighteen mutations, every one anchored by line number **and** by a string
+asserted present on that line. The harness aborted once with `ANCHOR FAILED` on
+a wrong guess at `bin/lib/__init__.py:1098` and touched nothing — which is the
+anchor doing its job, and without it that mutation would have been a false
+green. `__pycache__` cleared and the whole-second boundary passed before every
+verdict; each restored single path and checked against `BASE`.
+
+| | mutation | expected | observed |
+|---|---|---|---|
+| **C** | register deleted in full, 724-char padded decoy in `summary_fold` | red | **RED** (on the locator arm, line 350) |
+| **D** | register byte-identical, innocent second register in `summary_fold` | green | **GREEN** |
+| **M5** | TASK-330's original — strip both names, the date, the row id | red | **RED** (line 362, register still 2,236 chars) |
+| **C1** | Changelog names the removed rules again | green | **GREEN** |
+| **C2** | docstring-only edit inside `summary_shape`, register untouched | green | **GREEN** |
+| **C3** | bare-id `NOT CHECKED` entry reworded end to end | green | **GREEN** |
+| **A1** | earlier duplicate `def summary_shape`, no rule literals | red | **GREEN on the guard** (module red via TASK-331's anti-vacuity assert) |
+| **A1b** | earlier duplicate `def summary_shape` **with** both rule literals; real register deleted | red | **GREEN — whole suite green. The finding.** |
+| **A2** | `async def summary_shape` | red | **RED** (bare `StopIteration`, no message) |
+| **A3** | nested `summary_shape` earlier, register intact | green | **GREEN** |
+| **A3b** | nested `summary_shape` earlier **and** register gutted | red | **RED** |
+| **A4** | conditionally-defined decoy earlier, register gutted | red | **RED** |
+| **A5** | decorator on `summary_shape`, register intact | green | **GREEN** |
+| **A6** | duplicate `def summary_shape` **later** — the live one, no register | red | **GREEN on the guard** (module red on 4 behavioural tests) |
+| **F1** | only the record-carrying bullet gutted; six bullets stand | — | **GREEN** — the declared limit, confirmed |
+| **F2** | whole register → token line + 430 chars | red | **RED** (`500 not greater than 600`) |
+| **F2b** | whole register → token line + 720 chars of `x` | red | **GREEN** — the floor is a length check, not a prose check |
+| **M8** | the next removal: rule dropped, contract updated, recorded nowhere | red | **GREEN on the guard** (module red on 4 behavioural tests) |
+
+**Six red. Twelve green — of which six are intended controls or correct
+negatives** (D, C1, C2, C3, A3, A5) **and six are guard-level greens**: A1b
+(green across all 3,253 tests — the finding), A1 / A6 / M8 (green on the guard,
+caught elsewhere in the module), and F1 / F2b (green on a floor whose limit the
+round declares — F1 exactly as declared, F2b one clause wider than declared).
+
+---
+
+## Verdict: **PASS**, 6 of 6
+
+The round did what it was sent to do and it did it honestly. The round-1 FAIL
+was that `str.partition` over a 2,100-line module never located `summary_shape`,
+and broke on *ordinary authorship in both directions*: an innocent `NOT CHECKED`
+in a neighbouring docstring both hid a total deletion and raised a false alarm
+over an intact register. Probes C and D now behave, and Probe C fails on the
+locator arm with the decoy padded to 724 characters so the floor cannot be
+credited with it. TASK-330's M5 is red. All three controls — including the one
+that matters, a neighbouring register entry rewritten from first word to last —
+stay green, so the guard still does not freeze the docstring.
+
+**I considered FAIL and rejected it.** A1b *is* a green mutation over the row's
+own deliverable, and this project's rule is that a green mutation is a finding.
+But three things put it on the finding side of the line rather than the failure
+side. It requires a duplicate top-level definition of the same function — dead
+code no author writes while removing a rule, where round 1's probes required no
+contrivance at all. The `next(...)` that permits it is *verbatim the round-1
+reviewer's own prescribed fix*, copied as instructed. And it is a three-site
+project-wide pattern shared with TASK-331's guard, which the same reviewer passed
+5 of 5 — so failing this row for it would retroactively fail that one. Round 1's
+reviewer made the identical call when it recorded TASK-331's `ast.walk(fn)` blind
+spot as a finding and still passed the row.
+
+Two things the round should not have written as it did, neither of them
+load-bearing on the verdict:
+
+- *"no edit anywhere else in the module can move the target"* — false; A1b is
+  such an edit.
+- *"it says the register is still prose"* — the floor says the register is 600
+  characters long, and F2b passes with 720 characters of a single repeated
+  letter. The declared limit (F1) is right and well argued; this one clause
+  claims more than a length check can deliver.
+
+And one claim that is half true: driving the loop from `SUMMARY_RULES_REMOVED`
+**narrows** the third-copy hole rather than closing it. M8 — the next removal,
+performed exactly as the round describes — is green on this guard. What actually
+improved is that the record now lives six lines above the predicate instead of
+invisibly inside a test file, which is the right home and worth having.
+
+### What this row owes: nothing. What to file next
+
+1. **The locator's uniqueness, at all three sites.** Either
+   `self.assertEqual(len(fns), 1, …)` or — better, and no `ast` at all —
+   `lib.summary_shape.__doc__`, which is the docstring of the function that
+   *runs*, by construction. Both verified to kill A1b. Sites:
+   `tests/test_summary_is_asked_for.py:286` and `:347`,
+   `tests/test_row_integrity.py:616`.
+2. **Two sentences of the round's write-up**, corrected as above.
+3. **The disjointness assert**, in the narrower form the round did not consider:
+   `assertNotIn(rule, live_rules)` inside this test's existing loop, rather than
+   inside TASK-331's guard.
+4. **`test_board_render.TestTheBytesComeFromTheStore`** — unrelated to this row,
+   red on the board's own content since `acc928f`.
+
+---
+
+## Closing state
+
+The tree is byte-identical to `BASE` apart from this document. Every one of the
+eighteen mutations was restored single path and checked against
+`$(git merge-base HEAD main)` = `9923a087f400f8cf0c93ac6969bf858120060deb`,
+never against `main`.
+
+```
+$ git status --porcelain
+(empty)
+
+$ git diff --stat 9923a087f400f8cf0c93ac6969bf858120060deb
+ perry/evidence/2026-09/TASK-332-round2-v4-review.md | … | …
+```
+
+No state file was written: `perry/tasks.jsonl`, `perry/BOARD.md`,
+`perry/journal/`, `.perry/events.jsonl`, `schema/state-schema.json` and `claims`
+are untouched. This branch was never pushed and no pull request was opened;
+`main` was never switched to, merged into or modified.
+
+```
+=== RESULT ===
+Branch: review/task-332-round2-v4
+Verdict: PASS
+Criteria met: 6 of 6
+Criteria NOT met: none
+Probe C after the fix: RED, and it fails on the LOCATOR — line 350,
+  assertTrue(sep, "summary_shape no longer has a NOT CHECKED register"), not
+  the floor at line 375 and not an assertIn at 362. The decoy in summary_fold
+  carried all four owed tokens and was padded to 724 characters precisely so
+  the 600-character emptiness floor could not be credited with the red.
+Probe D after the fix: GREEN. summary_shape's docstring byte-identical (3,801
+  chars, unchanged); the whole diff is 5 insertions and 1 deletion inside
+  summary_fold.
+Attacks on the ast locator: seven. async def -> RED (bare StopIteration, no
+  message — red but uninformative). Nested def summary_shape in an earlier
+  function, with the real register gutted -> RED. Conditionally-defined decoy
+  inside a top-level `if`, register gutted -> RED. Both hold because ast.walk
+  is breadth-first, so the real depth-1 def always beats anything nested. A
+  decorator on summary_shape -> correctly GREEN, not hidden. A second
+  top-level def LATER (the live one, no register) -> GREEN on the guard,
+  module red on four behavioural tests. THE ONE THAT LANDED: a second
+  top-level `def summary_shape` EARLIER in the file, carrying both rule
+  literals and a padded register, with the real register deleted in full ->
+  GREEN, and the entire 3,253-test suite green. `next(...)` takes the first
+  match and never asserts there is only one; Python binds the LAST definition
+  and ast.walk yields the FIRST, so the guard reads a docstring the
+  interpreter has discarded. The round's claim that "no edit anywhere else in
+  the module can move the target" is false. Recorded as a finding, not a
+  failed criterion: it needs a duplicate top-level definition (dead code no
+  author writes while removing a rule, where round 1 broke on innocent
+  edits); the `next(...)` is verbatim the round-1 reviewer's own prescribed
+  fix; and it is a three-site project-wide pattern shared with TASK-331's
+  guard, which that reviewer passed 5/5. Two one-line fixes verified against
+  it: assertEqual(len(fns), 1), or read lib.summary_shape.__doc__ and drop
+  ast entirely.
+Attacks on the emptiness floor: three. Gutting ONLY the record-carrying
+  bullet to a bare token line while the other six stand -> GREEN, register
+  2,295 -> 1,394, the reason gone. That is exactly the limit the round
+  declares, and the declaration is right: catching it would mean asking
+  Python whether English reads like an explanation, which is the USER-916
+  mistake this project has lost to five times. Gutting the WHOLE register to
+  a token line + 430 characters -> RED (500 not greater than 600), so the
+  floor does hold against the honest version of the abuse it was built for.
+  But the same gutting + 720 characters of the letter "x" -> GREEN. So the
+  limit is stated at almost the right size: the declared limit is correct and
+  well argued, and one clause overclaims — "it says the register is still
+  prose" is not what a length check says, and the floor's real guarantee is
+  only that the register is 600 characters long. A second, smaller point the
+  round states as consequence but not as cause: the register spans all seven
+  bullets, so the threshold is met by any two or three bullets about
+  something else entirely.
+Was declining the disjointness assertion right: Yes. It is a new property
+  rather than a repair — the constant was taken because it fixed a defect
+  that existed today (the record was a third, invisible copy hardcoded in the
+  test); disjointness fixes nothing broken and adds a guarantee, which is the
+  line TASK-330's ## Bound draws and which the round-1 reviewer drew itself
+  when it wrote that the constant "is a good idea and a different row — it is
+  not owed here." It also costs nothing measurable: disjointness would not
+  have caught one of the eighteen mutations here, M8 included (live set
+  {summary-missing}, removed set the original pair — disjoint, still green).
+  And it was declined in the right shape: property named, agreed to, venue
+  given, left to be filed. One qualification for whoever files it — the
+  suggestion was framed as TASK-331's guard and the round declined on venue;
+  an assertNotIn(rule, live_rules) inside THIS test's existing loop would
+  have been in scope by the same reasoning that admitted the constant.
+Mutations planted: 18, 6 red, 12 GREEN — of which 6 are intended controls or
+  correct negatives (Probe D, C1, C2, C3, nested-decoy-with-register-intact,
+  decorator), and 6 are guard-level greens: A1b (green across all 3,253 tests
+  — THE finding), A1 / A6 / M8 (green on the guard, caught elsewhere in the
+  module), and F1 / F2b (green on the floor — F1 exactly as declared, F2b one
+  clause wider than declared). One further mutation was refused by the
+  harness with ANCHOR FAILED on a wrong line guess and touched nothing.
+Tree clean: git status --porcelain returns empty; git diff --stat against BASE
+  9923a087f400f8cf0c93ac6969bf858120060deb names only
+  perry/evidence/2026-09/TASK-332-round2-v4-review.md
+=== END RESULT ===
+```
