@@ -7,16 +7,21 @@
 
 ## 0. Commit measured, and a correction to the brief
 
-Measured at **`2d2a06c`** (`main` at the time of the run), **not** at `5601e45`
-as the dispatch brief named. This is not a deviation from the Bound: the Bound
-requires "the named stable commit", and the two files in scope are byte-identical
-between the two commits:
+Measured at **`2d2a06c`** (`main` when the worktree was cut), **not** at
+`5601e45` as the dispatch brief named. This is not a deviation from the Bound:
+the Bound requires "the named stable commit", and the two files in scope are
+**byte-identical** at `5601e45`, at `2d2a06c`, and at `7f890f9` (`main` at the
+time of writing). Verified by content hash rather than by `diff`, because a
+diff that reports nothing and a diff that was not run look the same:
 
-    git diff --stat 5601e45 2d2a06c -- bin/perry-lint bin/perry-task
-    (empty)
+    5601e45   bin/perry-lint dc673fff…0337   bin/perry-task 7e6679dc…32cb
+    2d2a06c   bin/perry-lint dc673fff…0337   bin/perry-task 7e6679dc…32cb
+    worktree  bin/perry-lint dc673fff…0337   bin/perry-task 7e6679dc…32cb
 
 so every line number in this report is valid at `5601e45` as well. The report
-says `2d2a06c` because that is what was actually read.
+says `2d2a06c` because that is the commit that was actually read. `main` moved
+four times during this measurement (`2d2a06c` → `a27a2a5` → `a7de65e` →
+`7f890f9`); neither file in scope moved with it.
 
 Line counts confirmed by `wc -l` at that commit:
 
