@@ -296,7 +296,26 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
         `assertNotEqual(was, want)` is the guard that keeps the round trip
         from being vacuous: if a field's stored value already equalled its
         sentinel, both halves would pass without the renderer being asked
-        anything, and the subtest would be decoration.
+        anything, and the subtest would be decoration. It is not theoretical:
+        `USER-916` renders `status: dropped` on the live board today, so the
+        `status` sentinel IS a value this project's rows take.
+
+        **What the restore half is worth, measured.** TASK-356 stripped the
+        SET half out and ran the restore half alone against a renderer with
+        `status` removed from `FIELD_BY_COLUMN`, and it came back GREEN — no
+        independent power against that mutant, or against the other five
+        planted with it. The reason is structural and worth writing down so
+        the next round does not re-derive it: `BOARD.md` is a static
+        template here — only `tasks.jsonl` is rewritten — so the only stale
+        value a renderer can hold IS the board's original text, and the SET
+        half already fails on it one line earlier. The restore half bites
+        only a renderer that persists its own output back into the template,
+        which `test_render_and_diff_write_no_file` separately forbids.
+
+        It stays anyway, and not out of caution: it is the only assertion
+        that says the cell tracks the store in BOTH directions, it costs one
+        render, and dropping it would leave a test that has never once been
+        shown to notice a value going the wrong way.
         """
         d = Project.perry(self)
         tid = a_live_row(d)
