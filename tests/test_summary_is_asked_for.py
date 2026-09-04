@@ -561,7 +561,7 @@ class TestTheCheckDoesNotJudgeLanguage(unittest.TestCase):
         unreferenced by anything. The two Chinese tests above survive it
         because a 24-character explanation of a 6-character title clears five
         of anything; so does the English corpus, where **none of the 349
-        summaries on the boards in this repository separates the two
+        rows on the boards in this repository separates the two
         measures.** The rewrite is not equivalent: the threshold is
         `SUMMARY_MIN_WORDS`, and a summary that is its title plus ONE word
         passes five characters long before it passes five words.

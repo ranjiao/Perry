@@ -144,7 +144,7 @@ summary  The parser drops zh headers sometimes.
          by tokens: FIRES     by characters: silent
 ```
 
-**None of the 349 summaries on the boards in this repository separates the two
+**None of the 349 rows on the boards in this repository separates the two
 measures** — which is why nothing anywhere caught it, and why the closing test
 is constructed rather than harvested. It walks the threshold at +1, +4 and +6
 tokens, the last as the control so it pins a threshold rather than "the prefix
