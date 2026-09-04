@@ -27,22 +27,39 @@ living outside the working tree where no in-tree mutation can reach it.
     --root DIR              repository to resolve <path> and <ref> against
                             (default: the git repo containing the first path)
     --json                  machine-readable result on stdout
-    --allow-modified-self   proceed even though this script differs from the
-                            copy committed in its own repository
+    --allow-modified-self   proceed even though this script's own bytes could
+                            not be shown to match the copy committed in its
+                            repository — whether they differ, or there is no
+                            committed copy to compare against
     -h, --help
 
 Exit 0 when every path matches the ref, 1 when any differs, 2 on a usage or
-git error — including a refusal to run while this script is itself modified.
+git error — including a refusal to run unless this script has been shown to
+match the copy committed in its own repository.
 
 **Why it checks itself.** The standing objection to shipping a harness rather
 than prescribing one is that a harness living in the tree can itself be
 mutated, and would then report OK while wrong. So before answering anything
 this script compares its own bytes against `git show HEAD:<its own path>` and
-refuses if they differ. That check is not circular — its truth also comes from
-git's object store, not from this file. The hole it does NOT close, stated
-plainly rather than papered over: a wrong helper that has been *committed*
-passes its own self-check. That case belongs to `tests/test_restore_check.py`,
-which mutates this file and requires the check to go red.
+refuses unless they match. That check is not circular — its truth also comes
+from git's object store, not from this file.
+
+**It refuses on `unverifiable`, not only on `modified`** (TASK-256 round-1
+review § 3). `self_check()` cannot compare when this script is outside a git
+repository — which is exactly what a `git archive` scratch copy is, the
+workflow `review-constraints.md § You are a reader` prescribes — or when
+`HEAD:<self>` does not exist. Those cases are *more* dangerous than `modified`,
+not safer: no comparison was made at all. Gating only on `modified` let a
+mutated helper print `✓` and exit 0 from a scratch copy while its own `--json`
+reported two disagreeing digests. A warning is not enough here, for the same
+reason refusal was chosen over a warning in the first place: a warning inside a
+verifier is a line an agent scrolls past, and this one printed to *stdout*,
+above the `✓`.
+
+The hole it does NOT close, stated plainly rather than papered over: a wrong
+helper that has been *committed* passes its own self-check. That case belongs
+to `tests/test_restore_check.py`, which mutates this file and requires the
+check to go red.
 
 Stdlib only, read-only, no LLM. Writes nothing anywhere.
 """
@@ -195,14 +212,21 @@ def main(argv: list[str]) -> int:
     ref, raw_paths = positional[0], [Path(p) for p in positional[1:]]
 
     verdict, detail = self_check()
-    if verdict == "modified" and not allow_modified_self:
+    if verdict != "clean" and not allow_modified_self:
+        headline = {
+            "modified": "this script is itself modified",
+            "unverifiable": "this script could not be checked against a "
+                            "committed copy",
+        }.get(verdict, f"this script's self-check returned {verdict!r}")
         msg = (
-            "perry-restore-check: REFUSING — this script is itself modified.\n"
+            f"perry-restore-check: REFUSING — {headline}.\n"
             f"    {detail}\n"
-            "  A verifier that has been changed cannot vouch for anything, and\n"
-            "  the cheapest way past this message must not be to ignore it.\n"
-            "  Commit the change, check it out clean, or pass\n"
-            "  --allow-modified-self to say you meant it."
+            "  A verifier that has been changed, or that cannot show it has\n"
+            "  not been, cannot vouch for anything — and 'no comparison was\n"
+            "  made' is the more dangerous answer, not the safer one. The\n"
+            "  cheapest way past this message must not be to ignore it.\n"
+            "  Run it from its own repository, commit the change, check it\n"
+            "  out clean, or pass --allow-modified-self to say you meant it."
         )
         if as_json:
             print(json.dumps({"ok": False, "self_check": verdict,

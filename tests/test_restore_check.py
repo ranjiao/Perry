@@ -26,10 +26,27 @@ This file holds three things:
   one place. "One rule, one home" is a defect this project has paid for
   repeatedly, so it is asserted rather than trusted.
 - `TestHelper` / `TestHelperSelfCheck` — `bin/perry-restore-check` catches a
-  file that does not match its ref, and **refuses to answer while its own bytes
-  are modified**. The standing objection to shipping a harness is that a
-  harness in the tree can itself be mutated; the self-check is the answer, and
-  `test_mutated_helper_refuses` is the mutation that proves the check is live.
+  file that does not match its ref, and **refuses to answer unless its own
+  bytes have been shown to match its committed copy**. The standing objection
+  to shipping a harness is that a harness in the tree can itself be mutated;
+  the self-check is the answer, and `test_mutated_helper_refuses` is the
+  mutation that proves the check is live.
+- `TestHelperVerdictIsNotJustTheLastPath` — added in round 2, from the round-1
+  V4 review § 2. Fifteen tests shipped and **not one passed more than one
+  path**, so `ok = all(...)` → `ok = any(...)` came back green and the mutant
+  exited 0 on a two-file call where one file did not match the ref: a false
+  PASS on the interface the tool documents at its own line 25. The same gap
+  left every `ok=False` branch of `check()` untested — `outside-repo`,
+  `not-at-ref` and `missing` all flipped to `ok=True` with the suite green.
+  These tests read `--json` rather than only the exit code, because a mutant
+  that crashes on the missing `expected_md5` key also exits 1 and would
+  otherwise look red for the wrong reason.
+
+Round 2 also closes the second half of that review, § 3: `self_check()` returns
+three verdicts and the refusal used to gate on one, so `unverifiable` — no
+comparison made at all — printed a warning to *stdout* above a `✓` and answered
+anyway. That is reachable from a `git archive` scratch copy, which is the
+workflow `review-constraints.md § You are a reader` prescribes.
 
 Every mutation here is performed on a copy in a temp directory. The live
 checkout is never written to (`review-constraints.md § You are a reader`).
@@ -40,6 +57,7 @@ Run: python3 tests/parallel test_restore_check
 from __future__ import annotations
 
 import hashlib
+import json
 import pathlib
 import shutil
 import subprocess
@@ -223,6 +241,116 @@ class TestHelper(_HelperCase):
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
 
 
+class TestHelperVerdictIsNotJustTheLastPath(_HelperCase):
+    """The aggregate verdict, and every `ok=False` branch of `check()`.
+
+    Round-1 V4 review § 2. `ok = all(r["ok"] for r in results)` was covered by
+    nothing, because all ten `run_helper` call sites passed exactly one path —
+    so `all` → `any` left the whole module green while the mutant vouched for
+    a corrupt file. Multi-path is the documented interface
+    (`bin/perry-restore-check:25`, `review-constraints.md`), and it is the
+    natural call for a round that mutated several files.
+    """
+
+    def payload(self, *args):
+        """Run with --json and return (returncode, parsed).
+
+        Reading the payload rather than only the exit code is deliberate. A
+        mutant that flips an `ok=False` branch to `ok=True` leaves the entry
+        with no `expected_md5`, and the human-readable printer then raises
+        KeyError — which also exits 1. An exit-code-only assertion would call
+        that red and hide the hole.
+        """
+        r = self.run_helper("--allow-modified-self", "--json", *args)
+        try:
+            return r.returncode, json.loads(r.stdout)
+        except json.JSONDecodeError:
+            self.fail("expected JSON on stdout, got:\n"
+                      f"  rc={r.returncode}\n  out={r.stdout!r}\n"
+                      f"  err={r.stderr!r}")
+
+    def _second_file(self):
+        (self.d / "other.py").write_bytes(b"def sub(a, b):\n    return a - b\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "second file")
+        return self.d / "other.py"
+
+    def test_two_matching_paths_exit_zero(self):
+        """The control: a restore that genuinely succeeded still verifies OK.
+
+        Without this, a tool that reported failure on everything would satisfy
+        the sibling test below and be useless.
+        """
+        other = self._second_file()
+        rc, out = self.payload("HEAD", str(self.d / "subject.py"), str(other))
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(out["ok"])
+        self.assertEqual([e["ok"] for e in out["results"]], [True, True])
+
+    def test_one_bad_path_among_several_fails_the_whole_run(self):
+        """`all`, not `any`. The round-1 FAIL, in one assertion."""
+        other = self._second_file()
+        other.write_text("CORRUPT")
+        rc, out = self.payload("HEAD", str(self.d / "subject.py"), str(other))
+        self.assertEqual(
+            rc, 1,
+            "one path did not match its ref and the tool reported a PASS over "
+            "the whole run; the verdict is aggregating with `any`, not `all`",
+        )
+        self.assertFalse(out["ok"])
+        self.assertEqual([e["ok"] for e in out["results"]], [True, False])
+
+    def test_a_bad_path_first_still_fails(self):
+        """Order must not matter — `any` short-circuits differently either way."""
+        other = self._second_file()
+        (self.d / "subject.py").write_text("CORRUPT")
+        rc, out = self.payload("HEAD", str(self.d / "subject.py"), str(other))
+        self.assertEqual(rc, 1, out)
+        self.assertEqual([e["ok"] for e in out["results"]], [False, True])
+
+    def test_a_path_outside_the_repo_is_not_a_pass(self):
+        outside = pathlib.Path(tempfile.mkdtemp(prefix="t256-outside-"))
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        stray = outside / "subject.py"
+        stray.write_bytes(b"def add(a, b):\n    return a + b\n")
+
+        rc, out = self.payload("--root", str(self.d), "HEAD", str(stray))
+        self.assertEqual(rc, 1, out)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["results"][0]["reason"], "outside-repo",
+                         "a path the tool cannot even locate in the repo must "
+                         "never be reported as verified")
+
+    def test_a_path_absent_at_the_ref_is_not_a_pass(self):
+        """Reachable exactly when a round does what the new rule prescribes.
+
+        A round pins its baseline to the commit it was cut from and asks about
+        a file the branch *added*. That path does not exist at the ref,
+        `blob_at` returns None, and nothing but this branch stands between that
+        and a reported PASS.
+        """
+        added = self.d / "added_by_the_branch.py"
+        added.write_bytes(b"print('new')\n")
+
+        rc, out = self.payload("HEAD", str(added))
+        self.assertEqual(rc, 1, out)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["results"][0]["reason"], "not-at-ref")
+
+    def test_a_path_missing_on_disk_is_not_a_pass(self):
+        """Committed at the ref, deleted from the working tree."""
+        (self.d / "subject.py").unlink()
+
+        rc, out = self.payload("HEAD", str(self.d / "subject.py"))
+        self.assertEqual(rc, 1, out)
+        self.assertFalse(out["ok"])
+        self.assertEqual(
+            out["results"][0]["reason"], "missing",
+            "a deleted file must be reported as missing, not crash the tool "
+            "into an exit code that merely looks like a failure",
+        )
+
+
 class TestHelperSelfCheck(_HelperCase):
     """A harness that lives in the tree can be mutated. It notices."""
 
@@ -258,6 +386,69 @@ class TestHelperSelfCheck(_HelperCase):
             "a modified verifier must refuse, not vouch: " + r.stdout + r.stderr,
         )
         self.assertIn("REFUSING", r.stderr)
+
+    def test_helper_absent_at_head_refuses(self):
+        """`unverifiable`, reachable on any worktree cut before the tool landed.
+
+        Round-1 V4 review § 3. `self_check()` returns three verdicts and the
+        refusal used to gate on `modified` only, so this case — no committed
+        copy to compare against, i.e. *no comparison made at all* — printed one
+        `!` line to stdout, above the `✓`, and answered anyway.
+        """
+        (self.d / "bin").mkdir(exist_ok=True)
+        dest = self.d / "bin" / "perry-restore-check"
+        dest.write_bytes(HELPER.read_bytes())   # present on disk, never committed
+
+        probe = self.run_helper("--allow-modified-self", "--json", "HEAD",
+                                str(self.d / "subject.py"), helper=dest)
+        self.assertEqual(json.loads(probe.stdout)["self_check"], "unverifiable",
+                         "precondition: this helper must be unverifiable, not "
+                         "merely modified — otherwise this test proves nothing")
+
+        r = self.run_helper("HEAD", str(self.d / "subject.py"), helper=dest)
+        self.assertEqual(
+            r.returncode, 2,
+            "a verifier that could not be compared against a committed copy "
+            "must refuse, not vouch: " + r.stdout + r.stderr,
+        )
+        self.assertIn("REFUSING", r.stderr)
+
+    def test_helper_outside_any_repository_refuses(self):
+        """A `git archive` copy has no `.git` — and that is the prescribed workflow.
+
+        `review-constraints.md § You are a reader` says to copy the project to
+        a scratch directory and work there, which is also exactly where a
+        helper gets edited. Gating only on `modified` meant a mutated helper
+        run from such a copy exited 0 over a file whose own reported digests
+        disagreed.
+        """
+        loose = pathlib.Path(tempfile.mkdtemp(prefix="t256-loose-"))
+        self.addCleanup(shutil.rmtree, loose, ignore_errors=True)
+        dest = loose / "perry-restore-check"
+        dest.write_bytes(HELPER.read_bytes())
+
+        probe = self.run_helper("--allow-modified-self", "--json", "HEAD",
+                                str(self.d / "subject.py"), helper=dest)
+        if json.loads(probe.stdout)["self_check"] != "unverifiable":
+            self.skipTest("the temp directory is itself inside a git "
+                          "repository, so this case is not reachable here")
+
+        r = self.run_helper("HEAD", str(self.d / "subject.py"), helper=dest)
+        self.assertEqual(
+            r.returncode, 2,
+            "a verifier running outside any repository cannot show it is "
+            "unmutated and must refuse: " + r.stdout + r.stderr,
+        )
+        self.assertIn("REFUSING", r.stderr)
+
+    def test_the_override_still_works_for_an_unverifiable_helper(self):
+        """The escape hatch is stated, so it must exist. Control for the two above."""
+        (self.d / "bin").mkdir(exist_ok=True)
+        dest = self.d / "bin" / "perry-restore-check"
+        dest.write_bytes(HELPER.read_bytes())
+        r = self.run_helper("--allow-modified-self", "HEAD",
+                            str(self.d / "subject.py"), helper=dest)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_the_mutation_would_otherwise_have_been_silent(self):
         """Without the self-check the same mutation reports a false PASS.

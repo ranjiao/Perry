@@ -82,10 +82,13 @@ Not hypothetical. `TASK-325` found `bin/perry-task` already mutated at a point
 before its harness had run and could not account for how; every round that
 restored onto a baseline like that reported OK without checking anything.
 
-`bin/perry-restore-check <ref> <path> …` does exactly this, exits non-zero on a
-mismatch, and refuses to answer while its own bytes differ from the copy
-committed in its repository. Use it or hand-roll it — but the comparison is
-against the ref either way.
+`bin/perry-restore-check <ref> <path> …` does exactly this, exits non-zero if
+**any** of the paths differs, and refuses to answer unless its own bytes have
+been *shown* to match the copy committed in its repository — including when
+there is no committed copy to compare against, which is the case in a `git
+archive` scratch copy and is the more dangerous one, not the safer. Pass
+`--allow-modified-self` to override, and mean it. Use it or hand-roll it — but
+the comparison is against the ref either way.
 
 ## Do not mint identifiers
 
