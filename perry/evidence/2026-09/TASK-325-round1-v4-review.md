@@ -388,3 +388,73 @@ and reached `main`. The check is honest about what it does not do, and its
 control holds. The two findings above are real and live, but both are TASK-330's
 collateral and I verified the attribution against pre-TASK-330 bytes in each
 case rather than assuming it. Each deserves a row of its own.
+
+---
+
+## Addendum, 2026-09-04 — reconciliation with two rows that landed under this review
+
+This review was scored against `main` at **`5601e45`**. `main` has since moved to
+**`2d2a06c`**. **Nothing in TASK-325's code scope moved**, so the verdict stands
+unchanged and no criterion was re-scored:
+
+```
+$ git diff --stat 5601e45 2d2a06c -- bin/lib/__init__.py bin/perry-task bin/perry-lint
+(empty)
+```
+
+### TASK-331 fixed one of Finding 2's three surfaces
+
+`TASK-331` corrected `schema/task-list-contract.md`'s `summary` field row — which
+TASK-325 wrote and TASK-330 invalidated — to name exactly the two surviving rules:
+
+> Both refuse/report on STRUCTURE only, and the whole of that structure is
+> **absent** or **restating the title** — `summary-missing` and
+> `summary-repeats-title`. **Nothing checks the prose itself** — two rules that
+> did were removed on 2026-09-03 …
+
+It also added a guard that reads the rule set out of the code rather than
+restating it, at `tests/test_summary_is_asked_for.py:264
+§ test_the_contract_enumerates_exactly_the_rules_the_predicate_emits`, which walks
+`summary_shape`'s AST for the string constants it emits and compares them against
+the contract. That is the right shape of guard, and it closes the contract surface
+against the next removal as well as this one.
+
+### Finding 2 is still LIVE on the other two surfaces
+
+Verified on `2d2a06c`, not inferred:
+
+```
+work/reference/subcommands.md
+  "What `add` refuses is **structural only**: a summary that folds to the title
+   again, one containing no sentence, one under five words."
+
+reference/input-quality.md
+  "The tool's half of 4.6 is **structural only** — it refuses a summary that folds
+   to the title, has no sentence, or is under five words."
+```
+
+`add` does none of the last two — `--summary "short no terminator"` (three words,
+no terminator) is accepted, rc 0. **TASK-331's guard cannot catch these**: it
+reads `(ROOT / "schema" / "task-list-contract.md")` and that file only, so the two
+procedure surfaces an author actually reads before typing the command are still
+unguarded and still wrong. The remedy is to widen that same `ast` guard over
+`work/reference/subcommands.md` and `reference/input-quality.md`, which is one
+loop over three paths rather than a new mechanism.
+
+This remains TASK-330's collateral, not TASK-325's defect — the byte-identical
+diff of the `subcommands.md` line across TASK-330 is recorded in Finding 2 above.
+
+### Finding 1 is unaffected
+
+The CJK token-count pin is still absent on `2d2a06c`: TASK-331's guard checks the
+contract's *rule names*, not `summary_tokens`' behaviour, and the summary modules'
+assertions are unchanged. The one-line fix named in Finding 1 still applies.
+
+### Suite note
+
+`tests/test_one_header_rule.py` is red in full-suite runs and green alone. That is
+**TASK-334** (per the PMO), not TASK-325 — it is a cross-module ordering flake in a
+module that does not import `lib.summary_shape`, `bin/perry-task` or
+`bin/perry-lint`. The green full-suite run recorded under Criterion 6 was taken on
+`5601e45`, before that flake was introduced, and TASK-325's own module
+(`test_summary_is_asked_for`, 22 tests) passes standalone on both refs.
