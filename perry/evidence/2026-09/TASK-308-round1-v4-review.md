@@ -230,9 +230,118 @@ The docstring also records the *concrete* blind spot that makes keeping both a
 real loss rather than a theoretical one: `spec-unbounded` cannot see a criteria
 file that is not a `*-spec.md`, and one such file exists.
 
-## Criterion 7 — full suite; `perry-lint --root .` at 0 errors
+## Criterion 7 — full suite; `perry-lint --root .` at 0 errors — **MET**
 
-NOT YET CHECKED
+```
+$ tests/run
+114 modules · 3291 tests · 206.9s · 8 workers
+✗ 1 of 114 MODULE(S) red
+✗ 2 of 3291 TEST(S) failed
+  ✗ test_contract_key_parity.py — 2 of 35 test(s) failed
+    FAIL: test_without_the_witness_the_four_are_unobservable
+          [conformance.in_progress_with_no_live_run[].means]
+    FAIL: test_the_same_mutation_is_silent_without_the_witness
+          [conformance.in_progress_with_no_live_run[].means]
+tree guard: ✓ nothing under the worktree moved
+```
+
+**Exactly the two known reds, and they are not this row's.** Both are the
+`in_progress_with_no_live_run` anti-vacuity controls that decay against
+wall-clock time — `bin/perry-task:6300-6308`, the `idle >= in_progress_limit`
+4-hour threshold measured against Perry's own live board. That is TASK-335,
+which is already an open row titled *"Two contract-parity tests fail because the
+witness cannot make a collection observable"*. I checked they cannot be this
+row's: `grep -c "perry-lint\|spec_scannability\|spec-unbounded\|_BOUND_RE"
+tests/test_contract_key_parity.py` returns **0** — the failing module does not
+reference the changed code at all, and `git log` shows its last three commits
+are TASK-235, TASK-205 and a timezone change, none of them TASK-308.
+
+The suite is larger than the round measured (114 modules / 3291 tests vs its
+113 / 3179) because `main` advanced by roughly forty commits between the round
+and this review. The tree guard passed.
+
+```
+$ ./bin/perry-lint --root .        →  0 error(s), 37 warning(s)   rc=0
+$ ./bin/perry-lint --root . --strict                              rc=1
+```
+
+**0 errors, as the criterion requires**, measured at my HEAD `9c6ce22`.
+
+## The corpus moved three times during this review — what my numbers are pinned to
+
+`main` advanced under me twice while I worked (two HTTP 403 kills, server-side).
+A figure carried forward without its commit is the exact defect this project hit
+repeatedly this week, so every census below names the commit it was measured at,
+and I derived all of them myself with `git ls-tree` + `git show`, reading no
+number out of either document:
+
+| commit | specs | bound | **without** | who cites it |
+|---|---|---|---|---|
+| `47fa45a` | 144 | 17 | **127** | the spec, § Why this row exists |
+| `548f206` | 146 | 19 | **127** | the result, § Before-state |
+| `9c9670e` | 147 | 20 | **127** | the result, § Notes 4 |
+| `7f890f9` | 148 | 25 | **123** | **my branch point — my own census** |
+| `651a5ca` | 149 | 26 | **123** | `main` mid-review |
+| `1d3fd17` | 149 | 26 | **123** | `main` at time of writing |
+
+**My census is measured at `7f890f9`, my branch point: 148 specs, 123 without a
+bound** — identical to the `123 of 148` the PMO saw on 2026-09-03, and identical
+to what `bin/perry-lint --root .` prints at my HEAD `9c6ce22`.
+
+Every cited historical figure re-derives exactly at the commit that cites it.
+Nothing was copied forward wrongly. The one spec added since my branch point
+(`TASK-339-spec.md`) carries a `## Bound` at its line 117, which is why the
+*unbounded* count holds at 123 while the total moves — the same pattern the
+round documented for 47fa45a→548f206. The corpus moving does not touch the
+finding.
+
+## The spec's false `## Bound` claim about TASK-067 — **it changed nothing**
+
+The spec's own `## Bound` Remainder says non-spec criteria files exist "and
+TASK-067 uses one". **I verified that is false**, rather than taking it:
+
+```
+$ ls -1 perry/evidence/*/TASK-067-spec.md
+perry/evidence/2026-09/TASK-067-spec.md              ← TASK-067 HAS a -spec.md
+
+$ grep -rl "^## What must be true when this is done" perry/evidence/
+perry/evidence/2026-08/TASK-042-spec.md
+perry/evidence/2026-08/TASK-050-spec.md
+perry/evidence/2026-08/TASK-065-extraction.md
+
+$ ... | grep -i task-067
+NONE — the spec's Bound claim is FALSE
+```
+
+Three files carry that heading. Two are `*-spec.md` and so are already inside
+the pass's scope. **Exactly one is not: `TASK-065-extraction.md`.** No TASK-067
+file carries it. The PMO wrote the error.
+
+**Did it change what the round built? No — and I checked the build, not the
+prose.** Three reasons:
+
+1. **The Remainder clause asked for a count and a deferral, not a behaviour.**
+   It said report the count of non-`*-spec.md` criteria files and leave whether
+   the pass should reach them to a new row. The round reported **count: 1**,
+   naming `TASK-065-extraction.md`. I re-derived that count independently and
+   got 1. The deliverable was the number, and the number is right regardless of
+   which task was named as the example.
+2. **The pass's scope is unchanged and correct.** `check_specs` selects
+   `sorted(edir.rglob("*.md"))` filtered by `SPEC_FILE_RE = re.compile(r"-spec\.md$")`
+   (`bin/perry-lint:2922`, used at `:3042`). It reads `*-spec.md` and nothing
+   else — which is what Deliverable item 1 specified. A wrong example could only
+   have misled the round into widening or narrowing that scope, and it did
+   neither.
+3. **The round caught the error itself and said so.** Result § Notes 2 states
+   the claim does not hold, gives the correct file, and separates the Bound's
+   wrong *claim* from its right *point* — that such files exist and are outside
+   this row. That is the correction being published rather than inherited.
+
+The error is real and worth recording against the PMO's spec-writing, not
+against this round. If anything it argues *for* what shipped: the concrete
+blind-spot file is written into the verdict-side check's docstring as the reason
+deleting that half would be a real loss, and that reasoning is correct even
+though the spec named the wrong task.
 
 ## Mutations re-run independently — **5 planted, 5 red, 0 GREEN**
 
@@ -306,10 +415,6 @@ check against the main property test, the whole class and the module, all red.
 Declaring a green and diagnosing it is the behaviour the mutation discipline
 asks for; it is not a defect in this round.
 
-## The spec's false `## Bound` claim about TASK-067
-
-NOT YET CHECKED
-
 ## Verdict
 
-NOT YET CHECKED
+PLACEHOLDER_VERDICT
