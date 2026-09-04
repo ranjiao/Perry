@@ -68,6 +68,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 HELPER = ROOT / "bin" / "perry-restore-check"
 CONSTRAINTS = ROOT / "work" / "reference" / "review-constraints.md"
 REVIEW = ROOT / "work" / "reference" / "review.md"
+README = ROOT / "bin" / "README.md"
 
 SECTION = "## Verify a restore against an independent source"
 
@@ -144,6 +145,28 @@ class TestGuidanceSaysIt(unittest.TestCase):
             "review.md is re-copying the explanation instead of referencing "
             "it; one rule, one home",
         )
+
+    def test_the_documented_guarantee_matches_the_tool(self):
+        """Both pages describing the helper must name the override. Round-1 § 3.
+
+        They used to say the tool "refuses to answer while its own bytes differ
+        from the copy committed in its repository" — flatly, in two places. That
+        was false in the *more* dangerous direction: when there was no committed
+        copy to differ from, it printed a warning to stdout and answered anyway.
+        Naming `--allow-modified-self` is the load-bearing half of the corrected
+        sentence, because a reader who knows there is an override knows there is
+        something to override.
+
+        This is a literal-substring guard and is worth exactly what that is: it
+        catches the claim being reverted or the flag being renamed, not a
+        paraphrase that reintroduces the overstatement.
+        """
+        for page in (CONSTRAINTS, README):
+            with self.subTest(page=page.name):
+                self.assertIn("--allow-modified-self",
+                              page.read_text(encoding="utf-8"),
+                              f"{page} describes the helper's self-check "
+                              "without naming the flag that overrides it")
 
     def test_the_section_exists_in_exactly_one_file(self):
         homes = [
