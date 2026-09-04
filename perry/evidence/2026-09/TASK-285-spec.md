@@ -123,9 +123,32 @@ Two further bounds, both finite and both countable today:
 
 ```
 Guard:       tests/test_spec_scannability.py::TestTheAgentGetsItsOwnTree
-Size:        7 tests
-Mutations:   9 named mutations, each with a stated anchor; the round may
-             re-run them and must treat any GREEN as a finding
+Size:        13 tests   (7 at filing; 11 after round 3; 13 after round 4 —
+             updated 2026-09-04, per the round-3 V4 review's second cosmetic
+             note: the bound was the thing that was supposed to be countable)
+Mutations:   9 named mutations at filing; 19 planted in round 4, each with a
+             stated anchor AND an assertion on the old text at that line; the
+             round may re-run them and must treat any GREEN as a finding
+```
+
+**Round 4 changed the guard's shape, and the bound with it.** Rounds 1–3
+enumerated the regions to pin; the V4 review showed the enumeration is the
+defect, because a retraction inserted *beside* a pinned region touches nothing
+in it. What is countable now is the complement:
+
+```
+Enumeration: three contiguous governed spans, pinned as
+             (span minus its declared free rationale blocks)
+Size:        dispatch.md   § The tree … → § Executor: opencode-subagent
+                           86 lines, 4,121 chars pinned, 1,150 declared free
+             git-boundaries.md § Git Role Boundaries → § Time Estimation
+                           26 lines, all pinned
+             delegate.md   § Required fields … → § Role ≠ executor
+                           39 lines, all pinned
+Remainder:   exactly one free block, at the tail of `dispatch.md`'s section
+             under `### Why it is a rule and not a preference`. It is bytes
+             this suite does not read, by `USER-914`'s decision, and no test
+             can tell an improved explanation there from a retraction.
 ```
 
 A K+1th file that should carry the rule is **a new row, not a re-opening of
