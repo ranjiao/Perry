@@ -144,26 +144,6 @@ may narrow which runtimes are acceptable; it never grants a slot.
 This is the rule; `git-boundaries.md` and `delegate.md` reference it and do not
 restate it. It governs every executor, not only the native subagents.
 
-**Why it is a rule and not a preference.** This file used to say "work on a
-feature branch" and nothing about the tree, and a branch instruction with no
-isolation instruction is an instruction to run `git checkout -b` *in the shared
-working tree*. Observed live, twice, in one day:
-
-- **2026-09-02** — TASK-247 was dispatched as a `claude-subagent` told to create
-  `coding/task-247-config-predicate`. It did, in the shared tree, so the PMO's
-  own checkout moved onto that branch. Every PMO write afterwards — journal,
-  evidence, board — committed there. A `git add -A` in the agent's commit would
-  have swept two lanes into one code commit.
-- **2026-09-03** — the bill arrived: four V4 review documents and 91 journal
-  lines were on that branch and not on `main`, while a merge commit bearing the
-  branch's name sat in `main`'s history and a commit message asserted the work
-  was live on `main`. True of the code, false of the records.
-
-The failure is also **invisible from inside**: TASK-247's own agent reported that
-every `bash tests/run` step 0 failed naming only PMO-lane paths, and that this
-"cannot be distinguished from a real tree-guard failure by the guard's own
-output".
-
 **What each side does.**
 
 - The agent gets an isolated worktree and commits on its own branch. **Whether
@@ -198,6 +178,38 @@ shapes available, and its hook already chooses between them**: push escalated �
 agent commits, primary checkout merges; push permitted → agent opens a PR and
 the verifying lane merges it. Read the hook once per dispatch; do not re-derive
 the argument.
+
+**Where the normative part of this section ends.** Everything above this
+paragraph, plus the whole of § `Executor: claude-subagent` below, is pinned
+byte-for-byte by `tests/test_spec_scannability.py::TestTheAgentGetsItsOwnTree`:
+a sentence added, removed or reworded anywhere in it reddens a named test, and
+re-pinning is a deliberate second edit in the same commit. Everything from the
+next heading to the end of this section is **rationale, and deliberately not
+pinned**, so the two observed failures and the argument can be improved without
+touching a test. Nothing there grants an exception — a sentence in it that reads
+like one is a defect, not a rule. Normative text goes above this paragraph.
+
+### Why it is a rule and not a preference
+
+This file used to say "work on a feature branch" and nothing about the tree, and
+a branch instruction with no isolation instruction is an instruction to run
+`git checkout -b` *in the shared working tree*. Observed live, twice, in one
+day:
+
+- **2026-09-02** — TASK-247 was dispatched as a `claude-subagent` told to create
+  `coding/task-247-config-predicate`. It did, in the shared tree, so the PMO's
+  own checkout moved onto that branch. Every PMO write afterwards — journal,
+  evidence, board — committed there. A `git add -A` in the agent's commit would
+  have swept two lanes into one code commit.
+- **2026-09-03** — the bill arrived: four V4 review documents and 91 journal
+  lines were on that branch and not on `main`, while a merge commit bearing the
+  branch's name sat in `main`'s history and a commit message asserted the work
+  was live on `main`. True of the code, false of the records.
+
+The failure is also **invisible from inside**: TASK-247's own agent reported that
+every `bash tests/run` step 0 failed naming only PMO-lane paths, and that this
+"cannot be distinguished from a real tree-guard failure by the guard's own
+output".
 
 ### `Executor: claude-subagent` (Claude Code only)
 

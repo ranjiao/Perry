@@ -732,13 +732,20 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
     #: English has now lost this argument twice** — English retractions are not
     #: eight items long, and the next one will not be on the list either.
     #:
-    #: So the rule block is pinned to exactly these bytes. Any addition,
-    #: removal or rewording reddens, including ones nobody predicted. Changing
-    #: the rule now means changing this constant in the same commit, which is
-    #: the friction a rule this expensive should carry. Same move this project
+    #: So the rule block is pinned to exactly these bytes. Changing the rule
+    #: now means changing this constant in the same commit, which is the
+    #: friction a rule this expensive should carry. Same move this project
     #: chose in `USER-904` (one `header_index` instead of a smarter detector)
     #: and `USER-906` (one invariant instead of a fourth predicate): a small
     #: exact surface beats a clever filter.
+    #:
+    #: **What this constant does NOT do**, stated here because round 3's result
+    #: document claimed otherwise and the V4 review caught it: pinning these
+    #: bytes protects the paragraph's bytes, not its meaning. Round 3's reviewer
+    #: retracted the rule by inserting a contradicting sentence three lines
+    #: BELOW this block, touching nothing, with all eleven guards green. What
+    #: closes that is `GOVERNED` below — this constant is the readable failure
+    #: message, not the coverage.
     RULE = (
         "## The tree the agent works in\n"
         "\n"
@@ -752,75 +759,220 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
     def rule_block(self) -> str:
         """The blockquote that states the rule, isolated.
 
-        **This slice is 5 lines of a 62-line section**, which round 2 named as
-        a defect in its own right: a retraction one line below it was invisible
-        by construction. It is kept only because `test_the_rule_is_pinned_verbatim`
-        now covers the block itself; the hedge scan below is a second, cheaper
-        signal that gives a readable failure message, never the primary one.
+        **This slice is 5 lines of an 86-line governed span**, which round 2
+        named as a defect in its own right and round 3's review then
+        demonstrated: a retraction one line below it was invisible by
+        construction. The section around it is now pinned as the complement of
+        a declared rationale block (`GOVERNED`), so this slice is a readable
+        failure message for the rule itself, never the coverage.
         """
         src = self.seen(self.DISPATCH)
         start = src.index("## The tree the agent works in")
         return src[start:src.index("\n\n", src.index(">", start))]
 
     def test_the_rule_is_pinned_verbatim(self):
-        """The primary guard. See `RULE` for why it is an allowlist."""
+        """The rule's own bytes. `test_the_governed_regions_are_pinned` is the
+        primary guard; this one names the rule in its failure message."""
         self.assertEqual(self.rule_block(), self.RULE)
 
-    #: The NORMATIVE regions — what the rule commands, as opposed to the prose
-    #: that explains why. Pinned by digest rather than by literal: 3,306
-    #: characters of embedded prose would be unreadable here and is exactly the
-    #: kind of hand-copied fixture that drifts from the file it mirrors.
+    #: The GOVERNED spans — **the complement of a declared-free zone, not an
+    #: enumeration of remembered places.** This is the round-3 → round-4 change
+    #: and it is the whole point of the rewrite.
     #:
-    #: **Rationale is deliberately NOT pinned.** The two observed failures, the
-    #: measured `git` output and the argument for the local merge can all be
-    #: improved without touching a test. What cannot change silently is what an
-    #: agent is *told to do*. That line — normative pinned, explanatory free —
-    #: is the reason this is three regions and not the whole 62-line section.
+    #: Round 3 pinned four regions chosen from memory. Four of round 2's twelve
+    #: green mutations stayed green against it, because *a pin that protects a
+    #: paragraph's BYTES does not protect its MEANING when a contradicting
+    #: sentence can be added beside it.* The decisive one added nothing to any
+    #: pinned region at all: it inserted **"When the rule does not apply. …
+    #: sharing the primary checkout is the accepted practice"** three lines
+    #: below the byte-pinned blockquote. Eleven guards reported OK while the
+    #: row's headline deliverable stood retracted. The other three kept a
+    #: pinned literal and reversed the sense of the line it sat on
+    #: (`isolation` bullet, shared-cwd correction, `git-boundaries.md`'s
+    #: premise) — all three outside the four regions, all three guarded only by
+    #: `assertIn` over a substring window, the pattern that had then lost
+    #: twice.
+    #:
+    #: So the direction is inverted. Each entry names a **contiguous span**
+    #: between two anchors, and a list of **explicitly delimited free blocks**
+    #: inside it. What is pinned is *the span minus the free blocks*. The
+    #: consequence that matters: **inserting a sentence anywhere in a governed
+    #: span, touching nothing, reddens** — there is no gap between regions to
+    #: insert into, because the regions are what is left over after the free
+    #: zone is removed rather than places somebody remembered to list.
+    #:
+    #: **Rationale is still deliberately NOT pinned** — that is `USER-914`, and
+    #: pinning it would undo the decision the user actually made. It is now
+    #: declared rather than implied: one block, at the tail of
+    #: `dispatch.md § The tree the agent works in`, under its own heading, with
+    #: a pinned paragraph immediately above it telling a reader where the
+    #: normative text stops. What that costs is stated in
+    #: `test_a_contradiction_inside_the_free_rationale_is_not_checkable`.
     #:
     #: Re-pinning is meant to cost a deliberate second edit. When one of these
     #: fails, read the diff it prints, decide whether the rule really changed,
     #: and update the digest in the same commit as the prose.
-    NORMATIVE = {
-        "dispatch.md § what each side does":
-            "16b0febc04bfab7b11ffcde73146049146e90b9a75206736d3b9fb3bc101078b",
-        "git-boundaries.md § Rules":
-            "2d56156ad289be0f26111c83193701f44769846fe445cb337a6928d7ff480d27",
-        "git-boundaries.md § role table":
-            "994e2a695a846a4130c00b07fece4a7c4d26dc1687c17c76ded0c145b066b772",
-        "delegate.md § code-work block":
-            "f18669a9d13a6d5ecc3b91ab7fed66dd538acffed082f26d561659fb88fc6074",
+    GOVERNED = {
+        # heading → the next executor heading: the rule, what each side does,
+        # the merge argument, the free-zone signpost, and the whole of
+        # § `Executor: claude-subagent`, which is where `dispatch.md:208-209`
+        # (the `isolation` flag bullet and the shared-cwd correction) live.
+        "dispatch.md § the tree + § Executor: claude-subagent": {
+            "path": "DISPATCH",
+            "span": ("## The tree the agent works in",
+                     "### `Executor: opencode-subagent`"),
+            "free": [("### Why it is a rule and not a preference\n",
+                      "### `Executor: claude-subagent`")],
+        },
+        # The whole role-boundary section, so line 17 — the one sentence in
+        # that file that states the rule, which round 3's slice began one
+        # bullet below — is inside, along with the table's premise and every
+        # Rules bullet. No free block: this section is normative throughout.
+        "git-boundaries.md § Git Role Boundaries": {
+            "path": "BOUNDARIES",
+            "span": ("## Git Role Boundaries",
+                     "## Time Estimation for Coding Agent Tasks"),
+            "free": [],
+        },
+        # From the required-fields list (which also states which tree to
+        # create) through the code-work block, so the retraction round 3
+        # placed *above* the block is inside the span rather than beside it.
+        "delegate.md § required fields + roleless path": {
+            "path": "DELEGATE",
+            "span": ("## Required fields in the rendered prompt",
+                     "## Role ≠ executor"),
+            "free": [],
+        },
     }
 
-    def normative_regions(self) -> dict:
-        D, B, G = (self.seen(p) for p in
-                   (self.DISPATCH, self.BOUNDARIES, self.DELEGATE))
-        return {
-            "dispatch.md § what each side does": D[
-                D.index("**What each side does.**"):
-                D.index("**The merge cannot be delegated")].rstrip(),
-            "git-boundaries.md § Rules": B[
-                B.index("- **Coding Agent commits its own work.**"):
-                B.index("- **No agent merges its own work.**")].rstrip(),
-            "git-boundaries.md § role table": B[
-                B.index("| Role | Works in |"):
-                B.index("### Rules")].rstrip(),
-            "delegate.md § code-work block": G[
-                G.index("- **Work in its own worktree**"):
-                G.index("- If a permitted push or PR fails")].rstrip(),
-        }
+    #: sha256 of `governed_text(name)`. When one of these fails legitimately,
+    #: the failure message prints the digest to paste back — deliberately, so
+    #: that re-pinning is a copy of a value you have just read the diff for and
+    #: not a script you can run without looking.
+    GOVERNED_SHA = {
+        # span 5,271 chars / 86 lines — 4,121 pinned, 1,150 declared free
+        "dispatch.md § the tree + § Executor: claude-subagent":
+            "c12161e8db91bd41d52fc68cfee6ced764b5e5a60cc304e3cb87d9053dca2207",
+        # span 4,269 chars / 26 lines — all pinned, no free block
+        "git-boundaries.md § Git Role Boundaries":
+            "e89b1321cd55a7a910322b6045e33b6763717c760d753175816f4a53a5dc45af",
+        # span 3,036 chars / 39 lines — all pinned, no free block
+        "delegate.md § required fields + roleless path":
+            "867706de4988717819124856ae579749f412d0d44d32e800904cf07a1a0e5f58",
+    }
 
-    def test_the_normative_bullets_are_pinned(self):
-        """Round 2 walked past the property check with two synonyms —
-        `publishes its feature branch … raises a pull request` — restoring in
-        full the order the scope was widened to remove. A regex over four
-        surface forms is a denylist; this is not."""
-        for name, text in self.normative_regions().items():
+    def governed_text(self, name: str) -> str:
+        """The span's visible text with its declared free blocks cut out.
+
+        A missing anchor raises `ValueError`, which is a test ERROR and
+        therefore red: deleting a governed heading is not a way to go quiet.
+        """
+        spec = self.GOVERNED[name]
+        src = self.seen(getattr(self, spec["path"]))
+        a = src.index(spec["span"][0])
+        b = src.index(spec["span"][1], a)
+        span = src[a:b]
+        kept, cursor = [], 0
+        for start_after, end_before in spec["free"]:
+            i = span.index(start_after, cursor) + len(start_after)
+            j = span.index(end_before, i)
+            kept.append(span[cursor:i])
+            cursor = j
+        kept.append(span[cursor:])
+        return "".join(kept).rstrip()
+
+    def test_the_governed_regions_are_pinned(self):
+        """**The primary guard, and the one that closes round 2's N2.**
+
+        Not "these four paragraphs are unchanged" but "everything in these
+        three spans except one declared rationale block is unchanged". An
+        inserted sentence has nowhere inside a span to land that is not pinned.
+        """
+        for name in self.GOVERNED:
             with self.subTest(region=name):
+                text = self.governed_text(name)
                 got = hashlib.sha256(text.encode("utf-8")).hexdigest()
                 self.assertEqual(
-                    got, self.NORMATIVE[name],
+                    got, self.GOVERNED_SHA[name],
                     f"\n{name} changed. If the rule really changed, re-pin it "
                     f"deliberately: {got}\n--- current text ---\n{text}\n")
+
+    def test_every_mention_of_the_rule_is_inside_a_governed_region(self):
+        """Round 3 declared its own limit as *"a fifth region added later is
+        invisible"*. This closes that for the rule's own subject matter.
+
+        Every visible line anywhere under `work/reference/` that says
+        `worktree` or `isolation` must fall inside a governed span. Measured on
+        this commit: those two words occur in exactly three files and 16 lines,
+        every one of them inside a span. So a new paragraph about worktrees —
+        in a fourth file, in a later section of one of these three, in a
+        section that does not exist yet — reddens here rather than sitting
+        unseen beside a pin.
+
+        This is a **containment** check over the rule's own vocabulary, not a
+        denylist over hedges: it does not ask what a sentence means, only where
+        a sentence on this topic is allowed to live. Its limit is the
+        vocabulary — a retraction that never says `worktree` or `isolation`
+        (*"sharing the checkout the PMO is sitting in is fine on small rows"*)
+        is outside its reach, which is why it is a second line and not the
+        first one.
+        """
+        spans = []
+        for name in self.GOVERNED:
+            spec = self.GOVERNED[name]
+            path = getattr(self, spec["path"])
+            src = self.seen(path)
+            a = src.index(spec["span"][0])
+            b = src.index(spec["span"][1], a)
+            spans.append((path, src[a:b]))
+        refdir = self.DISPATCH.parent
+        for path in sorted(refdir.glob("*.md")):
+            src = self.seen(path)
+            for n, line in enumerate(src.splitlines(), 1):
+                if not re.search(r"worktree|isolation", line, re.I):
+                    continue
+                inside = any(p == path and line in span for p, span in spans)
+                with self.subTest(where=f"{path.name}:{n}"):
+                    self.assertTrue(
+                        inside,
+                        f"{path.name}:{n} talks about the isolation rule from "
+                        f"outside every governed span, where nothing pins it:"
+                        f"\n  {line.strip()[:160]}")
+
+    def test_a_contradiction_inside_the_free_rationale_is_not_checkable(self):
+        """**The honest limit, written down as a test so it cannot be lost.**
+
+        `USER-914` chose: normative regions pinned, rationale prose free. The
+        free block is therefore, by construction, bytes this suite does not
+        read — and no assertion here can tell an improved explanation from a
+        retraction written into it. Three rounds have now established that a
+        denylist over English cannot; `perry/knowledge/` states the same rule
+        for this project's code generally ("Python never parses document
+        semantics").
+
+        What this test *can* hold is that the free zone is exactly one block,
+        that it is bounded at both ends by pinned anchors, and that the
+        paragraph telling a reader where normative text stops is itself inside
+        the pin. What holds the rest is not a test: the block sits at the tail
+        of the section under a heading that announces it as explanation, the
+        signpost above it says a sentence there granting an exception is a
+        defect, and the diff is read at merge.
+        """
+        spec = self.GOVERNED["dispatch.md § the tree + § Executor: claude-subagent"]
+        self.assertEqual(len(spec["free"]), 1)
+        src = self.seen(self.DISPATCH)
+        a = src.index(spec["span"][0])
+        b = src.index(spec["span"][1], a)
+        span = src[a:b]
+        start = span.index(spec["free"][0][0]) + len(spec["free"][0][0])
+        end = span.index(spec["free"][0][1], start)
+        self.assertGreater(end - start, 200, "the free block resolved to ~nothing")
+        # The signpost is above the free block, so it is inside the pin.
+        self.assertIn("**Where the normative part of this section ends.**",
+                      self.governed_text(
+                          "dispatch.md § the tree + § Executor: claude-subagent"))
+        self.assertNotIn("**Where the normative part of this section ends.**",
+                         span[start:end])
 
     def test_the_rule_is_mandatory_and_not_merely_available(self):
         """**The finding this test exists for, and it was a green mutation.**
