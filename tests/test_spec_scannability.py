@@ -94,73 +94,53 @@ HOOK = ("# Hook\n\n## High-stakes operations\n\n"
         "- The claim surface — `claims`, `state-schema.json`\n")
 
 
-class TestTheScanSaysWhatItScanned(unittest.TestCase):
-    """`scanned` is the other half of `armed`: one reports whether the HOOK had
-    anything to match with, the other whether the SPEC had anything to match
-    against. Both inputs can be empty; only one of them was ever visible."""
+class TestTheSpecSaysWhetherItDeclaredAScope(unittest.TestCase):
+    """`spec_scope_sections` is the other half of `armed`: one reports whether
+    the HOOK had anything to screen with, the other whether the SPEC declared
+    anything to screen. Both inputs can be empty; only one was ever visible.
 
-    def scan(self, spec: str) -> dict:
-        root = Path(tempfile.mkdtemp())
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text("# Config\n")
-        (root / ".perry" / "hook.md").write_text(HOOK)
-        return P.scan_spec_escalations(spec, P.escalation_union(root)["union"])
+    Until TASK-339 this drove `scan_spec_escalations`, which also matched the
+    hook's fragments against the spec's prose and returned a verdict. That half
+    is gone (`USER-916`, `ADR-007` decision 3) and the judgement is
+    `work/reference/dispatch.md` step 4's. What is left here answers one
+    structural question and renders no verdict at all.
+    """
 
-    def test_the_procedure_shape_scans_nothing_and_says_so(self):
-        """The finding itself. `verdict` is still `pass` — this fix reports,
-        it does not refuse — but `scanned` now distinguishes that `pass` from
-        a real one."""
-        out = self.scan(BULLET_SPEC)
-        self.assertEqual(out["verdict"], "pass")
-        self.assertEqual(out["touches"], {})
-        self.assertTrue(out["armed"], "the fixture hook must be armed, or "
-                                      "this test proves nothing")
-        self.assertEqual(out["scanned"], [],
-                         "a spec written to the documented schema scanned "
-                         "nothing and the result did not say so")
+    def test_the_procedure_shape_declares_no_scope_and_says_so(self):
+        """The finding itself. A spec written to the shape `perry-task add`
+        renders offers neither `## ` heading, and nothing used to say so."""
+        self.assertEqual(P.spec_scope_sections(BULLET_SPEC), [])
 
     def test_a_sectioned_spec_names_the_sections_it_offered(self):
-        out = self.scan(SECTION_SPEC)
-        self.assertEqual(out["scanned"], ["Deliverable", "Out of scope"])
-        self.assertEqual(out["scope_scanned"], ["Deliverable"])
-        self.assertEqual(out["refuse"], ["state-schema.json"])
+        self.assertEqual(P.spec_scope_sections(SECTION_SPEC), ["Deliverable"])
 
     def test_out_of_scope_alone_is_not_scope(self):
-        """`Out of scope` can only ever green-light. A spec offering that
-        section and neither touch section still presented the gate zero scope,
-        so `scope_scanned` — what `--specs` reports on — stays empty."""
-        out = self.scan("# T\n\n## Out of scope\n\n- `claims`\n")
-        self.assertEqual(out["scanned"], ["Out of scope"])
-        self.assertEqual(out["scope_scanned"], [])
+        """`Out of scope` says what a round does NOT do, so it can never
+        establish scope. A spec offering that section and neither of the other
+        two has declared nothing for step 4.2 to read."""
+        self.assertEqual(
+            P.spec_scope_sections("# T\n\n## Out of scope\n\n- `claims`\n"), [])
 
-    def test_an_empty_section_does_not_count_as_scanned(self):
+    def test_an_empty_section_does_not_count(self):
         """A heading with nothing under it is a heading, not scope. `_section`
         returns the empty string either way, so counting the heading alone
-        would report a scan that did not happen."""
-        out = self.scan("# T\n\n## Deliverable\n\n## Verification\n\n- x\n")
-        self.assertEqual(out["scope_scanned"], [])
+        would report a reading that did not happen."""
+        self.assertEqual(
+            P.spec_scope_sections("# T\n\n## Deliverable\n\n## Verification\n\n- x\n"),
+            [])
 
-    def test_the_gate_prints_scanned_beside_its_verdict(self):
-        """The dispatcher reads JSON from `--escalation-scan`, and this is the
-        surface where `pass` over nothing was indistinguishable from `pass`.
-        Exit code is deliberately unchanged: 0, as before."""
-        root = Path(tempfile.mkdtemp())
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text("# Config\n")
-        (root / ".perry" / "hook.md").write_text(HOOK)
-        spec = root / "spec.md"
-        spec.write_text(BULLET_SPEC)
-        r = subprocess.run(
-            [sys.executable, str(STATE), "--root", str(root),
-             "--escalation-scan", str(spec)],
-            capture_output=True, text=True)
-        out = json.loads(r.stdout)
-        self.assertEqual(r.returncode, 0)
-        self.assertEqual(out["verdict"], "pass")
-        self.assertEqual(out["scanned"], [])
-        # Both fragments the fixture hook declares were live and matched
-        # nothing, because there was nothing to match against.
-        self.assertEqual(out["fragments_scanned"], 2)
+    def test_it_returns_no_verdict_and_matches_no_fragment(self):
+        """The property this row bought. Its only argument is the document —
+        there is no fragment list to pass, so there is nothing it can judge."""
+        import inspect
+        sig = inspect.signature(P.spec_scope_sections)
+        self.assertEqual(list(sig.parameters), ["text"])
+        src = inspect.getsource(P.spec_scope_sections)
+        for banned in ("verdict", "refuse", "escalation_pattern",
+                       "matching_escalations", "fragments"):
+            self.assertNotIn(banned, src.split('"""')[-1],
+                             f"`{banned}` is back in a function whose whole "
+                             f"point is that it judges nothing")
 
 
 class TestTheLinterReportsIt(unittest.TestCase):
@@ -280,14 +260,14 @@ class TestTheMutation(unittest.TestCase):
 
 class TestOneAnswerToWhichSectionsAreScanned(unittest.TestCase):
     """The linter must not carry its own copy of the section list. A second
-    copy is how a report keeps describing a scan that changed underneath it —
-    the same defect `ESCALATION_TOUCHES`' own comment records for the i18n
+    copy is how a report keeps describing a reading that changed underneath it
+    — the same defect `SPEC_SCOPE_SECTIONS`' own comment records for the i18n
     table, and `test_escalation_boundaries` guards for the matcher."""
 
     def test_the_linter_reads_the_gates_list(self):
         src = LINT.read_text(encoding="utf-8")
-        self.assertIn("P.ESCALATION_TOUCHES", src)
-        self.assertIn("P.scan_spec_escalations", src)
+        self.assertIn("P.SPEC_SCOPE_SECTIONS", src)
+        self.assertIn("P.spec_scope_sections", src)
         start = src.index("def check_specs")
         body = src[start:src.index("\n#: How many drifted rows", start)]
         for literal in ('"Files in scope"', "'Files in scope'",
@@ -295,7 +275,7 @@ class TestOneAnswerToWhichSectionsAreScanned(unittest.TestCase):
             self.assertNotIn(
                 literal, body,
                 "check_specs spells a scanned section itself — it must read "
-                "P.ESCALATION_TOUCHES so the gate and its report cannot "
+                "P.SPEC_SCOPE_SECTIONS so the reader and its report cannot "
                 "disagree about what is scanned")
 
 
@@ -489,25 +469,41 @@ class TestTheProcedureNamesTheShape(unittest.TestCase):
         self.assertIn("must not be copied into one", block)
         self.assertIn("TASK-284", block)
 
-    def test_dispatch_step_4_gives_scope_scanned_a_reader(self):
-        """The asymmetry this round is about: the empty-HOOK half had an exit
-        code, a `dispatch.md` paragraph and a mandatory go-ahead in chat; the
-        empty-SPEC half had two JSON keys no procedure read."""
-        src = visible(self.DISPATCH.read_text(encoding="utf-8"))
-        step4 = src[src.index("4. **Safety re-validation**"):
-                    src.index("5. Spec contains a `Subjective verification:")]
-        self.assertIn("scope_scanned", step4)
-        self.assertIn("explicit go-ahead in chat", step4)
-        # And the exit code is NOT changed. A new one would refuse dispatch on
-        # 45 of 135 existing specs on the spot — an operational decision
-        # nobody took. `bin/perry-state § SCAN_EXIT` is untouched.
-        self.assertIn("exit code is still 0", step4)
+    def test_dispatch_step_4_gives_the_empty_spec_half_a_reader(self):
+        """The asymmetry this round is about: the empty-HOOK half had a
+        `dispatch.md` paragraph and a mandatory go-ahead in chat; the empty-SPEC
+        half had two JSON keys no procedure read.
 
-    def test_the_exit_codes_are_unchanged(self):
-        state_src = (PERRY_HOME / "bin" / "perry-state").read_text(
-            encoding="utf-8")
-        self.assertIn('SCAN_EXIT = {"pass": 0, "refuse": 3, "unarmed": 4}',
-                      state_src)
+        TASK-339 removed the scan, so there are no JSON keys left — but the
+        asymmetry it fixed is the part that has to survive a rewrite into prose,
+        and this is what fails if it does not. Both halves are named, both
+        require the same go-ahead."""
+        src = visible(self.DISPATCH.read_text(encoding="utf-8"))
+        step4 = src[src.index("4. **Safety re-validation"):
+                    src.index("5. Spec contains a `Subjective verification:")]
+        flat = " ".join(step4.split())
+        # the empty-SPEC half
+        self.assertIn("neither `Files in scope` nor `Deliverable` is present "
+                      "and non-empty", flat)
+        # the empty-HOOK half
+        self.assertIn("nothing is being screened", flat)
+        # and one go-ahead rule covering both
+        self.assertGreaterEqual(
+            flat.count("explicit go-ahead in chat"), 2,
+            "only one of the two empty halves requires a go-ahead — that is "
+            "the asymmetry TASK-284 measured, arriving through the rewrite")
+
+    def test_the_empty_spec_half_still_does_not_refuse_the_row(self):
+        """45 of Perry's own 149 specs declare no scope. Turning that into a
+        refusal would stop every dispatch touching them on the spot — an
+        operational decision nobody has taken. The exit code used to be what
+        carried this; now the sentence does, and this is what holds it."""
+        src = visible(self.DISPATCH.read_text(encoding="utf-8"))
+        step4 = src[src.index("4. **Safety re-validation"):
+                    src.index("5. Spec contains a `Subjective verification:")]
+        flat = " ".join(step4.split())
+        self.assertIn("is not by itself a reason to refuse the row", flat)
+        self.assertIn("it is a reason not to claim you screened it", flat)
 
 
 class TestTheAdvisoryHasARecordedTrigger(unittest.TestCase):
@@ -566,13 +562,10 @@ class TestTheLinterDoesNotFakeItsLocalization(unittest.TestCase):
                 if not ln.lstrip().startswith("#")]
         self.assertNotIn("load_glossary", "\n".join(code))
 
-    def test_a_localized_spec_still_scans(self):
+    def test_a_localized_spec_still_declares_its_scope(self):
         """The property the removed call was said to protect, tested directly
         rather than asserted in a comment."""
-        out = P.scan_spec_escalations(
-            self.zh_spec(), P.escalation_union(self.hooked())["union"])
-        self.assertEqual(out["scope_scanned"], ["Deliverable"])
-        self.assertEqual(out["verdict"], "refuse")
+        self.assertEqual(P.spec_scope_sections(self.zh_spec()), ["Deliverable"])
 
     def test_the_linter_does_not_report_the_localized_spec(self):
         root = self.hooked()
@@ -1149,7 +1142,7 @@ class TestBothHalvesOfTheBoundRuleSurvive(unittest.TestCase):
 
     def test_they_share_one_matcher(self):
         """Two regexes would be two answers to "what counts as a bound", which
-        is the defect `check_specs` reads `P.ESCALATION_TOUCHES` to avoid."""
+        is the defect `check_specs` reads `P.SPEC_SCOPE_SECTIONS` to avoid."""
         src = LINT.read_text(encoding="utf-8")
         self.assertEqual(src.count("_BOUND_RE = re.compile"), 1)
         self.assertEqual(src.count("_BOUND_RE.search"), 2)
