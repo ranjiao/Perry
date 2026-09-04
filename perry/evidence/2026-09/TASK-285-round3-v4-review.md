@@ -20,7 +20,21 @@ and `## Out of scope`, plus the round-3 claims in `TASK-285-result.md`.
 
 ## Verdict in one line
 
-NOT YET WRITTEN — see criteria below.
+**FAIL.** The allowlist is the right instrument and it is drawn too small.
+**Four of round 2's twelve green mutations are still green** — including a
+retraction of the row's headline deliverable placed three lines below the
+now-byte-pinned blockquote, in the file this row designates as the rule's
+single home, with all eleven guards reporting `OK`. Round 2's decisive finding
+was a retraction the guard could not see; pinning the blockquote to exact bytes
+did not remove that retraction, it moved it one line down.
+
+Every criterion the brief listed is individually MET — the four digests are
+real, each pinned region reddens on a one-character change, the negative
+control fires, the rationale really is unpinned, the suite is green and lint is
+at 0 errors, and there is no collision with TASK-339. The FAIL is on the round's
+own central claim: *"every normative region is pinned … any addition, removal
+or rewording reddens"*. Three normative lines that already exist are not
+pinned, and additions inside the same section are not seen at all.
 
 ---
 
