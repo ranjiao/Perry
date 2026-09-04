@@ -12,7 +12,7 @@
 > from **that sha** — never from `main`, which moves — and every restore is
 > asserted to return the file's sha256 to its pre-mutation value. All four
 > files in scope were confirmed byte-identical to `BASE` before the first
-> plant:
+> plant and again after the last:
 >
 > ```
 > e66d9139…  work/reference/dispatch.md
@@ -25,10 +25,11 @@
 > at that line**; a miss aborts loudly rather than no-opping. Between plant and
 > run: `find . -name __pycache__ -prune -exec rm -rf {} +` and `sleep 1.15`,
 > past the whole-second boundary. Scoring is by **differencing the failing-test
-> set against baseline**, never pass/fail. Harness `scratchpad/w285r5/mut.py`;
-> batteries `bA.py` (exact mechanism), `bA2.py` (pre-fix reproduction),
-> `bB.py` (controls, over-fire, free block), `bC.py` (new attacks),
-> `bX2suite.py` (whole suite); digests independently recomputed in
+> set against baseline**, never pass/fail. Harness
+> `scratchpad/w285r5/mut.py`; batteries `bA.py` (the exact mechanism),
+> `bA2.py` (the pre-fix reproduction), `bB.py` (controls, over-fire, free
+> block), `bC.py` (new attacks), `bX2suite.py` (whole suite), `bFix.py` /
+> `bFix2.py` (candidate repairs); digests independently recomputed in
 > `digests.py`.
 
 Criteria: `TASK-285-spec.md` (`## Deliverable`, `## Verification`, `## Bound`,
@@ -41,16 +42,16 @@ verdicts — `-round2-`, `-round3-`, `-round4-` — read in full before scoring.
 
 **FAIL.** The one-line fix is correct and it does exactly what round 4's review
 asked: the three exact-mechanism cases are red, the natural-wrap control is
-still red, the four declared greens are still green, and the round's two
+still red, the declared controls are still green, and the round's two
 corrections to the record are substantially right. The round fails on **the
 same category for the fourth consecutive time**, one variant further out.
 
 A retraction that **uses both keywords**, written on a **naturally wrapped,
-full-length line**, placed **outside every governed span, four lines above the
+full-length line**, placed **outside every governed span, three lines above the
 rule's own heading** in the file this row designates as the rule's single home,
-is **GREEN** — on the guard class and on the whole suite — provided the
-identical sentence is also written once inside the **declared-free rationale
-block**, which is a legal, unpinned, green edit under `USER-914`.
+is **GREEN** — on the guard class and on the whole 3,256-test suite — provided
+the identical sentence is also written once inside the **declared-free
+rationale block**, which is a legal, unpinned, green edit under `USER-914`.
 
 The containment check keys a line by its **content**, never by its
 **position**:
@@ -85,7 +86,7 @@ costs one copy into the zone the very same paragraph names as the free remedy.
 | 1 | The three exact-mechanism cases are red | **MET** |
 | 2 | The natural-wrap retraction is still red | **MET** |
 | 3 | The three controls stay green | **MET** |
-| 4 | The over-fire is correct and its cost is bounded | **NOT MET** — correct, not bounded |
+| 4 | The over-fire is correct **and its cost is bounded** | **NOT MET** — correct, not bounded |
 | 5 | Round 5's two corrections to the record | **MET, with a measured overstatement** |
 | 6 | Attacks nobody has planted | **NOT MET** — one green, and it is the fail |
 | 7 | The spec's `## Bound` still bounds the same thing | **MET, with one false sentence** |
@@ -111,7 +112,7 @@ MATCH  delegate.md § required fields + roleless path span=3036c/38l  pinned=303
 3 of 3 digests match live text
 ```
 
-The round-5 keyword census also reproduces, and it is the corrected one:
+Round 5's **corrected keyword census also reproduces**, and it is the right one:
 
 ```
 delegate.md        2 lines, 2 inside a span
@@ -120,17 +121,16 @@ git-boundaries.md  7 lines, 7 inside a span
 TOTAL 20
 ```
 
-So round 4's `16` was wrong, round 5's `20` is right, and the split
-(11 / 7 / 2) is right. The guard class baselines at `Ran 13 tests`, failing
-none.
+So round 4's `16` was wrong, round 5's `20` is right, and the 11 / 7 / 2 split
+is right. The guard class baselines at `Ran 13 tests`, failing none.
 
 ---
 
 ### 1. The escape, re-planted with the EXACT mechanism — **MET**
 
-The mechanism had to be reproduced exactly, and the round is right about why
-its own first probe failed: the keyword-bearing line must **itself be a
-substring of a governed span**.
+The round is right about why its own first probe failed, and the mechanism had
+to be reproduced exactly: the keyword-bearing line must **itself be a substring
+of a governed span**.
 
 ```
 'worktree'           substring of the dispatch span? True   a line of it? False
@@ -149,9 +149,9 @@ RED  P2   middle line exactly 'own git worktree'  -> same
 RED  P3   middle line exactly 'isolation'         -> same
 ```
 
-**And the mechanism is proved exact, not merely asserted.** The one-line fix was
+**And the mechanism is proved exact, not asserted.** The one-line fix was
 reverted in place to round 4's `spans.append((path, src[a:b]))` and the same
-three plants re-run:
+three plants re-run against the same document bytes:
 
 ```
 BASELINE(un-fixed)  Ran 13  failing=none
@@ -162,10 +162,10 @@ RED   E1nat  -> test_every_mention_…_governed_region
 guard restored, sha256 == d7a4eb796ff7b2d9…
 ```
 
-Three green before the fix, three red after it, same bytes in the document.
-That is the round-4 finding closed.
+Three green before the fix, three red after it. That is round 4's finding
+closed, and closed properly.
 
-### 2. The natural-wrap control is still red — **MET**
+### 2. The natural-wrap retraction is still red — **MET**
 
 ```
 RED  E1nat   dispatch.md:138  the same retraction wrapped at ~78 cols
@@ -186,7 +186,7 @@ GREEN REMEDY   dispatch.md:209  the innocent passing mention, INSIDE the free bl
 `REMEDY` uses the round's own sentence verbatim (*"Before dispatching,
 `git worktree list` prints every tree the repository currently has…"*). All
 three are green with no new failures, so the fix did not tighten the guard onto
-prose it is supposed to leave alone.
+prose it is meant to leave alone.
 
 ### 4. The over-fire — **correct, but NOT bounded as claimed** — NOT MET
 
@@ -195,32 +195,33 @@ RED  OVERFIRE  dispatch.md:138  the same innocent sentence, outside every span
                -> test_every_mention_of_the_rule_is_inside_a_governed_region
 ```
 
-**On whether over-firing is correct, I agree with round 5, and without
+**On whether over-firing is correct, I agree with round 5 without
 reservation.** The check is containment, not comprehension. Making it
 distinguish an innocent mention from a retraction means putting a reader of
-English in the middle, and this row has lost that argument twice already —
+English back in the middle, and this row has lost that argument twice already —
 round 1 to a modality-blind guard, round 2 to an eight-word hedge denylist,
-with the reviewer's own conclusion recorded in the constant's comment: *a
-denylist over English has now lost this argument twice.* The project states the
-same rule generally in `perry/knowledge/`. A guard that guessed would be
-defeated by the next sentence not on the list, and the failure message now says
-so in as many words, with the remedy attached. That is the right instrument and
-the right documentation of it.
+with that reviewer's own conclusion now recorded in the constant's comment: *a
+denylist over English has now lost this argument twice.* `perry/knowledge/`
+states the same rule for this project generally. A guard that guessed would be
+defeated by the next sentence not on the list. The instrument is right, and the
+failure message round 5 added is the best prose in this row: it names the
+remedy, and it tells the next author not to relax the test into one that
+guesses.
 
-**On whether the cost is bounded, the round's own measurement is the thing that
-is wrong**, and it is wrong in the direction that matters. The Bound says:
+**On whether the cost is bounded, the round's own measurement is wrong**, and
+wrong in the direction that matters. The `Over-fires:` paragraph says:
 
 > *the same sentence is GREEN inside the free rationale block (measured round
 > 5), and anywhere else it costs one deliberate re-pin, which is the friction
 > this rule is meant to carry.*
 
-Half of that is confirmed (`REMEDY` green). The other half is false, and § 6
-below is why: the sentence is green **anywhere in `dispatch.md`** once a copy
-of it exists in the free block, and no re-pin is involved. The friction the
-paragraph claims to impose is not imposed. That is not a cosmetic
-over-claim — it is the sentence on which the whole over-fire defence rests.
+The first half reproduces (`REMEDY` green). The second half is false, and
+§ Finding 1 is why: the sentence is green **anywhere in `dispatch.md`** once a
+copy of it exists in the free block, and no re-pin is involved. The friction
+the paragraph claims to impose is not imposed. That is not a cosmetic
+over-claim — it is the sentence the whole over-fire defence rests on.
 
-### 5. Round 5's two corrections to the record — **MET, with a measured overstatement** 
+### 5. Round 5's two corrections to the record — **MET, with a measured overstatement**
 
 **Correction A — the free block is not wholly unread.** The *outcome* claim
 reproduces exactly:
@@ -232,19 +233,19 @@ RED  D3b   dispatch.md:194-212  the free rationale rewritten WHOLESALE, all 19
               + test_a_contradiction_inside_the_free_rationale_is_not_checkable
 ```
 
-(The second failure is the round's own length assertion — my replacement was
-shorter than 200 chars — and is incidental.)
+(The second failure is that test's own `> 200` length assertion — my
+replacement was shorter — and is incidental.)
 
 **The *mechanism* claim is half true, and I measured the half that is not.**
-Round 5 and the spec both say *"two existing tests assert into it"* and that a
+Round 5 and the spec both say *"two existing tests assert into it"*, and that a
 rewrite deleting *"the two observed failures **or the merge instruction**"*
 reddens. Inside the section, the three asserted literals live at:
 
 ```
-160  - The primary checkout merges with `git merge --no-ff <branch>` …   PINNED
-172   ! [remote rejected] HEAD -> main (branch is currently checked out)  PINNED
-199  - **2026-09-02** — TASK-247 was dispatched …                        FREE
-209  The failure is also **invisible from inside**: TASK-247's own agent …FREE
+160  - The primary checkout merges with `git merge --no-ff <branch>` …    PINNED
+172   ! [remote rejected] HEAD -> main (branch is currently checked out)   PINNED
+199  - **2026-09-02** — TASK-247 was dispatched …                         FREE
+209  The failure is also **invisible from inside**: TASK-247's own agent … FREE
 ```
 
 `git merge --no-ff` and `branch is currently checked out` are both in the
@@ -263,48 +264,87 @@ GREEN D3c  a wholesale rewrite that RETRACTS the rule, keeps the literal
 GREEN D3d  the same retraction keeping `TASK-247` and USING both keywords
 ```
 
-**Correction B — the unread zone is smaller than 1,148 characters.** True, and
-now measured at its real size: the free block is unread except that the
-8-character string `TASK-247` must survive somewhere in it. The residual is
-therefore ~1,140 characters in any arrangement, not meaningfully smaller than
-the figure three documents cited. The correction is honest and it is in the
-right direction; the round's framing of it (*two* tests, *the merge
-instruction*) makes the shrinkage sound larger than it is. Not a fail reason on
-its own — the spec's `Remainder` still says the block is *"bytes this suite
-does not read"* and that *"no test can tell an improved explanation there from
-a retraction"*, and both remain true.
+**Correction B — the unread zone is smaller than 1,148 characters.** True in
+direction, and now measured at its real size: the free block is unread except
+that the 8-character string `TASK-247` must survive somewhere in it. The
+residual is ~1,140 characters in any arrangement — not meaningfully smaller
+than the figure three documents cited. The correction is honest; its framing
+(*two* tests, *the merge instruction*) makes the shrinkage sound larger than it
+is. Not a fail reason on its own: the spec's `Remainder` still says the block is
+*"bytes this suite does not read"* and that *"no test can tell an improved
+explanation there from a retraction"*, and `D3c`/`D3d` confirm both.
 
 ### 6. Attacks nobody has planted — **NOT MET; one green, and it is the fail**
 
-Fourteen new plants. **Thirteen red, one GREEN.** Full ledger in § Finding 1
-and § Attack log.
+Fourteen new plants, **thirteen red, one GREEN**. Ledger in § Finding 1 and
+§ Attack log.
 
 ### 7. Does the spec's `## Bound` still bound the same thing — **MET, with one false sentence**
 
-The diff is `483a171`, `+45/-4`, touching only `## Bound`'s `Remainder` and
-adding an `Over-fires:` line. Checked rather than reasoned:
+The diff is `483a171`, `+45/-4`, touching only `Remainder` and adding an
+`Over-fires:` line. Checked rather than reasoned:
 
 - **`## Deliverable` and `## Verification` are byte-identical** to what the row
   was filed with (`git diff 13650c4 dda8d5f -- …spec.md` touches nothing else),
-  so the six original Verification items are still the ones being scored.
+  so the six original Verification items are the ones being scored.
 - **The original enumeration is untouched**: `grep -l "The tree the agent works
-  in" work/reference/*.md` is still exactly 3; `autopilot.md` still carries no
-  copy; the *"a K+1th file is a new row"* sentence is unchanged.
-- **The vocabulary limit was genuinely moved in from the docstring**, which is
-  the round-4 review's Finding 3 discharged, and confirmed still green (`S1n`
-  category, and `D3c`).
-- **The three-zone `Remainder` is a truer description than "exactly one free
-  block"**, and zone 3 as *described* is genuinely closed.
+  in" work/reference/*.md` is still exactly 3, `autopilot.md` still carries no
+  copy, and the *"a K+1th file is a new row"* sentence is unchanged.
+- **The vocabulary limit really was moved in from the docstring** — the round-4
+  review's Finding 3 discharged — and it is still green (`D3c`, and `S1n`'s
+  category).
+- **The three-zone `Remainder` is a truer description** than *"exactly one free
+  block"*, and zone 3 **as described** (short-wrapped keyword lines) is
+  genuinely closed.
 
-**One sentence in it is false, and it is load-bearing**: the `Over-fires:`
-paragraph's *"anywhere else it costs one deliberate re-pin"*. § 4 and Finding 1.
+**One sentence in it is false, and it is load-bearing**: `Over-fires:`'s
+*"anywhere else it costs one deliberate re-pin"*. See §§ 4 and Finding 1.
 A second, milder one: `Size:` still says `1,150 declared free` while
 `Remainder` says `1,148` — the two-character `rstrip()` gap the round-4 review
-already explained, now visible inside one code block. Cosmetic.
+already explained, now visible inside a single code block. Cosmetic.
 
 ### 8. Suite and lint — **MET**
 
-*(see § Suite below)*
+```
+$ bash tests/run                       (clean tree, nothing edited during the run)
+0. tree guard — ✓ nothing under …/agent-ab537c23477b52f8e moved
+✗ 1 of 114 MODULE(S) red
+✗ 1 of 3256 TEST(S) failed
+
+$ python3 bin/perry-lint --root .
+  0 error(s), 37 warning(s)
+```
+
+The single failure is the brief's first named known red, and it was **re-run
+alone before being attributed**:
+
+```
+FAIL: test_board_render.TestTheBytesComeFromTheStore
+      .test_every_rendered_field_moves_when_the_store_moves (field='status')
+AssertionError: 'dropped' unexpectedly found in "| TASK-348 | …"
+```
+
+TASK-356: the sentinel `dropped` collides with ordinary prose in TASK-348's
+next-action text in `perry/tasks.jsonl`, which is off-limits to this row and is
+untouched. Not this row's, and red on `main` as the brief says. The other three
+named flakes (`test_contract_key_parity`, `test_one_primitive` /
+`test_one_choke_point`, `test_host_support`) did not fire on any of my three
+runs, `test_host_support` included, despite sustained load average 100–220 from
+other agents on this machine.
+
+**Two honest notes about the runs.**
+
+- My *first* baseline run tripped the tree guard on
+  `perry/evidence/2026-09/TASK-285-round5-v4-review.md`. That was **my own
+  fault** — I edited this review file while the suite was running. It is not a
+  test writing into the tree. The final run above was made with the tree
+  untouched throughout and its tree guard is clean.
+- The `X2`-planted whole-suite run showed a *second* red,
+  `test_diagnose.TestWritingThatACodeIsGoneDoesNotBringItBack
+  .test_perrys_own_repository_reports_the_exemption_it_used`, as a **120-second
+  `perry-diagnose` subprocess timeout** at load average ~100. Re-run alone per
+  the brief: `Ran 17 tests in 39.5s / OK`. Environmental, not the mutation, and
+  not this row's.
 
 ---
 
@@ -317,27 +357,32 @@ the declared-free rationale block. Therefore:
 > **Any sentence written inside the free block becomes a legal line anywhere
 > else in the same file.**
 
-`USER-914` makes the first edit legal, unpinned and green. The second edit is
-then green for free.
+`USER-914` makes the first edit legal, unpinned and green. The second is then
+green for free.
 
-The mutation, planted in one commit, in `dispatch.md` only:
+The mutation — one commit, `dispatch.md` only:
 
 ```
 copy 1 — dispatch.md:209, INSIDE the free rationale block (legal, unpinned):
 
     On a small row a separate worktree is not required and the `isolation` flag may be skipped.
 
-copy 2 — dispatch.md:138, OUTSIDE every governed span, four lines above the
-         rule's own heading:
+copy 2 — dispatch.md:138, OUTSIDE every governed span
+```
 
-    **When this does not apply.**
-    On a small row a separate worktree is not required and the `isolation` flag may be skipped.
+and what the document then says, printed from the mutated file:
 
-    ## The tree the agent works in
-
-    > **A dispatched agent works in its own git worktree. The primary checkout is
-    > never switched by an agent; it merges the agent's branch afterwards, and that
-    > merge is the only code operation it performs.**
+```
+ 136 may narrow which runtimes are acceptable; it never grants a slot.
+ 137
+ 138 **When this does not apply.**
+ 139 On a small row a separate worktree is not required and the `isolation` flag may be skipped.
+ 140
+ 141 ## The tree the agent works in
+ 142
+ 143 > **A dispatched agent works in its own git worktree. The primary checkout is
+ 144 > never switched by an agent; it merges the agent's branch afterwards, and that
+ 145 > merge is the only code operation it performs.**
 ```
 
 Result:
@@ -347,38 +392,49 @@ GREEN X2      the composite                     new failures: NONE   Ran 13  OK
 RED   X2b     copy 2 ALONE, no free-block copy  -> test_every_mention_…_governed_region
 ```
 
-and against the whole suite, not merely the class: **{SUITE_X2}**
+and against the **whole suite**, not merely the class:
 
-Four things make this the same fail the row has taken three times, not a new
-class of nit:
+```
+$ bash tests/run
+0. tree guard — ✓ nothing moved
+✗ 2 of 3256 TEST(S) failed
+     test_board_render …          the pre-existing TASK-356 red (§ 8)
+     test_diagnose …              a 120s perry-diagnose TIMEOUT under load ~100;
+                                  re-run alone: Ran 17 tests / OK (§ 8)
+```
+
+`test_every_mention_of_the_rule_is_inside_a_governed_region` **did not fire**.
+The row's headline rule stands retracted immediately above its own heading with
+the guard class green and the suite no redder than baseline.
+
+Four things make this the same fail the row has taken three times, not a nit:
 
 1. **The retraction uses both keywords.** It is not the declared vocabulary
    limit. It says `worktree` and it says `isolation`.
 2. **The line is naturally wrapped and full length.** It is not the declared
-   zone-3 short-wrap, which the spec calls `CLOSED IN ROUND 5`. No carriage
+   zone-3 short wrap, which the spec calls `CLOSED IN ROUND 5`. No carriage
    return is doing any work.
 3. **It is outside every governed span**, in the file the spec designates as
    *"the rule's single home"*, positioned so a reader meets the exception
    before the rule.
-4. **The document then lies about itself.** `dispatch.md:182` — inside the pin
-   — tells the reader *"Everything above this paragraph … is pinned
-   byte-for-byte by `tests/test_spec_scannability.py::TestTheAgentGetsItsOwnTree`:
-   a sentence added, removed or reworded anywhere in it reddens a named test."*
-   Copy 2 is above that paragraph. Nothing reddens.
+4. **The document then vouches for it.** `dispatch.md:182` — inside the pin —
+   tells the reader *"Everything above this paragraph … is pinned byte-for-byte
+   by `tests/test_spec_scannability.py::TestTheAgentGetsItsOwnTree`: a sentence
+   added, removed or reworded anywhere in it reddens a named test."* Copy 2 is
+   above that paragraph. Nothing reddens.
 
-**Why this is not just the declared zone-1 residual with extra steps.** Round
-4's review scored its `F2` (widening the free block with a duplicated heading)
-as *"the declared residual, not an escalation of it"* — and it was right,
-because `F2` left the retraction **inside** the free zone. Every defence the
-round offers for that residual is **positional**: the block *"sits at the tail
-of the section under a heading that announces it as explanation, below a pinned
-signpost."* `X2` breaks the positional bound. It moves the retraction out of
-the annotated tail and into normative position above the rule, where the
-signpost's own words vouch for it. A hole whose only remaining defence is *"it
-is somewhere a reader can see it is only rationale"* stops being bounded the
-moment its contents can be copied anywhere.
+**Why this is not the declared zone-1 residual with extra steps.** Round 4's
+review scored its `F2` (widening the free block with a duplicated heading) as
+*"the declared residual, not an escalation of it"* — rightly, because `F2` left
+the retraction **inside** the free zone. Every defence the round offers for
+that residual is **positional**: the block *"sits at the tail of the section
+under a heading that announces it as explanation, below a pinned signpost."*
+`X2` breaks the positional bound. It moves the retraction out of the annotated
+tail into normative position above the rule. A hole whose only remaining
+defence is *"it is somewhere a reader can see it is only rationale"* stops
+being bounded the moment its contents can be copied anywhere.
 
-**A weaker cousin, for completeness.** The same content-keying makes any
+**A weaker cousin, recorded but not scored.** The same content-keying makes any
 existing keyword-bearing span line freely duplicable:
 
 ```
@@ -388,27 +444,53 @@ GREEN X1-dup   dispatch.md:138  keyword-free retracting prose plus a VERBATIM
 
 I do **not** score `X1` against the round: its retracting sentences carry
 neither keyword, so it falls inside the declared zone-2 vocabulary limit and
-the quoted bullet only lends it plausibility. It is recorded because it is the
-same mechanism, and because it is the cheaper half of `X2`.
+the quoted bullet only lends it plausibility. It is here because it is the same
+mechanism, and the cheaper half of `X2`.
 
-**The fix is again small, and the round already owns the right shape.** The
-line set must be built from the **pinned** text, not the raw span — i.e. from
-`governed_text(name)`, the very function the sibling test already uses — so the
-free zone stops minting legal lines:
+---
 
-```python
-spans.append((path, set(self.governed_text(name).splitlines())))
+## What would close this — verified, and one candidate that does NOT work
+
+**The obvious repair is wrong, and I found that out by running it rather than
+proposing it.** Building the line set from the pinned text —
+`set(self.governed_text(name).splitlines())` — reddens the check **on the
+unmodified documents**, because the free block legitimately contains
+keyword-bearing lines (`dispatch.md:195`, *"a branch instruction with no
+isolation instruction…"*):
+
+```
+BASELINE(governed_text repair, unmodified documents)
+    Ran 13   failing: ['test_every_mention_of_the_rule_is_inside_a_governed_region']
 ```
 
-Verified rather than proposed. Applied to a scratch copy of the guard with
-`X2` planted: `test_every_mention_of_the_rule_is_inside_a_governed_region`
-goes **RED**, and on the unmodified documents the class is **green** at
-`Ran 13`. Both files were then restored to their `BASE` sha256; the patch is
-**not** part of this branch. Nothing else moves — the digests, the spans,
-`USER-914`'s free block and every result in §§ 1–3 stand. If the round would
-rather argue that seeding the free block is out of scope, that argument has to
-be **written into the spec's `Remainder`** before it is made, which is the
-standard rounds 3 and 4 were both held to.
+**The repair that works is positional**, which is what the check should have
+been all along — gate on *where the line is*, not on *what the line says*:
+
+```python
+spans.append((path, src[:a].count("\n") + 1, src[:b].count("\n") + 1))
+...
+inside = any(p == path and lo <= n < hi for p, lo, hi in spans)
+```
+
+Verified on a scratch copy of the guard, restored to its `BASE` sha256
+afterwards — the patch is **not** part of this branch:
+
+```
+BASELINE(positional repair, unmodified documents)  Ran 13  failing=none
+RED    X2        the oracle — CLOSED
+RED    X1-dup    the duplicate-line cousin — CLOSED
+GREEN  REMEDY    an innocent mention inside the free block — STILL the free remedy
+RED    P1        round 5's own short-wrap case — preserved
+RED    E1nat     the natural-wrap control — preserved
+GREEN  D3        the free rationale still free — preserved
+guard restored, sha256 == d7a4eb796ff7b2d9…
+```
+
+So the fix costs one line, keeps everything round 5 earned, and — unlike the
+content-keyed alternative — leaves the `Over-fires:` paragraph's remedy
+(*"green inside the free rationale block"*) true. Then either declare the `X3`
+homoglyph class in the `Remainder` or normalise the line before matching, and
+decide whether `glob` or `rglob` is meant (`X6`).
 
 ---
 
@@ -434,7 +516,7 @@ RED   X7-4th-dup   a FOURTH FILE whose keyword line is a VERBATIM copy of a
                    duplication attack does NOT cross files
 RED   X7b-4th      a fourth file with an ordinary keyword retraction
                    (round 4's control, re-derived — still red)
-RED   OVERFIRE, E1nat, P1, P2, P3   (§§ 1, 2, 4)
+RED   X2b, OVERFIRE, E1nat, P1, P2, P3   (§§ 1, 2, 4, Finding 1)
 GREEN X3-shy       'work<U+00AD>tree'  — soft hyphen
 GREEN X3-zwsp      'work<U+200B>tree'  — zero-width space
 GREEN X3-cyr       'w<U+043E>rktree'   — Cyrillic small o
@@ -442,33 +524,26 @@ GREEN X6-subdir    work/reference/notes/tree.md — a retraction in a
                    SUBDIRECTORY, with both keywords
 ```
 
-**The three `X3` greens I do not score as the fail**, though they are worth
-recording. The declared limit is *the vocabulary*, and a homoglyph or an
-invisible separator is a way of not writing the word in the bytes. It is
-uncomfortable that the *rendered* document says `worktree` while the check does
-not see it — that is the same "the bytes say one thing, a reader sees another"
-gap `visible()` exists to close, pointed the other way — but they need a
-character no author types by accident, and they are one honest sentence in the
-Bound away from being declared. `X2` is not.
+**The three `X3` greens I do not score as the fail**, though they belong on the
+record. The declared limit is *the vocabulary*, and a homoglyph or an invisible
+separator is a way of not writing the word in the bytes. It is uncomfortable
+that the *rendered* document says `worktree` while the check does not — the
+same "the bytes say one thing, a reader sees another" gap `visible()` exists to
+close, pointed the other way — but they need a character no author types by
+accident, and they are one honest sentence in the `Remainder` away from being
+declared. `X2` is neither.
 
-**`X6` is a note, not a finding.** The docstring's stated universal is *"Every
-visible line **anywhere under** `work/reference/`"*; the code is
+**`X6` is a note, not a finding.** The docstring's universal is *"Every visible
+line **anywhere under** `work/reference/`"*; the code is
 `refdir.glob("*.md")`, which is **not** recursive. `work/reference/` has no
-subdirectories today, and creating one is squarely the spec's *"a K+1th file is
+subdirectories today and creating one is squarely the spec's *"a K+1th file is
 a new row"*. But the sentence and the glob do not say the same thing, and the
 cheapest honest repair is `rglob`.
 
-The three span-anchor attacks (`X5`, `X5b`, `X5c`) are all red, including the
-one that deletes a governed span's closing heading — `governed_text` raises
-`ValueError`, which is a test ERROR and therefore red. Deleting an anchor is
-not a way to go quiet. The `p == path` gate also holds: the line-duplication
-attack works only within one file (`X7-4th-dup` red).
-
----
-
-## Suite and lint
-
-{SUITE_BLOCK}
+The three span-anchor attacks are all red, including the one that deletes a
+governed span's closing heading — `governed_text` raises `ValueError`, a test
+ERROR and therefore red. Deleting an anchor is not a way to go quiet. The
+`p == path` gate also holds: the duplication attack works only within one file.
 
 ---
 
@@ -477,39 +552,23 @@ attack works only within one file (`X7-4th-dup` red).
 - **The one-line fix is right and it is proved right.** Three plants green
   before it and red after it, on identical document bytes, with the guard
   reverted and restored to its `BASE` sha256 in between.
-- **The natural-wrap control did not regress** (`E1nat` red both sides).
+- **The natural-wrap control did not regress** (`E1nat` red on both sides).
 - **All three declared controls are still green** — the rationale is genuinely
   still free, and `REMEDY` confirms the free block really is a place an
   innocent mention can live.
-- **The three digests are real**, recomputed independently, 3 of 3.
+- **The three digests are real**, recomputed independently, 3 of 3, every span
+  beginning and ending on normative prose.
 - **The census correction is right**: 20 lines, 11 / 7 / 2, every one inside a
-  span.
-- **`D3b` is a real finding in the round's favour** and it corrects the round-4
+  span, so the invariant's premise holds.
+- **`D3b` is a real finding in the round's favour**, and it corrects the round-4
   review: the free block is not wholly unread.
-- **Span anchors hold** under deletion, duplication of either end, and a fourth
-  file; table rows and code fences do not evade the containment check.
-- **The over-fire argument is correct** and the failure message is the best
-  piece of prose in this row: it names the remedy, and it tells the next author
-  not to relax the test into one that guesses.
+- **Span anchors hold** under deletion and duplication of either end, in a
+  fourth file, and against table rows and code fences.
+- **The over-fire argument is correct**, and its failure message is the best
+  piece of prose in this row.
 - **The Bound now describes three zones**, which is a truer bound than the one
-  it replaced.
-
-## What would close this
-
-One line, at `tests/test_spec_scannability.py:943` — build the line set from
-the **pinned** text rather than the raw span:
-
-```python
-spans.append((path, set(self.governed_text(name).splitlines())))
-```
-
-Then re-run `X2`, `X1-dup` and `REMEDY`. `X2` and `X1-dup` must join `X2b` in
-red; `REMEDY` — an innocent mention **inside** the free block — will also turn
-red, which is a real cost and has to be paid deliberately: it means the free
-zone stops being the free remedy the `Over-fires:` paragraph advertises, and
-that paragraph has to be rewritten to say what the remedy actually is. Then
-either declare the `X3` homoglyph class in the `Remainder` or normalise the
-line before matching, and say whether `glob` or `rglob` is meant.
+  it replaced, and Deliverable and Verification were left alone.
+- Lint 0 errors; suite no redder than baseline; tree guard clean.
 
 ---
 
@@ -526,7 +585,7 @@ reason: the containment check keys a line by CONTENT, not position, and the
         span it builds the line set from INCLUDES the declared-free rationale
         block — so the free zone is a line-injection oracle. A retraction using
         BOTH keywords, naturally wrapped, placed outside every governed span
-        four lines above the rule's own heading, is GREEN once the identical
+        three lines above the rule's own heading, is GREEN once the identical
         sentence is also written into the free block, which USER-914 makes a
         legal green edit. The same line alone is RED. The Bound's own claim
         that a mention "anywhere else costs one deliberate re-pin" is therefore
@@ -534,24 +593,27 @@ reason: the containment check keys a line by CONTENT, not position, and the
         free remedy.
 one_line_fix: verified correct — 3 GREEN pre-fix, 3 RED post-fix, same bytes
 digests_verified: 3 of 3, independently recomputed
-census_verified: 20 lines (11/7/2), round 5's correction of round 4's 16
+census_verified: 20 lines (11/7/2) — round 5's correction of round 4's 16
 free_block_measured: read by ONE test through ONE literal (`TASK-247`), not two
+repair_verified: content-keyed repair FAILS (reddens the unmodified tree);
+                 POSITIONAL repair verified — X2 and X1-dup red, REMEDY, D3,
+                 P1 and E1nat all preserved
 mutations_planted: 25 — 4 pre-fix (3 GREEN by design, 1 RED control),
                         21 post-fix: 16 RED, 5 GREEN
   of the 5 post-fix greens: 3 declared controls (D3, NEWPARA, REMEDY),
-  1 the declared zone-1 residual re-measured (D3c/D3d counted once),
+  1 the declared zone-1 residual re-measured (D3c/D3d, counted once),
   1 UNDECLARED and decisive (X2)
-  — plus 4 recorded but not scored: X1-dup, X3-shy, X3-zwsp, X3-cyr, X6-subdir
+  recorded but not scored: X1-dup, X3-shy, X3-zwsp, X3-cyr, X6-subdir
 spec_bound: still bounds the same thing; one false sentence (`Over-fires:`)
 === END VERDICT ===
 ```
 
-**FAIL.** Round 5 answers round 4's FAIL precisely and honestly, and the fix is
-the right one. It fails because the invariant it repaired has a second door in
-the same wall: the check was taught to compare against the span's lines, and
-the span's lines include a zone the project has deliberately decided not to
-read. Round 2 retracted the rule inside the blockquote; round 3 three lines
-below it; round 4 four lines above it with a carriage return; round 5 four
-lines above it with a carriage return **and a copy in the rationale**. The
-address moves, the sentence does not, and the guard has not yet been given a
-notion of *where* a line is.
+**FAIL.** Round 5 answers round 4's FAIL precisely and honestly, and its fix is
+the right one for the defect it was given. It fails because the invariant it
+repaired has a second door in the same wall: the check was taught to compare
+against the span's lines, and the span's lines include a zone the project has
+deliberately decided not to read. Round 2 retracted the rule inside the
+blockquote; round 3 three lines below it; round 4 four lines above it with a
+carriage return; round 5 three lines above it with a carriage return **and a
+copy in the rationale**. The address moves, the sentence does not, and the
+guard has still not been given a notion of *where* a line is.
