@@ -59,8 +59,7 @@ authored by walking the AST's top-level construct list in file order and reading
 each construct's body. A construct is split into several regions whenever its
 call sites fall in different categories; it is never rounded to one.
 
-**Step 3 — coverage assertion.** A checker (`check()` in the scratchpad script
-reproduced in § 6) asserts three things and fails loudly on any of them:
+**Step 3 — coverage assertion.** A checker (`check()`, reproduced in Appendix A) asserts three things and fails loudly on any of them:
 overlapping regions, code lines claimed by no region, and a category total that
 does not equal the file's `wc -l`. **The arithmetic in § 4 is the output of that
 assertion, not a hand tally.**
@@ -138,9 +137,12 @@ four are mechanical. All six are reported separately in § 4.
     ------------------------------------
     TOTAL                        5,144   = wc -l   ✓ closes
 
-**The headline: 972 of the 2,774 code lines — 35% — are OBSOLETE
-REPRESENTATION.** That is the largest of the four categories, and it is larger
-than TYPED. `perry-lint`'s single biggest activity is checking renders of
+**The headline: 972 of the 2,239 lines that land in one of the four categories
+— 43% — are OBSOLETE REPRESENTATION.** That is the largest of the four, and it
+is larger than TYPED. (Against the wider base of all 2,774 *code* lines — the
+four categories plus `cli-plumbing` and `imports` — it is 35%. Every percentage
+in this report uses the four-category base; both bases are given here so neither
+can be misread.) `perry-lint`'s single biggest activity is checking renders of
 stores that already hold the answer typed.
 
 Two independent corroborations that the number is not an artefact of how the
@@ -318,10 +320,10 @@ regions were drawn:
     TOTAL                        7,851   = wc -l   ✓ closes
 
 **`perry-task` is the opposite shape to `perry-lint`, and that confirms
-`DESIGN-014 § 5.1`'s placement of it in category A.** 2,029 of its 3,790 code
-lines — 54% — are TYPED / DETERMINISTIC: id minting, the store+journal
+`DESIGN-014 § 5.1`'s placement of it in category A.** 2,029 of its 3,327
+four-category lines — 61% — are TYPED / DETERMINISTIC: id minting, the store+journal
 transaction with its recovery marker, the never-shrink invariant, schema-enum
-validation and the refusals. Only 148 lines (3.9%) are AGENT-OWNED. The 1,110
+validation and the refusals. Only 148 lines (4.4%) are AGENT-OWNED. The 1,110
 OBSOLETE lines are one identifiable layer, not a diffuse condition:
 `class Board` and the fifteen header/column/section helpers that serve it.
 
@@ -834,7 +836,7 @@ gap on either file.
     OPAQUE DOCUMENT TRANSPORT         83
     AGENT-OWNED INTERPRETATION       535
     OBSOLETE REPRESENTATION          972
-                        (code)     2,239
+          (four categories)      2,239
     SUPPORT:cli-plumbing             485
     SUPPORT:imports                   50
                 (authored support)    535
@@ -853,7 +855,7 @@ gap on either file.
     OPAQUE DOCUMENT TRANSPORT         40
     AGENT-OWNED INTERPRETATION       148
     OBSOLETE REPRESENTATION        1,110
-                        (code)     3,327
+          (four categories)      3,327
     SUPPORT:cli-plumbing             432
     SUPPORT:imports                   31
                 (authored support)    463
@@ -877,7 +879,8 @@ covers it exactly once. The region lists are the tables in those sections; the
 | | `perry-lint` | `perry-task` | both |
 |---|---:|---:|---:|
 | physical lines | 5,144 | 7,851 | 12,995 |
-| **code lines** | 2,239 | 3,327 | 5,566 |
+| all code lines | 2,774 | 3,790 | 6,564 |
+| **four-category lines** (the base for every % below) | 2,239 | 3,327 | 5,566 |
 | TYPED / DETERMINISTIC | 649 (29%) | 2,029 (61%) | 2,678 (48%) |
 | OPAQUE DOCUMENT TRANSPORT | 83 (4%) | 40 (1%) | 123 (2%) |
 | AGENT-OWNED INTERPRETATION | 535 (24%) | 148 (4%) | 683 (12%) |
@@ -960,3 +963,86 @@ None of the three affects a test or a runtime path.
   hook band, `§ check_cross_file`'s linkage band, and `perry-task § board_sections`.
 - It did not measure the other tools in `DESIGN-014`'s tables, or the tests.
 - It changed no behaviour, deleted nothing, and edited neither tool.
+
+## Appendix A — the coverage assertion
+
+Read-only, stdlib only. It derives the four mechanical support sets from the
+AST and the raw text, takes the complement as the code set, and asserts that
+the authored regions in § 4 and § 5 cover that set exactly once. It fails
+loudly on an overlap, on an unclaimed code line, and on a total that is not
+`wc -l`. **The numbers in § 8 are this function's output, not a hand tally.**
+
+```python
+import ast
+
+def support_sets(path):
+    """The four mechanical support sets, with a fixed precedence."""
+    src = open(path, encoding="utf-8").read()
+    n = src.count("\n")                       # matches wc -l
+    lines = src.split("\n")
+    blank, comment = set(), set()
+    for i in range(1, n + 1):
+        s = lines[i - 1].strip()
+        if s == "":                    blank.add(i)
+        elif s.startswith("#"):        comment.add(i)
+    doc = set()
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, (ast.Module, ast.FunctionDef,
+                             ast.AsyncFunctionDef, ast.ClassDef)):
+            b = node.body
+            if b and isinstance(b[0], ast.Expr) \
+               and isinstance(b[0].value, ast.Constant) \
+               and isinstance(b[0].value.value, str):
+                doc |= set(range(b[0].lineno, b[0].end_lineno + 1))
+    shebang = {1} if lines[0].startswith("#!") else set()
+    comment -= shebang                        # precedence:
+    blank -= doc; blank -= comment            #   shebang > docstring
+    comment -= doc                            #   > comment > blank
+    return n, {"docstring": doc, "comment": comment,
+               "blank": blank, "shebang": shebang}
+
+def check(path, regions):
+    """regions: [(start, end, CATEGORY, owner, note)] over the code lines."""
+    n, sup = support_sets(path)
+    supported = set().union(*sup.values())
+    code = set(range(1, n + 1)) - supported
+    seen, dup = {}, []
+    for (a, b, cat, owner, _note) in regions:
+        for i in range(a, b + 1):
+            if i in seen:
+                dup.append((i, seen[i], (cat, owner)))
+            seen[i] = (cat, owner)
+    gaps = sorted(code - set(seen))
+    counts = {}
+    for i in code & set(seen):
+        counts[seen[i][0]] = counts.get(seen[i][0], 0) + 1
+    for k, v in sup.items():
+        counts["SUPPORT:" + k] = len(v)
+    assert not dup,  f"overlapping regions: {dup[:10]}"
+    assert not gaps, f"{len(gaps)} unclaimed code lines: {gaps[:20]}"
+    assert sum(counts.values()) == n, f"remainder {n - sum(counts.values())}"
+    return counts
+```
+
+A region may span support lines (a function's region runs from its `def` to the
+line before the next construct, blank lines and comments included); those lines
+are absorbed by the support sets and counted once, there. That is why the
+region tables in § 4 and § 5 carry a separate **code** column — the region's
+`(start, end)` span is larger than the lines it contributes to its category.
+
+The per-statement split used for `commit()` and the seventeen `cmd_*` functions
+(§ 5) walks each top-level statement's subtree for `ast.Call` names and
+intersects them with two helper sets established by reading each helper:
+
+```python
+def split(fn_node, BOARD, STORE, default):
+    for st in fn_node.body:
+        names = {(c.func.id if isinstance(c.func, ast.Name) else c.func.attr)
+                 for c in ast.walk(st)
+                 if isinstance(c, ast.Call)
+                 and isinstance(c.func, (ast.Name, ast.Attribute))}
+        b, s = names & BOARD, names & STORE
+        yield st.lineno, st.end_lineno, (
+            "OBSOLETE" if (b and not s) else
+            "TYPED"    if (s and not b) else default)
+```
