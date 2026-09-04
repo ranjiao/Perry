@@ -22,8 +22,8 @@ Usage:
   --section     emit one top-level key only (board / phase / okr / design / …)
   --root        project root; default $PERRY_PROJECT, else walk up from cwd
 
-  `--section escalation` prints the project's high-stakes list, every role's,
-  and their union. It EXTRACTS a declared list; it renders no verdict and does
+  `--section project` prints, under `project.escalation`, the project's
+  high-stakes list, every role's, and their union. It EXTRACTS a declared list; it renders no verdict and does
   not read a spec. There is no mode here that scans a spec: `--escalation-scan`
   was removed on 2026-09-04 (`USER-916`, `ADR-007` decision 3, TASK-339)
   because judging what a document means is not Python's, and the procedure that

@@ -21,7 +21,7 @@ Executor contract: `claude-subagent | opencode-subagent | codex | manual`. `manu
 
    **The list is the union of the two, and a role only ever ADDS** (`DESIGN-006 § 5.2`, goal 6). A role that could subtract would let hiring one quietly narrow what the project refuses to do unsupervised, and nothing would show it — a narrowed gate passes everything it is asked, cheerfully. With no roles declared the union is the hook's list unchanged.
 
-   `"$PERRY_HOME/bin/perry-state" --section escalation` still prints both halves and their union — it *extracts a declared list*, which is a bounded value space and stays in Python. It does not read the spec and it renders no verdict. Use it to show the user the list; the reading of the spec is yours.
+   `"$PERRY_HOME/bin/perry-state" --section project` still prints both halves and their union under `project.escalation` (`project`, `roles`, `union`, `origins`, `armed`) — it *extracts a declared list*, which is a bounded value space and stays in Python. It does not read the spec and it renders no verdict. Use it to show the user the list; the reading of the spec is yours.
 
    **If both halves are empty or absent** (`escalation.armed: false`), nothing is being screened. Do not treat that as a pass. Say so in one line — *"no high-stakes list in `.perry/hook.md`, so nothing is being screened; `/pmo` bootstrap writes the default list"* — and require an explicit go-ahead in chat before dispatching. `AskUserQuestion` is not sufficient here; this is a safety gate, per `SKILL.md § User-prompt convention`. (`/pmo autopilot` refuses outright in the same situation — `autopilot.md` pre-flight step 0.)
 

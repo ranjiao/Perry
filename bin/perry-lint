@@ -88,8 +88,8 @@ otherwise be no way to accept one.
                 and counts the rest, so this flag is for the whole list, not
                 for turning the checks on.
                 Advisory pass over `evidence/**/*-spec.md`: every spec the
-                dispatch escalation gate will scan actually offers it a
-                `## Files in scope` or `## Deliverable` section to scan, and
+                dispatch pre-flight must read actually offers it a
+                `## Files in scope` or `## Deliverable` section to read, and
                 every spec carries a `## Bound` so a round against it has a
                 finite set to check and a last element (`review.md § 1`).
                 `spec-unbounded` is the SPEC-side half of the bound rule and
@@ -2915,46 +2915,50 @@ def check_provenance(state_root: Path) -> list["Finding"]:
 
 
 #: `evidence/<YYYY-MM>/<TASK-ID>-spec.md` — the file `add-task` step 3 writes
-#: and `dispatch.md` pre-flight step 4 scans. Named by the pattern rather than
+#: and `dispatch.md` pre-flight step 4 reads. Named by the pattern rather than
 #: by "every `.md` under `evidence/`", because that directory also holds
 #: dispatch records, result reports and working artifacts, and none of those
-#: are ever fed to the escalation gate.
+#: is ever read as a round's declared scope.
 SPEC_FILE_RE = re.compile(r"-spec\.md$")
 
 
 def check_specs(state_root: Path, project_root: Path | None = None,
                 cap: int | None = None) -> list["Finding"]:
-    """Every spec the escalation gate will scan actually offers it something.
+    """Every spec a dispatching agent must read actually offers it something.
 
-    `bin/perry-state --escalation-scan` matches the project's high-stakes
-    fragments against a spec's `Files in scope` and `Deliverable` sections. A
-    spec carrying neither — under any spelling `P.alias("headings", …)` knows
-    — is scanned against the empty string. It reports `touches: {}` and
-    `verdict: pass`, **and that output is byte-identical to the output for a
-    spec that was read in full and found genuinely clean**. That asymmetry is
-    the whole defect: the gate's failure mode looks exactly like its success.
+    `work/reference/dispatch.md` pre-flight step 4.2 reads a spec's
+    `Files in scope` and `Deliverable` to learn what the round will write. A
+    spec carrying neither — under any spelling `P.alias("headings", …)` knows —
+    offers that reading nothing at all, and the resulting "I found no
+    high-stakes work here" is byte-identical to the same sentence about a spec
+    that was read in full and found genuinely clean. **That asymmetry is the
+    whole defect: the screening's failure mode looks exactly like its success.**
 
-    Measured on this repository 2026-09-02: **45** spec files under
-    `evidence/` with no section the gate can read — 45 of 135 on the live
-    branch, 45 of the 119 this branch was cut from; the same 45 files either
-    way, because every spec written since is sectioned. Every one returns
-    `pass` over an armed 35-fragment union.
+    Measured on this repository 2026-09-04: **45** spec files under `evidence/`
+    with no section step 4.2 can read — 45 of 149. The same 45 as on
+    2026-09-02, because every spec written since is sectioned.
 
     **What shape those 45 are actually in**, because the fix depends on it and
     the first answer was wrong: 19 write `### Deliverable`, 26 carry no such
     section at all, and **0 use the `- **Deliverable**:` bullet shape**
     `perry-task add` renders. So the cause is not that the tool's shape leaks
     into specs; it is that `add-task` step 3 said the spec carries "the same
-    schema" as the journal block and never said which *shape*, while
-    `_section` matches `^## ` and only that. Widening the reader to bullets —
-    the reader-side fix TASK-284's spec proposed — would have closed none of
-    the 45. Step 3 now names the `## ` shape and says why.
+    schema" as the journal block and never said which *shape*, while `_section`
+    matches `^## `. Widening the reader to bullets — the reader-side fix
+    TASK-284's spec proposed — would have closed none of the 45. Step 3 now
+    names the `## ` shape and says why.
 
     So this is the REPORTING half of TASK-284: the check does not prevent an
-    empty scan and is not meant to. It makes one impossible to mistake for a
-    clean pass — which is the property `scan_spec_escalations` already gives
-    the other input, where an empty fragment list is `unarmed` and pointedly
-    not `pass`.
+    empty reading and is not meant to. It makes one impossible to mistake for a
+    clean pass. **It is also all that is left of the mechanical half of that
+    gate**: `bin/perry-state --escalation-scan` — Python matching the hook's
+    fragments against a spec's prose and returning a verdict — was removed on
+    2026-09-04 (`USER-916`, `ADR-007` decision 3, TASK-339), because five
+    rounds ended with the measurement that formatting alone moved its verdict in
+    both directions. What survives here is the one question that is not about
+    meaning: **does this document offer either scope heading.** `P.spec_scope_sections`
+    locates headings and matches nothing; the judgement it feeds belongs to the
+    agent working step 4.
 
     **Advisory, and here is the condition under which it stops being.**
     DESIGN-003 decision 4 chose "advisory first release, hard gate next" for
@@ -2963,16 +2967,17 @@ def check_specs(state_root: Path, project_root: Path | None = None,
     precedent without writing down the matching plan is how an advisory
     becomes permanent by default, so:
 
-      **Promotion trigger** — `spec-scope-unscannable` becomes an `error`, and
-      `--escalation-scan` grows a distinct exit code for `scope_scanned == []`,
-      when **the count of unscannable specs on `main` reaches 0 and holds
-      there for one release**. Not before: the promotion's whole cost is that
+      **Promotion trigger** — `spec-scope-unscannable` becomes an `error` when
+      **the count of unscannable specs on `main` reaches 0 and holds there for
+      one release**. (It once also read "and `--escalation-scan` grows a
+      distinct exit code"; that command no longer exists, and the exit-code half
+      of the trigger went with it — TASK-339.) Not before: the promotion's whole cost is that
       it refuses dispatch on rows already in the tree, so it is free exactly
       when the tree is clean and ruinous while it is not. Driving the count to
       0 means REWRITING 45 historical specs, which `.perry/hook.md` forbids
       doing to make a gate pass — so the route is that the 45 age out of
       dispatch as their rows close, not that anyone edits them. Until then the
-      advisory plus `dispatch.md` step 4's mandatory go-ahead is the whole
+      advisory plus `dispatch.md` step 4.2's mandatory go-ahead is the whole
       control. A `decide` round may lift this paragraph into an ADR; it is
       recorded here because the check is what implements it.
 
@@ -3040,28 +3045,28 @@ def check_specs(state_root: Path, project_root: Path | None = None,
     edir = state_root / "evidence"
     specs = [md for md in (sorted(edir.rglob("*.md")) if edir.exists() else [])
              if SPEC_FILE_RE.search(md.name)]
-    # The gate's own list, read from the gate. A second copy of "which sections
-    # are scanned" here is exactly the two-answers-to-one-question defect
-    # `ESCALATION_TOUCHES`' own comment records — the check would keep
-    # reporting on a section the scan had stopped reading.
-    labels = " or ".join(f"`## {lbl}`" for lbl in P.ESCALATION_TOUCHES)
+    # The section names read from `P`, not restated here. A second copy of
+    # "which sections carry a round's scope" is exactly the
+    # two-answers-to-one-question defect `SPEC_SCOPE_SECTIONS`' own comment
+    # records — this check would keep reporting on a heading `dispatch.md` had
+    # stopped asking for.
+    labels = " or ".join(f"`## {lbl}`" for lbl in P.SPEC_SCOPE_SECTIONS)
     unscannable: list[str] = []
     for md in specs:
-        out = P.scan_spec_escalations(md.read_text(errors="replace"), [])
-        if out["scope_scanned"]:
+        if P.spec_scope_sections(md.read_text(errors="replace")):
             continue
         unscannable.append(_rel(md, project_root))
     for rel in (unscannable[:cap] if cap is not None else unscannable):
         findings.append(Finding(
             "warn", rel, "spec-scope-unscannable",
-            f"no {labels} — the escalation gate matches every high-stakes "
-            f"fragment against nothing here and still reports `pass`",
+            f"no {labels} — `dispatch.md` step 4.2 has nothing here to read, "
+            f"so nobody can say this row's scope was screened",
         ))
     if cap is not None and len(unscannable) > cap:
         findings.append(Finding(
             "warn", "evidence/", "spec-scope-unscannable",
-            f"and {len(unscannable) - cap} further spec(s) present the "
-            f"escalation gate no scope to scan — `perry-lint --specs --json` "
+            f"and {len(unscannable) - cap} further spec(s) declare no scope "
+            f"for `dispatch.md` step 4.2 to read — `perry-lint --specs --json` "
             f"names every one",
         ))
 
@@ -3089,7 +3094,7 @@ def check_specs(state_root: Path, project_root: Path | None = None,
     # would be the fifth guard-over-English attempt on this board this week.
     # `_BOUND_RE` is the same matcher the verdict-side check uses — one answer
     # to "what counts as a bound", for the reason `labels` above reads
-    # `ESCALATION_TOUCHES` from the gate rather than restating it.
+    # `P.SPEC_SCOPE_SECTIONS` rather than restating it.
     unbounded: list[str] = []
     for md in specs:
         if not _BOUND_RE.search(strip_comments(md.read_text(errors="replace"))):
@@ -4750,16 +4755,16 @@ def main(argv: list[str]) -> int:
                 print(f"  · … and {len(findings) - DRIFT_ROWS_SHOWN} more "
                       f"(--json names every one)")
             # Each rule reports its OWN count. Folding them into one
-            # `if findings:` line would print "0 of 146 present the escalation
-            # gate no scope" whenever the only findings were unbounded ones —
+            # `if findings:` line would print "0 of 146 declare no scope"
+            # whenever the only findings were unbounded ones —
             # a true sentence attached to the wrong measurement. TASK-308.
             if stats["unscannable"]:
                 print(f"\n  {stats['unscannable']} of {stats['specs']} spec(s) "
-                      f"present the escalation gate no scope to scan — its "
-                      f"`pass` on those is a scan of nothing, not a clean one")
+                      f"declare no scope for `dispatch.md` step 4.2 to read — "
+                      f"nobody can say those rows were screened")
             elif stats["specs"]:
-                print(f"\n  ✓ all {stats['specs']} spec(s) offer the "
-                      f"escalation gate a section to scan")
+                print(f"\n  ✓ all {stats['specs']} spec(s) declare a scope "
+                      f"`dispatch.md` step 4.2 can read")
             if stats["specs"] and stats["unbounded"]:
                 print(f"  {stats['unbounded']} of {stats['specs']} spec(s) "
                       f"carry no `## Bound` — a round against those has no "
@@ -5053,24 +5058,24 @@ def main(argv: list[str]) -> int:
                 else:
                     print(f"  · {_label}: {_s['records']} record(s), "
                           f"{_s['drifted']} row(s) drifted")
-        # And a line for the escalation gate's own input, on the same rule the
-        # six above follow: "no specs" and "every spec is scannable" are
-        # different answers, and the second one is the only one that means the
-        # dispatch pre-flight can see what it screens. Printed every run,
+        # And a line for the dispatch pre-flight's own input, on the same rule
+        # the six above follow: "no specs" and "every spec declares a scope"
+        # are different answers, and the second one is the only one that means
+        # the dispatch pre-flight can see what it screens. Printed every run,
         # findings or none — a count that only appears when it is bad teaches
         # a reader that its absence means nothing was checked.
         _sst = getattr(check_specs, "stats", None)
         if _sst and not mode_templates:
             if not _sst.get("checked"):
                 print("  · specs: not a Perry project yet — the dispatch "
-                      "escalation gate's input is unchecked, not clean")
+                      "pre-flight's input is unchecked, not clean")
             elif not _sst["specs"]:
                 print("  · no `*-spec.md` under evidence/ — the dispatch "
-                      "escalation gate has nothing to read here")
+                      "pre-flight has nothing to read here")
             elif _sst["unscannable"]:
                 print(f"  · specs: {_sst['unscannable']} of {_sst['specs']} "
-                      f"present the escalation gate no scope to scan — its "
-                      f"`pass` on those is a scan of nothing, not a clean one "
+                      f"declare no scope for `dispatch.md` step 4.2 to read — "
+                      f"nobody can say those rows were screened "
                       f"(`perry-lint --specs --json` names every one)")
             else:
                 print(f"  · specs: all {_sst['specs']} offer the escalation "
