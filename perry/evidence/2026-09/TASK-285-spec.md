@@ -145,10 +145,51 @@ Size:        dispatch.md   § The tree … → § Executor: opencode-subagent
                            26 lines, all pinned
              delegate.md   § Required fields … → § Role ≠ executor
                            39 lines, all pinned
-Remainder:   exactly one free block, at the tail of `dispatch.md`'s section
-             under `### Why it is a rule and not a preference`. It is bytes
-             this suite does not read, by `USER-914`'s decision, and no test
-             can tell an improved explanation there from a retraction.
+Remainder:   THREE zones, not one. Round 4's Bound said "exactly one free
+             block" and the round-4 V4 review measured it as three; the count
+             is corrected here, and zone 3 is closed by round 5.
+
+             1. The free rationale block — 1,148 chars at the tail of
+                `dispatch.md`'s section under `### Why it is a rule and not a
+                preference`. Unpinned by `USER-914`'s decision, and no test can
+                tell an improved explanation there from a retraction. NOT,
+                however, wholly unread: `test_dispatch_says_why_not_merely_what`
+                and `test_the_merge_side_is_stated_where_the_rule_is` both
+                assert into it, so a rewrite that deletes the two observed
+                failures or the merge instruction reddens. Measured round 5: a
+                partial rewrite is green, a wholesale one that drops `TASK-247`
+                is red.
+
+             2. Everything outside the three spans **that avoids the two
+                words**. `test_every_mention_of_the_rule_is_inside_a_governed
+                _region` is a containment check over the rule's own vocabulary,
+                so a retraction phrased without `worktree` and without
+                `isolation` — *"on a small row the agent may work directly in
+                the checkout the PMO is sitting in"* — is outside its reach.
+                Measured: GREEN at all six span boundaries in round 4, and
+                green again in round 5 after the fix. This limit was declared
+                in the guard's docstring from round 4; it is written into the
+                Bound here because the docstring is not the Bound.
+
+             3. CLOSED IN ROUND 5. Text that DOES use the two words, outside
+                every span, wrapped so the keyword-bearing line is short.
+                Round 4 shipped the containment check as `line in span`, a
+                substring test, so any line that was itself a substring of a
+                span passed — and `worktree`, `own git worktree` and
+                `isolation` each are. All three were green with the rule
+                retracted and the whole 3,253-test suite green. Round 5 tests
+                membership in `set(span.splitlines())`; all three are now red,
+                as are the review's CLINE1-3, E2 and E3.
+
+Over-fires:  deliberately, and the cost is bounded. The zone-2/3 check cannot
+             tell a retraction from an innocent passing mention and must not
+             try — a denylist over English has lost this argument twice. So an
+             ordinary sentence mentioning a worktree, written outside every
+             span, is RED. That is correct and it does not make the document
+             unwritable: the same sentence is GREEN inside the free rationale
+             block (measured round 5), and anywhere else it costs one
+             deliberate re-pin, which is the friction this rule is meant to
+             carry.
 ```
 
 A K+1th file that should carry the rule is **a new row, not a re-opening of

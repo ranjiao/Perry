@@ -902,20 +902,36 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         invisible"*. This closes that for the rule's own subject matter.
 
         Every visible line anywhere under `work/reference/` that says
-        `worktree` or `isolation` must fall inside a governed span. Measured on
-        this commit: those two words occur in exactly three files and 16 lines,
-        every one of them inside a span. So a new paragraph about worktrees —
-        in a fourth file, in a later section of one of these three, in a
-        section that does not exist yet — reddens here rather than sitting
-        unseen beside a pin.
+        `worktree` or `isolation` must be **one of the span's lines**. Measured
+        on this commit: those two words occur in exactly three files and 20
+        lines (`dispatch.md` 11, `git-boundaries.md` 7, `delegate.md` 2), every
+        one of them inside a span. So a new paragraph about worktrees — in a
+        fourth file, in a later section of one of these three, in a section
+        that does not exist yet — reddens here rather than sitting unseen
+        beside a pin.
+
+        **"One of the span's lines", not "a substring of the span".** Round 4
+        shipped this as `line in span` and was failed for it: that is a
+        substring test, and it let the same retraction through on a line break.
+        See the comment at the `spans.append` above for the three mutations
+        that proved it. The sentence in this docstring is the property; the
+        line-set membership is what delivers it.
 
         This is a **containment** check over the rule's own vocabulary, not a
         denylist over hedges: it does not ask what a sentence means, only where
-        a sentence on this topic is allowed to live. Its limit is the
-        vocabulary — a retraction that never says `worktree` or `isolation`
-        (*"sharing the checkout the PMO is sitting in is fine on small rows"*)
-        is outside its reach, which is why it is a second line and not the
-        first one.
+        a sentence on this topic is allowed to live. Two consequences, both
+        deliberate, and both now recorded in the spec's `## Bound` rather than
+        only here:
+
+        - **Its limit is the vocabulary.** A retraction that never says
+          `worktree` or `isolation` (*"sharing the checkout the PMO is sitting
+          in is fine on small rows"*) is outside its reach — green at all six
+          span boundaries. That is why this is a second line and not the first.
+        - **It over-fires by design.** An ordinary, innocent mention of a
+          worktree outside every span reddens too, because the check cannot
+          tell a passing reference from a retraction and must not try. The cost
+          is one deliberate edit — move the sentence inside a span and re-pin —
+          and that cost is the friction a rule this expensive should carry.
         """
         spans = []
         for name in self.GOVERNED:
@@ -924,20 +940,39 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
             src = self.seen(path)
             a = src.index(spec["span"][0])
             b = src.index(spec["span"][1], a)
-            spans.append((path, src[a:b]))
+            # **The span's LINES, not its text.** `line in span` is a
+            # SUBSTRING test, and every short line is a substring of a longer
+            # one. That is the round-4 defeat: a retraction written outside
+            # every span, using the word, passed whenever one deliberate line
+            # break left the keyword-bearing line short enough to be a
+            # substring of a span. `worktree`, `own git worktree` and
+            # `isolation` are each substrings of this very span, so all three
+            # went green with the row's headline rule retracted four lines
+            # above `## The tree the agent works in` and the whole 3,253-test
+            # suite green. Membership in the span's set of lines is the
+            # property the docstring below always claimed.
+            spans.append((path, set(src[a:b].splitlines())))
         refdir = self.DISPATCH.parent
         for path in sorted(refdir.glob("*.md")):
             src = self.seen(path)
             for n, line in enumerate(src.splitlines(), 1):
                 if not re.search(r"worktree|isolation", line, re.I):
                     continue
-                inside = any(p == path and line in span for p, span in spans)
+                inside = any(p == path and line in lines for p, lines in spans)
                 with self.subTest(where=f"{path.name}:{n}"):
                     self.assertTrue(
                         inside,
                         f"{path.name}:{n} talks about the isolation rule from "
                         f"outside every governed span, where nothing pins it:"
-                        f"\n  {line.strip()[:160]}")
+                        f"\n  {line.strip()[:160]}\n"
+                        f"This fires on ANY mention outside a span, not only a "
+                        f"retraction: it is a containment check, not a reader "
+                        f"of English. If the sentence belongs, move it inside "
+                        f"a governed span and re-pin that span's digest in the "
+                        f"same commit — that second edit is the friction, and "
+                        f"it is the point. Do not relax this into a test that "
+                        f"guesses which mentions are safe; a denylist over "
+                        f"English has lost this argument twice already.")
 
     def test_a_contradiction_inside_the_free_rationale_is_not_checkable(self):
         """**The honest limit, written down as a test so it cannot be lost.**
