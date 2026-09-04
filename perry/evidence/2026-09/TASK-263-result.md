@@ -717,3 +717,246 @@ independent of it.
 The journal is the one document in Perry that is **append-only prose written by
 a tool and read by a human**, and neither of these two functions interprets what
 it appends. That is the category's definition, so they stay.
+
+## 7. Ambiguous regions, listed explicitly
+
+The spec requires these to be named rather than absorbed. Nine were found. In
+each case the call site was placed in one category and the reason it could have
+gone elsewhere is recorded here.
+
+### 7.1 `perry-lint § check_file` is target-multiplexed — the largest ambiguity in the census
+
+`check_file` (`813-1231`, 262 code lines across four regions) is generic over a
+`spec` from `schema/state-schema.json` and is called once per file spec. Its
+three loops therefore hit store-backed renders and prose documents *in the same
+code*. The fan-out, counted by enumerating `schema § files[]` rather than by
+reading names:
+
+| loop | region | targets | store-backed | prose document | classified |
+|---|---|---|---:|---:|---|
+| `spec["tables"]` | `929-1233` | `BOARD.md`×5, `OKR.md`×2, `phase`×1, `config.md`×1 | **9** | **0** | OBSOLETE — unambiguous |
+| `spec["headings"]` | `860-900` | board 6, okr 6, phase 10, design 7, architecture 1, hook 1 | 22 | 9 | OBSOLETE (dominant) |
+| `spec["header_fields"]` | `901-928` | phase 2, config 8, design 2, knowledge 4, card 5, role 3 | 10 | **14** | AGENT-OWNED (dominant) |
+| `required_at_status` | `853-859` | `design/*.md` only | 0 | 1 | AGENT-OWNED — unambiguous |
+
+**The tables loop is not ambiguous at all**, which is the useful finding: there
+is no table spec in the schema whose target is not store-backed, so all 191 of
+its code lines are OBSOLETE without a judgement call. The two middle rows are
+genuinely split and were assigned by which population dominates. A reader who
+wants the other split can move 23 lines (`860-900`) from OBSOLETE to
+AGENT-OWNED and 25 (`901-928`) the other way; the file total is unaffected.
+
+### 7.2 The shared markdown lexer — `headings`, `section_body`, `strip_comments`, `undecorate`
+
+31 code lines, classified **AGENT-OWNED**. They are called by nine functions
+spanning both populations (`check_file` and `check_verification` over renders;
+`check_cross_file`, `check_reviews`, `check_specs`, `check_role_cards`,
+`check_glossary`, `check_knowledge`, `check_provenance` over prose). The
+classification follows the *surviving* caller set: once § 6.1-6.5 delete the
+render readers, every remaining caller is a prose document. Under the opposite
+rule — classify by today's call count — they would be OBSOLETE.
+
+### 7.3 `perry-lint § check_frontmatter` — 123 lines, classified TYPED
+
+This validates `phase/*-linkage.md` against typed field rules (`required`,
+`type`, `pattern`, `enum`, `enum_by_stage`). YAML frontmatter is a **typed
+serialization**, not prose, so rule 1 governs and Python owns it. Under a strict
+reading of rule 3 — *"the Python layer never parses a document at all"* — it is
+still Python parsing a `.md` file, and would be AGENT-OWNED. It is the single
+largest TYPED region in `perry-lint` and therefore the most consequential of the
+nine; it is called out so the count can be re-derived either way.
+
+### 7.4 `perry-task § commit` band `3012-3026` — classified OBSOLETE, contains the legitimate direction
+
+This 15-line band holds `stamp_last_updated(board)`, `unstorable_status_rows`,
+`register_change` — all board-parse — **and** `perry_store.render(board, records,
+_ops())`, which is the render direction `ADR-007` explicitly endorses. It is
+counted OBSOLETE because the render call is passed the *parsed* `Board` so it
+can preserve the file's hand layout, and so it cannot outlive `Board`. A render
+that regenerates `BOARD.md` wholesale from the store would be TYPED. This is the
+one place in the census where a legitimate operation is counted in a condemned
+category, and the reason is a dependency, not the operation.
+
+### 7.5 The cadence family — OBSOLETE with no destination store on disk
+
+`cmd_cadence_add`, `cmd_cadence_done`, `mint_cadence_id`, `minting_text` and
+their constants (88 code lines) parse and write a `## Cadence` board table.
+Every other OBSOLETE group in this census points at a JSONL store that already
+exists; **this one points at `perry/cadence.jsonl`, which must be built first**
+(§ 6.5). Naming it as OBSOLETE is a judgement that the board table is a
+projection-in-waiting rather than the canonical form; the alternative reading is
+that cadence is simply not yet in scope for `ADR-007` at all.
+
+### 7.6 `perry-lint § looks_like_perry_state` / `looks_like_perry_record` — 48 lines, classified TYPED
+
+`looks_like_perry_state` reads the first bytes of a file and tests for the
+markers `Owner**: \`perry\`` and `$PERRY_HOME`. That is Python reading a
+document. It is classified TYPED because **`ADR-007` decision 4 names this
+population explicitly as the survivor**: *"What survives is adoption of a
+foreign project, which is parsing by definition."* The answer is a bounded
+boolean over a fixed marker, not a question put to prose.
+
+### 7.7 `perry-task § append_block` / `append_status_change` — TRANSPORT that locates by heading
+
+40 code lines. They append a body under *the last* `## <heading>` of the day's
+journal file, so they must find that heading — a parse. They are TRANSPORT
+because they never interpret what they append or what they append it beside, and
+the journal has no store. If the journal ever becomes a store, they become
+OBSOLETE together.
+
+### 7.8 `perry-lint § resolves_somewhere` and `§ verdict_citations` — split three and two ways
+
+Both tokenise a prose cell and then test each token against the filesystem.
+`resolves_somewhere` splits into AGENT-OWNED (`1887-1910`, tokenising), TYPED
+(`1911-1922`, path existence) and OBSOLETE (`1923-1932`, `tok in
+BOARD.md.read_text()` — a substring search of a render). `verdict_citations`
+splits AGENT-OWNED (`2129-2166`) / TYPED (`2167-2183`). Rounding either to one
+category would have been the error the spec forbids; the boundaries are the
+statement boundaries where the string stops being prose and becomes a path.
+
+### 7.9 `perry-lint § PLACEHOLDER` (`{{...}}`) — 1 line, classified OBSOLETE
+
+A `{{…}}` marker is a mechanical token, not prose, which argues TYPED. It is
+classified OBSOLETE because what it detects — an unfilled field in a rendered
+state file — is a fact the store answers directly (the field is absent or
+empty), and the marker only exists because the file is authored as a template.
+
+## 8. Arithmetic
+
+Both files close exactly. The totals below are the output of the coverage
+assertion described in § 1 step 3, which fails on overlap, on an unclaimed code
+line, and on a total that is not `wc -l`. It reported neither an overlap nor a
+gap on either file.
+
+### `bin/perry-lint`
+
+    TYPED / DETERMINISTIC            649
+    OPAQUE DOCUMENT TRANSPORT         83
+    AGENT-OWNED INTERPRETATION       535
+    OBSOLETE REPRESENTATION          972
+                        (code)     2,239
+    SUPPORT:cli-plumbing             485
+    SUPPORT:imports                   50
+                (authored support)    535
+    SUPPORT:docstring              1,000
+    SUPPORT:comment                1,034
+    SUPPORT:blank                    335
+    SUPPORT:shebang                    1
+             (mechanical support)   2,370
+    ----------------------------------------
+    649 + 83 + 535 + 972 + 535 + 2,370 = 5,144
+    wc -l bin/perry-lint            = 5,144      remainder 0
+
+### `bin/perry-task`
+
+    TYPED / DETERMINISTIC          2,029
+    OPAQUE DOCUMENT TRANSPORT         40
+    AGENT-OWNED INTERPRETATION       148
+    OBSOLETE REPRESENTATION        1,110
+                        (code)     3,327
+    SUPPORT:cli-plumbing             432
+    SUPPORT:imports                   31
+                (authored support)    463
+    SUPPORT:docstring              2,104
+    SUPPORT:comment                1,469
+    SUPPORT:blank                    487
+    SUPPORT:shebang                    1
+             (mechanical support)   4,061
+    ----------------------------------------
+    2,029 + 40 + 148 + 1,110 + 463 + 4,061 = 7,851
+    wc -l bin/perry-task                   = 7,851      remainder 0
+
+**Reproducing it.** `ast.parse` both files, derive the four mechanical support
+sets with the precedence `shebang > docstring > comment > blank`, take the
+complement as the code set, and check the authored region list in § 4 and § 5
+covers it exactly once. The region lists are the tables in those sections; the
+`(start, end)` pairs are disjoint and in file order.
+
+## 9. Cross-file summary
+
+| | `perry-lint` | `perry-task` | both |
+|---|---:|---:|---:|
+| physical lines | 5,144 | 7,851 | 12,995 |
+| **code lines** | 2,239 | 3,327 | 5,566 |
+| TYPED / DETERMINISTIC | 649 (29%) | 2,029 (61%) | 2,678 (48%) |
+| OPAQUE DOCUMENT TRANSPORT | 83 (4%) | 40 (1%) | 123 (2%) |
+| AGENT-OWNED INTERPRETATION | 535 (24%) | 148 (4%) | 683 (12%) |
+| OBSOLETE REPRESENTATION | **972 (43%)** | 1,110 (33%) | **2,082 (37%)** |
+| support (authored + mechanical) | 2,905 | 4,524 | 7,429 |
+
+**Three results.**
+
+1. **The two files are opposite shapes, and `DESIGN-014 § 5.1` put them in the
+   right categories.** `perry-task` is 61% TYPED — the write core, exactly the
+   "what only code can do" column. `perry-lint` is 29% TYPED and 43% OBSOLETE:
+   its single largest activity is checking renders of stores that already hold
+   the answer.
+
+2. **OBSOLETE is the largest category across both files at 2,082 code lines —
+   larger than AGENT-OWNED by 3:1.** That is the census's main correction to the
+   framing `ADR-007` is usually summarised with. The ADR is remembered for
+   *"no regex asks prose a question"*, and 683 lines do that. But three times as
+   much code is not asking prose anything — it is re-deriving, out of a
+   rendering, a fact that a JSONL store one directory away already holds typed.
+   **Most of the removable code is deletable without an agent being involved at
+   all**, which makes it cheaper and lower-risk than the ADR's headline suggests.
+
+3. **Only 123 lines — 2% — are OPAQUE DOCUMENT TRANSPORT**, and all of it may
+   stay. The "locate the file and hand it to an agent" posture `ADR-007 § 5b`
+   prescribes is barely implemented in these two files; almost everything that
+   touches a document today either interprets it or parses a projection.
+
+**What that implies for `DESIGN-014`'s implementation plan**, stated as a
+measurement and not a recommendation: of the 5,566 code lines in these two
+files, 2,678 are load-bearing determinism that stays, 123 are transport that
+stays, and 2,765 have a named destination elsewhere — 2,082 of them into stores
+that already exist on disk (with the single exception of cadence, § 6.5), and
+683 into agent workflows.
+
+## 10. Defects found and NOT fixed
+
+This row measures; it changes no behaviour. Three defects were found while
+reading and are recorded rather than repaired.
+
+1. **`DESIGN-014 § 5.1`'s line counts are stale.** It records `bin/perry-task`
+   at 7,522, `bin/perry-lint` at 4,483 and `viewer/parsers.py` at 4,603,
+   measured 2026-09-01. At `2d2a06c` they are 7,851, 5,144 and 5,011 — all
+   three have grown, `perry-lint` by 15%. `§ 1`'s "97,474 lines of Python" and
+   the 10:1 ratio are correspondingly stale. Not fixed: this row does not edit
+   design docs, and `DESIGN-014` is `locked`.
+
+2. **`bin/perry-lint § load_glossary`'s docstring justifies the function with a
+   tool that no longer exists.** Lines 354-369 read: *"`bin/perry-conform` needs
+   the same validation on one file, and a second copy of this loop is exactly
+   the two-implementations-of-one-rule defect ADR-004 is about."* `bin/perry-conform`
+   was deleted by TASK-261 / USER-910 along with the ledger, the three gate call
+   sites and `bin/perry-migrate` — `bin/README.md § 183-195` records the removal.
+   The function should stay (its other reason — that `main()` was the only way to
+   reach `check_file` correctly — is still true), but its stated reason names a
+   caller that cannot call it.
+
+3. **`bin/perry-task`'s module docstring contradicts itself about what is
+   canonical.** Line 43 reads *"Delete .perry/events.jsonl and Perry still
+   works — **markdown is canonical**."* Lines 9-12 and 29-32 of the same
+   docstring say the opposite and say it deliberately: *"the task RECORD, in
+   perry/tasks.jsonl"* is slot 1, *"`BOARD.md`, RE-RENDERED from (1)"* is slot 3,
+   and *"It used to be `BOARD.md` in slot (1) and there was no store (ADR-007,
+   TASK-089). The board is rendered output now."* The docstring already carries
+   one self-correction of exactly this kind two paragraphs earlier (*"this line
+   said 'max(board ∪ journal ∪ events)' and has been wrong since ADR-007 made
+   the store canonical"*), so the pattern is known; line 43 is the one that was
+   missed. The surrounding claim — that the event log is derived and disposable
+   — is still true; only its stated reason is now false.
+
+None of the three affects a test or a runtime path.
+
+## 11. What this row did not do
+
+- It did not measure `viewer/parsers.py` (5,011 lines, imported by 12 modules
+  under `bin/`). Where a call site's document handling happens there, the entry
+  says `→ parsers.py` and only the call site's own lines are counted, so this
+  census and `TASK-099`'s can be joined without double-counting. The affected
+  call sites are `perry-lint § high_stakes_fragments`, `§ check_cross_file`'s
+  hook band, `§ check_cross_file`'s linkage band, and `perry-task § board_sections`.
+- It did not measure the other tools in `DESIGN-014`'s tables, or the tests.
+- It changed no behaviour, deleted nothing, and edited neither tool.
