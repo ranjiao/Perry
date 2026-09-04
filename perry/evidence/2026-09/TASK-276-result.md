@@ -354,7 +354,56 @@ whatever comes after it. It passes in a real worktree.
 on the base commit with none of my code present. Measuring my own baseline
 rather than trusting the list is what distinguishes it from a regression.
 
-PLACEHOLDER_AFTER
+**After, on this branch, in a real worktree:**
+
+```
+115 modules · 3275 tests · 270.1s
+✗ 1 of 115 MODULE(S) red · 1 of 3275 TEST(S) failed
+    test_board_render.py        1   (TASK-356 — NOT mine, see below)
+  ✓ every module on disk is accounted for
+  ✓ nothing under <worktree> moved          (tree guard)
+  ✓ clean — every state file matches schema/state-schema.json   (drift guard)
+```
+
+**1 red against a baseline of 3 genuine reds.** Strictly less red, not merely
+no redder.
+
+`test_board_render` re-run alone, as the brief requires before attributing:
+still red, and the failure is
+`test_every_rendered_field_moves_when_the_store_moves[field='status']` tripping
+because TASK-348's `Next action` prose contains the word `dropped`. Nothing to
+do with `linkage.jsonl`, and it is red on `5d19d83` with none of my code in the
+tree. That is TASK-356, being fixed in parallel.
+
+`test_one_header_rule` and `test_one_primitive`, both red in my baseline, came
+back green here — load-sensitive, which is what re-running alone is for.
+`test_tree_guard` passes, confirming its 8 baseline errors were the tarball
+artifact and not a red.
+
+The three intermediate results, all green: `test_linkage_store_declared` 19/19,
+`test_store_drift` 47/47, `test_durations_provenance` 24/24.
+
+`python3 bin/perry-lint --root .` — **0 errors**, 37 warnings, unchanged from
+the before-state but for the one added census line.
+
+### The whole branch, accounted for line by line
+
+```
+ bin/perry-lint                            | 190 +++++++++++++
+ perry/evidence/2026-09/TASK-276-result.md | 373 ++++++++++++++++++++
+ schema/state-schema.json                  | 148 +++++++++
+ tests/durations.json                      |  11 +
+ tests/test_linkage_store_declared.py      | 406 ++++++++++++++++++++++
+ tests/test_store_drift.py                 |  20 +-
+ 6 files changed, 1146 insertions(+), 2 deletions(-)
+```
+
+**The branch deletes exactly two lines in total**, and both are in
+`tests/test_store_drift.py` — the method name and docstring that said "six",
+the stale-number rename described in § 8. Everything else in the branch,
+including every byte of `schema/state-schema.json` and `bin/perry-lint`, is an
+insertion. No existing claim's path or owner could have moved, because no
+existing line in those files moved at all.
 
 ## 10 · Notes for the next row
 
