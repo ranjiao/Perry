@@ -28,6 +28,13 @@
    "workers": 1,
    "load1": 25.41,
    "note": "Measured, not guessed. Three serial runs of tests.test_duplicate_ids_are_refused with __pycache__ cleared before each: 2.20s, 1.84s, 2.06s wall. The LARGEST is recorded, so the hint never under-books the module. **Taken under load1 25.4**, immediately after an 8-worker suite run on the same machine, and that is stated rather than rounded away: the number is very likely PESSIMISTIC on an idle machine. That is the safe direction for a sort key whose only job is to start the long modules first, and it is the reason no attempt was made to wait for a quiet machine and report a prettier figure. TASK-273."
+  },
+  "task-276-linkage-store": {
+   "ref": "0bed540",
+   "taken": "2026-09-04",
+   "workers": 1,
+   "load1": 42.41,
+   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_linkage_store_declared with __pycache__ cleared before each - 1.34 / 1.17 / 1.20s wall, on the machine that ran TASK-276. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set. load1 is high and is recorded honestly rather than waited out: five other agents were running tests/run on this machine and a quiet moment never arrived. It turned out not to matter - the three runs agree to within 0.17s, because the module's cost is 19 unittest cases and a handful of perry-lint subprocesses, not CPU. ONE CONTRARY OBSERVATION, recorded so a later reader is not surprised: the same module reported 83.9s inside a full tests/run while SIX suites at 8 workers each were competing. That is a contention figure, not this module's cost, and it is named here rather than averaged in - a number that folds two regimes together describes neither."
   }
  },
  "modules": {
@@ -214,6 +221,10 @@
   "test_last_updated_header.py": {
    "sec": 3.25,
    "source": "unstamped-pre-304"
+  },
+  "test_linkage_store_declared.py": {
+   "sec": 1.34,
+   "source": "task-276-linkage-store"
   },
   "test_linkage_task_exists.py": {
    "sec": 3.79,
