@@ -276,7 +276,9 @@ explanation there from a retraction"*, and `D3c`/`D3d` confirm both.
 
 ### 6. Attacks nobody has planted — **NOT MET; one green, and it is the fail**
 
-Fourteen new plants, **thirteen red, one GREEN**. Ledger in § Finding 1 and
+Fourteen new plants in this battery: **eight red, six green**. One of the six —
+`X2` — is undeclared and is the fail; the other five are declared limits or
+recorded notes, argued case by case below. Ledger in § Finding 1 and
 § Attack log.
 
 ### 7. Does the spec's `## Bound` still bound the same thing — **MET, with one false sentence**
@@ -598,12 +600,20 @@ free_block_measured: read by ONE test through ONE literal (`TASK-247`), not two
 repair_verified: content-keyed repair FAILS (reddens the unmodified tree);
                  POSITIONAL repair verified — X2 and X1-dup red, REMEDY, D3,
                  P1 and E1nat all preserved
-mutations_planted: 25 — 4 pre-fix (3 GREEN by design, 1 RED control),
-                        21 post-fix: 16 RED, 5 GREEN
-  of the 5 post-fix greens: 3 declared controls (D3, NEWPARA, REMEDY),
-  1 the declared zone-1 residual re-measured (D3c/D3d, counted once),
-  1 UNDECLARED and decisive (X2)
-  recorded but not scored: X1-dup, X3-shy, X3-zwsp, X3-cyr, X6-subdir
+mutations_planted: 29 — 4 pre-fix (3 GREEN by design = the reproduction,
+                             1 RED control),
+                        25 post-fix: 14 RED, 11 GREEN
+  the 11 post-fix greens, every one named:
+    3 declared controls                      D3, NEWPARA, REMEDY
+    2 the declared zone-1 residual, measured D3c, D3d
+    5 declared limits / recorded notes       X1-dup (zone-2 vocabulary),
+                                             X3-shy, X3-zwsp, X3-cyr
+                                             (homoglyph vocabulary),
+                                             X6-subdir (glob vs rglob)
+    1 UNDECLARED and decisive                X2
+  plus 9 further plants scored under two CANDIDATE REPAIRS (bFix, bFix2),
+  which is how the content-keyed repair was found to redden the unmodified
+  tree and the positional one to close X2 without disturbing REMEDY
 spec_bound: still bounds the same thing; one false sentence (`Over-fires:`)
 === END VERDICT ===
 ```
