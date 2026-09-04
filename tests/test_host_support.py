@@ -104,6 +104,15 @@ class TestOpenCodeDispatchLimit(unittest.TestCase):
     def markers(home: Path) -> list[Path]:
         return sorted((home / ".cache/perry/in-flight").glob("*.json"))
 
+    # Every contender's wait for the marker lock is bounded by the tool's own
+    # `LOCK_WAIT_TIMEOUT` (10s), so the wall time of a contended round is
+    # bounded too — but by a multiple of the critical section, not of the
+    # timeout. Under 16 CPU burners a round was measured at up to 42.7s
+    # (TASK-357). 20s was under that and turned a slow machine into a
+    # `TimeoutExpired`, which is a fact about the machine and not about the
+    # limiter; 180s is ~4x the worst round measured.
+    CONTENDED_ROUND_TIMEOUT = 180
+
     def run_contended(self, home: Path,
                       registrations: list[tuple[str, str]], **extra: str):
         gate = home / "start-registers"
@@ -124,9 +133,81 @@ class TestOpenCodeDispatchLimit(unittest.TestCase):
         gate.touch()
         results = []
         for proc in procs:
-            stdout, stderr = proc.communicate(timeout=20)
+            stdout, stderr = proc.communicate(
+                timeout=self.CONTENDED_ROUND_TIMEOUT)
             results.append((proc.returncode, stdout, stderr))
         return results
+
+    # The two strings `bin/perry-dispatch-limit` prints when the CAP is what
+    # refused a registration — as opposed to the lock, which prints "Failed to
+    # acquire dispatch marker lock" and exits 2.
+    CAP_REFUSALS = ("Global dispatch limit hit", "at limit:")
+
+    def assert_cap_held(self, home: Path, results, cap: int):
+        """The property the contended tests are named for, stated so that it
+        does not also assert a fact about the machine's scheduler.
+
+        **This assertion used to be `winners == cap`, and that is not the cap.**
+        `register` serialises behind a mkdir lock with a 10s
+        `LOCK_WAIT_TIMEOUT`. One *uncontended* critical section was measured at
+        0.25s idle and 5.7s median / 11.8s max under 16 CPU burners — it shells
+        out about ten times, and every one of those is a process spawn. So under
+        load most contenders exit 2 having never reached the cap check at all:
+        idle, all 17 losers were refused by the cap; under 16 burners, 17 to 19
+        of them were refused by the *lock*. Demanding exactly `cap` winners
+        demands that all 20 contenders won the lock race inside the timeout,
+        which is a statement about the schedule. It was 0 of 6 red idle and
+        **6 of 6 red under load**, always under-counting, never once exceeding
+        the cap. Serialising 20 contenders at the measured median would need
+        114s of lock budget against the 10s the tool ships, and the figure
+        scales with ambient load — so no retry budget can make the exact count
+        a promise, only move the load at which the test flips. See
+        `perry/evidence/2026-09/TASK-357-result.md`.
+
+        What *is* exact, at any load: contenders that reach the cap check are
+        serialised, so each one either wins (count below cap) or is refused by
+        the cap (count at cap). Writing `decided` for the contenders that got
+        that far,
+
+            winners == min(cap, decided)
+
+        holds always. It pins the cap from above — more than `cap` winners is
+        the defect these tests exist to catch — and from below, so this cannot
+        pass by everybody losing: whenever fewer than `cap` contenders reached a
+        decision, every one of them must have won. Contenders that timed out on
+        the lock are excluded because they are evidence about nothing.
+
+        The cap's *arithmetic* is pinned without any concurrency at all by
+        `test_global_cap_still_wins` and
+        `test_opencode_has_an_independent_configurable_cap`; what these
+        contended tests add is that the cap survives a race.
+        """
+        won, capped, undecided = [], [], []
+        for code, stdout, stderr in results:
+            if code == 0:
+                won.append((code, stdout, stderr))
+            elif any(msg in stderr for msg in self.CAP_REFUSALS):
+                capped.append((code, stdout, stderr))
+            else:
+                undecided.append((code, stdout, stderr))
+        decided = len(won) + len(capped)
+        detail = (
+            f"cap={cap} won={len(won)} refused-by-cap={len(capped)} "
+            f"never-reached-the-cap-check={len(undecided)}"
+        )
+        self.assertGreaterEqual(
+            len(won), 1,
+            f"a contended round must still make progress; {detail}")
+        self.assertEqual(
+            len(won), min(cap, decided),
+            "the cap is what must decide a contended round: of the contenders "
+            f"that reached the cap check, exactly min(cap, decided) may win; "
+            f"{detail}")
+        self.assertEqual(
+            len(self.markers(home)), len(won),
+            f"every winner leaves exactly one marker and nothing else does; "
+            f"{detail}")
+        return won, capped, undecided
 
     def test_opencode_has_an_independent_configurable_cap(self):
         with tempfile.TemporaryDirectory() as td:
@@ -173,9 +254,8 @@ class TestOpenCodeDispatchLimit(unittest.TestCase):
                 PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT="2",
                 PERRY_MAX_DISPATCH_TOTAL="30",
             )
-            self.assertEqual(sum(code == 0 for code, _, _ in results), 2)
+            self.assert_cap_held(home, results, cap=2)
             markers = self.markers(home)
-            self.assertEqual(len(markers), 2)
             self.assertTrue(all(
                 json.loads(marker.read_text())["executor"] == "opencode-subagent"
                 for marker in markers
@@ -193,8 +273,20 @@ class TestOpenCodeDispatchLimit(unittest.TestCase):
                 PERRY_MAX_DISPATCH_CODEX="20",
                 PERRY_MAX_DISPATCH_TOTAL="3",
             )
-            self.assertEqual(sum(code == 0 for code, _, _ in results), 3)
-            self.assertEqual(len(self.markers(home)), 3)
+            _, capped, _ = self.assert_cap_held(home, results, cap=3)
+            # It must be the GLOBAL cap that refused them. Both per-executor
+            # caps are set to 20 above, so a refusal naming one would mean this
+            # round measured the wrong limit and the assertion above passed for
+            # the wrong reason. Only the contenders that actually reached the
+            # cap check are in scope — one that never got the lock said nothing
+            # about any cap.
+            self.assertTrue(
+                all("Global dispatch limit hit" in stderr
+                    for _, _, stderr in capped),
+                "a cap refusal in this round must name the global cap, not a "
+                "per-executor one: "
+                + repr([stderr.strip()[:120] for _, _, stderr in capped
+                        if "Global dispatch limit hit" not in stderr]))
 
     def test_duplicate_task_id_is_refused_across_executors_and_release_is_idempotent(self):
         with tempfile.TemporaryDirectory() as td:
