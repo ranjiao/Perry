@@ -16,3 +16,5 @@ NOT YET CHECKED
 5. Control: rationale prose is NOT pinned — NOT YET CHECKED
 6. Full suite + perry-lint — NOT YET CHECKED
 7. TASK-339 collision on dispatch.md — NOT YET CHECKED
+
+<!-- progress: digests verified 4/4; battery 1 and 2 run; 6 coherent greens -->
