@@ -10,9 +10,10 @@ The round-2 FAIL is fixed and I re-derived it from both sides rather than
 taking it: the mutation the previous reviewer found green is red now, with
 nothing skipped, and putting round 2's test file back makes it green again with
 the false skip. The control the reviewer prescribed behaves as prescribed. I
-planted 22 mutations of my own; 19 are red, three are green, and none of the
-three can make the tool report a good restore over a bad one. Two rows fall out
-and are named below.
+planted 26 mutations; 21 are red, five are green, and **not one of the five can
+make the tool report a good restore over a bad one** — I established that by
+running each, not by reading it. One of the five is a real coverage hole and
+gets a row. Two rows fall out in total and are named below.
 
 ---
 
@@ -25,6 +26,16 @@ than assumed:
 ```
 git log --oneline -1        d49964e chore: consolidate test suite and project state
 git log --oneline -1 main   841124f TASK-283 and TASK-256 round 3 land; …
+```
+
+**`main` moved during this review**, `841124f` → `feabad5` (`TASK-339`,
+unrelated). `git diff 841124f main` over the five files this row touches or
+measures is **empty**, so nothing below is invalidated:
+
+```
+git diff --stat 841124f main -- bin/perry-restore-check tests/test_restore_check.py \
+        work/reference/review-constraints.md bin/README.md work/reference/review.md
+(empty)
 ```
 
 `main` is checked out in the primary worktree, so `git checkout main` is not
@@ -233,7 +244,7 @@ attack rather than discovering it, and round 3 declared it again for the new
 assertion and put it in the docstring. Declaring a limit accurately is the
 opposite of the defect. Not counted against the round.
 
-## 5. Item 5 — my own mutations. **22 planted · 19 red · 3 GREEN**
+## 5. Item 5 — mutations. **26 planted · 21 red · 5 GREEN**
 
 Round 3's eight code mutations, re-derived rather than accepted — every one
 reproduces with the same named tests:
@@ -249,7 +260,7 @@ reproduces with the same named tests:
 | M5 | `:215` | `verdict != "clean"` → `== "modified"` | **RED** (2) | `test_helper_absent_at_head_refuses`, `test_helper_outside_any_repository_refuses` |
 | M8 | `:159` | `ok=actual == committed` → `ok=True` | **RED** (7) | incl. `test_a_restore_onto_a_corrupted_baseline_is_caught`, `test_the_mutation_would_otherwise_have_been_silent` |
 
-**Nine mutations of my own, six of them at sites no round has touched:**
+**Twelve mutations of my own, nine of them at sites no round has touched:**
 
 | # | site | mutation | result | red tests |
 |---|---|---|---|---|
@@ -259,11 +270,14 @@ reproduces with the same named tests:
 | N5 | `:236` | the refusal `return 2` → `return 0` | **RED** (3) | `test_helper_absent_at_head_refuses`, `test_helper_outside_any_repository_refuses`, `test_mutated_helper_refuses` |
 | N7 | `:276` | `return 0 if ok else 1` → `return 0` | **RED** (3) | `test_differing_file_exits_one`, `test_the_ref_argument_is_honoured`, `test_a_restore_onto_a_corrupted_baseline_is_caught` |
 | N8 | `:215` | `and not allow_modified_self` → `and False` | **RED** (3) | the three refusal tests |
+| N10 | `:248` | the `rev-parse --verify` ref gate ignores `ref` | **RED** | `test_bad_ref_is_a_usage_error_not_a_pass` |
+| N11 | `:101` | `blob_at` stops returning `None` on a git failure | **RED** (2) | `test_helper_absent_at_head_refuses`, `test_a_path_absent_at_the_ref_is_not_a_pass` |
 | **N1** | `:89` | `repo_root` `return None` → `return probe` | **GREEN** | — |
 | **N6** | `:199` | `--root=X` parsing → `root_arg = a` | **GREEN** | — |
 | **N9** | `:265` | `if verdict != "clean":` → `if False:` | **GREEN** | — |
+| **N12** | `test_restore_check.py:404` | `_planted_copy`'s `assert after != before` removed | **GREEN** | — |
 
-A green mutation is a finding, so each was measured rather than argued about.
+A green mutation is a finding, so each was run rather than argued about.
 
 **N1 is an equivalent mutant, and I established that by running it, not by
 reading it.** `repo_root` returning the probe directory instead of `None`
@@ -281,6 +295,13 @@ path inside a repo          identical (rev-parse succeeds, the branch is dead)
 The mutated branch only fires when `rev-parse` fails, and both routes out of
 that end in `unverifiable` / exit 2. Only the human-readable detail string
 differs. Nothing to fix.
+
+**N12 is tautologically equivalent.** `_planted_copy`'s `assert after !=
+before` is the module's own anti-mis-anchor guard: by construction it fires only
+when a plant fails to match, which does not happen in a passing run. Removing a
+defensive assertion that never fires on the green path cannot redden anything.
+It is the same discipline my own harness used, and the same one that caught my
+`:265` line-number slip. Nothing to fix.
 
 **N6 fails loud.** `--root=DIR` is implemented but is not in the tool's own
 usage line (`[--root DIR] [--json] [--allow-modified-self]`), so it is an
@@ -354,7 +375,46 @@ workflow the same paragraph names is the shape this project keeps paying for.
 
 ## 7. Item 6 — suite and lint. **MET**
 
-PLACEHOLDER-SUITE
+`bash tests/run` on this branch, foreground, full run — **run twice, and the
+first run was not clean**, so both are reported:
+
+```
+run 1   114 modules · 3291 tests · 180.3s · 8 workers
+        ✗ 1 of 114 MODULE(S) red · ✗ 1 of 3291 TEST(S) failed
+        FAIL: test_concurrent_mixed_registers_do_not_exceed_global_cap
+              (test_host_support.TestOpenCodeDispatchLimit)
+              tests/test_host_support.py:196  AssertionError: 2 != 3
+        EXIT=1
+
+run 2   114 modules · 3291 tests · 205.1s · 8 workers
+        ✓ all green
+        0. tree guard — the tree the suite started in is the tree it ends in
+          ✓ nothing under …/agent-a6ba639d2465f4d79 moved
+        EXIT=0
+```
+
+**The run-1 red is not this row's, and I established that rather than assuming
+it.** It is neither of the two the PMO named as known (`TASK-335`'s wall-clock
+parity controls, `TASK-341`'s `bin/lib` probe race), so it needed its own
+account:
+
+- The test registers 20 concurrent dispatches against a global cap of 3 and
+  asserts exactly 3 win; it got 2 — an **under**-count, the limiter being more
+  conservative than its cap under contention, not a wrong answer about a
+  restore.
+- Run alone it passes: **3 for 3** (`python3 -m unittest discover -s tests -p
+  test_host_support.py`, three times, `OK`). It is load-sensitive, and this
+  machine is running ~50 agent worktrees.
+- It cannot be coupled to this row. Round 3 changed exactly three files —
+  `tests/test_restore_check.py`, `work/reference/review-constraints.md`,
+  `bin/README.md` — and `bin/perry-restore-check` is byte-identical to round 2's
+  (`8cd3027409dd…`, § 0). `grep -c restore tests/test_host_support.py` → **0**.
+- It is a filed, open row: **`TASK-313` — "the dispatch limiter has a race,
+  found while three rounds ran concurrently"**, status `not_started`, and
+  `TASK-256`'s own spec puts it in **Out of scope** by name.
+
+Run 2 is fully green, exit 0, tree guard clean at both ends, at the same 114
+modules / 3291 tests rounds 2 and 3 both report. **Not one bit redder.**
 
 `python3 bin/perry-lint --root .` → **0 error(s), 37 warning(s)** — the same
 count rounds 2 and 3 and the round-2 V4 review all report. The warnings are
@@ -451,4 +511,110 @@ false for the copy form its own paragraph names. Neither is a criterion miss;
 by this project's own finding table the second is explicitly a filed row rather
 than a FAIL, and the first cannot produce a wrong verdict.
 
-PLACEHOLDER-RESULT
+Criterion by criterion against `TASK-256-spec.md § Verification`:
+
+| # | criterion | verdict |
+|---|---|---|
+| 1 | reproduce the circularity with a control that fails on the old rule and passes on the new | **MET** — `TestCircularity`, 3 tests, green; and its guard is live (M8 at `:159` reddens `test_a_restore_onto_a_corrupted_baseline_is_caught`) |
+| 2 | a named test asserts the guidance says what it must; the helper is mutated and the check goes red | **MET** — § 1, § 4, § 5: 21 of 26 mutations red, including all three `self_check` verdicts, every `ok=False` branch, the aggregate verdict, the gate and both exit paths |
+| 3 | do not build a linter for other people's harnesses | **MET** — none built |
+| 4 | full suite no redder than the baseline measured; `perry-lint --root .` at 0 errors | **MET** — § 7 |
+
+And the two deliverables the spec names: the rule has **one home**
+(`review-constraints.md`, referenced not re-copied from `review.md § 2` — the
+module asserts it), it states its reason, and the round shipped a helper *and*
+said so, which is the spec's "either answer is acceptable; an unstated one is
+not."
+
+=== VERDICT ===
+task: TASK-256
+rung: V4
+result: PASS
+criteria: perry/evidence/2026-09/TASK-256-spec.md
+checked: provenance (handed over at d49964e; branch review/task-256-round3-v4
+         cut from main at 841124f after checking the five existing task-256
+         branch names, stub-committed with NOT-YET-CHECKED placeholders and
+         re-committed after each section; main moved to feabad5 mid-review,
+         TASK-339, diff over all five subject files empty); a git archive copy
+         git init-ed and checked against the live object store before anything
+         was planted (5 files, all digests SAME; bin/perry-restore-check at
+         8cd3027409dd, byte-identical to what round 2 shipped, confirming the
+         round changed no tool code); 26 mutations planted line-anchored WITH
+         an assert on the old text — the anchor guard fired once, on :265, and
+         was re-anchored — __pycache__ cleared and the whole-second boundary
+         waited past on every plant, every restore by `git show HEAD:<path>`
+         single-path with the disk digest compared to the object-store digest
+         and `git status --porcelain` empty after each; bin/perry-restore-check
+         NEVER used for any restore; all 8 of round 3's own code mutations
+         re-derived (8 red, same named tests) plus its 4 doc mutations; the
+         round-2 FAIL re-planted (:118 unverifiable->clean: 25 ran, rc=1, 1
+         failure, NO skip) and its causality established from both sides by
+         putting round 2's test file back and replanting (GREEN, skipped=1,
+         false reason) on the identical tool; the prescribed control run with
+         TMPDIR inside a real work tree (OK (skipped=1), reason true and
+         naming the toplevel git reported, verified independently); the
+         declared residual measured rather than conceded (E2 planted with
+         TMPDIR inside a repo: GREEN); both doc copies of the --root sentence
+         red under deletion, each broken two independent ways; the round-3
+         --root advice tested against both copy mechanisms (git archive: exit 2
+         both directions; cp -R: exit 0/1 correctly); the symlink false-PASS
+         re-derived on the shipped unmutated tool with 0 tracked symlinks on
+         main and :134 confirmed unchanged; full suite twice (run 1 one red,
+         test_host_support dispatch-limiter contention, diagnosed to the open
+         TASK-313 and shown 3-for-3 in isolation and structurally uncoupled;
+         run 2 114 modules · 3291 tests · all green · exit 0 · tree guard clean
+         both ends); perry-lint --root . (0 errors, 37 warnings)
+not-checked: Windows/non-POSIX paths; the rounds that already consumed the
+         tool; concurrency and the TASK-298 scratchpad collision; the other 113
+         test modules beyond two full-suite runs; the --json consumer contract
+         beyond reading the payload; `perry-lint --reviews --strict`
+         (pre-check); the spec's Remainder; the /var vs /private/var asymmetry
+         between the question the test asks git and the one the helper asks
+proof: The round-2 FAIL is closed and the closure is causal, not coincidental.
+         bin/perry-restore-check:118 "unverifiable" -> "clean" now gives
+         ran=25 rc=1, one failure, test_helper_outside_any_repository_refuses,
+         and NOTHING skipped; the same mutation on the same tool with round 2's
+         test file restored (git show 9fe61142:tests/test_restore_check.py)
+         gives ran=25 rc=0 GREEN skipped=1 with the false reason. Two further
+         independent breaks of the same branch are red — E2b (verdict and
+         detail both rewritten) and N2 ("unverifiable" -> "modified", under
+         which the tool's exit code and refusal are UNCHANGED, so only the new
+         assertion on the verdict can see it). The control the reviewer
+         prescribed is handled, not failed: TMPDIR inside a real work tree
+         gives `Ran 25 tests / OK (skipped=1)` with a reason that names the
+         toplevel git reported and is true. Five of 26 mutations came back
+         green and none can make the tool vouch for a bad restore: D1b is the
+         literal-substring limit both rounds declared in writing and the round-2
+         reviewer confirmed by attack; N1 (:89 repo_root return None -> return
+         probe) is an equivalent mutant established by running it — verdict
+         'unverifiable' and exit 2 on every route, only the detail string
+         differs; N6 (:199 --root= parsing) is an undocumented spelling whose
+         failure mode is exit 2; N12 removes a defensive assert that by
+         construction fires only on a mis-anchored plant. The one real hole is
+         N9, :265 `if verdict != "clean":` -> `if False:`, which deletes the
+         "! self-check <verdict>" advisory line with all 25 green — the line
+         the round-2 review's § 5 leaned on when it accepted the breaking
+         change ("not silent"). It is reachable ONLY when the caller passed
+         --allow-modified-self (the :215 gate returns 2 otherwise), and under
+         it every ok value, every ✓/✗ and both exit codes are unchanged, so it
+         is not a miss against Verification item 2, whose subject is the check
+         going red — the check does. Separately, the sentence round 3 added to
+         both shipped pages ("point the live repository's helper at the copy
+         with `--root <copy>`, which answers correctly") is false for a bare
+         `git archive` copy — measured, exit 2 both directions — which is the
+         copy named two sentences earlier in the same paragraph; by review.md's
+         own finding table a page that misstates something is "file a row,
+         never a FAIL on this one", the case was already unanswerable by every
+         route so nothing regressed, and the failure is a loud refusal.
+         Both are filed as rows below, not as criteria misses.
+rows-to-file: (1) the "! self-check <verdict>: <detail>" advisory line at
+         bin/perry-restore-check:265 is pinned by nothing — one
+         assertIn("! self-check", stdout) on an --allow-modified-self run
+         closes it. (2) the --root <copy> sentence in
+         work/reference/review-constraints.md:91-92 and bin/README.md:31 should
+         say "a copy that has its own object store (cp -R, or git archive +
+         git init + a commit)" — it is false for the bare git archive copy the
+         same paragraph names. (3) optional: surface the module's skip count in
+         tests/run so an environment that silently stops running
+         test_helper_outside_any_repository_refuses is visible.
+=== END VERDICT ===
