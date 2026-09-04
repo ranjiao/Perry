@@ -4193,6 +4193,160 @@ def iter_targets(root: Path, spec: dict) -> list[Path]:
     return [p for p in out if p.is_file()]
 
 
+#: The store declared by `schema/state-schema.json § stores.declared`, with the
+#: noun the census line uses for it. Named here rather than spelled inline for
+#: the reason `_MD_STORE_DOCS` is a table: the day a second store is declared
+#: there, the census gains a line without a second list to keep in step.
+_JSONL_STORE_KEY = "linkage.jsonl"
+_JSONL_STORE_LABEL = "linkage store"
+
+
+def _empty_linkage_store_drift_stats() -> dict:
+    """The typed machine-readable state before a linkage comparison runs.
+
+    The same four keys as the other six registers, so a reader of `--json`
+    meets one shape seven times rather than seven shapes.
+    """
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def _linkage_record_findings(records: list,
+                             declared: dict) -> tuple[list[dict], list]:
+    """Valid records, and findings for the malformed ones — schema-driven.
+
+    **The field list is not written here.** It is read from
+    `schema/state-schema.json § stores.declared["linkage.jsonl"].records`,
+    which is what TASK-276 declares. A second copy in Python is the
+    two-lists-disagreeing defect DESIGN-002 and ADR-004 exist to stop, and it
+    is the specific way a declaration becomes decorative: the schema would say
+    one thing, the checker would enforce another, and nothing would compare
+    them.
+    """
+    kinds = declared.get("records") or {}
+    types = {"string": str, "number": (int, float), "boolean": bool,
+             "object": dict, "array": list}
+    # **The discriminating field is DECLARED, not assumed.** Hard-coding
+    # `"kind"` here is what makes `stores.declared[…].discriminator`
+    # decorative — a key the schema states and no code reads — which is the
+    # same declaration-nothing-checks defect this store is being added to
+    # remove one level up. A mutation round caught exactly that: changing
+    # the declared discriminator to `"type"` left every test green, because
+    # nothing was reading it. Recorded in `evidence/2026-09/TASK-276-result.md`.
+    disc = declared.get("discriminator") or "kind"
+    good: list[dict] = []
+    findings: list = []
+    for line, rec in enumerate(records, 1):
+        if not isinstance(rec, dict):
+            findings.append({"line": line,
+                             "message": "expected one JSON object per line"})
+            continue
+        kind = rec.get(disc)
+        if kind not in kinds:
+            findings.append({"line": line, "message":
+                             f"`{disc}` is {kind!r}, expected one of "
+                             f"{'/'.join(sorted(kinds))}"})
+            continue
+        fields = kinds[kind].get("fields") or {}
+        bad = []
+        for name, spec in fields.items():
+            if name not in rec:
+                if spec.get("required"):
+                    bad.append(f"`{name}` is missing and is required")
+                continue
+            value = rec[name]
+            want = types.get(spec.get("type"))
+            # `bool` is a subclass of `int` in Python and JSON `true` is not a
+            # number. `perry_store.validate_records` makes the same exclusion
+            # for the same reason.
+            ok = want is None or (
+                isinstance(value, want)
+                and not (want is not bool and isinstance(value, bool)))
+            if not ok:
+                bad.append(f"`{name}` is {type(value).__name__}, expected "
+                           f"{spec.get('type')}")
+                continue
+            const = spec.get("const")
+            if const is not None and value != const:
+                bad.append(f"`{name}` is {value!r}, expected {const!r}")
+                continue
+            pattern = spec.get("pattern")
+            if pattern and isinstance(value, str) and not re.match(pattern,
+                                                                   value):
+                bad.append(f"`{name}` is {value!r}, which does not match "
+                           f"`{pattern}`")
+        if bad:
+            findings.append({"line": line, "message": "; ".join(bad)})
+            continue
+        good.append(rec)
+    return good, findings
+
+
+def check_linkage_store_drift(project_root: Path, state_root: Path,
+                              schema: dict) -> list["Finding"]:
+    """`linkage.jsonl` — the seventh store — TASK-276, DESIGN-015 row A.
+
+    **This row declares the store; it does not import it and does not move a
+    reader.** So there is deliberately no comparison here yet: the register the
+    edges live in today is `phase/<NNN>-linkage.md`, and comparing the two is
+    DESIGN-015 implementation row C, which moves the six readers § 5.6 names.
+    `comparison_performed` therefore stays `False` even when the file is
+    present, and the census says `comparison incomplete — drift is unchecked,
+    not clean` rather than publishing a verdict nothing computed.
+
+    **`unchecked`, not `clean`, is the point of the line.** `P003-O1-KR3` is
+    the phase-003 operating rule that a store reports `unchecked` when its file
+    is absent, measured for the other six by TASK-229. A seventh store that
+    reported `clean` with no records behind it would be a green gate on a false
+    premise — the census would say the store is in order when nothing has ever
+    been written to it. The file does not exist on this project and will not
+    until row B runs, so this line reads `unchecked` today by the path that is
+    supposed to produce it, not by accident.
+
+    What it DOES do while waiting for row B: validate every record against the
+    schemas `stores.declared` declares, so the day the import lands, a record
+    of the wrong shape is a finding rather than a silent row.
+    """
+    findings: list[Finding] = []
+    check_linkage_store_drift.stats = _empty_linkage_store_drift_stats()
+
+    declared = ((schema.get("stores") or {}).get("declared")
+                or {}).get(_JSONL_STORE_KEY)
+    if not declared:
+        return []
+
+    store_path = state_root / _JSONL_STORE_KEY
+    if not store_path.exists():
+        return []
+
+    check_linkage_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "linkage-store-unreadable",
+                        f"`{_JSONL_STORE_KEY}` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing "
+                        f"here to check")]
+
+    good, issues = _linkage_record_findings(on_disk, declared)
+    check_linkage_store_drift.stats["records"] = len(good)
+    for issue in issues[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_store, "linkage-store-malformed",
+            f"line {issue['line']}: {issue['message']}. The record shapes are "
+            f"declared in `schema/state-schema.json § stores.declared` "
+            f"(DESIGN-015 § 5.1)."))
+    if len(issues) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_store, "linkage-store-malformed",
+            f"and {len(issues) - DRIFT_ROWS_SHOWN} further record(s) do not "
+            f"match a declared shape."))
+    return findings
+
+
 def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[list, dict]:
     """What Perry would occupy here, and what is already there.
 
@@ -4886,6 +5040,16 @@ def main(argv: list[str]) -> int:
             for _doc, _label in _MD_STORE_DOCS:
                 findings.extend(
                     check_md_store_drift(project_root, root, _doc))
+            # And the seventh (TASK-276, DESIGN-015 row A), on the same
+            # terms and at the same cost: it returns before reading anything
+            # when there is no `linkage.jsonl`, which is every project today
+            # including this one. It is in the DEFAULT pass rather than behind
+            # a flag for the reason the six above are — a store the census
+            # does not print is a store nobody checked, and this row's whole
+            # question is whether the seventh JOINS that population or merely
+            # appears in a JSON file.
+            findings.extend(
+                check_linkage_store_drift(project_root, root, schema))
             # **In the DEFAULT pass, not behind `--specs`.** A flag nobody
             # types is not a report: `--specs` shipped in round 1 and was
             # invoked from nothing — not `work/`, not `modes/`, not `tests/run`
@@ -4941,6 +5105,9 @@ def main(argv: list[str]) -> int:
             for _doc, _label in _MD_STORE_DOCS:
                 payload[f"{_doc.name}_store_drift"] = dict(
                     _md.get(_doc.name) or _empty_md_store_drift_stats())
+            payload["linkage_store_drift"] = dict(getattr(
+                check_linkage_store_drift, "stats",
+                _empty_linkage_store_drift_stats()))
             # Carried in the default payload for the reason the drift stats
             # are: a caller reading this JSON to decide whether to dispatch
             # should not have to run a second command to learn that the gate
@@ -5058,6 +5225,29 @@ def main(argv: list[str]) -> int:
                 else:
                     print(f"  · {_label}: {_s['records']} record(s), "
                           f"{_s['drifted']} row(s) drifted")
+
+        # The seventh line, for the reason the six above have their own:
+        # "no linkage store" and "a clean linkage store" are different
+        # answers. TASK-276 declares the store and DESIGN-015 row B imports
+        # it, so on this project the file is ABSENT and this line reads
+        # `unchecked, not clean` — which is `P003-O1-KR3`'s rule reaching the
+        # seventh store on the day it is declared rather than on the day it is
+        # filled. The `comparison_performed` branch is not dead code waiting
+        # for row B either: it is the state the store is in from the moment
+        # row B lands until row C moves the readers, and it says so rather
+        # than reporting a drift verdict nothing computed.
+        _lst = getattr(check_linkage_store_drift, "stats", None)
+        if _lst and not mode_templates:
+            if not _lst["store_present"]:
+                print(f"  · no `{_JSONL_STORE_KEY}` — drift against the "
+                      f"{_JSONL_STORE_LABEL} is unchecked, not clean")
+            elif not _lst["comparison_performed"]:
+                print(f"  · {_JSONL_STORE_LABEL}: {_lst['records']} valid "
+                      f"record(s), comparison incomplete — drift is "
+                      f"unchecked, not clean")
+            else:
+                print(f"  · {_JSONL_STORE_LABEL}: {_lst['records']} "
+                      f"record(s), {_lst['drifted']} row(s) drifted")
         # And a line for the dispatch pre-flight's own input, on the same rule
         # the six above follow: "no specs" and "every spec declares a scope"
         # are different answers, and the second one is the only one that means
