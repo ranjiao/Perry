@@ -41,6 +41,10 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-tasks"
 
+sys.path.insert(0, str(ROOT / "viewer"))
+import parsers as P                                             # noqa: E402
+import tables as T                                              # noqa: E402
+
 #: The shapes measured on the second real project, in one board. Written by
 #: hand and NOT through `render_row`, because a fixture built by the writer
 #: under test can only prove the writer agrees with itself.
@@ -218,26 +222,177 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
         self.assertEqual(len(got), 1, f"{tid}: {len(got)} rendered rows")
         return got[0]
 
+    def cell_of(self, root: pathlib.Path, tid: str, column: str) -> str:
+        """The one rendered CELL for `tid`'s `column`. **Not the whole row.**
+
+        TASK-356. Narrowing from the whole board to the whole row was the
+        previous fix and it was not narrow enough: a row carries this
+        project's own English in `Title`, `Summary` and `Next action` BY
+        DESIGN, so a sentinel that is an ordinary word collides with the
+        row's own prose. It went red on `dropped` when a task's
+        `next_action` came to read "unescaped pipes that silently dropped
+        six call sites" — the row's free text, not the renderer, moving.
+        And that is not a `status` accident: the census recorded in
+        `test_a_row_whose_prose_carries_every_sentinel_still_passes` below
+        finds the SAME trap already loaded on `owner`/`Nobody`, one board
+        row away from firing, and shows all seven fields failing under the
+        old rule. Scoped to the cell, a field can only ever collide with its
+        OWN sentinel — and that residual case is what the round trip's
+        `assertNotEqual(was, want)` guard is for.
+
+        The column is resolved BY NAME through the schema glossary, the way
+        `viewer/parsers.py § _parse_task_table` resolves it — not by a fixed
+        index — because column ORDER is the thing that file spends its
+        longest comment explaining is not constrained by the schema. Read
+        through `split_row` and `header_index`, the repository's only row
+        splitter and only header fold, so this locator cannot disagree with
+        the reader it is grading.
+        """
+        lines = self.rendered(root).split("\n")
+        at = [i for i, l in enumerate(lines) if l.startswith(f"| {tid} ")]
+        self.assertEqual(len(at), 1, f"{tid}: {len(at)} rendered rows")
+        i = at[0]
+        j = i
+        while j > 0 and not re.match(r"^\|\s*---", lines[j]):
+            j -= 1
+        self.assertGreater(j, 0, f"{tid}: no header separator above the row")
+        header = T.header_index(T.split_row(lines[j - 1]))
+        col = header.column(P._column_keys(column))
+        self.assertNotEqual(col, -1, f"{tid}: no {column!r} column in {header}")
+        cells = T.split_row(lines[i])
+        return cells[col] if col < len(cells) else ""
+
+    #: Store field -> the board column it renders into. Spelled once, and
+    #: used by both the round trip and the sentinel census below, so a field
+    #: cannot be graded against one column and cleared against another.
+    FIELD_COLUMN = {"title": "Title", "owner": "Owner",
+                    "next_action": "Next action", "evidence": "Evidence",
+                    "verification": "Verification", "status": "Status",
+                    "depends_on": "Depends on"}
+
+    #: The value written into each field on disk, and looked for in its cell.
+    MARKS = {"title": "A TITLE NOTHING WROTE", "owner": "Nobody",
+             "next_action": "AN ACTION NOTHING WROTE",
+             "evidence": "evidence/nothing.md", "verification": "V6",
+             "status": "dropped", "depends_on": ["TASK-001", "TASK-002"]}
+
+    @staticmethod
+    def _want(mark) -> str:
+        return ", ".join(mark) if isinstance(mark, list) else mark
+
     def test_every_rendered_field_moves_when_the_store_moves(self):
+        """Set the field on disk, read its CELL; restore it, read it again.
+
+        Both halves are equalities against the cell, and the restore half
+        compares to the cell as it rendered BEFORE the mutation rather than
+        asserting the sentinel is absent. That is what keeps the property
+        from being re-broken by its own sentinel: `dropped` is a real
+        `status` value, so a row legitimately in that state would fail an
+        `assertNotIn` for reasons that have nothing to do with the renderer.
+        Equality also grades strictly more than absence did — a renderer
+        that dropped the cell to `—` on restore satisfied `assertNotIn` and
+        fails this.
+
+        `assertNotEqual(was, want)` is the guard that keeps the round trip
+        from being vacuous: if a field's stored value already equalled its
+        sentinel, both halves would pass without the renderer being asked
+        anything, and the subtest would be decoration.
+        """
         d = Project.perry(self)
         tid = a_live_row(d)
-        marks = {"title": "A TITLE NOTHING WROTE", "owner": "Nobody",
-                 "next_action": "AN ACTION NOTHING WROTE",
-                 "evidence": "evidence/nothing.md", "verification": "V6",
-                 "status": "dropped", "depends_on": ["TASK-001", "TASK-002"]}
-        for field, mark in marks.items():
+        for field, mark in self.MARKS.items():
             with self.subTest(field=field):
+                column = self.FIELD_COLUMN[field]
+                want = self._want(mark)
+                was = self.cell_of(d, tid, column)
+                self.assertNotEqual(
+                    was, want,
+                    f"{field}: the sentinel is already the rendered value, so "
+                    f"this round trip would pass without rendering anything")
+
                 recs = records(d)
                 row = next(r for r in recs if r["id"] == tid)
                 before = row[field]
                 row[field] = mark
                 rewrite(d, recs)
-                want = ", ".join(mark) if isinstance(mark, list) else mark
-                self.assertIn(f"| {want} |", self.row_of(d, tid),
-                              f"{field} did not reach the board")
+                self.assertEqual(self.cell_of(d, tid, column), want,
+                                 f"{field} did not reach the board")
+
                 row[field] = before
                 rewrite(d, recs)
-                self.assertNotIn(want, self.row_of(d, tid))
+                self.assertEqual(
+                    self.cell_of(d, tid, column), was,
+                    f"{field} did not move back when the store did — the "
+                    f"renderer is not reading this cell from the store")
+
+    def test_a_row_whose_prose_carries_every_sentinel_still_passes(self):
+        """**The regression this row exists to prevent.** TASK-356.
+
+        The old rule asserted the sentinel appeared NOWHERE in the rendered
+        row, and this project writes English into `title` and `next_action`
+        by design, so a row's own free text could defeat it. It did: a task
+        whose `next_action` read "unescaped pipes that silently dropped six
+        call sites" made the `status` sentinel `dropped` unfindable-absent,
+        and the only red on `main` was the board's prose, not the renderer.
+
+        That was never a `status` accident. Here EVERY sentinel is planted in
+        the row's own `title` and `next_action` at once — the worst board
+        this project could legitimately write — and all seven round trips
+        still have to pass. Under the whole-row rule all seven fail; the
+        census below records that this is not hypothetical for two of them.
+
+        **The live-board census, measured on 145 rendered rows:** seven
+        fields, seven sentinels. Two are ordinary English words that the
+        board's prose already contains — `dropped` (`status`) in 7 rows and
+        `Nobody` (`owner`) in 1, every occurrence in `Title` or `Next
+        action`, i.e. a column neither of them grades. A third, `V6`
+        (`verification`), is a token this project writes into prose as a
+        matter of routine ("closes at V4") and collides the day a V6 exists.
+        The remaining four — `A TITLE NOTHING WROTE`, `AN ACTION NOTHING
+        WROTE`, `evidence/nothing.md`, `TASK-001, TASK-002` — are shaped so
+        prose would not produce them.
+
+        The census is asserted here as a CONSTRUCTION and not as a scan of
+        today's board, because a scan would make this test fail whenever the
+        project's own text changed — which is the whole defect being fixed,
+        re-introduced one level up. `USER-916` currently renders `status:
+        dropped`, so even "no row holds this sentinel in this column" is a
+        sentence project state can break; the per-field `assertNotEqual`
+        guard in the round trip above is where that case is caught, on the
+        one row actually under test.
+        """
+        d = Project.perry(self)
+        tid = a_live_row(d)
+        every = " ".join(self._want(m) for m in self.MARKS.values())
+
+        recs = records(d)
+        row = next(r for r in recs if r["id"] == tid)
+        row["title"] = f"Prose citing {every} in a title"
+        row["next_action"] = f"Free text quoting every sentinel: {every}"
+        rewrite(d, recs)
+        planted = self.row_of(d, tid)
+        for field, mark in self.MARKS.items():
+            self.assertIn(self._want(mark), planted,
+                          f"{field}'s sentinel was not planted in the row")
+
+        for field, mark in self.MARKS.items():
+            with self.subTest(field=field):
+                column = self.FIELD_COLUMN[field]
+                want = self._want(mark)
+                recs = records(d)
+                row = next(r for r in recs if r["id"] == tid)
+                was = self.cell_of(d, tid, column)
+                self.assertNotEqual(was, want, f"{field}: vacuous round trip")
+                before = row[field]
+                row[field] = mark
+                rewrite(d, recs)
+                self.assertEqual(self.cell_of(d, tid, column), want,
+                                 f"{field} did not reach the board")
+                row[field] = before
+                rewrite(d, recs)
+                self.assertEqual(
+                    self.cell_of(d, tid, column), was,
+                    f"{field} did not move back when the store did")
 
     def test_a_row_missing_from_the_store_is_reported_not_silently_copied(self):
         """**`cmp` clean and "reproduced" are different results.**
