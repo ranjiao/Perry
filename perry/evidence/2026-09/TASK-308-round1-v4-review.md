@@ -417,4 +417,89 @@ asks for; it is not a defect in this round.
 
 ## Verdict
 
-PLACEHOLDER_VERDICT
+**PASS — 7 of 7 criteria met.**
+
+| # | criterion | verdict |
+|---|---|---|
+| 1 | before-state reproduced and re-derived | **MET** |
+| 2 | unbounded spec reported, no review document anywhere | **MET** |
+| 3 | control: a bounded spec is silent | **MET** |
+| 4 | verdict-side check survives, both docstrings name their question | **MET** |
+| 5 | severity chosen and justified | **MET** |
+| 6 | presence and shape only, no quality judgement | **MET** |
+| 7 | full suite; `perry-lint --root .` at 0 errors | **MET** |
+
+Mutations: **5 planted by me, 5 red, 0 green.** Suite: 2 failures, both TASK-335's
+wall-clock controls, neither reachable from the changed code. `perry-lint
+--root .`: 0 errors, exit 0.
+
+### Why this passes rather than passes generously
+
+The row's failure mode was never "the check is wrong" — the check was already
+correct and could not speak in time. So the load-bearing question is whether the
+new check genuinely speaks *before* a round, and that is exactly what a
+carelessly built fixture would fail to establish. It does not fail here. The
+fixture asserts the absence of any review artefact by walking the whole tree,
+and I re-established the property on my own fixture with a **stricter**
+assertion than the round's — rejecting any file containing `verdict:`,
+`criteria:`, `rung:`, `PASS` or `FAIL`, not merely `=== VERDICT ===` — and
+separately confirmed that `criteria-unbounded` did not appear among the findings
+while `spec-unbounded` did. I know which half spoke.
+
+Three things I probed specifically because they are where this row could have
+gone wrong, and none of them did:
+
+- **It did not become a quality checker.** The single decisive case is mine: a
+  `## Bound` heading with *nothing underneath it at all* is accepted, as is one
+  reading `TBD.`. Any drift toward scoring would have to reject those. The
+  implementation is one `_BOUND_RE.search` and no other content inspection.
+  The fifth guard-over-English attempt did not happen.
+- **It did not become a wall of red.** 123 true findings report as 11 lines —
+  10 named plus one remainder — with the exact count in `stats` and every path
+  under `--specs --json`. I verified the cap and the uncapped count separately
+  on a 25-spec fixture. Crucially this is not a new answer invented for this
+  row: it is `DRIFT_ROWS_SHOWN`, already the settled response for 45 unscannable
+  specs, 89 summaries and six store-drift checks. `reference/diagnose.md` rates
+  a wall of red as worse than no check, and inventing a *second* reporting
+  convention would itself have been the defect.
+- **It did not quietly unify the two checks.** Both exist, both docstrings name
+  the question they answer and say "Do not unify them (TASK-308)", and the
+  prohibition is mechanical rather than hortatory: my M7b shows that disabling
+  the verdict-side call site drops `_BOUND_RE.search` from two sites to one and
+  turns `test_they_share_one_matcher` red. The docstring even records the
+  concrete blind spot — one real file, `TASK-065-extraction.md` — that makes
+  keeping both a measurable loss rather than a stylistic preference.
+
+The severity argument's strongest move is that it rejected "scope to rows at
+`review` or being dispatched" *because that would reintroduce the very defect
+being fixed*, and then pinned the rejection with a test that strips comments and
+docstrings and asserts `check_specs`'s code mentions none of `parse_verdicts`,
+`BOARD.md`, `events.jsonl` or `tasks.jsonl`. A round that merely argued this in
+prose would have left the property free to rot. It is held by a test.
+
+Two further marks in the round's favour, both about honesty rather than code.
+It **published a green mutation** (M6 against the control) instead of quietly
+re-pairing it, and diagnosed it correctly — a control catches over-firing, so it
+is structurally incapable of detecting a dead check; the round proved this by
+re-running the dead check against three other targets, all red. And it
+**corrected its own brief twice**: the stale 144/17 census, and the spec's false
+TASK-067 example. Both corrections re-derive.
+
+### Findings that do not block
+
+1. **The spec's `## Bound` contains a false claim** — TASK-067 does not use a
+   non-spec criteria section; only `TASK-065-extraction.md` does. Authored by
+   the PMO, caught and published by the round, and it changed nothing about what
+   was built: the Remainder asked for a count (correctly reported as 1, which I
+   re-derived) and the pass's scope is `-spec\.md$` exactly as Deliverable item
+   1 specified. Worth noting against spec authoring, not against this round.
+2. **The brief's line anchor `:2458` has drifted to `:2487`** as the docstring
+   grew. Same check, same `parse_verdicts` loop. Noted so the next reader does
+   not conclude the check moved.
+3. **The round used `bin/perry-restore-check` for its restores.** That was
+   legitimate at the time, but TASK-256 round 2 has since changed it. I did not
+   use it; I verified my restores by comparing `git hash-object` against
+   `git rev-parse HEAD:<path>` and confirmed a clean tree after every one.
+
+None of these touch the deliverable. **PASS.**
+
