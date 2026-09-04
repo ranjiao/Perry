@@ -4333,259 +4333,6 @@ def escalation_pattern(frag: str) -> re.Pattern:
     return re.compile(left + re.escape(frag) + right)
 
 
-#: What one path looks like to `escalation_occurrences`, and deliberately
-#: WIDER than `_ESC_WORD`. `_ESC_WORD` answers "where does this token end for
-#: matching"; this answers "what path is this match sitting inside", which is a
-#: bigger span by construction — `bin/perry-diagnose` is one path and three
-#: `_ESC_WORD` runs. It stops at whitespace, backticks, commas, brackets and
-#: quotes — the characters that end a path in ordinary prose.
-#:
-#: **Every admitted character, and the job it does** — this class is one half
-#: of a safety decision, so the set is written down rather than inferred:
-#:
-#:   ``A-Za-z0-9``  the names themselves
-#:   ``/``          the separator, and what makes a token a path at all
-#:   ``_`` ``-``    the joiners — `state-schema`, `sample_project`
-#:   ``.``          the extension dot, and the leading dot of `.perry/`
-#:   ``~`` ``$``    the anchors `path_root_is_foreign` reads a HOME- or
-#:                  variable-rooted path by (`~/them/`, `$PERRY_HOME/`)
-#:   ``<`` ``>``    the placeholder brackets of an unresolved root
-#:   ``{`` ``}``    the other placeholder spelling (`{{project}}/design/`)
-#:   ``*``          the glob (`evidence/**/*-spec.md`, `*/evidence/`)
-#:   ``@`` ``+``    carried, not load-bearing: no path in this repository uses
-#:                  them, and dropping them is the one mutation here that
-#:                  changes no behaviour (see the class-pinning test)
-#:
-#: **Why this class is NOT narrowed to filename characters.** `. ~ $ * < > { }`
-#: are not filename characters, and TASK-290 round 1 was failed for a hole that
-#: looks like it wants them removed: `**schema/state-schema.json**` was read as
-#: a longer name than `state-schema.json`. Removing them from HERE closes that
-#: hole and opens three worse ones — `path_root_is_foreign` recognises a
-#: foreign root BY `~`, `$`, `<` and `{`, so a narrowed class re-roots
-#: `~/other-project/evidence/` as `project/evidence/2026` and
-#: `$PERRY_HOME/inputs/` as `perry_home/inputs/`, both of which then read as
-#: **this project's own tree** and stop refusing. Writing into a namespace
-#: Perry was never given is this hook's signature risk; trading it for a
-#: markdown-emphasis hole is not a fix.
-#:
-#: The two questions were collapsed onto one constant. This one answers "how
-#: far does this path run", which needs the wide class. "Is this component a
-#: longer NAME" is `_NAME_EDGE` below, and that is the one the discount hangs
-#: on.
-_PATH_CHAR = "[A-Za-z0-9_./~$*<>{}@+-]"
-_PATH_RUN = re.compile(_PATH_CHAR + "+")
-
-#: What a path component may BEGIN and END with — the filename half of the
-#: question `_PATH_CHAR` answers the path half of.
-#:
-#: Rule 1 in `_discount_reason` discounts an occurrence when the component
-#: around it is *strictly longer* than the fragment, on the argument that the
-#: text then names a longer file. That argument only holds if the extra
-#: characters are part of a **name**. Measured off `_PATH_CHAR`, they need not
-#: be: `**` is markdown emphasis and a trailing `.` is a sentence, and either
-#: one adjacent to the match made the component longer and cleared a
-#: declaration of the claim surface. `schema/state-schema.json.` names exactly
-#: `schema/state-schema.json`.
-#:
-#: So the component is trimmed inward, from each end, to the first character a
-#: filename can actually be bounded by. Letters, digits and `_` can; `.` and
-#: `-` cannot — **but only at the edges**. Both stay inside the component and
-#: keep doing their work there, which is what holds `reference/diagnose.md`,
-#: `bin/perry-diagnose` and `schema/state-schema.json.bak` discounted: the trim
-#: only ever removes characters OUTSIDE the match, and stops at the match, so
-#: it can shrink a component to the fragment's own length but never below it.
-#:
-#: Deliberately its own constant and not `_ESC_WORD`, which today has the same
-#: value. `_ESC_WORD` answers "where does a match's word edge fall" for the
-#: Chinese-hook reason argued at its own definition; this answers "what can
-#: bound a filename". Folding them together would mean a future change to
-#: either silently moving the other, and one of them is a safety gate's
-#: measuring stick.
-_NAME_EDGE = "[A-Za-z0-9_]"
-
-
-def path_token_around(hay: str, start: int, end: int) -> tuple[str, int]:
-    """The whole path `hay[start:end]` is sitting inside, and where it starts.
-
-    A fragment match knows its own span and nothing else, which is exactly the
-    blind spot this module was refused over: `diagnose` matched at
-    `bin/perry-**diagnose**` and reported the fragment, so the gate could not
-    tell a pipeline from a filename. The fix is not to read the sentence — it
-    is to widen the window by one structural step, from the match to the path
-    the match is part of, and then ask a question about the path.
-    """
-    i = start
-    while i > 0 and re.match(_PATH_CHAR, hay[i - 1]):
-        i -= 1
-    j = end
-    while j < len(hay) and re.match(_PATH_CHAR, hay[j]):
-        j += 1
-    return hay[i:j], i
-
-
-def is_bare_directory_fragment(frag: str) -> bool:
-    """`evidence/` yes; `~/.claude/skills`, `state-schema.json`, `rm -rf` no.
-
-    **This is a shape test on the fragment, never a list of which fragments are
-    special.** A hardcoded `{"design/", "evidence/", "knowledge/", "inputs/"}`
-    would put the user's hook wording inside this file, and the next hook to
-    say `artifacts/` would silently not get the treatment its four siblings do.
-
-    The shape carries the argument on its own: a fragment that is one directory
-    name and nothing else **cannot say whose directory it is**. `design/`
-    matches this project's `perry/design/` and a stranger's `~/them/design/`
-    identically, and the hook's bullet — *"overwriting a project's **own**
-    `design/`, `evidence/`, `knowledge/`, `inputs/`"* — means the stranger's.
-    Fragments that name a file (`state-schema.json`) or carry their own anchor
-    (`~/.claude/skills`) already say where they are, so they are not this
-    shape and are not touched.
-    """
-    return bool(re.fullmatch(r"[a-z0-9][a-z0-9._-]*/", frag or ""))
-
-
-def path_root_is_foreign(token: str) -> bool:
-    """Does this path start somewhere other than the project being scanned?
-
-    Relative is internal, and that is the whole rule — a relative path resolves
-    against the root of the project the spec belongs to, so `evidence/`,
-    `perry/evidence/2026-09/x.md` and `evidence/**/*-spec.md` all name this
-    project's own tree and cannot name anyone else's.
-
-    Foreign is: an absolute path (`/srv/…`), a home anchor (`~/…`), a variable
-    anchor (`$PERRY_HOME/…`), an upward escape (`../…`) and an **unresolved
-    root** (`<target>/evidence/`, `{{project}}/design/`). The last one is a
-    judgement call made in the safe direction on purpose: a root nobody has
-    resolved is not a root known to be this project, and a gate that guesses
-    "probably mine" about a placeholder is the gate this row exists to stop
-    guessing.
-    """
-    tok = token or ""
-    if tok[:1] in ("/", "~", "$"):
-        return True
-    segments = tok.split("/")
-    if any(s == ".." for s in segments):
-        return True
-    head = segments[0]
-    return any(c in head for c in "<>{}*$")
-
-
-#: Why one occurrence of a fragment did NOT count. Both values name a
-#: structural property of the path the match landed in — never a property of
-#: the sentence it was written in, which is the classifier this row was
-#: forbidden to become.
-DISCOUNT_LONGER_NAME = "names-a-longer-file"
-DISCOUNT_OWN_TREE = "this-project's-own-tree"
-
-
-def escalation_occurrences(haystack: str, fragments: list[str]) -> tuple[
-        list[str], dict[str, list[dict]]]:
-    """`matching_escalations`, split into what counts and what was discounted.
-
-    Returns `(kept, discounted)`. `kept` is the same shape `matching_escalations`
-    returns and means the same thing. `discounted` is `{fragment: [{"token":
-    …, "why": …}]}` — **every occurrence that stopped counting, with the path
-    that stopped it.**
-
-    `matching_escalations` is left exactly as it was, and is still the one
-    matcher: `bin/perry-lint` calls it, `escalation_union`'s tests call it, and
-    a fragment that reaches here at all reached it first. What is added is a
-    second question asked of each *occurrence* — the raw matcher answers "is
-    this fragment present", which was never the question the gate needed.
-
-    **The two discounts, and why neither reads English.**
-
-    `names-a-longer-file`: the match sits strictly inside one component of a
-    path, so the text names a longer file and not the fragment.
-    `bin/perry-diagnose`, `tests/test_diagnose.py` and `reference/diagnose.md`
-    are three spellings of "a file whose name contains the word", and the
-    hook's bullet says `diagnose` **execute stage** — a pipeline. A component
-    the fragment fills exactly is not discounted, which is what keeps
-    `schema/state-schema.json` refusing: there the component *is*
-    `state-schema.json`.
-
-    `this-project's-own-tree`: a bare-directory fragment matched a path rooted
-    in the project being scanned. See `is_bare_directory_fragment` and
-    `path_root_is_foreign` for each half.
-
-    **The cost, stated rather than special-cased**, in this module's habit: a
-    bare-word fragment that one day names a real file — `.perry/claims.jsonl`
-    against the fragment `claims` — would be discounted by the first rule, and
-    today nothing in this repository is written that way (`claims` appears only
-    as `claims[]`, a JSON key, and `state-schema.json` only ever fills its own
-    component). This is why `discounted` is returned rather than dropped and
-    why `--escalation-scan` prints it: a discount that no output mentions is a
-    narrowing, and *"a narrowed scan passes everything it is asked,
-    cheerfully"*. TASK-290.
-    """
-    hay = (haystack or "").lower()
-    kept: list[str] = []
-    discounted: dict[str, list[dict]] = {}
-    for frag in fragments:
-        if not frag:
-            continue
-        counted = False
-        for m in escalation_pattern(frag).finditer(hay):
-            token, tok_start = path_token_around(hay, m.start(), m.end())
-            why = _discount_reason(frag, token, m.start() - tok_start,
-                                   m.end() - tok_start)
-            if why is None:
-                counted = True
-                break                        # one live occurrence is enough
-            entry = {"token": token, "why": why}
-            if entry not in discounted.setdefault(frag, []):
-                discounted[frag].append(entry)
-        if counted:
-            kept.append(frag)
-            discounted.pop(frag, None)       # a live hit outranks its excuses
-    return kept, discounted
-
-
-def _discount_reason(frag: str, token: str, start: int, end: int) -> str | None:
-    """`None` when this occurrence counts; otherwise which rule discounted it.
-
-    Both rules require the token to BE a path — `"/" in token`. A fragment
-    standing alone in prose (`` `diagnose` ``, `` `claims[]` ``) is not sitting
-    in a path, so neither rule can reach it and it counts, which is how
-    `TASK-220`'s bare `` `adopt` / `diagnose` `` keeps refusing while
-    `bin/perry-diagnose` stops.
-    """
-    if "/" not in token:
-        return None
-    # A match that carries a `/` of its own is not "inside a component" — it
-    # spans one. Without this clause `evidence/` in `~/theirs/evidence/2026/`
-    # read its component as `evidence/2026`, called that a longer name and
-    # discounted a FOREIGN path, which is the one thing the second rule exists
-    # to keep refusing. `TestACitedPathIsNotAWrittenOne` caught it.
-    if "/" in token[start:end]:
-        comp_end = comp_start = -1
-    else:
-        comp_start = token.rfind("/", 0, start) + 1
-        comp_end = token.find("/", end)
-        comp_end = len(token) if comp_end == -1 else comp_end
-        # The component is about to be measured for LENGTH, so it has to be
-        # trimmed to what a filename can be bounded by first. `_PATH_CHAR`
-        # admits `**` and a sentence-final `.` on purpose — see there — and
-        # measured raw, either one made `**schema/state-schema.json**` a
-        # "longer file" than `state-schema.json` and cleared a declared write
-        # to the claim surface at exit 0. It names no longer file; it names
-        # that one, in bold. TASK-290 round 1's finding.
-        #
-        # Both loops stop at the match, so this only ever removes characters
-        # OUTSIDE the fragment: a genuinely longer component (`perry-diagnose`,
-        # `diagnose.md`, `state-schema.json.bak`) keeps every character that
-        # made it longer and stays discounted.
-        while comp_start < start and not re.match(_NAME_EDGE, token[comp_start]):
-            comp_start += 1
-        while comp_end > end and not re.match(_NAME_EDGE, token[comp_end - 1]):
-            comp_end -= 1
-    if (comp_start != -1 and comp_start <= start and end <= comp_end
-            and (comp_end - comp_start) > (end - start)):
-        return DISCOUNT_LONGER_NAME
-    if is_bare_directory_fragment(frag) and not path_root_is_foreign(token):
-        return DISCOUNT_OWN_TREE
-    return None
-
-
 def matching_escalations(haystack: str, fragments: list[str]) -> list[str]:
     """Every scan fragment present in `haystack` at a word edge, case-folded.
 
@@ -4606,186 +4353,55 @@ def matching_escalations(haystack: str, fragments: list[str]) -> list[str]:
     return [f for f in fragments if f and escalation_pattern(f).search(hay)]
 
 
-#: The three spec sections `work/reference/dispatch.md` pre-flight step 4 reads,
-#: split by what a hit in each one MEANS. The first two say "the task touches
-#: this"; the third says "the task has written down that it does not".
+#: The two spec sections that say what a round will write. **Structure only —
+#: nothing here reads what is written under them.**
 #:
-#: **These are canonical names, resolved through `alias()` below — never
-#: matched literally.** They read literally for eleven days anyway, because the
-#: glossary carried no `zh` spelling for any of the three while the hook
-#: heading on the other side of the same gate (`High-stakes operations` →
-#: `高风险操作`) had one. Half a gate internationalised is worse than none of
-#: it: a spec written in the project's own declared document language found no
-#: sections, matched nothing, and scanned `pass` with a fully armed union —
-#: TASK-200 measured three real specs through it, one of them containing a term
-#: its role card escalates on. The fix was three glossary entries, not a second
-#: table here; a second translation table is the defect this repository pays
-#: for most. TASK-201.
-ESCALATION_TOUCHES = ("Files in scope", "Deliverable")
-ESCALATION_DISCLAIMS = "Out of scope"
-
-#: The one touch section an `Out of scope` line may NOT cancel.
+#: The dispatch gate used to match the project's high-stakes fragments against
+#: the text of these sections and return a verdict. That was Python judging a
+#: document's meaning, which `ADR-007` decision 3 forbids, and five rounds of
+#: correcting the match ended with the measurement that retired it: formatting
+#: alone moved the verdict in both directions. `USER-916` removed it on
+#: 2026-09-04; `work/reference/dispatch.md` pre-flight step 4 is now the
+#: procedure a dispatching agent performs. TASK-339.
 #:
-#: `Deliverable` is prose about what the round will achieve, so a fragment
-#: appearing there and being disclaimed two headings later is a spec narrowing
-#: its own description — that is what a disclaimer is for, and it still
-#: green-lights. `Files in scope` is not prose: it is the enumerated list of
-#: paths the round will write. A spec that lists a path there and *also* says
-#: it is out of scope has contradicted itself, and reading the contradiction as
-#: consent is the failure this row measured. Three specs naming
-#: `schema/state-schema.json` in `Files in scope` — TASK-047, TASK-085,
-#: TASK-139 — scanned `pass` on exactly that reading, over the claim surface,
-#: which is the thing the hook's most-bolded bullet exists to hold. TASK-290.
-ESCALATION_UNCANCELLABLE = "Files in scope"
+#: What survives is the one question that is not about meaning: **does this
+#: document offer either section at all.** A spec that offers neither gives a
+#: reader nothing to judge from, and `bin/perry-lint` reports that across the
+#: corpus before any single dispatch. Locating a heading is not parsing prose —
+#: it is ADR-007 § 5b's "locate the file and hand it to an agent", and the
+#: hand-off is what step 4 does with the answer.
+#:
+#: **These are canonical names, resolved through `alias()` — never matched
+#: literally.** They read literally for eleven days anyway, because the glossary
+#: carried no `zh` spelling for any of them while the hook heading on the other
+#: side of the same gate (`High-stakes operations` → `高风险操作`) had one. Half
+#: a gate internationalised is worse than none of it: a spec written in the
+#: project's own declared document language found no sections and reported
+#: nothing — TASK-200 measured three real specs through it. The fix was glossary
+#: entries, not a second table here. TASK-201.
+SPEC_SCOPE_SECTIONS = ("Files in scope", "Deliverable")
 
 
-def scan_spec_escalations(text: str, fragments: list[str]) -> dict:
-    """The dispatch pre-flight's verdict on one spec, computed rather than read.
+def spec_scope_sections(text: str) -> list[str]:
+    """Which of `SPEC_SCOPE_SECTIONS` this spec offers, present and non-empty.
 
-    Step 4 was prose telling an agent to scan three sections and decide. The
-    scan is deterministic and the decision has two rules, so neither belongs to
-    a model reading a paragraph — the model reads `verdict`.
+    `[]` means neither, so there is nothing in this document for a dispatching
+    agent to screen. **That is not the same as clean**, and the whole reason
+    this is reported: 45 of Perry's own 149 specs are in that state and every
+    one of them used to scan `pass` over a fully armed 35-fragment union,
+    byte-identically to a spec that had been read in full and found harmless.
+    The gate's failure mode looked exactly like its success. TASK-284.
 
-    `touches` is what `Files in scope` and `Deliverable` matched; `disclaims` is
-    what `Out of scope` matched. A fragment in both is **green-lit**, per step
-    4's own rule that an `Out of scope` hit is a green light for the line in
-    question: the spec has said in writing that it does not do that. What is
-    left in `refuse` is what the task touches and never disclaimed.
+    A heading with nothing under it is a heading, not scope: `_section` returns
+    the empty string for both, and counting the heading alone would report a
+    reading that did not happen.
 
-    **Two corrections, both structural, both TASK-290.**
-
-    *A cited path is not a written one.* Matching is delegated to
-    `escalation_occurrences`, which asks of each occurrence what path it sits
-    inside — a fragment filling less than one path component names a longer
-    file (`bin/perry-diagnose` is not the `diagnose` pipeline), and a
-    bare-directory fragment on a path rooted in this project names this
-    project's own tree, which the hook's *"overwriting a project's **own**
-    `design/`, `evidence/`, `knowledge/`, `inputs/`"* was never about.
-    Measured on this repository: 26 of 146 specs refused, 13 of them on the
-    claim surface and 13 on citations, including this row's own spec — which
-    was refused at exit 3 on the single sentence that explains the false
-    positive, and dispatched only under the project's first `exit 3` override.
-    Every discount is returned in `discounted`, never dropped.
-
-    *An `Out of scope` line may not cancel a `Files in scope` line.* See
-    `ESCALATION_UNCANCELLABLE`. The cancellation used to apply to both touch
-    sections, and `pass` was the same word and the same exit code whether it
-    meant "clean" or "the spec disclaimed the path it had just listed". Seven
-    specs on this repository passed with a non-empty `green_lit`; three of them
-    listed `schema/state-schema.json` in `Files in scope`.
-
-    `verdict` is `unarmed` when the project declared no fragments at all. That
-    is deliberately not `pass`: an empty list matches nothing and would wave
-    everything through, which is the one outcome a gate must not report as
-    clean. Callers refuse or escalate on it exactly as `dispatch.md` says.
-
-    **`scanned` says which of the three sections the spec actually offered**,
-    and it is the other half of that same rule. `armed` reports whether the
-    HOOK had anything to match with; `scanned` reports whether the SPEC had
-    anything to match against. Both inputs can be empty and only one of them
-    was ever visible in the result — so a spec carrying no readable
-    `Files in scope` and no readable `Deliverable` scanned every armed
-    fragment against the empty string and returned `touches: {}`,
-    `verdict: pass`, byte-identical to a spec that was read in full and found
-    clean. Measured 2026-09-02 on this repository: **45 spec files** in
-    exactly that state — 45 of the 132 under `perry/evidence/` on the live
-    branch (34%), 45 of the 119 this branch was cut from (38%); the count of
-    blind specs is the same 45 either way, because every spec written since is
-    sectioned. Every one of the 45 reports `pass` over a fully armed
-    35-fragment union. Not one had been reworded to get there:
-    `add-task` step 3 says the spec carries "the same schema" as the journal
-    block, `perry-task add` renders that block as bullets, and `_section`
-    matches `^## `. Following the procedure produced the hole. TASK-284.
-
-    `verdict` is deliberately NOT given a fourth value here. This is the
-    reporting half: `bin/perry-lint --specs` turns an empty scan into a named
-    finding, and `--escalation-scan`'s JSON carries `scanned` beside the
-    verdict so the two `pass`es stop being indistinguishable. Hardening it
-    into a refusal would retroactively stop every dispatch touching those 45
-    specs — the trap DESIGN-003 decision 4 keeps `--verification` advisory
-    for.
+    Deliberately returns no verdict and matches no fragment. The judgement this
+    feeds is `work/reference/dispatch.md` step 4.2, and it belongs to the agent.
     """
     body = _strip_comments(text or "")
-    touches: dict[str, list[str]] = {}
-    discounted: dict[str, dict[str, list[dict]]] = {}
-    scanned: list[str] = []
-    for label in ESCALATION_TOUCHES:
-        section = _section(body, *alias("headings", label))
-        # A heading with nothing under it is a heading, not scope: `_section`
-        # returns the empty string for both, and counting the heading alone
-        # would report a scan that did not happen.
-        if section.strip():
-            scanned.append(label)
-        hits, dropped = escalation_occurrences(section, fragments)
-        if hits:
-            touches[label] = hits
-        if dropped:
-            discounted[label] = dropped
-    disclaim_section = _section(body, *alias("headings", ESCALATION_DISCLAIMS))
-    if disclaim_section.strip():
-        scanned.append(ESCALATION_DISCLAIMS)
-    # Symmetric on purpose. A green light is earned against the same standard
-    # a refusal is: an `Out of scope` line reading `bin/perry-diagnose` names a
-    # file, so it no more disclaims the `diagnose` pipeline than a
-    # `Files in scope` line naming it would invoke one.
-    disclaims, disclaim_dropped = escalation_occurrences(
-        disclaim_section, fragments)
-    if disclaim_dropped:
-        discounted[ESCALATION_DISCLAIMS] = disclaim_dropped
-
-    # `Files in scope` is an enumeration of write targets and cannot be
-    # disclaimed away; `Deliverable` is prose and can. See
-    # `ESCALATION_UNCANCELLABLE`.
-    green = set(disclaims)
-    declared = set(touches.get(ESCALATION_UNCANCELLABLE, []))
-    contradictions = [f for f in touches.get(ESCALATION_UNCANCELLABLE, [])
-                      if f in green]
-    refuse: list[str] = []
-    for hits in touches.values():
-        for f in hits:
-            # ONE condition, not two. This read `label != ESCALATION_UNCANCELLABLE
-            # and f not in declared`, and the two clauses are the same clause:
-            # `declared` IS the set of fragments hit in the uncancellable
-            # section, so the label test can never decide a case the membership
-            # test has not already decided. A mutation deleting either half
-            # stayed green — the redundancy was load-bearing for nothing and
-            # hid which rule was doing the work. TASK-290.
-            if f in green and f not in declared:
-                continue                  # disclaimed, and never declared
-            if f not in refuse:
-                refuse.append(f)
-
-    return {
-        "armed": bool(fragments),
-        # Which of `ESCALATION_TOUCHES` + `ESCALATION_DISCLAIMS` were present
-        # and non-empty. `[]` means the scan below ran against nothing at all.
-        "scanned": scanned,
-        # The two touch sections alone. `Out of scope` can only green-light,
-        # never surface scope, so a spec offering that one and neither of the
-        # others still presented the gate zero scope — which is what
-        # `perry-lint --specs` reports on.
-        "scope_scanned": [s for s in scanned if s in ESCALATION_TOUCHES],
-        "touches": touches,
-        "disclaims": disclaims,
-        # Green-lit means CANCELLED, so a fragment `Files in scope` declared is
-        # never listed here even when `Out of scope` also names it — it appears
-        # in `contradictions` and in `refuse` instead. Before TASK-290 those
-        # were the same list and the cancellation won.
-        "green_lit": [f for hits in touches.values() for f in hits
-                      if f in green and f not in declared],
-        # Named in `Files in scope` AND in `Out of scope`. The spec says both
-        # "this round writes it" and "this round does not"; the gate reports
-        # the disagreement rather than picking the reading that dispatches.
-        "contradictions": contradictions,
-        # Every occurrence the two structural rules dropped, per section, with
-        # the path that dropped it. A discount no output mentions is a
-        # narrowing — see `escalation_occurrences`.
-        "discounted": discounted,
-        "refuse": refuse,
-        "verdict": ("unarmed" if not fragments
-                    else "refuse" if refuse else "pass"),
-    }
-
+    return [label for label in SPEC_SCOPE_SECTIONS
+            if _section(body, *alias("headings", label)).strip()]
 
 # ── Top-level snapshot ────────────────────────────────────────────────────
 
