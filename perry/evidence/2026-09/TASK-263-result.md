@@ -599,3 +599,121 @@ in opposite sets. `cmd_add`, for example, comes out as five regions:
 | `5973-6103` | 46 | `board_sections` | `## Top risks`, `## User Input Queue` and board drift |
 | `6424-6477` | 25 | `ask_register` | the `## User Input Queue` board table read back |
 | `6631-6697` | 45 | `_cmd_list_from_board` | the BOARD.md task-table walk |
+
+## 6. Destinations — every non-typed entry
+
+The spec requires each non-typed path to name its owning function, its
+downstream callers, a concrete replacement store/manifest or agent workflow,
+and its deletion dependency. Entries are grouped by destination; the owning
+functions in each group are listed in full, so the union of the groups is the
+complete set of non-typed owners (4 + 26 + 27 in `perry-lint`, 2 + 7 + 63 in
+`perry-task`).
+
+### 6.1 OBSOLETE → `perry/tasks.jsonl`, rendered by `perry-tasks render --write`
+
+| | |
+|---|---|
+| **Owners (`perry-task`)** | `Board` (259), `cell_writer` (39), `refuse_store_drift` (36), `_cmd_list_from_board` (45), `task_projection_row` (10), `_row_is_on_the_board` (9), `parsed_status` (3), `unstorable_status_rows` (2), `target_section` (15), `widen_target_section` (8), `widen_row_section` (5), `heading_matches` (9), `check_header` (10), `widening_columns` (4), `columns_for` (4), `board_table_spec` (3), `canonical_column` (4), `norm` (5), `header_keys` (4), `display_name` (4), `id_column_keys` (2), `header_language` (10), `heading_spellings` (11), `_build_column_maps` (17), `_Ops/_ops` (5), `strip_handle` (2), `parse_depends` (11), `board_sections` (46), `module` const blocks (30), plus the OBSOLETE bands of `cmd_add` (5), `cmd_stage` (7), `cmd_status` (7), `cmd_track` (5), `cmd_depends` (5), `cmd_done` (2), `cmd_drop` (2), `cmd_purge` (6), `cmd_prioritize` (5), `cmd_route` (6), `commit` (4) |
+| **Owners (`perry-lint`)** | `check_file` (225), `check_store_drift` (97), `_order_drift` (23), `_cell` (6), `_board_line_of` (8), `_empty_store_drift_stats` (3), `tables` (2), `tables_with_lines` (26), `accepted` (8), `column_index` (5), `canonical_column` (6), the `check_cross_file` BOARD band (17), the `check_verification` board bands (31), the `check_reviews` board band (34) |
+| **Downstream callers** | inside `perry-task`, every `cmd_*` reaches `Board` through `ctx["board"]`; `main` constructs it. Inside `perry-lint`, `main` calls `check_file` per schema spec and `check_store_drift` on the default pass. |
+| **Destination** | `perry/tasks.jsonl` already holds every field these paths read — `store_records`, `load_task_records`, `task_record` and `store_depends` are the typed readers, and `cmd_list` already publishes the identical `LIST_CONTRACT` payload from them. The render direction is `perry_store.render` + `perry-tasks render --write`. |
+| **Deletion dependency** | `BOARD.md` must stop being hand-editable in fact and not only in doctrine — `ADR-007` decision 2 accepted this and `perry-state § drift` measured `drift: 0`. Concretely: `cell_writer`, `cmd_*` and `commit` must write the record and re-render rather than edit lines, at which point `Board` and its fifteen header helpers have no caller. `_cmd_list_from_board` is deletable as soon as `store_records` stops calling it. |
+
+### 6.2 OBSOLETE → `perry/risks.jsonl` · `perry/intake.jsonl` · `perry/asks.jsonl`
+
+| | |
+|---|---|
+| **Owners** | `perry-task`: `ensure_risk_table` (39), `cmd_risk_migrate` (31), `cmd_risk_clear` (29), `cmd_risk_add` (18), `require_migrated` (18), `refuse_foreign_risk_table` (16), `risk_bullets` (8), `risk_section_shape` (3), `cmd_resolve_intake` (31), `cmd_intake_sweep` (29), `cmd_intake` (14), `check_intake_undischarged` (7), `ask_register` (25), `cmd_ask` (7), `cmd_answer` (2), `register_change` (51), `carry_forward_is_addressable` (16), `register_section_shape` (3). `perry-lint`: `check_risk_store_drift` (102), `check_intake_store_drift` (88), `check_ask_store_drift` (102), `intake_rows` (20), `heading_is_intake` (3), the three `_empty_*_drift_stats` (9) |
+| **Downstream callers** | `commit` → `register_change`; `main` → the `cmd_risk_*` / `cmd_intake*` / `cmd_ask` arms; `_cmd_list_from_board` and `cmd_list` → `ask_register`, `board_sections` |
+| **Destination** | all three stores exist and are validated today — `perry_store.risk_records`, `.intake_records`, `.ask_records`, routed by `REGISTER_SPEC` (2203-2217). `register_change` derives them **from the board as mutated**; the replacement is to write the store directly and render the section from it, exactly as `REGISTER_SPEC` already names the readers for. |
+| **Deletion dependency** | `register_change`'s board-derivation is the single choke point: once the `cmd_risk_*` / intake / ask writers append to their store, `register_section_shape`, `carry_forward_is_addressable`, `risk_bullets`, `ensure_risk_table` and `require_migrated` (the bullets→table migration) all lose their callers, and `perry-lint`'s three drift censuses lose their subject. |
+
+### 6.3 OBSOLETE → `perry/okr.jsonl`
+
+| | |
+|---|---|
+| **Owners** | `perry-lint`: `check_cross_file` legacy-KR band `1253-1270` (16), `own_krs` fallback band `1352-1358` (7), `KR_ID_RE` / `LEGACY_KR_ID_RE` (2) |
+| **Downstream callers** | `main` → `check_cross_file` on the default pass |
+| **Destination** | `perry/okr.jsonl` holds KR records typed; `bin/perry-okr render --write` produces `OKR.md` and the phase files' KR tables. The id-shape check becomes a store-record validation (a KR id either is or is not a record key), which is `ADR-007` rule 1 rather than a `re.findall` over markdown. |
+| **Deletion dependency** | the phase markdown must stop being a KR source. `check_cross_file`'s own comment already says of the legacy form *"nothing reads the old form any more"* — the `own_krs` fallback at `1352-1358` is the last reader that would, and it exists only because `parse_linkage` can return an empty KR set. |
+
+### 6.4 OBSOLETE → `.perry/config.jsonl`
+
+| | |
+|---|---|
+| **Owners** | `perry-lint`: `rounds_before_escalation` band `2330-2345` (13), `check_md_store_drift`'s config half (part of 93), `MODE_NO_DEFAULT` (1), `STAGE_SEPARATORS` (1), `UNDECLARED_CELL` (1), `COLUMN/FIELD/HEADING_ALIASES` (3) |
+| **Downstream callers** | `check_reviews` → `rounds_before_escalation`; `check_file` → the alias tables; `main` → `check_md_store_drift` |
+| **Destination** | `.perry/config.jsonl` is canonical and `bin/perry-config` reads it; `rounds_before_escalation` **already prefers the store** (`2324-2328`) and only falls through to `.perry/config.md` at `2330-2335`. That fallthrough is the whole deletable region. |
+| **Deletion dependency** | none beyond removing the markdown fallback branch — the store path above it is live and tested. This is the smallest and cheapest deletion in the census. |
+
+### 6.5 OBSOLETE → a store that does not exist yet: `perry/cadence.jsonl`
+
+| | |
+|---|---|
+| **Owners** | `perry-task`: `cmd_cadence_done` (47), `cmd_cadence_add` (30), `mint_cadence_id` (2), `minting_text` (9), `CAD_ID_RE` / `CADENCE_COLUMNS` / `FREQ_HELP` (part of `module`) |
+| **Downstream callers** | `main` → the `cadence add` / `cadence done` arms; `mint_register_id` → `minting_text` |
+| **Destination** | **a seventh JSONL store, `perry/cadence.jsonl`, built on the `risks.jsonl` pattern** — same `REGISTER_SPEC` tuple shape (`section`, `store_path`, `records`, `validate`, `section_shape`, `(table, id_column)`), same render. This is the one OBSOLETE group in the census whose destination store **is not on disk today**; it is named here as the concrete thing to build, not as "improve the parser". |
+| **Deletion dependency** | the store must be created first. `minting_text` (1753-1806) is the tell: its own docstring says it is `minting_records` *"for a register that has no store"*, and cadence is now the only such register — `USER-` and `RX-` ids reach it too, but `asks.jsonl` and `risks.jsonl` exist, so those two calls are already redundant with `minting_records`. |
+
+### 6.6 AGENT-OWNED → the V4 review workflow (`work/reference/review.md`)
+
+| | |
+|---|---|
+| **Owners** | `perry-lint`: `check_reviews` (51), `check_specs` (50), `parse_verdicts` (17), `rung_satisfied` (17), `verdict_citations` (10), `check_verification § judge` (21), `VERDICT_KEYS` / `_VERDICT_BLOCK` / `_CITE_*` / `_BOUND_RE` / `DATE_RE` / `RUNNABLE_RE` (10) |
+| **Downstream callers** | `main` → `check_reviews` (`--reviews`), `check_specs` (`--specs`), `check_verification` (`--verification`); all three also run capped on the default pass |
+| **Destination** | the reviewing agent already reads the evidence document. `rung_satisfied` asks *"does this evidence prose name a command / a rubric / a date"* and `check_specs` asks *"does this spec offer a scannable scope and a `## Bound`"* — both are judgements the V4 reviewer is already making and is better at. What survives as Python is the **typed** half: `tasks.jsonl § verification` is an enum, and a `## Bound` either exists as a heading or does not. The prose judgement moves to the round; the enum check stays. |
+| **Deletion dependency** | the `=== VERDICT ===` block must stop being the transport. Its fields (`task`, `rung`, `result`, `criteria`, `checked`) are five typed values embedded in prose; written by the reviewing agent through a tool call into a store, `parse_verdicts` and `_VERDICT_BLOCK` have nothing to parse. `verdict_citations`' path-existence half (`2167-2183`, already counted TYPED) survives that move unchanged. |
+
+### 6.7 AGENT-OWNED → the knowledge lane
+
+| | |
+|---|---|
+| **Owners** | `perry-lint`: `check_provenance` (60), `check_knowledge` (42), `card_kind` (3), `field_value` (4), `spec_claims` (12), `resolves_somewhere` prose band (2), `SRC_RE` (1) |
+| **Downstream callers** | `main` → `check_knowledge` (`--knowledge`), `check_provenance` (`--provenance`); `check_file` → `spec_claims` per schema spec |
+| **Destination** | a knowledge-card store on the `risks.jsonl` pattern holding the four provenance fields (`Kind`, `Source`, `Received`, `Seen`) typed, with the card's *body* left as unparsed prose. `card_kind` is the giveaway: it exists solely to re-derive, by regex over a document, the discriminator that `schema § files[id=knowledge-card].discriminator` already declares — the record would carry it as a field. |
+| **Deletion dependency** | `field_value` is shared with `check_file`'s header-field loop (§ 6.8), so it outlives this group by one step. |
+
+### 6.8 AGENT-OWNED → the document-generating agent (ADR-007 § 5b, "locate the file and hand it to an agent")
+
+| | |
+|---|---|
+| **Owners** | `perry-lint`: `check_role_cards` (49), `check_glossary` (42), `parse_glossary` (14), `check_file` header/status bands (31), `check_cross_file` design band (15) and hook band (12), `high_stakes_fragments` (3), `headings` (13), `section_body` (14), `strip_comments` (2), `undecorate` (2), `field_re` (3), `heading_re` (3), `field_value` (4), `_GLOSS_ENTRY` (2). `perry-task`: `check_no_user_claim` (18) |
+| **Downstream callers** | `main` → `check_file` (per `design`, `role-card`, `hook`, `architecture` spec), `check_glossary` (`--glossary`), `check_cross_file`; `signoff_options` → `check_no_user_claim` |
+| **Destination** | `ADR-007 § 5b` settles this one by name: `design/*.md` and `.perry/roles/*.md` are documents and *"Python should not be parsing them at all, not even leniently"*. The lane agent that writes a design doc or a role card asserts its own `Status`, its section set and its escalation list; `perry-lint`'s job shrinks to **locating** the file (which is § 6.11's transport) and reporting that an agent has not been run over it. The one exception carved out and kept typed: `.perry/hook.md`'s escalation list becomes a typed `high_stakes: [string]` array in `.perry/config.jsonl`, with the prose rationale staying in `hook.md` unparsed — the union in `high_stakes_fragments` then reads an array instead of extracting bullets. |
+| **Deletion dependency** | `headings`, `section_body`, `strip_comments` and `undecorate` are the shared markdown lexer and are the LAST of this group to go — they have callers in every other group. They are deletable only when § 6.1-6.5's renders and § 6.6-6.7's stores are all done. |
+
+### 6.9 AGENT-OWNED → a field split, on `ADR-007`'s own `By when` precedent
+
+| | |
+|---|---|
+| **Owners** | `perry-task`: `evidence_relations` (35), `evidence_paths` (23), `live_references` (56), `names_id` (3), `idish_tokens_that_resolve_nowhere` (9), `_REFERENCE_SCAN` consts (4). `perry-lint`: `check_summaries` shape band (30), the `check_reviews` ask-`blocks` line `2705-2706` |
+| **Downstream callers** | `cmd_list` and `_cmd_list_from_board` → `evidence_paths`, `evidence_relations`; `cmd_purge` → `live_references` → `names_id`; `main` → `idish_tokens_that_resolve_nowhere` |
+| **Destination** | `ADR-007` decision 3 split `By when` into `due` (typed) + `by_when_note` (prose) and **deleted `CLOCK_RE` rather than giving it a sixth round**. The same split applies three times here: `tasks.jsonl § evidence` → typed `evidence_paths: [path]` + prose `evidence_note`; `asks.jsonl § blocks` → typed `blocks: [task_id]` + prose; `tasks.jsonl § next_action` → prose, with any cited id carried in a typed field. `evidence_relations`' own docstring already did this analysis on 139 live cells and concluded that `round` *"has no bearer"* — it is the strongest argument in the repository for the split, made by the function that would be deleted by it. |
+| **Deletion dependency** | one migration over the live corpus (139 evidence cells here), then the readers go. `live_references` and `names_id` survive only as long as an id can be cited inside prose; with `blocks` and `depends_on` typed, `cmd_purge`'s safety scan becomes a store query. |
+
+### 6.10 AGENT-OWNED → the writing agent, already decided
+
+`perry-lint § check_summaries` shape band (`1801-1854`, 30 lines) calls
+`lib.summary_shape(title, summary)`, which folds case and punctuation to ask
+whether a summary restates its title. **TASK-330 already removed two of this
+function's four checks on 2026-09-03** on the ground that how well a summary
+reads is the writing agent's job. The remaining `summary-repeats-title` is the
+same kind of question and goes the same way; `summary-missing` is a
+presence test on a typed field and stays. Deletion dependency: none — the store
+half of `check_summaries` (`1758-1800`, 20 lines, already TYPED) is
+independent of it.
+
+### 6.11 OPAQUE DOCUMENT TRANSPORT — 123 lines, and all of it may stay
+
+| owner | lines | what it moves | may it stay? |
+|---|---:|---|---|
+| `perry-lint § main` (`4800-4912`) | 60 | resolves the project root, globs each schema spec's path, hands whole files to `check_file` | yes — locating a file is exactly what `ADR-007 § 5b` leaves to Python |
+| `perry-lint § iter_targets` | 11 | globs the files a spec claims | yes |
+| `perry-lint § check_file` (`813-821`) | 7 | `path.read_text()` and dispatch on the declared format | yes |
+| `perry-lint § check_verification` (`1633-1645`) | 5 | locates `BOARD.md` | yes, though its subject disappears with § 6.1 |
+| `perry-task § append_status_change` | 21 | appends a status line under the last `## Status changes` of the day | yes, with the caveat in § 7.7 |
+| `perry-task § append_block` | 19 | appends a multi-line block under the last `## <heading>` of the day | yes, with the caveat in § 7.7 |
+
+The journal is the one document in Perry that is **append-only prose written by
+a tool and read by a human**, and neither of these two functions interprets what
+it appends. That is the category's definition, so they stay.
