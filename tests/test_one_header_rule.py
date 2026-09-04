@@ -83,6 +83,41 @@ class TestAVanishedFileIsSkippedButATrackedOneIsNot(unittest.TestCase):
     reporting clean.
     """
 
+    def test_no_guard_parses_straight_out_of_read_text(self):
+        """The call sites must ROUTE, and only source can hold them to it.
+
+        Reverting any of the three sites to `ast.parse(p.read_text(...))`
+        leaves every behavioural test in this module green, because the race
+        needs the parallel runner and a file that happens to vanish. That
+        green revert is the finding: the property is structural, so the check
+        has to be structural too — the shape already used by
+        `test_perry_lint_binds_the_predicate_from_lib_rather_than_copying_it`.
+
+        It looks for the composed form specifically, `ast.parse` applied
+        directly to a `.read_text(...)` call, rather than banning `read_text`:
+        `is_reader` reads a file to decide whether it is source at all and
+        already catches `OSError` itself, and a ban would have to special-case
+        it.
+        """
+        import ast as _ast
+        for rel in ("tests/header_rule.py", "tests/test_one_header_rule.py"):
+            src = (PERRY_HOME / rel).read_text(encoding="utf-8")
+            tree = _ast.parse(src)
+            for node in _ast.walk(tree):
+                if not (isinstance(node, _ast.Call)
+                        and isinstance(node.func, _ast.Attribute)
+                        and node.func.attr == "parse"):
+                    continue
+                for arg in node.args:
+                    bad = (isinstance(arg, _ast.Call)
+                           and isinstance(arg.func, _ast.Attribute)
+                           and arg.func.attr == "read_text")
+                    self.assertFalse(bad, (
+                        f"{rel}:{node.lineno} parses straight out of "
+                        "read_text. A file that vanishes between the walk and "
+                        "the read errors the guard instead of being skipped "
+                        "(TASK-334) — route it through header_rule.source_of."))
+
     def test_a_missing_untracked_file_is_skipped(self):
         with tempfile.TemporaryDirectory() as d:
             self.assertIsNone(source_of(Path(d) / "gone.py"))
