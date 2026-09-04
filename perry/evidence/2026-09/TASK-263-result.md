@@ -94,6 +94,64 @@ call site asks for**, the line count is attributed to the call site only, and th
 entry says `→ parsers.py` so the two censuses can be joined without
 double-counting.
 
+## 1b. The instrument, and the two things wrong with it that had to be fixed
+
+The method above is graded, so this section records what the measuring
+apparatus got wrong rather than only what it finally reported. Both faults were
+in the instrument, not in the classifications, and both were caught by making
+the document verify itself (§ 1c) rather than by inspection.
+
+**Fault 1 — the region offsets for `check_reviews`' tail were wrong.** The
+first authored region list placed the `asks.jsonl` read at `2663-2676` and the
+ask-`blocks` scan at `2677-2678`. Both came back holding **zero code lines**,
+because those spans are entirely comment: `check_reviews` carries a 27-line
+comment block at `2664-2690` and the statements do not begin until `2691`. The
+zero-line regions were the tell — a region that claims a call site and
+contributes nothing cannot be describing a call site. Re-reading the statement
+map moved them to `2663-2704` (the store read) and `2705-2706` (the
+`re.findall(r"\b[A-Z]+-\d+\b", str(ask.get("blocks")))` line). Net effect on
+the totals: 2 lines from TYPED to AGENT-OWNED. **The arithmetic closed both
+before and after**, which is exactly why closure alone is not sufficient
+evidence and the zero-line check is also needed.
+
+**Fault 2 — two rows of this report broke their own tables.** The generated
+region tables in § 4 and § 5 render each call site's note verbatim, and two
+notes contained unescaped `|`:
+
+    | `2579-2594` | 3 | `register_section_shape` | absent|table|prose|foreign … |
+    | `5330-5343` | 3 | `risk_section_shape`     | table | bullets | foreign …  |
+
+The first rendered as a 7-cell row and the second as a 6-cell row in a 4-column
+table, so both call sites were **silently dropped** by any reader parsing the
+tables — six code lines of `bin/perry-task` that the prose counted and the
+tables did not carry. This is not an incidental typo: it is the defect class
+`ADR-007` cites by name (*"`split_row`/`render_row`/the `\|` escape"*), and
+this report reproduced it in the very tables that enumerate the code that
+suffers from it. Fixed by escaping the pipes in both cells and in the
+generator, so a re-render cannot reintroduce them. A width check now runs over
+every table in this document and reports **0** malformed rows.
+
+Neither fault changed a single classification. Both changed what the document
+could be trusted to say, which is the same thing for a census.
+
+## 1c. Why the arithmetic in § 8 can be checked without trusting this report
+
+The region tables in § 4 and § 5 are not a rendering of a separate working
+list — **they are the list**. A reader can harvest all 364 regions from the
+published tables, feed them to the `check()` function published verbatim in
+Appendix A, and get § 8's numbers back. That was run as the last step:
+
+    perry-lint: 132 regions harvested FROM THE DOCUMENT |
+                code-column mismatches 0 | total 5144 (file is 5144) CLOSES
+    perry-task: 232 regions harvested FROM THE DOCUMENT |
+                code-column mismatches 0 | total 7851 (file is 7851) CLOSES
+
+Three properties are asserted, not asserted-about: no two regions overlap, no
+code line is unclaimed, and each row's published **code** column equals what the
+checker independently computes for that row's span. The second fault above was
+found by this check failing — it reported six unclaimed code lines at `2579`,
+`2591`, `2592`, `5330`, `5340`, `5341`, which are precisely the two broken rows.
+
 ## 2. The four categories as applied
 
 | category | ADR-007 basis | test used at the call site | destination |
