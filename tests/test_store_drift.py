@@ -657,6 +657,10 @@ CENSUS_LINES = {
     "asks.jsonl": ("· ask store:", "no `asks.jsonl`"),
     "okr.jsonl": ("· OKR store:", "no `okr.jsonl`"),
     ".perry/config.jsonl": ("· config store:", "no `.perry/config.jsonl`"),
+    # The seventh (TASK-276, DESIGN-015 row A). Declared before it exists,
+    # like `intake.jsonl` and `asks.jsonl` were: the import is row B, so on
+    # this project only the absence line is reachable today.
+    "linkage.jsonl": ("· linkage store:", "no `linkage.jsonl`"),
 }
 
 #: The event log is claimed and is NOT one of the six: it is append-only
@@ -702,8 +706,20 @@ class TestTheCensusCoversEveryDeclaredStore(Fixture):
                                 f"one run of perry-lint says nothing about "
                                 f"`{path}`:\n{text}")
 
-    def test_the_count_is_six_and_not_two(self):
-        """The KR's own number. Six declared stores, six lines, one run."""
+    def test_the_count_is_every_declared_store_and_not_two(self):
+        """The KR's own number — DERIVED from `claims[]`, never spelled.
+
+        It was two of six when TASK-209 opened. It is now seven of seven:
+        TASK-276 declared `linkage.jsonl` and DESIGN-015 § 9 anticipated this
+        exact rename, spending a whole `## Changes` entry on three sites that
+        still said "five" after the count had become six — including the
+        design's own goal 4, which is an acceptance criterion an implementer
+        runs `perry-lint` against. "A reviewer who reads five and counts five
+        has confirmed a green gate on a false premise."
+
+        So the assertion below compares against `len(declared_stores())` and
+        this NAME must not re-introduce the literal the assertion avoids.
+        """
         d = self.project()
         self.store(d)
         _, text = self.lint_text(d)
