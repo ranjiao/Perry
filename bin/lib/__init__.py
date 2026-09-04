@@ -1067,7 +1067,15 @@ _SUMMARY_FOLD = re.compile(r"[\W_]+", re.UNICODE)
 #: and would have refused every Chinese summary ever written.** The length
 #: rule that first needed it is gone (TASK-330), but `summary-repeats-title`
 #: still counts tokens to decide what a summary ADDS, so the defect is still
-#: reachable and this still guards it. Perry declares a document language per
+#: reachable and this still guards it. **Its pin moved with it.** TASK-325 held
+#: this property through the removed floor, so between 2026-09-03 and TASK-336
+#: reverting `summary_tokens` to `str.split()` left the whole suite green; it
+#: is now held in `tests/test_summary_is_asked_for.py` by
+#: `test_a_chinese_summary_that_extends_its_chinese_title_is_not_a_repeat`,
+#: which reaches it through the one rule that survives, and by the
+#: neighbouring `…_does_restate_its_title_is_still_caught`, whose job is to
+#: stop the answer being "never fire on CJK".
+#: Perry declares a document language per
 #: project, ships zh fixtures, and states in
 #: `SKILL.md` that its field names stay English precisely so the rest need not
 #: — so a "structural" rule that silently means "structural, in English" is

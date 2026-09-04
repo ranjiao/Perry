@@ -477,6 +477,73 @@ class TestTheCheckDoesNotJudgeLanguage(unittest.TestCase):
         self.assertIn("summary-repeats-title", [r for r, _ in lib.summary_shape(
             "板子写错了。", "板子写错了。")])
 
+    def test_a_chinese_summary_that_extends_its_chinese_title_is_not_a_repeat(self):
+        """`summary_tokens` counts CJK, reached through the rule that survives.
+
+        **This is the case the test above does not reach.** Its summary shares
+        no prefix with its English title, so `summary-repeats-title` returns
+        before it ever counts a token and the count could be anything. TASK-325
+        pinned the count itself, but through `summary-is-a-fragment`'s word
+        floor; TASK-330 removed that rule by the user's decision and the
+        property lost its only pin as collateral. Measured on 2026-09-04
+        (TASK-336): reverting `summary_tokens` to `str.split()` left the whole
+        3,253-test suite exactly as green as it was.
+
+        Here the summary OPENS with its title, which is this project's house
+        style and the one shape that makes the rule count. `str.split()` sees a
+        6-character title as ONE token and a 24-character explanation of it as
+        THREE, so a good summary "adds" 2 — under `SUMMARY_MIN_WORDS` — and
+        `perry-task add` refuses it as a restatement of the title it explains.
+        The margin is what carries the property, so the margin is asserted.
+        """
+        title = "新的稳定说明"
+        summary = "新的稳定说明：这条记录为什么存在，完成之后会得到什么。"
+        self.assertEqual(lib.summary_shape(title, summary), [],
+                         "a good Chinese summary was refused for being Chinese")
+
+        # WHY it passes, so a failure above names which half moved rather than
+        # leaving the next reader to bisect the predicate.
+        ft, fs = lib.summary_fold(title), lib.summary_fold(summary)
+        self.assertTrue(fs.startswith(ft),
+                        "the prefix arm is not entered — this case no longer "
+                        "exercises the token count at all, so it pins nothing")
+        self.assertEqual((lib.summary_tokens(ft), lib.summary_tokens(fs)),
+                         (6, 24), "a CJK character stopped counting as a token")
+        self.assertGreaterEqual(
+            abs(lib.summary_tokens(fs) - lib.summary_tokens(ft)),
+            lib.SUMMARY_MIN_WORDS)
+
+        # And at the writer, which is where the defect is actually felt: a real
+        # `perry-task add` of a good Chinese row must not be refused.
+        r = add_raw(Project(self).root, "--title", title, "--summary", summary,
+                    "--deliverable", "d", "--verification", "v")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_chinese_summary_that_does_restate_its_title_is_still_caught(self):
+        """The control for the test above, and it is not optional.
+
+        A "fix" that makes `summary-repeats-title` skip CJK entirely turns the
+        revert red exactly as required and is wrong: it would accept 板子写错了。
+        as an explanation of 板子写错了。 This pins BOTH arms in Chinese —
+        equality, and the prefix arm with a margin under `SUMMARY_MIN_WORDS` —
+        so the rule has to keep WORKING in Chinese rather than fall silent.
+        """
+        def rules(t, s):
+            return [r for r, _ in lib.summary_shape(t, s)]
+
+        # Equality after folding: the summary IS the title.
+        self.assertIn("summary-repeats-title", rules("板子写错了。", "板子写错了。"))
+        # The PREFIX arm in Chinese: title plus two characters adds 2 tokens,
+        # under SUMMARY_MIN_WORDS, so it is still a restatement and not an
+        # explanation. Under a CJK-skipping "fix" this line goes red.
+        self.assertIn("summary-repeats-title",
+                      rules("新的稳定说明", "新的稳定说明补充。"))
+        # And the writer refuses it, the same way it refuses the English case.
+        r = add_raw(Project(self).root, "--title", "新的稳定说明",
+                    "--summary", "新的稳定说明补充。",
+                    "--deliverable", "d", "--verification", "v")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+
     def test_a_one_character_title_does_not_swallow_every_summary(self):
         """`"a fixture row…"` starts with `"a"`, so a bare prefix test made a
         row titled "A" repeat its title with EVERY possible summary. The rule
