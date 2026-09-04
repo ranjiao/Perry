@@ -133,6 +133,9 @@ cleared and the whole-second boundary waited out between each:
 M1 is the mutation the row asks for by name: a field stops being read from the
 store, and the test names that field.
 
+Counting the two ablation experiments below as planted alongside them:
+**8 planted, 7 red, 1 GREEN.**
+
 M5's first run reported `ANCHOR MISS` — the line number was off by one and the
 old-text assertion refused to patch the wrong line. Recorded because it is the
 anchor discipline working, not a clean result.
@@ -173,9 +176,43 @@ failing a sound renderer — not a false green.
 
 ## 6. Suite
 
-`bash tests/run`, three consecutive runs: see the RESULT block.
+`bash tests/run`, three consecutive runs, 114 modules / 3257 tests each:
 
-Known unrelated reds, each re-run alone before attribution:
+| run | result | wall |
+|---|---|---|
+| A | **all green** — 0 modules red, 0 tests failed | 200.3s |
+| B | **all green** | 186.6s |
+| C | **all green** | 315.3s |
+
+None of the four listed known reds appeared in any of the three:
 `test_contract_key_parity` (TASK-335), `test_one_primitive` /
-`test_one_choke_point` (TASK-341), `test_host_support` (TASK-357,
-load-sensitive).
+`test_one_choke_point` (TASK-341) and `test_host_support` (TASK-357) all
+passed.
+
+### A load-sensitive red worth adding to that list
+
+An earlier attempt at run 1 came back red with **4 of 145 `test_diagnose.py`
+tests erroring**, every one of them a `subprocess.TimeoutExpired` on a
+`bin/perry-diagnose` call at the 60s and 120s marks:
+
+```
+subprocess.TimeoutExpired: Command '[…/bin/perry-diagnose, --root, …, --json]'
+  timed out after 120 seconds
+```
+
+That run took **3012s** for the same 3257 tests that later took 187s, because
+three agents were running `tests/run` on this 14-core machine at once and the
+load average was **113–125**. Re-run alone at load 42, `test_diagnose` is
+**145 tests, OK, 125.6s**.
+
+So `test_diagnose.py` belongs beside `test_host_support` as load-sensitive,
+and for the same measurable reason: it asserts against wall-clock subprocess
+timeouts, so a busy machine fails it without anything being wrong with the
+code. Worth pinning under TASK-357's heading rather than being rediscovered
+as a mystery flake — the diagnostic is the 16x wall-clock difference, not the
+traceback.
+
+Note also that the earlier red run had to be discarded for a reason of my own
+making, recorded so it is not repeated: I edited a docstring while the suite
+was running, and step 0's tree guard verifies at the end that the tree it
+started in is the tree it ends in. Do not touch the tree during a run.
