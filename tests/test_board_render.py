@@ -263,8 +263,8 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
         return cells[col] if col < len(cells) else ""
 
     #: Store field -> the board column it renders into. Spelled once, and
-    #: used by both the round trip and the sentinel census below, so a field
-    #: cannot be graded against one column and cleared against another.
+    #: used by both round trips below, so a field cannot be graded against
+    #: one column in one test and against another column in the next.
     FIELD_COLUMN = {"title": "Title", "owner": "Owner",
                     "next_action": "Next action", "evidence": "Evidence",
                     "verification": "Verification", "status": "Status",
