@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 import subprocess
 import sys
 import unittest
@@ -327,9 +328,15 @@ class TestTheSpecScannerIsGone(unittest.TestCase):
     def test_the_flag_is_rejected_rather_than_quietly_accepted(self):
         """A usage error, not a verdict. The failure to avoid is a flag that
         parses, does nothing and exits 0 — which reads as `pass`."""
-        spec = next((PERRY_HOME / "perry" / "evidence").rglob("*-spec.md"))
+        root = Path(tempfile.mkdtemp())
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text("# Config\n\n- State root: .\n")
+        (root / ".perry" / "hook.md").write_text(
+            "# Hook\n\n## High-stakes operations\n\n- Publishing — `publish`\n")
+        spec = root / "TASK-999-spec.md"
+        spec.write_text("# T\n\n## Deliverable\n\n- `publish` the thing\n")
         r = subprocess.run(
-            [sys.executable, str(STATE), "--root", str(PERRY_HOME),
+            [sys.executable, str(STATE), "--root", str(root),
              "--escalation-scan", str(spec)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 2, r.stdout[:400])
         self.assertIn("unknown argument", r.stderr)
