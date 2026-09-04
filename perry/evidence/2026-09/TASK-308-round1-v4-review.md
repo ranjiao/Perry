@@ -234,9 +234,77 @@ file that is not a `*-spec.md`, and one such file exists.
 
 NOT YET CHECKED
 
-## Mutations re-run independently
+## Mutations re-run independently — **5 planted, 5 red, 0 GREEN**
 
-NOT YET CHECKED
+I re-ran five of the round's seven with my own harness
+(`scratchpad/mutate.py`), not theirs. The brief asked for at least two.
+
+Protocol, obeyed on every one: anchored by line number **with an assert on the
+old text at that line**; `__pycache__` cleared and a 1.1 s sleep past the
+whole-second boundary around every apply and restore; restored with
+`git show HEAD:bin/perry-lint` **single path only**; and the restore verified by
+comparing `git hash-object` of the file against `git rev-parse HEAD:<path>` —
+never against a harness snapshot, which is the circular check TASK-256 names.
+**`bin/perry-restore-check` was not used**, per the brief.
+
+```
+=== baseline: clean tree, tests green ===
+  bin/perry-lint blob da2e89c15c51 == HEAD:bin/perry-lint da2e89c15c51 · tree clean
+  baseline GREEN  test_the_whole_point
+  baseline GREEN  test_the_word_alone_is_not_a_bound
+  baseline GREEN  test_a_spec_that_has_a_bound_is_silent
+  baseline GREEN  TestTheCriteriaMustBeBounded
+  baseline GREEN  TestBothHalvesOfTheBoundRuleSurvive
+```
+
+| # | mutation | anchor | paired test | result |
+|---|---|---|---|---|
+| M1 | `if False and …` — revert the new call site | `:3095` | `test_the_whole_point` | **RED** (failures=1) |
+| M2 | `if True or …` — fire on every spec | `:3095` | `test_a_spec_that_has_a_bound_is_silent` | **RED** (failures=1) |
+| M3 | `"Bound" not in` — substring, not the shape regex | `:3095` | `test_the_word_alone_is_not_a_bound` | **RED** (failures=2) |
+| M7 | `if False:` — delete the verdict-side half | `:2487` | `TestTheCriteriaMustBeBounded` | **RED** (failures=5) |
+| M7b | same mutation, against the anti-unification guard | `:2487` | `TestBothHalvesOfTheBoundRuleSurvive` | **RED** (failures=1) |
+
+```
+=== summary ===
+  5 mutations · 5 red · 0 GREEN
+  final tree: ''
+```
+
+Every restore reported `blob da2e89c15c51 == git da2e89c15c51 · tree clean`.
+
+M7b is the one I added beyond the round's pairing, and it is the one that
+matters for criterion 4's durability: disabling the verdict-side call site drops
+`_BOUND_RE.search` from two sites to one and `test_they_share_one_matcher` goes
+red. So "unify the two checks into one" is caught mechanically, not left to the
+docstring's request.
+
+**I verified my own harness cannot produce a false green.** A line-number anchor
+without a text assert silently no-ops when the file shifts, and a no-op mutation
+looks red-free. `scratchpad/anchorguard.py` feeds the correct anchor text at the
+adjacent lines `3094`, `3096` and at `2458` (the line the brief cites, which the
+file has since shifted past):
+
+```
+would have mutated                       # 3095, the true anchor
+guard fired at line 3094: ANCHOR MISS …
+guard fired at line 3096: ANCHOR MISS …
+guard fired at line 2458: ANCHOR MISS …
+anchor guard verified — a shifted line raises rather than no-opping
+tree: ''
+```
+
+### On the round's own reported GREEN
+
+The result document reports that round 1 produced one green mutation (M6, the
+dead loop, paired with the *control*) and chased it rather than waving it off.
+I re-derived its reasoning and it is correct: a control's job is to catch the
+check **over**-firing, and a check that reports nothing is trivially silent on a
+bounded spec too, so the control cannot detect a dead check. The pairing was
+wrong, the check was not — the round demonstrated this by re-running the dead
+check against the main property test, the whole class and the module, all red.
+Declaring a green and diagnosing it is the behaviour the mutation discipline
+asks for; it is not a defect in this round.
 
 ## The spec's false `## Bound` claim about TASK-067
 
