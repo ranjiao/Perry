@@ -321,6 +321,25 @@ class TestTheStampIsNotFabricated(LinkageFixture):
         self.assertFalse((root / "perry" / STORE_KEY).exists(),
                          "a refusal wrote a store (ADR-004)")
 
+    def test_the_actor_is_the_lane_that_declared_them(self):
+        """Found by a mutation: renaming `actor` left every test green.
+
+        `actor` is not decoration. Row A's schema note says it is written from
+        the start *"so DESIGN-015 § 5.5 is AUDITABLE before it is enforced"* —
+        § 5.5 is the per-kind, per-lane table (`work` may never write a `kr`;
+        `goals` may write all three), and `actor` plus `via` are the only two
+        fields an audit of it can read. A value nothing pins is a value the
+        audit reads whatever the last edit happened to leave.
+
+        `goals` is the LANE, not a person. The register records no individual,
+        so naming one would invent it; the lane is a fact the document
+        asserts about itself — *"`goals` lane (only writer)"*.
+        """
+        stamped = [r for r in self.imported(self.project()) if "actor" in r]
+        self.assertTrue(stamped)
+        for rec in stamped:
+            self.assertEqual(rec["actor"], "goals", rec)
+
     def test_the_kr_records_carry_no_stamp_at_all(self):
         """A `kr` is not a declaration by anybody; the schema gives it none of
         the three fields, so carrying them would be inventing a shape."""
@@ -541,6 +560,158 @@ class TestPerryRecognisesItsOwnStore(LinkageFixture):
         self.assertEqual(self.collisions(root), before + 1,
                          "a user's own file at the claimed path is the "
                          "collision NS-01 exists to report")
+
+
+def tasks_module():
+    """`bin/perry-tasks` in-process, for the guards that cannot be reached
+    from the command line. Same `SourceFileLoader` mechanism the tool itself
+    uses to reach its siblings — the scripts have no `.py` extension."""
+    import importlib.machinery
+    import importlib.util
+    spec = importlib.util.spec_from_loader(
+        "perry_tasks_under_test",
+        importlib.machinery.SourceFileLoader("perry_tasks_under_test",
+                                             str(TASKS)))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class TestTheGuardsActUALLYFire(LinkageFixture):
+    """**Every test above this class checks an OUTCOME on the happy path.**
+
+    A mutation round said so, and it is the finding of this row: five separate
+    guards — the canonical-reader cross-check, the undeclared-field check, the
+    store→register direction of the account, the multiset arithmetic under it,
+    and the register-digest check — could each be deleted outright and the
+    whole module stayed green. Nothing ever made one of them fire, so each was
+    a guard that had never been observed guarding anything: decoration in
+    exactly the sense TASK-276's own round found in `stores.declared`'s
+    unread `discriminator`.
+
+    The shape is worth naming because it is not "a missing test". A suite that
+    only ever presents correct input proves the code produces the right answer
+    on correct input, and says nothing at all about the branches that exist
+    solely for the wrong input — which is every safety check in the file.
+    """
+
+    def setUp(self):
+        self.mod = tasks_module()
+        self.root = self.project()
+        self.records = self.imported(self.root)
+        text = (self.root / "perry" / "phase" / "009-linkage.md").read_text(
+            encoding="utf-8")
+        self.canonical = P.parse_linkage(text)
+
+    def test_a_surplus_record_makes_the_account_refuse(self):
+        """The store→register direction. Without it the gate is one-way, and
+        a one-way gate is satisfied by a store that holds everything the
+        register does PLUS an edge for a task nobody linked."""
+        surplus = dict(self.records[-1])
+        surplus["task"] = "TASK-999"
+        account = self.mod.linkage_account(self.records + [surplus],
+                                           self.canonical)
+        self.assertFalse(account["accounted"])
+        self.assertIn("TASK-999",
+                      account["kinds"]["unlinked"]["in_store_not_in_register"])
+
+    def test_a_missing_record_makes_the_account_refuse(self):
+        account = self.mod.linkage_account(self.records[:-1], self.canonical)
+        self.assertFalse(account["accounted"])
+        self.assertTrue(
+            account["kinds"]["unlinked"]["in_register_not_in_store"])
+
+    def test_a_duplicated_record_is_a_surplus_not_a_wash(self):
+        """The multiset arithmetic. A set difference reports NOTHING here: the
+        duplicate is `in` the register's list, so `store - register` is empty
+        and the counts still differ. `cmd_asks_write` found this exact class
+        for repeated `USER-` ids."""
+        account = self.mod.linkage_account(
+            self.records + [dict(self.records[-1])], self.canonical)
+        self.assertFalse(account["accounted"],
+                         "a duplicated record washed out of the account")
+        self.assertEqual(account["store_total"],
+                         account["register_total"] + 1)
+
+    def test_an_undeclared_kind_in_the_store_is_reported(self):
+        account = self.mod.linkage_account(
+            self.records + [{"kind": "agent", "id": "AGENT-1"}],
+            self.canonical)
+        self.assertFalse(account["accounted"])
+        self.assertEqual(account["unknown_kind"][0]["kind"], "agent")
+
+    def test_linkage_diff_exits_non_zero_on_a_tampered_store(self):
+        """And the gate is reachable from the command line, not only from a
+        unit test that imports the module."""
+        path = self.root / "perry" / STORE_KEY
+        path.write_text(path.read_text(encoding="utf-8")
+                        + json.dumps({"kind": "unlinked", "task": "TASK-999",
+                                      "declared_at": "2026-09-01T04:05:06Z",
+                                      "actor": "goals", "via": "link"}) + "\n",
+                        encoding="utf-8")
+        proc = self.run_tasks(self.root, "linkage-diff")
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertFalse(json.loads(proc.stdout)["accounted"])
+
+    def test_the_cross_check_against_the_canonical_reader_raises(self):
+        """`_linkage_agrees_with_canonical` deleted outright left every test
+        green, because the TESTS do the cross-check and the CODE's copy of it
+        was never observed. Handed records that disagree, it must refuse."""
+        wrong = [r for r in self.records if r["kind"] != "unlinked"]
+        with self.assertRaises(self.mod.Refused):
+            self.mod._linkage_agrees_with_canonical(wrong, self.canonical)
+
+    def test_the_cross_check_sees_a_changed_kr_field_not_just_a_count(self):
+        """A count agreeing is not the fields agreeing — § 7's first risk row
+        is a dropped value, not a dropped record."""
+        bent = [dict(r) for r in self.records]
+        for r in bent:
+            if r["kind"] == "kr" and r["id"] == "P009-O1-KR1":
+                r["target"] = 99
+        with self.assertRaises(self.mod.Refused):
+            self.mod._linkage_agrees_with_canonical(bent, self.canonical)
+
+    def test_an_undeclared_field_is_refused_not_silently_dropped(self):
+        """`_linkage_ordered` rebuilds each record in the schema's declared
+        order. A field the schema has never heard of would vanish in that
+        rebuild, which is a derivation defect disappearing into a feature."""
+        order = list(declared()["records"]["edge"]["fields"])
+        with self.assertRaises(self.mod.Refused):
+            self.mod._linkage_ordered({"kind": "edge", "task": "TASK-1",
+                                       "invented": True}, order)
+        # …and the control: a declared subset rebuilds fine.
+        self.assertEqual(
+            self.mod._linkage_ordered({"task": "TASK-1", "kind": "edge"},
+                                      order),
+            {"kind": "edge", "task": "TASK-1"})
+
+    def test_a_register_that_moves_mid_import_is_reported_not_reported_clean(self):
+        """The digest guard, made to fire.
+
+        Nothing in `bin/perry-tasks` opens the register for writing, so this
+        branch can only be reached by something else moving the file while the
+        import runs — and reporting the import clean in that case would be a
+        green gate over a register that changed under it. Deleting the branch
+        left every test green, so here it is reached deliberately: the write
+        step is wrapped to touch the register as a side effect.
+        """
+        root = self.project()
+        register = root / "perry" / "phase" / "009-linkage.md"
+        mod = tasks_module()
+        real = mod.lib.write_atomic
+
+        def meddle(path, text):
+            out = real(path, text)
+            register.write_text(register.read_text(encoding="utf-8") + "\n",
+                                encoding="utf-8")
+            return out
+
+        mod.lib.write_atomic = meddle
+        self.addCleanup(setattr, mod.lib, "write_atomic", real)
+        code = mod.main(["linkage-write", "--from-register",
+                         "--root", str(root)])
+        self.assertEqual(code, 2, "the import reported success over a "
+                                  "register that changed under it")
 
 
 class TestThisProjectsOwnImport(unittest.TestCase):
