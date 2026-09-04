@@ -552,6 +552,39 @@ class TestTheCheckDoesNotJudgeLanguage(unittest.TestCase):
             "A", "A fixture row that exists so the writer has something to "
                  "write. It carries no meaning beyond that."), [])
 
+    def test_the_prefix_arms_margin_is_counted_in_tokens_not_characters(self):
+        """A GREEN mutation from TASK-336's own round, closed.
+
+        Replacing `abs(summary_tokens(fs) - summary_tokens(ft))` with
+        `abs(len(fs) - len(ft))` — measuring the margin in CHARACTERS —
+        left every other test in this module green and `summary_tokens`
+        unreferenced by anything. The two Chinese tests above survive it
+        because a 24-character explanation of a 6-character title clears five
+        of anything; so does the English corpus, where **none of the 349
+        summaries on the boards in this repository separates the two
+        measures.** The rewrite is not equivalent: the threshold is
+        `SUMMARY_MIN_WORDS`, and a summary that is its title plus ONE word
+        passes five characters long before it passes five words.
+
+        So the three cases below are constructed rather than harvested, and
+        they walk the threshold: one word added, four, then six.
+        """
+        def rules(t, s):
+            return [r for r, _ in lib.summary_shape(t, s)]
+
+        # +1 token (+10 characters): a restatement, and the rule says so.
+        self.assertIn("summary-repeats-title",
+                      rules("the parser drops zh headers",
+                            "The parser drops zh headers sometimes."))
+        # +4 tokens (+14 characters): still under `SUMMARY_MIN_WORDS`.
+        self.assertIn("summary-repeats-title",
+                      rules("a title", "A title and it is bad."))
+        # +6 tokens: over it, and accepted — the control, so this is a
+        # threshold and not "the prefix arm fires on every prefix".
+        self.assertEqual(
+            lib.summary_shape("a title", "A title, and it is quite bad here."),
+            [])
+
     def test_neither_a_fragment_nor_a_sentenceless_value_is_a_finding(self):
         """The two rules TASK-330 removed, pinned as absences.
 
