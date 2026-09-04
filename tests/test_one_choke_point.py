@@ -76,7 +76,9 @@ here **and each fix has a control test beside it**, because the failure mode
 was never a missing fix — it was a claim nobody re-measured.
 """
 import ast
+import contextlib
 import os
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -340,8 +342,22 @@ SKIP_DIRS = {"__pycache__"}
 SKIP_TOP = {"tests"}
 
 
-def _domain():
+def _domain(root=None):
     """Every shipped Python source file in the repository, DISCOVERED.
+
+    **`root` defaults to `PERRY_HOME` and is a parameter for one reason
+    (TASK-341): so that a probe can be planted into a scratch tree and walked
+    by THIS code rather than written into the live checkout.** The walk is
+    identical either way — it is the same function, not a re-implementation —
+    which is what makes a scratch-tree plant a real measurement of the walk
+    and not a mock of it. `work/reference/review-constraints.md`:
+
+        Plant into a copy. Learned by planting into the live tree while five
+        other rounds and a full-suite gate were running against it, and
+        watching a correct guard report a defect that did not exist.
+
+    Every caller that is asserting about the *repository* still passes no
+    root and gets `PERRY_HOME`.
 
     **The whole tree**, which is the domain `TASK-323-bound.py` measures with
     `git ls-files`. Round 5 found this function scanning `for d in ("bin",
@@ -365,15 +381,16 @@ def _domain():
 
     `test_the_guard_domain_is_the_censuss_domain` asserts the two agree.
     """
+    home = Path(root) if root is not None else PERRY_HOME
     out = []
-    for root, dirs, files in os.walk(PERRY_HOME):
-        rel_root = Path(root).relative_to(PERRY_HOME).as_posix()
+    for root, dirs, files in os.walk(home):
+        rel_root = Path(root).relative_to(home).as_posix()
         dirs[:] = sorted(d for d in dirs
                          if d not in SKIP_DIRS and not d.startswith(".")
                          and not (rel_root == "." and d in SKIP_TOP))
         for name in sorted(files):
             p = Path(root) / name
-            rel = p.relative_to(PERRY_HOME).as_posix()
+            rel = p.relative_to(home).as_posix()
             if rel == CHOKE_POINT:
                 continue
             if p.suffix == ".py":
@@ -389,12 +406,17 @@ def _domain():
     return out
 
 
-def offenders(paths=None):
+def offenders(paths=None, root=None):
     """`[(rel_path, line, what)]` for every row built outside the choke point,
-    minus the two nodes named in `NOT_A_ROW`."""
+    minus the two nodes named in `NOT_A_ROW`.
+
+    `root` is the tree the reported paths are relative to, and the tree walked
+    when `paths` is omitted. It defaults to `PERRY_HOME`; see `_domain`.
+    """
+    home = Path(root) if root is not None else PERRY_HOME
     found = []
-    for p in (paths if paths is not None else _domain()):
-        rel = p.relative_to(PERRY_HOME).as_posix()
+    for p in (paths if paths is not None else _domain(home)):
+        rel = p.relative_to(home).as_posix()
         try:
             src = p.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -408,6 +430,51 @@ def offenders(paths=None):
                 continue
             found.append((rel, line, what))
     return found
+
+
+def shipped_dirs(home=None):
+    """The shipped top-level directory names, DISCOVERED — never listed.
+
+    The same exclusion the walk applies, asked of the same tree, so a
+    directory created tomorrow is in this answer the day it appears. That
+    discovery is round 5's F1 and it is preserved exactly; what TASK-341
+    changed is only *where the probes go*, never how the set is found.
+    """
+    home = Path(home) if home is not None else PERRY_HOME
+    return sorted(d.name for d in home.iterdir()
+                  if d.is_dir() and not d.name.startswith(".")
+                  and d.name not in SKIP_DIRS and d.name not in SKIP_TOP)
+
+
+@contextlib.contextmanager
+def scratch_tree(dirs=()):
+    """A real on-disk tree, outside the repository, for probes to be planted
+    into.
+
+    **TASK-341.** Five tests in this module used to write their probes into
+    the live checkout — `bin/perry-ninthrowprobe`, `bin/perry-sepprobe`,
+    `bin/perry-callerprobe`, `bin/lib/rowprobe.py`, and a `perry_f1probe.py`
+    in the repository root and in every shipped directory. Each write is
+    visible to every other process reading this tree, and
+    `tests/test_one_primitive.py:150` asserts that `bin/lib` holds exactly
+    one file, so under `tests/parallel` the two collided and reddened the
+    module that had nothing wrong with it. Measured: aligning the two
+    schedules reddened `test_bin_lib_is_the_only_exemption` on the first run.
+
+    The probes are still **real files in a real directory tree, walked by the
+    real `_domain()`** — a scratch root is a tree, not a mock. What changes is
+    that no other process can see it. `tests/test_tree_guard.py` reached the
+    same construction for the same reason and says so in its docstring; so
+    does `work/reference/review-constraints.md`; so, already, did
+    `test_a_new_row_builder_in_the_choke_point_is_caught` in this very file
+    and `test_the_patterns_fire_on_a_rebuild_that_renames_the_function` in
+    `test_one_primitive.py`. This module was the last holdout.
+    """
+    with tempfile.TemporaryDirectory(prefix="perry-chokeprobe-") as d:
+        root = Path(d)
+        for name in dirs:
+            (root / name).mkdir(parents=True, exist_ok=True)
+        yield root
 
 
 def interior_offenders(src=None):
@@ -454,20 +521,18 @@ class TestNothingOutsideTheChokePointBuildsARow(unittest.TestCase):
         `" | ".join(cells)` shape `test_row_integrity.py` says grep cannot
         tell from an alternation — and requires it to be seen.
         """
-        probe = PERRY_HOME / "bin" / "perry-ninthrowprobe"
-        probe.write_text(
-            '#!/usr/bin/env python3\n'
-            'def render(cells):\n'
-            '    return "| " + " | ".join(cells) + " |"\n',
-            encoding="utf-8")
-        try:
-            found = offenders([probe])
-            self.assertTrue(
-                found, "a ninth hand-built row walked past the guard")
-            self.assertEqual([f[0] for f in found],
-                             ["bin/perry-ninthrowprobe"] * len(found))
-        finally:
-            probe.unlink(missing_ok=True)
+        with scratch_tree(["bin"]) as root:
+            probe = root / "bin" / "perry-ninthrowprobe"
+            probe.write_text(
+                '#!/usr/bin/env python3\n'
+                'def render(cells):\n'
+                '    return "| " + " | ".join(cells) + " |"\n',
+                encoding="utf-8")
+            found = offenders([probe], root=root)
+        self.assertTrue(
+            found, "a ninth hand-built row walked past the guard")
+        self.assertEqual([f[0] for f in found],
+                         ["bin/perry-ninthrowprobe"] * len(found))
 
     def test_the_guard_fires_on_a_hand_built_separator_row(self):
         """The shape TASK-067 actually removed, planted back.
@@ -480,17 +545,15 @@ class TestNothingOutsideTheChokePointBuildsARow(unittest.TestCase):
                          '"|" + "|".join("---" for _ in cols) + "|"',
                          '"|" + "---|" * n'):
             with self.subTest(spelling=spelling):
-                probe = PERRY_HOME / "bin" / "perry-sepprobe"
-                probe.write_text(
-                    f'#!/usr/bin/env python3\n'
-                    f'def sep(n, cols):\n'
-                    f'    return {spelling}\n', encoding="utf-8")
-                try:
-                    self.assertTrue(
-                        offenders([probe]),
-                        f"hand-built separator {spelling} walked past")
-                finally:
-                    probe.unlink(missing_ok=True)
+                with scratch_tree(["bin"]) as root:
+                    probe = root / "bin" / "perry-sepprobe"
+                    probe.write_text(
+                        f'#!/usr/bin/env python3\n'
+                        f'def sep(n, cols):\n'
+                        f'    return {spelling}\n', encoding="utf-8")
+                    found = offenders([probe], root=root)
+                self.assertTrue(
+                    found, f"hand-built separator {spelling} walked past")
 
     def test_the_guard_is_silent_on_legitimate_render_row_callers(self):
         """**The other control.** A guard that fires on the choke point, or on
@@ -500,47 +563,66 @@ class TestNothingOutsideTheChokePointBuildsARow(unittest.TestCase):
         Every real caller shape in the tree: the bare call, the call whose
         argument is itself built, and the separator/widen helpers.
         """
-        probe = PERRY_HOME / "bin" / "perry-callerprobe"
-        probe.write_text(
-            '#!/usr/bin/env python3\n'
-            'from tables import (render_row, render_separator, append_cell,\n'
-            '                    append_separator_cell, split_row)\n'
-            'def a(cells):\n'
-            '    return render_row(cells)\n'
-            'def b(n):\n'
-            '    return render_separator(n)\n'
-            'def c(line, v):\n'
-            '    return append_cell(line, v)\n'
-            'def d(line):\n'
-            '    return append_separator_cell(line)\n'
-            'def e(line, extra):\n'
-            '    return render_row(split_row(line) + [extra])\n',
-            encoding="utf-8")
-        try:
-            self.assertEqual(
-                offenders([probe]), [],
-                "the guard fires on a legitimate caller of the choke point")
-        finally:
-            probe.unlink(missing_ok=True)
+        with scratch_tree(["bin"]) as root:
+            probe = root / "bin" / "perry-callerprobe"
+            probe.write_text(
+                '#!/usr/bin/env python3\n'
+                'from tables import (render_row, render_separator, '
+                'append_cell,\n'
+                '                    append_separator_cell, split_row)\n'
+                'def a(cells):\n'
+                '    return render_row(cells)\n'
+                'def b(n):\n'
+                '    return render_separator(n)\n'
+                'def c(line, v):\n'
+                '    return append_cell(line, v)\n'
+                'def d(line):\n'
+                '    return append_separator_cell(line)\n'
+                'def e(line, extra):\n'
+                '    return render_row(split_row(line) + [extra])\n',
+                encoding="utf-8")
+            found = offenders([probe], root=root)
+        self.assertEqual(
+            found, [],
+            "the guard fires on a legitimate caller of the choke point")
 
     def test_the_guard_sees_a_file_in_a_subdirectory(self):
         """`bin/lib/` is real. A guard that only globs the top level is a
-        guard against the files that already had the bug."""
-        d = PERRY_HOME / "bin" / "lib"
-        made = not d.exists()
-        d.mkdir(exist_ok=True)
-        probe = d / "rowprobe.py"
-        probe.write_text('def r(cells):\n'
-                         '    return "| " + " | ".join(cells) + " |"\n',
-                         encoding="utf-8")
-        try:
-            self.assertIn("bin/lib/rowprobe.py",
-                          [f[0] for f in offenders()],
-                          "a row builder in a subdirectory is invisible")
-        finally:
-            probe.unlink(missing_ok=True)
-            if made:
-                d.rmdir()
+        guard against the files that already had the bug.
+
+        **The probe goes into a scratch tree, and the walk is the real one**
+        — `offenders()` with no `paths`, so `_domain()` does the descending,
+        exactly as before. TASK-341: this test used to create a real
+        `bin/lib/rowprobe.py` in the live checkout, and
+        `tests/test_one_primitive.py:150` asserts `bin/lib` holds exactly one
+        file. Two modules under `tests/parallel`, one of them red for a
+        reason that had nothing to do with what it tests.
+
+        The half that a scratch tree cannot carry — that the LIVE `bin/lib`
+        is inside the real domain, so the descent has something to descend
+        into — is asserted below it, as a read.
+        """
+        with scratch_tree(["bin/lib"]) as root:
+            (root / "bin" / "lib" / "rowprobe.py").write_text(
+                'def r(cells):\n'
+                '    return "| " + " | ".join(cells) + " |"\n',
+                encoding="utf-8")
+            found = [f[0] for f in offenders(root=root)]
+        self.assertIn("bin/lib/rowprobe.py", found,
+                      "a row builder in a subdirectory is invisible")
+
+    def test_the_live_bin_lib_is_inside_the_real_domain(self):
+        """The read half of the test above: the subdirectory whose descent is
+        being proved is a real, populated subdirectory of THIS tree, and the
+        real `_domain()` reaches into it.
+
+        Costs no write. Without it, the scratch-tree test above would prove
+        the walk descends into a directory named `bin/lib` while `_domain()`
+        quietly stopped reaching the one that exists.
+        """
+        live = {p.relative_to(PERRY_HOME).as_posix() for p in _domain()}
+        self.assertIn("bin/lib/__init__.py", live,
+                      "the real bin/lib is not in the guard's domain")
 
     def test_the_guard_follows_a_separator_constant(self):
         """`SEP = "|"` in **every shape**, not just the two that were tested.
@@ -627,36 +709,39 @@ class TestNothingOutsideTheChokePointBuildsARow(unittest.TestCase):
         covered by this test the day it appears, because nothing here is
         listed either.
 
-        All the probes are planted, measured in ONE pass and removed, rather
-        than one plant-measure-remove cycle per directory. That is not only
-        speed: `work/reference/review-constraints.md` records this project
-        paying once for probes planted into a live tree, and round 5's F5
-        reproduced a walker in another module erroring on a probe that
-        vanished mid-walk. One short window is a smaller one.
+        **TASK-341 moved the plant off the live tree and changed nothing
+        else.** The earlier version wrote `perry_f1probe.py` into the
+        repository root AND into every shipped directory at once — the widest
+        write in the suite — with the note that "one short window is a smaller
+        one". A smaller window is still a window: for its duration every other
+        process reading this tree sees thirteen tracked-looking Python files
+        that are not the repository's. `work/reference/review-constraints.md`
+        does not say make the window short, it says **plant into a copy**.
+
+        The discovery that F1 is about is untouched: `shipped_dirs()` asks the
+        LIVE tree which directories exist, by the same exclusion the walk
+        uses, so a directory added tomorrow is covered the day it appears. The
+        scratch tree is then given those names and the real `_domain()` walks
+        it. Re-narrow `_domain()` to `("bin", "viewer")` and every other
+        directory goes red here, exactly as before.
         """
         body = ('def render(cells):\n'
                 '    return "| " + " | ".join(cells) + " |"\n')
-        targets = [PERRY_HOME]
-        for d in sorted(PERRY_HOME.iterdir()):
-            if (not d.is_dir() or d.name.startswith(".")
-                    or d.name in SKIP_DIRS or d.name in SKIP_TOP):
-                continue
-            targets.append(d)
-        self.assertGreater(len(targets), 5,
+        names = shipped_dirs()
+        self.assertGreater(len(names) + 1, 5,
                            "the domain walk found almost nothing to test")
-        probes = [d / "perry_f1probe.py" for d in targets]
-        try:
+        with scratch_tree(names) as root:
+            probes = [root / "perry_f1probe.py"]
+            probes += [root / n / "perry_f1probe.py" for n in names]
             for probe in probes:
                 probe.write_text(body, encoding="utf-8")
-            found = {f[0] for f in offenders()}
-        finally:
-            for probe in probes:
-                probe.unlink(missing_ok=True)
+            found = {f[0] for f in offenders(root=root)}
         for probe in probes:
-            rel_dir = probe.parent.relative_to(PERRY_HOME).as_posix()
+            rel_dir = probe.parent.relative_to(root).as_posix()
+            rel_dir = "" if rel_dir == "." else rel_dir
             with self.subTest(directory=rel_dir or "<repo root>"):
                 self.assertIn(
-                    probe.relative_to(PERRY_HOME).as_posix(), found,
+                    probe.relative_to(root).as_posix(), found,
                     f"a hand-built row in {rel_dir or '<repo root>'} is "
                     f"invisible to the rule")
 
