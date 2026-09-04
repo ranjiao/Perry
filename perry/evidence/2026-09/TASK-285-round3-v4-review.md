@@ -304,7 +304,60 @@ category is closed.
    correction inverted"* and *"boundaries premise made unconditional"* name
    categories round 2 recorded as GREEN while testing only the trivial variant
    (delete the pinned literal), not round 2's own (keep the literal, reverse the
-   sense). Both variants were run here; see § 3 of the battery output.
+   sense). Both variants were run, and they separate cleanly:
+
+```
+claim: 'shared-cwd correction inverted -> RED'
+  RED    b1  the TRIVIAL version: 'not a licence' DELETED
+             newly red: test_the_shared_cwd_line_no_longer_reads_as_a_licence
+  GREEN  b2  round 2's ACTUAL N11: inverted, the literal KEPT
+
+claim: 'flag bullet made optional -> RED'
+  RED    b3  round 1's version: the word 'optional' as a hedge
+             newly red: test_the_rule_is_mandatory_and_not_merely_available
+  GREEN  b4  round 2's N3: escape clause appended, 'not optional' KEPT
+
+claim: 'boundaries premise made unconditional -> RED'
+  RED    b5  premise DELETED entirely
+             newly red: test_the_other_two_files_reference_the_rule
+  GREEN  b6  round 2's N12: premise made CONDITIONAL, literals kept
+```
+
+   In each pair the red is the variant that **removes** the pinned literal and
+   the green is the one that keeps it and reverses the sense — and the second
+   is the only variant round 2 actually ran. The claims are true of what was
+   tested and false of what they appear to close.
+
+## Finding 3 — the greens are not an artefact of looking at one test class
+
+Findings 1 and 2 were scored against `TestTheAgentGetsItsOwnTree`. Re-scored
+against **every module in the suite that reads any of the three files** —
+`test_claims`, `test_diagnose`, `test_escalation_boundaries`,
+`test_host_support`, `test_procedures_read_the_contract`,
+`test_reference_pages_are_reachable`, `test_role_cards`, `test_role_delegation`,
+`test_shipped_vocabulary`, `test_spec_scannability` — 431 tests, scored by
+**differencing the failing-test set against baseline** rather than by pass/fail:
+
+```
+A. greens surviving the 10-module run: ['G2','G3','G4','N3b','N11b','N12b']
+   (GREEN = the mutation added NO new failing test beyond baseline)
+post-restore: all three files md5-identical to the pre-mutation snapshot
+```
+
+All six hold. Independently, the decisive one was also run against the **whole**
+suite (`tests/parallel -j 4`, 114 modules / 3291 tests): identical failing
+counts with and without the mutation.
+
+> Two harness notes, recorded because either could have produced a false result.
+> (a) `test_procedures_read_the_contract` is a **pre-existing baseline red in
+> this harness only** — `python3 -m unittest tests.X` does not put `tests/` on
+> `sys.path`, the trap `tests/parallel`'s own docstring documents; run as the
+> suite runs it (`discover -p test_procedures_read_the_contract.py`) it is
+> `Ran 18 tests / OK`. It is subtracted from every score above rather than
+> waved away. (b) A stale `mut.py` from **round 2's reviewer** was sitting in
+> the shared scratchpad root and was picked up in place of mine on the first
+> attempt. It failed loudly on `sys.argv` rather than silently mutating the
+> wrong thing, and was replaced before any result here was scored.
 
 ## What is genuinely fixed, and should not be lost in a FAIL
 
@@ -341,3 +394,32 @@ needs only moving the existing slice's start up by one bullet), or pin the
 whole `## The tree the agent works in` section minus an explicitly delimited
 rationale block, so that *the complement of the pin is what is declared free*
 rather than the pin being an enumeration of remembered places.
+
+---
+
+## Verdict
+
+```
+=== VERDICT ===
+task: TASK-285
+round: 3
+rung: V4
+verdict: FAIL
+criteria: 7 listed, 7 individually MET
+reason: the round's central claim is not true of the landed guard —
+        4 of round 2's 12 green mutations are still green, including a
+        retraction of the headline deliverable 3 lines below the pinned
+        blockquote, with all 11 guards reporting OK
+digests_verified: 4 of 4
+mutations_re_run: 27 planted, 21 red, 6 GREEN
+rationale_unpinned_control: pass (3 of 3 prose rewrites stayed green)
+task_339_collision: none
+=== END VERDICT ===
+```
+
+**FAIL.** Not because the allowlist is the wrong instrument — it is the right
+one, and eight of round 2's twelve greens are genuinely closed by it — but
+because it is drawn around four regions chosen from memory rather than around
+the complement of a declared-free zone. The rule can still be retracted in
+prose adjacent to the pin, and three normative lines that already existed on
+`main` were never brought inside it.
