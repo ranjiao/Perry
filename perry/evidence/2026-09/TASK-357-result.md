@@ -390,7 +390,7 @@ counted and proven dead rather than inferred.
 | post-fix re-verification (2 tests) | 16 | 6 | ~5 min |
 | mutations M1 + M3 × 4 tests | 16 | 8 test runs | ~5 min |
 | census, all classes | 16 | 1 of 4 (stopped) | 12 min |
-| census, marker-TTL class | 16 | 3 | see §8 |
+| census, marker-TTL class | 16 | 1 of 3 (stopped) | ~14 min |
 
 **Roughly 45-60 minutes of a 14-core machine held at 3-8× oversubscription**, in
 scattered blocks between 15:10 and 16:30. The single most expensive line is the broad
@@ -421,3 +421,57 @@ machine to itself. It should be dispatched alone, announced before it starts, an
 window recorded — otherwise its own numbers are as untrustworthy as the reds it
 causes in everyone else's.
 
+---
+
+## 11. Verification
+
+Verified against this branch's own base, `BASE=$(git merge-base HEAD main)` =
+`dda8d5f`, not against `main`.
+
+1. **Both reproductions quoted** — §1. Idle **0 of 6 red**; under 16 CPU burners
+   **6 of 6 red**, every one an under-count.
+2. **After the fix, under the same load: 0 of 6 red.**
+   ```
+   run 1: GREEN   run 2: GREEN   run 3: GREEN
+   run 4: GREEN   run 5: GREEN   run 6: GREEN
+   === 0 of 6 red (under 16 burners) ===
+   ```
+3. **The property still bites** — §7. Three mutations, three caught, none green.
+   `M1` (global cap admits one extra) turns
+   `test_concurrent_mixed_registers_do_not_exceed_global_cap` red at `4 != 3` and
+   `test_global_cap_still_wins` red at `0 != 1`; under load `M1` escapes the
+   contended test but `test_global_cap_still_wins` stays red. `M3` (no mutual
+   exclusion) turns both contended tests red, idle and under load.
+4. **Census** — §8. 3 of 35 tests, plus one shared helper.
+5. **Mutations** — anchored by line number with an assert on the old text,
+   `__pycache__` cleared, waits past the whole-second boundary, file restored and
+   re-compared in a `finally`. 3 planted, 3 red, **0 green**.
+6. **Full suite via `tests/run`** — `114 modules · 3256 tests · 580.7s · 8 workers`,
+   **1 of 3256 red**: `test_board_render §
+   TestTheBytesComeFromTheStore.test_every_rendered_field_moves_when_the_store_moves
+   (field='status')`.
+
+   Re-run alone before attributing, as required — **still red alone**, so it is not a
+   parallel-run artefact. It is TASK-356, and this is its exact mechanism: the
+   sentinel `dropped` collides with ordinary prose, here TASK-348's summary phrase
+   *"silently dropped six call sites"*. This row's diff touches only
+   `tests/test_host_support.py` and this evidence file — neither is read by
+   `test_board_render`, which reads `perry/tasks.jsonl`. Not attributable to this row.
+
+   The other named-known reds — `test_contract_key_parity` (TASK-335),
+   `test_one_primitive` / `test_one_choke_point` (TASK-341) — did **not** fire in
+   this run.
+
+   `tests/test_host_support.py` itself: **green in the full parallel suite**, and
+   green twice more alone (35 tests, OK, OK).
+7. **Tree guard**: `✓ nothing under …/agent-a7025fee549a953a8 moved`.
+
+### Files changed (2)
+
+* `tests/test_host_support.py`
+* `perry/evidence/2026-09/TASK-357-result.md`
+
+`bin/perry-dispatch-limit` is byte-identical to base — verified with
+`git diff --exit-code dda8d5f HEAD -- bin/perry-dispatch-limit`. None of
+`schema/state-schema.json`, `claims`, `perry/BOARD.md`, `perry/tasks.jsonl`,
+`perry/journal/` or `.perry/events.jsonl` was touched.
