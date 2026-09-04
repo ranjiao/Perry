@@ -506,6 +506,88 @@ class TestTheProcedureNamesTheShape(unittest.TestCase):
         self.assertIn("it is a reason not to claim you screened it", flat)
 
 
+class TestTheTwoClausesAProseRewriteLoses(unittest.TestCase):
+    """TASK-339. The scanner is gone and `dispatch.md` step 4 replaced it with a
+    written procedure. **No test in this repository can hold a written
+    procedure** — three mutations planted against step 4 (dropping the
+    unresolved-root shape, moving ownership detection after normalisation,
+    deleting a doing-vs-naming tell) all ran GREEN against the full suite. What
+    holds the procedure is a reader; that is the trade `USER-916` made and it is
+    stated in `perry/evidence/2026-09/TASK-339-result.md` rather than hidden.
+
+    These two clauses are the exception, and they are pinned because
+    `perry/evidence/2026-09/TASK-290-round2-v4-review.md` names each of them, in
+    writing, as the thing a prose rewrite is most likely to lose:
+
+      *"**A replacement procedure that omits this case is weaker than the code
+      it replaces**, and this is the single most likely thing to be dropped when
+      the rule is rewritten in prose, because it is the one clause that is not
+      obvious from an example."*  — on the unresolved root
+
+      *"any rewrite that strips formatting before deciding ownership will lose
+      the ownership signal with it"*  — on the ordering
+
+    Pinned as PRESENCE, never as exact wording: an editor may rephrase either
+    sentence and should be able to, and a guard that froze the paragraph would
+    make the procedure unmaintainable — which is a worse failure than this one.
+    `visible()` is used so that commenting a clause out, including with an
+    unclosed `<!--`, reddens this rather than leaving it green.
+    """
+
+    DISPATCH = PERRY_HOME / "work" / "reference" / "dispatch.md"
+
+    def step4(self) -> str:
+        src = visible(self.DISPATCH.read_text(encoding="utf-8"))
+        return src[src.index("4. **Safety re-validation"):
+                   src.index("5. Spec contains a `Subjective verification:")]
+
+    def test_all_five_foreign_root_shapes_are_named(self):
+        """Relative is internal and foreign is five shapes. Four are obvious
+        from an example; the fifth is not, which is why it goes first."""
+        flat = " ".join(self.step4().split())
+        self.assertIn("unresolved root", flat,
+                      "the unresolved-root shape is gone — a root nobody has "
+                      "resolved is not a root known to be this project, and a "
+                      "procedure without this clause is weaker than the code "
+                      "it replaced")
+        for shape in ("absolute", "home anchor", "variable anchor",
+                      "upward escape"):
+            self.assertIn(shape, flat, f"the `{shape}` shape is gone")
+
+    def test_the_unresolved_root_says_why_and_not_merely_what(self):
+        """A judgement made in the safe direction, with no example to make it
+        obvious, is exactly the clause a later editor deletes as noise unless
+        the reason travels with it."""
+        flat = " ".join(self.step4().split())
+        self.assertIn("safe direction", flat)
+
+    def test_ownership_is_decided_before_normalisation(self):
+        """The collision: the characters that IDENTIFY a foreign root are the
+        same characters you would strip as formatting noise. `~` is an anchor;
+        `*` is emphasis. Order is the whole property, so the heading states it
+        and this fails if the ordering claim leaves."""
+        step4 = self.step4()
+        flat = " ".join(step4.split())
+        self.assertIn("BEFORE you tidy any text", flat)
+        self.assertIn("classify the root before you normalise", flat)
+        # and the test that makes the ordering workable without a stripping
+        # pass at all: pairing, not stripping.
+        self.assertIn("balanced pair", flat)
+        self.assertNotIn("Normalise the text first", flat)
+
+    def test_the_two_worked_paths_are_both_shown(self):
+        """`TASK-339` § Verification 3: the procedure must be shown refusing
+        `~/other-project/evidence/2026-09/` and allowing
+        `perry/evidence/2026-09/`, in the file itself, not only in evidence."""
+        flat = " ".join(self.step4().split())
+        self.assertIn("~/other-project/evidence/2026-09/", flat)
+        self.assertIn("perry/evidence/2026-09/", flat)
+
+    def test_relative_is_internal_full_stop(self):
+        flat = " ".join(self.step4().split())
+        self.assertIn("Relative is internal", flat)
+
+
 class TestTheAdvisoryHasARecordedTrigger(unittest.TestCase):
     """DESIGN-003 decision 4 is cited accurately for keeping this advisory,
     but it reads *"Advisory first release, hard gate next"* **with a stated
