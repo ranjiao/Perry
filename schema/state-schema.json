@@ -822,6 +822,147 @@
       "note": "An open task in `review` whose last event is older than this is reported by `conformance.review_idle`. `review` waits on a human and no dependency edge can ever contradict it, so nothing else in the payload notices such a row: TASK-100, TASK-111, TASK-127 and TASK-133 all sat there after their PRs had merged. Calibrated, not a law — long enough that a verdict asked for on Friday is not nagged on Monday, short enough that a merged PR is not still waiting a week later."
     }
   },
+  "stores": {
+    "note": "Record shapes for the JSONL stores whose records are NOT a projection of a markdown document. `files[]` declares the markdown files Perry validates (template, tier, cap, headings) and `claims[]` declares the territory Perry occupies; neither answers what one LINE of a store must contain. The five stores that project from a document answer it through the document's own contract - `files[id=linkage].frontmatter` is that answer for `phase/<NNN>-linkage.md`, and `perry_store.py` / `perry_md_store.py` hold the field lists for the rest. `linkage.jsonl` projects from nothing, so its shape is declared here or nowhere. Added by TASK-276 (DESIGN-015 implementation row A) under the 2026-09-04 authorisation recorded at `evidence/2026-09/2026-09-04-high-stakes-authorisation.md`; that authorisation covers adding this store's claim and its three record schemas and NOTHING else, and no existing claim's path or owner was touched.",
+    "declared": {
+      "linkage.jsonl": {
+        "owner": "perry",
+        "anchor": "state",
+        "format": "jsonl",
+        "discriminator": "kind",
+        "spec_key": "linkage_store",
+        "spec_version": 1,
+        "description": "The O->KR->task edge register, as a store. DESIGN-015 section 5.1. Flat JSONL with a `kind` discriminator, matching `okr.jsonl` and `.perry/config.jsonl` rather than inventing a shape. This declaration is row A of the implementation plan: no reader and no writer moves here, and the file does not exist yet. Until the import (row B) runs, `bin/perry-lint` must report this store `unchecked`, NOT `clean` - the phase-003 operating rule behind `P003-O1-KR3`, measured for the other six stores by TASK-229.",
+        "derived_not_stored": {
+          "never_asked": "There is no fourth `kind`. A task is never-asked when the store holds neither an `edge` nor an `unlinked` record for it - DESIGN-015 section 5.2. Storing it would need the record DELETED the moment an answer arrives, which is a second write and a chance to desync; absence cannot drift. The same rule `asks.jsonl` applies to `Idle`.",
+          "metric": "A KR's `metric` is DELIBERATELY absent from the `kr` record - DESIGN-015 decision 2. It is an argument about how a number was reached (976 B in one case), and an argument is what a document is for. It stays in `phase/<NNN>-linkage.md`, which survives this design as a document holding what has no schema.",
+          "tasks": "The `tasks[]` array on a KR in `phase/<NNN>-linkage.md` frontmatter has NO counterpart field on the `kr` record. One edge is one `edge` record - that is the whole point of the store - so an array of task ids here would be the same fact in two places, which is the DESIGN-013 section 5.1 violation this store exists to remove."
+        },
+        "records": {
+          "kr": {
+            "description": "The typed half of a phase KR. Written by `goals` (`link`, `plan-phase`, `score-phase`); NEVER by `work`. DESIGN-015 section 5.5.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "kr",
+                "required": true
+              },
+              "phase": {
+                "type": "string",
+                "required": true,
+                "note": "<NNN>-<slug>, e.g. `003-storage-code`. Same value space as `files[id=linkage].frontmatter.phase`."
+              },
+              "objective": {
+                "type": "string",
+                "required": true,
+                "pattern": "^O\\d+$"
+              },
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
+              },
+              "title": {
+                "type": "string",
+                "required": true
+              },
+              "target": {
+                "type": "number",
+                "required": false,
+                "note": "NUMBER ONLY, and OPTIONAL. Omit for a prose target ('<= 15% drawdown'); the text lives in the document's `metric`, not here. Half of real KRs are ceilings, and drawing a limit as completion reports a risk budget as two-thirds achieved. Same rule as `files[id=linkage].frontmatter` KR `target`, and measured on this project: `P003-O2-KR3` carries no `target` today."
+              },
+              "current": {
+                "type": "number",
+                "required": false,
+                "note": "OPTIONAL, and absent is NOT zero. A KR the register never gave a number reports `unasserted`, not `0.0` - `bin/lib/__init__.py § kr_progress_provenance` says why: with six of eight phase KRs driving a count to zero, a `current` defaulted to `0` reads as met before the work starts. Measured on this project: `P003-O2-KR1`, `P003-O2-KR3` and `P003-O3-KR2` carry no `current`."
+              },
+              "stretch": {
+                "type": "boolean",
+                "required": false
+              },
+              "linked": {
+                "type": "string",
+                "required": false,
+                "note": "The overall KR this phase KR serves. Additive and optional, as it is in the document's frontmatter."
+              },
+              "current_provenance": {
+                "type": "object",
+                "required": false,
+                "note": "DECLARED BECAUSE DESIGN-015 section 5.1 SPELLS IT, AND FLAGGED. Nothing stores this field today: `bin/lib/__init__.py § kr_progress_provenance` DERIVES it at read time from `current`, the linked tasks' live statuses, the register's `updated` stamp and the event log, and `bin/perry-goals` / `bin/perry-state` both emit it from there. It appears nowhere in `phase/003-linkage.md`. A stored copy would be a derived value in a store - which is what section 5.2 argues against for never-asked, and what `asks.jsonl` refuses for `Idle` on the ground that a stored age is stale the moment it is written. Left OPTIONAL so row B imports nothing into it and no writer is obliged to fill it; resolving section 5.1 against section 5.2 is a decision for the design's owner, not for this row. See `evidence/2026-09/TASK-276-result.md`."
+              }
+            }
+          },
+          "edge": {
+            "description": "One task->KR edge, one record. Written by `work` at `perry-task add --kr` and by `goals` at `perry-goals link`. DESIGN-015 sections 5.1 and 5.5.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "edge",
+                "required": true
+              },
+              "task": {
+                "type": "string",
+                "required": true,
+                "pattern": "^TASK-\\d+$"
+              },
+              "kr": {
+                "type": "string",
+                "required": true,
+                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
+              },
+              "declared_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime",
+                "note": "Full datetime WITH offset. A day-only value is dropped, not guessed - the rule `files[id=linkage].frontmatter.updated` already carries."
+              },
+              "actor": {
+                "type": "string",
+                "required": true,
+                "note": "Who declared it. Written from the start, before anything enforces the per-kind rule, so DESIGN-015 section 5.5 is AUDITABLE before it is enforced - section 7's mitigation for the risk that a lane writes a kind it may not."
+              },
+              "via": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(add|link)$",
+                "note": "`add` = written in the same action that created the row, which is exactly what `P003-O3-KR2` counts. `link` = declared afterwards by the goals lane. The KR is not computable without this field, which is why it is required rather than defaulted."
+              }
+            }
+          },
+          "unlinked": {
+            "description": "A declaration that this row serves no KR. DECLARED, never inferred - set arithmetic over the board would report the whole un-triaged backlog as drift on day one. Same two writers as `edge`.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "unlinked",
+                "required": true
+              },
+              "task": {
+                "type": "string",
+                "required": true,
+                "pattern": "^TASK-\\d+$"
+              },
+              "declared_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime"
+              },
+              "actor": {
+                "type": "string",
+                "required": true
+              },
+              "via": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(add|link)$"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+
   "claims": [
     {
       "path": ".perry/",
@@ -889,6 +1030,13 @@
       "owner": "work",
       "anchor": "state",
       "note": "the ask STORE (ADR-007, TASK-197) - the canonical record the `User Input Queue` section of `BOARD.md` is projected from. Keyed on the `USER-` id, like `risks.jsonl` and unlike `intake.jsonl`. Five of the section's six columns are stored; `Idle` is NOT, because it is an age derived from `Asked` at read time and a stored age is stale the moment it is written. Declared before it exists, like `intake.jsonl`; `perry-tasks asks-write --from-board` is the explicit import that creates it. State-root relative, beside `tasks.jsonl`."
+    },
+    {
+      "path": "linkage.jsonl",
+      "kind": "file",
+      "owner": "perry",
+      "anchor": "state",
+      "note": "the linkage STORE (ADR-007, DESIGN-015 decision 1, TASK-276) - the canonical O->KR->task edge record. `owner: perry` is the declaration `.perry/events.jsonl` carries: the file belongs to no lane, so `work` may write an edge at `perry-task add` and `goals` may write one at `perry-goals link` without either touching the other's directory. That is not a licence for either to write any record kind; DESIGN-015 section 5.5 gives the per-kind rule and `actor` / `via` on every edge and unlinked record are what makes it auditable. Record shapes are declared in `stores.declared[\"linkage.jsonl\"]`. Declared before it exists, like `intake.jsonl` and `asks.jsonl`; the import that creates it is DESIGN-015 implementation row B, NOT this row. State-root relative, beside `tasks.jsonl`."
     },
     {
       "path": ".perry/config.jsonl",
