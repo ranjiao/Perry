@@ -271,3 +271,254 @@ that; it is a second thing.
 ### TASK-331 verdict: **PASS**, 5 of 5.
 
 ---
+
+## TASK-332 — a register nothing pinned
+
+### Criterion 1 — re-plant TASK-330's M5 · MET, RED
+
+Three anchored subs on `bin/lib/__init__.py:1132–1134` strip both rule names,
+the date and the row id out of the entry, leaving the bullet itself and its
+reasoning in place:
+
+```
+      Both WERE checked, as `summary-has-no-sentence` and
+      `summary-is-a-fragment`, from TASK-325 until 2026-09-03. **The user
+      removed them (TASK-330): …
+   →
+      Both WERE checked, as two prose rules and
+      another one, once. **The user
+      removed them: …
+
+AssertionError: 'summary-has-no-sentence' not found in ', deliberately, each
+for a measured reason:\n\n    - **Whether the summary contains a sentence …
+[the full register, all seven bullets] …' : the NOT CHECKED register no longer
+names 'summary-has-no-sentence'. A removed rule without its reason reads as an
+oversight to the next author (TASK-332).
+FAILED (failures=1)
+```
+
+**RED.** The mutation that left all 3268 tests green under TASK-330 is red now.
+That is the row's central claim and it holds. Restored; base diff clean.
+
+### Criterion 2 — rename the register heading away · MET, RED
+
+```
+$ mut bin/lib/__init__.py:1129
+    "NOT CHECKED, deliberately" → "DELIBERATELY NOT MEASURED"
+
+AssertionError: '' is not true : summary_shape no longer has a NOT CHECKED
+register — that register IS the deliverable of TASK-330 and TASK-332
+FAILED (failures=1)
+```
+
+**RED**, and via the `assertTrue(sep, …)` arm, so the empty-partition case is
+covered rather than silently yielding an empty register. Restored; base diff clean.
+
+### Criterion 3 — the control: reword a *different* `NOT CHECKED` entry · MET, GREEN
+
+The bare-id bullet was rewritten end to end — new opening sentence, `TASK-218`
+and `DESIGN-012 I1` both dropped, every sentence recast:
+
+```
+    - **Whether a summary starts with a bare identifier.** REWORDED BY THE V4
+      CONTROL: TASK-325 proposed this and it was measured and declined. Of the
+      49 board summaries, ten opened with a citation and every one of the ten
+      was good, so the rule would have shipped at zero precision. Citation
+      then explanation is the house style here.
+
+Ran 1 test in 0.001s
+OK
+```
+
+**GREEN, correct.** The guard does not freeze the docstring; it pins four
+tokens. A guard that went red here would have made re-proposing a declined rule
+impossible to write down, and the row explicitly said so. Restored; base diff clean.
+
+### Criterion 5 (mine) — the guard pins the first `NOT CHECKED` in a 2100-line file, not `summary_shape`'s · **NOT MET**
+
+The mechanism is:
+
+```python
+src = (ROOT / "bin" / "lib" / "__init__.py").read_text(encoding="utf-8")
+head, sep, rest = src.partition("NOT CHECKED")
+register = rest.split('"""')[0]
+```
+
+`src` is the **whole module**. The test never locates `summary_shape` at all. It
+locates *the first occurrence of the English phrase `NOT CHECKED` anywhere in
+2100+ lines of `bin/lib/__init__.py`*. Today those coincide, because there is
+exactly one:
+
+```
+$ grep -n "NOT CHECKED" bin/lib/__init__.py
+1129:    NOT CHECKED, deliberately, each for a measured reason:
+```
+
+That coincidence is the only thing holding the guard up, and one ordinary edit
+removes it. Two probes, both planted with the same anchored harness and both
+restored:
+
+**Probe C — false negative. The register is deleted in full and the test is GREEN.**
+Deleted `summary_shape`'s entire register (lines 1129–1163: all seven bullets,
+every word TASK-330 and TASK-332 were required to write), and added to
+`summary_fold`'s docstring, one function earlier:
+
+```python
+def summary_fold(s: str) -> str:
+    """Case- and punctuation-insensitive key for comparing summary to title.
+
+    NOT CHECKED here, in a totally unrelated function: summary-has-no-sentence,
+    summary-is-a-fragment, 2026-09-03, TASK-330.
+    """
+```
+
+```
+$ grep -n "NOT CHECKED" bin/lib/__init__.py
+1098:    NOT CHECKED here, in a totally unrelated function: …
+                                     ← summary_shape's register: GONE
+
+Ran 1 test in 0.001s
+OK
+```
+
+**GREEN.** This is TASK-330's M5 again, generalised, and it survives the fix that
+was supposed to close it.
+
+**Probe D — false positive, and this one needs no contrivance at all.** Left
+`summary_shape`'s register completely untouched and gave `summary_fold` an
+ordinary register of its own — exactly the reuse of the pattern that TASK-330 and
+TASK-332 are jointly holding up as the thing to do:
+
+```python
+    """Case- and punctuation-insensitive key for comparing summary to title.
+
+    NOT CHECKED, deliberately: whether the fold is reversible. It is not, and
+    nothing depends on it being so.
+    """
+```
+
+```
+AssertionError: 'summary-has-no-sentence' not found in ', deliberately: whether
+the fold is reversible. It is not, and\n    nothing depends on it being so.\n
+' : the NOT CHECKED register no longer names 'summary-has-no-sentence'. A
+removed rule without its reason reads as an oversight to the next author
+(TASK-332).
+FAILED (failures=1)
+```
+
+**RED, with a message that names a register which is perfectly intact and sends
+the next author to the wrong place entirely.**
+
+So the guard is wrong in both directions: it passes when the thing it names is
+gone, and it fails when the thing it names is fine. **It does not measure what it
+is called.** The test's name and docstring both say `summary_shape`'s register;
+the code says "the first `NOT CHECKED` in the module".
+
+Two things make this weigh more, not less:
+
+1. **The correct technique was in the author's hand, in the same file, in the
+   same session, thirty lines up.** `test_the_contract_enumerates_exactly_the_rules_the_predicate_emits`
+   — TASK-331, written by the same author an hour earlier — uses `ast` to find
+   `summary_shape` **by name** before reading anything out of it. TASK-332 needed
+   the same three lines and did not use them.
+2. **The precedent the row cites does not license this.**
+   `test_perry_lint_binds_the_predicate_from_lib_rather_than_copying_it` is also
+   a whole-file substring check, but its *assertion is about the whole file* —
+   "`bin/perry-lint` contains `summary_shape = lib.summary_shape` and does not
+   contain `def summary_shape(`". Whole-file scope is the correct scope there.
+   TASK-332 borrowed the technique for an assertion that is explicitly about one
+   function's docstring, where whole-file scope is the bug.
+
+The fix is small and does not change the row's design:
+
+```python
+fn = next(n for n in ast.walk(ast.parse(src))
+          if isinstance(n, ast.FunctionDef) and n.name == "summary_shape")
+_, sep, register = (ast.get_docstring(fn) or "").partition("NOT CHECKED")
+```
+
+Both probes die against that, and Criterion 3's control still passes.
+
+### Criterion 4 — is a docstring the right home for the register?
+
+**My answer: yes for the reason, no for the record — and TASK-332's test is NOT
+the `USER-916` mistake, but it made a smaller cousin of it in the half nobody was
+looking at.**
+
+**Why it is not the same mistake.** The `USER-916` family is *Python deciding a
+question of meaning by reading English*: does this prose read like prose, is this
+a hedge, does this spec describe a write. Those lose because meaning is not a
+function of bytes, and the losses on this project prove it — a denylist beaten by
+a retraction using none of its eight words, a push-order regex beaten by two
+synonyms, five rounds of a scanner beaten by a full stop and markdown italics.
+The judgement being attempted was semantic, and English always has one more way
+to say the thing.
+
+`assertIn("summary-has-no-sentence", register)` attempts no judgement of that
+kind. It asks whether an **identifier** is still spelled out. That is a fact about
+bytes with no semantic component and no paraphrase problem: `summary-has-no-sentence`
+has exactly one spelling, and an author who reworded the entry into something
+equivalent-but-different would not have preserved the identifier — which is the
+point, because the identifier is the thing that must survive for the next author
+to `grep`. Criterion 3's control is what proves the distinction is real: the
+entire bare-id bullet was rewritten and nothing moved, because the test is not
+reading the prose, only counting four tokens in it. It is the same species of
+assertion as the two tests directly above it in the class, which nobody objects to.
+
+**Where it did make the mistake.** Not in *what* it asserts — in *how it finds
+what to assert on*. `src.partition("NOT CHECKED")` is a Python judgement about
+document structure, made against a human-authored heading, in a file where that
+heading is not unique by construction. Probes C and D are the
+full-stop-and-markdown-italics failure one level up: the target moved and the
+string search followed it somewhere else, silently. So the rule from `USER-916`
+was not violated by the assertion; it was violated by the locator. Deterministic
+judgements only: "the docstring of the function named `summary_shape`" is
+deterministic and `ast` gives it for free; "whatever follows the first `NOT
+CHECKED`" is not.
+
+**Should the register move somewhere a tool reads as data?** Mostly no, and one
+piece yes.
+
+The *reason* — the paragraph explaining that these two rules were removed because
+prose quality is the writing agent's job, that neither had ever fired across 129
+summaries, that this is the obvious pair for the next author to re-propose —
+belongs in the docstring and nowhere else. Its whole value is being on the same
+screen as `summary_shape` when someone opens it wondering why there is no
+sentence check. Moving it to a sidecar would (a) separate the reason from the code
+it explains, (b) create a second artifact to keep in sync, which is exactly the
+`DESIGN-013` defect this module is otherwise organised against, and (c) not fix
+this bug at all, since the bug is locating, not storage.
+
+The *record* is different, and TASK-331 already shows the shape. The
+machine-checkable part of the register is a tuple — removed rule name, date, row
+id — and that is data pretending to be prose. A module-level constant beside the
+predicate makes it data properly:
+
+```python
+#: Rules this predicate used to emit. The prose reason lives in
+#: `summary_shape`'s docstring; this is the part a tool can check.
+SUMMARY_RULES_REMOVED = {
+    "summary-has-no-sentence": ("2026-09-03", "TASK-330"),
+    "summary-is-a-fragment":   ("2026-09-03", "TASK-330"),
+}
+```
+
+Then the guard reads a dict rather than partitioning English, TASK-331's guard can
+assert the live set and the removed set stay disjoint, and the docstring keeps the
+only thing docstrings are actually good at. That is a follow-on row, not a
+condition of this one; the three-line `ast` fix is what this row owes.
+
+### TASK-332 verdict: **FAIL**, 4 of 5.
+
+Criteria 1, 2, 3 and 4 are met as stated — the re-planted M5 is red, the heading
+rename is red, the control is green, and the question is answered. Criterion 5 is
+not: the row's own Deliverable is *"a guard that fails when `summary_shape`'s
+`NOT CHECKED` list loses an entry"*, and Probe C loses every entry in that list
+with the guard green. The guard is correct only for the current contents of a file
+the project intends to grow, and it is made incorrect — in both directions — by a
+second register of exactly the kind this row is advertising. Three lines of `ast`,
+already written one test above, close it.
+
+---
+
+## Closing state
