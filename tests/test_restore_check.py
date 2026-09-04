@@ -444,17 +444,40 @@ class TestHelperSelfCheck(_HelperCase):
         helper gets edited. Gating only on `modified` meant a mutated helper
         run from such a copy exited 0 over a file whose own reported digests
         disagreed.
+
+        The precondition is decided by **git**, never by the helper. Round 2
+        wrote this test asking the subject for its own verdict and skipping
+        when the answer was not `unverifiable`, so mutating
+        `bin/perry-restore-check:118` from `"unverifiable"` to `"clean"` made
+        this test skip itself — printing a reason that was false — and left the
+        whole module green (round-2 V4 review § 3). A helper that misreports
+        its verdict must not be able to switch off the guard that exists to
+        catch it misreporting its verdict.
         """
         loose = pathlib.Path(tempfile.mkdtemp(prefix="t256-loose-"))
         self.addCleanup(shutil.rmtree, loose, ignore_errors=True)
         dest = loose / "perry-restore-check"
         dest.write_bytes(HELPER.read_bytes())
 
+        toplevel = subprocess.run(
+            ["git", "-C", str(loose), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True)
+        if toplevel.returncode == 0:
+            self.skipTest(
+                "TMPDIR is itself inside a git repository "
+                f"({toplevel.stdout.strip()}), so a helper placed there is not "
+                "outside every repository and this case is unreachable on this "
+                "machine — git said so, not the tool under test")
+
         probe = self.run_helper("--allow-modified-self", "--json", "HEAD",
                                 str(self.d / "subject.py"), helper=dest)
-        if json.loads(probe.stdout)["self_check"] != "unverifiable":
-            self.skipTest("the temp directory is itself inside a git "
-                          "repository, so this case is not reachable here")
+        self.assertEqual(
+            json.loads(probe.stdout)["self_check"], "unverifiable",
+            "precondition: git reports no work tree containing " + str(loose) +
+            ", so self_check() must return 'unverifiable' — a helper that says "
+            "anything else here is misreporting, which is the whole point of "
+            "this test and must not be allowed to skip it",
+        )
 
         r = self.run_helper("HEAD", str(self.d / "subject.py"), helper=dest)
         self.assertEqual(
