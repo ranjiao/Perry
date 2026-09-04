@@ -88,8 +88,19 @@ gets wrong and are recorded in § 5:
    arm is TYPED, its table-shape arm is OBSOLETE, and its prose arms are
    AGENT-OWNED.
 2. Conversely `perry-task § heading_matches` and `§ norm` carry no regex and no
-   suggestive name, and are AGENT-OWNED: they answer "is this heading that
-   heading?" over prose.
+   suggestive name, and are OBSOLETE REPRESENTATION: they answer "is this
+   heading that heading?" against a **declared spelling set**, which is a
+   bounded lookup rather than a question put to prose.
+
+   > **Correction, 2026-09-04, from this row's V4 review.** This paragraph
+   > originally called both AGENT-OWNED, contradicting § 5.4's tables, which
+   > place both in OBSOLETE. **The tables are right and this prose was wrong**;
+   > the reviewer read both functions to settle it. No count changes — the
+   > tables are what § 8 sums — and the "not a grep" claim stands on the
+   > `check_file` eight-way split above and on the `parse_depends` /
+   > `store_depends` pair, both verified independently. It is recorded here
+   > rather than silently rewritten because the error was in the section
+   > arguing that this method can be trusted.
 
 **Attribution across the file boundary.** Both tools do most of their document
 reading *inside* `viewer/parsers.py` (5,011 lines, imported by 12 modules under
