@@ -177,18 +177,20 @@ Two instruments, because one of them needs the other beside it:
 | after the fix | branch | 2 of 114 | 2 of 3256 |
 | after the fix, again | branch | 2 of 114 | 2 of 3256 |
 | BASE again, for the second red | BASE | 1 of 114 | 1 of 3253 |
+| **the final commit** | branch | **1 of 114** | **1 of 3256** |
 
 **Red 1, in every run: `test_board_render.TestTheBytesComeFromTheStore.test_
 every_rendered_field_moves_when_the_store_moves`.** Reproduces alone, present
 at BASE, a board-rendering assertion over a `TASK-348` row whose summary
 contains the word "dropped". Nothing to do with this row.
 
-**Red 2, in the two runs on this branch: `test_host_support.TestOpenCode
-DispatchLimit.test_concurrent_mixed_registers_do_not_exceed_global_cap`** —
+**Red 2, in two of the three runs on this branch: `test_host_support.TestOpen
+CodeDispatchLimit.test_concurrent_mixed_registers_do_not_exceed_global_cap`** —
 one of the reds this row's brief names as known and unrelated (TASK-313). It
-is green when the module is re-run alone. **But it was green in all three runs
-at BASE and red in both runs on this branch, so "known flaky" was not good
-enough and I measured the mechanism instead.**
+is green when the module is re-run alone, and it was green on the final run
+too. **But it was green in all three runs at BASE and red in two on this
+branch, so "known flaky" was not good enough and I measured the mechanism
+instead.**
 
 The test starts 20 processes contending for a global cap of 3 and asserts that
 **exactly** 3 win. With this branch's two files checked back out at BASE — none
