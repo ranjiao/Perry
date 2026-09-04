@@ -408,20 +408,47 @@ Stated so nobody reads "all green" as evidence that TASK-335 is fixed.
    warning fired, but a procedure that grew 86 lines is a maintenance cost and
    should be said out loud rather than discovered.
 
-### One thing I broke and fixed, recorded because it nearly shipped
+### Two things I broke and fixed, recorded because both nearly shipped
 
-My baseline commit used `git add -A`. The worktree was at a **stale commit**
-(`d49964e`) and carried uncommitted changes across the branch cut, so that
-commit swept in **deletions of three v4 review documents**
-(`TASK-067-round6`, `TASK-256-round2`, `TASK-263`, `TASK-308-round1`) and edits
-to `perry/BOARD.md`, `perry/tasks.jsonl`, `.perry/events.jsonl` and the 09-04
-journal — every one of them a file this row was told not to touch. Caught by
-diffing the branch against `main` before writing this document, restored with
-`git show main:<path>` one path per call and verified byte-for-byte
-(commit "revert state files this row must not touch"). `git diff main --name-only`
-now returns exactly the seven files § 9 lists. **`git add -A` on a branch cut
-from a stale worktree is not safe on this project**, and the brief's warning
-about stale worktrees has a second half that is not in it.
+**1. `git add -A` on a branch cut from a stale worktree.** The worktree was at
+`d49964e`, not `main`; the brief warned about that and cutting from `main`
+explicitly fixes the *commit*, but the working tree's **uncommitted** changes
+came across the cut with it. My baseline commit's `git add -A` therefore swept
+in deletions of four v4 review documents (`TASK-067-round6`, `TASK-256-round2`,
+`TASK-263`, `TASK-308-round1`) and edits to `perry/BOARD.md`,
+`perry/tasks.jsonl`, `.perry/events.jsonl` and the 09-04 journal — every one a
+file this row was told not to touch. **The brief's stale-worktree warning has a
+second half that is not in it:** cutting from `main` does not clean the tree,
+and on this project `git add -A` is not a safe first commit.
+
+**2. The fix used a moving target.** I reverted those files with
+`git show main:<path>`. `main` was advancing while I worked — TASK-256 round 3
+and TASK-283 landed, taking it from `651a5ca` to `841124f` — so that revert
+pulled main's *newer* state files and four review documents that **do not exist
+at this branch's base** into my branch. `git diff main` looked clean at the
+moment I ran it and was misleading for exactly that reason.
+
+Caught by diffing against the branch's own base rather than against `main`:
+
+```
+$ git merge-base HEAD main
+651a5caee05b043f92044455839b524e521d1ce2
+$ git diff 651a5ca --stat | tail -1
+ 17 files changed, 2864 insertions(+), 1570 deletions(-)     # before
+ 8 files changed, 975 insertions(+), 1547 deletions(-)       # after
+```
+
+Every one of the nine paths restored against **`651a5ca` explicitly**, one path
+per call, verified byte-for-byte, with "absent at base" resolving to a delete
+rather than to main's copy. `git diff 651a5ca --name-only` now returns exactly
+the eight files § 9 lists. Suite and lint re-run afterwards, since
+`test_contract_key_parity` reads the live board: 114 modules / 3251 tests green,
+0 lint errors.
+
+**The generalisable lesson: verify a branch against its own base, never against
+`main`.** On a project where several agents land in parallel, `main` is not a
+fixed point, and `git diff main` silently reports someone else's merged work as
+your own clean tree.
 
 ## 9. Files changed
 
@@ -437,4 +464,5 @@ perry/evidence/2026-09/TASK-339-result.md   (this file)
 ```
 
 Not pushed; no PR opened — push is escalated on this project. `main` was never
-switched to, merged into, or written.
+switched to, merged into, or written, and it advanced from `651a5ca` to
+`841124f` under this branch while the work ran.
