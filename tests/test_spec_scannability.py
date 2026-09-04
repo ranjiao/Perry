@@ -541,15 +541,35 @@ class TestTheTwoClausesAProseRewriteLoses(unittest.TestCase):
         return src[src.index("4. **Safety re-validation"):
                    src.index("5. Spec contains a `Subjective verification:")]
 
+    def enumeration(self) -> str:
+        """The numbered list itself, NOT the whole step.
+
+        Measured while writing this: a first version asserted `"unresolved
+        root" in step4`, planted a mutation deleting list item 5, and stayed
+        GREEN — the phrase also appears in the worked-paths table below, so the
+        guard was reading the copy rather than the clause. A guard whose
+        mutation passes is worth less than no guard, because it is also
+        believed. Scoped to the list.
+        """
+        step4 = self.step4()
+        start = step4.index("**Foreign is exactly five shapes:**")
+        return step4[start:step4.index("**Shape 5", start)]
+
     def test_all_five_foreign_root_shapes_are_named(self):
         """Relative is internal and foreign is five shapes. Four are obvious
-        from an example; the fifth is not, which is why it goes first."""
-        flat = " ".join(self.step4().split())
+        from an example; the fifth is not, which is why it is pinned hardest."""
+        block = self.enumeration()
+        items = re.findall(r"^\s*(\d)\. ", block, re.M)
+        self.assertEqual(
+            items, ["1", "2", "3", "4", "5"],
+            f"the foreign-root enumeration is no longer five items ({items}) "
+            f"— dropping one makes this procedure weaker than the code it "
+            f"replaced:\n{block}")
+        flat = " ".join(block.split())
         self.assertIn("unresolved root", flat,
-                      "the unresolved-root shape is gone — a root nobody has "
-                      "resolved is not a root known to be this project, and a "
-                      "procedure without this clause is weaker than the code "
-                      "it replaced")
+                      "the unresolved-root shape left the enumeration — a root "
+                      "nobody has resolved is not a root known to be this "
+                      "project")
         for shape in ("absolute", "home anchor", "variable anchor",
                       "upward escape"):
             self.assertIn(shape, flat, f"the `{shape}` shape is gone")
