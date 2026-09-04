@@ -141,3 +141,58 @@ OK
 ```
 
 **GREEN.** The false alarm is gone. Restored; base diff clean.
+
+---
+
+## Criterion 2 — TASK-330's original M5 re-planted · MET, RED
+
+Three anchored subs on `bin/lib/__init__.py:1158–1160` strip both rule names,
+the date and the row id out of the entry, leaving the bullet and its reasoning
+in place:
+
+```
+      Both WERE checked, as `summary-has-no-sentence` and
+      `summary-is-a-fragment`, from TASK-325 until 2026-09-03. **The user
+      removed them (TASK-330): …
+   →
+      Both WERE checked, as two prose rules and
+      another one, once. **The user
+      removed them: …
+
+$ python3 -c "…ast…"
+register len 2236
+summary-has-no-sentence False · summary-is-a-fragment False
+2026-09-03 False · TASK-330 False
+```
+
+```
+File ".../tests/test_summary_is_asked_for.py", line 362, in
+    test_a_removed_rule_stays_named_in_the_not_checked_register
+    self.assertIn(owed, register,
+AssertionError: 'summary-has-no-sentence' not found in … : the NOT CHECKED
+register no longer names 'summary-has-no-sentence'. A removed rule without its
+reason reads as an oversight to the next author (TASK-332).
+FAILED (failures=1)
+```
+
+**RED at line 362 — the `assertIn` arm**, with the register still 2,236
+characters, so the floor is not what fired. Clean attribution. Restored; base
+diff clean.
+
+---
+
+## Criterion 3 — the three controls stay green · MET, all three GREEN
+
+| | control | result |
+|---|---|---|
+| C1 | a fresh Changelog paragraph in `schema/task-list-contract.md` naming `summary-has-no-sentence`, `summary-is-a-fragment` and an invented `summary-under-five-words` | **GREEN** (guard alone and all 24 tests in the module) |
+| C2 | a paragraph inside `summary_shape`'s own docstring, above the register, touching no part of it, naming all three rule names in prose | **GREEN** (guard alone and all 24) |
+| C3 | the bare-id `NOT CHECKED` entry rewritten end to end — every sentence recast, `TASK-218` and `DESIGN-012 I1` both dropped (`grep -c` → 0 for each) | **GREEN** (guard alone and all 24) |
+
+C3 is the one that matters most: it proves **the guard does not freeze the
+docstring.** A neighbouring register entry was rewritten from first word to last
+and nothing moved, because the test counts identifiers rather than judging
+prose. C2 additionally proves TASK-331's sibling guard is not disturbed by three
+rule names sitting in the docstring — the whole module stayed green.
+
+All three restored; `git diff --stat <BASE>` names only this document each time.
