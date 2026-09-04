@@ -1,32 +1,45 @@
-"""A spec that presents the escalation gate no scope is REPORTED — TASK-284.
+"""A spec that declares no scope for the dispatch pre-flight is REPORTED.
 
-`test_escalation_boundaries.py` guards where a fragment may match. This file
-guards the case where there is nothing to match *against*, which is a different
-failure and had no test at all.
+TASK-284, and **rewritten for TASK-339** — the gate this file was written
+against no longer exists. `bin/perry-state --escalation-scan` matched the
+project's high-stakes fragments against a spec's prose and returned a verdict;
+`USER-916` removed it on 2026-09-04 because `ADR-007` decision 3 says the Python
+layer never parses a document, and five rounds ended with the measurement that
+formatting alone moved the verdict in both directions. The judgement is
+`work/reference/dispatch.md` pre-flight step 4's, and the agent performs it.
 
-`scan_spec_escalations` reads three sections through `_section`, which matches
-`^## <heading>`. `work/reference/subcommands.md § add-task` step 3 says the
-spec file carries "the same schema" as the journal block, and `perry-task add`
-renders that block as **bullets** — `- **Deliverable**: …`. A bullet is
-invisible to `_section`. So a spec written by following the documented
-procedure verbatim is scanned against the empty string, and the gate reports:
+**What did not change is the failure this file is about**, which is why the file
+survived the deletion: the pre-flight — code or agent — reads a spec's
+`## Files in scope` and `## Deliverable` to learn what a round will write, and a
+spec offering neither gives it nothing. `P.spec_scope_sections` is what is left
+in Python: it locates those two headings through `_section`, which matches
+`^## <heading>`, and it renders no verdict and matches no fragment.
+
+`work/reference/subcommands.md § add-task` step 3 says the spec file carries
+"the same schema" as the journal block, and `perry-task add` renders that block
+as **bullets** — `- **Deliverable**: …`. A bullet is invisible to `_section`. So
+a spec written by following the documented procedure verbatim declared no scope,
+and the old gate reported:
 
     "armed": true, "fragments_scanned": 35, "touches": {}, "verdict": "pass"
 
-**That output is byte-identical to a spec that was read in full and found
-clean.** The gate's failure mode looks exactly like its success, which is why
-the number went unnoticed: measured on this repository 2026-09-02, **45**
-spec files under `perry/evidence/` with no section the gate can read — 45 of
-135 on the live branch (`coding/task-247-config-predicate`, `89295085`), 45 of
-the 119 this branch was cut from (`d49964e`) — the SAME 45 files either way,
-and every one of them `pass` over a fully armed 35-fragment union. None of the 45 uses the
-bullet shape at all: 19 are `### Deliverable` under a `## Schema` umbrella and
-26 carry no such section in any shape, which is why widening `_section` to
-read bullets would have closed none of them.
+**That output was byte-identical to a spec that was read in full and found
+clean.** The failure mode looked exactly like its success, which is why the
+number went unnoticed: measured 2026-09-02, **45** spec files under
+`perry/evidence/` with no section the gate could read — 45 of 135 on the live
+branch (`coding/task-247-config-predicate`, `89295085`), 45 of the 119 this
+branch was cut from (`d49964e`) — the SAME 45 files either way, and every one of
+them `pass` over a fully armed 35-fragment union. Re-measured 2026-09-04: still
+the same 45, now of 149. None of the 45 uses the bullet shape at all: 19 are
+`### Deliverable` under a `## Schema` umbrella and 26 carry no such section in
+any shape, which is why widening `_section` to read bullets would have closed
+none of them.
 
-`scan_spec_escalations` already refuses to call the OTHER empty input clean:
-no fragments is `unarmed`, "deliberately not `pass`". The two halves are the
-same rule and only one of them was implemented.
+The old gate already refused to call the OTHER empty input clean: no fragments
+was `unarmed`, "deliberately not `pass`". The two halves are the same rule and
+only one of them was implemented — and step 4.1 / 4.2 now say both halves in
+prose, with `TestTheProcedureNamesTheShape` holding that neither loses its
+go-ahead in a rewrite.
 
 The tests below are written as two halves that must both hold, because either
 alone is trivially satisfiable by breaking the other:
@@ -94,73 +107,53 @@ HOOK = ("# Hook\n\n## High-stakes operations\n\n"
         "- The claim surface — `claims`, `state-schema.json`\n")
 
 
-class TestTheScanSaysWhatItScanned(unittest.TestCase):
-    """`scanned` is the other half of `armed`: one reports whether the HOOK had
-    anything to match with, the other whether the SPEC had anything to match
-    against. Both inputs can be empty; only one of them was ever visible."""
+class TestTheSpecSaysWhetherItDeclaredAScope(unittest.TestCase):
+    """`spec_scope_sections` is the other half of `armed`: one reports whether
+    the HOOK had anything to screen with, the other whether the SPEC declared
+    anything to screen. Both inputs can be empty; only one was ever visible.
 
-    def scan(self, spec: str) -> dict:
-        root = Path(tempfile.mkdtemp())
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text("# Config\n")
-        (root / ".perry" / "hook.md").write_text(HOOK)
-        return P.scan_spec_escalations(spec, P.escalation_union(root)["union"])
+    Until TASK-339 this drove `scan_spec_escalations`, which also matched the
+    hook's fragments against the spec's prose and returned a verdict. That half
+    is gone (`USER-916`, `ADR-007` decision 3) and the judgement is
+    `work/reference/dispatch.md` step 4's. What is left here answers one
+    structural question and renders no verdict at all.
+    """
 
-    def test_the_procedure_shape_scans_nothing_and_says_so(self):
-        """The finding itself. `verdict` is still `pass` — this fix reports,
-        it does not refuse — but `scanned` now distinguishes that `pass` from
-        a real one."""
-        out = self.scan(BULLET_SPEC)
-        self.assertEqual(out["verdict"], "pass")
-        self.assertEqual(out["touches"], {})
-        self.assertTrue(out["armed"], "the fixture hook must be armed, or "
-                                      "this test proves nothing")
-        self.assertEqual(out["scanned"], [],
-                         "a spec written to the documented schema scanned "
-                         "nothing and the result did not say so")
+    def test_the_procedure_shape_declares_no_scope_and_says_so(self):
+        """The finding itself. A spec written to the shape `perry-task add`
+        renders offers neither `## ` heading, and nothing used to say so."""
+        self.assertEqual(P.spec_scope_sections(BULLET_SPEC), [])
 
     def test_a_sectioned_spec_names_the_sections_it_offered(self):
-        out = self.scan(SECTION_SPEC)
-        self.assertEqual(out["scanned"], ["Deliverable", "Out of scope"])
-        self.assertEqual(out["scope_scanned"], ["Deliverable"])
-        self.assertEqual(out["refuse"], ["state-schema.json"])
+        self.assertEqual(P.spec_scope_sections(SECTION_SPEC), ["Deliverable"])
 
     def test_out_of_scope_alone_is_not_scope(self):
-        """`Out of scope` can only ever green-light. A spec offering that
-        section and neither touch section still presented the gate zero scope,
-        so `scope_scanned` — what `--specs` reports on — stays empty."""
-        out = self.scan("# T\n\n## Out of scope\n\n- `claims`\n")
-        self.assertEqual(out["scanned"], ["Out of scope"])
-        self.assertEqual(out["scope_scanned"], [])
+        """`Out of scope` says what a round does NOT do, so it can never
+        establish scope. A spec offering that section and neither of the other
+        two has declared nothing for step 4.2 to read."""
+        self.assertEqual(
+            P.spec_scope_sections("# T\n\n## Out of scope\n\n- `claims`\n"), [])
 
-    def test_an_empty_section_does_not_count_as_scanned(self):
+    def test_an_empty_section_does_not_count(self):
         """A heading with nothing under it is a heading, not scope. `_section`
         returns the empty string either way, so counting the heading alone
-        would report a scan that did not happen."""
-        out = self.scan("# T\n\n## Deliverable\n\n## Verification\n\n- x\n")
-        self.assertEqual(out["scope_scanned"], [])
+        would report a reading that did not happen."""
+        self.assertEqual(
+            P.spec_scope_sections("# T\n\n## Deliverable\n\n## Verification\n\n- x\n"),
+            [])
 
-    def test_the_gate_prints_scanned_beside_its_verdict(self):
-        """The dispatcher reads JSON from `--escalation-scan`, and this is the
-        surface where `pass` over nothing was indistinguishable from `pass`.
-        Exit code is deliberately unchanged: 0, as before."""
-        root = Path(tempfile.mkdtemp())
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text("# Config\n")
-        (root / ".perry" / "hook.md").write_text(HOOK)
-        spec = root / "spec.md"
-        spec.write_text(BULLET_SPEC)
-        r = subprocess.run(
-            [sys.executable, str(STATE), "--root", str(root),
-             "--escalation-scan", str(spec)],
-            capture_output=True, text=True)
-        out = json.loads(r.stdout)
-        self.assertEqual(r.returncode, 0)
-        self.assertEqual(out["verdict"], "pass")
-        self.assertEqual(out["scanned"], [])
-        # Both fragments the fixture hook declares were live and matched
-        # nothing, because there was nothing to match against.
-        self.assertEqual(out["fragments_scanned"], 2)
+    def test_it_returns_no_verdict_and_matches_no_fragment(self):
+        """The property this row bought. Its only argument is the document —
+        there is no fragment list to pass, so there is nothing it can judge."""
+        import inspect
+        sig = inspect.signature(P.spec_scope_sections)
+        self.assertEqual(list(sig.parameters), ["text"])
+        src = inspect.getsource(P.spec_scope_sections)
+        for banned in ("verdict", "refuse", "escalation_pattern",
+                       "matching_escalations", "fragments"):
+            self.assertNotIn(banned, src.split('"""')[-1],
+                             f"`{banned}` is back in a function whose whole "
+                             f"point is that it judges nothing")
 
 
 class TestTheLinterReportsIt(unittest.TestCase):
@@ -280,14 +273,14 @@ class TestTheMutation(unittest.TestCase):
 
 class TestOneAnswerToWhichSectionsAreScanned(unittest.TestCase):
     """The linter must not carry its own copy of the section list. A second
-    copy is how a report keeps describing a scan that changed underneath it —
-    the same defect `ESCALATION_TOUCHES`' own comment records for the i18n
+    copy is how a report keeps describing a reading that changed underneath it
+    — the same defect `SPEC_SCOPE_SECTIONS`' own comment records for the i18n
     table, and `test_escalation_boundaries` guards for the matcher."""
 
     def test_the_linter_reads_the_gates_list(self):
         src = LINT.read_text(encoding="utf-8")
-        self.assertIn("P.ESCALATION_TOUCHES", src)
-        self.assertIn("P.scan_spec_escalations", src)
+        self.assertIn("P.SPEC_SCOPE_SECTIONS", src)
+        self.assertIn("P.spec_scope_sections", src)
         start = src.index("def check_specs")
         body = src[start:src.index("\n#: How many drifted rows", start)]
         for literal in ('"Files in scope"', "'Files in scope'",
@@ -295,7 +288,7 @@ class TestOneAnswerToWhichSectionsAreScanned(unittest.TestCase):
             self.assertNotIn(
                 literal, body,
                 "check_specs spells a scanned section itself — it must read "
-                "P.ESCALATION_TOUCHES so the gate and its report cannot "
+                "P.SPEC_SCOPE_SECTIONS so the reader and its report cannot "
                 "disagree about what is scanned")
 
 
@@ -489,25 +482,143 @@ class TestTheProcedureNamesTheShape(unittest.TestCase):
         self.assertIn("must not be copied into one", block)
         self.assertIn("TASK-284", block)
 
-    def test_dispatch_step_4_gives_scope_scanned_a_reader(self):
-        """The asymmetry this round is about: the empty-HOOK half had an exit
-        code, a `dispatch.md` paragraph and a mandatory go-ahead in chat; the
-        empty-SPEC half had two JSON keys no procedure read."""
-        src = visible(self.DISPATCH.read_text(encoding="utf-8"))
-        step4 = src[src.index("4. **Safety re-validation**"):
-                    src.index("5. Spec contains a `Subjective verification:")]
-        self.assertIn("scope_scanned", step4)
-        self.assertIn("explicit go-ahead in chat", step4)
-        # And the exit code is NOT changed. A new one would refuse dispatch on
-        # 45 of 135 existing specs on the spot — an operational decision
-        # nobody took. `bin/perry-state § SCAN_EXIT` is untouched.
-        self.assertIn("exit code is still 0", step4)
+    def test_dispatch_step_4_gives_the_empty_spec_half_a_reader(self):
+        """The asymmetry this round is about: the empty-HOOK half had a
+        `dispatch.md` paragraph and a mandatory go-ahead in chat; the empty-SPEC
+        half had two JSON keys no procedure read.
 
-    def test_the_exit_codes_are_unchanged(self):
-        state_src = (PERRY_HOME / "bin" / "perry-state").read_text(
-            encoding="utf-8")
-        self.assertIn('SCAN_EXIT = {"pass": 0, "refuse": 3, "unarmed": 4}',
-                      state_src)
+        TASK-339 removed the scan, so there are no JSON keys left — but the
+        asymmetry it fixed is the part that has to survive a rewrite into prose,
+        and this is what fails if it does not. Both halves are named, both
+        require the same go-ahead."""
+        src = visible(self.DISPATCH.read_text(encoding="utf-8"))
+        step4 = src[src.index("4. **Safety re-validation"):
+                    src.index("5. Spec contains a `Subjective verification:")]
+        flat = " ".join(step4.split())
+        # the empty-SPEC half
+        self.assertIn("neither `Files in scope` nor `Deliverable` is present "
+                      "and non-empty", flat)
+        # the empty-HOOK half
+        self.assertIn("nothing is being screened", flat)
+        # and one go-ahead rule covering both
+        self.assertGreaterEqual(
+            flat.count("explicit go-ahead in chat"), 2,
+            "only one of the two empty halves requires a go-ahead — that is "
+            "the asymmetry TASK-284 measured, arriving through the rewrite")
+
+    def test_the_empty_spec_half_still_does_not_refuse_the_row(self):
+        """45 of Perry's own 149 specs declare no scope. Turning that into a
+        refusal would stop every dispatch touching them on the spot — an
+        operational decision nobody has taken. The exit code used to be what
+        carried this; now the sentence does, and this is what holds it."""
+        src = visible(self.DISPATCH.read_text(encoding="utf-8"))
+        step4 = src[src.index("4. **Safety re-validation"):
+                    src.index("5. Spec contains a `Subjective verification:")]
+        flat = " ".join(step4.split())
+        self.assertIn("is not by itself a reason to refuse the row", flat)
+        self.assertIn("it is a reason not to claim you screened it", flat)
+
+
+class TestTheTwoClausesAProseRewriteLoses(unittest.TestCase):
+    """TASK-339. The scanner is gone and `dispatch.md` step 4 replaced it with a
+    written procedure. **No test in this repository can hold a written
+    procedure** — three mutations planted against step 4 (dropping the
+    unresolved-root shape, moving ownership detection after normalisation,
+    deleting a doing-vs-naming tell) all ran GREEN against the full suite. What
+    holds the procedure is a reader; that is the trade `USER-916` made and it is
+    stated in `perry/evidence/2026-09/TASK-339-result.md` rather than hidden.
+
+    These two clauses are the exception, and they are pinned because
+    `perry/evidence/2026-09/TASK-290-round2-v4-review.md` names each of them, in
+    writing, as the thing a prose rewrite is most likely to lose:
+
+      *"**A replacement procedure that omits this case is weaker than the code
+      it replaces**, and this is the single most likely thing to be dropped when
+      the rule is rewritten in prose, because it is the one clause that is not
+      obvious from an example."*  — on the unresolved root
+
+      *"any rewrite that strips formatting before deciding ownership will lose
+      the ownership signal with it"*  — on the ordering
+
+    Pinned as PRESENCE, never as exact wording: an editor may rephrase either
+    sentence and should be able to, and a guard that froze the paragraph would
+    make the procedure unmaintainable — which is a worse failure than this one.
+    `visible()` is used so that commenting a clause out, including with an
+    unclosed `<!--`, reddens this rather than leaving it green.
+    """
+
+    DISPATCH = PERRY_HOME / "work" / "reference" / "dispatch.md"
+
+    def step4(self) -> str:
+        src = visible(self.DISPATCH.read_text(encoding="utf-8"))
+        return src[src.index("4. **Safety re-validation"):
+                   src.index("5. Spec contains a `Subjective verification:")]
+
+    def enumeration(self) -> str:
+        """The numbered list itself, NOT the whole step.
+
+        Measured while writing this: a first version asserted `"unresolved
+        root" in step4`, planted a mutation deleting list item 5, and stayed
+        GREEN — the phrase also appears in the worked-paths table below, so the
+        guard was reading the copy rather than the clause. A guard whose
+        mutation passes is worth less than no guard, because it is also
+        believed. Scoped to the list.
+        """
+        step4 = self.step4()
+        start = step4.index("**Foreign is exactly five shapes:**")
+        return step4[start:step4.index("**Shape 5", start)]
+
+    def test_all_five_foreign_root_shapes_are_named(self):
+        """Relative is internal and foreign is five shapes. Four are obvious
+        from an example; the fifth is not, which is why it is pinned hardest."""
+        block = self.enumeration()
+        items = re.findall(r"^\s*(\d)\. ", block, re.M)
+        self.assertEqual(
+            items, ["1", "2", "3", "4", "5"],
+            f"the foreign-root enumeration is no longer five items ({items}) "
+            f"— dropping one makes this procedure weaker than the code it "
+            f"replaced:\n{block}")
+        flat = " ".join(block.split())
+        self.assertIn("unresolved root", flat,
+                      "the unresolved-root shape left the enumeration — a root "
+                      "nobody has resolved is not a root known to be this "
+                      "project")
+        for shape in ("absolute", "home anchor", "variable anchor",
+                      "upward escape"):
+            self.assertIn(shape, flat, f"the `{shape}` shape is gone")
+
+    def test_the_unresolved_root_says_why_and_not_merely_what(self):
+        """A judgement made in the safe direction, with no example to make it
+        obvious, is exactly the clause a later editor deletes as noise unless
+        the reason travels with it."""
+        flat = " ".join(self.step4().split())
+        self.assertIn("safe direction", flat)
+
+    def test_ownership_is_decided_before_normalisation(self):
+        """The collision: the characters that IDENTIFY a foreign root are the
+        same characters you would strip as formatting noise. `~` is an anchor;
+        `*` is emphasis. Order is the whole property, so the heading states it
+        and this fails if the ordering claim leaves."""
+        step4 = self.step4()
+        flat = " ".join(step4.split())
+        self.assertIn("BEFORE you tidy any text", flat)
+        self.assertIn("classify the root before you normalise", flat)
+        # and the test that makes the ordering workable without a stripping
+        # pass at all: pairing, not stripping.
+        self.assertIn("balanced pair", flat)
+        self.assertNotIn("Normalise the text first", flat)
+
+    def test_the_two_worked_paths_are_both_shown(self):
+        """`TASK-339` § Verification 3: the procedure must be shown refusing
+        `~/other-project/evidence/2026-09/` and allowing
+        `perry/evidence/2026-09/`, in the file itself, not only in evidence."""
+        flat = " ".join(self.step4().split())
+        self.assertIn("~/other-project/evidence/2026-09/", flat)
+        self.assertIn("perry/evidence/2026-09/", flat)
+
+    def test_relative_is_internal_full_stop(self):
+        flat = " ".join(self.step4().split())
+        self.assertIn("Relative is internal", flat)
 
 
 class TestTheAdvisoryHasARecordedTrigger(unittest.TestCase):
@@ -566,13 +677,10 @@ class TestTheLinterDoesNotFakeItsLocalization(unittest.TestCase):
                 if not ln.lstrip().startswith("#")]
         self.assertNotIn("load_glossary", "\n".join(code))
 
-    def test_a_localized_spec_still_scans(self):
+    def test_a_localized_spec_still_declares_its_scope(self):
         """The property the removed call was said to protect, tested directly
         rather than asserted in a comment."""
-        out = P.scan_spec_escalations(
-            self.zh_spec(), P.escalation_union(self.hooked())["union"])
-        self.assertEqual(out["scope_scanned"], ["Deliverable"])
-        self.assertEqual(out["verdict"], "refuse")
+        self.assertEqual(P.spec_scope_sections(self.zh_spec()), ["Deliverable"])
 
     def test_the_linter_does_not_report_the_localized_spec(self):
         root = self.hooked()
@@ -1149,7 +1257,7 @@ class TestBothHalvesOfTheBoundRuleSurvive(unittest.TestCase):
 
     def test_they_share_one_matcher(self):
         """Two regexes would be two answers to "what counts as a bound", which
-        is the defect `check_specs` reads `P.ESCALATION_TOUCHES` to avoid."""
+        is the defect `check_specs` reads `P.SPEC_SCOPE_SECTIONS` to avoid."""
         src = LINT.read_text(encoding="utf-8")
         self.assertEqual(src.count("_BOUND_RE = re.compile"), 1)
         self.assertEqual(src.count("_BOUND_RE.search"), 2)
