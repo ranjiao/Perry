@@ -346,7 +346,13 @@ class TestNoRecordsIsNeverClean(StoreFixture):
         root = self.project()
         self.assertFalse((root / "perry" / STORE_KEY).exists())
         line = self.line(root)
-        self.assertIn("unchecked, not clean", line)
+        # The WHOLE sentence, not its last two words. A mutation that
+        # dropped "drift against the" left an earlier version of this test
+        # green: the line still ended "is unchecked, not clean" while no
+        # longer saying what was unchecked or against which store. Pinning
+        # only the suffix pins the reassurance and not the content.
+        self.assertIn(
+            "drift against the linkage store is unchecked, not clean", line)
 
     def test_with_the_file_absent_the_line_never_says_drifted(self):
         """"Unchecked" and "0 drifted" are different answers.

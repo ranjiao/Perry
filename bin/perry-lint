@@ -4226,6 +4226,14 @@ def _linkage_record_findings(records: list,
     kinds = declared.get("records") or {}
     types = {"string": str, "number": (int, float), "boolean": bool,
              "object": dict, "array": list}
+    # **The discriminating field is DECLARED, not assumed.** Hard-coding
+    # `"kind"` here is what makes `stores.declared[…].discriminator`
+    # decorative — a key the schema states and no code reads — which is the
+    # same declaration-nothing-checks defect this store is being added to
+    # remove one level up. A mutation round caught exactly that: changing
+    # the declared discriminator to `"type"` left every test green, because
+    # nothing was reading it. Recorded in `evidence/2026-09/TASK-276-result.md`.
+    disc = declared.get("discriminator") or "kind"
     good: list[dict] = []
     findings: list = []
     for line, rec in enumerate(records, 1):
@@ -4233,10 +4241,10 @@ def _linkage_record_findings(records: list,
             findings.append({"line": line,
                              "message": "expected one JSON object per line"})
             continue
-        kind = rec.get("kind")
+        kind = rec.get(disc)
         if kind not in kinds:
             findings.append({"line": line, "message":
-                             f"`kind` is {kind!r}, expected one of "
+                             f"`{disc}` is {kind!r}, expected one of "
                              f"{'/'.join(sorted(kinds))}"})
             continue
         fields = kinds[kind].get("fields") or {}
