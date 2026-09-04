@@ -49,7 +49,9 @@ sys.path.insert(0, str(PERRY_HOME / "tests"))
 from tables import header_index, squash            # noqa: E402
 # Imported ONCE. Round 7's review found this module importing `header_rule`
 # twice, four lines apart.
-from header_rule import offenders_by_symbol, readers_under  # noqa: E402
+import header_rule  # noqa: E402
+from header_rule import (offenders_by_symbol, readers_under,  # noqa: E402
+                         source_of)
 import parsers as P  # noqa: E402
 
 # The counter, not a second copy of it. `tests/parallel` puts `tests/` on the
@@ -63,6 +65,61 @@ import test_row_integrity as RI  # noqa: E402
 #: there were two nets, one parameterised and one pinned to `PERRY_HOME`. There
 #: is one now, and it takes a root.
 READERS = readers_under(PERRY_HOME)
+
+
+class TestAVanishedFileIsSkippedButATrackedOneIsNot(unittest.TestCase):
+    """`source_of` decides what a missing file means, and the two answers differ.
+
+    `READERS` is built once at import, so every guard here reads a list that
+    can be stale by the time it reads it. Under the parallel runner that was
+    not theoretical: this module was red in 3 of 3 full-suite runs and green in
+    5 of 5 runs alone on 2026-09-03, through a `try` that caught `SyntaxError`
+    and not `FileNotFoundError` (`TASK-334`).
+
+    Tolerating the disappearance is only half the fix. A file `git` still
+    tracks going missing mid-run is a real fault, and skipping it would let a
+    shipped reader fall out of the domain silently — the failure `_domain()`
+    had in `TASK-067`, where a guard whose domain quietly shrank went on
+    reporting clean.
+    """
+
+    def test_a_missing_untracked_file_is_skipped(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(source_of(Path(d) / "gone.py"))
+
+    def test_an_existing_tracked_file_is_read(self):
+        text = source_of(PERRY_HOME / "bin" / "perry-lint")
+        self.assertIsNotNone(text)
+        self.assertIn("perry-lint", text)
+
+    def test_a_missing_TRACKED_file_raises_and_names_the_path(self):
+        """Patched rather than staged, and that is deliberate.
+
+        The honest end-to-end fixture would `git add` a file and delete it, or
+        rename a tracked one aside. Both mutate state the whole repository
+        shares — the index, or a file another of the eight workers is reading —
+        and this module's own defect is a parallelism race, so a test that
+        introduces one to prove a point would be the wrong trade. The decision
+        under test is `source_of`'s, not `git`'s; `_git_tracks` has its own two
+        cases above and below.
+        """
+        real = header_rule._git_tracks
+        header_rule._git_tracks = lambda p: True
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                missing = Path(d) / "tracked-but-gone.py"
+                with self.assertRaises(AssertionError) as caught:
+                    source_of(missing)
+            self.assertIn(str(missing), str(caught.exception))
+        finally:
+            header_rule._git_tracks = real
+
+    def test_git_tracks_answers_both_ways(self):
+        self.assertTrue(header_rule._git_tracks(PERRY_HOME / "bin" / "perry-lint"))
+        with tempfile.TemporaryDirectory() as d:
+            probe = Path(d) / "never-added.py"
+            probe.write_text("x = 1\n")
+            self.assertFalse(header_rule._git_tracks(probe))
 
 
 class TestOneRuleForAHeaderCell(unittest.TestCase):
@@ -115,8 +172,11 @@ class TestOneRuleForAHeaderCell(unittest.TestCase):
         import ast
         folding = 0
         for path in READERS:
+            text = source_of(path)
+            if text is None:
+                continue            # vanished mid-run; see header_rule.source_of
             try:
-                tree = ast.parse(path.read_text(errors="replace"))
+                tree = ast.parse(text)
             except SyntaxError:
                 continue
             for node in ast.walk(tree):

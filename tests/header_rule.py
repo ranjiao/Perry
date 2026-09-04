@@ -79,6 +79,7 @@ counts, rather than listing readers it never observes.
 from __future__ import annotations
 
 import ast
+import subprocess
 import warnings
 from pathlib import Path
 
@@ -165,6 +166,57 @@ def is_python(p: Path) -> bool:
                               ast.ClassDef, ast.Import, ast.ImportFrom,
                               ast.Assign, ast.AnnAssign))
                for n in ast.walk(tree))
+
+
+#: This file's own repository root. `header_rule` takes `root` as a parameter
+#: everywhere else, but `_git_tracks` asks about the tree these tests SHIP in,
+#: which is not the temporary project a caller may be walking.
+_REPO = Path(__file__).resolve().parent.parent
+
+
+def _git_tracks(p: Path) -> bool:
+    """Whether `git` still tracks `p`. **False when git cannot answer.**
+
+    A `git archive` copy has no repository, which is how this project's
+    reviewers do every destructive run, so "no answer" has to mean "do not
+    claim" rather than "not tracked, skip it silently". The caller's raise is
+    therefore conservative by construction: it fires only where git said yes.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(_REPO), "ls-files", "--error-unmatch",
+             str(p)], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return r.returncode == 0
+
+
+def source_of(p: Path) -> str | None:
+    """Text of `p` for parsing, or `None` if it vanished between walk and read.
+
+    `READERS` is built once, at import, by `readers_under`. Every caller
+    therefore reads a list that can be stale by the time it reads it, and
+    under the parallel runner that is not theoretical: this module was red in
+    3 of 3 full-suite runs and green in 5 of 5 runs alone, measured 2026-09-03
+    (`TASK-334`). A file that disappeared must not error the guard.
+
+    **A file `git` still tracks must not be skipped either.** Letting a
+    shipped reader fall out of the domain quietly is exactly the failure
+    `_domain()` had in `TASK-067` — a guard whose domain silently shrinks is a
+    guard that silently passes — so a missing TRACKED path raises instead.
+    Where git cannot answer, `_git_tracks` returns False and the file is
+    skipped; that is the archive case and it is stated rather than hidden.
+    """
+    try:
+        return p.read_text(errors="replace")
+    except OSError as exc:
+        if _git_tracks(p):
+            raise AssertionError(
+                f"{p} is tracked by git and disappeared mid-run ({exc}). "
+                "This is not a flake to skip: a tracked reader falling out "
+                "of the walk makes the guard pass on a file nobody read."
+            ) from exc
+        return None
 
 
 def readers_under(root) -> list[Path]:
@@ -883,7 +935,10 @@ def header_sites(root) -> list[tuple]:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
                 warnings.simplefilter("ignore", SyntaxWarning)
-                tree = ast.parse(p.read_text(errors="replace"))
+                text = source_of(p)
+                if text is None:
+                    continue
+                tree = ast.parse(text)
         except (SyntaxError, ValueError, RecursionError):
             continue
         rows = _RowLocals(tree)
@@ -970,7 +1025,10 @@ def _offenders_in_reader(root: Path, p: Path) -> list[str]:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             warnings.simplefilter("ignore", SyntaxWarning)
-            tree = ast.parse(p.read_text(errors="replace"))
+            text = source_of(p)
+            if text is None:
+                return []                       # vanished mid-run; see source_of
+            tree = ast.parse(text)
     except (SyntaxError, ValueError, RecursionError):
         return []                               # not importable; not a reader
     rows = _RowLocals(tree)
