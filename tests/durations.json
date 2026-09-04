@@ -35,6 +35,13 @@
    "workers": 1,
    "load1": 42.41,
    "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_linkage_store_declared with __pycache__ cleared before each - 1.34 / 1.17 / 1.20s wall, on the machine that ran TASK-276. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set. load1 is high and is recorded honestly rather than waited out: five other agents were running tests/run on this machine and a quiet moment never arrived. It turned out not to matter - the three runs agree to within 0.17s, because the module's cost is 19 unittest cases and a handful of perry-lint subprocesses, not CPU. ONE CONTRARY OBSERVATION, recorded so a later reader is not surprised: the same module reported 83.9s inside a full tests/run while SIX suites at 8 workers each were competing. That is a contention figure, not this module's cost, and it is named here rather than averaged in - a number that folds two regimes together describes neither."
+  },
+  "task-277-linkage-import": {
+   "ref": "c924a52",
+   "taken": "2026-09-04",
+   "workers": 1,
+   "load1": 13.35,
+   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_linkage_import with __pycache__ cleared before each - 3.81 / 4.05 / 3.75s wall, on the machine that ran TASK-277. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and task-276-linkage-store followed. load1 is recorded honestly rather than waited out: it was 31.5 when this row started and 13.35 at the moment of these runs, and a bare `python3 -c pass` measured 4,467ms on this machine at load 114 earlier in the week - so the regime matters more than the number. It turned out not to matter here: the three runs agree to within 0.30s, because the module's cost is 32 unittest cases each spawning a perry-tasks or perry-lint subprocess, which is process startup and not CPU. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost, and it is named here rather than averaged in."
   }
  },
  "modules": {
@@ -221,6 +228,10 @@
   "test_last_updated_header.py": {
    "sec": 3.25,
    "source": "unstamped-pre-304"
+  },
+  "test_linkage_import.py": {
+   "sec": 4.05,
+   "source": "task-277-linkage-import"
   },
   "test_linkage_store_declared.py": {
    "sec": 1.34,
