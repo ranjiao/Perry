@@ -63,6 +63,13 @@
    "workers": 1,
    "load1": 5.73,
    "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_same_action_linkage with __pycache__ cleared before each - 1.14 / 1.08 / 1.04s wall, on the machine that ran TASK-281. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and the four DESIGN-015 rows before this one followed. load1 was 5.73 at the start and 5.83 at the end - the quietest this machine has been for any of these rows, and quieter than the 18.98 task-278 recorded the same day. It is stated rather than rounded away because the spread here (0.10s) is the tightest of the DESIGN-015 set, and the reason is structural rather than lucky: 24 of these 29 cases call bin/lib directly with constructed records and events and spawn no subprocess at all. Only the five in BothReadersPublishTheOneNumber shell out, twice each to perry-state and perry-goals over the live repository, and they are what the second of wall clock is. Expect a larger figure inside a full tests/run at 8 workers - it reported 2.7s there in the run that registered this entry - and that is a contention figure, not this module's cost."
+  },
+  "adr-017-overall-kr-grammar": {
+   "ref": "1c26ec9",
+   "taken": "2026-09-07",
+   "workers": 1,
+   "load1": 6.47,
+   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_overall_kr_grammar with __pycache__ cleared before each - 0.99 / 0.87 / 1.00s wall, on the machine that ran ADR-017 step 1 round 2. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and every stamped row since has followed. load1 was 6.47 (1m) against 13.30 (5m) and 19.99 (15m) and is recorded rather than waited out: the machine was coming down off a full 8-worker suite run and a quiet moment never arrived. The spread is 0.13s, the tightest of any stamped row here, and the reason is structural rather than lucky: 17 of these 23 cases are pure regex and parser calls with no subprocess at all. Only the six in TheClaimSurfaceAcceptsBothOverallForms, BothFormsResolveEndToEnd and TheDeadPhaseFormIsStillRefused shell out - to perry-lint and perry-goals over a copied fixture in a temp directory - and they are what the second of wall clock is. Expect a larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
   }
  },
  "modules": {
@@ -317,6 +324,10 @@
   "test_one_startable_rule.py": {
    "sec": 9.5,
    "source": "unstamped-pre-304"
+  },
+  "test_overall_kr_grammar.py": {
+   "sec": 1.0,
+   "source": "adr-017-overall-kr-grammar"
   },
   "test_ownership.py": {
    "sec": 0.43,

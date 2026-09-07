@@ -2262,9 +2262,37 @@ def _parse_backbone(section: str) -> list[tuple[str, list[Task]]]:
 # reader that silently dropped the row would hand the checker an empty
 # KR set, and an empty set is what every downstream guard treats as
 # "nothing to check".
-_RE_KR_ID = re.compile(r"^(?:KR|P)(?:\{\{[^}]*\}\}|[-\w.])*\d$")
+#
+# ADR-017 step 1 adds the `O<n>-KR<m>` arm to BOTH patterns. It is purely
+# additive: `KR-O1.1` still parses through the `KR` arm, `P002-O1-KR2` still
+# through the `P` arm, and no id is renamed here — the data rename is a
+# separate step. The added arm is spelled to match
+# `schema/state-schema.json § id_pattern` exactly (`O\d+-KR\d+`), because a
+# parser that accepted a shape the linter calls a `bad-id` would be the
+# two-readers-one-grammar disagreement ADR-017 exists to close.
+#
+# **`P003-O2-KR1` CONTAINS the substring `O2-KR1`**, so admitting an
+# `O\d+-KR\d+` arm into patterns that also match phase ids is worth a second
+# look. It was given one, and the result corrects the obvious explanation:
+# it is NOT the `^` anchor that protects the phase form. Mutation testing
+# (round 2, M8) unanchored the new arm in both patterns and every test stayed
+# green, because
+#
+#   * `_RE_KR_ID` is a whole-string accept/reject — `.match()` against `^…$`
+#     with no group anybody reads — so the caller uses the cell verbatim and
+#     no arm of it can truncate an id; and
+#   * in `_RE_KR_BULLET`, which DOES extract `group(1)`, a lazy `.*?` still
+#     lets `P\d+-O` win at offset 0.
+#
+# The anchor is still right and stays. But the property actually worth testing
+# is the weaker, true one — that adding an alternative did not DISPLACE the
+# arms already here — and that is what
+# `tests/test_overall_kr_grammar.py § test_the_new_arm_did_not_displace_the_phase_arm`
+# asserts. `P-O1.1` [[old-form]] is untouched by the addition: it matches
+# neither `O\d+-KR\d+` nor anything else new, so `kr-id-legacy-form` still fires.
+_RE_KR_ID = re.compile(r"^(?:O\d+-KR\d+|(?:KR|P)(?:\{\{[^}]*\}\}|[-\w.])*\d)$")
 _RE_KR_BULLET = re.compile(
-    r"^-\s*\**((?:KR|P\d+-O)[\w.\-]*\d)\**([^:：]*)[:：]\s*(.+)$"
+    r"^-\s*\**((?:KR|P\d+-O|O\d+-KR)[\w.\-]*\d)\**([^:：]*)[:：]\s*(.+)$"
 )
 
 
