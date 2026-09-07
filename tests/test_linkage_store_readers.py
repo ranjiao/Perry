@@ -545,10 +545,14 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
         self.assertEqual(code, 1,
                          "an agent still has this row assigned; the store has "
                          "no record kind that could carry that fact")
-        self.assertIn("agents[].tasks", out["refused"],
+        register = (d / "phase" / "003-linkage.md").read_text()
+        line = next(n for n, ln in enumerate(register.split("\n"), 1)
+                    if "tasks:" in ln and "TASK-101" in ln)
+        # Label AND line together — see the block-list sibling for why a bare
+        # substring check cannot see a mislabelling.
+        self.assertIn(f"003-linkage.md:{line} agents[].tasks", out["refused"],
                       "reported as krs[].tasks, this sends the reader to a "
                       "key result that never named the row")
-        self.assertIn("003-linkage.md:", out["refused"])
 
     def test_site_3_a_block_list_register_still_protects_a_row(self):
         """**Round 2's FAIL, and it is the same irreversible loss as FAIL 2.**
@@ -663,6 +667,8 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
             agents={"Coding Agent": ["TASK-101"]}))
         register = (d / "phase" / "003-linkage.md").read_text()
         self.assertIn('    tasks:\n      - "TASK-101"', register)
+        item = next(n for n, ln in enumerate(register.split("\n"), 1)
+                    if ln.strip() == '- "TASK-101"')
         subprocess.run(
             [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
              "done with it", "--root", str(d)],
@@ -671,10 +677,95 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
         self.assertEqual(code, 1,
                          "an agent still has this row assigned, in a block "
                          "list the store has no record kind for")
-        self.assertIn("agents[].tasks", out["refused"],
+        # The label is asserted TOGETHER WITH ITS LINE, not as a bare
+        # substring. Mislabelling `agents[].tasks` as `krs[].tasks` leaves the
+        # right word in the output anyway — the structural fallback re-adds it
+        # without a line — so a substring check passes with the bug present.
+        # That is exactly how this mutation survived the first round.
+        self.assertIn(f"003-linkage.md:{item} agents[].tasks", out["refused"],
                       "reported as krs[].tasks, this sends the reader to a "
                       "key result that never named the row")
-        self.assertIn("003-linkage.md:", out["refused"])
+
+    def test_site_3_a_quoted_tasks_key_is_caught_by_the_structural_read_alone(self):
+        """**The input that proves the structural half is load-bearing.**
+
+        My own mutation round came back with four greens that shared one root:
+        blinding the structural read entirely (`if False:` over the parse)
+        broke NOTHING, because in every fixture the line locator already found
+        the id. The structural half was, as tested, dead weight.
+
+        `parse_map` does `key.strip().strip("\\"'")`, so a QUOTED key is a real
+        edge to every reader:
+
+            "tasks": ["TASK-101"]
+
+        and `_tasks_list_regions`' `(\\s*)tasks:` does not match the leading
+        quote. So the parse sees the edge, the locator sees nothing, and the
+        refusal can only come from the structural read plus the
+        declared-but-unlocated fallback. Deleting either makes this red.
+
+        The regex is deliberately not widened to match a quoted key: no writer
+        Perry has emits one, and widening it would close a reporting gap while
+        removing the only proof that the structural half does anything.
+        """
+        doc = document(phase="002-fields", edges={"P002-O1-KR1": ["TASK-101"]},
+                       krs=("KR1",))
+        quoted = doc.replace('        tasks: [', '        "tasks": [')
+        self.assertIn('"tasks": [', quoted, "the fixture must carry a quoted key")
+        model = P.parse_linkage(quoted)
+        self.assertFalse(model.error, model.error)
+        self.assertEqual(model.kr_for_task("TASK-101"), "P002-O1-KR1",
+                         "a quoted key is a real edge to the READER, which is "
+                         "what makes missing it a data-loss defect")
+        d = self.project(extra_phase=True)
+        (d / "phase" / "002-linkage.md").write_text(quoted)
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1,
+                         "no line names this id in a shape the locator reads, "
+                         "so the structural read is the ONLY thing standing "
+                         "between this row and a permanent deletion")
+        self.assertIn("002-linkage.md", out["refused"])
+        self.assertIn("krs[].tasks", out["refused"])
+
+    def test_site_3_a_comment_between_block_items_does_not_end_the_scan(self):
+        """A register somebody annotated, which is a register somebody edited.
+
+        `parse_yaml_subset` strips `#` comments before parsing, so an item
+        BELOW a comment is a real edge. The locator has to skip comments for
+        the same reason — breaking on one would stop the scan and leave every
+        item under it unlocated, so an annotated register would refuse without
+        naming a line instead of with one.
+
+        Asserted on the line number, not just the refusal: the failure this
+        guards against still refuses (the structural half catches it), so a
+        test that only checked `code == 1` would pass with the bug present.
+        """
+        doc = document(phase="002-fields",
+                       edges={"P002-O1-KR1": ["TASK-100", "TASK-101"]},
+                       krs=("KR1",), block=True)
+        annotated = doc.replace('          - "TASK-101"',
+                                '          # the second one\n          - "TASK-101"')
+        self.assertIn("# the second one", annotated)
+        self.assertEqual(
+            P.parse_linkage(annotated).kr_for_task("TASK-101"), "P002-O1-KR1",
+            "the parser strips the comment, so this is a real edge")
+        d = self.project(extra_phase=True)
+        (d / "phase" / "002-linkage.md").write_text(annotated)
+        item = next(n for n, ln in enumerate(annotated.split("\n"), 1)
+                    if ln.strip() == '- "TASK-101"')
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1, out)
+        self.assertIn(f"002-linkage.md:{item}", out["refused"],
+                      "the item below the comment must still be LOCATED — "
+                      "refusing without a line is the degraded answer")
 
     def test_site_3_a_register_that_does_not_parse_still_protects_a_row(self):
         """Detection is a UNION of the parse and the text, and this is why.
@@ -986,6 +1077,20 @@ class TestTheWrongInputBranchesAreReached(Fixture):
         self.assertIsNotNone(
             P.linkage_records_for_phase(records, "003"),
             "and the control: phase 003 IS in this store")
+
+        # **The input that makes deleting the early return observable, and it
+        # is the reason the guard exists.** Without it an empty phase number
+        # builds `prefix = "-"` and `kr_prefix = "P-"`, which are MATCHABLE
+        # prefixes rather than prefixes that match nothing — so a record whose
+        # `phase` begins with a dash is silently adopted by a caller that
+        # could not name a phase at all. Every realistic store hides this
+        # behind the `any(kind == "kr")` guard below, which is why round 2's
+        # mutation and my own first round both came back green here.
+        self.assertIsNone(
+            P.linkage_records_for_phase(
+                [{"kind": "kr", "phase": "-weird", "id": "P-X-KR1"}], ""),
+            "no phase was named, so nothing may be filtered to it — an empty "
+            "phase number must not become the prefix '-' and start matching")
 
     def test_the_documents_own_phase_field_names_the_phase_when_the_filename_cannot(self):
         """**Round 2's green N8** — `linkage_document_phase`'s second branch.

@@ -4883,6 +4883,16 @@ def _tasks_list_regions(lines: list[str]) -> list[tuple[int, str, list[int]]]:
     at or deeper than the key's, and the run ends at the first line that is
     not one. Over-collecting an item costs an over-report the user can clear;
     under-collecting costs a permanently deleted row.
+
+    **A QUOTED KEY IS DELIBERATELY NOT MATCHED, and that is the union earning
+    its keep.** `parse_map` does `key.strip().strip("\\"'")`, so `"tasks":
+    ["TASK-087"]` parses into a real edge that this regex does not see. It is
+    left unmatched rather than widened: no writer Perry has emits a quoted key,
+    and the case is exactly what the STRUCTURAL half of `live_references` is
+    for — the parse declares the edge, the guard refuses, and the refusal says
+    the line could not be located instead of pretending there is none. Widening
+    the regex would close the reporting gap and simultaneously remove the only
+    input that proves the structural half is load-bearing.
     """
     out: list[tuple[int, str, list[int]]] = []
     section = ""
@@ -4897,7 +4907,13 @@ def _tasks_list_regions(lines: list[str]) -> list[tuple[int, str, list[int]]]:
         items: list[int] = []
         for j in range(i + 1, len(lines)):
             nxt = lines[j]
-            if not nxt.strip():
+            # Blank lines and `#` comments are skipped for the reason
+            # `parse_yaml_subset` skips them: they are not list items and they
+            # do not end the list. Breaking on a comment would stop the scan
+            # at the first annotated register and leave every item BELOW the
+            # comment unlocated — the parse still sees those ids, so the row
+            # would be refused without a line rather than with one.
+            if not nxt.strip() or nxt.lstrip().startswith("#"):
                 continue
             nind = len(nxt) - len(nxt.lstrip(" "))
             if nxt.lstrip().startswith("- ") and nind >= indent:
