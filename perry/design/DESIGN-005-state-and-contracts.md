@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-08-17 · Locked: 2026-08-17
 > Author: Perry maintainer   · Implementation owner: Coding Agent (Perry repo)
-> Linked OKR: KR-O2.1, KR-O2.2, KR-O4.2 (`perry/OKR.md` v2). This line
+> Linked OKR: O2-KR1, O2-KR2, O4-KR2 (`perry/OKR.md` v2). This line
 > previously read *"Perry has no `OKR.md`; declared unlinked, not guessed"*,
 > which was true when written and stopped being true when the OKR was
 > created the same day.

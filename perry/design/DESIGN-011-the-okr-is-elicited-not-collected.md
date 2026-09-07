@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-08-27 · Locked: 2026-08-28
 > Author: Perry maintainer   · Implementation owner: TBD
-> Linked OKR: KR-O1.2 (`perry/OKR.md` v2, Objective 1 — the four work modes are usable, not just declared)
+> Linked OKR: O1-KR2 (`perry/OKR.md` v2, Objective 1 — the four work modes are usable, not just declared)
 > Supersedes: —   · Superseded by: —
 > Revisits: `goals/reference/setup.md`, `reference/input-quality.md`
 

@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-08-27 · Locked: 2026-08-28
 > Author: Perry maintainer   · Implementation owner: TBD
-> Linked OKR: KR-O4.1, KR-O4.2 (`perry/OKR.md` v2, Objective 4 — aiMark manages projects through Perry)
+> Linked OKR: O4-KR1, O4-KR2 (`perry/OKR.md` v2, Objective 4 — aiMark manages projects through Perry)
 > Supersedes: —   · Superseded by: —
 > Revisits: `DESIGN-007-the-entity-model.md § 5.3`
 
@@ -29,7 +29,8 @@ $ perry/okr.jsonl → kinds
 ```
 
 The contract is reflecting the store faithfully. **There is no row to hang an id
-on.** An Objective exists as a title string *denormalized onto each KR record*:
+on.** An Objective exists as a title string *denormalized onto each KR record*
+— the record below is shown as it stood, [[old-form]] id and all:
 
 ```json
 {"kind": "kr", "id": "KR-O1.1",
@@ -46,9 +47,9 @@ Five distinct values of that field are all five Objectives there are.
 - **KR identity inherits the instability.** KR ids are unique on this board —
   27 KRs, 27 distinct ids — but the contract does not *promise* uniqueness, so
   aiMark keys on `(level, objective, id, index)`. That composite **embeds the
-  objective title**, so a well-formed `KR-O1.1` becomes unstable because the
+  objective title**, so a well-formed `KR-O1.1` [[old-form]] becomes unstable because the
   string above it might be edited.
-- **`KR-O1.1` already encodes an objective the payload cannot resolve.** The
+- **`KR-O1.1` [[old-form]] already encodes an objective the payload cannot resolve.** The
   `O1` inside the KR id refers to something with no record.
 
 ### Why the obvious fix was already refused, correctly
@@ -124,10 +125,10 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | 3 | What happens to the five existing Objectives | mint on next `perry-okr write` / **mint by an explicit one-off migrate command** / user names all five by hand | **explicit one-off migrate command** | 2026-08-28 |
 | 4 | Does `krs[].objective` keep carrying the title | **keep the title and add `objective_id`** / replace the title with the id | **keep title, add `objective_id`** | 2026-08-28 |
 
-**On decision 1.** The `O1` in `KR-O1.1` is tempting and is the trap: it is the
+**On decision 1.** The `O1` in `KR-O1.1` [[old-form]] is tempting and is the trap: it is the
 *ordinal* the contract already refused, arrived at from a different direction. A
 KR id was minted when the KR was written, so it records the objective's position
-**at that moment** — reorder the headings and `KR-O1.1` sits under Objective 3
+**at that moment** — reorder the headings and `KR-O1.1` [[old-form]] sits under Objective 3
 while still spelling `O1`. Choosing it means accepting that the id is a
 historical artefact rather than a pointer.
 
@@ -157,7 +158,7 @@ every KR record.
 
 **`version` is on the record**, because `OKR.md` holds `v1` and `v2` side by
 side and each has its own five Objectives. That is not hypothetical: `okr.jsonl`
-already holds `KR-O1.1` **twice**, discriminated by `version` and `order`.
+already holds `KR-O1.1` [[old-form]] **twice**, discriminated by `version` and `order`.
 
 ### 5.2 Where the id comes from
 
@@ -213,7 +214,7 @@ right before an id is minted into it.
 |---|---|---|---|---|
 | 1 | The mint runs twice and an Objective gets two ids | every link to the objective silently splits | `perry-okr verify` reports two records with the same `(version, order)` | mint only when the record has no id; assert idempotence in step 3's test |
 | 2 | `heading` / `title` split loses a byte and `OKR.md` re-renders differently | the user's own file rewritten | step 2's byte-compare; `cells_verbatim` must be `{}` | step 2 gates step 3 — no id is minted until the render round-trips |
-| 3 | `v1` and `v2` Objectives with the same heading collide | history collapses into the current version | `okr.jsonl` already carries `KR-O1.1` twice; a test asserts the two `v1`/`v2` Objective rows are distinct records | `version` is part of the record, not part of the id |
+| 3 | `v1` and `v2` Objectives with the same heading collide | history collapses into the current version | `okr.jsonl` already carries `KR-O1.1` [[old-form]] twice; a test asserts the two `v1`/`v2` Objective rows are distinct records | `version` is part of the record, not part of the id |
 | 4 | A consumer keys on `objectives[].id` before it is stable | the thing this design exists to prevent, reintroduced | the contract's `2.2` entry states when the id is minted and what it survives | do not ship `2.2` until step 5's survival tests pass |
 | 5 | The `Not here` rewrite reads as reversing the refusal | a future reader mints ids from position, citing this doc | — | the rewrite must say the refusal **stands** and that a stated id is a different thing from a derived one |
 

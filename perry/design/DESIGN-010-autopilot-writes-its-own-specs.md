@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-08-27 · Locked: 2026-08-28
 > Author: Perry maintainer   · Implementation owner: TBD
-> Linked OKR: KR-O5.3, KR-O5.4 (`perry/OKR.md` v2, Objective 5 — Tasks are executed by roles that know things)
+> Linked OKR: O5-KR3, O5-KR4 (`perry/OKR.md` v2, Objective 5 — Tasks are executed by roles that know things)
 > Supersedes: —   · Superseded by: —
 > Revisits: `work/reference/autopilot.md`, `perry/design/DESIGN-007-the-entity-model.md § 5.7`
 

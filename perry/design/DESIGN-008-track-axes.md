@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-08-20 · Locked: 2026-08-20
 > Author: Perry maintainer   · Implementation owner: TBD
-> Linked OKR: KR-O1.1, KR-O1.2, KR-O1.3 (`perry/OKR.md` v2, Objective 1)
+> Linked OKR: O1-KR1, O1-KR2, O1-KR3 (`perry/OKR.md` v2, Objective 1)
 > Supersedes: —   · Superseded by: —
 > Revisits: `DESIGN-003-work-modes.md` § 5.1
 
@@ -445,4 +445,4 @@ DESIGN-003 gained its § 5.9.
 - `perry/design/DESIGN-003-work-modes.md` § 5.1, § 5.2, § 8 — the design this revisits
 - `perry/evidence/2026-08/TASK-133-track-experiment.md` — § 1.2's measurement
 - `modes/project.md`, `modes/pipeline.md`, `modes/queue.md`, `modes/inquiry.md`
-- `perry/OKR.md` v2 § Objective 1 — KR-O1.1, KR-O1.2, KR-O1.3
+- `perry/OKR.md` v2 § Objective 1 — O1-KR1, O1-KR2, O1-KR3

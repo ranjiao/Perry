@@ -99,7 +99,7 @@ not answered at all.
 ### 1.4 The same KR is written twice at two fidelities
 
 `phase/001-work-modes-live.md` holds `| P001-O1-KR1 | … | 3 of 3 modes live |
-KR-O1.1 |` — four prose cells. `phase/001-linkage.md` holds the same id with
+KR-O1.1 |` [[old-form]] — four prose cells. `phase/001-linkage.md` holds the same id with
 `target: 3`, `current: 0`, `tasks: [...]`. Two files must agree and nothing
 checks that they do. The same split exists one level up: `OKR.md § Objectives`
 stores `Metric / Target` and `Deadline` as prose while the linkage frontmatter
@@ -255,7 +255,7 @@ Notes on the non-obvious rows:
   know that the
   number after the dot is the KR. **The overall (non-phase) KR follows as
   `O3-KR1`** — the same grammar with the phase segment absent, replacing
-  today's `KR-O1.1`. Both are project-unique, which is what `serves` needs to
+  today's `KR-O1.1` [[old-form]]. Both are project-unique, which is what `serves` needs to
   store a single value.
 
 - **#6 — resolved: split, exactly as `Due` split.** `target` is a number or

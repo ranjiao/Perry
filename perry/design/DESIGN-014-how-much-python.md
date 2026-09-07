@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-09-01 · Locked: 2026-09-01
 > Author: Perry maintainer   · Implementation owner: TBD
-> Linked OKR: KR-O2.1 (`perry/OKR.md` v2, Objective 2 — every piece of state is queryable and writable by deterministic code). **`OKR.md` v3 is downstream of this doc, not upstream**: the user directed on 2026-09-01 that v3's third Objective becomes "the skill is the product", and that this question is settled before v3 is written.
+> Linked OKR: O2-KR1 (`perry/OKR.md` v2, Objective 2 — every piece of state is queryable and writable by deterministic code). **`OKR.md` v3 is downstream of this doc, not upstream**: the user directed on 2026-09-01 that v3's third Objective becomes "the skill is the product", and that this question is settled before v3 is written.
 > Supersedes: —   · Superseded by: —
 > Revisits: `perry/decisions/ADR-007-fields-are-typed-prose-is-not.md`, `perry/decisions/ADR-011-the-representation-layer-comes-out.md`, `perry/design/DESIGN-011-the-okr-is-elicited-not-collected.md`, `goals/reference/setup.md`
 > Sign-off: User Decisions 1-3 answered by Ran Jiao in session on 2026-09-01, so this went `draft` → `locked` without an `in_review` hold — that state exists to await exactly this sign-off (the `DESIGN-013` precedent, 2026-08-29). **All three took the recommendation**, so the option notes in § 4 stand as written rather than being restated; § 5.1 is amended for decision 1, which moves `perry-state` between categories.
@@ -104,7 +104,7 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
 | 1 | How an agent learns project state | keep `perry-state` as the one payload (2,747 lines) / **thin it to a query over the stores now that they are JSONL** / let agents read the stores directly and delete it | **thin it to a query over the stores** | 2026-09-01 |
-| 2 | The `goals` authoring path | **build the missing KR writer, closing `KR-O2.1`** / stop making KRs a store fact and let the elicitation write the markdown, reopening `ADR-007` for this file | **build the KR writer** | 2026-09-01 |
+| 2 | The `goals` authoring path | **build the missing KR writer, closing `KR-O2.1`** [[old-form]] / stop making KRs a store fact and let the elicitation write the markdown, reopening `ADR-007` for this file | **build the KR writer** | 2026-09-01 |
 | 3 | `bin/perry-diagnose` (2,691 lines), which audits any folder | **keep — it is independent of adoption and works on any project** / fold its findings into `perry-lint` / drop it with adoption | **keep** | 2026-09-01 |
 
 **On decision 1.** This is the largest non-representation item and the least
@@ -116,7 +116,7 @@ contract three lanes and a front-end read — rather than the counting. If it is
 the shape, it stays and shrinks; if it is the counting, it is category three.
 
 **On decision 2.** These are opposite directions and both are defensible.
-`KR-O2.1` has been open since 2026-08-17 with `goals` as the named gap, and
+`O2-KR1` has been open since 2026-08-17 with `goals` as the named gap, and
 `DESIGN-013 § 5.1` says a fact with a schema lives in the store — which a KR
 has. Against that: the elicitation bank is where the KR's *content* is decided,
 and a writer that takes ten fields from an agent that just ran a good interview

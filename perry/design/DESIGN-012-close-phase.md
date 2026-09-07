@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-08-28 · Locked: 2026-08-28
 > Author: Perry maintainer   · Implementation owner: Coding Agent
-> Linked OKR: KR-O2.3 (`perry/OKR.md` v2, Objective 2 — every piece of state is queryable and writable by deterministic code)
+> Linked OKR: O2-KR3 (`perry/OKR.md` v2, Objective 2 — every piece of state is queryable and writable by deterministic code)
 > Supersedes: —   · Superseded by: —
 > Revisits: `goals/reference/phases.md`, `work/reference/subcommands.md`, `reference/snapshot.md`, `reference/router-subcommands.md`
 > Sign-off: User Decisions 1-4 answered by Ran Jiao in session on 2026-08-28 (`/perry decide resolve DESIGN-012`), so this went `draft` -> `locked` without an `in_review` hold — the state `in_review` exists to await exactly that sign-off, and it had already happened.

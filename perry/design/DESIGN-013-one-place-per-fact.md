@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-08-29 · Locked: 2026-08-29
 > Author: Perry maintainer   · Implementation owner: Coding Agent
-> Linked OKR: KR-O2.1 (`perry/OKR.md` v2, Objective 2 — every piece of state is queryable and writable by deterministic code)
+> Linked OKR: O2-KR1 (`perry/OKR.md` v2, Objective 2 — every piece of state is queryable and writable by deterministic code)
 > Supersedes: —   · Superseded by: —
 > Revisits: `perry/decisions/ADR-007-fields-are-typed-prose-is-not.md` (§ 6 decision 2, superseded by ADR-010), `reference/adoption.md`, `work/reference/subcommands.md`, `goals/reference/phases.md`
 > Sign-off: User Decisions 1-4 answered by Ran Jiao in session on 2026-08-29, so this went `draft` -> `locked` without an `in_review` hold — that state exists to await exactly this sign-off. **Two answers went further than the recommendation**: D3 deletes `DECISIONS.md` where the draft recommended keeping it as a rendered view, and D4 decides `BOARD.md` now where the draft recommended deferring. Both consequences are recorded in § 4.1 rather than left in the option text.

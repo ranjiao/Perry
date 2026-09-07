@@ -32,11 +32,11 @@ from every roll-up. The design's § 8 required settling linkage before handoff.
 ## Chosen
 
 Option 1. `OKR.md` v2 (2026-08-17) adds **Objective 5 — "Tasks are executed by
-roles that know things"**, `KR-O5.1`–`KR-O5.4`, all commit, no stretch —
-KR-O5.4 is `DESIGN-006` phase F's pass condition, and marking it stretch would
+roles that know things"**, `KR-O5.1`–`KR-O5.4` [[old-form]], all commit, no stretch —
+KR-O5.4 [[old-form]] is `DESIGN-006` phase F's pass condition, and marking it stretch would
 permit the abstraction to go unvalidated for the whole period. O1–O4 carried
 over unchanged (restated in the v2 block because readers parse only the
-current version block). `DESIGN-006`'s header now links `O5 / KR-O5.1–KR-O5.4`.
+current version block). `DESIGN-006`'s header now links `O5 / O5-KR1–O5-KR4`.
 
 ## Consequences
 
@@ -53,5 +53,5 @@ current version block). `DESIGN-006`'s header now links `O5 / KR-O5.1–KR-O5.4`
 - v2 retro finds five objectives diluted execution → fold O5 into a leaner v3.
 - `DESIGN-006` is dropped or superseded before phase A starts → O5 has no
   design behind it and must be revised out, not left dangling.
-- KR-O5.4's finance-shaped end-to-end run proves infeasible by 2026-11-01 →
+- O5-KR4's finance-shaped end-to-end run proves infeasible by 2026-11-01 →
   re-scope the KR rather than silently re-dating it.
