@@ -1740,6 +1740,19 @@ def linkage_store_text(reg, declared_at: str, actor: str) -> str | None:
                 # `perry-lint § linkage-store-malformed` reports it by number;
                 # silently discarding it here would make this writer the thing
                 # that lost a record nobody had looked at yet.
+                #
+                # **Unreachable through `link` today, and said out loud rather
+                # than left to look load-bearing.** A store with one
+                # unparseable line makes `parsers.load_linkage_store` answer
+                # `None` for the whole store, so `reg.graph` falls back to the
+                # document, `store_retractions` stays empty and this loop does
+                # not run at all. TASK-278's mutation round found that by
+                # planting the drop and watching the suite stay green. It is
+                # kept because this function reads the file itself rather than
+                # through that reader, so the day the two stop agreeing this
+                # is the difference between a kept line and a lost one — and
+                # `test_a_line_the_writer_cannot_read_survives_the_write`
+                # asserts the reachable half, the append, instead.
                 kept.append(line)
                 continue
             if (isinstance(rec, dict) and rec.get("kind") == "unlinked"

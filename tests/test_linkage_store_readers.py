@@ -110,7 +110,8 @@ def phase_file(number: str, title: str, started: str, status: str,
 
 def document(*, phase: str, edges: dict[str, list[str]],
              unlinked: list[str] | None = None,
-             krs: tuple[str, ...] = ("KR1", "KR2")) -> str:
+             krs: tuple[str, ...] = ("KR1", "KR2"),
+             serves: str | None = None) -> str:
     """The register document, authored by hand.
 
     By hand and not through `perry-goals link` for the reason
@@ -124,6 +125,12 @@ def document(*, phase: str, edges: dict[str, list[str]],
             'updated: "2026-09-05T00:00:00Z"']
     body.append("unlinked: [" + ", ".join(
         f'"{t}"' for t in (unlinked or [])) + "]")
+    if serves:
+        # The Project↔KR registry. It has no record kind in the store — there
+        # are three and this is not one — so it stays in the document, and a
+        # finding about it must name the document.
+        body.append(f'projects:\n  - id: PRJ-1\n    serves: {serves}\n'
+                    f'    objective: O1\n    name: "a project"')
     body.append("objectives:\n  - id: O1\n    title: \"an objective\"\n    krs:")
     for suffix in krs:
         kr_id = f"P{number}-O1-{suffix}"
@@ -218,11 +225,20 @@ class Fixture(unittest.TestCase):
             # A phase the store does NOT declare a `kr` record for — the
             # condition `_linkage_records_for_phase` answers `None` to, and
             # the reason the sweep is per phase rather than store-wide.
-            (d / "phase" / "002-earlier.md").write_text(phase_file(
-                "002", "earlier", "2026-08-01", "scored",
+            #
+            # **The slug sorts AFTER `linkage`, and that is load-bearing.**
+            # The exclusion under test filters `sorted(glob("002-*.md"))` and
+            # the fallback takes `mine[0]`. With a slug like `earlier`, the
+            # phase document sorts first and `mine[0]` is right whether the
+            # exclusion runs or not — the mutation round caught exactly that:
+            # deleting the exclusion left this suite green. `zeta` puts
+            # `002-linkage.md` first, so removing the filter makes the
+            # register its own comparand and the test can see it.
+            (d / "phase" / "002-zeta.md").write_text(phase_file(
+                "002", "zeta", "2026-08-01", "scored",
                 "| P002-O1-KR1 | the KR1 result | 1 | — |\n"))
             (d / "phase" / "002-linkage.md").write_text(document(
-                phase="002-earlier", edges={"P002-O1-KR1": ["TASK-101"]},
+                phase="002-zeta", edges={"P002-O1-KR1": ["TASK-101"]},
                 krs=("KR1",)))
         (d / "tasks.jsonl").write_text(
             "".join(task_record(t) + "\n" for t in tasks))
@@ -388,14 +404,15 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
         A phase whose register declares no KR falls back to the phase
         DOCUMENT's table. Delete the exclusion and the glob's first match is
         `002-linkage.md` — the register grading itself, which proves only that
-        a file agrees with itself, and the `projects[]` entry below then reads
-        as sound when it names a KR nothing declares.
+        a file agrees with itself. The register below names `P002-O1-KR9` in
+        its own `projects[]`, so scraping it for KR ids makes that id look
+        declared and the finding disappears.
         """
         d = self.project(extra_phase=True)
         # A register with no `krs[]` at all, and a Project serving a KR that
         # the phase document does NOT declare.
         (d / "phase" / "002-linkage.md").write_text(
-            '---\nlinkage: 1\nphase: "002-earlier"\n'
+            '---\nlinkage: 1\nphase: "002-zeta"\n'
             'updated: "2026-09-05T00:00:00Z"\n'
             "objectives: []\nprojects:\n  - id: PRJ-1\n"
             '    serves: P002-O1-KR9\n    objective: O1\n'
@@ -403,7 +420,24 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
         found = [f for f in self.rules(self.lint(d), "linkage-kr-exists")
                  if "PRJ-1" in f["message"]]
         self.assertEqual(len(found), 1, found)
-        self.assertEqual(found[0]["file"], "phase/002-linkage.md",
+
+    def test_a_projects_finding_names_the_document_and_not_the_store(self):
+        """The other half of site 5, on a phase the store DOES cover.
+
+        Split out because on a store-less phase `rel` and `doc_rel` are the
+        same string, so filing the finding under the wrong one is invisible —
+        the mutation round found exactly that, and this is the case that can
+        see it. Phase 003 is graded from `linkage.jsonl`, but a `projects[]`
+        entry has no record kind there, so a reader sent to the store would be
+        sent to a file the entry is not in.
+        """
+        d = self.project(doc_text=document(
+            phase="003-storage", edges={self.DOC_KR: ["TASK-100"]},
+            serves="P003-O1-KR9"))
+        found = [f for f in self.rules(self.lint(d), "linkage-kr-exists")
+                 if "PRJ-1" in f["message"]]
+        self.assertEqual(len(found), 1, found)
+        self.assertEqual(found[0]["file"], "phase/003-linkage.md",
                          "a projects[] finding must name the document that "
                          "carries the line, never the store")
 
@@ -569,20 +603,34 @@ class TestTheWrongInputBranchesAreReached(Fixture):
         self.assertFalse((d / "linkage.jsonl").exists())
         self.assertNotIn("store_records_written", out)
 
-    def test_a_line_the_writer_cannot_read_survives_a_retraction(self):
+    def test_a_line_the_writer_cannot_read_survives_the_write(self):
         """Kept, never dropped.
 
         `perry-lint` reports an unreadable line by number; discarding it here
         would make this writer the thing that lost a record nobody had looked
         at yet.
+
+        **This test asserted the retraction path and never reached it.** The
+        mutation round found it: dropping the line in `linkage_store_text`'s
+        `except json.JSONDecodeError` branch left the suite green, because a
+        store with one unparseable line makes `load_linkage_store` answer
+        `None` for the WHOLE store, so `reg.graph` falls back to the document,
+        no retraction is ever requested, and the branch is not entered. What
+        is reachable — and what this now asserts — is the append: the write
+        still lands, and the line this writer could not read is still in the
+        file afterwards.
         """
-        d = self.project(store_unlinked=["TASK-101"])
+        d = self.project()
         with (d / "linkage.jsonl").open("a") as fh:
             fh.write("{ not json\n")
         code, out = self.goals(d, "link", "TASK-101", self.DOC_KR)
         self.assertEqual(code, 0, out)
-        self.assertIn("{ not json",
-                      (d / "linkage.jsonl").read_text().split("\n"))
+        after = (d / "linkage.jsonl").read_text().split("\n")
+        self.assertIn("{ not json", after)
+        self.assertTrue(
+            any('"TASK-101"' in line for line in after),
+            "the fixture is not exercising the case: the store was never "
+            "rewritten, so keeping the line proves nothing")
 
 
 class TestTheDriftVerdictIsReal(Fixture):
