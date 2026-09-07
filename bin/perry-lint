@@ -1896,6 +1896,84 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
 summary_shape = lib.summary_shape
 
 
+#: A board `Next action` over this many bytes is reported. See the argument at
+#: its use site in `check_summaries`. Belongs in `schema § thresholds`; it is
+#: here because that file is the claim surface.
+NEXT_ACTION_CELL_BYTES = 1000
+
+
+#: Per-document line caps for the two trees that have none. Both belong in
+#: `schema/state-schema.json § files[]` beside `BOARD.md`'s; they are here
+#: because that file is the claim surface, and because adding `files[]` entries
+#: would subject 482 existing evidence documents to the structural rules that
+#: mechanism also carries.
+#:
+#: **The journal is an ERROR, not a warning, and the asymmetry is deliberate.**
+#: A `Next action` has one writer, so `perry-task` can refuse it at the point of
+#: writing. The journal has no single writer -- a session appends prose to it
+#: directly -- so a write-time refusal would miss the largest contributor. On
+#: 2026-09-08 one day's entry reached 1,957 lines against a 345-line average
+#: evidence document, written by the session that then wrote this check. An
+#: error is the strongest gate available where no writer can be intercepted.
+#:
+#: Evidence is a WARNING because a long one is often correct: a V4 review is
+#: legitimately 300-550 lines, and that is where the account is SUPPOSED to
+#: live. 600 gives that headroom; past it, a document is usually restating
+#: rather than recording.
+JOURNAL_DAY_LINES = 300
+EVIDENCE_DOC_LINES = 600
+
+#: **The journal cap applies from the day it landed forward, and history is
+#: grandfathered.** A journal entry is a record of what happened on a date; it
+#: cannot be retroactively shortened without falsifying it, and twelve entries
+#: predate this rule. Grandfathering is therefore not leniency, it is the only
+#: honest treatment of an append-only record.
+#:
+#: The date is set to the day the rule landed rather than the day after, so the
+#: FIRST entry it refuses is the one written by the session that introduced it
+#: -- 1,970 lines against a 300-line cap. A rule whose author is the first to
+#: be grandfathered out of it is a rule nobody else will respect.
+JOURNAL_CAP_FROM = "2026-09-07"
+
+
+def check_document_sizes(state_root: Path) -> list["Finding"]:
+    """Line caps on `journal/` and `evidence/`, the two uncapped trees.
+
+    LENGTH ONLY, like every other check in this pass. It never judges what a
+    document says, and the remedy is never deletion: for the journal, the day's
+    account belongs in the evidence file of the row it is about, with the entry
+    keeping what changed and why a decision went the way it did.
+    """
+    findings: list[Finding] = []
+    for tree, cap, sev, what in (
+            ("journal", JOURNAL_DAY_LINES, "error", "day's entry"),
+            ("evidence", EVIDENCE_DOC_LINES, "warn", "document")):
+        base = state_root / tree
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*.md")):
+            try:
+                n = len(path.read_text(errors="replace").split("\n"))
+            except OSError:
+                continue
+            if n <= cap:
+                continue
+            # See `JOURNAL_CAP_FROM`. The stem is the entry's date, so a name
+            # that is not a date is not grandfathered -- an undated file in
+            # this tree is a different finding and not silently excused here.
+            if tree == "journal" and path.stem < JOURNAL_CAP_FROM:
+                continue
+            rel = str(path.relative_to(state_root))
+            findings.append(Finding(
+                sev, rel, "document-oversized",
+                f"{n} lines, over the {cap}-line {what} cap. Length only -- "
+                f"this says nothing about the content, and the remedy is to "
+                f"MOVE what belongs elsewhere, never to delete what was "
+                f"recorded. `work/SKILL.md` § Style rules: each fact lives in "
+                f"one place; boards reference, evidence stores."))
+    return findings
+
+
 def check_summaries(state_root: Path) -> list["Finding"]:
     """Advisory pass over every OPEN task row's `summary`.
 
@@ -1913,6 +1991,7 @@ def check_summaries(state_root: Path) -> list["Finding"]:
     """
     findings: list[Finding] = []
     check_summaries.stats = {"store_present": False, "open_rows": 0,
+                            "oversized_cells": 0,
                              "carrying": 0, "blank": 0, "shape_findings": 0}
     store = state_root / "tasks.jsonl"
     if not store.exists():
@@ -1968,6 +2047,39 @@ def check_summaries(state_root: Path) -> list["Finding"]:
             v = r.get(key)
             return v if isinstance(v, str) else ""
         tid = _s("id") or "(unnamed row)"
+        # **`Next action` is a board CELL, and a cell is a pointer.**
+        # `work/SKILL.md:307` has said "each fact lives in one place; boards
+        # reference, evidence stores" since before this check existed, and
+        # `DESIGN-013 § 8` measured the rule being ignored at 2,825 bytes and
+        # deferred the fix. Prose alone did not hold it: on 2026-09-08 the
+        # longest open cell was 3,956 bytes and 44 rows were over 1,000, most
+        # of the worst written the same day by the session that then wrote
+        # this check. So it is a check rather than a fourth sentence.
+        #
+        # **1,000 bytes, and the number is an argument not a taste.** The
+        # median open cell is 435, so the threshold is more than twice what a
+        # cell that is doing its job costs, and it flags 44 of 141 — enough to
+        # be worth acting on and few enough to act on. It belongs in
+        # `schema/state-schema.json § thresholds` beside
+        # `review_fail_rounds_before_escalation`; it is here because that file
+        # is the claim surface and needs the user.
+        #
+        # STRUCTURAL ONLY, like every other check in this pass. It measures
+        # length, never quality: a long cell may be the right cell, and the
+        # remedy is to MOVE the account to evidence and leave the pointer,
+        # never to delete what was recorded.
+        na = _s("next_action")
+        if len(na) > NEXT_ACTION_CELL_BYTES:
+            check_summaries.stats["oversized_cells"] += 1
+            findings.append(Finding(
+                "warn", "tasks.jsonl", "next-action-oversized",
+                f"{tid}: `Next action` is {len(na)} bytes, over the "
+                f"{NEXT_ACTION_CELL_BYTES}-byte cell guide. A board cell is a "
+                f"pointer — move the account into "
+                f"`evidence/<YYYY-MM>/{tid}-*.md` and leave the sentence a "
+                f"reader of the board needs. `work/SKILL.md` § Style rules: "
+                f"each fact lives in one place; boards reference, evidence "
+                f"stores."))
         hits = summary_shape(_s("title"), _s("summary"))
         if not hits:
             check_summaries.stats["carrying"] += 1
@@ -5303,6 +5415,7 @@ def main(argv: list[str]) -> int:
             # Costs nothing on a project with no store — it returns before
             # deriving anything — and that is every project today, which is
             # why it runs in the default pass rather than behind a flag.
+            findings.extend(check_document_sizes(root))
             findings.extend(check_store_drift(project_root, root))
             # Same shape, same cost, one register over (TASK-040): it returns
             # before deriving anything when there is no `risks.jsonl`, which is

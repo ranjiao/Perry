@@ -3524,6 +3524,11 @@ def cmd_add(args, ctx) -> dict:
             f"STRUCTURE only — never for whether the prose reads well, which "
             f"is not a thing a tool can judge and not a thing this one claims "
             f"to")
+    # Same limit as `cmd_next`, at the other site that writes this cell. A
+    # refusal that only one of two writers performs is a refusal a caller
+    # routes around without meaning to.
+    if getattr(args, "next", None):
+        check_next_action_length(args.next, ctx)
     track = track_of(ctx["config"], args.track or "main")
     mode = track["mode"]
     minting = minting_records(ctx)
@@ -4623,6 +4628,46 @@ def repair_off_board_cell(args, ctx, field: str, event: str, why: str,
     return {"id": args.id, field: value, **plan}
 
 
+#: A board `Next action` over this many bytes is REFUSED at the point of
+#: writing. `work/SKILL.md` § Style rules has said "each fact lives in one
+#: place; boards reference, evidence stores" since before this refusal existed,
+#: and `DESIGN-013 § 8` measured the rule being ignored at 2,825 bytes and
+#: deferred the fix. Prose did not hold it: on 2026-09-08 the longest open cell
+#: was 3,956 bytes and 44 of 141 rows were over 1,000 -- the worst of them
+#: written that same day by the session that then wrote this.
+#:
+#: **A refusal rather than a warning, and the reason is measured.** This
+#: project's tier-1 caps REFUSE the write and not one has ever been breached;
+#: `BOARD.md`'s tier-2 cap only warns, and it spent that entire day over its
+#: limit with the warning printed on every run and nobody stopping. A gate that
+#: reports is a gate that is read past.
+#:
+#: 1,000 bytes is an argument, not a taste: the median open cell is 435, so the
+#: limit is more than twice what a cell doing its job costs. It belongs in
+#: `schema/state-schema.json § thresholds`; it is here because that file is the
+#: claim surface and needs the user.
+NEXT_ACTION_CELL_BYTES = 1000
+
+
+def check_next_action_length(value: str, ctx) -> str:
+    """Refuse a `Next action` that has stopped being a pointer.
+
+    LENGTH ONLY. It never judges what the prose says, and the remedy is never
+    to delete what was recorded: move the account into the row's evidence file
+    and leave the sentence a reader of the board needs.
+    """
+    if len(value) > NEXT_ACTION_CELL_BYTES:
+        raise Refused(
+            f"--next is {len(value)} bytes, over the "
+            f"{NEXT_ACTION_CELL_BYTES}-byte cell limit. A board cell is a "
+            f"POINTER, not the account: `work/SKILL.md` § Style rules -- each "
+            f"fact lives in one place, boards reference and evidence stores. "
+            f"Put the account in `evidence/<YYYY-MM>/<TASK-ID>-*.md` and leave "
+            f"the sentence a reader of the board needs. Nothing was written. "
+            f"This is a LENGTH check and says nothing about the prose")
+    return value
+
+
 def cell_writer(field: str, flag: str, event: str, why: str,
                 validate=None, terminal_ok: bool = True,
                 required_msg: str = "", show_previous: bool = True,
@@ -4692,7 +4737,7 @@ def cell_writer(field: str, flag: str, event: str, why: str,
 #: writing one puts a live-looking instruction on finished work.
 cmd_next = cell_writer(
     "next action", "next", "next", "next action", terminal_ok=False,
-    show_previous=False,
+    show_previous=False, validate=check_next_action_length,
     required_msg="--next is required: this subcommand exists to write that "
                  "cell, and clearing it would leave the row with no stated "
                  "next step")
