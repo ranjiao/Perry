@@ -385,7 +385,15 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
         """Read, not asserted from memory: the grep is for the WRITE, not for
         the name. `write_atomic` and `lib.write_atomic` are the only two calls
         that put bytes on disk in this tool, and every one of them is reached
-        from `commit` or writes `phase/<NNN>-linkage.md` instead."""
+        from `commit` or writes the linkage register instead.
+
+        **The register is two files since DESIGN-015 row C** — the document
+        and `linkage.jsonl` — and both writes are in the list below for the
+        reason the list exists: a new write call site has to be READ and
+        placed, not waved through. Both go through this tool's own
+        `write_atomic`, so both pass `assert_owned`, which is what makes
+        "gated" true of them rather than merely likely.
+        """
         source = (ROOT / "bin" / "perry-goals").read_text(encoding="utf-8")
         calls = [line.strip() for line in source.split("\n")
                  if ("write_atomic(" in line or "write_text(" in line
@@ -401,7 +409,13 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
              "lib.write_atomic(store, md_store.store_text(final))",
              'fh.write(json.dumps(event, ensure_ascii=False) + "\\n")',
              # `cmd_link` — `phase/<NNN>-linkage.md`, never OKR.md.
-             'write_atomic(ctx["state_root"], reg.path, reg.render())'],
+             'write_atomic(ctx["state_root"], reg.path, reg.render())',
+             # `cmd_link` again — `linkage.jsonl`, the store half of the same
+             # register, written second and under the same project lock
+             # (DESIGN-015 § 5.6 site 1, TASK-278). The continuation line is
+             # what the grep catches; the call is
+             # `write_atomic(ctx["state_root"], linkage_store_path(...), …)`.
+             'write_atomic(ctx["state_root"],'],
             "a write call site was added or moved; check it is gated")
 
 

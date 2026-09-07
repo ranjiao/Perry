@@ -4806,18 +4806,59 @@ def live_references(ctx, tid: str) -> list[str]:
         if names_id(rec.get("next_action") or "", tid):
             out.append(f"{rid}.next_action — `{(rec.get('next_action') or '')[:60]}`")
 
-    # `phase/*-linkage.md § krs[].tasks` — the register that ties tasks to a
-    # key result. Read as the lines they are written on rather than through a
-    # YAML parser, because Perry is stdlib-only and this file is markdown with
-    # a YAML-shaped block in it, not a YAML document.
-    for path in sorted((ctx["state_root"] / "phase").glob("*-linkage.md")):
+    # `linkage.jsonl § kind: edge` — the register that ties tasks to a key
+    # result. **DESIGN-015 § 5.6 site 3, and the line regex is gone.**
+    #
+    # This globbed `phase/*-linkage.md` and matched `\s*tasks:` with a regex.
+    # The comment beside it said exactly why: *"this file is markdown with a
+    # YAML-shaped block in it, not a YAML document."* That reason does not
+    # survive the source becoming JSONL — one JSON object per line is
+    # `json.loads`, stdlib, no shape guessing — so the regex is replaced by
+    # the parse and not by a second regex, which would be the same defect
+    # wearing a different coat.
+    #
+    # The line number in the refusal is now EXACT rather than approximate:
+    # one record is one line, so `linkage.jsonl:47` is the line to edit.
+    #
+    # **`unlinked` records are deliberately not counted.** A declaration that
+    # a since-purged row served no KR is stale, not dangling, and
+    # `bin/perry-lint § linkage-unlinked-exists` files it at `warn` on the
+    # stated ground that it is "a record to correct rather than a file to
+    # refuse". Refusing on it here would overturn that by the back door.
+    store = ctx["state_root"] / P.LINKAGE_STORE
+    if store.exists():
         try:
-            text = path.read_text(errors="replace")
+            store_text = store.read_text(errors="replace")
         except OSError:
-            continue
-        for n, line in enumerate(text.split("\n"), 1):
-            if re.match(r"\s*tasks:", line) and names_id(line, tid):
-                out.append(f"{path.name}:{n} krs[].tasks")
+            store_text = ""
+        for n, line in enumerate(store_text.split("\n"), 1):
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                # A record this reader cannot parse is `perry-lint`'s finding
+                # to report (`linkage-store-unreadable`), not this guard's.
+                continue
+            if (isinstance(rec, dict) and rec.get("kind") == "edge"
+                    and str(rec.get("task") or "") == tid):
+                out.append(f"{P.LINKAGE_STORE}:{n} edge → "
+                           f"{rec.get('kr') or '?'}")
+    else:
+        # A project with no store — every Perry project older than DESIGN-015
+        # — is still read from the document it keeps, and still through
+        # `parsers.parse_linkage`, the stdlib YAML-subset reader `perry-lint`
+        # and `perry-state` use. Store first, document as the fallback: the
+        # same rule `parsers.load_linkage` states once for the other readers.
+        for path in sorted((ctx["state_root"] / "phase").glob("*-linkage.md")):
+            try:
+                model = P.parse_linkage(path.read_text(errors="replace"))
+            except OSError:
+                continue
+            if model.kr_for_task(tid):
+                out.append(f"{path.name} krs[].tasks")
+            if any(tid in (ag.tasks or []) for ag in model.agents):
+                out.append(f"{path.name} agents[].tasks")
 
     # The goals store's own linkage field. Empty on this project today, which
     # is a fact about this project and not about the register.
