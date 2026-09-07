@@ -7,14 +7,15 @@ Executor contract: `claude-subagent | opencode-subagent | codex | manual`. `manu
 ## 0 · Whether to dispatch at all
 
 Dispatch has a **fixed cost that does not scale down with the change**: a
-worktree, a pinned base, a brief, a baseline the agent must measure for itself,
-a result document, a merge, and a verification pass by whoever merges it. It
-also has failure modes the change itself does not have. Measured across **eight
-dispatches in one session on 2026-09-07**: **seven were handed a base ~500
-commits stale** (`TASK-381`), **two collided in a shared scratchpad**
+separate checkout, a pinned base, a brief, a baseline the agent must measure for
+itself, a result document, a merge, and a verification pass by whoever merges
+it. It also has failure modes the change itself does not have. Measured across
+**eight dispatches in one session on 2026-09-07**: **seven were handed a base
+~500 commits stale** (`TASK-381`), **two collided in a shared scratchpad**
 (`TASK-373`), **one left a planted mutation in its tree** when it stopped, and
-**one obeyed its isolation instruction and reddened the suite by doing so**
-(`TASK-385`). Four of those are rows that exist only because work was dispatched.
+**one reddened the suite by following its scratch-location brief exactly**
+(`TASK-385`). Four of those are rows that exist only because work was
+dispatched.
 
 **Do it inline when all three hold:**
 
