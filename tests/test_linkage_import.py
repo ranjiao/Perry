@@ -289,9 +289,19 @@ class TestTheStampIsNotFabricated(LinkageFixture):
         declarations were NOT made at `add`: *"The 44 declarations were not
         made at `add`; they were swept in later."* Stamping `add` here would
         carry that KR from its 0 baseline to 100% without one line of the
-        behaviour it measures existing — row D has not landed and
-        `perry-task add` still writes nothing but journal prose.
+        behaviour it measures existing.
         `evidence/2026-09/TASK-276-result.md § 10` flagged exactly this.
+
+        **Row D has since landed, and this test is unaffected — deliberately.**
+        When this was written `perry-task add` wrote nothing but journal
+        prose, and the sentence saying so has been removed rather than left to
+        rot (DESIGN-015 § 9's own `## Changes` trap: three sites still saying
+        "five" after the count became six). `add --kr` now writes a real
+        `via: "add"` edge, so `via: "add"` is no longer impossible in the
+        store at large — but it remains impossible *here*, because this runs
+        on a fixture project whose only writer is the import. That is exactly
+        why the live-corpus assertion in `TestThisProjectsOwnImport` had to be
+        scoped to the `goals` lane while this one did not have to move.
         """
         root = self.project()
         stamped = [r for r in self.imported(root) if "via" in r]
@@ -770,13 +780,66 @@ class TestThisProjectsOwnImport(unittest.TestCase):
             self.assertEqual(v["in_register_not_in_store"], [], kind)
             self.assertEqual(v["in_store_not_in_register"], [], kind)
 
-    def test_no_live_record_was_imported_as_declared_at_add(self):
-        for line in (ROOT / "perry" / STORE_KEY).read_text(
-                encoding="utf-8").split("\n"):
-            if line.strip():
-                rec = json.loads(line)
-                if "via" in rec:
-                    self.assertEqual(rec["via"], "link")
+    def test_no_live_record_the_goals_lane_declared_was_stamped_via_add(self):
+        """`via: "add"` on a record this lane wrote would inflate `P003-O3-KR2`.
+
+        **Scoped to the `goals` lane, not to the whole store, and row D is
+        why.** Until TASK-279 this asserted `via == "link"` over EVERY record
+        in `perry/linkage.jsonl`. That was true only while the import was the
+        store's sole writer. Row D gives `perry-task add --kr` the `work`
+        lane's write, whose whole purpose is to stamp `via: "add"` — so the
+        first legitimate use of the gate made the old assertion false, and
+        two rows filed with `--kr` on 2026-09-07 did exactly that. The
+        blanket form was reddening `main` for the feature working.
+
+        **What is still asserted, and it is the part that matters.** The
+        import stamps `actor: "goals"` unconditionally
+        (`bin/perry-tasks § LINKAGE_IMPORT_ACTOR`), so every record it wrote
+        is inside this filter — 115 of the live store's 123 today. DESIGN-015
+        § 1 measured that the historical declarations were NOT made at `add`:
+        *"The 44 declarations were not made at `add`; they were swept in
+        later."* `bin/lib § computed_kr_current` counts `via == "add"` with
+        NO `actor` filter, so an import that stamped `add` would carry
+        `P003-O3-KR2` from its 0 baseline towards 100% on records describing
+        behaviour that never ran. That guard is untouched.
+
+        **The lane is the right scope, not "whatever a fresh import writes".**
+        DESIGN-015 § 7 names `actor` and `via` as the two fields a check of
+        the § 5.5 per-lane table would read, and § 5.5 gives `edge`-at-`add`
+        to `work` (`perry-task`) and `edge`-at-`link` to `goals`
+        (`perry-goals`). A record stamped `actor: "goals", via: "add"` is
+        therefore not noise to be filtered away — it is precisely the § 7
+        risk, a lane claiming an action § 5.5 does not give it, and this is
+        the only site in the suite that would see it on the live corpus.
+
+        The alternative scope — *the records a fresh import run produces* —
+        was rejected. It re-runs the importer instead of reading the artefact
+        that shipped, which is what this class exists for (*"only the real
+        corpus proves the row landed"*); it cannot validate the shipped store
+        at all, because the register has moved since the import and a re-run
+        produces a different record set; and
+        `TestTheStampIsNotFabricated.test_via_is_link_and_never_add` already
+        covers the importer's own output, on a fixture, where the store has
+        no other writer to confuse it.
+        """
+        records = [json.loads(line) for line
+                   in (ROOT / "perry" / STORE_KEY).read_text(
+                       encoding="utf-8").split("\n") if line.strip()]
+        declared_by_goals = [r for r in records if r.get("actor") == "goals"]
+        # Without this the loop below is vacuously true on an empty store, on
+        # one whose `actor` was renamed, and on one the import never filled —
+        # three ways to pass for the absence of the input rather than for the
+        # guard. `kr` records carry no `actor` at all and are not in scope.
+        self.assertTrue(declared_by_goals,
+                        "no record in the live store is attributed to the "
+                        "`goals` lane, so this test asserted nothing")
+        for rec in declared_by_goals:
+            self.assertEqual(
+                rec.get("via"), "link",
+                f"{rec} is attributed to the `goals` lane but claims it was "
+                f"declared at `add` — which is what P003-O3-KR2 counts "
+                f"(`bin/lib § computed_kr_current`), and what DESIGN-015 "
+                f"§ 5.5 gives to `work`, not to this lane")
 
 
 if __name__ == "__main__":
