@@ -1222,9 +1222,28 @@ class TestTheCommandLine(unittest.TestCase):
         p = Project(self)
         p.okr("write", "--from-file")
         before = p.okr_text()
+        # **There was a second drift here and it was dead from birth.** The
+        # line read `.replace("| KR-O1.1 |", "| KR-O1.1 |", 1)` -- needle and
+        # replacement identical -- in the commit that created this file
+        # (`96822a4e`, 2026-08-20), and `git log -L` shows it never held a
+        # differing second argument. ADR-017 step 3 renamed both halves to
+        # `| O1-KR1 |`, which made it match the file again without making it do
+        # anything.
+        #
+        # **Do not restore it as a real mutation: the behaviour it would assert
+        # does not exist.** Measured 2026-09-08 by writing
+        # `.replace("| O1-KR1 |", "| O1-KR9 |", 1)` and running this test --
+        # it FAILS, with `O1-KR9` still in the file after `render --write`.
+        # `render` matches a row to its record BY ID, so a mutated id matches
+        # nothing and the line is passed through verbatim, which is the
+        # documented behaviour `TestTheByteGateCanFail` below relies on.
+        # `diff` still reports the drift; `render --write` cannot repair it.
+        # That asymmetry is `TASK-395`.
+        #
+        # So this test covers drift in a cell whose row still resolves, which
+        # is what the remaining replace does.
         (p.root / "perry" / "OKR.md").write_text(
-            before.replace("| O1-KR1 |", "| O1-KR1 |", 1)
-                  .replace("3 of 3 modes live", "SEVEN of 3 modes live"))
+            before.replace("3 of 3 modes live", "SEVEN of 3 modes live"))
         self.assertEqual(p.okr("diff").returncode, 1)
         self.assertEqual(p.okr("render", "--write").returncode, 0)
         self.assertEqual(p.okr_text(), before)

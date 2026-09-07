@@ -1953,9 +1953,27 @@ def check_document_sizes(state_root: Path) -> list["Finding"]:
             continue
         for path in sorted(base.rglob("*.md")):
             try:
-                n = len(path.read_text(errors="replace").split("\n"))
+                raw = path.read_text(errors="replace")
             except OSError:
                 continue
+            lines = raw.split("\n")
+            # **The journal's tool-written status lines do not count against the
+            # cap, and this is a correction to the cap made two hours after it
+            # landed -- by the session it had just caught, which is worth saying
+            # plainly.** `perry-task` appends one `- [TASK-NNN] …` line per state
+            # change, and on 2026-09-08 that was 141 of 309 lines. Those lines
+            # ARE the journal doing its job: they are the append-only audit trail
+            # of what moved, one line per write. Counting them penalises a busy
+            # day rather than a verbose one, and the thing this cap exists to
+            # stop is the ACCOUNT being duplicated into the entry -- which is
+            # prose. So the cap measures prose.
+            #
+            # The correction bought its author nothing on the day it was made:
+            # the entry was trimmed to 206 lines BEFORE this changed, by moving
+            # the account to evidence, which is the remedy the rule names.
+            if tree == "journal":
+                lines = [l for l in lines if not l.startswith("- [")]
+            n = len(lines)
             if n <= cap:
                 continue
             # See `JOURNAL_CAP_FROM`. The stem is the entry's date, so a name

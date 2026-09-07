@@ -1835,3 +1835,118 @@ of those are history: an evidence document records what was measured under the
 old grammar, a journal entry records what was written. **The template is
 different in kind — it is not a record of the past, it is an instruction for the
 future.**
+
+
+---
+
+# 续：当日后半段（2026-09-08 从 journal 移入）
+
+## Row F round 2 merged — and DoD item 5 turns out to be unreachable as written
+
+Both FAIL defects fixed, **verified by the PMO in a scratch copy before merging**:
+
+```
+add --kr "   "            REFUSED at the writer, nothing written
+delete every via:"add"    KR 15.38% → 0.00%   (before: unchanged — the
+                          numerator never read the store at all)
+```
+
+**The number does not move** — 2 of 13 before and after — and that is the honest
+outcome: both live rows hold a real edge and survive a numerator that checks.
+
+Merge conflict in `bin/perry-task` — the one I flagged when dispatching —
+resolved by **keeping both** validation blocks: they validate different flags at
+the same anchor. Both refusals re-verified after the merge.
+
+### `USER-921` — the phase's last Must-Have cannot be satisfied as written
+
+`bin/lib:741` computes half the numerator from `{"kind":"unlinked","via":"add"}`.
+**No writer anywhere produces that shape**: `via:"add"` is hardcoded at exactly
+one site, `bin/perry-task:2798`, which writes **edges**; `bin/perry-goals:2022`
+appends an `unlinked` record with **no `via` field at all**.
+
+DoD item 5 reads *"a KR edge **or an `unlinked` declaration written by its own
+`add`**"*. **The second half has no implementation.** A row that genuinely serves
+no KR can only omit `--kr`, which the computation counts as *not answered* — so
+**every honest no-KR row permanently lowers this KR**, and 100% is unreachable
+**by construction**, not by work left undone.
+
+**This is why the number looks the way it does.** 50% → 33% → 15.38% were never
+regressions: the denominator grew as rows were filed, and most legitimately serve
+no KR. **The KR measures honestly against a target it cannot reach.**
+
+Two resolutions, and they are not equivalent — **(A)** give `add` a writer for
+the declaration, which is what item 5 already describes and makes 100% reachable;
+**(B)** restate the KR so omitting `--kr` counts as answered-with-none, which is
+cheaper and **destroys the distinction the KR exists to measure** — never-asked
+and declared-no-KR collapse into one reading, the exact state `DESIGN-015 § 5.2`
+built the derivation to tell apart. **Recommended (A)**, because after (B) a KR
+at 100% would tell you nothing about whether anyone was ever asked.
+
+Phase-scoring participation is a User Commitment, which is why this is an ask.
+
+## New tasks added
+
+### TASK-394 — add has no way to declare a row serves no KR, so the honest answer is unrecorded and DoD item 5's second half has no writer
+
+- **Owner**: Coding Agent
+- **Priority**: P1
+- **Track / mode**: main / project
+- **Deliverable**: add can declare at creation that a row serves no KR, writing an unlinked record with via add inside the same transaction as the row
+- **Verification**: File a row with the declaration and show it counts as answered, and that a row filed without it still counts as never asked. Kill the process between writes and show the declaration never survives alone. Mutation: revert the writer and show a named test go red.
+- **Dependencies**: —
+- **Out of scope**: —
+- **KR linkage**: P003-O3-KR2
+
+### TASK-395 — perry-okr diff reports an id drift that render --write cannot repair, because render matches rows by the id that drifted
+
+- **Owner**: Coding Agent
+- **Priority**: P2
+- **Track / mode**: main / project
+- **Deliverable**: Either render repairs an id drift, or the limit is stated where a caller meets it — in render's own report and in diff's failure text
+- **Verification**: Hand-edit an id, run render --write, and show the file either restored or the limit reported. Mutation: revert the fix and show a named test go red.
+- **Dependencies**: —
+- **Out of scope**: —
+- **KR linkage**: unlinked
+
+## `USER-921` answered (A) — `TASK-394` dispatched, and the gate refused me first
+
+**(A): build the writer, do not restate the KR.** The alternative was rejected
+because after it **a KR at 100% would say nothing about whether anyone was ever
+asked** — never-asked and declared-no-KR would collapse into one reading, which
+is the distinction `DESIGN-015 § 5.2` built the derivation to tell apart.
+
+**The design already specifies the record; only the writer was missing.** `§ 5.3`
+counts a row as answered by a `kr` on its `add` event *or* an `unlinked` record
+with `via: "add"`; `§ 5.5`'s table assigns that record to the **`work`** lane via
+*"`add` with an explicit unlinked declaration"*; and `bin/lib:741` already reads
+exactly that shape. So `TASK-394` builds **the one cell of that table never
+implemented** and changes no reader.
+
+**The KR will not jump when it lands, and should not** — rows already filed
+without `--kr` stay never-asked, which is true of them.
+
+### The length gate refused me within the hour, and I took the remedy
+
+Filing the row, my own `--next` was **1,870 bytes** against the 1,000 I had set
+an hour earlier. `perry-task` refused it. I put the account in
+`evidence/2026-09/TASK-394-spec.md` and left the cell a pointer — **the remedy
+the rule names**, which also satisfies `dispatch.md`'s pre-flight, since a
+dispatched row needs a spec file anyway.
+
+That is now **three times today a gate I built has refused me first**: the
+journal cap (1,970 lines), this one, and `review.md § 0`, which says two of the
+five V4 rounds I dispatched should not have been.
+
+### What the brief carries that the spec could not
+
+**The atomicity bar is seven crash points, not five.** Row D claimed five;
+`TASK-279`'s V4 found seven, because row D's harness kills only before *canonical
+renames* and the event append is an `open(...,"a")` — so the point row D's own
+"what I did not check" named was **unreachable by its own harness**. `TASK-394`
+inherits the seven.
+
+**And the green-mutation lesson, by name**: `TASK-281` round 1 closed a green
+against a fixture that **could never be produced**, and round 2 had to re-open
+it. So every guard this round adds must redden on **an input a user can
+produce**.
