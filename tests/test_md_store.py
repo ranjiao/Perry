@@ -394,7 +394,7 @@ class TestTheSecondProjectFixture(unittest.TestCase, RoundTrip):
     version blocks, Chinese prose, a config carrying a `## Tracks` table and
     screens of dispatch notes. **Neither real project on this machine declares
     a `## Tracks` table**, which is the register `DESIGN-003 § 5.2` defines and
-    `KR-O1.3` is about — so the only place it can be held to `cmp` is here.
+    `O1-KR3` is about — so the only place it can be held to `cmp` is here.
     """
 
     def test_okr_with_bullet_krs_and_a_commitments_register(self):
@@ -501,7 +501,7 @@ class TestTheSecondRealProject(unittest.TestCase, RoundTrip):
 #:   none   an Objective heading that is nothing but its ordinal
 #:   `### Retro — …`   a level-3 heading that is not an Objective
 #:   a REPEATED heading in a second version block — `okr.jsonl` already holds
-#:   `KR-O1.1` twice for the same reason, and DESIGN-009 § 5.1 puts `version`
+#:   `O1-KR1` twice for the same reason, and DESIGN-009 § 5.1 puts `version`
 #:   on the record so the two do not collapse into one.
 OBJECTIVE_FORMS = """\
 # OKR — an Objective written four ways
@@ -516,7 +516,7 @@ Prove that an Objective is a record.
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O1.1 | do the thing | 1 of 1 | no | 2026-12-31 |
+| O1-KR1 | do the thing | 1 of 1 | no | 2026-12-31 |
 
 ### Objective 2: a colon, the form gimegime-pmo writes
 
@@ -599,7 +599,7 @@ class TestAnObjectiveIsARecord(unittest.TestCase, RoundTrip):
                          ["v1: 2026-01-01", "v2: 2026-02-01"])
 
     def test_the_same_heading_in_two_versions_is_two_records(self):
-        """Risk 3 of the design. `okr.jsonl` already carries `KR-O1.1` twice,
+        """Risk 3 of the design. `okr.jsonl` already carries `O1-KR1` twice,
         discriminated by `version`; an Objective repeated in a later version
         block has to survive the same way, or history collapses into the
         current version and the store cannot be read back at all."""
@@ -1223,7 +1223,7 @@ class TestTheCommandLine(unittest.TestCase):
         p.okr("write", "--from-file")
         before = p.okr_text()
         (p.root / "perry" / "OKR.md").write_text(
-            before.replace("| KR-O1.1 |", "| KR-O1.1 |", 1)
+            before.replace("| O1-KR1 |", "| O1-KR1 |", 1)
                   .replace("3 of 3 modes live", "SEVEN of 3 modes live"))
         self.assertEqual(p.okr("diff").returncode, 1)
         self.assertEqual(p.okr("render", "--write").returncode, 0)

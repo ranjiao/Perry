@@ -319,11 +319,11 @@ class TestItRefusesALiveReference(PurgeCase):
         p = Project()
         tid = self.closed_row(p)
         (p.root / "okr.jsonl").write_text(json.dumps(
-            {"kind": "kr", "id": "KR-O1.1", "text": "a key result",
+            {"kind": "kr", "id": "O1-KR1", "text": "a key result",
              "linked": tid}) + "\n")
         code, out = self.purge(p, tid)
         self.assertEqual(code, 1)
-        self.assertIn("okr.jsonl KR-O1.1.linked", out["refused"])
+        self.assertIn("okr.jsonl O1-KR1.linked", out["refused"])
 
     def test_a_cited_evidence_document_that_names_it_is_refused(self):
         p = Project()
