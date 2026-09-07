@@ -2736,6 +2736,71 @@ def register_change(state_root: Path, board: Board,
             substituted_away(key, current, records))
 
 
+def linkage_edge_change(state_root: Path,
+                        event: dict) -> tuple[Path, str, dict] | None:
+    """`(path, text, record)` for the edge this `add` declares, or `None`.
+
+    **DESIGN-015 § 5.3, row D.** `perry-task add --kr` is the `work` lane's
+    one permitted write to `linkage.jsonl` (§ 5.5), and the record it appends
+    carries `via: "add"` — the field that makes `P003-O3-KR2` computable,
+    because "attributed in the same action that created the row" is not
+    recoverable from an edge that only says which KR it points at.
+
+    The caller puts the returned text into `commit()`'s canonical set, so the
+    edge lands under the SAME recovery marker as `tasks.jsonl` and the
+    journal. It is deliberately not written beside them: an edge appended
+    after the pair is a second transaction, and a crash between the two would
+    leave a row attributed to a KR in a store while the store of record has
+    no such row — or, worse in the other order, an edge for a task id that
+    was never created.
+
+    **`None` when the project has no store, and the store is NOT created.**
+    This is the same rule, for the same reason, that
+    `bin/perry-goals § linkage_store_text` states: every reader moved by row C
+    reads `linkage.jsonl` FIRST and falls back to `phase/<NNN>-linkage.md`
+    only when the file is absent (`parsers.load_linkage`). Creating a
+    one-record store on a project whose register lives in the document would
+    therefore not add an edge — it would silently replace the whole graph
+    with a single edge, and every KR that project has would vanish from every
+    render. A pre-DESIGN-015 project keeps `kr: null`'s sibling behaviour: the
+    event records the answer, the store stays absent, and `perry-goals link`
+    remains the way the edge is declared.
+
+    **Appended, never rewritten.** Unlike `link`, this writer has no retraction
+    to make: a row created microseconds ago cannot already carry an `unlinked`
+    declaration to withdraw. Reading the file and re-emitting it — rather than
+    opening it in append mode — is what lets the whole text go through
+    `replace_canonical_pair` as one staged post-image with its pre-image in
+    the marker.
+    """
+    if (event.get("event") or "") != "add":
+        return None
+    kr = str(event.get("kr") or "").strip()
+    task = str(event.get("id") or "").strip()
+    if not kr or not task:
+        return None
+    path = state_root / P.LINKAGE_STORE
+    if not path.exists():
+        return None
+    try:
+        current = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise Refused(f"{P.LINKAGE_STORE} could not be read to append the "
+                      f"{task} → {kr} edge ({exc}). Nothing was written.") from None
+    record = {"kind": "edge", "task": task, "kr": kr,
+              # UTC with `Z`, via the same stamp `perry-goals link` uses. The
+              # two writers of this store must not spell one field two ways:
+              # `declared_at` is compared across records by every reader that
+              # orders them, and `lib.event_stamp()`'s local-offset form would
+              # sort as text against the 121 imported records and lose.
+              "declared_at": lib.register_stamp(),
+              "actor": str(event.get("actor") or "agent"),
+              "via": "add"}
+    lines = [line for line in current.split("\n") if line.strip()]
+    lines.append(json.dumps(record, ensure_ascii=False))
+    return (path, "\n".join(lines) + "\n", record)
+
+
 def replace_canonical_pair(state_root: Path,
                            changes: list[tuple[Path, str]]) -> None:
     """Replace store+journal with rollback on failure and crash recovery."""
@@ -3017,6 +3082,11 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # staged, so a register the board cannot produce a readable store for
     # refuses the whole write rather than half of it (TASK-203).
     register = register_change(state_root, board, event)
+    # Beside the register and for the same two reasons: `--dry-run` must
+    # preview the edge rather than a cheaper approximation of the write, and a
+    # store this tool cannot read must refuse the whole write before anything
+    # is staged rather than half of it.
+    linkage = linkage_edge_change(state_root, event)
     # **The loud half of TASK-243.** A shrink is refused; a count-preserving
     # substitution is REPORTED, because Perry cannot tell it from a legitimate
     # hand edit and a tool that cannot tell must not refuse. The lost records
@@ -3057,6 +3127,13 @@ def commit(project_root: Path, state_root: Path, board: Board,
                             # record was destroyed" cannot be confused.
                             "substituted": substituted}
                            if register else None),
+        # The edge this write appended, or `None`. Present on every `commit()`
+        # payload rather than only on the writes that make one, so a caller
+        # reading `plan["linkage_edge"] is None` learns "no edge was written"
+        # instead of having to tell a missing key from an absent edge — the
+        # same rule stated for `register_store` above.
+        "linkage_edge": ({"path": str(linkage[0]), "record": linkage[2]}
+                         if linkage else None),
         "board": str(board.path),
         "journal": str(jpath),
         "events": str(events_path(project_root)),
@@ -3125,6 +3202,12 @@ def commit(project_root: Path, state_root: Path, board: Board,
     canonical = [(spath, perry_store.store_text(records))]
     if register:
         canonical.append((register[0], register[1]))
+    # The linkage edge, in the same set and under the same marker (§ 5.3). The
+    # ordering within `canonical` carries no meaning — every entry is staged
+    # before any is renamed — so this sits with the other stores rather than
+    # after the journal for readability alone.
+    if linkage:
+        canonical.append((linkage[0], linkage[1]))
     canonical.append((jpath, jtext))
     replace_canonical_pair(state_root, canonical)
     # After the write, not before it: this sentence is in the past tense and a
@@ -3550,12 +3633,35 @@ def cmd_add(args, ctx) -> dict:
         f"- **Out of scope**: {args.out_of_scope or '—'}",
         f"- **KR linkage**: {args.kr or 'unlinked'}",
     ])
+    # **`kr` is on the event whether or not one was given** (DESIGN-015 § 5.2,
+    # row D). Present-and-null and absent are different facts and the payload
+    # must not conflate them: `null` is "the question was reached and left
+    # unanswered", which is what makes never-asked auditable from the log, and
+    # a MISSING key is every `add` event written before this row existed.
+    # `P003-O3-KR2` counts the non-null ones, so a defaulted `""` here would
+    # be a third spelling of "no answer" that the count would have to guess at.
+    #
+    # The edge record itself is written by `commit()`, from this field, inside
+    # the same recovery marker as the store and the journal — not here beside
+    # them. See `linkage_edge_change`.
     event = {"ts": lib.event_stamp(), "event": "add",
              "id": tid, "title": args.title, "track": track["track"], "mode": mode,
              "priority": priority, "actor": args.actor,
              "summary": args.summary or "",
              "depends_on": depends,
+             "kr": args.kr or None,
              "from": None, "to": "not_started"}
+    # Warned, not refused (DESIGN-015 § 5.2 on User Decision 3). The row is
+    # still created: refusing would make `--kr` mandatory, which is a decision
+    # the design did not take, and writing a `never_asked` record would store
+    # a fact that is derived from absence and would then need DELETING the
+    # moment an answer arrived.
+    if not args.kr:
+        print(f"perry-task: warning — {tid} was created without `--kr`, so no "
+              f"KR edge was recorded and the row reads as never-asked. It is "
+              f"NOT declared unlinked: `perry-goals link {tid} <KR-ID>` "
+              f"attributes it, `perry-goals link --unlinked {tid}` declares "
+              f"outright that it serves no KR.", file=sys.stderr)
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run, definition=definition)
     return {"id": tid, "priority": priority, "prefix": prefix,
@@ -7865,6 +7971,13 @@ def main(argv: list[str]) -> int:
         register = result.get("register_store")
         if register:
             written.append(Path(register["path"]).name)
+        # Under the same rule as the two above: named only on the writes that
+        # actually appended an edge. `add` without `--kr`, and `add --kr` on a
+        # project with no store, both leave this out rather than claiming a
+        # file they did not touch.
+        edge = result.get("linkage_edge")
+        if edge:
+            written.append(Path(edge["path"]).name)
         tail = " + ".join(written) + " + journal"
         for name, ok, why in (
                 ("BOARD.md", result.get("board_rendered", True),
