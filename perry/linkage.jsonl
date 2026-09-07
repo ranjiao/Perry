@@ -119,3 +119,5 @@
 {"kind": "unlinked", "task": "TASK-304", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
 {"kind": "unlinked", "task": "TASK-305", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
 {"kind": "unlinked", "task": "TASK-325", "declared_at": "2026-09-03T06:06:45Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "TASK-382", "kr": "P003-O3-KR2", "declared_at": "2026-09-07T05:59:02Z", "actor": "agent", "via": "add"}
+{"kind": "edge", "task": "TASK-383", "kr": "P003-O3-KR2", "declared_at": "2026-09-07T06:00:24Z", "actor": "agent", "via": "add"}
