@@ -710,6 +710,38 @@ class TheDesyncDetectorIsNotGatedOnTheEventItDetects(unittest.TestCase):
         self.assertEqual(m["store_edge_without_event"], [])
         self.assertEqual(m["linked_at_add"], ["TASK-704"])
 
+    def test_a_store_edge_naming_the_literal_string_None_is_still_reported(self):
+        """**Mutation N15's closure, on an input a user can produce.**
+
+        `_corroborates` returns False for a `claimed` of `None` before it
+        compares anything. Deleting that guard was GREEN against every other
+        test here, because `str(None)` is `"None"` and no KR is called that
+        — until one is. A user can file `perry-task add --kr "None"`: the id
+        is not checked for existence (that is row D's question, `TASK-279`,
+        deliberately not asked here), so the store takes
+        `{"kind":"edge","kr":"None","via":"add"}`. Verified end to end
+        against a real store before this test was written.
+
+        Lose that row's `add` event to a crash and the store's half is alone
+        in the tree with `kr: "None"`, while the absent event reads as
+        `None`. Without the guard the two 'match' and the desync goes
+        unreported — the detector silently blind on the one row shaped to
+        defeat it.
+        """
+        m = lib.same_action_linkage(
+            [edge("TASK-706", "None", "add")],
+            [add_event("TASK-700", kr=None)])
+        self.assertEqual(m["store_edge_without_event"], ["TASK-706"])
+
+    def test_the_same_row_is_not_counted_in_the_numerator_either(self):
+        """The other side of N15: an `add` event carrying `kr: null` must not
+        be corroborated by a `kr: "None"` edge."""
+        m = lib.same_action_linkage(
+            [edge("TASK-707", "None", "add")],
+            [add_event("TASK-707", kr=None)])
+        self.assertEqual(m["linked_at_add"], [])
+        self.assertEqual(m["numerator"], 0)
+
     def test_a_later_link_is_not_reported_as_a_desync(self):
         """`via: "link"` is the ordinary path, not a half-landed
         transaction. This is round 1's M02, kept."""
