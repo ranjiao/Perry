@@ -3832,6 +3832,135 @@ def parse_linkage(text: str) -> Linkage:
     return link
 
 
+#: `<state root>/linkage.jsonl` — the seventh store, declared in
+#: `schema/state-schema.json § stores.declared` by DESIGN-015 row A, imported
+#: by row B, and read here by row C.
+LINKAGE_STORE = "linkage.jsonl"
+
+
+def load_linkage_store(state_root: Path) -> list[dict] | None:
+    """Every record of `<state root>/linkage.jsonl`, or `None` when there is none.
+
+    The same three-way answer `load_task_store` gives, for the same reason.
+    `None` is **not "no edges"** — it is "this project has no linkage store",
+    which is every Perry project that predates DESIGN-015 and every project
+    that is not this one. An empty list is a real, present, empty store and
+    reads zero edges without touching `phase/<NNN>-linkage.md`.
+
+    A malformed store returns `None` rather than raising: this reader is
+    read-only, and `bin/perry-lint § check_linkage_store_drift` is the tool
+    that says *why* a store will not parse. Two readers reporting the same
+    breakage in two different voices is how a caller learns to ignore one.
+    """
+    p = Path(state_root) / LINKAGE_STORE
+    if not p.exists():
+        return None
+    try:
+        return [json.loads(line) for line
+                in p.read_text(encoding="utf-8").split("\n") if line.strip()]
+    except (OSError, ValueError):
+        return None
+
+
+def linkage_from_store(records: list[dict], document: Linkage) -> Linkage:
+    """The linkage graph with its **schema'd half taken from the store**.
+
+    DESIGN-013 § 5.1: *a fact that has a schema lives in exactly one store; a
+    document holds what has no schema.* `schema/state-schema.json §
+    stores.declared["linkage.jsonl"]` is the list of which is which, and this
+    function is the seam that obeys it — so the split is read off the
+    declaration rather than re-decided at each of the six call sites
+    DESIGN-015 § 5.6 names.
+
+    **From the store** (`kind: kr` / `edge` / `unlinked`): the objectives, the
+    KR ids, titles, `target`, `current`, `stretch`, `linked`; every task→KR
+    edge; every `unlinked` declaration.
+
+    **From the document**: `spec`, `phase`, `updated`, `projects`, `agents`,
+    and per KR `metric` and `due`. Not an oversight and not a fallback — none
+    of those is a declared store field. `metric` is Decision 2 (an argument
+    about how a number was reached is what a document is for) and
+    `derived_not_stored.metric` says so in the schema; `due`, `projects` and
+    `agents` simply have no `kr`-record counterpart. Row E strips the
+    document's schema'd half; the fields this function still reads from it are
+    the ones that survive that strip.
+
+    The document is also the **shape** the objectives are hung on: a `kr`
+    record carries `objective: "O2"` but no objective *title*, so the titles
+    and the objective order come from the document. An objective the store
+    names and the document does not is still emitted, titleless, rather than
+    dropped — a KR that exists in the authority and vanishes from the render
+    is the silent-loss failure this store was built to end.
+    """
+    krs = [r for r in records if isinstance(r, dict) and r.get("kind") == "kr"]
+    edges = [r for r in records
+             if isinstance(r, dict) and r.get("kind") == "edge"]
+    unlinked = [r for r in records
+                if isinstance(r, dict) and r.get("kind") == "unlinked"]
+
+    # Prose, by KR id, from the document. A KR the document does not carry
+    # gets `""` — which is what an absent `metric:` has always meant.
+    prose = {k.id: (k.metric, k.due)
+             for o in document.objectives for k in o.krs}
+
+    tasks_by_kr: dict[str, list[str]] = {}
+    for e in edges:
+        tasks_by_kr.setdefault(str(e.get("kr") or ""), []).append(
+            str(e.get("task") or ""))
+
+    by_objective: dict[str, list[LinkageKR]] = {}
+    for rec in krs:
+        kr_id = str(rec.get("id") or "")
+        metric, due = prose.get(kr_id, ("", ""))
+        by_objective.setdefault(str(rec.get("objective") or ""), []).append(
+            LinkageKR(
+                id=kr_id,
+                title=str(rec.get("title") or ""),
+                metric=metric,
+                target=_num(rec.get("target")),
+                current=_num(rec.get("current")),
+                due=due,
+                stretch=bool(rec.get("stretch")),
+                linked=str(rec.get("linked") or ""),
+                tasks=tasks_by_kr.get(kr_id, []),
+            ))
+
+    link = Linkage(
+        spec=document.spec,
+        phase=document.phase,
+        updated=document.updated,
+        unlinked=[str(r.get("task") or "") for r in unlinked],
+        agents=list(document.agents),
+        projects=list(document.projects),
+    )
+    titles = {o.id: o.title for o in document.objectives}
+    order = [o.id for o in document.objectives]
+    order += [oid for oid in by_objective if oid not in titles]
+    for oid in order:
+        if oid not in by_objective:
+            continue
+        link.objectives.append(LinkageObjective(
+            id=oid, title=titles.get(oid, ""), krs=by_objective[oid]))
+    return link
+
+
+def load_linkage(state_root: Path, document_path: Path) -> Linkage:
+    """The graph the six readers of DESIGN-015 § 5.6 read. **Store first.**
+
+    One function so that "which file is the authority" is answered once. A
+    project with `linkage.jsonl` is answered from it; a project without one —
+    every Perry project older than DESIGN-015 — is answered from the document
+    exactly as before, so this row moves Perry's own readers without breaking
+    a project that has not been imported.
+    """
+    document = (parse_linkage(document_path.read_text(encoding="utf-8"))
+                if document_path.exists() else Linkage())
+    records = load_linkage_store(state_root)
+    if records is None:
+        return document
+    return linkage_from_store(records, document)
+
+
 #: `P003-O2-KR1` → `O2`. A phase KR id names the objective it belongs to, so
 #: attaching a register's KRs to a document's headings needs no position match
 #: and no second field to keep in sync.
@@ -4522,11 +4651,16 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
             phase_file = root / "phase" / f"{slug}.md"
             if phase_file.exists():
                 phase = parse_phase(slug, phase_file.read_text())
-            # Linkage registry is named by phase number: phase/<NNN>-linkage.md
+            # **The store is the authority; the document is the fallback.**
+            # DESIGN-015 § 5.6 site 6 — what `perry-state`'s attribution
+            # reader is built on. `load_linkage` reads `linkage.jsonl` when
+            # the project has one and `phase/<NNN>-linkage.md` when it does
+            # not, so the file name below is still needed: it names the
+            # document that holds `metric` and `due`, and it is what an
+            # un-imported project is still read from.
             number = (phase.number if phase else "") or slug.split("-")[0]
             linkage_file = root / "phase" / f"{number}-linkage.md"
-            if linkage_file.exists():
-                linkage = parse_linkage(linkage_file.read_text())
+            linkage = load_linkage(root, linkage_file)
 
     # **THE RULE: once `BOARD.md § Top risks` is a table, that table is the
     # register and `PROJECT_STATE.md` is no longer merged into it.**
