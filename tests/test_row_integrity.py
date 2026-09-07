@@ -53,6 +53,7 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import contextlib
 import importlib.machinery
 import importlib.util
 import json
@@ -70,6 +71,29 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 
 import tables as T  # noqa: E402
 import parsers as P  # noqa: E402
+
+
+@contextlib.contextmanager
+def _scratch_bin(*dirs):
+    """A scratch tree with `bin/` and `viewer/`, for probes to be planted into.
+
+    **TASK-341.** Three tests here used to write their probes into the live
+    checkout — `bin/lib/guardprobe.py`, `bin/perry-guardprobe`,
+    `bin/perry-literalprobe`. The census run for that row measured 63 tests in
+    27 other modules enumerating `bin/` in this tree, so for the duration of
+    each probe any of them could see a file that is not the repository's; the
+    named collision is `tests/test_one_primitive.py:150`, which asserts
+    `bin/lib` holds exactly one file.
+
+    The probes are still real files in a real tree walked by the real
+    `_tools()`. What changes is that no other process can see them.
+    `work/reference/review-constraints.md`: **plant into a copy.**
+    """
+    with tempfile.TemporaryDirectory(prefix="perry-rowprobe-") as d:
+        home = Path(d)
+        for name in ("bin", "viewer") + dirs:
+            (home / name).mkdir(parents=True, exist_ok=True)
+        yield home
 
 
 def load(name: str, path: Path):
@@ -291,8 +315,21 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
     #: f-string that opens a row and interpolates *anywhere* in it.
     HAND_ROW_RE = re.compile(r"""f['"]\s*\|(?=[^'"\n]*\{)""")
 
-    def _tools(self):
+    def _tools(self, home=None):
         """Every shipped tool, globbed.
+
+        **`home` defaults to `PERRY_HOME` and exists so a probe can be planted
+        into a scratch tree and walked by THIS code** rather than written into
+        the live checkout (TASK-341). The walk is the same function either
+        way, so a scratch-tree plant measures the walk and does not mock it;
+        what changes is that no other process can see the probe.
+        `work/reference/review-constraints.md` says **plant into a copy**, and
+        the census for TASK-341 found this module and
+        `tests/test_one_choke_point.py` writing `bin/lib/guardprobe.py` and
+        `bin/lib/rowprobe.py` into the live tree while 63 tests in 27 other
+        modules enumerate `bin/` — among them
+        `tests/test_one_primitive.py:150`, which asserts `bin/lib` holds
+        exactly one file and goes red when either probe exists.
 
         The previous version carried a hardcoded list of eight files, so a
         reviewer added `bin/perry-newreader` with the exact defect and the
@@ -314,14 +351,15 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
         #: one level down. **Three rounds, one category** — so it now walks the
         #: tree rather than two directories, and the directories it skips are
         #: named with a reason rather than assumed.
+        home = Path(home) if home is not None else PERRY_HOME
         out = []
         for d in ("bin", "viewer"):
-            out += [p for p in sorted((PERRY_HOME / d).rglob("*"))
+            out += [p for p in sorted((home / d).rglob("*"))
                     if p.is_file()
                     and not p.name.endswith((".md", ".json", ".pyc"))
                     and "__pycache__" not in p.parts]
         return [p for p in out
-                if p.relative_to(PERRY_HOME).as_posix() not in self.EXEMPT]
+                if p.relative_to(home).as_posix() not in self.EXEMPT]
 
     @staticmethod
     def _code_lines(path):
@@ -373,16 +411,15 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
 
         Two of round 3's own guard fixes, both real, both asserted by nothing.
         """
-        probe = PERRY_HOME / "bin" / "perry-literalprobe"
-        probe.write_text('def r(n, t):\n    return f"| TASK-{n} | {t} |"\n',
-                         encoding="utf-8")
-        try:
+        with _scratch_bin() as home:
+            probe = home / "bin" / "perry-literalprobe"
+            probe.write_text(
+                'def r(n, t):\n    return f"| TASK-{n} | {t} |"\n',
+                encoding="utf-8")
             hits = [n for n, line in self._code_lines(probe)
                     if self.HAND_ROW_RE.search(line)]
-            self.assertTrue(hits, "a row whose first cell is literal walks "
-                                  "past the write-half guard")
-        finally:
-            probe.unlink(missing_ok=True)
+        self.assertTrue(hits, "a row whose first cell is literal walks "
+                              "past the write-half guard")
 
     def test_the_guard_sees_a_file_in_a_subdirectory(self):
         """**The property the `rglob` fix added, which nothing asserted.**
@@ -395,37 +432,52 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
         `bin/lib/` is not hypothetical: it is the directory TASK-065 exists to
         create, and it is where the reviewer's original nine invisible plants
         went.
+
+        **TASK-341: the probe goes into a scratch tree.** It used to be a real
+        `bin/lib/guardprobe.py` in the live checkout, and
+        `tests/test_one_primitive.py:150` asserts `bin/lib` holds exactly one
+        file. The walk is unchanged and still does the descending — revert
+        `rglob("*")` to `glob("*")` and this still goes red. The half a
+        scratch tree cannot carry, that the LIVE `bin/lib` is real and reached,
+        is asserted below as a read.
         """
-        d = PERRY_HOME / "bin" / "lib"
-        made = not d.exists()
-        d.mkdir(exist_ok=True)
-        probe = d / "guardprobe.py"
-        probe.write_text('cells = [c for c in line.strip("|").split("|")]\n',
-                         encoding="utf-8")
-        try:
-            found = [p for p in self._tools() if p.name == "guardprobe.py"]
-            self.assertTrue(found, "a file one directory down is invisible to "
-                                   "this guard")
-        finally:
-            probe.unlink(missing_ok=True)
-            if made:
-                d.rmdir()
+        with _scratch_bin("bin/lib") as home:
+            (home / "bin" / "lib" / "guardprobe.py").write_text(
+                'cells = [c for c in line.strip("|").split("|")]\n',
+                encoding="utf-8")
+            found = [p for p in self._tools(home)
+                     if p.name == "guardprobe.py"]
+        self.assertTrue(found, "a file one directory down is invisible to "
+                               "this guard")
+
+    def test_the_live_bin_lib_is_reached_by_this_walk(self):
+        """The read half of the test above: the subdirectory whose descent is
+        being proved is a real, populated subdirectory of THIS tree, and
+        `_tools()` reaches into it. Costs no write.
+
+        Without it, the scratch-tree test above would prove the walk descends
+        into a directory named `bin/lib` while `_tools()` quietly stopped
+        reaching the one that exists.
+        """
+        live = {p.relative_to(PERRY_HOME).as_posix() for p in self._tools()}
+        self.assertIn("bin/lib/__init__.py", live,
+                      "the real bin/lib is not reached by this guard's walk")
 
     def test_the_guard_sees_a_file_that_did_not_exist_when_it_was_written(self):
         """The property the hardcoded list did not have, written as a real file
-        under `bin/` because that is how the blindness was demonstrated."""
-        probe = PERRY_HOME / "bin" / "perry-guardprobe"
-        probe.write_text('cells = [c for c in line.strip("|").split("|")]\n',
-                         encoding="utf-8")
-        try:
-            found = [p for p in self._tools() if p.name == "perry-guardprobe"]
+        under `bin/` because that is how the blindness was demonstrated — into
+        a scratch `bin/` since TASK-341, for the reason above."""
+        with _scratch_bin() as home:
+            probe = home / "bin" / "perry-guardprobe"
+            probe.write_text(
+                'cells = [c for c in line.strip("|").split("|")]\n',
+                encoding="utf-8")
+            found = [p for p in self._tools(home)
+                     if p.name == "perry-guardprobe"]
             self.assertTrue(found, "a new tool is invisible to this guard")
-            self.assertTrue(
-                [n for n, line in self._code_lines(found[0])
-                 if self.SPLIT_RE.search(line)],
-                "the guard did not flag a planted defect")
-        finally:
-            probe.unlink()
+            hits = [n for n, line in self._code_lines(found[0])
+                    if self.SPLIT_RE.search(line)]
+        self.assertTrue(hits, "the guard did not flag a planted defect")
 
 
 class TestARaggedRowIsAFinding(unittest.TestCase):
