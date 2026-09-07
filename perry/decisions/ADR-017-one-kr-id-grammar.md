@@ -80,6 +80,44 @@ levels rather than at one.
   `P003-O2-KR1` in `phase/003-linkage.md`.
 - The 2026-09-02 design-register audit, finding `C-03`.
 
+## Changes (append-only after lock)
+
+**2026-09-08 — the `Linked OKR:` header field is METADATA, and the count in
+Context is off by one.** Both settled by the `decide` lane, which this ADR's own
+Consequences delegate: *"a `## Changes` entry records the rename rather than
+editing the header, **unless the lane decides the header field is metadata
+rather than body**."*
+
+**Metadata, and the evidence is decisive rather than definitional.** The field
+has **no consumer**. `viewer/parsers.py:3397` parses `Linked OKR` into a
+dataclass field and sets it at `:3409`; nothing in `bin/` reads it and `tests/`
+does not reference it once. ADR-017's document round proved the consequence
+rather than arguing it: it pointed `DESIGN-011`'s `Linked OKR` at a grammar
+nothing resolves and re-measured — `perry-lint` **0 errors**, the
+`perry-diagnose` finding set **byte-identical**, no `LOAD-02`, and
+`user_load.dangling` **`[]` before and after**. A line that can name a
+nonexistent id with every instrument green is not body.
+
+**Consequence**: the seven headers are edited directly, **inside the atomic data
+rename** this ADR requires (*"one edit, not a sweep"*), rather than becoming
+seven `## Changes` entries in locked designs. That the field is decorative is a
+defect in its own right and is `TASK-390`; it is **not** fixed by this rename and
+must not be conflated with it.
+
+**The count.** Context says *"Six later design headers (008 through 014) cite
+`KR-O2.1`-style ids"*. **There are seven** — `DESIGN-008`, `009`, `010`, `011`,
+`012`, `013`, `014` — and **nine documents corpus-wide** carry an old-form
+`Linked OKR`. Measured 2026-09-08 and verified independently. The Context
+sentence is left as written, because it is a dated claim inside a
+quotation-bearing clause and this entry is where the correction belongs.
+
+**Also recorded, from the same round**: the corpus is **30 live references, 14
+historical quotations and 6 mentions of the grammar itself**. The middle class
+is the one with no automated guard — `reference/style.md`'s `[[old-form]]`
+markers are the mechanism, and they cannot be applied until the old form is
+actually obsolete, which is the same edit as the rename. Until then a wrongly
+rewritten quotation is caught by a person reading the diff and by nothing else.
+
 ## What would reopen this
 
 - The rename turns out to break a consumer nobody enumerated — aiMark reads
