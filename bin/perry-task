@@ -4950,21 +4950,51 @@ def live_references(ctx, tid: str) -> list[str]:
                     and str(rec.get("task") or "") == tid):
                 out.append(f"{P.LINKAGE_STORE}:{n} edge → "
                            f"{rec.get('kr') or '?'}")
-    else:
-        # A project with no store — every Perry project older than DESIGN-015
-        # — is still read from the document it keeps, and still through
-        # `parsers.parse_linkage`, the stdlib YAML-subset reader `perry-lint`
-        # and `perry-state` use. Store first, document as the fallback: the
-        # same rule `parsers.load_linkage` states once for the other readers.
-        for path in sorted((ctx["state_root"] / "phase").glob("*-linkage.md")):
-            try:
-                model = P.parse_linkage(path.read_text(errors="replace"))
-            except OSError:
-                continue
-            if model.kr_for_task(tid):
-                out.append(f"{path.name} krs[].tasks")
-            if any(tid in (ag.tasks or []) for ag in model.agents):
-                out.append(f"{path.name} agents[].tasks")
+    # **UNION, not an alternative — and this line is the fix for a live data
+    # loss.** The register documents are scanned WHETHER OR NOT the store
+    # exists. This was an `else:` on the branch above, which made the two
+    # scans exclusive; because `linkage.jsonl` covers phase 003 ONLY (row B
+    # imported one phase), the presence of the store silently retired
+    # `phase/001-linkage.md`'s 18 edges and 16 `agents[].tasks` entries and
+    # `phase/002-linkage.md`'s 13 edges as live references. `purge` deletes a
+    # record permanently and `mint_id` never re-issues the number, so the
+    # exclusive read let `purge` destroy rows that a register still names:
+    # measured on this project, TASK-028 (`001-linkage.md:16`), TASK-046
+    # (`:24`) and TASK-087 (`002-linkage.md:69`) all stopped refusing.
+    #
+    # A reference guard is the one place where reading BOTH authorities is
+    # not redundancy but the requirement. Over-reporting costs a refusal the
+    # user can clear by editing; under-reporting costs a record that cannot be
+    # recovered and an id that is never minted again. So this fails closed:
+    # store and documents both. The two never produce the same line — a store
+    # reference names `linkage.jsonl:<n>` and a document reference names
+    # `<NNN>-linkage.md:<n>` — so a phase the store covers and the document
+    # still carries reports twice, once per file, which is the truth.
+    #
+    # Read by line rather than through `parse_linkage` because the refusal has
+    # to name the line to EDIT. The original comment's reason still holds for
+    # this file and only for this file — *"this file is markdown with a
+    # YAML-shaped block in it, not a YAML document."* What DESIGN-015 removed
+    # was the regex over the STORE, which is `json.loads` per line; the
+    # register document did not become JSONL and is still read as lines.
+    for path in sorted((ctx["state_root"] / "phase").glob("*-linkage.md")):
+        try:
+            text = path.read_text(errors="replace")
+        except OSError:
+            continue
+        # Which top-level block a `tasks:` line sits in, so `agents[].tasks`
+        # is reported as itself rather than as a KR edge. A top-level key is
+        # a bare `name:` in column 0 — the only shape this file's four blocks
+        # (`objectives`, `unlinked`, `agents`, `projects`) are written in.
+        section = ""
+        for n, line in enumerate(text.split("\n"), 1):
+            top = re.match(r"([A-Za-z_][A-Za-z0-9_]*):\s*$", line)
+            if top:
+                section = top.group(1)
+            if re.match(r"\s*tasks:", line) and names_id(line, tid):
+                kind = ("agents[].tasks" if section == "agents"
+                        else "krs[].tasks")
+                out.append(f"{path.name}:{n} {kind}")
 
     # The goals store's own linkage field. Empty on this project today, which
     # is a fact about this project and not about the register.

@@ -3951,6 +3951,75 @@ def linkage_from_store(records: list[dict], document: Linkage) -> Linkage:
     return link
 
 
+#: `phase/001-linkage.md` → `001`. A register document is named by the phase
+#: it registers, and that name is what says which of the store's phases this
+#: document is the document FOR.
+_LINKAGE_DOC_PHASE_RE = re.compile(r"^(\d{3})-linkage\.md$")
+
+#: `001-work-modes-live` → `001`. The document's own `phase:` field, used when
+#: the file has been given some other name.
+_LINKAGE_PHASE_NUMBER_RE = re.compile(r"^(\d{3})\b")
+
+
+def linkage_document_phase(document_path: Path, document=None) -> str:
+    """Which phase a register document is the register for, as `NNN`.
+
+    The filename first, because it is what `perry-goals` and `perry-state`
+    build the path from and it survives a document that will not parse. The
+    document's own `phase:` field is the fallback for a register kept under
+    some other name. `""` when neither says.
+    """
+    m = _LINKAGE_DOC_PHASE_RE.match(document_path.name)
+    if m:
+        return m.group(1)
+    m = _LINKAGE_PHASE_NUMBER_RE.match(str(getattr(document, "phase", "") or ""))
+    return m.group(1) if m else ""
+
+
+def linkage_records_for_phase(records: list, phase_number: str) -> list | None:
+    """The store's records for ONE phase, or `None` when it declares none.
+
+    **The store's authority is per phase, not store-wide, and this is the
+    function that says so for `load_linkage`'s two readers.** DESIGN-015 row B
+    imported phase 003 only: `linkage.jsonl` holds 6 `kr` records, all
+    `003-storage-code`, while `phase/001-linkage.md` and `phase/002-linkage.md`
+    still hold 16 more KRs and 31 edges between them. Handing the WHOLE store
+    to `linkage_from_store` for any document made
+    `perry-goals krs --phase 001` print phase 003's six KRs under phase 001's
+    objective headings, above a line saying they were declared in
+    `001-linkage.md`, and drop all eight of 001's own KRs.
+
+    `None` means "this phase is not in the store, read its document" — NOT
+    "this phase has no KRs". A reader that took an empty slice for an empty
+    graph would answer "no edges anywhere" for a phase whose register is full.
+
+    What belongs to a phase, matching `bin/perry-goals § linkage_graph`:
+
+    - `kr` — its own `phase` field, `<NNN>-<slug>`.
+    - `edge` — the KR id it names, which carries its phase by DESIGN-007
+      decision #4 (`P003-O1-KR1`). Not the task id, which is global.
+    - `unlinked` — **the record does not say, and § 5.1 gives it no phase
+      field**, because "this row serves no KR" is a statement about the row.
+      The whole set travels with whichever phase the store is the authority
+      for, which is what `linkage_graph` already does.
+    """
+    if not phase_number:
+        # Nothing names the phase, so nothing can be filtered to it. The
+        # document is the honest answer — better a register read from its own
+        # file than another phase's key results printed under its headings.
+        return None
+    prefix, kr_prefix = f"{phase_number}-", f"P{phase_number}-"
+    mine = [r for r in records if isinstance(r, dict) and (
+        (r.get("kind") == "kr"
+         and str(r.get("phase") or "").startswith(prefix))
+        or (r.get("kind") == "edge"
+            and str(r.get("kr") or "").startswith(kr_prefix))
+        or r.get("kind") == "unlinked")]
+    if not any(r.get("kind") == "kr" for r in mine):
+        return None
+    return mine
+
+
 def load_linkage(state_root: Path, document_path: Path) -> Linkage:
     """The graph the six readers of DESIGN-015 § 5.6 read. **Store first.**
 
@@ -3972,7 +4041,12 @@ def load_linkage(state_root: Path, document_path: Path) -> Linkage:
     records = load_linkage_store(state_root)
     if records is None:
         return document
-    return linkage_from_store(records, document)
+    mine = linkage_records_for_phase(records,
+                                     linkage_document_phase(document_path,
+                                                            document))
+    if mine is None:
+        return document
+    return linkage_from_store(mine, document)
 
 
 #: `P003-O2-KR1` → `O2`. A phase KR id names the objective it belongs to, so

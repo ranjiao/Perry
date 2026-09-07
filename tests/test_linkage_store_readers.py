@@ -111,7 +111,8 @@ def phase_file(number: str, title: str, started: str, status: str,
 def document(*, phase: str, edges: dict[str, list[str]],
              unlinked: list[str] | None = None,
              krs: tuple[str, ...] = ("KR1", "KR2"),
-             serves: str | None = None) -> str:
+             serves: str | None = None,
+             agents: dict[str, list[str]] | None = None) -> str:
     """The register document, authored by hand.
 
     By hand and not through `perry-goals link` for the reason
@@ -125,6 +126,16 @@ def document(*, phase: str, edges: dict[str, list[str]],
             'updated: "2026-09-05T00:00:00Z"']
     body.append("unlinked: [" + ", ".join(
         f'"{t}"' for t in (unlinked or [])) + "]")
+    if agents:
+        # `agents[].tasks` — a register half the store has NO record kind for
+        # (`schema/state-schema.json` declares three kinds and `agent` is not
+        # one). It is therefore only ever a document reference, and a `purge`
+        # that reads the store instead of the document stops seeing it for
+        # every phase, not just the uncovered ones.
+        body.append("agents:")
+        for who, tids in agents.items():
+            ids = ", ".join(f'"{t}"' for t in tids)
+            body.append(f'  - id: "{who}"\n    tasks: [{ids}]')
     if serves:
         # The Project↔KR registry. It has no record kind in the store — there
         # are three and this is not one — so it stays in the document, and a
@@ -331,6 +342,24 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
         The refusal quotes `linkage.jsonl:<line>`. A line number is only
         available because one record is one line — the property that let the
         regex be replaced by `json.loads` rather than by a second regex.
+
+        **This test used to assert `003-linkage.md` was NOT named, and that
+        assertion was the defect written down.** `live_references` is not a
+        renderer choosing an authority — it is the refusal that stands between
+        `perry-task purge` and a permanent deletion, and `purge` never
+        re-issues the id. Requiring it to report the store *instead of* the
+        document is what let a store covering phase 003 retire
+        `phase/001-linkage.md`'s 18 edges as live references, so TASK-028,
+        TASK-046 and TASK-087 stopped refusing (TASK-278 V4 review, FAIL 2).
+        The guard now reads both and reports both.
+
+        What that assertion was really protecting — that site 3 has MOVED to
+        the store — is still measured, and by the same fixture: the store puts
+        TASK-100 under `KR1` and the document puts it under `KR2`, so a reader
+        still on the document names neither `linkage.jsonl:` nor `KR1`. The
+        refutation is the KR id, which is stronger than the filename was.
+        `test_site_3_a_register_the_store_does_not_cover_still_protects_a_row`
+        is the other direction.
         """
         d = self.project(tasks=("TASK-100", "TASK-101"))
         subprocess.run(
@@ -340,10 +369,14 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
         code, out = self.purge(d, "TASK-100")
         self.assertEqual(code, 1, out)
         self.assertIn("linkage.jsonl:", out["refused"],
-                      "the refusal must name the store and the line, not the "
-                      "document")
-        self.assertIn(self.STORE_KR, out["refused"])
-        self.assertNotIn("003-linkage.md", out["refused"])
+                      "the refusal must name the store and the line")
+        self.assertIn(self.STORE_KR, out["refused"],
+                      "the store puts TASK-100 under KR1; a refusal naming "
+                      "only KR2 means this reader is still on the document")
+        self.assertIn("003-linkage.md:", out["refused"],
+                      "the document names TASK-100 too, and purging would "
+                      "leave that reference dangling — a reference guard "
+                      "reads BOTH authorities or it deletes live rows")
 
     def test_site_3_uses_no_regex_over_the_store(self):
         """The deliverable's own words: replaced by `json.loads`, **not by a
@@ -353,15 +386,209 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
         the two apart — a regex that happened to match would pass it. The
         window is the reader itself, so an unrelated `re` elsewhere in a
         7,900-line file cannot make this green or red by accident.
+
+        **The window ends at the store scan, not at the end of the function,
+        and the narrowing is the point of the rule rather than a relaxation
+        of it.** DESIGN-015's claim is about `linkage.jsonl`: one JSON object
+        per line is `json.loads`, so the regex that used to read the store is
+        gone and was not replaced by a second regex. The register DOCUMENT did
+        not become JSONL. It is still what the original comment called it —
+        *"markdown with a YAML-shaped block in it, not a YAML document"* — and
+        it is still read by line, because the refusal has to name the line a
+        reader would go and edit. Ending the window at the whole function
+        would forbid reading the document at all, which is FAIL 2.
         """
         text = (ROOT / "bin" / "perry-task").read_text()
         start = text.index("# `linkage.jsonl § kind: edge`")
-        end = text.index("# The goals store's own linkage field", start)
+        end = text.index("# **UNION, not an alternative", start)
         window = text[start:end]
         self.assertIn("json.loads", window)
         self.assertNotIn("re.match", window)
         self.assertNotIn("re.search", window)
         self.assertNotIn("re.findall", window)
+
+    # -- the per-phase rule, at every seam that decides it (TASK-278 round 2)
+    #
+    # `linkage.jsonl` covers phase 003 ONLY — row B imported one phase — while
+    # `phase/001-linkage.md` and `phase/002-linkage.md` still hold 16 KRs and
+    # 31 edges between them. A reader that takes the store as authority
+    # STORE-WIDE answers for phases the store says nothing about. The V4
+    # review found that rule applied at one seam and missing at three, and
+    # measured five mutations against it of which FOUR were green — including
+    # applying the fix itself. These four tests are what those mutations had
+    # nothing to hit. Each uses `extra_phase=True`: phase 002 has a register
+    # document and NO `kr` record in the store, so the store is not the
+    # authority for it and its own document is.
+
+    def test_site_3_a_register_the_store_does_not_cover_still_protects_a_row(self):
+        """**FAIL 2, and it was live irreversible data loss.**
+
+        The document scan was an `else:` on "does the store exist", so the
+        moment `linkage.jsonl` appeared, every register for a phase the store
+        does not cover stopped counting as a live reference. `purge` deletes
+        permanently and `mint_id` never re-issues the number: on this project
+        TASK-028, TASK-046 and TASK-087 went from refused — each naming its
+        exact register line — to deletable.
+
+        TASK-101 here is named ONLY by `002-linkage.md`, a phase the store
+        holds no record for. Restoring the `else:` makes this red.
+        """
+        d = self.project(extra_phase=True)
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1,
+                         "TASK-101 is named by 002-linkage.md, a phase the "
+                         "store does not cover; purging it would leave that "
+                         "register pointing at an id nothing resolves")
+        self.assertIn("002-linkage.md:", out["refused"],
+                      "the refusal must name the register FILE AND LINE a "
+                      "reader would go and edit")
+        self.assertIn("krs[].tasks", out["refused"])
+
+    def test_the_filename_names_the_phase_when_the_document_does_not(self):
+        """`linkage_document_phase`'s FIRST branch, on its own.
+
+        The function asks the filename before the document's `phase:` field,
+        and on every register this project has the two agree — so nulling the
+        filename branch alone changed no answer anywhere and the mutation
+        removing it came back GREEN. That is a hole, not an equivalence: the
+        filename is the source that survives a register which does not declare
+        `phase:` at all, and it is what `perry-goals` and `perry-state` build
+        the path from in the first place.
+
+        Here the document carries no `phase:` field. Scoped from the filename,
+        phase 003 is in the store and the store answers (TASK-100 under
+        `KR1`). With only the document's own field to go on there is no phase,
+        nothing can be filtered to it, and the reader falls back to the
+        document — which puts TASK-100 under `KR2`.
+        """
+        doc = document(phase="003-storage",
+                       edges={self.DOC_KR: ["TASK-100"]})
+        stripped = "\n".join(line for line in doc.split("\n")
+                             if not line.startswith("phase:"))
+        self.assertNotIn("\nphase:", stripped)
+        d = self.project(doc_text=stripped)
+        payload = self.state(d, "linkage")["linkage"]
+        by_id = {k["id"]: k["tasks"]
+                 for o in payload["objectives"] for k in o["krs"]}
+        self.assertEqual(by_id.get(self.STORE_KR), ["TASK-100"],
+                         "the filename says phase 003 and the store covers "
+                         "it, so the store is the authority here")
+        self.assertEqual(by_id.get(self.DOC_KR), [])
+
+    def test_site_3_an_agents_tasks_entry_is_a_live_reference_and_says_so(self):
+        """`agents[].tasks`, which the store has no record kind for at all.
+
+        `schema/state-schema.json` declares three kinds — `kr`, `edge`,
+        `unlinked` — and `agent` is not one. So this half of the register can
+        only ever be a document reference, and reading the store INSTEAD of
+        the document retired it for every phase, the covered one included:
+        `phase/001-linkage.md` carries 16 such entries today and none of them
+        was protecting a row any more.
+
+        The label is asserted, not just the refusal, because reporting an
+        agent assignment as `krs[].tasks` sends the reader to look for a key
+        result that does not name the row.
+        """
+        d = self.project(doc_text=document(
+            phase="003-storage",
+            edges={self.DOC_KR: []},
+            agents={"Coding Agent": ["TASK-101"]}))
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1,
+                         "an agent still has this row assigned; the store has "
+                         "no record kind that could carry that fact")
+        self.assertIn("agents[].tasks", out["refused"],
+                      "reported as krs[].tasks, this sends the reader to a "
+                      "key result that never named the row")
+        self.assertIn("003-linkage.md:", out["refused"])
+
+    def test_site_2_a_phase_the_store_does_not_cover_reads_its_own_document(self):
+        """**FAIL 1 at site 2** — `perry-goals krs --phase <not the store's>`.
+
+        `load_linkage` handed the WHOLE store to `linkage_from_store` with no
+        filter for the phase `document_path` names, so on this project
+        `krs --phase 001` printed phase 003's six KRs under phase 001's
+        objective headings, above a line saying they were declared in
+        `001-linkage.md`, and dropped all eight of 001's own KRs.
+
+        Here phase 002's document declares `P002-O1-KR1` with TASK-101 and the
+        store declares no phase 002 KR at all. Removing the phase filter makes
+        this print `P003-O1-KR1` instead, and this test red.
+        """
+        d = self.project(extra_phase=True)
+        code, out = self.goals(d, "krs", "--phase", "002")
+        self.assertEqual(code, 0, out)
+        by_id = {k["id"]: k["tasks"]
+                 for o in out["objectives"] for k in o["krs"]}
+        self.assertEqual(by_id.get("P002-O1-KR1"), ["TASK-101"],
+                         "phase 002's own register declares this edge and the "
+                         "store says nothing about phase 002")
+        self.assertNotIn(self.STORE_KR, by_id,
+                         "P003-O1-KR1 belongs to phase 003; printing it under "
+                         "phase 002's objective headings is the store being "
+                         "read store-wide instead of per phase")
+
+    def test_site_6_a_phase_the_store_does_not_cover_reads_its_own_document(self):
+        """**FAIL 1 at site 6** — the same root cause through `load_snapshot`.
+
+        It hides today only because `phase/CURRENT` happens to name the one
+        phase the store covers. It stops hiding the moment the next phase
+        opens, which is why `CURRENT` is moved here rather than waited for.
+        """
+        d = self.project(extra_phase=True)
+        (d / "phase" / "CURRENT").write_text("002-zeta\n")
+        payload = self.state(d, "linkage")["linkage"]
+        by_id = {k["id"]: k["tasks"]
+                 for o in payload["objectives"] for k in o["krs"]}
+        self.assertEqual(by_id.get("P002-O1-KR1"), ["TASK-101"])
+        self.assertNotIn(self.STORE_KR, by_id,
+                         "perry-state rendered phase 003's KRs under phase "
+                         "002's document")
+
+    def test_site_1_the_writer_reads_only_its_own_phases_records(self):
+        """Site 1 — `linkage_graph`, the seam `link`'s refusals are made from.
+
+        This site was already correct and had NO test: the V4 review's V10 and
+        V11 both removed its per-phase rule and the suite stayed green. It now
+        shares one spelling of the rule with `load_linkage`
+        (`parsers.linkage_records_for_phase`), so this pins the shared helper
+        from the writer's side too.
+
+        `link`ing a row to a phase-002 KR must be judged against phase 002's
+        register. Read store-wide, `P002-O1-KR1` is a KR the graph has never
+        heard of and the refusal changes.
+
+        **Driven through `perry-goals link`, not by calling the helper.** The
+        first version of this test called `linkage_records_for_phase` directly
+        and a mutation taking the whole store inside `linkage_graph` stayed
+        GREEN — the helper was right and its one caller was not asked. `link`
+        writes the CURRENT phase's register, so pointing `CURRENT` at phase
+        002 is what puts `linkage_graph` on the phase the store does not
+        cover.
+
+        `TASK-101` is already under `P002-O1-KR1` in that document, so a
+        correctly scoped graph answers "already linked" and writes nothing.
+        Read store-wide, the graph carries phase 003's KRs instead, and
+        `P002-O1-KR1` becomes a KR it "does not carry" — a refusal, and a
+        different exit code.
+        """
+        d = self.project(extra_phase=True)
+        (d / "phase" / "CURRENT").write_text("002-zeta\n")
+        code, out = self.goals(d, "link", "TASK-101", "P002-O1-KR1",
+                               "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("already", out,
+                      "phase 002's own register already carries this edge; a "
+                      "graph that cannot see it was read store-wide")
+        self.assertIn("P002-O1-KR1", out["already"])
 
     def test_site_4_the_lint_check_grades_the_stores_edges(self):
         """`bin/perry-lint` — the linkage lint check, rewritten not deleted.
@@ -610,15 +837,10 @@ class TestTheWrongInputBranchesAreReached(Fixture):
         would make this writer the thing that lost a record nobody had looked
         at yet.
 
-        **This test asserted the retraction path and never reached it.** The
-        mutation round found it: dropping the line in `linkage_store_text`'s
-        `except json.JSONDecodeError` branch left the suite green, because a
-        store with one unparseable line makes `load_linkage_store` answer
-        `None` for the WHOLE store, so `reg.graph` falls back to the document,
-        no retraction is ever requested, and the branch is not entered. What
-        is reachable — and what this now asserts — is the append: the write
-        still lands, and the line this writer could not read is still in the
-        file afterwards.
+        This asserts the APPEND half — the write lands and the unreadable line
+        is still in the file afterwards.
+        `test_an_unreadable_line_survives_a_retraction_too` asserts the other
+        half, the retraction loop, which is where the line is actually at risk.
         """
         d = self.project()
         with (d / "linkage.jsonl").open("a") as fh:
@@ -631,6 +853,41 @@ class TestTheWrongInputBranchesAreReached(Fixture):
             any('"TASK-101"' in line for line in after),
             "the fixture is not exercising the case: the store was never "
             "rewritten, so keeping the line proves nothing")
+
+    def test_an_unreadable_line_survives_a_retraction_too(self):
+        """The `except json.JSONDecodeError` branch in `linkage_store_text`,
+        which was declared UNREACHABLE and is not.
+
+        The argument for unreachability was: one unparseable line makes
+        `load_linkage_store` answer `None` for the whole store, so `reg.graph`
+        falls back to the document and no retraction is ever requested. The
+        hole is in the last step. `linkage_graph` returns the `document`
+        argument ITSELF on that fallback, and `Register.__init__` passes
+        `self.model` — so `reg.graph` IS `reg.model`, `reg.graph.unlinked` is
+        the DOCUMENT's `unlinked[]`, and a task the document declares unlinked
+        does request a retraction. The loop runs, and the branch with it.
+
+        That is what this drives: the document declares TASK-101 unlinked, so
+        linking it retracts the declaration, `linkage_store_text` rewrites the
+        store line by line, and the line it cannot parse is the one at risk.
+        Deleting `kept.append(line)` in that branch loses a record no one has
+        looked at yet — and left the whole suite green until this test.
+        """
+        d = self.project(doc_unlinked=["TASK-101"])
+        with (d / "linkage.jsonl").open("a") as fh:
+            fh.write("{ not json\n")
+        code, out = self.goals(d, "link", "TASK-101", self.DOC_KR)
+        self.assertEqual(code, 0, out)
+        self.assertTrue(
+            out.get("undeclared_unlinked"),
+            "the fixture is not exercising the branch: no retraction was "
+            "requested, so `linkage_store_text` never rewrote the file and "
+            "keeping the line proves nothing")
+        after = (d / "linkage.jsonl").read_text().split("\n")
+        self.assertIn("{ not json", after,
+                      "the retraction rewrite dropped a line this writer "
+                      "could not parse — `perry-lint` reports it by number, "
+                      "and this writer must not be what loses it")
 
 
 class TestTheDriftVerdictIsReal(Fixture):

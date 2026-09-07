@@ -1691,16 +1691,16 @@ def linkage_graph(state_root: Path, document, phase_number: str):
     records = P.load_linkage_store(state_root)
     if records is None:
         return document
-    prefix, kr_prefix = f"{phase_number}-", f"P{phase_number}-"
-    mine = [r for r in records if isinstance(r, dict) and (
-        (r.get("kind") == "kr"
-         and str(r.get("phase") or "").startswith(prefix))
-        or (r.get("kind") == "edge"
-            and str(r.get("kr") or "").startswith(kr_prefix))
-        or r.get("kind") == "unlinked")]
-    if not any(r.get("kind") == "kr" for r in mine):
-        # The store declares no KR for this phase — row B imported phase 003
-        # only — so it is not the authority here and the document is.
+    # **One spelling of the per-phase rule, not a second copy of it.** This
+    # filter used to be written out here as well as in `parsers.load_linkage`
+    # and `perry-lint § _linkage_records_for_phase`; TASK-278's V4 review found
+    # four separate store-versus-document decisions and defects in two of them,
+    # because the rule that had been discovered at one was never applied at the
+    # others. `mine is None` is "the store declares no KR for this phase — row
+    # B imported phase 003 only — so it is not the authority here and the
+    # document is."
+    mine = P.linkage_records_for_phase(records, phase_number)
+    if mine is None:
         return document
     return P.linkage_from_store(mine, document)
 
@@ -1741,18 +1741,22 @@ def linkage_store_text(reg, declared_at: str, actor: str) -> str | None:
                 # silently discarding it here would make this writer the thing
                 # that lost a record nobody had looked at yet.
                 #
-                # **Unreachable through `link` today, and said out loud rather
-                # than left to look load-bearing.** A store with one
-                # unparseable line makes `parsers.load_linkage_store` answer
-                # `None` for the whole store, so `reg.graph` falls back to the
-                # document, `store_retractions` stays empty and this loop does
-                # not run at all. TASK-278's mutation round found that by
-                # planting the drop and watching the suite stay green. It is
-                # kept because this function reads the file itself rather than
-                # through that reader, so the day the two stop agreeing this
-                # is the difference between a kept line and a lost one — and
-                # `test_a_line_the_writer_cannot_read_survives_the_write`
-                # asserts the reachable half, the append, instead.
+                # **REACHABLE, and an earlier revision of this comment was
+                # wrong to say otherwise.** The argument was: one unparseable
+                # line makes `parsers.load_linkage_store` answer `None` for
+                # the whole store, so `reg.graph` falls back to the document
+                # and `store_retractions` stays empty. The last step does not
+                # hold. `linkage_graph` returns the `document` argument ITSELF
+                # on that fallback and `Register.__init__` passes `self.model`
+                # — so `reg.graph` IS `reg.model`, `reg.graph.unlinked` is the
+                # DOCUMENT's list, and a task the document declares unlinked
+                # requests a retraction and runs this loop.
+                #
+                # The V4 review proved it by construction and by dropping the
+                # line and watching the record vanish, with the whole suite
+                # still green. `test_an_unreadable_line_survives_a_retraction`
+                # `_too` now drives exactly that path, so this line is guarded
+                # rather than merely asserted to be unnecessary.
                 kept.append(line)
                 continue
             if (isinstance(rec, dict) and rec.get("kind") == "unlinked"
