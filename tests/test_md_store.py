@@ -1461,7 +1461,9 @@ class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(
         self.assertEqual(len(drift), 1, drift)
         self.assertEqual(drift[0]["column"], "Metric / Target")
         self.assertEqual(drift[0]["file"], "two of three, honestly")
-        self.assertIn("KR-O1.1", drift[0]["key"])
+        # ADR-017 step 2 renamed the overall KR grammar; this fixture copies
+        # this project's own `perry/OKR.md`, so the key moved with it.
+        self.assertIn("O1-KR1", drift[0]["key"])
 
         write = self.p.okr("write", "--from-file")
         self.assertEqual(write.returncode, 1)

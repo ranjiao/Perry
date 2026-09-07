@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-08-17 · Locked: 2026-08-17
 > Author: Perry maintainer   · Implementation owner: TBD
-> Linked OKR: O5 / KR-O5.1–KR-O5.4 (added by OKR v2, 2026-08-17, for this design)
+> Linked OKR: O5 / O5-KR1–O5-KR4 (added by OKR v2, 2026-08-17, for this design)
 > Supersedes: —   · Superseded by: —
 
 ## 1. Problem
@@ -360,7 +360,7 @@ consuming it is not this one. Each block is in `add-task` schema; PMO mints the
 `TASK-` ids at write time and hands the `kr:` edges to `goals` for linkage.
 Evidence files must back-reference `DESIGN-006` in their first lines.
 
-**A — Knowledge card schema + `perry-lint --knowledge`** · `kr:KR-O5.1` · P0 · Coding Agent
+**A — Knowledge card schema + `perry-lint --knowledge`** · `kr:O5-KR1` · P0 · Coding Agent
 - Deliverable: knowledge-card fields in `schema/state-schema.json` (`Kind`,
   `Owner role`, `Source`, `Last verified`, `Invalidated by`) + staleness
   threshold; `## Cards by topic` section in
@@ -370,7 +370,7 @@ Evidence files must back-reference `DESIGN-006` in their first lines.
   `Source:` resolving to nothing fails; reverting the fix must break the test.
 - Dependencies: — · Out of scope: capture points, role cards.
 
-**B — Promotion at the three capture points** · `kr:KR-O5.2` · P1 · Coding Agent
+**B — Promotion at the three capture points** · `kr:O5-KR2` · P1 · Coding Agent
 - Deliverable: one promotion question added to `close-task`,
   `end-phase-retro`, and incident close (`Source:` pre-filled from the evidence
   just written; user confirms; `work` lane writes the card).
@@ -379,7 +379,7 @@ Evidence files must back-reference `DESIGN-006` in their first lines.
 - Dependencies: A · Out of scope: bulk import; a standalone add-knowledge
   ritual (Non-Goal).
 
-**C — Role card schema + `.perry/roles/` + shipped defaults** · `kr:KR-O5.3` · P1 · Coding Agent
+**C — Role card schema + `.perry/roles/` + shipped defaults** · `kr:O5-KR3` · P1 · Coding Agent
 - Deliverable: role-card schema (`Context` / `Loads` / `May touch` /
   `Must escalate` + `Accepted by`, `Default rung`, `Executors`);
   `packs/software-ops/` ships `coding` / `research` / `review` template cards;
@@ -387,7 +387,7 @@ Evidence files must back-reference `DESIGN-006` in their first lines.
 - Verification: V3 — schema tests + the workflow-heading rejection case.
 - Dependencies: — (parallel with B) · Out of scope: delegate/dispatch wiring.
 
-**D — `delegate`/`dispatch` role integration** · `kr:KR-O5.3` · P1 · Coding Agent
+**D — `delegate`/`dispatch` role integration** · `kr:O5-KR3` · P1 · Coding Agent
 - Deliverable: `delegate <task-id> <role>` renders from the card; subscribed
   topics injected with stale flags; `Must escalate` backtick extraction
   **unioned** with `.perry/hook.md`'s high-stakes list in the dispatch
@@ -399,7 +399,7 @@ Evidence files must back-reference `DESIGN-006` in their first lines.
 - Dependencies: A, C · Out of scope: `bin/perry-dispatch-limit` (executor
   axis, untouched).
 
-**E — Task contract `role` field + triage staleness line** · `kr:KR-O5.3` · P2 · Coding Agent
+**E — Task contract `role` field + triage staleness line** · `kr:O5-KR3` · P2 · Coding Agent
 - Deliverable: `schema/task-list-contract.md` minor bump — `role` required
   when roles declared, absent otherwise; `perry-task add` refuses a roleless
   row in a role-declaring project; triage gains the stale-knowledge line.
@@ -407,7 +407,7 @@ Evidence files must back-reference `DESIGN-006` in their first lines.
   with no roles declared (Goal 7).
 - Dependencies: C · Out of scope: viewer / aiMark rendering (downstream).
 
-**F — Finance-shaped role end to end (pass condition)** · `kr:KR-O5.4` · P1 · Coding Agent + User
+**F — Finance-shaped role end to end (pass condition)** · `kr:O5-KR4` · P1 · Coding Agent + User
 - Deliverable: `Kind: source-of-truth` card type, plus a finance role on one
   real project (candidate: `~/proj/gimegime-pmo`) running one real task from
   delegation to acceptance; extraction report written to evidence.
@@ -464,7 +464,7 @@ call, because that is the question the consumer asked.
 ## 8. Open questions
 
 - **OKR linkage.** ~~No v1 objective covers the runtime layer.~~ Resolved
-  2026-08-17: OKR v2 added Objective 5 (`KR-O5.1`–`KR-O5.4`) for exactly this
+  2026-08-17: OKR v2 added Objective 5 (`KR-O5.1`–`KR-O5.4`) [[old-form]] for exactly this
   design; the header now links to it. Kept here because the open question is
   what forced the OKR revision, and that ordering — design first, objective
   admitted second — is worth being able to reconstruct.

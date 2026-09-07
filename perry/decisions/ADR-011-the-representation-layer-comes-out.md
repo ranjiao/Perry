@@ -84,8 +84,8 @@ currently cannot keep. The adoption reader in `viewer/parsers.py` — 4,603 line
 — has no caller.
 
 **`OKR.md` v2 Objective 3, "Perry is landed on three named real projects", has
-lost its vehicle.** `KR-O3.1` (PolyForge adopted), `KR-O3.2` (gimegime-pmo lint
-errors 61 → 0) and `KR-O3.4` (zero rewrites of files Perry did not author) were
+lost its vehicle.** `O3-KR1` (PolyForge adopted), `O3-KR2` (gimegime-pmo lint
+errors 61 → 0) and `O3-KR4` (zero rewrites of files Perry did not author) were
 all to be reached through the migrator. This needs `/perry goals revise`; it is
 an overall-OKR decision and this ADR does not make it.
 

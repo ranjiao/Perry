@@ -12,7 +12,7 @@ objectives:
         target: 3
         current: 0
         stretch: false
-        linked: "KR-O1.1"
+        linked: "O1-KR1"
         tasks: ["TASK-019", "TASK-021", "TASK-028"]
       - id: P001-O1-KR2
         title: "Each live track's mode-specific triage question answers from real state — pipeline WIP, queue SLA age, inquiry provenance"
@@ -20,13 +20,13 @@ objectives:
         target: 3
         current: 0
         stretch: false
-        linked: "KR-O1.2"
+        linked: "O1-KR2"
         tasks: ["TASK-020", "TASK-046"]
       - id: P001-O1-KR3
         title: "Switching a track's mode edits one file and rewrites no state, shown by a revert test"
         metric: "1 file, 0 state rewrites; baseline unproven. Two numbers, no single scalar — target omitted deliberately."
         stretch: false
-        linked: "KR-O1.3"
+        linked: "O1-KR3"
         tasks: []
       - id: P001-O1-KR4
         title: "Blocking review findings open against the mode work"
@@ -34,7 +34,7 @@ objectives:
         target: 0
         current: 3
         stretch: false
-        linked: "KR-O1.1"
+        linked: "O1-KR1"
         tasks: ["TASK-027", "TASK-053", "TASK-056", "TASK-062"]
   - id: O2
     title: "The `goals` lane can write its own state"
@@ -45,7 +45,7 @@ objectives:
         target: 3
         current: 3
         stretch: false
-        linked: "KR-O2.1"
+        linked: "O2-KR1"
         tasks: ["TASK-037", "TASK-042"]
       - id: P001-O2-KR2
         title: "`perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships"
@@ -53,7 +53,7 @@ objectives:
         target: 1
         current: 1
         stretch: false
-        linked: "KR-O2.1"
+        linked: "O2-KR1"
         tasks: []
   - id: O3
     title: "A real project can become Perry-shaped, once"
@@ -64,7 +64,7 @@ objectives:
         target: 3
         current: 3
         stretch: false
-        linked: "KR-O3.4"
+        linked: "O3-KR4"
         tasks: ["TASK-043", "TASK-045", "TASK-047"]
       - id: P001-O3-KR2
         title: "Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project"
@@ -72,7 +72,7 @@ objectives:
         target: 1
         current: 0
         stretch: false
-        linked: "KR-O3.4"
+        linked: "O3-KR4"
         tasks: ["TASK-044", "TASK-051", "TASK-052", "TASK-068"]
 unlinked:
   - "TASK-034"
@@ -266,10 +266,10 @@ by where they do have a home, so `score-phase` has somewhere to start:
 - **v2 Objective 4 — aiMark manages projects through Perry**: TASK-034,
   TASK-057, TASK-058, TASK-060, TASK-061, TASK-063. Every one came from
   aiMark's own gap report or from the lifecycle run.
-- **v2 KR-O3.3 — content present in a project's files but absent from its
+- **v2 O3-KR3 — content present in a project's files but absent from its
   contract payload**: TASK-069. Proposed and **confirmed by the user**
   2026-08-18; recorded here because the phase register has no P-O KR for it.
-- **v2 KR-O2.2 — the log becomes canonical**: TASK-038. Its own row now carries
+- **v2 O2-KR2 — the log becomes canonical**: TASK-038. Its own row now carries
   the verdict that DESIGN-005 § 6's gate is met.
 - **No KR at any level — internal architecture and hygiene**: TASK-040,
   TASK-048, TASK-050, TASK-064, TASK-065, TASK-066, TASK-067, TASK-070. These

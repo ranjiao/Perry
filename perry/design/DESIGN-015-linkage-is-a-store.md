@@ -151,7 +151,7 @@ Flat JSONL with a `kind` discriminator, matching `okr.jsonl` and
 // 1 — the typed half of a KR. Written by `goals`.
 {"kind": "kr", "phase": "003-storage-code", "objective": "O1",
  "id": "P003-O1-KR1", "title": "Stores declared in `claims[]` that exist on disk",
- "target": 6, "current": 6, "stretch": false, "linked": "KR-O2.1",
+ "target": 6, "current": 6, "stretch": false, "linked": "O2-KR1",
  "current_provenance": {"state": "asserted", "measured": false, "…": "…"}}
 
 // 2 — one edge, one record. Written by `work` at `add`, by `goals` at `link`.

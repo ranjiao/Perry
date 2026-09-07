@@ -12,7 +12,7 @@ objectives:
         target: 6
         current: 6
         stretch: false
-        linked: "KR-O2.1"
+        linked: "O2-KR1"
         tasks: ["TASK-203"]
       - id: P003-O1-KR2
         title: "Stores for which one run of `perry-lint --root .` prints a drift verdict"
@@ -20,7 +20,7 @@ objectives:
         target: 6
         current: 6
         stretch: false
-        linked: "KR-O2.3"
+        linked: "O2-KR3"
         tasks: ["TASK-209", "TASK-067"]
       - id: P003-O1-KR3
         title: "Stores that report `unchecked` rather than `clean` when the store file is removed"
@@ -28,7 +28,7 @@ objectives:
         target: 6
         current: 6
         stretch: false
-        linked: "KR-O2.3"
+        linked: "O2-KR3"
         tasks: ["TASK-229"]
   - id: O2
     title: "The code reads a store, not a rendered file"
@@ -39,13 +39,13 @@ objectives:
         target: 0
         current: 0
         stretch: false
-        linked: "KR-O2.1"
+        linked: "O2-KR1"
         tasks: ["TASK-095", "TASK-233", "TASK-247", "TASK-283"]
       - id: P003-O2-KR3
         title: "The render distinguishes what is projected from what is canonical, so a reader can tell truth from projection"
         metric: "the distinction is readable from the render (baseline: nothing marks it — the boundary was invisible in `BOARD.md`, TASK-199). RESTATED 2026-08-29 by USER-907, answer (a): the KR read `BOARD.md`'s two truth models are marked in the file, and ADR-010 deletes that file. The property the KR was buying was never the marking, it was a reader being able to tell truth from projection, and that need survives onto the surface ADR-010 creates. WITHDRAWN AND RESTORED 2026-09-01: a pivot dropped this KR as ADR-010's rejected Option 2 without reading USER-907, which had already chosen (a) over exactly that. The drop is reversed; TASK-199 could not be, because a dropped row is terminal and an id is never reissued, so TASK-262 carries the re-scoped work."
         stretch: false
-        linked: "KR-O2.1"
+        linked: "O2-KR1"
         tasks: ["TASK-215", "TASK-262"]
   - id: O3
     title: "The phase's KRs cover the work that actually runs"
@@ -54,7 +54,7 @@ objectives:
         title: "Rows opened during phase 003 that take a KR edge or an `unlinked` declaration in the same action as `add`"
         metric: "Target 100%. NO CURRENT VALUE IS WRITTEN HERE: this KR is computed, not asserted — `bin/lib § same_action_linkage` re-runs it on every read from `linkage.jsonl` and `.perry/events.jsonl`, and `perry-state`/`perry-goals` publish that number with `current_provenance.state: measured`. The population is the `main`-track rows whose own `add` event carries a `kr` key, which is the mark row D's gate left on every row it governed; `phase/003-storage-code.md § Definition of Done` item 5, restated 2026-08-31, is why the rows opened before the gate are phase 004's and not this denominator. The numerator is the rows that answered in that same `add` — a non-null `kr` on the event, or an `unlinked` record with `via: \"add\"`. A row linked later by a separate `perry-goals link` has `via: \"link\"` and does not count, which is the whole of the KR's `in the same action as` clause. The former prose here read `100% of rows added this phase (baseline 0 — the edge is a separate step nobody takes)`; the baseline it asserted is now derived, so it cannot disagree with the computation."
         stretch: false
-        linked: "KR-O2.3"
+        linked: "O2-KR3"
         tasks: ["TASK-276", "TASK-277", "TASK-278", "TASK-279", "TASK-281"]
 unlinked: ["TASK-077", "TASK-097", "TASK-129", "TASK-155", "TASK-173", "TASK-177", "TASK-179", "TASK-181", "TASK-182", "TASK-183", "TASK-184", "TASK-185", "TASK-186", "TASK-187", "TASK-188", "TASK-189", "TASK-190", "TASK-191", "TASK-192", "TASK-193", "TASK-194", "TASK-204", "TASK-206", "TASK-207", "TASK-208", "TASK-211", "TASK-212", "TASK-216", "TASK-217", "TASK-218", "TASK-219", "TASK-220", "TASK-221", "TASK-226", "TASK-139", "TASK-157", "TASK-066", "TASK-112", "TASK-116", "TASK-137", "TASK-172", "TASK-198", "TASK-213", "TASK-214", "TASK-222", "TASK-223", "TASK-224", "TASK-225", "TASK-227", "TASK-228", "TASK-230", "TASK-231", "TASK-232", "TASK-234", "TASK-235", "TASK-236", "TASK-237", "TASK-238", "TASK-239", "TASK-240", "TASK-241", "TASK-242", "TASK-243", "TASK-244", "TASK-245", "TASK-246", "TASK-248", "TASK-249", "TASK-250", "TASK-251", "TASK-252", "TASK-263", "TASK-264", "TASK-265", "TASK-266", "TASK-280", "TASK-282", "TASK-284", "TASK-285", "TASK-286", "TASK-287", "TASK-288", "TASK-289", "TASK-290", "TASK-291", "TASK-292", "TASK-293", "TASK-294", "TASK-295", "TASK-296", "TASK-297", "TASK-298", "TASK-299", "TASK-300", "TASK-301", "TASK-302", "TASK-303", "TASK-304", "TASK-305", "TASK-325"]
 agents: []

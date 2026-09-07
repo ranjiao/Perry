@@ -62,36 +62,36 @@ parses; see `## v1` for their original rationale paragraphs.
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O1.1 | Non-`project` modes running on live tracks in real projects (baseline 0 of 3) | 3 of 3 modes live | no | 2026-10-15 |
-| KR-O1.2 | Each live track's mode-specific triage question produces real output — pipeline WIP, queue SLA age, inquiry provenance | 3 of 3 | no | 2026-11-01 |
-| KR-O1.3 | Declaring or changing a track's mode requires editing exactly one file (`.perry/config.md`) and rewriting no state | 1 file, 0 rewrites | no | 2026-10-15 |
+| O1-KR1 | Non-`project` modes running on live tracks in real projects (baseline 0 of 3) | 3 of 3 modes live | no | 2026-10-15 |
+| O1-KR2 | Each live track's mode-specific triage question produces real output — pipeline WIP, queue SLA age, inquiry provenance | 3 of 3 | no | 2026-11-01 |
+| O1-KR3 | Declaring or changing a track's mode requires editing exactly one file (`.perry/config.md`) and rewriting no state | 1 file, 0 rewrites | no | 2026-10-15 |
 
 ### Objective 2 — Every piece of state is queryable and writable by deterministic code
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O2.1 | Lanes with a deterministic write tool (baseline 2 of 3 — `goals` has none) | 3 of 3 | no | 2026-09-15 |
-| KR-O2.2 | `DESIGN-005` step 4 done — the append-only log is canonical for tasks, `BOARD.md` is a rendered view, and a hand edit raises a reconcile prompt rather than being overwritten. V5, user-signed | signed | no | 2026-10-31 |
-| KR-O2.3 | Lane procedures instructing a hand-write for state a tool covers, found by the mechanical guard (baseline 0 after round 4; the number that must stay there) | 0 | no | 2026-11-17 |
-| KR-O2.4 | Contract-payload keys documented but not emitted, or emitted but not documented, across all three contracts | 0 | yes | 2026-09-30 |
+| O2-KR1 | Lanes with a deterministic write tool (baseline 2 of 3 — `goals` has none) | 3 of 3 | no | 2026-09-15 |
+| O2-KR2 | `DESIGN-005` step 4 done — the append-only log is canonical for tasks, `BOARD.md` is a rendered view, and a hand edit raises a reconcile prompt rather than being overwritten. V5, user-signed | signed | no | 2026-10-31 |
+| O2-KR3 | Lane procedures instructing a hand-write for state a tool covers, found by the mechanical guard (baseline 0 after round 4; the number that must stay there) | 0 | no | 2026-11-17 |
+| O2-KR4 | Contract-payload keys documented but not emitted, or emitted but not documented, across all three contracts | 0 | yes | 2026-09-30 |
 
 ### Objective 3 — Perry is landed on three named real projects
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O3.1 | `PolyForge` adopted — `.perry/` anchor, a board, at least one KR, and `perry-lint` reporting zero errors (baseline: not adopted) | 0 errors | no | 2026-09-30 |
-| KR-O3.2 | `gimegime-pmo` lint errors (baseline 61) | 0 errors | no | 2026-10-15 |
-| KR-O3.3 | Rows/decisions/KRs present in a project's files but absent from its contract payload, across all three projects | 0 dropped | no | 2026-10-31 |
-| KR-O3.4 | Adoption of each project required zero rewrites of files Perry did not author | 0 rewrites | no | 2026-09-30 |
+| O3-KR1 | `PolyForge` adopted — `.perry/` anchor, a board, at least one KR, and `perry-lint` reporting zero errors (baseline: not adopted) | 0 errors | no | 2026-09-30 |
+| O3-KR2 | `gimegime-pmo` lint errors (baseline 61) | 0 errors | no | 2026-10-15 |
+| O3-KR3 | Rows/decisions/KRs present in a project's files but absent from its contract payload, across all three projects | 0 dropped | no | 2026-10-31 |
+| O3-KR4 | Adoption of each project required zero rewrites of files Perry did not author | 0 rewrites | no | 2026-09-30 |
 
 ### Objective 4 — aiMark manages projects through Perry
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O4.1 | Lines in aiMark parsing Perry's markdown (baseline: the whole chain view) | 0 lines | no | 2026-09-30 |
-| KR-O4.2 | A versioned, test-locked **write** contract exists, so a front-end can create, advance and close a task without knowing a file format | 1 contract | no | 2026-10-15 |
-| KR-O4.3 | A full task lifecycle — create → start → close with evidence — driven end to end from the aiMark UI against a real project | 1 lifecycle | no | 2026-11-17 |
-| KR-O4.4 | Goals and decisions writable from aiMark on the same contract shape | 2 of 2 lanes | yes | 2026-11-17 |
+| O4-KR1 | Lines in aiMark parsing Perry's markdown (baseline: the whole chain view) | 0 lines | no | 2026-09-30 |
+| O4-KR2 | A versioned, test-locked **write** contract exists, so a front-end can create, advance and close a task without knowing a file format | 1 contract | no | 2026-10-15 |
+| O4-KR3 | A full task lifecycle — create → start → close with evidence — driven end to end from the aiMark UI against a real project | 1 lifecycle | no | 2026-11-17 |
+| O4-KR4 | Goals and decisions writable from aiMark on the same contract shape | 2 of 2 lanes | yes | 2026-11-17 |
 
 ### Objective 5 — Tasks are executed by roles that know things
 
@@ -101,10 +101,10 @@ provenance. Ordered knowledge-first per its decision #1.
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O5.1 | Knowledge cards enforce provenance — owner role, source, last-verified, invalidation trigger — via `perry-lint --knowledge` (baseline: no card schema) | lint live · 0 violations | no | 2026-09-30 |
-| KR-O5.2 | Capture points offering promotion of an evidence finding into a knowledge card — `close-task`, `end-phase-retro`, incident close (baseline 0 of 3) | 3 of 3 | no | 2026-10-31 |
-| KR-O5.3 | Delegation prompts rendered from role cards; hardcoded agent types in `work/reference/delegate.md` (baseline 3) | 0 hardcoded | no | 2026-11-01 |
-| KR-O5.4 | One finance-shaped role runs a real task end to end — role card + subscribed knowledge injected + escalation union armed (`DESIGN-006` phase F pass condition) | 1 lifecycle | no | 2026-11-17 |
+| O5-KR1 | Knowledge cards enforce provenance — owner role, source, last-verified, invalidation trigger — via `perry-lint --knowledge` (baseline: no card schema) | lint live · 0 violations | no | 2026-09-30 |
+| O5-KR2 | Capture points offering promotion of an evidence finding into a knowledge card — `close-task`, `end-phase-retro`, incident close (baseline 0 of 3) | 3 of 3 | no | 2026-10-31 |
+| O5-KR3 | Delegation prompts rendered from role cards; hardcoded agent types in `work/reference/delegate.md` (baseline 3) | 0 hardcoded | no | 2026-11-01 |
+| O5-KR4 | One finance-shaped role runs a real task end to end — role card + subscribed knowledge injected + escalation union armed (`DESIGN-006` phase F pass condition) | 1 lifecycle | no | 2026-11-17 |
 
 ### Retro — v2     <!-- filled when the version closes; until then, leave empty -->
 
@@ -120,7 +120,7 @@ left. `DESIGN-014` then measured what the project actually is: **35,033 lines of
 product Python and 62,441 of tests against 9,810 lines of shipped skill prose**,
 with the skill's own authoring surface — `DESIGN-011`, locked 2026-08-28 and
 never started — serving no KR at all. The new O3 is that gap. O1's baseline is
-re-measured off "real projects"; O2 gains `KR-O2.5` for `ADR-011`'s remaining
+re-measured off "real projects"; O2 gains `O2-KR5` for `ADR-011`'s remaining
 tiers, by the user's decision that the deletion is O2's work and not its own
 Objective. O4 and O5 carry over unchanged.
 
@@ -128,19 +128,19 @@ Objective. O4 and O5 carry over unchanged.
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O1.1 | Non-`project` modes running on a live track (baseline 1 of 3, re-measured 2026-09-01 — Perry's own `intake` queue track is live and `perry-state` reports its SLA breaches; `pipeline` and `inquiry` have run only in tests. v2 said "in real projects" and baseline 0; adoption no longer exists, so the population is any live track) | 3 of 3 modes live | no | 2026-10-15 |
-| KR-O1.2 | Each live track's mode-specific triage question produces real output — pipeline WIP, queue SLA age, inquiry provenance | 3 of 3 | no | 2026-11-01 |
-| KR-O1.3 | Declaring or changing a track's mode requires editing exactly one file (`.perry/config.md`) and rewriting no state | 1 file, 0 rewrites | no | 2026-10-15 |
+| O1-KR1 | Non-`project` modes running on a live track (baseline 1 of 3, re-measured 2026-09-01 — Perry's own `intake` queue track is live and `perry-state` reports its SLA breaches; `pipeline` and `inquiry` have run only in tests. v2 said "in real projects" and baseline 0; adoption no longer exists, so the population is any live track) | 3 of 3 modes live | no | 2026-10-15 |
+| O1-KR2 | Each live track's mode-specific triage question produces real output — pipeline WIP, queue SLA age, inquiry provenance | 3 of 3 | no | 2026-11-01 |
+| O1-KR3 | Declaring or changing a track's mode requires editing exactly one file (`.perry/config.md`) and rewriting no state | 1 file, 0 rewrites | no | 2026-10-15 |
 
 ### Objective 2 — Every piece of state is queryable and writable by deterministic code
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O2.1 | Lanes with a deterministic write tool (baseline 2 of 3 — `goals` has none; still true on 2026-09-01, when writing this version required hand-appending `okr.jsonl`) | 3 of 3 | no | 2026-09-30 |
-| KR-O2.2 | `DESIGN-005` step 4 done — the append-only log is canonical for tasks, `BOARD.md` is a rendered view, and a hand edit raises a reconcile prompt rather than being overwritten. V5, user-signed | signed | no | 2026-10-31 |
-| KR-O2.3 | Lane procedures instructing a hand-write for state a tool covers, found by the mechanical guard (baseline 0 after round 4; the number that must stay there) | 0 | no | 2026-11-17 |
-| KR-O2.4 | Contract-payload keys documented but not emitted, or emitted but not documented, across all three contracts | 0 | yes | 2026-09-30 |
-| KR-O2.5 | `ADR-011` Tiers B and C complete — no tool reads a rendered markdown file as authority and none renders one (baseline 4 targets, 12,777 lines with their tests, measured 2026-09-01: `viewer/parsers.py` 4,603, `bin/perry_md_store.py` 1,155, `bin/perry-tasks` 1,500, `perry-lint`'s drift census ~918, their seven test modules 4,601) | 0 targets | no | 2026-11-17 |
+| O2-KR1 | Lanes with a deterministic write tool (baseline 2 of 3 — `goals` has none; still true on 2026-09-01, when writing this version required hand-appending `okr.jsonl`) | 3 of 3 | no | 2026-09-30 |
+| O2-KR2 | `DESIGN-005` step 4 done — the append-only log is canonical for tasks, `BOARD.md` is a rendered view, and a hand edit raises a reconcile prompt rather than being overwritten. V5, user-signed | signed | no | 2026-10-31 |
+| O2-KR3 | Lane procedures instructing a hand-write for state a tool covers, found by the mechanical guard (baseline 0 after round 4; the number that must stay there) | 0 | no | 2026-11-17 |
+| O2-KR4 | Contract-payload keys documented but not emitted, or emitted but not documented, across all three contracts | 0 | yes | 2026-09-30 |
+| O2-KR5 | `ADR-011` Tiers B and C complete — no tool reads a rendered markdown file as authority and none renders one (baseline 4 targets, 12,777 lines with their tests, measured 2026-09-01: `viewer/parsers.py` 4,603, `bin/perry_md_store.py` 1,155, `bin/perry-tasks` 1,500, `perry-lint`'s drift census ~918, their seven test modules 4,601) | 0 targets | no | 2026-11-17 |
 
 ### Objective 3 — The skill is the product, and it is written well enough to be one
 
@@ -152,27 +152,27 @@ one.
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O3.1 | `goals` authoring paths driven by the elicitation question bank rather than a field checklist — `init`, `plan-phase`, `revise` (baseline 0 of 3; `goals/reference/setup.md § init` contains zero `AskUserQuestion` calls, measured by `DESIGN-011` 2026-08-27) | 3 of 3 | no | 2026-10-15 |
-| KR-O3.2 | Issues `reference/input-quality.md § 1` surfaces on an OKR produced through that elicitation — the rubric becomes the back-stop rather than the front (baseline: it is the front, and this version was written without it) | 0 issues | no | 2026-10-31 |
-| KR-O3.3 | Tools in `bin/` that cannot state, in their own first lines, what an agent reading the stores would get wrong without them (baseline: unmeasured — `DESIGN-014 § 5.1` places every tool but sizes the two largest by file rather than by call site) | 0 | no | 2026-11-01 |
+| O3-KR1 | `goals` authoring paths driven by the elicitation question bank rather than a field checklist — `init`, `plan-phase`, `revise` (baseline 0 of 3; `goals/reference/setup.md § init` contains zero `AskUserQuestion` calls, measured by `DESIGN-011` 2026-08-27) | 3 of 3 | no | 2026-10-15 |
+| O3-KR2 | Issues `reference/input-quality.md § 1` surfaces on an OKR produced through that elicitation — the rubric becomes the back-stop rather than the front (baseline: it is the front, and this version was written without it) | 0 issues | no | 2026-10-31 |
+| O3-KR3 | Tools in `bin/` that cannot state, in their own first lines, what an agent reading the stores would get wrong without them (baseline: unmeasured — `DESIGN-014 § 5.1` places every tool but sizes the two largest by file rather than by call site) | 0 | no | 2026-11-01 |
 
 ### Objective 4 — aiMark manages projects through Perry
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O4.1 | Lines in aiMark parsing Perry's markdown (baseline: the whole chain view) | 0 lines | no | 2026-09-30 |
-| KR-O4.2 | A versioned, test-locked **write** contract exists, so a front-end can create, advance and close a task without knowing a file format | 1 contract | no | 2026-10-15 |
-| KR-O4.3 | A full task lifecycle — create → start → close with evidence — driven end to end from the aiMark UI against a real project | 1 lifecycle | no | 2026-11-17 |
-| KR-O4.4 | Goals and decisions writable from aiMark on the same contract shape | 2 of 2 lanes | yes | 2026-11-17 |
+| O4-KR1 | Lines in aiMark parsing Perry's markdown (baseline: the whole chain view) | 0 lines | no | 2026-09-30 |
+| O4-KR2 | A versioned, test-locked **write** contract exists, so a front-end can create, advance and close a task without knowing a file format | 1 contract | no | 2026-10-15 |
+| O4-KR3 | A full task lifecycle — create → start → close with evidence — driven end to end from the aiMark UI against a real project | 1 lifecycle | no | 2026-11-17 |
+| O4-KR4 | Goals and decisions writable from aiMark on the same contract shape | 2 of 2 lanes | yes | 2026-11-17 |
 
 ### Objective 5 — Tasks are executed by roles that know things
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O5.1 | Knowledge cards enforce provenance — owner role, source, last-verified, invalidation trigger — via `perry-lint --knowledge` (baseline: no card schema) | lint live · 0 violations | no | 2026-09-30 |
-| KR-O5.2 | Capture points offering promotion of an evidence finding into a knowledge card — `close-task`, `end-phase-retro`, incident close (baseline 0 of 3) | 3 of 3 | no | 2026-10-31 |
-| KR-O5.3 | Delegation prompts rendered from role cards; hardcoded agent types in `work/reference/delegate.md` (baseline 3) | 0 hardcoded | no | 2026-11-01 |
-| KR-O5.4 | One finance-shaped role runs a real task end to end — role card + subscribed knowledge injected + escalation union armed (`DESIGN-006` phase F pass condition) | 1 lifecycle | no | 2026-11-17 |
+| O5-KR1 | Knowledge cards enforce provenance — owner role, source, last-verified, invalidation trigger — via `perry-lint --knowledge` (baseline: no card schema) | lint live · 0 violations | no | 2026-09-30 |
+| O5-KR2 | Capture points offering promotion of an evidence finding into a knowledge card — `close-task`, `end-phase-retro`, incident close (baseline 0 of 3) | 3 of 3 | no | 2026-10-31 |
+| O5-KR3 | Delegation prompts rendered from role cards; hardcoded agent types in `work/reference/delegate.md` (baseline 3) | 0 hardcoded | no | 2026-11-01 |
+| O5-KR4 | One finance-shaped role runs a real task end to end — role card + subscribed knowledge injected + escalation union armed (`DESIGN-006` phase F pass condition) | 1 lifecycle | no | 2026-11-17 |
 
 ### Retro — v3     <!-- filled when the version closes; until then, leave empty -->
 
@@ -184,4 +184,4 @@ one.
 |---|---|---|---|
 | v1 | 2026-08-17 | First OKR. Perry had tracked itself with `work` only since `ADR-001`; goals were never set up. | The `goals` lane and `perry-goals/list/2.0` shipped, and nothing was exercising them — including the `linkage` path, which no project reaches. |
 | v2 | 2026-08-17 | Added Objective 5 — the runtime layer (roles + revisable domain knowledge, `DESIGN-006`). O1–O4 unchanged. | v1 covered no runtime-layer work; `DESIGN-006` resolved its user decisions the same day, and an unlinked implementation would be excluded from every KR roll-up. |
-| v3 | 2026-09-01 | Objective 3 replaced — "landed on three named real projects" → "the skill is the product". Mission's adoption clause dropped; one Operating Principle added. `KR-O1.1` re-baselined off "real projects" to any live track; `KR-O2.5` added for `ADR-011`'s remaining tiers. O4, O5 unchanged. `## v1` moved to `evidence/2026-09/okr-v1.md` for the tier-1 cap. | `USER-910` answered that Perry is never pointed at a foreign project and `perry-migrate` was deleted, so O3's three main KRs lost their vehicle. `DESIGN-014` then measured 35,033 lines of product Python against 9,810 of shipped prose and found the skill's own authoring surface — `DESIGN-011`, locked and unstarted — served by no KR at all. |
+| v3 | 2026-09-01 | Objective 3 replaced — "landed on three named real projects" → "the skill is the product". Mission's adoption clause dropped; one Operating Principle added. `O1-KR1` re-baselined off "real projects" to any live track; `O2-KR5` added for `ADR-011`'s remaining tiers. O4, O5 unchanged. `## v1` moved to `evidence/2026-09/okr-v1.md` for the tier-1 cap. | `USER-910` answered that Perry is never pointed at a foreign project and `perry-migrate` was deleted, so O3's three main KRs lost their vehicle. `DESIGN-014` then measured 35,033 lines of product Python against 9,810 of shipped prose and found the skill's own authoring surface — `DESIGN-011`, locked and unstarted — served by no KR at all. |

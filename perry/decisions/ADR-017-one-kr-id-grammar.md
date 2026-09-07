@@ -16,7 +16,7 @@ form `KR-On.m`. `phase/003-linkage.md` carries the phase form `P003-O2-KR1`.
 
 `DESIGN-007` decision 4 is explicit that the rename runs at **both** levels:
 *"The overall (non-phase) KR follows as `O3-KR1` — the same grammar with the
-phase segment absent, replacing today's `KR-O1.1`."* Step 10 of its plan carries
+phase segment absent, replacing today's `KR-O1.1`."* [[old-form]] Step 10 of its plan carries
 it. Its stated reason is that a `serves` edge can store one value only if ids
 are **project-unique and self-labelling**.
 
@@ -25,7 +25,7 @@ They are the user's, they are on the board, and 27 of them resolve today."*
 
 **The repository sided with DESIGN-009 and nobody recorded the reversal.** The
 phase level migrated; the overall level did not. Six later design headers
-(008 through 014) cite `KR-O2.1`-style ids, so the abandoned half of decision 4
+(008 through 014) cite `KR-O2.1`-style ids [[old-form]], so the abandoned half of decision 4
 is now load-bearing prose across the corpus.
 
 Raised by the 2026-09-02 design-register audit as `C-03`, which names the cost:
@@ -105,7 +105,7 @@ defect in its own right and is `TASK-390`; it is **not** fixed by this rename an
 must not be conflated with it.
 
 **The count.** Context says *"Six later design headers (008 through 014) cite
-`KR-O2.1`-style ids"*. **There are seven** — `DESIGN-008`, `009`, `010`, `011`,
+`KR-O2.1`-style ids"* [[old-form]]. **There are seven** — `DESIGN-008`, `009`, `010`, `011`,
 `012`, `013`, `014` — and **nine documents corpus-wide** carry an old-form
 `Linked OKR`. Measured 2026-09-08 and verified independently. The Context
 sentence is left as written, because it is a dated claim inside a
