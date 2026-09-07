@@ -211,6 +211,26 @@ class TestTheOneSequence(Fixture):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertNotIn("never-asked", proc.stderr)
 
+    def test_the_record_carries_the_declaring_actor(self):
+        """**Closes mutation M16, on an input a user can produce.**
+
+        Hardcoding `"actor": "agent"` in the writer reddened NOTHING in the
+        first round — not this module and not row D's, which has written the
+        same field since `TASK-279`. `--actor` is an ordinary flag, so the
+        gap was reachable from any command line; it was simply unasserted.
+
+        The field is not decoration. `schema/state-schema.json` calls it *"who
+        declared it. Written from the start, before anything enforces the
+        per-kind rule, so DESIGN-015 § 5.5 is AUDITABLE before it is
+        enforced"* — § 7's mitigation for the risk that a lane writes a kind it
+        may not. An actor that is always `agent` cannot audit anything.
+        """
+        d = self.project()
+        tid = self.new_id(self.declare(d, "a declared row",
+                                       "--actor", "a named declarer"))
+        rec = [r for r in self.records(d) if r.get("task") == tid][0]
+        self.assertEqual(rec["actor"], "a named declarer")
+
     def test_the_journal_tells_the_three_states_apart(self):
         """A declared row and a never-asked row must not render identically in
         the one human-readable record of the write."""
@@ -380,6 +400,69 @@ class TestUnlinkedBelongsToAddAlone(Fixture):
         d = self.project()
         proc = self.next_action(d)
         self.assertEqual(proc.returncode, 0, proc.stderr)
+
+
+class TestTheWriterGuardIsReachedWhenCalledDirectly(Fixture):
+    """**Mutation M06, and the honest label on how it is closed.**
+
+    Deleting `linkage_add_change`'s own `declared_unlinked and kr` guard
+    reddened nothing, because `cmd_add` refuses the contradiction first and
+    **no command line can reach this branch**. That is the same shape as row
+    D's M15 — an `event != "add"` guard unreachable through the process
+    boundary — and it is closed the same way: by calling the writer directly,
+    with a shape no command produces today and any second caller could produce
+    tomorrow.
+
+    **This closure is NOT on a user-producible input, and it is reported as
+    such** rather than counted as an ordinary red. What makes the guard worth
+    keeping anyway is measured rather than asserted: mutation M05 deleted
+    `cmd_add`'s refusal and `test_both_flags_together_are_refused` STILL
+    caught the contradiction — through this guard. The two are individually
+    redundant and jointly load-bearing, which is the argument for keeping both
+    and is why M17 plants their deletion together.
+    """
+
+    def writer(self):
+        import importlib.machinery
+        import importlib.util
+        loader = importlib.machinery.SourceFileLoader(
+            "perry_task_for_declare_tests", str(TASK))
+        spec = importlib.util.spec_from_loader(
+            "perry_task_for_declare_tests", loader)
+        mod = importlib.util.module_from_spec(spec)
+        loader.exec_module(mod)
+        return mod
+
+    def test_a_direct_caller_passing_both_answers_is_refused(self):
+        mod = self.writer()
+        d = self.project()
+        with self.assertRaises(mod.Refused) as caught:
+            mod.linkage_add_change(
+                d, {"event": "add", "id": "TASK-900",
+                    "kr": "P003-O1-KR1", "actor": "agent"}, True)
+        self.assertIn("contradictory", str(caught.exception))
+        self.assertIn("no precedence", str(caught.exception))
+
+    def test_the_refused_call_wrote_nothing(self):
+        mod = self.writer()
+        d = self.project()
+        before = (d / "linkage.jsonl").read_text()
+        with self.assertRaises(mod.Refused):
+            mod.linkage_add_change(
+                d, {"event": "add", "id": "TASK-900",
+                    "kr": "P003-O1-KR1", "actor": "agent"}, True)
+        self.assertEqual((d / "linkage.jsonl").read_text(), before)
+
+    def test_the_control_the_same_call_without_a_kr_succeeds(self):
+        """Without this the assertion above passes for any exception at all —
+        an import error, a bad fixture, a signature that stopped matching."""
+        mod = self.writer()
+        d = self.project()
+        change = mod.linkage_add_change(
+            d, {"event": "add", "id": "TASK-900", "kr": None,
+                "actor": "agent"}, True)
+        self.assertIsNotNone(change)
+        self.assertEqual(change[2]["kind"], "unlinked")
 
 
 class TestTheDeclarationIsNotASecondTransaction(Fixture):
