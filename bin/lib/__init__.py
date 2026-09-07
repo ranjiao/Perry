@@ -721,12 +721,8 @@ COMPUTED_KR_METRICS = {
 UNLINKED_AT_ADD_HAS_NO_WRITER = True
 
 
-#: "this task has no `add` event at all", kept apart from "`kr: null`".
-_NO_ADD_EVENT = object()
-
-
 def _corroborates(claimed, store_krs) -> bool:
-    """Do the event's `kr` and the store's `via: "add"` edges agree?
+    """Does the `add` event's `kr` agree with the store's `via: "add"` edges?
 
     **The one predicate for both directions.** `same_action_linkage` asks this
     question twice — from the event's side, to decide the numerator, and from
@@ -734,12 +730,21 @@ def _corroborates(claimed, store_krs) -> bool:
     same question. Two spellings of it are how a row ends up counted in the
     numerator AND reported as a desync, or neither.
 
-    `claimed` is `_NO_ADD_EVENT` when no `add` event exists, `None` when one
-    exists and left the question unanswered, otherwise the id the event names.
-    It is stripped, because `perry-task § linkage_edge_change` strips before
-    writing and a reader that did not would fail to match its own writer.
+    `claimed` is `None` for all three of "no `add` event exists", "its `kr`
+    key is missing" and "`kr: null`", and that collapse is deliberate. **An
+    earlier draft carried a `_NO_ADD_EVENT` sentinel to keep the three
+    apart**; mutation N13 removed it and came back GREEN, because nothing
+    downstream ever asked which one it was — every caller treats all three as
+    "the event does not name a KR", which is the only thing either direction
+    needs to know. It was deleted rather than pinned with a test, on this
+    round's own precedent for round 1's M14: a test over a distinction that
+    changes no answer tells the next reader it does something.
+
+    The value is stripped, because `perry-task § linkage_edge_change` strips
+    before writing, and a reader that did not would fail to match its own
+    writer's output and report every padded `--kr` as a desync.
     """
-    if claimed is _NO_ADD_EVENT or claimed is None:
+    if claimed is None:
         return False
     return str(claimed).strip() in store_krs
 
@@ -845,16 +850,16 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
             edge_at_add.setdefault(tid, set()).add(str(r.get("kr") or "").strip())
 
     # Every `add` event in the log, by task id, mapped to what its `kr` says.
-    # `_NO_ADD_EVENT` keeps "no `add` event at all" apart from "an `add` event
-    # whose `kr` key is missing" and from "`kr: null`" — the three shapes a
-    # crash leaves behind, and the detector below needs all three.
+    # Built over ALL `add` events, not just the population's, because the
+    # detector below has to answer for tasks whose event never arrived — and
+    # `.get` returning `None` for those is exactly the right answer.
     add_event_kr: dict[str, object] = {}
     for event in (events or []):
         if not isinstance(event, dict) or event.get("event") != "add":
             continue
         tid = str(event.get("id") or "")
         if tid and tid not in add_event_kr:
-            add_event_kr[tid] = event.get("kr", _NO_ADD_EVENT)
+            add_event_kr[tid] = event.get("kr")
 
     population: list[str] = []
     linked: list[str] = []
@@ -925,10 +930,10 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
     # Written as ONE condition rather than an `if`/`elif` pair, and that is a
     # correction to this round's own first draft. The pair read:
     #
-    #     if claimed is _ABSENT or claimed is None:   append
+    #     if claimed is absent or claimed is None:   append
     #     elif str(claimed).strip() not in krs:       append
     #
-    # which looks like two cases and is one: `str(_ABSENT)` and `str(None)`
+    # which looks like two cases and is one: `str(None)` and the sentinel
     # are never KR ids, so the `elif` already caught everything the `if` did.
     # Mutation N03 re-gated the `if` on `tid in seen` — the exact defect being
     # removed — and came back GREEN, because the `elif` quietly did the work.
@@ -937,7 +942,7 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
     # too.
     store_edge_without_event = sorted(
         tid for tid, krs in edge_at_add.items()
-        if not _corroborates(add_event_kr.get(tid, _NO_ADD_EVENT), krs))
+        if not _corroborates(add_event_kr.get(tid), krs))
 
     denominator = len(population)
     numerator = len(linked) + len(declared)
