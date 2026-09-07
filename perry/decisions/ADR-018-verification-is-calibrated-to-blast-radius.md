@@ -103,6 +103,53 @@ estimate is the irreversible half of this ADR.
   rejected by the user; the 13:1 ratio stands and is not a defect this decision
   claims to fix.
 
+## Changes (append-only after lock)
+
+**2026-09-08 — part C reported, and it corrects two numbers in this ADR's own
+Context. Both errors are mine and both overstated the case.**
+
+| Context said | measured | why it was wrong |
+|---|---|---|
+| `bin/` + `viewer/` **37,757** | **39,177** | the glob was `bin/*.py` and does not recurse into `bin/lib/`, so `bin/lib/__init__.py` was missing |
+| product prose **8,469** | **16,291** | four globs caught about half of it, missing `modes/`, `packs/`, `templates/`, `state/`, `schema/README.md` and most of `work/` |
+| machinery : product **13:1** | **7.0:1** | `113,040 / 16,291 = 6.94` |
+
+**The ratio was inflated because I undercounted the product, not because I
+overcounted the machinery.** 7:1 is still lopsided and it is a much weaker
+headline than the one this ADR opened with. Verified independently before
+recording.
+
+**Part C's own finding cuts the same way: the suite is 74.9% behaviour and
+23.9% convention** — a quarter, not the majority this ADR's part C hypothesised.
+Convention costs **less time than lines**: ~15% of module-seconds against 23.9%
+of lines. My filename scan was half right — `test_spec_scannability` is mixed
+(483/847) and `test_shipped_vocabulary` is **mostly behaviour** (~180 convention
+of 1,254), because it runs `--help` on every shipped tool and checks templates
+copied verbatim into a user's repo.
+
+**And "self-referential" is not a synonym for waste**, which is the finding I
+would have been most likely to get wrong: 7.6% of the suite tests the suite, and
+the two strongest keeps are in it — `live_state_expectations` (1,202 lines)
+catches tests that read Perry's own live board as their expected value, **eight
+recorded instances and nothing else catches it**; `tree_guard` (1,337 lines, the
+slowest thing in the suite) exists because a test once discharged **a real board
+row in the live checkout**, unnoticed for months.
+
+**Do parts A and B still stand?** Yes, and on evidence independent of the ratio.
+A rests on `review.md § 6`'s own count — **20 rows into V4 and 74 rounds burned**
+— and B on eight dispatches producing seven stale bases, two scratchpad
+collisions, a mutation left in a tree and an agent reddening the suite by obeying
+its brief. Neither argument used the 13:1 figure. **What weakens is the framing,
+not the decisions**, and a reader who came here for the headline should take
+7.0:1 and 24%.
+
+**Part C's deletion question is now much narrower than this ADR implied.** The
+candidate is `test_header_rule_harness.py` (1,706 lines, ~110 synthetic probes
+asserting what a *test helper* reports, zero assertions touching a Perry command,
+document, store or payload), 399 lines of dead test code with no importer aimed
+at two deleted tools, and two tests that cannot fail for the reason they claim.
+That is a few thousand lines, not a third of the suite.
+
 ## What would reopen this
 
 - A defect reaching the user through a row that `§ 0` sent to V3.
