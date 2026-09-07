@@ -448,6 +448,37 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
                       "reader would go and edit")
         self.assertIn("krs[].tasks", out["refused"])
 
+    def test_the_filename_names_the_phase_when_the_document_does_not(self):
+        """`linkage_document_phase`'s FIRST branch, on its own.
+
+        The function asks the filename before the document's `phase:` field,
+        and on every register this project has the two agree — so nulling the
+        filename branch alone changed no answer anywhere and the mutation
+        removing it came back GREEN. That is a hole, not an equivalence: the
+        filename is the source that survives a register which does not declare
+        `phase:` at all, and it is what `perry-goals` and `perry-state` build
+        the path from in the first place.
+
+        Here the document carries no `phase:` field. Scoped from the filename,
+        phase 003 is in the store and the store answers (TASK-100 under
+        `KR1`). With only the document's own field to go on there is no phase,
+        nothing can be filtered to it, and the reader falls back to the
+        document — which puts TASK-100 under `KR2`.
+        """
+        doc = document(phase="003-storage",
+                       edges={self.DOC_KR: ["TASK-100"]})
+        stripped = "\n".join(line for line in doc.split("\n")
+                             if not line.startswith("phase:"))
+        self.assertNotIn("\nphase:", stripped)
+        d = self.project(doc_text=stripped)
+        payload = self.state(d, "linkage")["linkage"]
+        by_id = {k["id"]: k["tasks"]
+                 for o in payload["objectives"] for k in o["krs"]}
+        self.assertEqual(by_id.get(self.STORE_KR), ["TASK-100"],
+                         "the filename says phase 003 and the store covers "
+                         "it, so the store is the authority here")
+        self.assertEqual(by_id.get(self.DOC_KR), [])
+
     def test_site_3_an_agents_tasks_entry_is_a_live_reference_and_says_so(self):
         """`agents[].tasks`, which the store has no record kind for at all.
 
