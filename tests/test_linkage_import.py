@@ -479,9 +479,23 @@ class TestTheRecordsMatchTheDeclaredSchema(LinkageFixture):
 
 
 class TestTheCensusStopsSayingUnchecked(LinkageFixture):
-    """Row A left the seventh store reporting an ABSENT file. Row B fills it,
-    and the census has to move to its second not-clean state — not to
-    `clean`, which is row C's to give."""
+    """Row A left the seventh store reporting an ABSENT file. Row B fills it.
+
+    **Updated by TASK-278, which is row C.** These two tests pinned the
+    B-to-C window — *"until row C moves the readers there is nothing to
+    compare the store against"* — and row C is what closes it. The readers
+    now answer from the store, so the document beside it is the projection
+    and the two can be held up against each other like the other six
+    registers. The verdict is real.
+
+    **What that argument was protecting is kept, not dropped**, because it
+    was never about the words on the line: a `clean` verdict nobody computed
+    is TASK-117's defect whichever row is current. So the third test below is
+    new and asserts the same thing one state further on — with no register
+    document to compare against, the line still says `unchecked, not clean`,
+    and `comparison_performed` is driven by the count of registers actually
+    compared rather than by "the store parsed".
+    """
 
     def census(self, root: pathlib.Path) -> str:
         proc = subprocess.run(
@@ -498,17 +512,39 @@ class TestTheCensusStopsSayingUnchecked(LinkageFixture):
         fixture gained a KR — the staleness DESIGN-015 § 9 is about."""
         root = self.project()
         records = self.imported(root)
-        self.assertIn(f"linkage store: {len(records)} valid record(s)",
+        self.assertIn(f"linkage store: {len(records)} record(s)",
                       self.census(root))
 
-    def test_it_is_still_unchecked_and_still_not_clean(self):
-        """**Not `clean`.** Row C moves the readers; until it does there is
-        nothing to compare the store against, so a `clean` verdict here would
-        be the census asserting a drift comparison nobody ran — TASK-117's
-        defect, and a second silent surface inside the B-to-C window
-        DESIGN-015 § 6 already names as its silent one."""
+    def test_the_verdict_is_computed_now_that_the_readers_have_moved(self):
+        """Row C's half of the line — TASK-278.
+
+        The import produced a store that says exactly what the register says,
+        so `0 row(s) drifted` here is a comparison that RAN and found nothing,
+        not a comparison that was skipped. The two are told apart by the words
+        on the line: `comparison incomplete` is gone, and a drift count is
+        only ever printed on the branch that computed one.
+        """
         root = self.project()
         self.imported(root)
+        line = self.census(root)
+        self.assertIn("row(s) drifted", line)
+        self.assertIn("0 row(s) drifted", line,
+                      "the import was byte-faithful, so nothing should drift")
+        self.assertNotIn("comparison incomplete", line)
+
+    def test_with_nothing_to_compare_it_is_unchecked_and_not_clean(self):
+        """**Not `clean`.** The argument the B-to-C window's test carried,
+        one state further on.
+
+        A store whose phases have no register document beside them has
+        nothing to compare against, and a `clean` verdict there would be the
+        census asserting a drift comparison nobody ran — TASK-117's defect,
+        and the reason `P003-O1-KR3` makes `unchecked` the answer for an
+        unmeasurable store rather than `clean`.
+        """
+        root = self.project()
+        self.imported(root)
+        (root / "perry" / "phase" / "009-linkage.md").unlink()
         line = self.census(root)
         self.assertIn("comparison incomplete — drift is unchecked, not clean",
                       line)

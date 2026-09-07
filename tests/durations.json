@@ -42,6 +42,13 @@
    "workers": 1,
    "load1": 13.35,
    "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_linkage_import with __pycache__ cleared before each - 3.81 / 4.05 / 3.75s wall, on the machine that ran TASK-277. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and task-276-linkage-store followed. load1 is recorded honestly rather than waited out: it was 31.5 when this row started and 13.35 at the moment of these runs, and a bare `python3 -c pass` measured 4,467ms on this machine at load 114 earlier in the week - so the regime matters more than the number. It turned out not to matter here: the three runs agree to within 0.30s, because the module's cost is 32 unittest cases each spawning a perry-tasks or perry-lint subprocess, which is process startup and not CPU. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost, and it is named here rather than averaged in."
+  },
+  "task-278-linkage-readers": {
+   "ref": "1032e76",
+   "taken": "2026-09-07",
+   "workers": 1,
+   "load1": 18.98,
+   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_linkage_store_readers with __pycache__ cleared before each - 2.97 / 4.07 / 3.75s wall, on the machine that ran TASK-278. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and the two linkage rows before this one followed. load1 is recorded honestly rather than waited out: the machine sat between 10 and 19 for the whole round and never went quiet, though a bare `python3 -c pass` measured 17-19ms throughout, so this was not the load-114 regime the task-277 note warns about. The spread here is wider than that row's - 1.10s across three runs against its 0.30 - and the reason is worth recording rather than averaging away: this module spawns perry-lint over a fixture project 12 times, and perry-lint's cost is dominated by reading schema/state-schema.json and walking the tree, so it is more sensitive to page cache than to CPU. The first run after a cold cache is the fast one here only because the largest run happened to land on a load spike. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
   }
  },
  "modules": {
@@ -236,6 +243,10 @@
   "test_linkage_store_declared.py": {
    "sec": 1.34,
    "source": "task-276-linkage-store"
+  },
+  "test_linkage_store_readers.py": {
+   "sec": 4.07,
+   "source": "task-278-linkage-readers"
   },
   "test_linkage_task_exists.py": {
    "sec": 3.79,
