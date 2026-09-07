@@ -59,6 +59,33 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "viewer"))
 import parsers as P  # noqa: E402
 
+
+def load_tool():
+    """`bin/perry-task` as a module, so its guards can be reached directly.
+
+    Every other test here drives the tool through `subprocess`, which is the
+    honest way to test a CLI and is also why one guard went unmeasured: the
+    `event != "add"` early return in `linkage_edge_change` cannot be reached
+    from any command line, because no command Perry has TODAY emits an event
+    that carries a `kr` key and is not an `add`. Through the process boundary
+    the guard is therefore dead code that deletes green — which the mutation
+    round found by deleting it (M15). Called directly, it is a live branch
+    with a stated reason to exist.
+    """
+    import importlib.machinery
+    import importlib.util
+    tool = ROOT / "bin" / "perry-task"
+    spec = importlib.util.spec_from_loader(
+        "perry_task_for_edge_tests",
+        importlib.machinery.SourceFileLoader(
+            "perry_task_for_edge_tests", str(tool)))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+PT = load_tool()
+
 TASK = ROOT / "bin" / "perry-task"
 STATE = ROOT / "bin" / "perry-state"
 
@@ -590,6 +617,58 @@ sys.exit(mod.main(argv))
         self.assertFalse(edge)
         self.assertFalse(row)
         self.assertEqual(len(self.records(d)), before)
+
+
+class TestTheGuardsAreReached(Fixture):
+    """`linkage_edge_change`'s early returns, called directly.
+
+    The mutation round (M15) deleted the `event != "add"` guard and every
+    test in this module stayed green: through the CLI the guard is
+    unreachable, because no command Perry has today emits a non-`add` event
+    carrying a `kr` key. `route` and `intake` pass it for the WRONG REASON —
+    they have no `kr` at all — so the subprocess tests above measure the
+    absence of the key, not the guard. These reach it.
+    """
+
+    def change(self, d: pathlib.Path, event: dict):
+        return PT.linkage_edge_change(d, event)
+
+    def test_a_non_add_event_carrying_a_kr_writes_nothing(self):
+        d = self.project()
+        # The shape no command produces today and any command could tomorrow.
+        # `work` may write an edge at `add` and nowhere else (§ 5.5); the
+        # guard is what says so in code rather than in a comment.
+        for name in ("route", "intake", "start", "done", "retitle"):
+            with self.subTest(event=name):
+                self.assertIsNone(self.change(d, {
+                    "event": name, "id": "TASK-100", "kr": self.STORE_KR,
+                    "actor": "agent"}))
+
+    def test_an_add_event_carrying_a_kr_does_write(self):
+        """The other side of the same guard, so it is not vacuously true."""
+        d = self.project()
+        out = self.change(d, {"event": "add", "id": "TASK-999",
+                              "kr": self.STORE_KR, "actor": "agent"})
+        self.assertIsNotNone(out, "the guard rejects the one event it must pass")
+        self.assertEqual(out[2]["task"], "TASK-999")
+        self.assertEqual(out[2]["via"], "add")
+
+    def test_an_add_with_no_kr_writes_nothing(self):
+        d = self.project()
+        self.assertIsNone(self.change(d, {"event": "add", "id": "TASK-999",
+                                          "kr": None, "actor": "agent"}))
+
+    def test_an_add_with_no_id_writes_nothing(self):
+        d = self.project()
+        self.assertIsNone(self.change(d, {"event": "add", "id": "",
+                                          "kr": self.STORE_KR,
+                                          "actor": "agent"}))
+
+    def test_a_project_with_no_store_writes_nothing(self):
+        d = self.project(with_store=False)
+        self.assertIsNone(self.change(d, {"event": "add", "id": "TASK-999",
+                                          "kr": self.STORE_KR,
+                                          "actor": "agent"}))
 
 
 if __name__ == "__main__":
