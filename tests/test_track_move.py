@@ -8,7 +8,7 @@
 populated** — measured on Perry's own repository, which declared `intake`
 (mode `queue`) on 2026-08-20 and left six rows that genuinely arrived stranded
 on `main`. A track with no rows is not a mode running on a live track, which is
-why declaring one did not meet KR-O1.1.
+why declaring one did not meet O1-KR1.
 
 The two behaviours these tests exist for, because `route` already has them and
 a second entrance that did not would make `Arrived` mean one thing per

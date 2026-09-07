@@ -468,7 +468,7 @@ class TestTheDocumentedKindsAreTheWriters(unittest.TestCase):
         nothing but backticked identifiers as a declaration of payload KEYS.
         Reformatting these rows to a bare `` `add` `` first cell would hand
         that check twenty-five event names as documented paths this payload
-        does not emit — KR-O2.4 would move for a reason that has nothing to do
+        does not emit — O2-KR4 would move for a reason that has nothing to do
         with the payload. Kept honest here rather than discovered there.
         """
         text = CONTRACT.read_text()

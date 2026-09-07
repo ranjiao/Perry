@@ -28,7 +28,7 @@ pages that describe those conditions can be checked against a payload.
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O1.1 | Collections a live board leaves empty | 4 of 4 non-empty | no | 2026-12-01 |
+| O1-KR1 | Collections a live board leaves empty | 4 of 4 non-empty | no | 2026-12-01 |
 
 ## Versioning log
 

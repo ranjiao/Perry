@@ -256,7 +256,7 @@ Ship it.
 
 | Id | KR | Metric / Target | Stretch? | Deadline |
 |----|----|------------------|----------|----------|
-| KR-O1.1 | Unnamed refusals | unnamed = 0 | no | 2026-09-01 |
+| O1-KR1 | Unnamed refusals | unnamed = 0 | no | 2026-09-01 |
 
 ## Versioning log
 

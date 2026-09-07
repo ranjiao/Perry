@@ -1,4 +1,4 @@
-"""KR-O2.4's number: keys documented but not emitted, or emitted but not documented.
+"""O2-KR4's number: keys documented but not emitted, or emitted but not documented.
 
 `tests/contract_key_parity.py` computes it; this holds it to a recorded
 baseline so the count is comparable across runs by someone who was not here.
@@ -94,7 +94,7 @@ class TestTheBaselineIsAFile(unittest.TestCase):
 
 class TestDiscoveryIsAGlob(unittest.TestCase):
     """A hand-written list of contracts is the defect this row exists about:
-    KR-O2.4 says "all three contracts" and there are five."""
+    O2-KR4 says "all three contracts" and there are five."""
 
     def test_the_glob_still_finds_every_contract_on_disk(self):
         found = parity.discover()
@@ -303,7 +303,7 @@ class TestTheCheckDiscriminatesInBothDirections(unittest.TestCase):
 #:
 #: It is the primary evidence for this row **because the repository's own board
 #: cannot be trusted to hold the tie**: the two idle arrays are non-empty only
-#: while rows happen to be idle, and KR-O2.4 reads 12 or 0 for the same source
+#: while rows happen to be idle, and O2-KR4 reads 12 or 0 for the same source
 #: tree depending on that. The fixture holds the tie open on purpose.
 TIED = {
     "contract": "perry-sixth/list/1.0",
@@ -533,7 +533,7 @@ class TestAWitnessProjectMakesAnEmptyCollectionObservable(unittest.TestCase):
     """TASK-132. A key inside a collection this project leaves empty has no
     entry to be compared against, so it lands in `not_observable` and **nothing
     has ever checked it**. On 2026-08-27 that was 15 keys in four collections,
-    and KR-O2.4 read 0 with all fifteen unverified — which is TASK-176's
+    and O2-KR4 read 0 with all fifteen unverified — which is TASK-176's
     oscillation wearing an honest label.
 
     `tests/fixtures/witness-project` is a second project whose own state puts
@@ -686,7 +686,7 @@ class TestWhatCouldNotBeComparedIsNamed(unittest.TestCase):
     def test_the_report_prints_the_file_count_and_a_total(self):
         text = parity.report(recorded())
         self.assertIn("contract files discovered: ", text)
-        self.assertIn("KR-O2.4 metric: ", text)
+        self.assertIn("O2-KR4 metric: ", text)
         for name in recorded()["contracts"]:
             self.assertIn(name, text)
 

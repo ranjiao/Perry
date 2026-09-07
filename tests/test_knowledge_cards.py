@@ -194,7 +194,7 @@ class TestCardsAndDigestsDoNotReportEachOther(Base):
 
 class TestTheKRCannotBeSatisfiedByAnEmptySet(Base):
     def test_the_card_count_is_reported_alongside_the_violation_count(self):
-        """`KR-O5.1` reads "lint live · 0 violations". Zero violations over
+        """`O5-KR1` reads "lint live · 0 violations". Zero violations over
         zero cards is trivially true and cannot distinguish "provenance is
         enforced" from "nobody has written a card"."""
         empty = self.project({})
@@ -207,7 +207,7 @@ class TestTheKRCannotBeSatisfiedByAnEmptySet(Base):
             [sys.executable, str(LINT), "--knowledge", "--json"],
             capture_output=True, text=True, cwd=PERRY_HOME).stdout)
         self.assertGreater(out["cards"], 0,
-                           "Perry declares KR-O5.1 and has written no card")
+                           "Perry declares O5-KR1 and has written no card")
         self.assertEqual(out["findings"], [],
                          f"Perry's own cards violate its own check: "
                          f"{out['findings']}")

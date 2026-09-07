@@ -1,6 +1,6 @@
 """Two-way key diff: what each contract DOCUMENT declares vs what the tool EMITS.
 
-**The number KR-O2.4 asks for and nothing computed.** The KR's metric is a
+**The number O2-KR4 asks for and nothing computed.** The KR's metric is a
 count of *contract-payload keys documented but not emitted, or emitted but not
 documented*. `tests/test_contract_invariance.py` is the nearest thing and it
 answers a different question: it records the payload's SHAPE and compares it to
@@ -468,7 +468,7 @@ def compare(path: pathlib.Path, root: str = "",
     A key inside a collection `root` leaves **empty** has no entry to be
     compared against, so it lands in `not_observable` and nothing has ever
     checked it. On 2026-08-27 that was 15 keys in four collections, and
-    KR-O2.4 read 0 with all fifteen unverified — TASK-176's oscillation
+    O2-KR4 read 0 with all fifteen unverified — TASK-176's oscillation
     wearing an honest label.
 
     `witness` is a **second project**, read the same way by the same command,
@@ -617,7 +617,7 @@ def report(result: dict) -> str:
         lines.append("")
     lines.append(f"TOTAL   documented_not_emitted: {gone}   "
                  f"emitted_not_documented: {extra}   "
-                 f"(KR-O2.4 metric: {gone + extra})")
+                 f"(O2-KR4 metric: {gone + extra})")
     lines.append(f"        keys the witness made checkable: {seen}   "
                  f"keys still unobservable: {blind}")
     return "\n".join(lines)

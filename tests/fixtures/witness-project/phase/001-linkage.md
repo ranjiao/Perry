@@ -6,7 +6,7 @@ objectives:
   - id: O1
     title: "Hold the collections open"
     krs:
-      - id: KR-O1.1
+      - id: O1-KR1
         title: "Collections a live board leaves empty"
         metric: "4 of 4 non-empty (baseline 0 of 4)"
         target: 4
@@ -19,7 +19,7 @@ objectives:
         target: 4
         current: 2
         stretch: false
-        linked: "KR-O1.1"
+        linked: "O1-KR1"
         tasks: ["WIT-001", "WIT-002"]
 ---
 

@@ -793,13 +793,13 @@ STORED_OKR = "\n".join([
     "### Objective 1 — Ship it", "",
     "| Id | KR text | Metric / Target | Linked overall KR |",
     "|---|---|---|---|",
-    "| KR-O1.1 | the store renders the board | 1 of 1 | — |",
+    "| O1-KR1 | the store renders the board | 1 of 1 | — |",
     "",
 ])
 
 STORED_KR_RECORD = {
     "kind": "kr", "version": "v1: the first version",
-    "objective": "Objective 1 — Ship it", "id": "KR-O1.1",
+    "objective": "Objective 1 — Ship it", "id": "O1-KR1",
     "text": "the store renders the board", "metric": "1 of 1",
     "stretch": "", "deadline": "", "linked": "—", "qualifier": "",
     "form": "table", "order": 0,

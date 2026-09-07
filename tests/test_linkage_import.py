@@ -79,7 +79,7 @@ objectives:
         target: 0
         current: 3
         stretch: false
-        linked: "KR-O2.1"
+        linked: "O2-KR1"
         tasks: ["TASK-001", "TASK-002"]
       - id: P009-O1-KR2
         title: "A KR with no numbers at all"
