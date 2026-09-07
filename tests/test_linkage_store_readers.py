@@ -108,10 +108,44 @@ def phase_file(number: str, title: str, started: str, status: str,
     )
 
 
+def _tasks(ids: list[str], indent: int, block: bool | str = False) -> str:
+    """One `tasks:` entry, in the shape asked for.
+
+    The shapes are not decoration — they are the axis DESIGN-015 row C round 2
+    missed. `parse_yaml_subset § parse_map` accepts four value shapes that can
+    carry a task id a reader resolves, and `perry-goals § append_to_list`
+    writes and preserves two of them:
+
+    - `False` — a flow list, `tasks: ["A"]`. What `document()` emitted before
+      this parameter existed, and what every register on this project carries.
+    - `True` — a block list indented under the key. The shape
+      `append_to_list` writes into and
+      `test_linkage_writer § test_a_block_list_is_appended_to_as_a_block_list`
+      asserts is preserved.
+    - `"flush"` — a block list at the key's OWN indent, which
+      `parse_map`'s `elif … indent_of(lines[pos]) == level` accepts.
+    - `"scalar"` — a bare scalar, which `_as_list` wraps into a one-item list.
+
+    A flow list split across physical lines is NOT a fifth shape: it raises
+    `unexpected indent` in the parser, so the register declares nothing.
+    """
+    pad = " " * indent
+    if block == "scalar":
+        return f'{pad}tasks: "{ids[0]}"' if ids else f"{pad}tasks: []"
+    if block in (True, "flush"):
+        if not ids:
+            return f"{pad}tasks: []"
+        item_pad = " " * (indent + 2) if block is True else pad
+        rows = "\n".join(f'{item_pad}- "{t}"' for t in ids)
+        return f"{pad}tasks:\n{rows}"
+    return f"{pad}tasks: [" + ", ".join(f'"{t}"' for t in ids) + "]"
+
+
 def document(*, phase: str, edges: dict[str, list[str]],
              unlinked: list[str] | None = None,
              krs: tuple[str, ...] = ("KR1", "KR2"),
              serves: str | None = None,
+             block: bool | str = False,
              agents: dict[str, list[str]] | None = None) -> str:
     """The register document, authored by hand.
 
@@ -120,6 +154,9 @@ def document(*, phase: str, edges: dict[str, list[str]],
     a state under test, and going through the writer would make the fixture a
     test of the writer. Here it matters twice over — the writer is site 1, one
     of the six things being measured.
+
+    `block` picks the `tasks:` list shape — see `_tasks`. It defaults to the
+    flow list every existing caller expects, so adding it changed no fixture.
     """
     number = phase.split("-")[0]
     body = [f'---\nlinkage: 1\nphase: "{phase}"',
@@ -134,8 +171,7 @@ def document(*, phase: str, edges: dict[str, list[str]],
         # every phase, not just the uncovered ones.
         body.append("agents:")
         for who, tids in agents.items():
-            ids = ", ".join(f'"{t}"' for t in tids)
-            body.append(f'  - id: "{who}"\n    tasks: [{ids}]')
+            body.append(f'  - id: "{who}"\n' + _tasks(tids, 4, block))
     if serves:
         # The Project↔KR registry. It has no record kind in the store — there
         # are three and this is not one — so it stays in the document, and a
@@ -145,13 +181,13 @@ def document(*, phase: str, edges: dict[str, list[str]],
     body.append("objectives:\n  - id: O1\n    title: \"an objective\"\n    krs:")
     for suffix in krs:
         kr_id = f"P{number}-O1-{suffix}"
-        ids = ", ".join(f'"{t}"' for t in edges.get(kr_id, []))
         body.append(
             f"      - id: {kr_id}\n"
             f'        title: "the {suffix} result"\n'
             f'        metric: "the argument for {suffix}"\n'
             f"        target: 1\n        current: 1\n"
-            f"        stretch: false\n        tasks: [{ids}]")
+            f"        stretch: false\n"
+            + _tasks(edges.get(kr_id, []), 8, block))
     return "\n".join(body) + "\n---\n\n# Linkage\n"
 
 
@@ -207,7 +243,8 @@ class Fixture(unittest.TestCase):
                 tasks: tuple[str, ...] = ("TASK-100", "TASK-101"),
                 store_unlinked: list[str] | None = None,
                 doc_unlinked: list[str] | None = None,
-                extra_phase: bool = False) -> pathlib.Path:
+                extra_phase: bool = False,
+                extra_block: bool | str = False) -> pathlib.Path:
         d = pathlib.Path(tempfile.mkdtemp(prefix="perry-linkage-store-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "phase").mkdir()
@@ -248,9 +285,12 @@ class Fixture(unittest.TestCase):
             (d / "phase" / "002-zeta.md").write_text(phase_file(
                 "002", "zeta", "2026-08-01", "scored",
                 "| P002-O1-KR1 | the KR1 result | 1 | — |\n"))
+            # `extra_block` writes that same register in a block-list shape
+            # instead — the axis round 2 missed. It defaults to the flow list
+            # every existing caller expects.
             (d / "phase" / "002-linkage.md").write_text(document(
                 phase="002-zeta", edges={"P002-O1-KR1": ["TASK-101"]},
-                krs=("KR1",)))
+                krs=("KR1",), block=extra_block))
         (d / "tasks.jsonl").write_text(
             "".join(task_record(t) + "\n" for t in tasks))
         return d
@@ -509,6 +549,161 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
                       "reported as krs[].tasks, this sends the reader to a "
                       "key result that never named the row")
         self.assertIn("003-linkage.md:", out["refused"])
+
+    def test_site_3_a_block_list_register_still_protects_a_row(self):
+        """**Round 2's FAIL, and it is the same irreversible loss as FAIL 2.**
+
+        Round 2 replaced a structural read with a line scan to get a line
+        number into the refusal, and the scan it wrote —
+        `re.match(r"\\s*tasks:", line) and names_id(line, tid)` — requires the
+        id on the SAME PHYSICAL LINE as `tasks:`. True of a flow list, false
+        of a block list:
+
+            tasks:
+              - "TASK-101"
+
+        so `purge` deleted rows a block-style register still named. The shape
+        is legal and every other part of Perry agrees: `perry-goals link`
+        writes it, `parse_linkage` reads it as a real edge,
+        `test_linkage_writer § test_a_block_list_is_appended_to_as_a_block_list`
+        asserts it survives a write, and `perry-lint` grades such a register
+        0 errors.
+
+        The gap PREDATES DESIGN-015 row C — the same line scan sits at
+        `2acec65:4819` — so this guards a shape that was never covered rather
+        than a regression. Reverting to `parse_linkage` alone would not pass
+        either: see the sibling test on the line number.
+        """
+        d = self.project(extra_phase=True, extra_block=True)
+        register = (d / "phase" / "002-linkage.md").read_text()
+        self.assertIn('tasks:\n          - "TASK-101"', register,
+                      "the fixture must actually be a block list, or this "
+                      "test passes for the wrong reason")
+        self.assertEqual(
+            P.parse_linkage(register).kr_for_task("TASK-101"), "P002-O1-KR1",
+            "the READER resolves this edge; a guard that does not see what "
+            "the reader sees is the defect under test")
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1,
+                         "TASK-101 is named by a BLOCK-style 002-linkage.md; "
+                         "purging it destroys a row the register still names "
+                         "and mint_id never re-issues the id")
+        self.assertIn("krs[].tasks", out["refused"])
+
+    def test_site_3_a_block_list_refusal_names_the_item_line(self):
+        """The line number is half the deliverable, not a nicety.
+
+        A structural read alone detects the edge and carries NO line number,
+        which is why round 2 threw it away. Detection and location are
+        independent problems: this asserts the refusal names the line the id
+        actually sits on — the `- "TASK-101"` item, the line a reader deletes
+        — and not the `tasks:` key above it.
+        """
+        d = self.project(extra_phase=True, extra_block=True)
+        lines = (d / "phase" / "002-linkage.md").read_text().split("\n")
+        item = next(n for n, ln in enumerate(lines, 1)
+                    if ln.strip() == '- "TASK-101"')
+        key = next(n for n, ln in enumerate(lines, 1)
+                   if ln.strip() == "tasks:" and n < item)
+        self.assertGreater(item, key, "the item is below its key")
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1, out)
+        self.assertIn(f"002-linkage.md:{item}", out["refused"],
+                      "the refusal must name the ITEM line — that is the "
+                      "line a reader goes and edits to clear the reference")
+
+    def test_site_3_a_block_list_at_the_keys_own_indent_still_protects_a_row(self):
+        """The fourth shape, and the one no example in the tree carries.
+
+        `parse_map`'s `elif … indent_of(lines[pos]) == level` accepts a block
+        list whose `- ` items sit at the KEY's indent rather than deeper. No
+        register on this project is written that way and `append_to_list`
+        does not emit it, but `parse_linkage` resolves it into a real edge —
+        so a guard that covers only the indented block still under-reports.
+        Enumerating the parser's branches is what found this one; fixing the
+        two shapes handed over would have left it open.
+        """
+        d = self.project(extra_phase=True, extra_block="flush")
+        register = (d / "phase" / "002-linkage.md").read_text()
+        self.assertIn('        tasks:\n        - "TASK-101"', register,
+                      "the items must sit at the key's own indent")
+        self.assertEqual(
+            P.parse_linkage(register).kr_for_task("TASK-101"), "P002-O1-KR1")
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1,
+                         "a flush block list is a real edge to the reader, so "
+                         "it must be a live reference to the guard")
+        self.assertIn("002-linkage.md:", out["refused"])
+
+    def test_site_3_an_agents_block_list_is_a_live_reference_and_says_so(self):
+        """`agents[].tasks` on the shape axis, with its label.
+
+        The store has no `agent` record kind, so this half of the register is
+        only ever a document reference — and the shape gap applies to it
+        exactly as it does to `krs[].tasks`. The label is asserted because
+        reporting an agent assignment as a KR edge sends the reader looking
+        for a key result that never named the row.
+        """
+        d = self.project(doc_text=document(
+            phase="003-storage",
+            edges={self.DOC_KR: []},
+            block=True,
+            agents={"Coding Agent": ["TASK-101"]}))
+        register = (d / "phase" / "003-linkage.md").read_text()
+        self.assertIn('    tasks:\n      - "TASK-101"', register)
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1,
+                         "an agent still has this row assigned, in a block "
+                         "list the store has no record kind for")
+        self.assertIn("agents[].tasks", out["refused"],
+                      "reported as krs[].tasks, this sends the reader to a "
+                      "key result that never named the row")
+        self.assertIn("003-linkage.md:", out["refused"])
+
+    def test_site_3_a_register_that_does_not_parse_still_protects_a_row(self):
+        """Detection is a UNION of the parse and the text, and this is why.
+
+        `parse_linkage` is all-or-nothing: on any frontmatter error it returns
+        a `Linkage` carrying `error` and NO objectives. So a purely structural
+        guard goes blind on exactly the registers most likely to be broken,
+        and `purge` proceeds — the same permanent loss through a different
+        door. The text scan still sees the id, so the refusal still fires.
+
+        Deleting the textual half of the guard makes this red while every
+        other test in this class stays green.
+        """
+        doc = document(phase="002-fields", edges={"P002-O1-KR1": ["TASK-101"]})
+        broken = doc.replace("linkage: 1", "linkage: 1\n  bad: [unclosed")
+        d = self.project(extra_phase=True)
+        (d / "phase" / "002-linkage.md").write_text(broken)
+        self.assertTrue(P.parse_linkage(broken).error,
+                        "the fixture must actually fail to parse, or this "
+                        "test proves nothing about the union")
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1,
+                         "the register does not parse, so the structural read "
+                         "sees nothing — the text scan is what fails closed")
+        self.assertIn("002-linkage.md:", out["refused"])
 
     def test_site_2_a_phase_the_store_does_not_cover_reads_its_own_document(self):
         """**FAIL 1 at site 2** — `perry-goals krs --phase <not the store's>`.

@@ -4850,6 +4850,64 @@ _REFERENCE_SCAN_MAX_BYTES = 1 << 20
 _REFERENCE_SCAN_SUFFIXES = (".md", ".markdown")
 
 
+def _tasks_list_regions(lines: list[str]) -> list[tuple[int, str, list[int]]]:
+    """Every `tasks:` list in a register, as `(key line, section, item lines)`.
+
+    Line numbers are 1-based, so they can be printed straight into a refusal.
+    This locates; it does not decide. `live_references` below decides through
+    `parse_linkage` and uses this only to name the line to EDIT — the two are
+    independent problems, and collapsing them into one regex is what let a
+    block-style register defeat the guard.
+
+    **The list shapes, enumerated from `parse_yaml_subset § parse_map`'s own
+    branches rather than from the two examples this project happens to carry.**
+    A `tasks:` value is one of exactly seven things, and four can carry an id
+    a reader resolves:
+
+    - `tasks: ["A"]` / `[A]` — a flow list; the ids are on the key line.
+    - `tasks: A` — a bare scalar; `_as_list` wraps it, so it is a one-item
+      list and the id is on the key line.
+    - `tasks:` then `- A` indented deeper — a block list, the shape
+      `bin/perry-goals § append_to_list` writes and preserves.
+    - `tasks:` then `- A` at the key's OWN indent — a block list too;
+      `parse_map`'s `elif … indent_of(lines[pos]) == level` accepts it.
+
+    The other three carry nothing a reader resolves: `tasks: |` becomes one
+    string with its newline (`kr_for_task` matches exactly, so it never hits),
+    a nested map becomes a stringified dict, and an absent value is `[]`. A
+    flow list split across physical lines is not a fifth shape — `parse_yaml_subset`
+    RAISES on it (`unexpected indent`), so `parse_linkage` returns `error` and
+    the register declares nothing at all.
+
+    Both block shapes are collected here: an item is a `- ` line at an indent
+    at or deeper than the key's, and the run ends at the first line that is
+    not one. Over-collecting an item costs an over-report the user can clear;
+    under-collecting costs a permanently deleted row.
+    """
+    out: list[tuple[int, str, list[int]]] = []
+    section = ""
+    for i, line in enumerate(lines):
+        top = re.match(r"([A-Za-z_][A-Za-z0-9_]*):\s*$", line)
+        if top:
+            section = top.group(1)
+        m = re.match(r"(\s*)tasks:", line)
+        if not m:
+            continue
+        indent = len(m.group(1))
+        items: list[int] = []
+        for j in range(i + 1, len(lines)):
+            nxt = lines[j]
+            if not nxt.strip():
+                continue
+            nind = len(nxt) - len(nxt.lstrip(" "))
+            if nxt.lstrip().startswith("- ") and nind >= indent:
+                items.append(j + 1)
+                continue
+            break
+        out.append((i + 1, section, items))
+    return out
+
+
 def live_references(ctx, tid: str) -> list[str]:
     """Every place a SURVIVING record or register still names `tid`.
 
@@ -4971,30 +5029,76 @@ def live_references(ctx, tid: str) -> list[str]:
     # `<NNN>-linkage.md:<n>` — so a phase the store covers and the document
     # still carries reports twice, once per file, which is the truth.
     #
-    # Read by line rather than through `parse_linkage` because the refusal has
-    # to name the line to EDIT. The original comment's reason still holds for
-    # this file and only for this file — *"this file is markdown with a
-    # YAML-shaped block in it, not a YAML document."* What DESIGN-015 removed
-    # was the regex over the STORE, which is `json.loads` per line; the
-    # register document did not become JSONL and is still read as lines.
+    # **DETECTION IS STRUCTURAL; THE LINE NUMBER IS LOCATED SEPARATELY.** These
+    # are two problems and the guard needs both answers, so it asks two
+    # questions instead of one regex that half-answers each.
+    #
+    # The regex this replaces — `re.match(r"\s*tasks:", line) and
+    # names_id(line, tid)` — required the id to sit on the SAME PHYSICAL LINE
+    # as `tasks:`. That is true of a flow list and false of a block list:
+    #
+    #     tasks:
+    #       - "TASK-087"
+    #
+    # so `purge` deleted rows a block-style register still named. The shape is
+    # legal and every other part of Perry agrees it is: `perry-goals link`
+    # writes it (`bin/perry-goals § append_to_list`), `parse_linkage` reads it,
+    # `tests/test_linkage_writer.py § test_a_block_list_is_appended_to_as_a_block_list`
+    # asserts it, and `perry-lint` grades such a register 0 errors. The gap
+    # predates DESIGN-015 row C — the same line scan sits at `2acec65:4819` —
+    # so this is a shape the guard never covered, not a regression to revert.
+    #
+    # Reverting to `parse_linkage` ALONE is not the fix either: the model
+    # carries no line numbers, and a refusal that cannot say which line to
+    # edit is a refusal the user cannot clear. Hence both.
+    #
+    # **The union is with the TEXT, not just within the parse.** A register
+    # whose frontmatter does not parse returns `Linkage(error=...)` carrying no
+    # objectives at all, so a structural read alone would see nothing and let
+    # `purge` proceed — the same irreversible loss by a different door. Every
+    # located line is therefore reported whether or not the parse confirms it,
+    # and anything the parse DOES confirm is reported even when no line can be
+    # pinned to it. Over-reporting costs a refusal the user clears by editing;
+    # under-reporting costs a record that cannot be recovered and an id
+    # `mint_id` never re-issues.
     for path in sorted((ctx["state_root"] / "phase").glob("*-linkage.md")):
         try:
             text = path.read_text(errors="replace")
         except OSError:
             continue
-        # Which top-level block a `tasks:` line sits in, so `agents[].tasks`
-        # is reported as itself rather than as a KR edge. A top-level key is
-        # a bare `name:` in column 0 — the only shape this file's four blocks
-        # (`objectives`, `unlinked`, `agents`, `projects`) are written in.
-        section = ""
-        for n, line in enumerate(text.split("\n"), 1):
-            top = re.match(r"([A-Za-z_][A-Za-z0-9_]*):\s*$", line)
-            if top:
-                section = top.group(1)
-            if re.match(r"\s*tasks:", line) and names_id(line, tid):
-                kind = ("agents[].tasks" if section == "agents"
-                        else "krs[].tasks")
-                out.append(f"{path.name}:{n} {kind}")
+        lines = text.split("\n")
+
+        # What the register DECLARES, read through the same parser every other
+        # reader uses — so a shape the readers honour cannot be a shape this
+        # guard misses. All KRs are walked, not just the first: `kr_for_task`
+        # short-circuits, and this needs the whole truth.
+        model = P.parse_linkage(text)
+        declared: set[str] = set()
+        if not model.error:
+            for obj in model.objectives:
+                for kr in obj.krs:
+                    if tid in kr.tasks:
+                        declared.add("krs[].tasks")
+            for ag in model.agents:
+                if tid in ag.tasks:
+                    declared.add("agents[].tasks")
+
+        # Where to edit. The `section` a region sits in is what reports
+        # `agents[].tasks` as itself rather than as a KR edge; a top-level key
+        # is a bare `name:` in column 0, the only shape this file's four
+        # blocks (`objectives`, `unlinked`, `agents`, `projects`) are in.
+        located: set[str] = set()
+        for n, section, items in _tasks_list_regions(lines):
+            kind = ("agents[].tasks" if section == "agents"
+                    else "krs[].tasks")
+            for ln in [n] + items:
+                if names_id(lines[ln - 1], tid):
+                    located.add(kind)
+                    out.append(f"{path.name}:{ln} {kind}")
+
+        # Declared, but no line could be pinned to it — report it anyway.
+        for kind in sorted(declared - located):
+            out.append(f"{path.name} {kind} (line not located)")
 
     # The goals store's own linkage field. Empty on this project today, which
     # is a fact about this project and not about the register.
