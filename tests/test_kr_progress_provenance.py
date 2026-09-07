@@ -237,15 +237,35 @@ class TestBothOfTodaysWrongReadingsFlip(Fixture):
     def own_repo(self) -> dict:
         return goals(PERRY_HOME)
 
-    def test_no_current_in_the_payload_claims_to_be_a_measurement(self):
+    def test_no_asserted_current_claims_to_be_a_measurement(self):
         """The `P002-O2-KR2` reading. `target: 0` with `current: 0` read as MET; it
         cannot any more, because nothing in the payload says the zero was
-        measured and the payload now says which."""
+        measured and the payload now says which.
+
+        **Narrowed by TASK-281, and narrowed rather than deleted.** This used to
+        read "no `current` in the payload claims to be a measurement", which was
+        true because no tool in Perry re-ran a KR's metric. DESIGN-015 § 6 row F
+        makes exactly one of them re-run — `P003-O3-KR2`, from `linkage.jsonl`
+        and `.perry/events.jsonl` — so the blanket form is now false for a
+        reason the project intended.
+
+        What the guard was FOR survives intact and is what is asserted here: a
+        number that came out of the register must never be published as though
+        something counted it. The exemption is not a free pass — it is exactly
+        `lib.COMPUTED_KR_METRICS`, and a KR claiming `measured` while absent
+        from that table fails, which is the case this test was written to catch.
+        """
         payload = self.own_repo()
         for k in payload["krs"]:
-            self.assertFalse(
-                k["current_provenance"]["measured"],
-                f"{k['id']}: a `current` was published as measured data")
+            if k["current_provenance"]["measured"]:
+                self.assertIn(
+                    k["id"], lib.COMPUTED_KR_METRICS,
+                    f"{k['id']}: published as measured data while nothing "
+                    f"re-runs its metric")
+                continue
+            self.assertNotEqual(
+                k["current_provenance"]["state"], "measured",
+                f"{k['id']}: state `measured` without `measured: true`")
         asserted = [k for k in payload["krs"]
                     if k["current_provenance"]["state"] == "asserted"]
         self.assertTrue(asserted, "the register carries no asserted `current`")

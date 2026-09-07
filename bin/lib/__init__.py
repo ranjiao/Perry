@@ -668,10 +668,156 @@ def task_status_index(state_root, board=None) -> dict:
     return out
 
 
+#: KR id → the name of the function in this module that RE-RUNS its metric.
+#:
+#: `kr_progress_provenance`'s `measured: False` was "always false, and emitted
+#: rather than implied", because no tool in Perry re-ran a KR's metric. This
+#: table is the exception list, and it is a table rather than an `if` so that
+#: every reader of a KR's `current` dispatches through one place —
+#: `computed_kr_current` — and two readers cannot come to disagree about
+#: whether a number was measured or typed. DESIGN-015 § 6 row F.
+#:
+#: What is declared here is WHICH KR is computed and BY WHAT, never the value.
+#: The value is the thing this row exists to stop anybody typing.
+COMPUTED_KR_METRICS = {
+    "P003-O3-KR2": "same_action_linkage",
+}
+
+
+def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict:
+    """`P003-O3-KR2`, measured: rows that took a KR edge or an `unlinked`
+    declaration **in the same action as `add`**, over the rows that were asked.
+
+    Reads BOTH sides, because the KR's three parts do not live in one file
+    (DESIGN-015 § 5.3):
+
+    * **The population** — `.perry/events.jsonl`. A row is in it when its own
+      `add` event carries a `kr` KEY, whatever the key's value.
+    * **The numerator, half one** — the same event, when that `kr` is NOT null.
+      An edge made in the same action as `add` is recorded on the event.
+    * **The numerator, half two** — `perry/linkage.jsonl`, an `unlinked`
+      record with `via: "add"`. A declaration of "no KR" is an answer, and
+      `add` is where it was given.
+
+    **Why the population is the `kr` key and not the phase's whole intake.**
+    `phase/003-storage-code.md § Definition of Done` item 5, restated
+    2026-08-31, is the authority: *every `main`-track row opened **after the
+    gate lands** carries a KR edge or an `unlinked` declaration written by its
+    own `add`. The rows that were never asked before the gate are phase 004's.*
+
+    So "after the gate landed" has to be decided from the data, and the gate
+    left a signature in it. Row D changed the SHAPE of the `add` event: before
+    it, no `add` event has a `kr` key; after it, every `add` writes one, `null`
+    when the flag was absent (§ 5.2, "record and warn"). `"kr" in event` is
+    therefore the gate's own mark on each row it governed — per row, with no
+    typed date, no commit SHA and no clock, none of which is in the store or
+    the log this KR is supposed to be computed from.
+
+    The alternative — every row opened since the phase began — is arithmetic
+    that contradicts the DoD it is meant to score. Those rows' `add` already
+    happened, without a gate to ask them; no future work can give them an
+    answer *at `add`*, so the KR could never leave 0 and would be measuring the
+    size of the backlog rather than whether the gate holds. **Both readings
+    return 0% today** (0/1 and 0/190) and differ only in the denominator, so
+    the choice changes nothing about today's number and everything about
+    whether tomorrow's can move.
+
+    **The same-action property is the whole point, and it is an EVENT property.**
+    A row added without `--kr` and linked an hour later by `perry-goals link`
+    has an `edge` in the store and is in the population, and it must NOT count:
+    its `add` event's `kr` is null and its store record's `via` is `"link"`.
+    A computation that reads only the store cannot tell that row from one
+    linked at `add`, and will publish a plausible number for a different
+    quantity.
+
+    Returns the measurement, never a bare float. `current` is `None` when the
+    population is empty — a phase where nothing has been opened under the gate
+    has no denominator, and reporting `0` (nothing linked) or `100` (nothing
+    unlinked) would both be inventing an answer out of an absence.
+    """
+    records = [r for r in (linkage_records or []) if isinstance(r, dict)]
+    unlinked_at_add = {
+        str(r.get("task") or "") for r in records
+        if r.get("kind") == "unlinked" and r.get("via") == "add"}
+    edge_at_add = {
+        str(r.get("task") or "") for r in records
+        if r.get("kind") == "edge" and r.get("via") == "add"}
+
+    population: list[str] = []
+    linked: list[str] = []
+    declared: list[str] = []
+    never_answered: list[str] = []
+    seen: set[str] = set()
+    for event in (events or []):
+        if not isinstance(event, dict) or event.get("event") != "add":
+            continue
+        # The gate's signature. `.get("kr")` would collapse "the gate wrote
+        # null" into "the gate never ran", which is the entire population.
+        if "kr" not in event:
+            continue
+        if track and str(event.get("track") or "") != track:
+            continue
+        tid = str(event.get("id") or "")
+        if not tid or tid in seen:
+            continue
+        seen.add(tid)
+        population.append(tid)
+        if event.get("kr") is not None:
+            linked.append(tid)
+        elif tid in unlinked_at_add:
+            declared.append(tid)
+        else:
+            never_answered.append(tid)
+
+    # The two sides are written under one `commit()` (§ 5.3), so an edge in the
+    # store whose event says otherwise is a half-landed transaction. It is
+    # surfaced rather than folded into the numerator: counting it would let a
+    # desync raise the score it is supposed to expose.
+    disagreements = sorted(
+        tid for tid in edge_at_add
+        if tid in seen and tid not in set(linked))
+
+    denominator = len(population)
+    numerator = len(linked) + len(declared)
+    return {
+        "kr": "P003-O3-KR2",
+        "measured": True,
+        "source": "linkage.jsonl + .perry/events.jsonl",
+        "current": (100.0 * numerator / denominator) if denominator else None,
+        "numerator": numerator,
+        "denominator": denominator,
+        "population": population,
+        "linked_at_add": linked,
+        "declared_unlinked_at_add": declared,
+        "never_answered": never_answered,
+        "store_edge_without_event": disagreements,
+        "reason": (
+            "no row has been opened under the `add --kr` gate yet, so this KR "
+            "has no denominator" if not denominator else
+            f"{numerator} of {denominator} `{track}`-track row(s) opened under "
+            f"the gate answered the KR question in their own `add`"),
+    }
+
+
+def computed_kr_current(kr_id: str, *, linkage_records=None, events=None):
+    """The measurement for a KR whose metric this module re-runs, or `None`.
+
+    The one dispatch point for `COMPUTED_KR_METRICS`. Every reader that
+    publishes a KR's `current` calls this before falling back to the register,
+    so "is this number measured or typed?" has one answer per KR rather than
+    one answer per reader.
+    """
+    name = COMPUTED_KR_METRICS.get(str(kr_id or ""))
+    if not name:
+        return None
+    return globals()[name](linkage_records, events)
+
+
 def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
                            status_by_id: dict | None = None,
                            events: list | None = None,
-                           events_present: bool = False) -> dict:
+                           events_present: bool = False,
+                           computed: dict | None = None) -> dict:
     """The three blocks that go beside a KR's `target` / `current`.
 
     Returns `current_provenance`, `current_staleness` and
@@ -688,22 +834,49 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
     events = events or []
     ids = [str(t) for t in (task_ids or [])]
 
+    # `asserted` describes the REGISTER's number and is read only on the paths
+    # a computed KR does not take. It used to be preceded here by
+    # `current = computed.get("current")` — overwriting the register's value
+    # before this line — which read as "the measurement wins" but was dead:
+    # every branch below that a computed KR reaches ignores `asserted`, and
+    # the value actually reaches the payload from `out["current"]` at the
+    # bottom of this function. TASK-281's mutation M14 deleted that assignment
+    # and no test went red, which is what a green mutation is for; the line is
+    # gone rather than pinned, because a test over dead code would have made
+    # the next reader believe it did something.
     asserted = current is not None
-    provenance = {
-        # What the number IS, not how good it is.
-        "state": "asserted" if asserted else "unasserted",
-        # Always false, and emitted rather than implied. No tool in Perry
-        # re-runs a KR's metric, so no `current` it publishes is a measurement.
-        # A future tool that does re-run one sets this true; until then a
-        # consumer that wants to show "measured" has an explicit answer.
-        "measured": False,
-        "source": "linkage-register" if asserted else "",
-        # The register timestamps ITSELF, not each KR. A reader must not take
-        # this for the date this KR's number was arrived at, so the granularity
-        # is emitted with the date.
-        "asserted_at": ts_key(register_updated) if asserted else "",
-        "asserted_scope": "register" if asserted else "",
-    }
+    if computed is not None:
+        # `measured` stops being "always false". It is true even when
+        # `current` is `None`: a phase with no rows opened under the gate was
+        # MEASURED to have no denominator, which is a different fact from a
+        # number nobody wrote down, and the two must not both read
+        # `unasserted`.
+        provenance = {
+            "state": "measured",
+            "measured": True,
+            "source": computed.get("source", ""),
+            # Deliberately empty. A measurement is not asserted, and it has no
+            # assertion date to go stale from — it is re-run on every read.
+            "asserted_at": "",
+            "asserted_scope": "",
+        }
+    else:
+        provenance = {
+            # What the number IS, not how good it is.
+            "state": "asserted" if asserted else "unasserted",
+            # Always false, and emitted rather than implied. No tool in Perry
+            # re-runs a KR's metric, so no `current` it publishes is a
+            # measurement. A future tool that does re-run one sets this true;
+            # until then a consumer that wants to show "measured" has an
+            # explicit answer.
+            "measured": False,
+            "source": "linkage-register" if asserted else "",
+            # The register timestamps ITSELF, not each KR. A reader must not
+            # take this for the date this KR's number was arrived at, so the
+            # granularity is emitted with the date.
+            "asserted_at": ts_key(register_updated) if asserted else "",
+            "asserted_scope": "register" if asserted else "",
+        }
 
     # ── the tally that is NOT progress ────────────────────────────────────
     # A task closed after `perry-task done` may be off `BOARD.md` entirely, so
@@ -732,7 +905,17 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
     since = provenance["asserted_at"]
     staleness = {"stale": False, "evaluated": False, "reason": "",
                  "since": since, "moved_tasks": []}
-    if not asserted:
+    if computed is not None:
+        # A measured number cannot go stale: it is re-derived from the store
+        # and the event log on every read, so there is no interval between
+        # when it was arrived at and when it is published for a task to move
+        # in. This is `evaluated: True` — the question was asked and answered
+        # — not the `False` that means "could not tell".
+        staleness["evaluated"] = True
+        staleness["reason"] = (
+            "`current` is recomputed on every read from "
+            f"{provenance['source']}, so it cannot be stale")
+    elif not asserted:
         staleness["reason"] = (
             "`current` was never asserted, so there is nothing to go stale")
     elif not since:
@@ -775,9 +958,21 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
             staleness["reason"] = (
                 f"no linked task has changed state since {since}")
 
-    return {"current_provenance": provenance,
-            "current_staleness": staleness,
-            "linked_task_completion": tally}
+    out = {"current_provenance": provenance,
+           "current_staleness": staleness,
+           "linked_task_completion": tally}
+    if computed is not None:
+        # `current` is returned ONLY for a computed KR, and returning it here
+        # is what makes the two publishers agree by construction rather than
+        # by review. Both `bin/perry-state § encode_linkage_objective` and
+        # `bin/perry-goals § the krs payload` splice this mapping in AFTER
+        # their own `current`, so the measured value replaces the register's
+        # at both sites from one place. Adding a second `if kr.id == …` at
+        # either call site is the thing this return exists to prevent.
+        out["current"] = computed.get("current")
+        out["current_measurement"] = {
+            k: v for k, v in computed.items() if k != "current"}
+    return out
 
 
 # ── the one question a dashboard asks ─────────────────────────────────────

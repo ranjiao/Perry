@@ -56,6 +56,13 @@
    "workers": 1,
    "load1": 6.01,
    "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_add_writes_the_edge with __pycache__ cleared before each - 3.24 / 3.28 / 3.70s wall, on the machine that ran TASK-279. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and the three linkage rows before this one followed. load1 was 6.01 at the start and 5.54 at the end, the quietest this machine has been for any of the DESIGN-015 rows, and it is recorded rather than rounded away because the spread here (0.46s) is wider than task-277's 0.30 on a much busier machine. The reason is worth naming rather than averaging out: four of these 20 tests SIGKILL a child mid-write and then run a second locked perry-task to recover it, so the module's cost is dominated by process startup and by fsync inside replace_canonical_pair, not by CPU - and fsync is the part that does not get faster on an idle machine. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
+  },
+  "task-281-same-action-linkage": {
+   "ref": "6551d00",
+   "taken": "2026-09-07",
+   "workers": 1,
+   "load1": 5.73,
+   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_same_action_linkage with __pycache__ cleared before each - 1.14 / 1.08 / 1.04s wall, on the machine that ran TASK-281. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and the four DESIGN-015 rows before this one followed. load1 was 5.73 at the start and 5.83 at the end - the quietest this machine has been for any of these rows, and quieter than the 18.98 task-278 recorded the same day. It is stated rather than rounded away because the spread here (0.10s) is the tightest of the DESIGN-015 set, and the reason is structural rather than lucky: 24 of these 29 cases call bin/lib directly with constructed records and events and spawn no subprocess at all. Only the five in BothReadersPublishTheOneNumber shell out, twice each to perry-state and perry-goals over the live repository, and they are what the second of wall clock is. Expect a larger figure inside a full tests/run at 8 workers - it reported 2.7s there in the run that registered this entry - and that is a contention figure, not this module's cost."
   }
  },
  "modules": {
@@ -418,6 +425,10 @@
   "test_rung_vocabulary.py": {
    "sec": 72.67,
    "source": "unstamped-pre-304"
+  },
+  "test_same_action_linkage.py": {
+   "sec": 1.14,
+   "source": "task-281-same-action-linkage"
   },
   "test_semantics_on_every_payload.py": {
    "sec": 12.44,
