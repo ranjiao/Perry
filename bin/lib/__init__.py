@@ -721,6 +721,29 @@ COMPUTED_KR_METRICS = {
 UNLINKED_AT_ADD_HAS_NO_WRITER = True
 
 
+#: "this task has no `add` event at all", kept apart from "`kr: null`".
+_NO_ADD_EVENT = object()
+
+
+def _corroborates(claimed, store_krs) -> bool:
+    """Do the event's `kr` and the store's `via: "add"` edges agree?
+
+    **The one predicate for both directions.** `same_action_linkage` asks this
+    question twice — from the event's side, to decide the numerator, and from
+    the store's side, to decide `store_edge_without_event` — and they are the
+    same question. Two spellings of it are how a row ends up counted in the
+    numerator AND reported as a desync, or neither.
+
+    `claimed` is `_NO_ADD_EVENT` when no `add` event exists, `None` when one
+    exists and left the question unanswered, otherwise the id the event names.
+    It is stripped, because `perry-task § linkage_edge_change` strips before
+    writing and a reader that did not would fail to match its own writer.
+    """
+    if claimed is _NO_ADD_EVENT or claimed is None:
+        return False
+    return str(claimed).strip() in store_krs
+
+
 def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict:
     """`P003-O3-KR2`, measured: rows that took a KR edge or an `unlinked`
     declaration **in the same action as `add`**, over the rows that were asked.
@@ -822,17 +845,16 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
             edge_at_add.setdefault(tid, set()).add(str(r.get("kr") or "").strip())
 
     # Every `add` event in the log, by task id, mapped to what its `kr` says.
-    # `_ABSENT` distinguishes "no `add` event at all" from "an `add` event
-    # whose `kr` key is missing" from "`kr: null`". The desync detectors below
-    # need all three kept apart, and only this map has them.
-    _ABSENT = object()
+    # `_NO_ADD_EVENT` keeps "no `add` event at all" apart from "an `add` event
+    # whose `kr` key is missing" and from "`kr: null`" — the three shapes a
+    # crash leaves behind, and the detector below needs all three.
     add_event_kr: dict[str, object] = {}
     for event in (events or []):
         if not isinstance(event, dict) or event.get("event") != "add":
             continue
         tid = str(event.get("id") or "")
         if tid and tid not in add_event_kr:
-            add_event_kr[tid] = event.get("kr", _ABSENT)
+            add_event_kr[tid] = event.get("kr", _NO_ADD_EVENT)
 
     population: list[str] = []
     linked: list[str] = []
@@ -862,7 +884,7 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
             # BOTH halves, or it is not a link made in the same action. The
             # store must name the same KR the event names: an edge to a
             # DIFFERENT KR is not corroboration, it is a third disagreement.
-            if str(claimed).strip() in edge_at_add.get(tid, set()):
+            if _corroborates(claimed, edge_at_add.get(tid, set())):
                 linked.append(tid)
             else:
                 event_without_store_edge.append(tid)
@@ -900,14 +922,22 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
     # record carries no track, and for shape A there is no event to read one
     # off. A `via: "add"` edge whose event is gone is a desync on any track,
     # and inventing a track for it would reintroduce the guess.
-    store_edge_without_event = []
-    for tid, krs in edge_at_add.items():
-        claimed = add_event_kr.get(tid, _ABSENT)
-        if claimed is _ABSENT or claimed is None:
-            store_edge_without_event.append(tid)          # shapes A and C, B
-        elif str(claimed).strip() not in krs:
-            store_edge_without_event.append(tid)          # names a different KR
-    store_edge_without_event = sorted(store_edge_without_event)
+    # Written as ONE condition rather than an `if`/`elif` pair, and that is a
+    # correction to this round's own first draft. The pair read:
+    #
+    #     if claimed is _ABSENT or claimed is None:   append
+    #     elif str(claimed).strip() not in krs:       append
+    #
+    # which looks like two cases and is one: `str(_ABSENT)` and `str(None)`
+    # are never KR ids, so the `elif` already caught everything the `if` did.
+    # Mutation N03 re-gated the `if` on `tid in seen` — the exact defect being
+    # removed — and came back GREEN, because the `elif` quietly did the work.
+    # A branch that cannot change the answer is a branch no mutation can
+    # measure, and it would have made the next reader's re-gating invisible
+    # too.
+    store_edge_without_event = sorted(
+        tid for tid, krs in edge_at_add.items()
+        if not _corroborates(add_event_kr.get(tid, _NO_ADD_EVENT), krs))
 
     denominator = len(population)
     numerator = len(linked) + len(declared)
