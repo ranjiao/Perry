@@ -3524,6 +3524,56 @@ def cmd_add(args, ctx) -> dict:
             f"STRUCTURE only — never for whether the prose reads well, which "
             f"is not a thing a tool can judge and not a thing this one claims "
             f"to")
+    # **`--kr` is validated BEFORE it is stamped onto the event — TASK-281.**
+    #
+    # It used to reach the event unexamined, and `--kr "   "` was the shortest
+    # way to raise a KR by typing. `"   "` is truthy, so the event got a
+    # non-null `kr`; `linkage_edge_change` then stripped it to `""` and wrote
+    # NO edge; and the `if not args.kr` warning below did not fire, for the
+    # same truthiness. The row landed claiming an answer that no store record
+    # backs. `bin/lib.same_action_linkage` now requires both halves, so this
+    # can no longer move the number — but a writer that stamps a value its own
+    # store-writer will silently discard is a desync generator whatever the
+    # reader does, and the fix belongs at the write.
+    #
+    # **REFUSED, not warned, and the distinction is the flag's PRESENCE.**
+    # Omitting `--kr` still creates the row and still warns (§ 5.2, "record and
+    # warn") — this does NOT make `--kr` mandatory, which is a decision the
+    # design did not take. But passing the flag is an explicit act, and
+    # `--kr "   "` is not "this row serves no KR"; that is said by omitting the
+    # flag, or by `perry-goals link --unlinked`. It is a malformed value, and
+    # the three reasons to refuse it are:
+    #
+    #   1. It is ambiguous in a way a default cannot resolve. Treating it as
+    #      "no KR" guesses; treating it as a KR id writes a dangling edge.
+    #   2. The two writers of one store must validate alike. `perry-goals
+    #      link` refuses a blank or unresolvable KR hard (`bin/perry-goals`
+    #      § cmd_link). Asymmetric validation on one store is how the two
+    #      surfaces come to disagree, which is the defect DESIGN-015 exists to
+    #      remove.
+    #   3. Refusing costs the caller one re-run at the only moment the mistake
+    #      is cheap. A warning would leave a row already filed and already
+    #      counted, and warnings on stderr are what nobody reads.
+    #
+    # Shaped exactly like `--summary` above: the value is refused for a
+    # STRUCTURAL reason, never for whether the id is a real KR. Whether
+    # `NOT-A-REAL-KR` resolves is row D's question (`TASK-279`), not this
+    # one's, and is deliberately NOT checked here.
+    if args.kr is not None and not str(args.kr).strip():
+        raise Refused(
+            f"--kr {args.kr!r} is blank. It is not a way to say this row "
+            f"serves no KR — omit `--kr` for that, which files the row and "
+            f"warns, or use `perry-goals link --unlinked` to declare it "
+            f"outright. Passing the flag with nothing in it would stamp a "
+            f"`kr` on the row's `add` event that no linkage edge backs. "
+            f"Nothing was written")
+    # Normalised ONCE, here, so the event, the journal's definition block and
+    # `linkage_edge_change`'s store record cannot disagree about the value.
+    # `linkage_edge_change` strips its copy; if this one were left unstripped
+    # a `--kr " P003-O1-KR1 "` would put a padded id on the event and a bare
+    # one in the store, and the two halves of one transaction would not match.
+    if args.kr is not None:
+        args.kr = str(args.kr).strip()
     track = track_of(ctx["config"], args.track or "main")
     mode = track["mode"]
     minting = minting_records(ctx)

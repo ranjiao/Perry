@@ -684,6 +684,43 @@ COMPUTED_KR_METRICS = {
 }
 
 
+#: Whether `{"kind": "unlinked", "via": "add"}` — the store half of
+#: `P003-O3-KR2`'s second numerator path — has **no writer anywhere in Perry**.
+#:
+#: It has none. `via` is a hardcoded literal at all three writers of
+#: `perry/linkage.jsonl`: `perry-task § linkage_edge_change` writes `"add"` and
+#: writes `edge` records ONLY; `perry-goals § linkage_store_text` and
+#: `perry-tasks § LINKAGE_IMPORT_VIA` both write `"link"`. No `--via` flag
+#: exists, `schema/state-schema.json` pins the field to `^(add|link)$`, and
+#: there is no `perry-task add --unlinked` for the declaration to be made by.
+#: So `via: "add"` is reachable on `edge` records and unreachable on
+#: `unlinked` ones.
+#:
+#: **This is stated rather than fixed, and the reason is the Bound.** Giving
+#: `add` an `--unlinked` flag is a new writer on this store and a change to
+#: what `add` accepts — row D's territory (`TASK-279`), not row F's. What row
+#: F owes the reader is that the gap is NAMED where the number is published,
+#: instead of a `declared_unlinked_at_add: []` that reads like an observation
+#: about today's data when it is a fact about the code. `TASK-281`'s V4 is
+#: precisely this mistake made once already: mutation M13 was closed against a
+#: fixture — a store holding `unlinked(task, "add")` — that Perry cannot
+#: produce, so the closure went red while production behaviour was untouched.
+#:
+#: **The consequence, which belongs upstream of this row.**
+#: `phase/003-storage-code.md § DoD` item 5 offers a row two ways to comply:
+#: "a KR edge **or** an `unlinked` declaration written by its own `add`". The
+#: second is unsatisfiable as shipped, so a row that honestly serves no KR has
+#: no way to say so at `add` and pins the denominator permanently — the 100%
+#: target is unreachable by construction. That is a finding about the DoD, not
+#: a defect this row may fix.
+#:
+#: Kept as a constant, not a comment, so it is **checked**: the computation
+#: reads it, and `TheUnlinkedAtAddPathHasNoWriter` scans `bin/` and fails the
+#: day a writer appears and this stops being true. The numerator's second path
+#: is left WIRED, so it starts counting on its own that same day.
+UNLINKED_AT_ADD_HAS_NO_WRITER = True
+
+
 def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict:
     """`P003-O3-KR2`, measured: rows that took a KR edge or an `unlinked`
     declaration **in the same action as `add`**, over the rows that were asked.
@@ -693,11 +730,43 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
 
     * **The population** — `.perry/events.jsonl`. A row is in it when its own
       `add` event carries a `kr` KEY, whatever the key's value.
-    * **The numerator, half one** — the same event, when that `kr` is NOT null.
-      An edge made in the same action as `add` is recorded on the event.
+    * **The numerator, half one** — **BOTH files, and both are required.** The
+      row's `add` event carries a non-null `kr`, AND `perry/linkage.jsonl`
+      holds an `edge` record for that row with `via: "add"` naming the same
+      KR. § 5.3 writes those two under ONE `commit()`, so "the transaction
+      landed whole" is the honest reading of "linked in the same action", and
+      it is the only reading neither file can fake alone.
     * **The numerator, half two** — `perry/linkage.jsonl`, an `unlinked`
       record with `via: "add"`. A declaration of "no KR" is an answer, and
-      `add` is where it was given.
+      `add` is where it was given. **No writer in Perry can produce this
+      record today** — see `UNLINKED_AT_ADD_HAS_NO_WRITER` below, which is
+      pinned to the code by a test rather than left as a remark.
+
+    **Why half one takes both files, and what it cost to learn.** It used to
+    take the event's word alone::
+
+        if event.get("kr") is not None:      # the whole numerator
+            linked.append(tid)
+
+    Two things followed, and both were reproduced on real data before this
+    was changed.
+
+    *The number could be raised by typing spaces.* `perry-task add --kr "   "`
+    wrote a truthy `kr` onto the event while `linkage_edge_change` stripped it
+    to `""` and wrote no edge at all; the row counted. Measured on `339f553`:
+    15.38% (2/13) → 21.43% (3/14) with **zero** records added to the store and
+    no warning printed. The KR that exists to catch dishonest linkage moved up
+    on the most dishonest input available.
+
+    *And the store could not move the number at all.* Deleting every
+    `via: "add"` record from `perry/linkage.jsonl` — 123 records to 121, which
+    `perry-tasks linkage-write --root . --from-register` does as a matter of
+    course — left the published figure at exactly 15.38%. Half the computation
+    the spec exists to protect was decoration.
+
+    Requiring both halves closes both, and it closes them in the direction
+    that cannot flatter: a desync now REMOVES a row from the numerator and
+    names it in a diagnostic, where before one silently added a row.
 
     **Why the population is the `kr` key and not the phase's whole intake.**
     `phase/003-storage-code.md § Definition of Done` item 5, restated
@@ -739,14 +808,40 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
     unlinked_at_add = {
         str(r.get("task") or "") for r in records
         if r.get("kind") == "unlinked" and r.get("via") == "add"}
-    edge_at_add = {
-        str(r.get("task") or "") for r in records
-        if r.get("kind") == "edge" and r.get("via") == "add"}
+    # task id → the KR ids the STORE says were edged in that row's own `add`.
+    # A set, not a single value: the store is append-only and a task may carry
+    # more than one record. Values are stripped, because
+    # `perry-task § linkage_edge_change` strips before writing and a reader
+    # that did not would fail to match its own writer's output.
+    edge_at_add: dict[str, set] = {}
+    for r in records:
+        if r.get("kind") != "edge" or r.get("via") != "add":
+            continue
+        tid = str(r.get("task") or "")
+        if tid:
+            edge_at_add.setdefault(tid, set()).add(str(r.get("kr") or "").strip())
+
+    # Every `add` event in the log, by task id, mapped to what its `kr` says.
+    # `_ABSENT` distinguishes "no `add` event at all" from "an `add` event
+    # whose `kr` key is missing" from "`kr: null`". The desync detectors below
+    # need all three kept apart, and only this map has them.
+    _ABSENT = object()
+    add_event_kr: dict[str, object] = {}
+    for event in (events or []):
+        if not isinstance(event, dict) or event.get("event") != "add":
+            continue
+        tid = str(event.get("id") or "")
+        if tid and tid not in add_event_kr:
+            add_event_kr[tid] = event.get("kr", _ABSENT)
 
     population: list[str] = []
     linked: list[str] = []
     declared: list[str] = []
     never_answered: list[str] = []
+    # Half-landed the OTHER way: the event claims a KR and the store has no
+    # edge to back it. This is what `--kr "   "` produced, and it is also the
+    # shape of a crash between the store write and the event append.
+    event_without_store_edge: list[str] = []
     seen: set[str] = set()
     for event in (events or []):
         if not isinstance(event, dict) or event.get("event") != "add":
@@ -762,20 +857,57 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
             continue
         seen.add(tid)
         population.append(tid)
-        if event.get("kr") is not None:
-            linked.append(tid)
+        claimed = event.get("kr")
+        if claimed is not None:
+            # BOTH halves, or it is not a link made in the same action. The
+            # store must name the same KR the event names: an edge to a
+            # DIFFERENT KR is not corroboration, it is a third disagreement.
+            if str(claimed).strip() in edge_at_add.get(tid, set()):
+                linked.append(tid)
+            else:
+                event_without_store_edge.append(tid)
+                never_answered.append(tid)
         elif tid in unlinked_at_add:
             declared.append(tid)
         else:
             never_answered.append(tid)
 
-    # The two sides are written under one `commit()` (§ 5.3), so an edge in the
-    # store whose event says otherwise is a half-landed transaction. It is
-    # surfaced rather than folded into the numerator: counting it would let a
-    # desync raise the score it is supposed to expose.
-    disagreements = sorted(
-        tid for tid in edge_at_add
-        if tid in seen and tid not in set(linked))
+    # ── The desync detectors, and WHY NEITHER IS GATED ON THE EVENT ──────────
+    #
+    # `store_edge_without_event` used to read:
+    #
+    #     if tid in seen and tid not in set(linked)
+    #
+    # `seen` is the population, and the population is built from the `add`
+    # event. So the detector built to find "the store landed and the event did
+    # not" could only see rows whose event HAD landed — it was gated on the
+    # very artefact whose absence it detects. `TASK-279`'s V4 drove the crash
+    # matrix to seven points and found the detector reporting EMPTY at two of
+    # them, for exactly this reason: the event append is `open(..., "a")`, not
+    # a canonical rename, so a crash there leaves the store's half alone in the
+    # tree and the old gate dropped it on the floor.
+    #
+    # Reproduced at three shapes before the rewrite; only the middle one was
+    # ever reported:
+    #
+    #   A  store edge, NO `add` event          → old: [] (blind)  new: reported
+    #   B  store edge, `add` event `kr: null`  → old: reported    new: reported
+    #   C  store edge, `add` event, no `kr` key → old: [] (blind) new: reported
+    #
+    # The new gate is the STORE — the half that survives — and the question
+    # asked of the event is only "does it corroborate", where "there is no
+    # event" is a perfectly good no. Deliberately NOT track-filtered: the
+    # record carries no track, and for shape A there is no event to read one
+    # off. A `via: "add"` edge whose event is gone is a desync on any track,
+    # and inventing a track for it would reintroduce the guess.
+    store_edge_without_event = []
+    for tid, krs in edge_at_add.items():
+        claimed = add_event_kr.get(tid, _ABSENT)
+        if claimed is _ABSENT or claimed is None:
+            store_edge_without_event.append(tid)          # shapes A and C, B
+        elif str(claimed).strip() not in krs:
+            store_edge_without_event.append(tid)          # names a different KR
+    store_edge_without_event = sorted(store_edge_without_event)
 
     denominator = len(population)
     numerator = len(linked) + len(declared)
@@ -790,7 +922,15 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
         "linked_at_add": linked,
         "declared_unlinked_at_add": declared,
         "never_answered": never_answered,
-        "store_edge_without_event": disagreements,
+        "store_edge_without_event": store_edge_without_event,
+        "event_kr_without_store_edge": sorted(event_without_store_edge),
+        # The honest statement, carried in the payload rather than left in a
+        # comment, because a reader looking at `declared_unlinked_at_add: []`
+        # is owed the difference between "nobody declared one" and "nobody
+        # CAN". Pinned to the code by
+        # `test_same_action_linkage § TheUnlinkedAtAddPathHasNoWriter`, which
+        # scans `bin/` and reddens the day a writer appears.
+        "declared_unlinked_at_add_reachable": not UNLINKED_AT_ADD_HAS_NO_WRITER,
         "reason": (
             "no row has been opened under the `add --kr` gate yet, so this KR "
             "has no denominator" if not denominator else
