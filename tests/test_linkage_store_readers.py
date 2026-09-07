@@ -1063,7 +1063,7 @@ class TestTheWrongInputBranchesAreReached(Fixture):
         was passing for the absence of the input rather than for the guard.
 
         `perry-task add --kr P001-O1-KR1` appends an `edge` record naming
-        another phase's KR (`bin/perry-task § linkage_edge_change`), and from
+        another phase's KR (`bin/perry-task § linkage_add_change`), and from
         that moment phase 003's render carries a phase-001 edge. This supplies
         exactly that record and asserts it does not join the slice.
         """

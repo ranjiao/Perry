@@ -552,7 +552,7 @@ class TheNumeratorTakesBothHalvesOrNeither(unittest.TestCase):
         self.assertIn("TASK-921", m["store_edge_without_event"])
 
     def test_a_padded_kr_on_the_event_still_matches_the_stripped_record(self):
-        """`linkage_edge_change` strips before writing, so a reader that did
+        """`linkage_add_change` strips before writing, so a reader that did
         not strip would fail to match its own writer's output and report every
         padded `--kr` as a desync."""
         m = lib.same_action_linkage(
@@ -565,7 +565,7 @@ class WhitespaceCannotRaiseTheNumber(unittest.TestCase):
     """**The V4 FAIL, stated as an assertion, on the input that produced it.**
 
     `perry-task add --kr "   "` wrote a truthy `kr` onto the event while
-    `linkage_edge_change` stripped it to `""` and wrote no edge. Measured on
+    `linkage_add_change` stripped it to `""` and wrote no edge. Measured on
     `339f553` against the live repository: **15.38% (2/13) → 21.43% (3/14)**
     with zero records added to the store and no warning printed.
 
@@ -751,86 +751,146 @@ class TheDesyncDetectorIsNotGatedOnTheEventItDetects(unittest.TestCase):
         self.assertEqual(m["store_edge_without_event"], [])
 
 
-class TheUnlinkedAtAddPathHasNoWriter(unittest.TestCase):
-    """**The honest statement, pinned to the code rather than to today's data.**
+class TheUnlinkedAtAddPathHasAWriter(unittest.TestCase):
+    """**The same claim as before, flipped, and asserted the same way — TASK-394.**
 
-    `same_action_linkage`'s second numerator path wants
-    `{"kind":"unlinked","via":"add"}`. Nothing in Perry writes one: `via` is a
-    hardcoded literal at all three writers of the store — `perry-task
-    § linkage_edge_change` writes `"add"` on `edge` records ONLY,
-    `perry-goals § linkage_store_text` and `perry-tasks
-    § LINKAGE_IMPORT_VIA` both write `"link"` — there is no `--via` flag, and
-    there is no `perry-task add --unlinked` for the declaration to be made by.
+    This class was `TheUnlinkedAtAddPathHasNoWriter`. It existed to say, in
+    checkable form, that `same_action_linkage`'s second numerator path wanted
+    `{"kind":"unlinked","via":"add"}` and that nothing in Perry could produce
+    one. `perry-task add --unlinked` now does, so the class states the other
+    half of that fact rather than being relaxed — which is exactly what the
+    constant's own comment demanded of whoever implemented the flag.
 
-    Round 1 read that emptiness as a fact about **today's data** (*"this
-    project has zero such records today"*). It is a fact about the **code**,
-    and the difference is why M13's closure did not reach production. So the
-    claim is asserted BEHAVIOURALLY here — by driving the writer and the CLI —
-    rather than by grepping for a literal, and it reddens the day somebody
-    implements the flag `DESIGN-015 § 5.5` asks for.
+    **Every assertion here still drives the writer or the real binary.** That
+    was the point of the original and it matters MORE now, not less: the
+    fixture round 1's M13 was closed against — a store holding
+    `unlinked(task, "add")` — is producible today, so a test that hand-builds
+    the record proves only that the reader reads it, which was never in doubt.
+    What is in doubt is whether the CLI still writes it.
+
+    The behavioural half of `add --unlinked` lives in
+    `tests/test_add_declares_unlinked.py`. What stays here is the pairing this
+    module owns: the CONSTANT, the MEASUREMENT and the CLI agreeing with one
+    another, so a stale `UNLINKED_AT_ADD_HAS_NO_WRITER` is a red suite rather
+    than a quiet lie in a published payload.
     """
 
     def test_the_constant_and_the_measurement_agree(self):
-        self.assertTrue(lib.UNLINKED_AT_ADD_HAS_NO_WRITER)
+        self.assertFalse(lib.UNLINKED_AT_ADD_HAS_NO_WRITER)
         m = lib.same_action_linkage([], [add_event("TASK-940", kr=None)])
-        self.assertFalse(m["declared_unlinked_at_add_reachable"])
+        self.assertTrue(m["declared_unlinked_at_add_reachable"])
 
-    def test_the_only_via_add_writer_emits_edge_records_only(self):
-        """Driven, not grepped. `linkage_edge_change` is the one site that
-        writes `via: "add"`; ask it for a record and look at the `kind`."""
+    def test_the_via_add_writer_emits_an_unlinked_record_when_declared(self):
+        """The § 5.5 cell TASK-394 filled, at the writer rather than the CLI."""
         task = _perry_task()
         import tempfile, shutil
         d = Path(tempfile.mkdtemp(prefix="perry-unlinked-writer-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "linkage.jsonl").write_text("")
-        change = task.linkage_edge_change(
+        change = task.linkage_add_change(
+            d, {"event": "add", "id": "TASK-941", "kr": None,
+                "actor": "agent"}, True)
+        self.assertIsNotNone(change, "`declared_unlinked` produced no record")
+        self.assertEqual(change[2]["kind"], "unlinked")
+        self.assertEqual(change[2]["via"], "add")
+        self.assertNotIn("kr", change[2])
+
+    def test_the_via_add_writer_emits_an_edge_for_a_kr(self):
+        """Driven, not grepped. `--kr` must still produce an `edge`: § 5.5's
+        `kr` × `work` cell is `never` and no branch here may emit one."""
+        task = _perry_task()
+        import tempfile, shutil
+        d = Path(tempfile.mkdtemp(prefix="perry-unlinked-writer-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / "linkage.jsonl").write_text("")
+        change = task.linkage_add_change(
             d, {"event": "add", "id": "TASK-941", "kr": "P003-O1-KR1",
                 "actor": "agent"})
         self.assertIsNotNone(change, "the one via:add writer wrote nothing")
         self.assertEqual(change[2]["kind"], "edge")
         self.assertEqual(change[2]["via"], "add")
 
-    def test_an_add_with_no_kr_writes_no_record_at_all(self):
-        """The other half of the same fact: there is no branch in which the
-        `via: "add"` writer emits an `unlinked` record. A row that answers
-        "no KR" at `add` produces nothing for the store to hold."""
+    def test_an_add_with_neither_answer_writes_no_record_at_all(self):
+        """§ 5.2 unchanged, and it is the thing `--unlinked` must NOT have
+        replaced: silence is derived from ABSENCE, so a row that was never
+        asked still produces nothing for the store to hold. The declaration is
+        a third state beside this one, not a new meaning for it."""
         task = _perry_task()
         import tempfile, shutil
         d = Path(tempfile.mkdtemp(prefix="perry-unlinked-writer-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "linkage.jsonl").write_text("")
-        self.assertIsNone(task.linkage_edge_change(
+        self.assertIsNone(task.linkage_add_change(
             d, {"event": "add", "id": "TASK-942", "kr": None,
                 "actor": "agent"}))
 
-    def test_perry_task_add_has_no_unlinked_flag(self):
+    @staticmethod
+    def _with_store(d: Path) -> Path:
+        """`sample-project` ships with NO `linkage.jsonl`, and that is not an
+        oversight to route around — `--unlinked` is refused there on purpose
+        (the declaration would have nowhere to live), which the sibling test
+        below asserts. A store is seeded here because THIS test is about the
+        flag landing a record, and a fixture that cannot hold one would make
+        the assertion untestable rather than false."""
+        (d / "linkage.jsonl").write_text("", encoding="utf-8")
+        return d
+
+    def test_perry_task_add_accepts_the_unlinked_flag_and_it_lands(self):
         """The CLI half, through the real binary. When this goes red the flag
-        exists, `UNLINKED_AT_ADD_HAS_NO_WRITER` has stopped being true, and
-        the constant's comment has to be rewritten rather than the test
-        relaxed."""
-        d = _fixture_project(self)
+        has stopped working and `UNLINKED_AT_ADD_HAS_NO_WRITER` has stopped
+        being false — the constant is rewritten, not this test relaxed."""
+        d = self._with_store(_fixture_project(self))
         r = _add(d, "a probe row", "--unlinked")
-        self.assertNotEqual(r.returncode, 0,
-                            "`perry-task add --unlinked` was accepted; the "
-                            "unlinked-at-add path now has a writer")
-        # The REASON, not just the exit code — otherwise this passes for any
-        # broken fixture, which is the same green-for-the-wrong-reason this
-        # module exists to avoid. The control is the sibling test below, which
-        # files a row through the same fixture and expects exit 0.
-        self.assertIn("unknown argument '--unlinked'", r.stdout + r.stderr)
+        self.assertEqual(r.returncode, 0,
+                         f"`perry-task add --unlinked` was refused: "
+                         f"{(r.stdout + r.stderr)[:400]}")
+        # The EFFECT, not just the exit code. An exit-0 assertion alone passes
+        # for a flag that parses and does nothing, which is the silent discard
+        # this whole row exists to prevent — and it is the same shape as round
+        # 1's M13 green, one layer up.
+        records = [json.loads(line) for line
+                   in (d / "linkage.jsonl").read_text().split("\n")
+                   if line.strip()]
+        self.assertTrue(
+            any(rec.get("kind") == "unlinked" and rec.get("via") == "add"
+                for rec in records),
+            "`add --unlinked` exited 0 and wrote no `unlinked` record")
+
+    def test_a_project_with_no_store_refuses_the_declaration(self):
+        """The seeding above is not hiding a failure, and this says so on the
+        UNSEEDED fixture: `--unlinked` has no event field to fall back to, so
+        on a project whose register lives in the document the flag is refused
+        rather than accepted and dropped."""
+        d = _fixture_project(self)
+        self.assertFalse((d / "linkage.jsonl").exists(),
+                         "the fixture gained a store; this test now proves "
+                         "nothing about the store-less path")
+        r = _add(d, "a probe row", "--unlinked")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("linkage.jsonl", r.stdout + r.stderr)
+
+    def test_perry_task_add_still_rejects_an_unknown_flag(self):
+        """The control, and it is NOT the control the old class needed. That
+        one proved `--unlinked` was rejected and needed a fixture-can-file-a-row
+        control beside it; this class proves the flag is ACCEPTED, so the thing
+        that can now rot green is a parser that accepts anything. `--unlinkd`
+        is the typo a caller actually makes."""
+        d = _fixture_project(self)
+        r = _add(d, "a probe row", "--unlinkd")
+        self.assertNotEqual(r.returncode, 0, "the parser accepted `--unlinkd`")
+        self.assertIn("unknown argument '--unlinkd'", r.stdout + r.stderr)
 
     def test_the_fixture_can_actually_file_a_row(self):
-        """The control on the test above. If `_fixture_project` ever stopped
-        producing a usable project, `--unlinked` would still be 'rejected' and
-        the reachability claim would rot green."""
+        """The control both tests above still need. If `_fixture_project`
+        stopped producing a usable project, the acceptance test would fail for
+        the wrong reason and the rejection test would pass for it."""
         d = _fixture_project(self)
         self.assertEqual(_add(d, "a control row").returncode, 0)
 
-    def test_the_second_numerator_path_is_still_wired(self):
-        """Left connected on purpose, so it starts counting on its own the
-        day a writer appears. This is the ONE assertion in this module that
-        rests on a record Perry cannot produce, and it is labelled as such
-        rather than being read as evidence about the live number."""
+    def test_the_second_numerator_path_counts_a_produced_record(self):
+        """No longer labelled as resting on a record Perry cannot produce,
+        because it can. Kept as the READER-side statement of the fact the CLI
+        test above makes from the writer's side."""
         m = lib.same_action_linkage([unlinked("TASK-943", "add")],
                                     [add_event("TASK-943", kr=None)])
         self.assertEqual(m["declared_unlinked_at_add"], ["TASK-943"])
