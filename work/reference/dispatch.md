@@ -4,6 +4,41 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
 
 Executor contract: `claude-subagent | opencode-subagent | codex | manual`. `manual` routes to `delegate`; automated dispatch strictly follows the host matrix in `../../reference/host-capabilities.md`.
 
+## 0 · Whether to dispatch at all
+
+Dispatch has a **fixed cost that does not scale down with the change**: a
+worktree, a pinned base, a brief, a baseline the agent must measure for itself,
+a result document, a merge, and a verification pass by whoever merges it. It
+also has failure modes the change itself does not have. Measured across **eight
+dispatches in one session on 2026-09-07**: **seven were handed a base ~500
+commits stale** (`TASK-381`), **two collided in a shared scratchpad**
+(`TASK-373`), **one left a planted mutation in its tree** when it stopped, and
+**one obeyed its isolation instruction and reddened the suite by doing so**
+(`TASK-385`). Four of those are rows that exist only because work was dispatched.
+
+**Do it inline when all three hold:**
+
+- the change is **small and already specified** — you can state the edit and its
+  acceptance in one sentence each, before starting;
+- it needs **no fresh judgement** — nothing about it improves by being decided
+  by someone who has not seen your reasoning;
+- **you can verify it yourself** with a command whose output you would have
+  asked the agent for anyway.
+
+**Dispatch when any of these hold:**
+
+- the work needs **a context you should not be carrying** — a wide enumeration,
+  a long file read, a mutation battery;
+- it needs **a judgement you are not entitled to make**, because you wrote the
+  thing being judged — that is `review.md`, not this page;
+- it is **long enough that doing it inline would crowd out the session's own
+  work**, which is a real cost and not a stylistic one.
+
+**The test is not size, it is whether a second context earns its setup.** A
+forty-line edit you can state and check is cheaper inline even though it is real
+work. A five-line edit that needs the whole suite enumerated to know it is right
+is not.
+
 ## Pre-flight (any failure → refuse and fall back to `delegate`)
 
 1. `evidence/<YYYY-MM>/<TASK-ID>-spec.md` exists.

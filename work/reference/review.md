@@ -37,6 +37,54 @@ That is this repository's own recurring defect, applied to its own process:
 one rule**. `perry-lint --reviews` now reads the block below, which is what
 makes this page a convention rather than advice.
 
+## 0 · Whether this row gets a round at all
+
+`schema/state-schema.json § verification` carries the rule that **raises** a
+rung: *the required rung is a function of **consequence**, not shape — anything
+outward-facing, irreversible, or carrying money/legal/safety exposure requires
+V5 minimum, overriding the mode default.* There has never been a rule that
+**lowers** one. So a row gets V4 because somebody thought of it, and § 6 is what
+that costs: **20 rows entered V4 and 74 rounds were burned** — 3.7 rounds each,
+two of them reaching round 11.
+
+**One axis answers both directions, because V4 buys exactly one thing: a
+second, fresh judgement about whether code does the wrong thing on an input a
+user can produce.** The question is never how large or how clever the change is.
+It is what the row can do when it is wrong.
+
+**Send a row to V4 when a defect in it would:**
+
+- **destroy or corrupt state that cannot be recreated** — a delete, a store
+  writer, anything that overwrites a record;
+- **make a tool report a wrong answer to someone with no way to tell** — a
+  count, a verdict, a rendered surface, a payload a consumer trusts;
+- **weaken a gate standing between a user and either of those.**
+
+**Do not send a row to V4 when its worst outcome is:**
+
+- **a false statement in something nobody executes** — an evidence file, a
+  result, a docstring, a commit message. § 2 *What V4 does not judge* already
+  refuses these as FAILs; the same logic says do not spend a round hunting them.
+  **File the correction as a row.**
+- **a test that is untidy** — slow, duplicated, over-long. A test that is
+  **wrong** — green while the code is broken — is a product finding wearing a
+  test's clothes and does go to V4 (§ 2 rule 2). Untidiness does not.
+- **prose, naming or formatting**, including this page.
+- **work whose deliverable is a measurement** rather than a change. The number
+  is re-derived by whoever next needs it, and a stale number announces itself in
+  a way a latent defect does not.
+
+**Below that line the rung is V3, and that is the default rather than a
+concession**: *a reproducible run — command, inputs, output, re-runnable,
+attested by a script*. **159 of this board's 209 closures are already V3**; V4
+is 40. The bloat is not in the record, it is in what a session reaches for.
+
+**The asymmetry is deliberate and stays.** Raising a rung is cheap and
+reversible; lowering one is neither, because **the round you did not run leaves
+nothing behind to notice**. So when the answer is genuinely unclear, run it —
+and when a row is on the *do not* list and someone wants a round anyway, that is
+a decision to record, not an instinct to follow.
+
 ## 1 · Refuse without written criteria
 
 ```
