@@ -1,0 +1,636 @@
+"""The six readers of `DESIGN-015 § 5.6` answer from `linkage.jsonl`.
+
+TASK-278, implementation row **C**. Rows A and B declared the store and filled
+it while every reader still answered from `phase/<NNN>-linkage.md`; this row
+moves the readers, and § 6 states the one hard ordering constraint it is here
+to protect: **C before D**, because a writer pointing at a store the readers
+have not moved to fails *silently* — the edge lands, every reader still
+answers from the document, and `attribution` reports never-asked for a row
+that was just linked.
+
+**How every test here is built to be able to fail.** The store and the
+document are seeded to DISAGREE: the store carries the edge under one KR, the
+document under another. A reader that has been moved reports the store's
+answer; a reader that has not reports the document's. So restoring any one of
+the six call sites to `P.parse_linkage(<document>)` turns exactly the test
+named for that site red, which is this row's acceptance — *"restore one moved
+call site to the document and a named test fails"*. Two of them were run that
+way before this file was committed, and `evidence/2026-09/TASK-278-result.md`
+records what each printed.
+
+A fixture whose two halves AGREE cannot do that. It is green with every reader
+still on the document, green with every reader moved, and green with the
+readers deleted — the shape `tests/live_state_expectations.py` exists to catch,
+and the reason no assertion here is made against this repository's own state.
+
+**The second class is the trap TASK-277 fell into and fixed.** Its mutation
+round found that every test in its module checked an outcome on the happy
+path, so no branch that exists for wrong input was ever reached: five separate
+guards could each be deleted with the suite still green. The guards this row
+adds are mostly about *absence and malformation* — a store that is not there,
+a store that will not parse, a phase the store does not cover, a record whose
+line this writer cannot read — and every one of them is reached by name in
+`TestTheWrongInputBranchesAreReached`, which is where the deletions were tried.
+
+Run: python3 tests/parallel test_linkage_store_readers
+"""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "viewer"))
+import parsers as P  # noqa: E402
+
+LINT = ROOT / "bin" / "perry-lint"
+STATE = ROOT / "bin" / "perry-state"
+GOALS = ROOT / "bin" / "perry-goals"
+TASK = ROOT / "bin" / "perry-task"
+
+CONFIG = ("# Perry configuration\n\n- Document language: English\n"
+          "- Repo layout: single\n- State root: .\n")
+HOOK = ("# Perry hook\n\n## High-stakes operations\n\n"
+        "- Anything that writes outside this fixture\n")
+
+BOARD = (
+    "# Board — linkage store fixture\n\n> Live working memory.\n>\n"
+    "> Last updated: 2026-09-05\n\n"
+    "## P0 (must finish this period)\n\n"
+    "| ID | Title | Owner | Status | Next action | Evidence |\n"
+    "|---|---|---|---|---|---|\n"
+    "| TASK-100 | a row | Coding Agent | in_progress | carry on | — |\n"
+    "| TASK-101 | another row | Coding Agent | in_progress | carry on | — |\n\n"
+    "## P1\n\n| ID | Title | Owner | Status | Next action | Evidence |\n"
+    "|---|---|---|---|---|---|\n\n"
+    "## P2\n\n| ID | Title | Owner | Status | Next action | Evidence |\n"
+    "|---|---|---|---|---|---|\n\n"
+    "## Cadence\n\n| ID | Recurring task | Owner | Frequency | Next due |\n"
+    "|---|---|---|---|---|\n\n"
+    "## User Input Queue\n\n"
+    "| USER-id | Needed from user | Blocks | Idle | Status |\n"
+    "|---|---|---|---|---|\n\n"
+    "## Top risks (one-line)\n\n- None.\n"
+)
+
+
+def phase_file(number: str, title: str, started: str, status: str,
+               kr_rows: str) -> str:
+    """A phase document complete enough to lint clean.
+
+    `kr_rows` is the KR table. It matters for site 5: the exclusion's whole
+    purpose is to let a phase whose REGISTER declares nothing fall back to
+    this table, and never to the register itself.
+    """
+    return (
+        f"# Phase #{number} — {title}\n\n"
+        f"> **Started**: {started}\n> **Status**: {status}\n\n"
+        f"## Phase Focus\n\nOne objective, so the register has something to "
+        f"name.\n\n"
+        f"## Operating Rules\n\n- Agent autonomy: none.\n\n"
+        f"## Cost Ceiling (phase #{number})\n\n- Spend cap: ≤ $0.\n\n"
+        f"## User Commitments\n\n- None.\n\n"
+        f"## User-Unavailable Degradation\n\nNone.\n\n"
+        f"## Phase Scope Reduction Rule\n\n- **Phase-day trigger**: none.\n\n"
+        f"## Objective 1 — {title}\n\n### Key Results\n\n"
+        f"| Id | KR text | Metric / Target | Linked overall KR |\n"
+        f"|---|---|---|---|\n{kr_rows}\n"
+        f"## Definition of Done\n\n### Must-Have (failure = phase missed)\n\n"
+        f"- [ ] The KR above is met\n\n"
+        f"## Not Doing in this phase\n\n- Anything else.\n\n"
+        f"## Process Note\n\nRead, never worked.\n"
+    )
+
+
+def document(*, phase: str, edges: dict[str, list[str]],
+             unlinked: list[str] | None = None,
+             krs: tuple[str, ...] = ("KR1", "KR2")) -> str:
+    """The register document, authored by hand.
+
+    By hand and not through `perry-goals link` for the reason
+    `tests/test_linkage_task_exists.py § register` gives: the file has to hold
+    a state under test, and going through the writer would make the fixture a
+    test of the writer. Here it matters twice over — the writer is site 1, one
+    of the six things being measured.
+    """
+    number = phase.split("-")[0]
+    body = [f'---\nlinkage: 1\nphase: "{phase}"',
+            'updated: "2026-09-05T00:00:00Z"']
+    body.append("unlinked: [" + ", ".join(
+        f'"{t}"' for t in (unlinked or [])) + "]")
+    body.append("objectives:\n  - id: O1\n    title: \"an objective\"\n    krs:")
+    for suffix in krs:
+        kr_id = f"P{number}-O1-{suffix}"
+        ids = ", ".join(f'"{t}"' for t in edges.get(kr_id, []))
+        body.append(
+            f"      - id: {kr_id}\n"
+            f'        title: "the {suffix} result"\n'
+            f'        metric: "the argument for {suffix}"\n'
+            f"        target: 1\n        current: 1\n"
+            f"        stretch: false\n        tasks: [{ids}]")
+    return "\n".join(body) + "\n---\n\n# Linkage\n"
+
+
+def store(*, phase: str, edges: dict[str, list[str]],
+          unlinked: list[str] | None = None,
+          krs: tuple[str, ...] = ("KR1", "KR2")) -> str:
+    """`linkage.jsonl` — the three declared kinds, one JSON object per line."""
+    number = phase.split("-")[0]
+    lines = []
+    for suffix in krs:
+        lines.append(json.dumps({
+            "kind": "kr", "phase": phase, "objective": "O1",
+            "id": f"P{number}-O1-{suffix}",
+            "title": f"the {suffix} result",
+            "target": 1, "current": 1, "stretch": False}))
+    for kr_id, tasks in edges.items():
+        for tid in tasks:
+            lines.append(json.dumps({
+                "kind": "edge", "task": tid, "kr": kr_id,
+                "declared_at": "2026-09-05T00:00:00Z",
+                "actor": "goals", "via": "link"}))
+    for tid in (unlinked or []):
+        lines.append(json.dumps({
+            "kind": "unlinked", "task": tid,
+            "declared_at": "2026-09-05T00:00:00Z",
+            "actor": "goals", "via": "link"}))
+    return "".join(line + "\n" for line in lines)
+
+
+def task_record(tid: str, status: str = "in_progress") -> str:
+    return json.dumps({
+        "id": tid, "title": "a row", "owner": "Coding Agent",
+        "status": status, "priority": "P0", "track": "main",
+        "next_action": "carry on", "evidence": "", "verification": "V2",
+        "created": "2026-09-01T09:00:00", "order": None,
+    }, ensure_ascii=False)
+
+
+class Fixture(unittest.TestCase):
+    """A project whose store and document DISAGREE about one edge.
+
+    The store puts `TASK-100` under `KR1`; the document puts it under `KR2`.
+    Every assertion below names which of those two a reader reported, so the
+    test says which file the reader read and not merely that it produced
+    something.
+    """
+
+    STORE_KR = "P003-O1-KR1"
+    DOC_KR = "P003-O1-KR2"
+
+    def project(self, *, store_text: str | None = "default",
+                doc_text: str | None = "default",
+                tasks: tuple[str, ...] = ("TASK-100", "TASK-101"),
+                store_unlinked: list[str] | None = None,
+                doc_unlinked: list[str] | None = None,
+                extra_phase: bool = False) -> pathlib.Path:
+        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-linkage-store-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / "phase").mkdir()
+        (d / ".perry").mkdir()
+        (d / ".perry" / "config.md").write_text(CONFIG)
+        (d / ".perry" / "hook.md").write_text(HOOK)
+        (d / "BOARD.md").write_text(BOARD)
+        (d / "phase" / "CURRENT").write_text("003-storage\n")
+        (d / "phase" / "003-storage.md").write_text(phase_file(
+            "003", "storage", "2026-09-01", "active",
+            "| P003-O1-KR1 | the KR1 result | 1 | — |\n"
+            "| P003-O1-KR2 | the KR2 result | 1 | — |\n"))
+        if doc_text == "default":
+            doc_text = document(phase="003-storage",
+                                edges={self.DOC_KR: ["TASK-100"]},
+                                unlinked=doc_unlinked)
+        if doc_text is not None:
+            (d / "phase" / "003-linkage.md").write_text(doc_text)
+        if store_text == "default":
+            store_text = store(phase="003-storage",
+                               edges={self.STORE_KR: ["TASK-100"]},
+                               unlinked=store_unlinked)
+        if store_text is not None:
+            (d / "linkage.jsonl").write_text(store_text)
+        if extra_phase:
+            # A phase the store does NOT declare a `kr` record for — the
+            # condition `_linkage_records_for_phase` answers `None` to, and
+            # the reason the sweep is per phase rather than store-wide.
+            (d / "phase" / "002-earlier.md").write_text(phase_file(
+                "002", "earlier", "2026-08-01", "scored",
+                "| P002-O1-KR1 | the KR1 result | 1 | — |\n"))
+            (d / "phase" / "002-linkage.md").write_text(document(
+                phase="002-earlier", edges={"P002-O1-KR1": ["TASK-101"]},
+                krs=("KR1",)))
+        (d / "tasks.jsonl").write_text(
+            "".join(task_record(t) + "\n" for t in tasks))
+        return d
+
+    # -- the seams
+
+    def lint(self, d: pathlib.Path, *extra) -> dict:
+        proc = subprocess.run(
+            [sys.executable, str(LINT), "--root", str(d), "--json", *extra],
+            capture_output=True, text=True, cwd=ROOT)
+        return json.loads(proc.stdout)
+
+    def state(self, d: pathlib.Path, section: str) -> dict:
+        proc = subprocess.run(
+            [sys.executable, str(STATE), "--root", str(d),
+             "--section", section],
+            capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def goals(self, d: pathlib.Path, *argv) -> tuple[int, dict]:
+        proc = subprocess.run(
+            [sys.executable, str(GOALS), *argv, "--root", str(d), "--json"],
+            capture_output=True, text=True, cwd=ROOT)
+        return proc.returncode, json.loads(proc.stdout or "{}")
+
+    def purge(self, d: pathlib.Path, tid: str) -> tuple[int, dict]:
+        proc = subprocess.run(
+            [sys.executable, str(TASK), "purge", tid, "--reason",
+             "a fixture row", "--root", str(d), "--json"],
+            capture_output=True, text=True, cwd=ROOT)
+        return proc.returncode, json.loads(proc.stdout or "{}")
+
+    def rules(self, payload: dict, rule: str) -> list[dict]:
+        return [f for f in payload["findings"] if f["rule"] == rule]
+
+
+class TestTheSixReadersAnswerFromTheStore(Fixture):
+    """One test per call site of `DESIGN-015 § 5.6`. **This is the gate.**
+
+    Each asserts the STORE's answer and refutes the DOCUMENT's, so restoring
+    that one call site to `parse_linkage(<document>)` turns this one test red
+    and leaves the others alone. That is what makes a pass here evidence
+    rather than a coincidence.
+    """
+
+    def test_site_6_perry_state_attribution_reads_the_store(self):
+        """`viewer/parsers.py § load_snapshot` — what `perry-state`'s
+        attribution reader is built on."""
+        d = self.project()
+        payload = self.state(d, "linkage")["linkage"]
+        by_id = {k["id"]: k["tasks"]
+                 for o in payload["objectives"] for k in o["krs"]}
+        self.assertEqual(by_id[self.STORE_KR], ["TASK-100"],
+                         "the store puts TASK-100 under KR1 and perry-state "
+                         "did not report it there — this reader is still on "
+                         "the document")
+        self.assertEqual(by_id[self.DOC_KR], [],
+                         "KR2 is where the DOCUMENT puts TASK-100; reporting "
+                         "it there means the document was read")
+
+    def test_site_6_keeps_the_documents_metric(self):
+        """The other half of the split, and it is not decoration.
+
+        `metric` is `derived_not_stored` in the schema — Decision 2 — so a
+        reader that answered the typed half from the store and dropped the
+        argument with it would satisfy the test above and still lose the one
+        thing the document exists to hold.
+        """
+        d = self.project()
+        payload = self.state(d, "linkage")["linkage"]
+        metrics = {k["id"]: k["metric"]
+                   for o in payload["objectives"] for k in o["krs"]}
+        self.assertEqual(metrics[self.STORE_KR], "the argument for KR1")
+
+    def test_site_2_perry_goals_krs_reads_the_store(self):
+        """`bin/perry-goals § cmd_krs`."""
+        d = self.project()
+        code, out = self.goals(d, "krs")
+        self.assertEqual(code, 0, out)
+        by_id = {k["id"]: k["tasks"]
+                 for o in out["objectives"] for k in o["krs"]}
+        self.assertEqual(by_id[self.STORE_KR], ["TASK-100"])
+        self.assertEqual(by_id[self.DOC_KR], [])
+
+    def test_site_3_perry_task_names_the_store_and_its_line(self):
+        """`bin/perry-task § live_references`, and the regex that is gone.
+
+        The refusal quotes `linkage.jsonl:<line>`. A line number is only
+        available because one record is one line — the property that let the
+        regex be replaced by `json.loads` rather than by a second regex.
+        """
+        d = self.project(tasks=("TASK-100", "TASK-101"))
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-100", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-100")
+        self.assertEqual(code, 1, out)
+        self.assertIn("linkage.jsonl:", out["refused"],
+                      "the refusal must name the store and the line, not the "
+                      "document")
+        self.assertIn(self.STORE_KR, out["refused"])
+        self.assertNotIn("003-linkage.md", out["refused"])
+
+    def test_site_3_uses_no_regex_over_the_store(self):
+        """The deliverable's own words: replaced by `json.loads`, **not by a
+        second regex**.
+
+        Asserted against the source, because the behaviour above cannot tell
+        the two apart — a regex that happened to match would pass it. The
+        window is the reader itself, so an unrelated `re` elsewhere in a
+        7,900-line file cannot make this green or red by accident.
+        """
+        text = (ROOT / "bin" / "perry-task").read_text()
+        start = text.index("# `linkage.jsonl § kind: edge`")
+        end = text.index("# The goals store's own linkage field", start)
+        window = text[start:end]
+        self.assertIn("json.loads", window)
+        self.assertNotIn("re.match", window)
+        self.assertNotIn("re.search", window)
+        self.assertNotIn("re.findall", window)
+
+    def test_site_4_the_lint_check_grades_the_stores_edges(self):
+        """`bin/perry-lint` — the linkage lint check, rewritten not deleted.
+
+        The dangling edge is in the STORE only. A check still reading the
+        document sees a graph whose every edge resolves and reports nothing.
+        """
+        d = self.project(store_text=store(
+            phase="003-storage",
+            edges={self.STORE_KR: ["TASK-100", "TASK-404"]}))
+        found = self.rules(self.lint(d), "linkage-task-exists")
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("TASK-404", found[0]["message"])
+        self.assertEqual(found[0]["file"], "linkage.jsonl")
+
+    def test_site_4_a_dangling_edge_in_the_document_alone_is_not_reported(self):
+        """The refutation the test above needs to mean anything.
+
+        The document names a task no row carries and the store does not. The
+        store is the authority, so there is nothing to report — and a check
+        still reading the document would report it. Without this case the
+        test above passes with BOTH files being read.
+        """
+        d = self.project(doc_text=document(
+            phase="003-storage",
+            edges={self.DOC_KR: ["TASK-100", "TASK-404"]}))
+        self.assertEqual(self.rules(self.lint(d), "linkage-task-exists"), [])
+
+    def test_site_4_a_dangling_unlinked_declaration_comes_from_the_store(self):
+        d = self.project(store_unlinked=["TASK-404"],
+                         doc_unlinked=["TASK-101"])
+        found = self.rules(self.lint(d), "linkage-unlinked-exists")
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("TASK-404", found[0]["message"])
+        self.assertEqual(found[0]["file"], "linkage.jsonl")
+
+    def test_site_5_the_register_is_never_its_own_comparand(self):
+        """`bin/perry-lint § _is_linkage_register` — the exclusion.
+
+        A phase whose register declares no KR falls back to the phase
+        DOCUMENT's table. Delete the exclusion and the glob's first match is
+        `002-linkage.md` — the register grading itself, which proves only that
+        a file agrees with itself, and the `projects[]` entry below then reads
+        as sound when it names a KR nothing declares.
+        """
+        d = self.project(extra_phase=True)
+        # A register with no `krs[]` at all, and a Project serving a KR that
+        # the phase document does NOT declare.
+        (d / "phase" / "002-linkage.md").write_text(
+            '---\nlinkage: 1\nphase: "002-earlier"\n'
+            'updated: "2026-09-05T00:00:00Z"\n'
+            "objectives: []\nprojects:\n  - id: PRJ-1\n"
+            '    serves: P002-O1-KR9\n    objective: O1\n'
+            '    name: "a project"\n---\n\n# Linkage\n')
+        found = [f for f in self.rules(self.lint(d), "linkage-kr-exists")
+                 if "PRJ-1" in f["message"]]
+        self.assertEqual(len(found), 1, found)
+        self.assertEqual(found[0]["file"], "phase/002-linkage.md",
+                         "a projects[] finding must name the document that "
+                         "carries the line, never the store")
+
+    def test_site_1_link_refuses_on_what_the_store_says(self):
+        """`bin/perry-goals § link` — the only writer today.
+
+        The store says TASK-100 is under KR1. Linking it to KR2 must be
+        refused NAMING KR1. A writer still judging from the document would
+        see TASK-100 under KR2, call the request a no-op, and report
+        `already` — an accepted write that contradicts every reader, which is
+        the silent failure `DESIGN-015 § 6` orders C before D to prevent.
+        """
+        d = self.project()
+        code, out = self.goals(d, "link", "TASK-100", self.DOC_KR)
+        self.assertEqual(code, 1, out)
+        self.assertIn(self.STORE_KR, out["refused"])
+
+    def test_site_1_writes_the_edge_into_the_store(self):
+        d = self.project()
+        code, out = self.goals(d, "link", "TASK-101", self.DOC_KR)
+        self.assertEqual(code, 0, out)
+        records = [json.loads(line) for line
+                   in (d / "linkage.jsonl").read_text().split("\n")
+                   if line.strip()]
+        edges = [r for r in records
+                 if r["kind"] == "edge" and r["task"] == "TASK-101"]
+        self.assertEqual(len(edges), 1, records)
+        self.assertEqual(edges[0]["kr"], self.DOC_KR)
+        self.assertEqual(edges[0]["via"], "link",
+                         "`via` is what P003-O3-KR2 counts on; `add` is row D "
+                         "and this path is not it")
+        self.assertTrue(edges[0]["actor"],
+                        "DESIGN-015 § 7's mitigation is that § 5.5's per-kind "
+                        "rule be auditable off the records before anything "
+                        "enforces it")
+
+    def test_site_1_retracts_the_unlinked_record_it_supersedes(self):
+        """A row cannot be attributed and declared drifting at once.
+
+        The document write has applied this rule since TASK-227. The store
+        half is new here, and it is the one place this writer removes a
+        record rather than appending one.
+        """
+        d = self.project(store_unlinked=["TASK-101"],
+                         doc_unlinked=["TASK-101"])
+        code, out = self.goals(d, "link", "TASK-101", self.DOC_KR)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["store_records_retracted"], ["TASK-101"])
+        records = [json.loads(line) for line
+                   in (d / "linkage.jsonl").read_text().split("\n")
+                   if line.strip()]
+        self.assertEqual(
+            [r for r in records
+             if r["kind"] == "unlinked" and r["task"] == "TASK-101"], [])
+
+
+class TestTheWrongInputBranchesAreReached(Fixture):
+    """The guards that exist for absence and malformation, each reached.
+
+    **TASK-277's finding, applied forward.** Its round found one shape of
+    defect five times over: every test in its module asserted an outcome on
+    the happy path, so no branch written for wrong input was ever executed,
+    and five guards could each be deleted with the suite still green. The
+    branches this row adds are almost all of that kind, so they get a class of
+    their own rather than a happy-path assertion each.
+    """
+
+    def test_an_absent_store_is_not_an_empty_one(self):
+        """`load_linkage_store` answers `None`, and the document stays the
+        authority. Reading absence as `[]` would report "no edges anywhere"
+        for every Perry project older than DESIGN-015."""
+        d = self.project(store_text=None)
+        self.assertIsNone(P.load_linkage_store(d))
+        by_id = {k["id"]: k["tasks"] for o in
+                 self.state(d, "linkage")["linkage"]["objectives"]
+                 for k in o["krs"]}
+        self.assertEqual(by_id[self.DOC_KR], ["TASK-100"],
+                         "with no store the document is the authority")
+
+    def test_an_empty_store_is_not_an_absent_one(self):
+        """`[]` is a real, present, empty store — the distinction
+        `load_task_store` draws and this reader has to draw too."""
+        d = self.project(store_text="")
+        self.assertEqual(P.load_linkage_store(d), [])
+
+    def test_a_malformed_store_does_not_raise_and_does_not_half_parse(self):
+        d = self.project(store_text='{"kind": "kr"\nnot json at all\n')
+        self.assertIsNone(P.load_linkage_store(d),
+                          "a partial parse would hand a caller half a graph")
+        payload = self.lint(d)
+        self.assertTrue(self.rules(payload, "linkage-store-unreadable")
+                        or self.rules(payload, "linkage-store-malformed"),
+                        "perry-lint is the tool that says why, and it must")
+
+    def test_a_record_of_the_wrong_shape_is_a_finding(self):
+        """The schema is what says so, and it is read rather than restated."""
+        d = self.project(store_text=store(
+            phase="003-storage", edges={self.STORE_KR: ["TASK-100"]})
+            + json.dumps({"kind": "edge", "task": "TASK-101",
+                          "kr": "not-a-kr-id",
+                          "declared_at": "2026-09-05T00:00:00Z",
+                          "actor": "goals", "via": "link"}) + "\n")
+        found = self.rules(self.lint(d), "linkage-store-malformed")
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("not-a-kr-id", found[0]["message"])
+
+    def test_a_phase_the_store_does_not_declare_keeps_its_document(self):
+        """`_linkage_records_for_phase` answers `None`, not `[]`.
+
+        Measured on this project and the reason the sweep is per phase: row B
+        imported phase 003 only, and phases 001 and 002 still carry 16 KRs
+        and 12 edge lists. A store-wide sweep would stop checking them and
+        report nothing, which is not a clean sweep but an unrun one.
+        """
+        d = self.project(extra_phase=True)
+        (d / "phase" / "002-linkage.md").write_text(document(
+            phase="002-earlier", edges={"P002-O1-KR1": ["TASK-404"]},
+            krs=("KR1",)))
+        found = self.rules(self.lint(d), "linkage-task-exists")
+        self.assertEqual(len(found), 1, found)
+        self.assertEqual(found[0]["file"], "phase/002-linkage.md",
+                         "phase 002 is not in the store, so its own document "
+                         "is still graded and still named")
+
+    def test_a_document_that_will_not_parse_is_still_a_failure(self):
+        """Even with a sound store. `metric`, `due` and the objective titles
+        come from the document, so a graph composed over an unreadable one
+        renders KR rows whose argument column is silently blank."""
+        d = self.project(doc_text="---\nlinkage: 9\n---\n\n# Linkage\n")
+        code, out = self.goals(d, "krs")
+        self.assertEqual(code, 1, out)
+        self.assertIn("refused", out)
+
+    def test_a_kr_the_document_has_no_objective_for_is_kept(self):
+        """Titleless, never dropped.
+
+        A KR that exists in the authority and vanishes from the render is the
+        silent loss this store was built to end, and it is the state a phase
+        is in between `plan-phase` writing the store and anyone writing the
+        objective's title.
+        """
+        doc = P.parse_linkage(document(phase="003-storage", edges={}))
+        recs = json.loads('[' + ','.join(
+            store(phase="003-storage", edges={}).strip().split("\n")) + ']')
+        recs.append({"kind": "kr", "phase": "003-storage", "objective": "O9",
+                     "id": "P003-O9-KR1", "title": "an orphan"})
+        graph = P.linkage_from_store(recs, doc)
+        self.assertIn("O9", [o.id for o in graph.objectives])
+        self.assertEqual([o.title for o in graph.objectives if o.id == "O9"],
+                         [""])
+
+    def test_link_on_a_store_less_project_creates_no_store(self):
+        """`linkage_store_text` answers `None`, and `None` is not `""`.
+
+        Writing an empty store here would create `linkage.jsonl` on a project
+        that has never had one — and every reader moved in this row treats a
+        present store as the authority, so the next command would answer "no
+        edges, anywhere" for a project whose register is full.
+        """
+        d = self.project(store_text=None)
+        code, out = self.goals(d, "link", "TASK-101", self.DOC_KR)
+        self.assertEqual(code, 0, out)
+        self.assertFalse((d / "linkage.jsonl").exists())
+        self.assertNotIn("store_records_written", out)
+
+    def test_a_line_the_writer_cannot_read_survives_a_retraction(self):
+        """Kept, never dropped.
+
+        `perry-lint` reports an unreadable line by number; discarding it here
+        would make this writer the thing that lost a record nobody had looked
+        at yet.
+        """
+        d = self.project(store_unlinked=["TASK-101"])
+        with (d / "linkage.jsonl").open("a") as fh:
+            fh.write("{ not json\n")
+        code, out = self.goals(d, "link", "TASK-101", self.DOC_KR)
+        self.assertEqual(code, 0, out)
+        self.assertIn("{ not json",
+                      (d / "linkage.jsonl").read_text().split("\n"))
+
+
+class TestTheDriftVerdictIsReal(Fixture):
+    """`perry-lint`'s seventh census line stops saying "comparison incomplete".
+
+    Before this row it read *"121 valid record(s), comparison incomplete —
+    drift is unchecked, not clean"*, because the readers still answered from
+    the document and a store nothing reads has no second opinion to check. The
+    three states below are the three answers that line can now give, and the
+    third is why `comparison_performed` is driven by the count of registers
+    actually compared rather than by "the store parsed".
+    """
+
+    def stats(self, d: pathlib.Path) -> dict:
+        return self.lint(d)["linkage_store_drift"]
+
+    def test_agreement_is_a_verdict_and_not_a_deferral(self):
+        edges = {self.STORE_KR: ["TASK-100"]}
+        d = self.project(store_text=store(phase="003-storage", edges=edges),
+                         doc_text=document(phase="003-storage", edges=edges))
+        got = self.stats(d)
+        self.assertTrue(got["comparison_performed"])
+        self.assertEqual(got["drifted"], 0)
+        self.assertEqual(self.rules(self.lint(d), "linkage-store-drift"), [])
+
+    def test_a_disagreement_is_counted_and_named(self):
+        d = self.project()          # store KR1, document KR2
+        got = self.stats(d)
+        self.assertTrue(got["comparison_performed"])
+        self.assertEqual(got["drifted"], 2,
+                         "both KRs disagree: one gained the edge, one lost it")
+        found = self.rules(self.lint(d), "linkage-store-drift")
+        self.assertTrue(found)
+        self.assertTrue(all(f["file"] == "linkage.jsonl" for f in found))
+
+    def test_nothing_to_compare_against_stays_unchecked_not_clean(self):
+        """`P003-O1-KR3`'s rule, reaching the seventh store.
+
+        A store whose phases have no register document beside them has nothing
+        to compare. `0 drifted` would then mean "I did not look", which is the
+        green gate on a false premise that rule exists to refuse.
+        """
+        d = self.project(doc_text=None)
+        got = self.stats(d)
+        self.assertTrue(got["store_present"])
+        self.assertFalse(got["comparison_performed"])
+        self.assertEqual(got["drifted"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
