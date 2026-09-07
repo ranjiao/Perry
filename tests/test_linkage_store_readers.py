@@ -927,6 +927,91 @@ class TestTheWrongInputBranchesAreReached(Fixture):
     their own rather than a happy-path assertion each.
     """
 
+    def test_an_edge_naming_another_phases_kr_stays_out_of_this_slice(self):
+        """**Round 2's green N3, and it is REACHABLE — `add --kr` reaches it.**
+
+        `linkage_records_for_phase` keeps an `edge` only when the KR id it
+        names carries this phase's prefix (`P003-`). Round 2's mutation round
+        made that clause always true and nothing went red, because the store
+        held phase-003 edges ONLY — the filter had no work to do, so the suite
+        was passing for the absence of the input rather than for the guard.
+
+        `perry-task add --kr P001-O1-KR1` appends an `edge` record naming
+        another phase's KR (`bin/perry-task § linkage_edge_change`), and from
+        that moment phase 003's render carries a phase-001 edge. This supplies
+        exactly that record and asserts it does not join the slice.
+        """
+        d = self.project(store_text=store(
+            phase="003-storage", edges={self.STORE_KR: ["TASK-100"]})
+            + json.dumps({"kind": "edge", "task": "TASK-101",
+                          "kr": "P001-O1-KR1",
+                          "declared_at": "2026-09-05T00:00:00Z",
+                          "actor": "goals", "via": "add"}) + "\n")
+        records = P.load_linkage_store(d)
+        self.assertTrue(
+            any(r.get("kr") == "P001-O1-KR1" for r in records),
+            "the fixture must actually carry the cross-phase edge")
+        mine = P.linkage_records_for_phase(records, "003")
+        self.assertNotIn("P001-O1-KR1", [r.get("kr") for r in mine],
+                         "an edge naming phase 001's KR is not phase 003's "
+                         "record; making the clause always true must be red")
+        by_id = {k["id"]: k["tasks"] for o in
+                 self.state(d, "linkage")["linkage"]["objectives"]
+                 for k in o["krs"]}
+        self.assertNotIn("P001-O1-KR1", by_id,
+                         "and it must not surface in the rendered graph")
+
+    def test_no_phase_number_reads_the_document_rather_than_the_whole_store(self):
+        """**Round 2's green N1.**
+
+        `linkage_records_for_phase` returns `None` — "read the document" —
+        when nothing names the phase. Round 2's mutation made it take the
+        WHOLE store instead and nothing went red: every caller builds the path
+        as `phase/<NNN>-linkage.md`, so the filename branch always answers and
+        the guard never runs.
+
+        That makes it unreachable through today's callers but not unspecified:
+        this is a public helper whose docstring states the contract, and
+        `None` is the answer that keeps another phase's key results from being
+        printed under this one's headings. Asserted directly, which is the
+        honest way to guard a branch no caller reaches yet.
+        """
+        records = P.load_linkage_store(self.project())
+        self.assertIsNotNone(records)
+        self.assertIsNone(
+            P.linkage_records_for_phase(records, ""),
+            "with no phase to filter to, the store must not answer at all — "
+            "returning every record is how one phase's KRs print under "
+            "another's headings")
+        self.assertIsNotNone(
+            P.linkage_records_for_phase(records, "003"),
+            "and the control: phase 003 IS in this store")
+
+    def test_the_documents_own_phase_field_names_the_phase_when_the_filename_cannot(self):
+        """**Round 2's green N8** — `linkage_document_phase`'s second branch.
+
+        The filename is asked first and every register this project has is
+        named `<NNN>-linkage.md`, so the fallback never ran and deleting it
+        changed no answer. It exists for a register kept under some other
+        name, and the docstring says so.
+
+        Here the path carries no phase number at all, so only the document's
+        own `phase:` field can answer. Nulling that branch returns `""`, and
+        `""` is what sends `linkage_records_for_phase` to the document.
+        """
+        doc = P.parse_linkage(document(phase="003-storage",
+                                       edges={self.DOC_KR: ["TASK-100"]}))
+        self.assertFalse(doc.error, doc.error)
+        self.assertEqual(
+            P.linkage_document_phase(pathlib.Path("register.md"), doc), "003",
+            "the filename cannot say, so the document's phase: field must")
+        self.assertEqual(
+            P.linkage_document_phase(pathlib.Path("register.md"), None), "",
+            "and with neither source there is no phase to report")
+        self.assertEqual(
+            P.linkage_document_phase(pathlib.Path("003-linkage.md"), None),
+            "003", "the control: the filename branch still answers first")
+
     def test_an_absent_store_is_not_an_empty_one(self):
         """`load_linkage_store` answers `None`, and the document stays the
         authority. Reading absence as `[]` would report "no edges anywhere"
