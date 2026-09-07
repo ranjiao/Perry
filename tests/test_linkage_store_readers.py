@@ -111,7 +111,8 @@ def phase_file(number: str, title: str, started: str, status: str,
 def document(*, phase: str, edges: dict[str, list[str]],
              unlinked: list[str] | None = None,
              krs: tuple[str, ...] = ("KR1", "KR2"),
-             serves: str | None = None) -> str:
+             serves: str | None = None,
+             agents: dict[str, list[str]] | None = None) -> str:
     """The register document, authored by hand.
 
     By hand and not through `perry-goals link` for the reason
@@ -125,6 +126,16 @@ def document(*, phase: str, edges: dict[str, list[str]],
             'updated: "2026-09-05T00:00:00Z"']
     body.append("unlinked: [" + ", ".join(
         f'"{t}"' for t in (unlinked or [])) + "]")
+    if agents:
+        # `agents[].tasks` — a register half the store has NO record kind for
+        # (`schema/state-schema.json` declares three kinds and `agent` is not
+        # one). It is therefore only ever a document reference, and a `purge`
+        # that reads the store instead of the document stops seeing it for
+        # every phase, not just the uncovered ones.
+        body.append("agents:")
+        for who, tids in agents.items():
+            ids = ", ".join(f'"{t}"' for t in tids)
+            body.append(f'  - id: "{who}"\n    tasks: [{ids}]')
     if serves:
         # The Project↔KR registry. It has no record kind in the store — there
         # are three and this is not one — so it stays in the document, and a
@@ -437,6 +448,37 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
                       "reader would go and edit")
         self.assertIn("krs[].tasks", out["refused"])
 
+    def test_site_3_an_agents_tasks_entry_is_a_live_reference_and_says_so(self):
+        """`agents[].tasks`, which the store has no record kind for at all.
+
+        `schema/state-schema.json` declares three kinds — `kr`, `edge`,
+        `unlinked` — and `agent` is not one. So this half of the register can
+        only ever be a document reference, and reading the store INSTEAD of
+        the document retired it for every phase, the covered one included:
+        `phase/001-linkage.md` carries 16 such entries today and none of them
+        was protecting a row any more.
+
+        The label is asserted, not just the refusal, because reporting an
+        agent assignment as `krs[].tasks` sends the reader to look for a key
+        result that does not name the row.
+        """
+        d = self.project(doc_text=document(
+            phase="003-storage",
+            edges={self.DOC_KR: []},
+            agents={"Coding Agent": ["TASK-101"]}))
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1,
+                         "an agent still has this row assigned; the store has "
+                         "no record kind that could carry that fact")
+        self.assertIn("agents[].tasks", out["refused"],
+                      "reported as krs[].tasks, this sends the reader to a "
+                      "key result that never named the row")
+        self.assertIn("003-linkage.md:", out["refused"])
+
     def test_site_2_a_phase_the_store_does_not_cover_reads_its_own_document(self):
         """**FAIL 1 at site 2** — `perry-goals krs --phase <not the store's>`.
 
@@ -492,20 +534,30 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
         `link`ing a row to a phase-002 KR must be judged against phase 002's
         register. Read store-wide, `P002-O1-KR1` is a KR the graph has never
         heard of and the refusal changes.
+
+        **Driven through `perry-goals link`, not by calling the helper.** The
+        first version of this test called `linkage_records_for_phase` directly
+        and a mutation taking the whole store inside `linkage_graph` stayed
+        GREEN — the helper was right and its one caller was not asked. `link`
+        writes the CURRENT phase's register, so pointing `CURRENT` at phase
+        002 is what puts `linkage_graph` on the phase the store does not
+        cover.
+
+        `TASK-101` is already under `P002-O1-KR1` in that document, so a
+        correctly scoped graph answers "already linked" and writes nothing.
+        Read store-wide, the graph carries phase 003's KRs instead, and
+        `P002-O1-KR1` becomes a KR it "does not carry" — a refusal, and a
+        different exit code.
         """
         d = self.project(extra_phase=True)
-        doc = P.parse_linkage((d / "phase" / "002-linkage.md").read_text())
-        graph = P.linkage_records_for_phase(
-            P.load_linkage_store(d), "002")
-        self.assertIsNone(
-            graph,
-            "the store declares no `kr` record for phase 002, so it is not "
-            "the authority for it and the document must be")
-        self.assertEqual([k.id for o in doc.objectives for k in o.krs],
-                         ["P002-O1-KR1"])
-        self.assertIsNotNone(
-            P.linkage_records_for_phase(P.load_linkage_store(d), "003"),
-            "phase 003 IS in the store and must be answered from it")
+        (d / "phase" / "CURRENT").write_text("002-zeta\n")
+        code, out = self.goals(d, "link", "TASK-101", "P002-O1-KR1",
+                               "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("already", out,
+                      "phase 002's own register already carries this edge; a "
+                      "graph that cannot see it was read store-wide")
+        self.assertIn("P002-O1-KR1", out["already"])
 
     def test_site_4_the_lint_check_grades_the_stores_edges(self):
         """`bin/perry-lint` — the linkage lint check, rewritten not deleted.
