@@ -283,7 +283,7 @@
     ],
     "invariant": [
       "file and directory names (BOARD.md, phase/, evidence/<YYYY-MM>/)",
-      "ID prefixes and ID bodies (REL-002, ADR-001, DESIGN-001, KR-O1.2, P<NNN>-O<n>-KR<n>, USER-014)",
+      "ID prefixes and ID bodies (REL-002, ADR-001, DESIGN-001, KR-O1.2, O<n>-KR<m>, P<NNN>-O<n>-KR<n>, USER-014)",
       "enum values (not_started, in_progress, blocked, review, done, dropped, single, split, ...)",
       "header field names in .perry/config.md and .perry/hook.md",
       "YAML frontmatter keys and values in phase/<NNN>-linkage.md",
@@ -1300,7 +1300,7 @@
             "Deadline"
           ],
           "id_column": "Id",
-          "id_pattern": "^KR-O\\d+\\.\\d+$"
+          "id_pattern": "^(?:KR-O\\d+\\.\\d+|O\\d+-KR\\d+)$"
         },
         {
           "under": "^Commitments\\b|^承诺",
