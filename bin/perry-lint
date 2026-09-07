@@ -4479,7 +4479,7 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
     # against Perry's own claim, on every Perry project there is. What
     # identifies it is the record, not the name.
     if path.suffix == ".jsonl":
-        return looks_like_perry_record(path)
+        return looks_like_perry_record(path, schema)
     stem = path.stem
     # Perry names its own artifacts: DESIGN-001-…, ADR-002-…, 001-slug, dates.
     if lib.perry_named_artifact(stem) or re.match(r"^\d{3}-", stem):
@@ -4501,7 +4501,46 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
 _EVENT_FIELDS = ("ts", "event")
 
 
-def looks_like_perry_record(path: Path) -> bool:
+def _matches_a_declared_store(rec: dict, schema: dict) -> bool:
+    """Does this record match a shape `schema § stores.declared` declares?
+
+    **The fifth shape, and the last one written out by hand.** Four times now
+    a new store has been added and `looks_like_perry_record` has had to be
+    taught its field tuple — tasks, risks, intake, asks — and the comments on
+    those four say what happens when it is not: Perry reports its own store as
+    a file Perry did not write, against Perry's own claim, on every project
+    that runs the import. TASK-277 is the fifth and hit exactly that: the
+    import landed and the very next `perry-lint` run raised `NS-01` on
+    `perry/linkage.jsonl`, advising the user to `/perry relocate` away from
+    Perry's own store.
+
+    So this one is not a fifth tuple. `stores.declared` already carries the
+    record shapes — that is what row A of DESIGN-015 declared and what
+    `_linkage_record_findings` validates against — and this reads them from
+    there, keyed on the store's own declared `discriminator`. A store declared
+    that way in future is recognised here with no edit at all, which is the
+    difference between a declaration and a decoration.
+
+    Shape, never name: the docstring below carries the reason, and it holds
+    here. A project's own `linkage.jsonl` full of something else is still the
+    collision the claim exists to report.
+    """
+    keys = set(rec)
+    for declared in ((schema.get("stores") or {}).get("declared")
+                     or {}).values():
+        if not isinstance(declared, dict):
+            continue
+        kinds = declared.get("records") or {}
+        disc = declared.get("discriminator")
+        if not disc or not kinds:
+            continue
+        shape = kinds.get(rec.get(disc))
+        if isinstance(shape, dict) and keys <= set(shape.get("fields") or {}):
+            return True
+    return False
+
+
+def looks_like_perry_record(path: Path, schema: dict | None = None) -> bool:
     """Is this JSONL the store or the event log Perry itself wrote?
 
     Read from the first record rather than the filename. A project that happens
@@ -4551,6 +4590,11 @@ def looks_like_perry_record(path: Path) -> bool:
     if isinstance(kind, str) and kind in _MD_STORE.STORED:
         if keys <= set(_MD_STORE.STORED[kind]):
             return True             # a store — okr or config
+    # Any store whose record shapes `schema § stores.declared` declares —
+    # `linkage.jsonl` today, and whatever is declared there tomorrow with no
+    # edit here. See `_matches_a_declared_store`.
+    if schema and _matches_a_declared_store(rec, schema):
+        return True
     return keys.issuperset(_EVENT_FIELDS)
 
 
