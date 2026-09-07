@@ -58,7 +58,7 @@ SECOND_PROJECT = pathlib.Path("~/proj/gimegime-pmo").expanduser()
 #: KRs are in this file" is the point here: if the scanner and this regex ever
 #: agree only because they are the same code, the coverage assertion below
 #: proves nothing.
-KR_TABLE_ROW = re.compile(r"^\|\s*\**(?:KR|P)[-\w.]*\d\**\s*\|")
+KR_TABLE_ROW = re.compile(r"^\|\s*\**(?:KR|P|O\d+-KR)[-\w.]*\d\**\s*\|")
 # The `P` arm tracks the phase-KR form migrated by TASK-180 (`P002-O1-KR1`).
 # It is dead weight against `OKR.md`, which carries the OVERALL `KR-O*`
 # family and is out of that migration by decision — kept in step anyway so
@@ -66,7 +66,14 @@ KR_TABLE_ROW = re.compile(r"^\|\s*\**(?:KR|P)[-\w.]*\d\**\s*\|")
 # `tests/fixtures/live-state/md_store.before.py` still spells it `P-O`
 # [[old-form]] and must: it is pinned by sha256 in
 # `tests/test_live_state_expectations.py § Instance6`.
-KR_BULLET = re.compile(r"^\s*-\s*\**(?:KR|P\d+-O)[\w.\-]*\d\**[^:：]*[:：]")
+#
+# ADR-017 step 1 adds the `O<n>-KR<m>` arm to both counters, in step with
+# `viewer/parsers.py`. The point of an independent counter is that it agrees
+# with the scanner without being the scanner; a counter left behind at the old
+# grammar would start disagreeing the moment a project mints a new-form id,
+# and the coverage assertion below would report that as missing coverage
+# rather than as the stale counter it would be.
+KR_BULLET = re.compile(r"^\s*-\s*\**(?:KR|P\d+-O|O\d+-KR)[\w.\-]*\d\**[^:：]*[:：]")
 
 
 def kr_lines(text: str) -> int:

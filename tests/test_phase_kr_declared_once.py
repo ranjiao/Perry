@@ -48,6 +48,24 @@ SAMPLE = ROOT / "tests" / "fixtures" / "sample-project"
 #: A markdown table row whose first cell is a phase KR id.
 KR_TABLE_ROW = re.compile(r"^\|\s*P\d{3}-O\d+-KR\d+\s*\|")
 
+#: A markdown table row whose first cell is an OVERALL KR id, in EITHER
+#: grammar — the old `KR-O<n>.<m>` and the `O<n>-KR<m>` that ADR-017 step 1
+#: made the readers accept. Used to recover overall KRs that a later OKR
+#: version retired, which `perry-goals list` deliberately no longer returns.
+#:
+#: Hoisted out of the test body by ADR-017 step 1 so the grammar it accepts is
+#: reachable by a mutation test. Inline, reverting it to the old-form-only
+#: pattern turned NOTHING red — this project has no new-form id yet, so the
+#: scan would just keep returning the same historical set and the revert would
+#: be invisible. A named constant can be asserted on directly.
+#:
+#: Widening it is not cosmetic. After the data rename an old-form-only scan
+#: returns the EMPTY set, and `overall = current | historical` would then be
+#: carried entirely by `current` — the dangling-edge assertion below would go
+#: vacuously green instead of red. That is the failure this widening prevents.
+HISTORICAL_OVERALL_KR_ROW = re.compile(
+    r"^\|\s*((?:KR-O\d+\.\d+|O\d+-KR\d+))\s*\|", re.M)
+
 
 def _declared_kr_columns() -> list[set[str]]:
     """The KR table's first two columns and every spelling of them.
@@ -416,9 +434,8 @@ class TestTheLinkedOverallKrCameWithIt(Fixture):
         # historical attribution. OKR.md is versioned and retains those
         # declarations, while `perry-goals list` intentionally returns only
         # the current version.
-        historical = set(re.findall(
-            r"^\|\s*(KR-O\d+\.\d+)\s*\|", (ROOT / "perry" / "OKR.md").read_text(),
-            re.M))
+        historical = set(HISTORICAL_OVERALL_KR_ROW.findall(
+            (ROOT / "perry" / "OKR.md").read_text()))
         overall = current | historical
         self.assertTrue(overall, "this project declares no overall KRs at "
                                  "all, so the assertion below is vacuous")
