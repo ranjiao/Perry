@@ -3926,12 +3926,19 @@ def linkage_from_store(records: list[dict], document: Linkage) -> Linkage:
             ))
 
     link = Linkage(
-        spec=document.spec,
-        phase=document.phase,
+        # The store declares `spec_version: 1` of its own, so a present store
+        # is a spec-1 graph even before the document is consulted. Reading
+        # `spec` only from the document would make `.ok` false — "there is no
+        # register" — on a project whose store is full, which is the answer
+        # this row exists to stop being given.
+        spec=document.spec or (1 if records else 0),
+        phase=document.phase or next(
+            (str(r.get("phase") or "") for r in krs if r.get("phase")), ""),
         updated=document.updated,
         unlinked=[str(r.get("task") or "") for r in unlinked],
         agents=list(document.agents),
         projects=list(document.projects),
+        error=document.error,
     )
     titles = {o.id: o.title for o in document.objectives}
     order = [o.id for o in document.objectives]
@@ -3952,6 +3959,13 @@ def load_linkage(state_root: Path, document_path: Path) -> Linkage:
     every Perry project older than DESIGN-015 — is answered from the document
     exactly as before, so this row moves Perry's own readers without breaking
     a project that has not been imported.
+
+    **A document that will not parse is still a failure**, store or no store,
+    and `linkage_from_store` carries its `error` through rather than papering
+    over it. `metric`, `due` and the objective titles come from the document;
+    a graph composed over an unreadable one would render KR rows whose
+    argument column is silently blank, which is the half-read render
+    `parse_linkage`'s all-or-nothing rule exists to refuse.
     """
     document = (parse_linkage(document_path.read_text(encoding="utf-8"))
                 if document_path.exists() else Linkage())

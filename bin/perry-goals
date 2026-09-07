@@ -3025,10 +3025,17 @@ def phase_register(state_root: Path, phase: str | None) -> Path:
 
 
 def cmd_krs(args, ctx) -> dict:
-    """`krs` — every KR of one phase, from `phase/<NNN>-linkage.md`.
+    """`krs` — every KR of one phase, from `linkage.jsonl`.
 
     Read-only by construction: it takes no write path, appends no event and
     holds no `--write`. `perry-goals link` is still the register's only writer.
+
+    **DESIGN-015 § 5.6 site 2.** The typed half — ids, titles, `target`,
+    `current`, `stretch`, `linked`, and the edges under each KR — is read from
+    the store; `metric` and `due` are read from the document beside it, which
+    is where an argument about a number belongs (Decision 2). `phase_register`
+    still resolves that document, and the payload still names it, because it
+    is the file a user edits and the one the render points at.
     """
     if args.rest:
         raise Refused(f"`krs` takes no positional arguments and no `--write`; "
@@ -3036,7 +3043,7 @@ def cmd_krs(args, ctx) -> dict:
                       f"document has no KR table for it to write into, which "
                       f"is the whole of TASK-157. Nothing was printed")
     path = phase_register(ctx["state_root"], args.phase)
-    model = P.parse_linkage(path.read_text(encoding="utf-8"))
+    model = P.load_linkage(ctx["state_root"], path)
     if model.error:
         raise Refused(f"{path.name} does not parse as a linkage register "
                       f"({model.error}). A half-read graph would print a KR "
