@@ -1691,16 +1691,16 @@ def linkage_graph(state_root: Path, document, phase_number: str):
     records = P.load_linkage_store(state_root)
     if records is None:
         return document
-    prefix, kr_prefix = f"{phase_number}-", f"P{phase_number}-"
-    mine = [r for r in records if isinstance(r, dict) and (
-        (r.get("kind") == "kr"
-         and str(r.get("phase") or "").startswith(prefix))
-        or (r.get("kind") == "edge"
-            and str(r.get("kr") or "").startswith(kr_prefix))
-        or r.get("kind") == "unlinked")]
-    if not any(r.get("kind") == "kr" for r in mine):
-        # The store declares no KR for this phase — row B imported phase 003
-        # only — so it is not the authority here and the document is.
+    # **One spelling of the per-phase rule, not a second copy of it.** This
+    # filter used to be written out here as well as in `parsers.load_linkage`
+    # and `perry-lint § _linkage_records_for_phase`; TASK-278's V4 review found
+    # four separate store-versus-document decisions and defects in two of them,
+    # because the rule that had been discovered at one was never applied at the
+    # others. `mine is None` is "the store declares no KR for this phase — row
+    # B imported phase 003 only — so it is not the authority here and the
+    # document is."
+    mine = P.linkage_records_for_phase(records, phase_number)
+    if mine is None:
         return document
     return P.linkage_from_store(mine, document)
 
