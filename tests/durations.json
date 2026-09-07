@@ -49,9 +49,20 @@
    "workers": 1,
    "load1": 18.98,
    "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_linkage_store_readers with __pycache__ cleared before each - 2.97 / 4.07 / 3.75s wall, on the machine that ran TASK-278. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and the two linkage rows before this one followed. load1 is recorded honestly rather than waited out: the machine sat between 10 and 19 for the whole round and never went quiet, though a bare `python3 -c pass` measured 17-19ms throughout, so this was not the load-114 regime the task-277 note warns about. The spread here is wider than that row's - 1.10s across three runs against its 0.30 - and the reason is worth recording rather than averaging away: this module spawns perry-lint over a fixture project 12 times, and perry-lint's cost is dominated by reading schema/state-schema.json and walking the tree, so it is more sensitive to page cache than to CPU. The first run after a cold cache is the fast one here only because the largest run happened to land on a load spike. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
+  },
+  "task-279-add-writes-the-edge": {
+   "ref": "e106f1f",
+   "taken": "2026-09-07",
+   "workers": 1,
+   "load1": 6.01,
+   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_add_writes_the_edge with __pycache__ cleared before each - 3.24 / 3.28 / 3.70s wall, on the machine that ran TASK-279. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and the three linkage rows before this one followed. load1 was 6.01 at the start and 5.54 at the end, the quietest this machine has been for any of the DESIGN-015 rows, and it is recorded rather than rounded away because the spread here (0.46s) is wider than task-277's 0.30 on a much busier machine. The reason is worth naming rather than averaging out: four of these 20 tests SIGKILL a child mid-write and then run a second locked perry-task to recover it, so the module's cost is dominated by process startup and by fsync inside replace_canonical_pair, not by CPU - and fsync is the part that does not get faster on an idle machine. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
   }
  },
  "modules": {
+  "test_add_writes_the_edge.py": {
+   "sec": 3.7,
+   "source": "task-279-add-writes-the-edge"
+  },
   "test_amend_matches_create.py": {
    "sec": 0.28,
    "source": "unstamped-pre-304"
