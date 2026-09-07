@@ -67,6 +67,14 @@ Usage:
                                     `.perry/roles/*.md`; absent otherwise
                    [--depends "TASK-050, TASK-051"] ids this row waits on
                    [--out-of-scope "…"] [--kr KR-ID]
+                   [--unlinked]     declare AT CREATION that this row serves no
+                                    KR. Writes an `unlinked` record into
+                                    linkage.jsonl in the same transaction as the
+                                    row. Mutually exclusive with --kr; passing
+                                    both is refused. THE DECLARATION CANNOT BE
+                                    WITHDRAWN by any perry-task command — the
+                                    store is append-only. Omitting both flags is
+                                    still legal and still means never-asked.
                    [--track T] [--owner O] [--priority P0|P1|P2]
                    [--group "<board heading>"]   file under a project's own section
                    [--prefix AIM]                mint into the board's own id family
@@ -2736,15 +2744,32 @@ def register_change(state_root: Path, board: Board,
             substituted_away(key, current, records))
 
 
-def linkage_edge_change(state_root: Path,
-                        event: dict) -> tuple[Path, str, dict] | None:
-    """`(path, text, record)` for the edge this `add` declares, or `None`.
+def linkage_add_change(state_root: Path,
+                       event: dict,
+                       declared_unlinked: bool = False,
+                       ) -> tuple[Path, str, dict] | None:
+    """`(path, text, record)` for the record this `add` declares, or `None`.
 
-    **DESIGN-015 § 5.3, row D.** `perry-task add --kr` is the `work` lane's
-    one permitted write to `linkage.jsonl` (§ 5.5), and the record it appends
-    carries `via: "add"` — the field that makes `P003-O3-KR2` computable,
-    because "attributed in the same action that created the row" is not
-    recoverable from an edge that only says which KR it points at.
+    **DESIGN-015 § 5.3 and § 5.5, rows D and TASK-394.** `perry-task add` is
+    the `work` lane's one permitted write to `linkage.jsonl` (§ 5.5), and it
+    writes exactly the two record kinds that table assigns to this lane:
+
+    | flag | record | § 5.5 cell |
+    |---|---|---|
+    | `--kr <KR-ID>` | `{"kind":"edge", …, "via":"add"}` | `edge` × `work` |
+    | `--unlinked` | `{"kind":"unlinked", …, "via":"add"}` | `unlinked` × `work` |
+
+    Both carry `via: "add"` — the field that makes `P003-O3-KR2` computable,
+    because "answered in the same action that created the row" is not
+    recoverable from a record that only says which KR it points at, or that
+    it points at none. `kr` × `work` is **never** by that same table, and
+    there is no branch here that writes one.
+
+    **The `unlinked` record is the second numerator path, and until TASK-394
+    nothing could produce it.** `bin/lib § same_action_linkage` has read this
+    exact shape since row D; `lib.UNLINKED_AT_ADD_HAS_NO_WRITER` carried the
+    fact that no writer emitted it. This function is that writer. The reader
+    was not changed to accept it — it already did.
 
     The caller puts the returned text into `commit()`'s canonical set, so the
     edge lands under the SAME recovery marker as `tasks.jsonl` and the
@@ -2754,8 +2779,8 @@ def linkage_edge_change(state_root: Path,
     no such row — or, worse in the other order, an edge for a task id that
     was never created.
 
-    **`None` when the project has no store, and the store is NOT created.**
-    This is the same rule, for the same reason, that
+    **`None` when the project has no store for an `--kr` edge, and the store
+    is NOT created.** This is the same rule, for the same reason, that
     `bin/perry-goals § linkage_store_text` states: every reader moved by row C
     reads `linkage.jsonl` FIRST and falls back to `phase/<NNN>-linkage.md`
     only when the file is absent (`parsers.load_linkage`). Creating a
@@ -2766,36 +2791,81 @@ def linkage_edge_change(state_root: Path,
     event records the answer, the store stays absent, and `perry-goals link`
     remains the way the edge is declared.
 
-    **Appended, never rewritten.** Unlike `link`, this writer has no retraction
-    to make: a row created microseconds ago cannot already carry an `unlinked`
-    declaration to withdraw. Reading the file and re-emitting it — rather than
-    opening it in append mode — is what lets the whole text go through
-    `replace_canonical_pair` as one staged post-image with its pre-image in
-    the marker.
+    **`--unlinked` on a store-less project is REFUSED, not silently dropped,
+    and that asymmetry is deliberate.** The two flags degrade differently
+    because they leave different amounts behind. `--kr` on a store-less
+    project still records the caller's answer: the `add` event carries the KR
+    id, so the answer is recoverable and `perry-goals link` can complete it.
+    An `unlinked` declaration has **no event field and no second home** — § 5.2
+    puts it in the store or nowhere, because never-asked is derived from the
+    store's silence. Returning `None` here would accept the flag, write
+    nothing anywhere, and leave the row reading as never-asked, which is the
+    exact silent discard `--stage` on a `project`-mode track is refused for.
+
+    **Appended, never rewritten, and this writer has no retraction — in either
+    direction.** Unlike `link`, `add` cannot be withdrawing anything: a row
+    created microseconds ago cannot already carry a record to retract. The
+    converse is the part a caller has to be told BEFORE the write, and
+    `cmd_add` tells them: this store has no retraction for what `add` writes
+    either. `perry-goals link` can retract an `unlinked` record only as the
+    store half of taking an edge; there is no `--not-unlinked`, and TASK-391
+    is a live row about that shape. Reading the file and re-emitting it —
+    rather than opening it in append mode — is what lets the whole text go
+    through `replace_canonical_pair` as one staged post-image with its
+    pre-image in the marker.
     """
     if (event.get("event") or "") != "add":
         return None
     kr = str(event.get("kr") or "").strip()
     task = str(event.get("id") or "").strip()
-    if not kr or not task:
+    if not task:
+        return None
+    # Defence in depth, not the refusal a caller meets. `cmd_add` refuses the
+    # contradiction with the message that explains it, before anything is
+    # computed; this is here so a future second caller of this writer cannot
+    # reach a branch where one of the two flags silently wins. There is no
+    # precedence to apply: a row cannot both serve a KR and serve none.
+    if declared_unlinked and kr:
+        raise Refused(
+            f"{task} was given both a KR and an unlinked declaration. Those "
+            f"are contradictory answers to one question and there is no "
+            f"precedence between them. Nothing was written.")
+    if not declared_unlinked and not kr:
         return None
     path = state_root / P.LINKAGE_STORE
     if not path.exists():
+        if declared_unlinked:
+            raise Refused(
+                f"--unlinked needs `{P.LINKAGE_STORE}` and this project has "
+                f"none, so the declaration would be accepted and stored "
+                f"nowhere. Unlike `--kr`, it has no event field to fall back "
+                f"to: `{task}` would file and still read as never-asked. On a "
+                f"project whose register lives in `phase/<NNN>-linkage.md`, "
+                f"`perry-goals link --unlinked <TASK-ID>` is the way to "
+                f"declare it. Nothing was written.")
         return None
     try:
         current = path.read_text(encoding="utf-8")
     except OSError as exc:
+        what = ("unlinked declaration" if declared_unlinked
+                else f"{task} → {kr} edge")
         raise Refused(f"{P.LINKAGE_STORE} could not be read to append the "
-                      f"{task} → {kr} edge ({exc}). Nothing was written.") from None
-    record = {"kind": "edge", "task": task, "kr": kr,
-              # UTC with `Z`, via the same stamp `perry-goals link` uses. The
-              # two writers of this store must not spell one field two ways:
-              # `declared_at` is compared across records by every reader that
-              # orders them, and `lib.event_stamp()`'s local-offset form would
-              # sort as text against the 121 imported records and lose.
-              "declared_at": lib.register_stamp(),
+                      f"{what} ({exc}). Nothing was written.") from None
+    # Field-for-field and IN ORDER the record `perry-goals § linkage_store_text`
+    # emits, with `via` the only value that differs. One store written by two
+    # lanes in two shapes is the drift DESIGN-015 exists to remove, and the
+    # `declared_at` note below is the same rule stated once for both kinds.
+    #
+    # UTC with `Z`, via the same stamp `perry-goals link` uses. The two writers
+    # of this store must not spell one field two ways: `declared_at` is
+    # compared across records by every reader that orders them, and
+    # `lib.event_stamp()`'s local-offset form would sort as text against the
+    # 121 imported records and lose.
+    common = {"declared_at": lib.register_stamp(),
               "actor": str(event.get("actor") or "agent"),
               "via": "add"}
+    record = ({"kind": "unlinked", "task": task, **common} if declared_unlinked
+              else {"kind": "edge", "task": task, "kr": kr, **common})
     lines = [line for line in current.split("\n") if line.strip()]
     lines.append(json.dumps(record, ensure_ascii=False))
     return (path, "\n".join(lines) + "\n", record)
@@ -2878,7 +2948,8 @@ def stamp_last_updated(board) -> bool:
 def commit(project_root: Path, state_root: Path, board: Board,
            journal_line: str, event: dict, dry_run: bool,
            definition: str = "", signoff_block: str = "",
-           off_board: bool = False, removed_id: str = "") -> dict:
+           off_board: bool = False, removed_id: str = "",
+           declared_unlinked: bool = False) -> dict:
     """Write the store and the journal together, render the board, log the event.
 
     **The three-way write is `store + journal + event` now, not `board +
@@ -3086,7 +3157,7 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # preview the edge rather than a cheaper approximation of the write, and a
     # store this tool cannot read must refuse the whole write before anything
     # is staged rather than half of it.
-    linkage = linkage_edge_change(state_root, event)
+    linkage = linkage_add_change(state_root, event, declared_unlinked)
     # **The loud half of TASK-243.** A shrink is refused; a count-preserving
     # substitution is REPORTED, because Perry cannot tell it from a legitimate
     # hand edit and a tool that cannot tell must not refuse. The lost records
@@ -3127,13 +3198,21 @@ def commit(project_root: Path, state_root: Path, board: Board,
                             # record was destroyed" cannot be confused.
                             "substituted": substituted}
                            if register else None),
-        # The edge this write appended, or `None`. Present on every `commit()`
-        # payload rather than only on the writes that make one, so a caller
-        # reading `plan["linkage_edge"] is None` learns "no edge was written"
-        # instead of having to tell a missing key from an absent edge — the
-        # same rule stated for `register_store` above.
-        "linkage_edge": ({"path": str(linkage[0]), "record": linkage[2]}
-                         if linkage else None),
+        # The linkage record this write appended, or `None`. Present on every
+        # `commit()` payload rather than only on the writes that make one, so a
+        # caller reading `plan["linkage_record"] is None` learns "no record was
+        # written" instead of having to tell a missing key from an absent one —
+        # the same rule stated for `register_store` above.
+        #
+        # **Named `linkage_record`, not `linkage_edge`, since TASK-394.** The
+        # key used to be true of everything it could hold; `add --unlinked`
+        # made it hold `{"kind":"unlinked"}` too, and a caller reading
+        # `linkage_edge` would have had to know the name was a lie to read
+        # `record["kind"]`. Nothing in `schema/` declares this key and one
+        # site reads it, so the rename costs a caller nothing and stops the
+        # payload from asserting a kind it does not know.
+        "linkage_record": ({"path": str(linkage[0]), "record": linkage[2]}
+                           if linkage else None),
         "board": str(board.path),
         "journal": str(jpath),
         "events": str(events_path(project_root)),
@@ -3528,7 +3607,7 @@ def cmd_add(args, ctx) -> dict:
     #
     # It used to reach the event unexamined, and `--kr "   "` was the shortest
     # way to raise a KR by typing. `"   "` is truthy, so the event got a
-    # non-null `kr`; `linkage_edge_change` then stripped it to `""` and wrote
+    # non-null `kr`; `linkage_add_change` then stripped it to `""` and wrote
     # NO edge; and the `if not args.kr` warning below did not fire, for the
     # same truthiness. The row landed claiming an answer that no store record
     # backs. `bin/lib.same_action_linkage` now requires both halves, so this
@@ -3559,6 +3638,35 @@ def cmd_add(args, ctx) -> dict:
     # STRUCTURAL reason, never for whether the id is a real KR. Whether
     # `NOT-A-REAL-KR` resolves is row D's question (`TASK-279`), not this
     # one's, and is deliberately NOT checked here.
+    # **The contradiction, refused on PRESENCE and never resolved by
+    # precedence — TASK-394.** `--kr` says this row serves that KR;
+    # `--unlinked` says it serves none. Both were passed, so the caller gave
+    # two answers to one question and Perry does not know which they meant.
+    #
+    # Letting either win would be a guess written into a canonical store: with
+    # `--kr` winning, a caller who meant "no KR" gets an `edge` record; with
+    # `--unlinked` winning, a caller who meant a KR gets a row that counts as
+    # answered-no and is invisible to every attribution reader. Both are
+    # silent, both are wrong half the time, and neither is recoverable from
+    # the store afterwards — which is exactly why the refusal names the
+    # irreversibility rather than only the conflict.
+    #
+    # Checked on PRESENCE, not on value, and that is the same rule the `--kr`
+    # block below states: passing the flag is the explicit act. `--kr ""
+    # --unlinked` is still two answers, and reporting it as "blank `--kr`"
+    # would tell the caller to fix the value when the fix is to drop a flag.
+    if args.kr is not None and getattr(args, "unlinked", False):
+        raise Refused(
+            f"--kr {args.kr!r} and --unlinked were both passed. `--kr` says "
+            f"this row serves that KR and `--unlinked` says it serves none; "
+            f"they are contradictory answers to one question and there is no "
+            f"precedence between them — Perry will not pick one for you. Pass "
+            f"exactly one. Note before you re-run: `--unlinked` writes an "
+            f"`unlinked` record that CANNOT BE WITHDRAWN by any `perry-task` "
+            f"command — the linkage store is append-only, and the only "
+            f"retraction Perry has is the one `perry-goals link <TASK-ID> "
+            f"<KR-ID>` performs as the store half of taking an edge. Nothing "
+            f"was written")
     if args.kr is not None and not str(args.kr).strip():
         raise Refused(
             f"--kr {args.kr!r} is blank. It is not a way to say this row "
@@ -3568,8 +3676,8 @@ def cmd_add(args, ctx) -> dict:
             f"`kr` on the row's `add` event that no linkage edge backs. "
             f"Nothing was written")
     # Normalised ONCE, here, so the event, the journal's definition block and
-    # `linkage_edge_change`'s store record cannot disagree about the value.
-    # `linkage_edge_change` strips its copy; if this one were left unstripped
+    # `linkage_add_change`'s store record cannot disagree about the value.
+    # `linkage_add_change` strips its copy; if this one were left unstripped
     # a `--kr " P003-O1-KR1 "` would put a padded id on the event and a bare
     # one in the store, and the two halves of one transaction would not match.
     if args.kr is not None:
@@ -3686,7 +3794,17 @@ def cmd_add(args, ctx) -> dict:
         f"- **Verification**: {args.verification}",
         f"- **Dependencies**: {', '.join(depends) or '—'}",
         f"- **Out of scope**: {args.out_of_scope or '—'}",
-        f"- **KR linkage**: {args.kr or 'unlinked'}",
+        # **Three states, three words — TASK-394.** This read
+        # `{args.kr or 'unlinked'}` and printed "unlinked" for a row nobody had
+        # asked about. Row D's result flagged that as wrong under § 5.2 and
+        # left it as row E's prose; `--unlinked` is what makes it not merely
+        # sloppy but a collapse of the distinction this row exists to create.
+        # A never-asked row and a declared-no-KR row would render IDENTICALLY
+        # in the journal — the one human-readable record of the write — while
+        # the store told them apart. The three readings are now distinct here,
+        # and "not asked" is the honest word for silence.
+        f"- **KR linkage**: "
+        f"{args.kr or ('declared unlinked (`--unlinked`)' if args.unlinked else 'not asked')}",
     ])
     # **`kr` is on the event whether or not one was given** (DESIGN-015 § 5.2,
     # row D). Present-and-null and absent are different facts and the payload
@@ -3696,9 +3814,20 @@ def cmd_add(args, ctx) -> dict:
     # `P003-O3-KR2` counts the non-null ones, so a defaulted `""` here would
     # be a third spelling of "no answer" that the count would have to guess at.
     #
-    # The edge record itself is written by `commit()`, from this field, inside
-    # the same recovery marker as the store and the journal — not here beside
-    # them. See `linkage_edge_change`.
+    # The linkage record itself is written by `commit()`, from this field,
+    # inside the same recovery marker as the store and the journal — not here
+    # beside them. See `linkage_add_change`.
+    #
+    # **`--unlinked` deliberately puts NOTHING on this event** (TASK-394). The
+    # declaration lives in the store and only in the store, because § 5.2
+    # derives never-asked from the store's silence: a second copy on the event
+    # would be a fact in two places that no reader consults twice, and the one
+    # that can drift has no detector — `same_action_linkage` reports
+    # `store_edge_without_event` and `event_kr_without_store_edge` for edges
+    # and has no equivalent pair for declarations. `kr: null` below is what an
+    # `--unlinked` row carries, which is correct and is what puts it in the
+    # DENOMINATOR; the store's `unlinked` record is what puts it in the
+    # numerator. That is § 5.3's "numerator, half two" exactly.
     event = {"ts": lib.event_stamp(), "event": "add",
              "id": tid, "title": args.title, "track": track["track"], "mode": mode,
              "priority": priority, "actor": args.actor,
@@ -3711,14 +3840,26 @@ def cmd_add(args, ctx) -> dict:
     # the design did not take, and writing a `never_asked` record would store
     # a fact that is derived from absence and would then need DELETING the
     # moment an answer arrived.
-    if not args.kr:
+    #
+    # **`and not args.unlinked` — TASK-394, and it is not a relaxation.** This
+    # warning's entire content is "the row reads as never-asked". After
+    # `--unlinked` that sentence is FALSE of a declared row: the store holds an
+    # `unlinked` record for it, `same_action_linkage` counts it in the
+    # numerator, and it is not in `never_answered`. Printing it anyway would
+    # tell the caller their declaration did not land. Silence still warns,
+    # which is the § 5.2 behaviour this row must not change, and the third
+    # state is the only thing that got quieter.
+    if not args.kr and not args.unlinked:
         print(f"perry-task: warning — {tid} was created without `--kr`, so no "
               f"KR edge was recorded and the row reads as never-asked. It is "
               f"NOT declared unlinked: `perry-goals link {tid} <KR-ID>` "
               f"attributes it, `perry-goals link --unlinked {tid}` declares "
-              f"outright that it serves no KR.", file=sys.stderr)
+              f"outright that it serves no KR, and `perry-task add --unlinked` "
+              f"declares it at creation on a row not yet filed.",
+              file=sys.stderr)
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
-                  jline, event, args.dry_run, definition=definition)
+                  jline, event, args.dry_run, definition=definition,
+                  declared_unlinked=bool(args.unlinked))
     return {"id": tid, "priority": priority, "prefix": prefix,
             "row": line, **plan}
 
@@ -7670,6 +7811,14 @@ def parse(argv: list[str]) -> Args:
     a.group = a.prefix = a.role = None
     a.limit = a.since = None
     a.dry_run = a.as_json = a.all = a.clear = False
+    # `--unlinked` is a PRESENCE, not a value, which is the whole of why it is
+    # spelled this way: `perry-goals link --unlinked <TASK-ID>` is the same
+    # declaration on the other lane of the same store (DESIGN-015 § 5.5), and
+    # a store written by two lanes under two spellings is the drift that design
+    # exists to remove. It takes no argument here for the same reason it takes
+    # none there — there is no value to be blank, so `--kr "   "`'s malformed
+    # input (TASK-281 round 2) has no analogue to accept.
+    a.unlinked = False
     i = 0
     flags = {"--title": "title", "--summary": "summary",
              "--track": "track", "--owner": "owner",
@@ -7704,6 +7853,8 @@ def parse(argv: list[str]) -> Args:
             a.all = True
         elif t == "--clear":
             a.clear = True
+        elif t == "--unlinked":
+            a.unlinked = True
         elif t in repeated:
             i += 1
             getattr(a, repeated[t]).append(argv[i] if i < len(argv) else "")
@@ -7978,6 +8129,23 @@ def main(argv: list[str]) -> int:
         print(f"perry-task: expected one of {' / '.join(COMMANDS)} "
               f"(try --help)", file=sys.stderr)
         return 2
+    # **`--unlinked` belongs to `add` alone, and elsewhere it is REFUSED rather
+    # than ignored** (TASK-394). `parse` is one flat flag table shared by every
+    # subcommand, so `perry-task start TASK-1 --unlinked` would parse cleanly,
+    # do nothing, and exit 0 — the caller believing they had declared something.
+    # That is the silent discard `--stage` on a `project`-mode track is already
+    # refused for, and it matters more here because the thing discarded is a
+    # write to a canonical store. `--kr` is NOT given the same treatment in this
+    # row: it has been accepted-and-ignored outside `add` since before TASK-279,
+    # so refusing it now would be a behaviour change to a flag this row does not
+    # own. `--unlinked` is new, so nothing can already depend on it being
+    # swallowed, and it starts strict.
+    if getattr(args, "unlinked", False) and args.cmd != "add":
+        print(f"perry-task: --unlinked is only accepted by `add`, and "
+              f"{args.cmd!r} would have ignored it silently. A row that "
+              f"already exists is declared unlinked with `perry-goals link "
+              f"--unlinked <TASK-ID>`. Nothing was written.", file=sys.stderr)
+        return 2
     try:
         schema = load_schema()
         project_root = (Path(args.root).expanduser().resolve() if args.root
@@ -8217,12 +8385,12 @@ def main(argv: list[str]) -> int:
         if register:
             written.append(Path(register["path"]).name)
         # Under the same rule as the two above: named only on the writes that
-        # actually appended an edge. `add` without `--kr`, and `add --kr` on a
-        # project with no store, both leave this out rather than claiming a
-        # file they did not touch.
-        edge = result.get("linkage_edge")
-        if edge:
-            written.append(Path(edge["path"]).name)
+        # actually appended a record. `add` with neither `--kr` nor
+        # `--unlinked`, and `add --kr` on a project with no store, both leave
+        # this out rather than claiming a file they did not touch.
+        linkage_record = result.get("linkage_record")
+        if linkage_record:
+            written.append(Path(linkage_record["path"]).name)
         tail = " + ".join(written) + " + journal"
         for name, ok, why in (
                 ("BOARD.md", result.get("board_rendered", True),

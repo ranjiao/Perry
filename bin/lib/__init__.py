@@ -687,38 +687,48 @@ COMPUTED_KR_METRICS = {
 #: Whether `{"kind": "unlinked", "via": "add"}` — the store half of
 #: `P003-O3-KR2`'s second numerator path — has **no writer anywhere in Perry**.
 #:
-#: It has none. `via` is a hardcoded literal at all three writers of
-#: `perry/linkage.jsonl`: `perry-task § linkage_edge_change` writes `"add"` and
-#: writes `edge` records ONLY; `perry-goals § linkage_store_text` and
-#: `perry-tasks § LINKAGE_IMPORT_VIA` both write `"link"`. No `--via` flag
-#: exists, `schema/state-schema.json` pins the field to `^(add|link)$`, and
-#: there is no `perry-task add --unlinked` for the declaration to be made by.
-#: So `via: "add"` is reachable on `edge` records and unreachable on
-#: `unlinked` ones.
+#: **It has one, since `TASK-394`: `perry-task add --unlinked`.** The flag is
+#: parsed by `bin/perry-task § parse`, refused against `--kr` by `cmd_add`, and
+#: written by `bin/perry-task § linkage_add_change` into the same `commit()`
+#: and the same recovery marker as `tasks.jsonl` and the journal. `via` is
+#: still a hardcoded literal at every writer of `perry/linkage.jsonl` — there
+#: is still no `--via` flag and `schema/state-schema.json` still pins the field
+#: to `^(add|link)$` — but `linkage_add_change` now emits BOTH of the record
+#: kinds `DESIGN-015 § 5.5` assigns to the `work` lane, not `edge` alone.
 #:
-#: **This is stated rather than fixed, and the reason is the Bound.** Giving
-#: `add` an `--unlinked` flag is a new writer on this store and a change to
-#: what `add` accepts — row D's territory (`TASK-279`), not row F's. What row
-#: F owes the reader is that the gap is NAMED where the number is published,
-#: instead of a `declared_unlinked_at_add: []` that reads like an observation
-#: about today's data when it is a fact about the code. `TASK-281`'s V4 is
-#: precisely this mistake made once already: mutation M13 was closed against a
-#: fixture — a store holding `unlinked(task, "add")` — that Perry cannot
-#: produce, so the closure went red while production behaviour was untouched.
+#: **What was true when this constant read `True`, kept because the reasoning
+#: is what makes the flip checkable.** `via: "add"` was reachable on `edge`
+#: records and unreachable on `unlinked` ones: `perry-task
+#: § linkage_edge_change` (as it was then named) wrote `edge` records ONLY, and
+#: `perry-goals § linkage_store_text` and `perry-tasks § LINKAGE_IMPORT_VIA`
+#: both write `"link"`. Row F stated the gap rather than closing it, on the
+#: Bound: a new writer on this store was row D's territory. `TASK-394` is the
+#: row that was dispatched to close it, and closing it is why this line moved.
 #:
-#: **The consequence, which belongs upstream of this row.**
+#: **The consequence that has now been discharged.**
 #: `phase/003-storage-code.md § DoD` item 5 offers a row two ways to comply:
 #: "a KR edge **or** an `unlinked` declaration written by its own `add`". The
-#: second is unsatisfiable as shipped, so a row that honestly serves no KR has
-#: no way to say so at `add` and pins the denominator permanently — the 100%
-#: target is unreachable by construction. That is a finding about the DoD, not
-#: a defect this row may fix.
+#: second was unsatisfiable as shipped, so a row that honestly served no KR had
+#: no way to say so at `add` and pinned the denominator permanently — the 100%
+#: target was unreachable by construction. `USER-921` raised exactly that, and
+#: chose to build the writer rather than restate the KR, because after the
+#: restatement a KR at 100% would no longer say whether anyone was ever asked.
 #:
-#: Kept as a constant, not a comment, so it is **checked**: the computation
-#: reads it, and `TheUnlinkedAtAddPathHasNoWriter` scans `bin/` and fails the
-#: day a writer appears and this stops being true. The numerator's second path
-#: is left WIRED, so it starts counting on its own that same day.
-UNLINKED_AT_ADD_HAS_NO_WRITER = True
+#: **The trap this constant exists to keep marked.** `TASK-281`'s V4 closed
+#: mutation M13 against a fixture — a store holding `unlinked(task, "add")` —
+#: that Perry could not then produce, so the closure went red while production
+#: behaviour was untouched. That fixture is now producible, which is precisely
+#: why every guard `TASK-394` added is reddened by driving the CLI rather than
+#: by handing a record to a reader.
+#:
+#: Kept as a constant, not a comment, so it stays **checked** in the other
+#: direction too: the computation reads it, and
+#: `test_same_action_linkage § TheUnlinkedAtAddPathHasAWriter` drives the real
+#: binary and fails the day the flag stops working. Flipping this line alone
+#: does not make the path reachable and does not make it unreachable — the
+#: tests assert the flag's BEHAVIOUR against this value, so a stale constant
+#: is a red suite rather than a quiet lie in a payload.
+UNLINKED_AT_ADD_HAS_NO_WRITER = False
 
 
 def _corroborates(claimed, store_krs) -> bool:
@@ -740,7 +750,7 @@ def _corroborates(claimed, store_krs) -> bool:
     round's own precedent for round 1's M14: a test over a distinction that
     changes no answer tells the next reader it does something.
 
-    The value is stripped, because `perry-task § linkage_edge_change` strips
+    The value is stripped, because `perry-task § linkage_add_change` strips
     before writing, and a reader that did not would fail to match its own
     writer's output and report every padded `--kr` as a desync.
     """
@@ -780,7 +790,7 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
     was changed.
 
     *The number could be raised by typing spaces.* `perry-task add --kr "   "`
-    wrote a truthy `kr` onto the event while `linkage_edge_change` stripped it
+    wrote a truthy `kr` onto the event while `linkage_add_change` stripped it
     to `""` and wrote no edge at all; the row counted. Measured on `339f553`:
     15.38% (2/13) → 21.43% (3/14) with **zero** records added to the store and
     no warning printed. The KR that exists to catch dishonest linkage moved up
@@ -839,7 +849,7 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
     # task id → the KR ids the STORE says were edged in that row's own `add`.
     # A set, not a single value: the store is append-only and a task may carry
     # more than one record. Values are stripped, because
-    # `perry-task § linkage_edge_change` strips before writing and a reader
+    # `perry-task § linkage_add_change` strips before writing and a reader
     # that did not would fail to match its own writer's output.
     edge_at_add: dict[str, set] = {}
     for r in records:
@@ -962,9 +972,13 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
         # The honest statement, carried in the payload rather than left in a
         # comment, because a reader looking at `declared_unlinked_at_add: []`
         # is owed the difference between "nobody declared one" and "nobody
-        # CAN". Pinned to the code by
-        # `test_same_action_linkage § TheUnlinkedAtAddPathHasNoWriter`, which
-        # scans `bin/` and reddens the day a writer appears.
+        # CAN". Since `TASK-394` the answer is `True` — `perry-task add
+        # --unlinked` is the writer — and the key stays rather than being
+        # dropped, because an empty list still means the first of those two
+        # and a reader still cannot tell which without being told. Pinned to
+        # the code by `test_same_action_linkage
+        # § TheUnlinkedAtAddPathHasAWriter`, which drives the real binary and
+        # reddens the day the flag stops writing the record.
         "declared_unlinked_at_add_reachable": not UNLINKED_AT_ADD_HAS_NO_WRITER,
         "reason": (
             "no row has been opened under the `add --kr` gate yet, so this KR "

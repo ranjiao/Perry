@@ -65,7 +65,7 @@ def load_tool():
 
     Every other test here drives the tool through `subprocess`, which is the
     honest way to test a CLI and is also why one guard went unmeasured: the
-    `event != "add"` early return in `linkage_edge_change` cannot be reached
+    `event != "add"` early return in `linkage_add_change` cannot be reached
     from any command line, because no command Perry has TODAY emits an event
     that carries a `kr` key and is not an `add`. Through the process boundary
     the guard is therefore dead code that deletes green — which the mutation
@@ -620,7 +620,7 @@ sys.exit(mod.main(argv))
 
 
 class TestTheGuardsAreReached(Fixture):
-    """`linkage_edge_change`'s early returns, called directly.
+    """`linkage_add_change`'s early returns, called directly.
 
     The mutation round (M15) deleted the `event != "add"` guard and every
     test in this module stayed green: through the CLI the guard is
@@ -631,7 +631,7 @@ class TestTheGuardsAreReached(Fixture):
     """
 
     def change(self, d: pathlib.Path, event: dict):
-        return PT.linkage_edge_change(d, event)
+        return PT.linkage_add_change(d, event)
 
     def test_a_non_add_event_carrying_a_kr_writes_nothing(self):
         d = self.project()

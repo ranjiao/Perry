@@ -70,9 +70,20 @@
    "workers": 1,
    "load1": 6.47,
    "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_overall_kr_grammar with __pycache__ cleared before each - 0.99 / 0.87 / 1.00s wall, on the machine that ran ADR-017 step 1 round 2. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and every stamped row since has followed. load1 was 6.47 (1m) against 13.30 (5m) and 19.99 (15m) and is recorded rather than waited out: the machine was coming down off a full 8-worker suite run and a quiet moment never arrived. The spread is 0.13s, the tightest of any stamped row here, and the reason is structural rather than lucky: 17 of these 23 cases are pure regex and parser calls with no subprocess at all. Only the six in TheClaimSurfaceAcceptsBothOverallForms, BothFormsResolveEndToEnd and TheDeadPhaseFormIsStillRefused shell out - to perry-lint and perry-goals over a copied fixture in a temp directory - and they are what the second of wall clock is. Expect a larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
+  },
+  "task-394-add-declares-unlinked": {
+   "ref": "3caec08e",
+   "taken": "2026-09-07",
+   "workers": 1,
+   "load1": 4.5,
+   "note": "Measured, not inherited and not guessed. Three serial runs of test_add_declares_unlinked with __pycache__ cleared before each and each clear taken past the whole-second boundary - 5.15 / 5.21 / 5.40s of unittest's own clock (5.33 / 5.37 / 5.55s wall). The LARGEST is recorded so the hint never under-books, which is the rule task-273-duplicate-ids set and every DESIGN-015 row since has followed. load1 was 4.50 at the start and 4.90 at the end. The figure is larger than task-279-add-writes-the-edge's 3.7 for a reason worth naming rather than averaging away: this module drives SEVEN SIGKILL crash points to row D's four, and each one is a child process killed mid-write plus a second locked perry-task run to recover it. The cost is process startup and the fsync inside replace_canonical_pair, not CPU - so it does not shrink on an idle machine. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
   }
  },
  "modules": {
+  "test_add_declares_unlinked.py": {
+   "sec": 5.4,
+   "source": "task-394-add-declares-unlinked"
+  },
   "test_add_writes_the_edge.py": {
    "sec": 3.7,
    "source": "task-279-add-writes-the-edge"
