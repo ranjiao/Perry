@@ -52,7 +52,7 @@ objectives:
     krs:
       - id: P003-O3-KR2
         title: "Rows opened during phase 003 that take a KR edge or an `unlinked` declaration in the same action as `add`"
-        metric: "100% of rows added this phase (baseline 0 — the edge is a separate step nobody takes)"
+        metric: "Target 100%. NO CURRENT VALUE IS WRITTEN HERE: this KR is computed, not asserted — `bin/lib § same_action_linkage` re-runs it on every read from `linkage.jsonl` and `.perry/events.jsonl`, and `perry-state`/`perry-goals` publish that number with `current_provenance.state: measured`. The population is the `main`-track rows whose own `add` event carries a `kr` key, which is the mark row D's gate left on every row it governed; `phase/003-storage-code.md § Definition of Done` item 5, restated 2026-08-31, is why the rows opened before the gate are phase 004's and not this denominator. The numerator is the rows that answered in that same `add` — a non-null `kr` on the event, or an `unlinked` record with `via: \"add\"`. A row linked later by a separate `perry-goals link` has `via: \"link\"` and does not count, which is the whole of the KR's `in the same action as` clause. The former prose here read `100% of rows added this phase (baseline 0 — the edge is a separate step nobody takes)`; the baseline it asserted is now derived, so it cannot disagree with the computation."
         stretch: false
         linked: "KR-O2.3"
         tasks: ["TASK-276", "TASK-277", "TASK-278", "TASK-279", "TASK-281"]

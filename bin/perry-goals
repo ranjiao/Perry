@@ -885,6 +885,9 @@ def kr_rows(snap, events: list | None = None,
     register_updated = getattr(lk, "updated", "") or ""
     status_by_id = lib.task_status_index(
         getattr(snap, "project_root", "."), getattr(snap, "board", None))
+    # Raw store records for the one KR whose metric is re-run rather than read.
+    # `state_root`, not `project_root`: the store sits beside the register.
+    linkage_records = P.load_linkage_store(getattr(snap, "state_root", "."))
 
     # **The phase's KRs come from the register, not from the phase document.**
     # TASK-157: they used to be declared in both, in full, with nothing
@@ -926,11 +929,21 @@ def kr_rows(snap, events: list | None = None,
                     "target": target,
                     "current": current,
                     "task_ids": r.get("tasks", []),
+                    # AFTER `"current"` above, deliberately: for the one KR
+                    # whose metric is re-run (DESIGN-015 § 6 row F) this
+                    # mapping carries its own `current` and the measured value
+                    # replaces the register's here as it does in
+                    # `bin/perry-state`. Same helper, same answer — a second
+                    # implementation is how the two would come to disagree
+                    # about a number that now has only one source.
                     **lib.kr_progress_provenance(
                         current, r.get("tasks", []),
                         register_updated=register_updated,
                         status_by_id=status_by_id,
-                        events=events, events_present=events_present),
+                        events=events, events_present=events_present,
+                        computed=lib.computed_kr_current(
+                            k.id, linkage_records=linkage_records,
+                            events=events)),
                 })
     return out
 

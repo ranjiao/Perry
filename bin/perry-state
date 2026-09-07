@@ -1753,7 +1753,7 @@ def encode_risk(r):
 
 
 def encode_linkage_objective(obj, *, updated, status_by_id, events,
-                             events_present):
+                             events_present, linkage_records=None):
     """One objective from the register, with each KR's `current` carrying the
     provenance the register cannot state for itself.
 
@@ -1774,7 +1774,12 @@ def encode_linkage_objective(obj, *, updated, status_by_id, events,
         encoded.update(lib.kr_progress_provenance(
             kr.current, kr.tasks, register_updated=updated,
             status_by_id=status_by_id, events=events,
-            events_present=events_present))
+            events_present=events_present,
+            # DESIGN-015 § 6 row F. `None` for every KR but the one the
+            # dispatch table names, and for that one the returned mapping
+            # carries `current` and replaces the register's.
+            computed=lib.computed_kr_current(
+                kr.id, linkage_records=linkage_records, events=events)))
     return out
 
 
@@ -2154,10 +2159,16 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     _events = raw_events(perry_root)
     _events_present = (perry_root / ".perry" / "events.jsonl").exists()
     _status_by_id = lib.task_status_index(root, board)
+    # The store's own records, for the one KR whose metric is re-run rather
+    # than read (DESIGN-015 § 6 row F). `link` is the graph AFTER the document
+    # and the store have been folded together, and the measurement needs the
+    # raw records: `via` is a record field with no counterpart on `Linkage`.
+    _linkage_records = P.load_linkage_store(root)
     linkage_objectives = [
         encode_linkage_objective(o, updated=link.updated,
                                  status_by_id=_status_by_id, events=_events,
-                                 events_present=_events_present)
+                                 events_present=_events_present,
+                                 linkage_records=_linkage_records)
         for o in link.objectives] if link.ok else []
     _kr_rows = [k for o in linkage_objectives for k in (o.get("krs") or [])]
     stale_krs = [k["id"] for k in _kr_rows if k["current_staleness"]["stale"]]
