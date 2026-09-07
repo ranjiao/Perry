@@ -834,12 +834,16 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
     events = events or []
     ids = [str(t) for t in (task_ids or [])]
 
-    # A computed KR's `current` is the measurement, and the register's number
-    # — if one were ever typed back in — does not get a vote. `computed` is
-    # `None` for every KR not in `COMPUTED_KR_METRICS`, which is all but one.
-    if computed is not None:
-        current = computed.get("current")
-
+    # `asserted` describes the REGISTER's number and is read only on the paths
+    # a computed KR does not take. It used to be preceded here by
+    # `current = computed.get("current")` — overwriting the register's value
+    # before this line — which read as "the measurement wins" but was dead:
+    # every branch below that a computed KR reaches ignores `asserted`, and
+    # the value actually reaches the payload from `out["current"]` at the
+    # bottom of this function. TASK-281's mutation M14 deleted that assignment
+    # and no test went red, which is what a green mutation is for; the line is
+    # gone rather than pinned, because a test over dead code would have made
+    # the next reader believe it did something.
     asserted = current is not None
     if computed is not None:
         # `measured` stops being "always false". It is true even when

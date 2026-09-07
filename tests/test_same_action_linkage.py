@@ -121,6 +121,14 @@ class TheSameActionPropertyIsWhatIsCounted(unittest.TestCase):
         self.assertEqual(self.m["denominator"], 2)
         self.assertEqual(self.m["current"], 50.0)
 
+    def test_a_normally_linked_row_is_not_reported_as_a_broken_transaction(self):
+        """Closes mutation M02. `TASK-902`'s edge is `via: "link"` — an
+        ordinary later link, not a half-landed `add`. Accepting any `via` into
+        the at-add edge set left every one of this class's other assertions
+        green while turning routine linking into a false integrity alarm,
+        because `store_edge_without_event` is the only thing that set feeds."""
+        self.assertEqual(self.m["store_edge_without_event"], [])
+
     def test_a_store_only_reading_would_count_them_both(self):
         """The failure mode, stated as an assertion.
 
@@ -226,6 +234,40 @@ class APhaseWithNoRowsOpenedHasNoDenominator(unittest.TestCase):
         self.assertIn("no denominator", self.m["reason"])
 
 
+class AMeasuredNumberCannotGoStale(unittest.TestCase):
+    """Closes mutation M15. Nothing asserted the staleness block a computed KR
+    gets, so flipping it to `evaluated: False` — "we could not tell whether
+    this number is still good" — was green.
+
+    It is not a cosmetic field. `bin/perry-state § stale_krs` counts KRs whose
+    staleness says `stale`, and the register-wide staleness machinery exists
+    because an ASSERTED number ages between the day it was typed and the day
+    it is read. A recomputed number has no such interval, and saying "could
+    not be evaluated" about it invites exactly the recheck it does not need.
+    """
+
+    def setUp(self):
+        m = lib.same_action_linkage(
+            [], [add_event("TASK-910", kr="P003-O1-KR1")])
+        self.p = lib.kr_progress_provenance(
+            None, [], register_updated="2026-09-03T06:06:45Z", computed=m)
+
+    def test_the_question_was_answered_not_skipped(self):
+        self.assertTrue(self.p["current_staleness"]["evaluated"])
+
+    def test_it_is_not_stale(self):
+        self.assertFalse(self.p["current_staleness"]["stale"])
+
+    def test_the_reason_names_recomputation(self):
+        self.assertIn("recomputed on every read",
+                      self.p["current_staleness"]["reason"])
+
+    def test_it_carries_no_assertion_date_to_age_from(self):
+        self.assertEqual(self.p["current_provenance"]["asserted_at"], "")
+        self.assertEqual(self.p["current_provenance"]["asserted_scope"], "")
+        self.assertEqual(self.p["current_staleness"]["since"], "")
+
+
 # ── the half-landed transaction ───────────────────────────────────────────
 
 
@@ -248,6 +290,102 @@ class AStoreEdgeWhoseEventDisagreesIsSurfacedNotCounted(unittest.TestCase):
 
 
 # ── the register, and the two readers ─────────────────────────────────────
+
+
+LINKAGE_DOC = """---
+linkage: 1
+phase: "003-fixture"
+updated: "2026-09-03T06:06:45Z"
+objectives:
+  - id: O3
+    title: "A fixture objective"
+    krs:
+      - id: P003-O3-KR2
+        title: "Rows that answered in their own `add`"
+        metric: "computed; see bin/lib § same_action_linkage"
+        stretch: false
+        linked: "KR-O2.3"
+        tasks: []
+unlinked: ["TASK-911"]
+agents: []
+projects: []
+---
+
+# Fixture register
+"""
+
+
+class PerryStateReallyReadsTheStore(unittest.TestCase):
+    """Closes mutation M13, and the mutation is worth recording.
+
+    Blanking `perry-state`'s `load_linkage_store` call was GREEN against the
+    live repository — because this project has zero `unlinked` records with
+    `via: "add"` today, so the store contributes nothing to the live number and
+    the whole numerator comes from the event log. Every live-repo assertion in
+    this module passed while half the computation's inputs were unplugged.
+
+    That is the shape the spec warns about: a number that looks right because
+    the data happens not to exercise the path. The fix is a project where the
+    store's half is the ONLY thing that can answer — one row, its `add` event
+    carrying `kr: null`, and its `unlinked` declaration made by that same
+    `add`. Read correctly the KR is 1 of 1; with the store unplugged it is 0.
+    """
+
+    def setUp(self):
+        import tempfile, shutil
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        (self.root / ".perry").mkdir()
+        (self.root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- State root: .\n")
+        (self.root / ".perry" / "events.jsonl").write_text(
+            json.dumps(add_event("TASK-911", kr=None)) + "\n")
+        (self.root / "phase").mkdir()
+        (self.root / "phase" / "003-fixture.md").write_text(
+            "# Phase #003 — fixture\n\n> **Started**: 2026-08-28\n")
+        (self.root / "phase" / "003-linkage.md").write_text(LINKAGE_DOC)
+        (self.root / "phase" / "CURRENT").write_text("003-fixture\n")
+        (self.root / "OKR.md").write_text(
+            "# OKR — fixture\n\n## Mission\n\nShip it.\n\n---\n\n## v1: 2026-08-01\n")
+        (self.root / "linkage.jsonl").write_text(
+            json.dumps({"kind": "kr", "phase": "003-fixture", "objective": "O3",
+                        "id": KR, "title": "Rows that answered in their own `add`",
+                        "stretch": False, "linked": "KR-O2.3"}) + "\n"
+            + json.dumps(unlinked("TASK-911", "add")) + "\n")
+        (self.root / "tasks.jsonl").write_text(
+            json.dumps({"id": "TASK-911", "title": "a row",
+                        "status": "not_started", "priority": "P1",
+                        "track": "main"}) + "\n")
+        (self.root / "BOARD.md").write_text(
+            "# Board\n\n## P1\n\n| ID | Task | Owner | Status |\n"
+            "|----|------|-------|--------|\n"
+            "| TASK-911 | a row |  | not_started |\n")
+
+    def kr(self) -> dict:
+        r = subprocess.run(
+            ["python3", str(STATE), "--root", str(self.root),
+             "--section", "linkage"],
+            capture_output=True, text=True)
+        if r.returncode != 0:
+            raise AssertionError(f"perry-state exited {r.returncode}: "
+                                 f"{r.stderr[-800:]}")
+        payload = json.loads(r.stdout)
+        for o in (payload.get("linkage") or {}).get("objectives", []):
+            for k in o.get("krs", []):
+                if k["id"] == KR:
+                    return k
+        raise AssertionError(f"{KR} missing: {r.stdout[:400]}")
+
+    def test_the_store_only_answer_reaches_the_payload(self):
+        k = self.kr()
+        self.assertEqual(k["current_measurement"]["declared_unlinked_at_add"],
+                         ["TASK-911"])
+        self.assertEqual(k["current"], 100.0)
+
+    def test_the_denominator_came_from_the_event_log(self):
+        """Both files, not one. The row is in the population because its `add`
+        event carries the gate's `kr` key — nothing in the store says so."""
+        self.assertEqual(self.kr()["current_measurement"]["denominator"], 1)
 
 
 class TheRegisterNoLongerAssertsIt(unittest.TestCase):
