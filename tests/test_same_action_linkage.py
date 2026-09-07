@@ -498,5 +498,444 @@ class BothReadersPublishTheOneNumber(unittest.TestCase):
                              f"{k['id']} became measured; the Bound is one KR")
 
 
+# ══ ROUND 2 ═══════════════════════════════════════════════════════════════
+#
+# The V4 FAIL. Round 1 shipped a numerator that read the EVENT alone:
+#
+#     if event.get("kr") is not None:
+#         linked.append(tid)
+#
+# Two things followed, both reproduced on real data before anything was
+# changed, and every guard below reddens on an input a user can type.
+
+
+class TheNumeratorTakesBothHalvesOrNeither(unittest.TestCase):
+    """§ 5.3 writes the store edge and the `add` event under ONE `commit()`,
+    so "linked in the same action" means **the transaction landed whole**.
+
+    Either half alone is a desync, and the direction matters. Round 1 counted
+    the event's half alone, so a desync RAISED the score; a desync must only
+    ever be able to lower it, because the KR exists to expose exactly this.
+    """
+
+    def test_an_event_claiming_a_kr_with_no_store_edge_does_not_count(self):
+        m = lib.same_action_linkage([], [add_event("TASK-920",
+                                                   kr="P003-O1-KR1")])
+        self.assertEqual(m["linked_at_add"], [])
+        self.assertEqual((m["numerator"], m["denominator"]), (0, 1))
+
+    def test_it_is_surfaced_rather_than_silently_dropped(self):
+        """Not counted is not enough — an unexplained absence is how a
+        half-landed transaction goes unnoticed for a phase."""
+        m = lib.same_action_linkage([], [add_event("TASK-920",
+                                                   kr="P003-O1-KR1")])
+        self.assertEqual(m["event_kr_without_store_edge"], ["TASK-920"])
+
+    def test_both_halves_present_is_what_counts(self):
+        m = lib.same_action_linkage(
+            [edge("TASK-922", "P003-O1-KR1", "add")],
+            [add_event("TASK-922", kr="P003-O1-KR1")])
+        self.assertEqual(m["linked_at_add"], ["TASK-922"])
+        self.assertEqual((m["numerator"], m["denominator"]), (1, 1))
+        self.assertEqual(m["event_kr_without_store_edge"], [])
+        self.assertEqual(m["store_edge_without_event"], [])
+
+    def test_a_store_edge_naming_a_different_kr_is_not_corroboration(self):
+        """The third disagreement, and the one easiest to wave through: both
+        files have a record for the row, so a membership-only check passes
+        while the two name different KRs."""
+        m = lib.same_action_linkage(
+            [edge("TASK-921", "P003-O1-KR2", "add")],
+            [add_event("TASK-921", kr="P003-O1-KR1")])
+        self.assertEqual(m["linked_at_add"], [])
+        self.assertIn("TASK-921", m["event_kr_without_store_edge"])
+        self.assertIn("TASK-921", m["store_edge_without_event"])
+
+    def test_a_padded_kr_on_the_event_still_matches_the_stripped_record(self):
+        """`linkage_edge_change` strips before writing, so a reader that did
+        not strip would fail to match its own writer's output and report every
+        padded `--kr` as a desync."""
+        m = lib.same_action_linkage(
+            [edge("TASK-923", "P003-O1-KR1", "add")],
+            [add_event("TASK-923", kr="  P003-O1-KR1  ")])
+        self.assertEqual(m["linked_at_add"], ["TASK-923"])
+
+
+class WhitespaceCannotRaiseTheNumber(unittest.TestCase):
+    """**The V4 FAIL, stated as an assertion, on the input that produced it.**
+
+    `perry-task add --kr "   "` wrote a truthy `kr` onto the event while
+    `linkage_edge_change` stripped it to `""` and wrote no edge. Measured on
+    `339f553` against the live repository: **15.38% (2/13) → 21.43% (3/14)**
+    with zero records added to the store and no warning printed.
+
+    The row is still in the POPULATION — its `add` event carries the gate's
+    `kr` key, so the gate did run on it — which is why the number must go
+    DOWN. A guard that only checked "it is not in the numerator" would also
+    pass if the row had been dropped from the denominator, and that is the
+    confound this class is shaped around.
+    """
+
+    BASE_EVENTS = [add_event("TASK-930", kr="P003-O1-KR1"),
+                   add_event("TASK-931", kr=None)]
+    BASE_RECORDS = [edge("TASK-930", "P003-O1-KR1", "add")]
+    PROBE = add_event("TASK-932", kr="   ")
+
+    def setUp(self):
+        self.before = lib.same_action_linkage(self.BASE_RECORDS,
+                                              self.BASE_EVENTS)
+        self.after = lib.same_action_linkage(self.BASE_RECORDS,
+                                             self.BASE_EVENTS + [self.PROBE])
+
+    def test_the_baseline_is_what_it_looks_like(self):
+        self.assertEqual(self.before["current"], 50.0)
+
+    def test_the_probe_row_is_in_the_population(self):
+        """The confound guard. If typing spaces merely removed the row from
+        the denominator, every other assertion here would pass while the
+        number was still moving on an input nobody should be able to move it
+        with."""
+        self.assertIn("TASK-932", self.after["population"])
+        self.assertEqual(self.after["denominator"],
+                         self.before["denominator"] + 1)
+
+    def test_it_lowers_the_number_it_used_to_raise(self):
+        self.assertLess(self.after["current"], self.before["current"])
+
+    def test_it_adds_nothing_to_the_numerator(self):
+        self.assertEqual(self.after["numerator"], self.before["numerator"])
+        self.assertNotIn("TASK-932", self.after["linked_at_add"])
+
+    def test_the_row_is_named_as_a_desync(self):
+        self.assertIn("TASK-932", self.after["event_kr_without_store_edge"])
+
+
+class TheStoreIsLoadBearingOnTheLiveNumber(unittest.TestCase):
+    """**M13, closed against production behaviour instead of a fixture.**
+
+    Round 1 closed M13 — `perry-state` stops reading the store — with
+    `PerryStateReallyReadsTheStore`, whose fixture holds
+    `{"kind":"unlinked","via":"add"}`. **No writer in Perry can produce that
+    record** (`UNLINKED_AT_ADD_HAS_NO_WRITER`), so the mutation reddened
+    against a project Perry cannot create while production behaviour was
+    untouched: on the live repository the whole numerator came from the event
+    log, and unplugging the store moved nothing. Measured: deleting every
+    `via: "add"` record — 123 to 121, which `perry-tasks linkage-write
+    --from-register` does as a matter of course — left the published figure at
+    exactly 15.38%.
+
+    These two run against the LIVE repository, where the `edge` half is
+    reachable and populated, and they are the reason the same mutation now
+    reddens on real data.
+    """
+
+    def live(self):
+        sys.path.insert(0, str(PERRY_HOME / "viewer"))
+        import parsers as P  # noqa: E402
+        records = P.load_linkage_store(PERRY_HOME / "perry")
+        events = [json.loads(l) for l in
+                  (PERRY_HOME / ".perry" / "events.jsonl")
+                  .read_text(errors="replace").splitlines() if l.strip()]
+        return records, events
+
+    def test_stripping_the_store_empties_the_numerator(self):
+        """Not vacuous, and not pinned to today's data: under a computation
+        that reads both files this holds for ANY store, because nothing can be
+        linked-at-add without a `via: "add"` edge. Under a computation that
+        answers from the event log it fails the moment one row is filed with
+        `--kr` — which is the whole of M13."""
+        records, events = self.live()
+        without = lib.same_action_linkage(
+            [r for r in records if r.get("via") != "add"], events)
+        self.assertEqual(without["linked_at_add"], [])
+        self.assertEqual(without["numerator"], 0)
+
+    def test_every_counted_row_is_backed_by_a_store_edge(self):
+        """Shape, never value — the live number moves when a row is filed."""
+        records, events = self.live()
+        m = lib.same_action_linkage(records, events)
+        backed = {str(r.get("task") or "") for r in records
+                  if r.get("kind") == "edge" and r.get("via") == "add"}
+        for tid in m["linked_at_add"]:
+            self.assertIn(tid, backed,
+                          f"{tid} is in the numerator with no `via: \"add\"` "
+                          f"edge — the numerator is answering from the event "
+                          f"log alone")
+
+
+class TheDesyncDetectorIsNotGatedOnTheEventItDetects(unittest.TestCase):
+    """**`store_edge_without_event` used to be gated on the `add` event.**
+
+        if tid in seen and tid not in set(linked)
+
+    `seen` is the population, and the population is built FROM the `add`
+    event — so the detector built to find "the store landed and the event did
+    not" could only see rows whose event had landed. `TASK-279`'s V4 drove the
+    crash matrix to seven points and found this reporting empty at two of
+    them: the event append is `open(..., "a")`, not a canonical rename, so the
+    shipped harness never kills there and a crash at that point leaves the
+    store's half alone in the tree.
+
+    Three shapes, of which only the middle one was ever reported.
+    """
+
+    def test_a_store_edge_with_no_add_event_at_all_is_reported(self):
+        """Shape A — the crash destroyed the event outright."""
+        m = lib.same_action_linkage(
+            [edge("TASK-701", "P003-O1-KR1", "add")],
+            [add_event("TASK-700", kr=None)])
+        self.assertEqual(m["store_edge_without_event"], ["TASK-701"])
+
+    def test_a_store_edge_whose_event_carries_kr_null_is_reported(self):
+        """Shape B — the one the old gate could see."""
+        m = lib.same_action_linkage(
+            [edge("TASK-702", "P003-O1-KR1", "add")],
+            [add_event("TASK-702", kr=None)])
+        self.assertEqual(m["store_edge_without_event"], ["TASK-702"])
+
+    def test_a_store_edge_whose_event_lost_its_kr_key_is_reported(self):
+        """Shape C — the event survived truncated. The population gate
+        (`"kr" not in event`) dropped it before the detector ever ran."""
+        m = lib.same_action_linkage(
+            [edge("TASK-703", "P003-O1-KR1", "add")],
+            [add_event("TASK-703")])
+        self.assertEqual(m["store_edge_without_event"], ["TASK-703"])
+
+    def test_a_matched_pair_is_not_reported(self):
+        """The control. A detector that fires on everything is not a
+        detector, and un-gating is exactly the change that could cause it."""
+        m = lib.same_action_linkage(
+            [edge("TASK-704", "P003-O1-KR1", "add")],
+            [add_event("TASK-704", kr="P003-O1-KR1")])
+        self.assertEqual(m["store_edge_without_event"], [])
+        self.assertEqual(m["linked_at_add"], ["TASK-704"])
+
+    def test_a_store_edge_naming_the_literal_string_None_is_still_reported(self):
+        """**Mutation N15's closure, on an input a user can produce.**
+
+        `_corroborates` returns False for a `claimed` of `None` before it
+        compares anything. Deleting that guard was GREEN against every other
+        test here, because `str(None)` is `"None"` and no KR is called that
+        — until one is. A user can file `perry-task add --kr "None"`: the id
+        is not checked for existence (that is row D's question, `TASK-279`,
+        deliberately not asked here), so the store takes
+        `{"kind":"edge","kr":"None","via":"add"}`. Verified end to end
+        against a real store before this test was written.
+
+        Lose that row's `add` event to a crash and the store's half is alone
+        in the tree with `kr: "None"`, while the absent event reads as
+        `None`. Without the guard the two 'match' and the desync goes
+        unreported — the detector silently blind on the one row shaped to
+        defeat it.
+        """
+        m = lib.same_action_linkage(
+            [edge("TASK-706", "None", "add")],
+            [add_event("TASK-700", kr=None)])
+        self.assertEqual(m["store_edge_without_event"], ["TASK-706"])
+
+    def test_the_same_row_is_not_counted_in_the_numerator_either(self):
+        """The other side of N15: an `add` event carrying `kr: null` must not
+        be corroborated by a `kr: "None"` edge."""
+        m = lib.same_action_linkage(
+            [edge("TASK-707", "None", "add")],
+            [add_event("TASK-707", kr=None)])
+        self.assertEqual(m["linked_at_add"], [])
+        self.assertEqual(m["numerator"], 0)
+
+    def test_a_later_link_is_not_reported_as_a_desync(self):
+        """`via: "link"` is the ordinary path, not a half-landed
+        transaction. This is round 1's M02, kept."""
+        m = lib.same_action_linkage(
+            [edge("TASK-705", "P003-O1-KR1", "link")],
+            [add_event("TASK-705", kr=None)])
+        self.assertEqual(m["store_edge_without_event"], [])
+
+
+class TheUnlinkedAtAddPathHasNoWriter(unittest.TestCase):
+    """**The honest statement, pinned to the code rather than to today's data.**
+
+    `same_action_linkage`'s second numerator path wants
+    `{"kind":"unlinked","via":"add"}`. Nothing in Perry writes one: `via` is a
+    hardcoded literal at all three writers of the store — `perry-task
+    § linkage_edge_change` writes `"add"` on `edge` records ONLY,
+    `perry-goals § linkage_store_text` and `perry-tasks
+    § LINKAGE_IMPORT_VIA` both write `"link"` — there is no `--via` flag, and
+    there is no `perry-task add --unlinked` for the declaration to be made by.
+
+    Round 1 read that emptiness as a fact about **today's data** (*"this
+    project has zero such records today"*). It is a fact about the **code**,
+    and the difference is why M13's closure did not reach production. So the
+    claim is asserted BEHAVIOURALLY here — by driving the writer and the CLI —
+    rather than by grepping for a literal, and it reddens the day somebody
+    implements the flag `DESIGN-015 § 5.5` asks for.
+    """
+
+    def test_the_constant_and_the_measurement_agree(self):
+        self.assertTrue(lib.UNLINKED_AT_ADD_HAS_NO_WRITER)
+        m = lib.same_action_linkage([], [add_event("TASK-940", kr=None)])
+        self.assertFalse(m["declared_unlinked_at_add_reachable"])
+
+    def test_the_only_via_add_writer_emits_edge_records_only(self):
+        """Driven, not grepped. `linkage_edge_change` is the one site that
+        writes `via: "add"`; ask it for a record and look at the `kind`."""
+        task = _perry_task()
+        import tempfile, shutil
+        d = Path(tempfile.mkdtemp(prefix="perry-unlinked-writer-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / "linkage.jsonl").write_text("")
+        change = task.linkage_edge_change(
+            d, {"event": "add", "id": "TASK-941", "kr": "P003-O1-KR1",
+                "actor": "agent"})
+        self.assertIsNotNone(change, "the one via:add writer wrote nothing")
+        self.assertEqual(change[2]["kind"], "edge")
+        self.assertEqual(change[2]["via"], "add")
+
+    def test_an_add_with_no_kr_writes_no_record_at_all(self):
+        """The other half of the same fact: there is no branch in which the
+        `via: "add"` writer emits an `unlinked` record. A row that answers
+        "no KR" at `add` produces nothing for the store to hold."""
+        task = _perry_task()
+        import tempfile, shutil
+        d = Path(tempfile.mkdtemp(prefix="perry-unlinked-writer-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / "linkage.jsonl").write_text("")
+        self.assertIsNone(task.linkage_edge_change(
+            d, {"event": "add", "id": "TASK-942", "kr": None,
+                "actor": "agent"}))
+
+    def test_perry_task_add_has_no_unlinked_flag(self):
+        """The CLI half, through the real binary. When this goes red the flag
+        exists, `UNLINKED_AT_ADD_HAS_NO_WRITER` has stopped being true, and
+        the constant's comment has to be rewritten rather than the test
+        relaxed."""
+        d = _fixture_project(self)
+        r = _add(d, "a probe row", "--unlinked")
+        self.assertNotEqual(r.returncode, 0,
+                            "`perry-task add --unlinked` was accepted; the "
+                            "unlinked-at-add path now has a writer")
+        # The REASON, not just the exit code — otherwise this passes for any
+        # broken fixture, which is the same green-for-the-wrong-reason this
+        # module exists to avoid. The control is the sibling test below, which
+        # files a row through the same fixture and expects exit 0.
+        self.assertIn("unknown argument '--unlinked'", r.stdout + r.stderr)
+
+    def test_the_fixture_can_actually_file_a_row(self):
+        """The control on the test above. If `_fixture_project` ever stopped
+        producing a usable project, `--unlinked` would still be 'rejected' and
+        the reachability claim would rot green."""
+        d = _fixture_project(self)
+        self.assertEqual(_add(d, "a control row").returncode, 0)
+
+    def test_the_second_numerator_path_is_still_wired(self):
+        """Left connected on purpose, so it starts counting on its own the
+        day a writer appears. This is the ONE assertion in this module that
+        rests on a record Perry cannot produce, and it is labelled as such
+        rather than being read as evidence about the live number."""
+        m = lib.same_action_linkage([unlinked("TASK-943", "add")],
+                                    [add_event("TASK-943", kr=None)])
+        self.assertEqual(m["declared_unlinked_at_add"], ["TASK-943"])
+
+
+# ── the writer: `--kr` is checked before it is stamped on an event ─────────
+
+
+def _perry_task():
+    """`bin/perry-task` as a module."""
+    import importlib.machinery
+    import importlib.util
+    sys.path.insert(0, str(PERRY_HOME / "bin"))
+    loader = importlib.machinery.SourceFileLoader(
+        "perry_task_under_test", str(PERRY_HOME / "bin" / "perry-task"))
+    spec = importlib.util.spec_from_loader("perry_task_under_test", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+def _fixture_project(case: unittest.TestCase) -> Path:
+    """A throwaway copy of `tests/fixtures/sample-project`."""
+    import tempfile, shutil
+    d = Path(tempfile.mkdtemp(prefix="perry-kr-arg-")) / "project"
+    shutil.copytree(PERRY_HOME / "tests" / "fixtures" / "sample-project", d)
+    case.addCleanup(shutil.rmtree, d.parent, ignore_errors=True)
+    return d
+
+
+def _add(d: Path, title: str, *extra: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "add",
+         "--root", str(d), "--title", title, "--deliverable", "an artifact",
+         "--verification", "a falsifiable check somebody else can run",
+         "--summary", "One sentence of plain language for a reader who was "
+                      "not in the conversation that filed it.", *extra],
+        capture_output=True, text=True, cwd=str(PERRY_HOME))
+
+
+class ABlankKrIsRefusedBeforeItReachesTheEvent(unittest.TestCase):
+    """**The writer half of the same defect, end to end through the CLI.**
+
+    `bin/lib.same_action_linkage` now refuses to count a row the store does
+    not back, so a blank `--kr` can no longer move the number. But a writer
+    that stamps onto an event a value its own store-writer will silently
+    discard is a desync generator whatever the reader does, and the fix
+    belongs at the write.
+
+    **Refused rather than warned**, and the axis is the flag's PRESENCE.
+    Omitting `--kr` still files the row and still warns — this does NOT make
+    `--kr` mandatory, which is a decision `DESIGN-015 § 5.2` did not take —
+    and `test_omitting_the_flag_still_files_the_row_and_warns` is the guard
+    on that, because a refusal that also broke the no-flag path would have
+    quietly made the flag required.
+    """
+
+    def setUp(self):
+        self.d = _fixture_project(self)
+        self.events = self.d / ".perry" / "events.jsonl"
+        self.before = (self.events.read_text() if self.events.exists() else "")
+
+    def test_a_whitespace_only_kr_is_refused(self):
+        r = _add(self.d, "a whitespace probe", "--kr", "   ")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is blank", r.stdout + r.stderr)
+
+    def test_an_empty_kr_is_refused_the_same_way(self):
+        r = _add(self.d, "an empty probe", "--kr", "")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is blank", r.stdout + r.stderr)
+
+    def test_the_refusal_says_how_to_say_no_kr_instead(self):
+        """A refusal that does not name the supported alternative is how a
+        caller ends up passing something worse."""
+        out = _add(self.d, "a whitespace probe", "--kr", "  ").stdout + \
+            _add(self.d, "a whitespace probe", "--kr", "  ").stderr
+        self.assertIn("--unlinked", out)
+
+    def test_nothing_was_written(self):
+        """`Nothing was written` is a claim, so it is checked rather than
+        read. A refusal that had already appended the `add` event would leave
+        exactly the row this KR must not count."""
+        _add(self.d, "a whitespace probe", "--kr", "   ")
+        after = self.events.read_text() if self.events.exists() else ""
+        self.assertEqual(after, self.before)
+
+    def test_omitting_the_flag_still_files_the_row_and_warns(self):
+        """§ 5.2's "record and warn", untouched. This is the assertion that
+        stops the refusal above from silently making `--kr` mandatory."""
+        r = _add(self.d, "a row with no kr at all")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("without `--kr`", r.stdout + r.stderr)
+
+    def test_a_padded_kr_is_stripped_rather_than_refused(self):
+        """Only the EMPTY case is a refusal. A padded but real id is a value,
+        and it is normalised once so the event and the store record cannot
+        disagree about it."""
+        r = _add(self.d, "a padded kr row", "--kr", "  P003-O1-KR1  ")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        events = [json.loads(l) for l in
+                  self.events.read_text().splitlines() if l.strip()]
+        adds = [e for e in events if e.get("event") == "add"]
+        self.assertEqual(adds[-1]["kr"], "P003-O1-KR1")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
