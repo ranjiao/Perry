@@ -837,15 +837,10 @@ class TestTheWrongInputBranchesAreReached(Fixture):
         would make this writer the thing that lost a record nobody had looked
         at yet.
 
-        **This test asserted the retraction path and never reached it.** The
-        mutation round found it: dropping the line in `linkage_store_text`'s
-        `except json.JSONDecodeError` branch left the suite green, because a
-        store with one unparseable line makes `load_linkage_store` answer
-        `None` for the WHOLE store, so `reg.graph` falls back to the document,
-        no retraction is ever requested, and the branch is not entered. What
-        is reachable — and what this now asserts — is the append: the write
-        still lands, and the line this writer could not read is still in the
-        file afterwards.
+        This asserts the APPEND half — the write lands and the unreadable line
+        is still in the file afterwards.
+        `test_an_unreadable_line_survives_a_retraction_too` asserts the other
+        half, the retraction loop, which is where the line is actually at risk.
         """
         d = self.project()
         with (d / "linkage.jsonl").open("a") as fh:
@@ -858,6 +853,41 @@ class TestTheWrongInputBranchesAreReached(Fixture):
             any('"TASK-101"' in line for line in after),
             "the fixture is not exercising the case: the store was never "
             "rewritten, so keeping the line proves nothing")
+
+    def test_an_unreadable_line_survives_a_retraction_too(self):
+        """The `except json.JSONDecodeError` branch in `linkage_store_text`,
+        which was declared UNREACHABLE and is not.
+
+        The argument for unreachability was: one unparseable line makes
+        `load_linkage_store` answer `None` for the whole store, so `reg.graph`
+        falls back to the document and no retraction is ever requested. The
+        hole is in the last step. `linkage_graph` returns the `document`
+        argument ITSELF on that fallback, and `Register.__init__` passes
+        `self.model` — so `reg.graph` IS `reg.model`, `reg.graph.unlinked` is
+        the DOCUMENT's `unlinked[]`, and a task the document declares unlinked
+        does request a retraction. The loop runs, and the branch with it.
+
+        That is what this drives: the document declares TASK-101 unlinked, so
+        linking it retracts the declaration, `linkage_store_text` rewrites the
+        store line by line, and the line it cannot parse is the one at risk.
+        Deleting `kept.append(line)` in that branch loses a record no one has
+        looked at yet — and left the whole suite green until this test.
+        """
+        d = self.project(doc_unlinked=["TASK-101"])
+        with (d / "linkage.jsonl").open("a") as fh:
+            fh.write("{ not json\n")
+        code, out = self.goals(d, "link", "TASK-101", self.DOC_KR)
+        self.assertEqual(code, 0, out)
+        self.assertTrue(
+            out.get("undeclared_unlinked"),
+            "the fixture is not exercising the branch: no retraction was "
+            "requested, so `linkage_store_text` never rewrote the file and "
+            "keeping the line proves nothing")
+        after = (d / "linkage.jsonl").read_text().split("\n")
+        self.assertIn("{ not json", after,
+                      "the retraction rewrite dropped a line this writer "
+                      "could not parse — `perry-lint` reports it by number, "
+                      "and this writer must not be what loses it")
 
 
 class TestTheDriftVerdictIsReal(Fixture):
