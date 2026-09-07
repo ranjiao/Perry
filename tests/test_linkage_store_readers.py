@@ -731,6 +731,41 @@ class TestTheSixReadersAnswerFromTheStore(Fixture):
         self.assertIn("002-linkage.md", out["refused"])
         self.assertIn("krs[].tasks", out["refused"])
 
+    def test_site_3_a_quoted_agents_tasks_key_is_caught_structurally_too(self):
+        """The same proof on the `agents[]` side, and it needed its own test.
+
+        The `krs[]` sibling above closed three of the four structural greens
+        and left `M8` — deleting the structural read of `model.agents` — still
+        GREEN, because that test exercises only the KR half. The two halves of
+        the structural read are independent code and need independent inputs:
+        one test per half, or half the guard is unasserted.
+
+        `agents[].tasks` is the half the store has NO record kind for, so the
+        document is the only place this fact lives. A quoted key hides it from
+        the locator, leaving the structural read as the sole guard.
+        """
+        doc = document(phase="003-storage", edges={self.DOC_KR: []},
+                       agents={"Coding Agent": ["TASK-101"]})
+        quoted = doc.replace('    tasks: [', '    "tasks": [')
+        self.assertIn('"tasks": [', quoted)
+        model = P.parse_linkage(quoted)
+        self.assertFalse(model.error, model.error)
+        self.assertIn("TASK-101", model.agents[0].tasks,
+                      "a quoted key is a real agent assignment to the READER")
+        d = self.project(doc_text=quoted)
+        subprocess.run(
+            [sys.executable, str(TASK), "drop", "TASK-101", "--reason",
+             "done with it", "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+        code, out = self.purge(d, "TASK-101")
+        self.assertEqual(code, 1,
+                         "no line names this id in a shape the locator reads, "
+                         "so the structural read of agents[] is the only "
+                         "thing standing between this row and deletion")
+        self.assertIn("agents[].tasks", out["refused"],
+                      "and it must still be attributed to agents, not to a "
+                      "key result that never named the row")
+
     def test_site_3_a_comment_between_block_items_does_not_end_the_scan(self):
         """A register somebody annotated, which is a register somebody edited.
 
