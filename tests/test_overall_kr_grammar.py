@@ -72,11 +72,18 @@ def new_grammar_project(case: unittest.TestCase) -> pathlib.Path:
     dst = tmp / "project"
     shutil.copytree(SAMPLE, dst)
     touched = 0
-    for md in sorted(dst.rglob("*.md")):
-        src = md.read_text()
+    # **`linkage.jsonl` is rewritten too, and it is the file that carries the
+    # edge under test.** The `linked:` values lived in `phase/<NNN>-linkage.md`
+    # frontmatter until ADR-019; a sweep over `*.md` alone would leave every
+    # one of them in the old grammar, and the "no old-form id survived"
+    # assertion would be reading a project that had not been converted.
+    for f in sorted(dst.rglob("*.md")) + [dst / "linkage.jsonl"]:
+        if not f.exists():
+            continue
+        src = f.read_text()
         out = to_new_grammar(src)
         if out != src:
-            md.write_text(out)
+            f.write_text(out)
             touched += 1
     case.assertGreater(touched, 0, "the rewrite touched no file, so every "
                                    "assertion below would be about the OLD "

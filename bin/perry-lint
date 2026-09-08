@@ -563,48 +563,13 @@ def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
                     f"`stage: abandoned` so it stops being offered. The "
                     f"threshold is a calibrated default, not a law."))
 
-    # A task may serve at most one KR.
-    seen: dict[str, str] = {}
-    for obj in data.get("objectives") or []:
-        for kr in (obj or {}).get("krs") or []:
-            for task in (kr or {}).get("tasks") or []:
-                prev = seen.get(str(task))
-                if prev and prev != kr.get("id"):
-                    findings.append(Finding(
-                        "error", rel, "linkage-task-single-kr",
-                        f"task {task} is listed under both {prev} and {kr.get('id')} — "
-                        "its attribution would be ambiguous"))
-                seen[str(task)] = str(kr.get("id"))
-
-    # Objective agreement + name/alias uniqueness across projects.
-    claimed: dict[str, str] = {}
-    for pr in data.get("projects") or []:
-        if not isinstance(pr, dict):
-            continue
-        pid, serves, obj = str(pr.get("id") or ""), str(pr.get("serves") or ""), pr.get("objective")
-        # The objective segment of a phase-KR id. **Anchored end to end**,
-        # where the old form could only be prefix-matched: `P002-O3-KR1`
-        # says which phase, which objective and which KR, so there is
-        # nothing left to infer from position. A `serves` still written
-        # `P-O3.1` [[old-form]] no longer matches — and does not slip past
-        # unmentioned:
-        # `check_cross_file § kr-id-legacy-form` reads every `phase/*.md`,
-        # linkage files included, and errors on it by name.
-        m = re.match(r"^P\d{3}-(O\d+)-KR\d+$", serves)
-        if m and obj and m.group(1) != str(obj):
-            findings.append(Finding("error", rel, "linkage-objective-agrees",
-                                    f"{pid}: serves {serves} (which is {m.group(1)}) but "
-                                    f"objective says {obj}"))
-        for label in [pr.get("name"), *(pr.get("aliases") or [])]:
-            key2 = str(label or "").strip().lower()
-            if not key2:
-                continue
-            if key2 in claimed and claimed[key2] != pid:
-                findings.append(Finding(
-                    "error", rel, "linkage-names-unique",
-                    f"name/alias {label!r} is claimed by both {claimed[key2]} and {pid} — "
-                    "attribution cannot resolve it to one KR"))
-            claimed[key2] = pid
+    # **The three graph-integrity rules used to be here and are now in
+    # `_linkage_graph_findings`.** They read `objectives[].krs[].tasks[]` and
+    # `projects[]` out of a document's frontmatter, and this function grades
+    # frontmatter against a `files[]` spec. ADR-019 deleted
+    # `files[id=linkage]`, so this branch became unreachable rather than
+    # wrong; the rules moved to where the facts now live and none of the three
+    # changed its id or its severity.
     return findings
 
 
@@ -1231,63 +1196,15 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
     return findings
 
 
-def _is_linkage_register(path: Path) -> bool:
-    """Is this file the linkage register — the half of it that is a document?
-
-    Named rather than spelled inline because since DESIGN-015 the register has
-    **two** halves: `phase/<NNN>-linkage.md` and `linkage.jsonl`. Both are
-    excluded from any scan that goes looking for a phase's KR ids, for the one
-    reason that reads the same about either: the register is never its own
-    comparand, and a file scraped for the ids it declares proves only that it
-    agrees with itself.
-
-    The store is not reachable by the `phase/<NNN>-*.md` glob this filters —
-    it lives at the state root, not under `phase/` — so it needs no clause
-    here. That is a fact about where it lives rather than a decision, and
-    saying it costs one sentence, where leaving it out asks the next reader to
-    conclude it from an absence.
-    """
-    return path.name.endswith("-linkage.md")
-
-
-def _linkage_records_for_phase(records: list | None,
-                               phase_number: str) -> list | None:
-    """The store's records for one phase, or `None` when it declares none.
-
-    **`None` means "this phase is not in the store", and the caller must then
-    read the phase's document.** It is not "this phase has no KRs". The
-    distinction is this project measured: DESIGN-015 row B imported phase 003
-    only, so `linkage.jsonl` holds 6 `kr` records and `phase/001-linkage.md`
-    and `002-linkage.md` still hold 16 more. A reader that took an empty slice
-    for an empty graph would stop checking two thirds of this project's edges
-    and report nothing, which is not a clean sweep — it is an unrun one.
-
-    What belongs to a phase:
-
-    - `kr` — the record's own `phase` field, which is `<NNN>-<slug>` and so
-      begins with the number the register file is named by.
-    - `edge` — the KR id it names, which carries its phase by DESIGN-007
-      decision #4 (`P003-O1-KR1`). Not the task id: a task id is global.
-    - `unlinked` — **nothing in the record says.** There is no phase field on
-      it and DESIGN-015 § 5.1 does not give it one, because "this row serves
-      no KR" is a statement about the row and not about a phase. So the whole
-      set is attached to the CURRENT phase and to no other: that is where
-      `perry-goals link --unlinked` writes it, it is the one register a
-      declaration can be corrected in, and attaching it to every store-covered
-      phase would report each stale id once per phase.
-    """
-    if records is None:
-        return None
-    prefix = f"{phase_number}-"
-    krs = [r for r in records if isinstance(r, dict) and r.get("kind") == "kr"
-           and str(r.get("phase") or "").startswith(prefix)]
-    if not krs:
-        return None
-    kr_prefix = f"P{phase_number}-"
-    edges = [r for r in records
-             if isinstance(r, dict) and r.get("kind") == "edge"
-             and str(r.get("kr") or "").startswith(kr_prefix)]
-    return krs + edges
+#: **`_linkage_records_for_phase` lived here and is gone — ADR-019.**
+#:
+#: It was this linter's own copy of `parsers.linkage_records_for_phase`, and
+#: it existed for one reason: the linter's sweep was per REGISTER DOCUMENT and
+#: had to decide, file by file, whether the store or the document beside it
+#: was the authority for that phase. There is no document, so there is no
+#: choice to make and no second implementation of the slice to keep in step.
+#: `check_cross_file` reads `P.load_linkage` directly, which is the same
+#: reader `perry-state` and `perry-goals` use.
 
 
 def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) -> list[Finding]:
@@ -1380,132 +1297,75 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
         None if store_records is None
         else {str(r.get("id")) for r in store_records
               if isinstance(r, dict) and r.get("id")})
-    # **DESIGN-015 § 5.6 site 4, rewritten against the store rather than
-    # deleted.** Every finding below still fires, on the same rule and at the
-    # same severity; what changed is where the graph it grades comes from.
+    # **DESIGN-015 § 5.6 site 4, and after ADR-019 there is one file to
+    # grade.** Every finding below still fires, on the same rule and at the
+    # same severity; what changed is where the graph it grades comes from and
+    # which file a finding names.
     #
-    # **Per phase, and that is the whole of the care this needed.** The store
-    # is not partitioned by phase — one `linkage.jsonl` holds every phase's
-    # `kr` records — while this sweep is per register file, because a finding
-    # has to name a file a user can open. So the authority is chosen phase by
-    # phase: a phase the store declares KRs for is graded from the store, and
-    # a phase it does not is graded from its own document exactly as before.
+    # **Per phase, because a KR id is per phase.** One `linkage.jsonl` holds
+    # every phase's records, and a register is only ever judged against its
+    # OWN phase's KR set: `P002-…` pasted under phase 003 is the finding, and
+    # grading every phase against one merged set would hide it. The phases
+    # swept are the phases the store declares an `objective` or `kr` record
+    # for, which is what "this project has planned this phase" means now that
+    # there is no per-phase file to enumerate.
     #
-    # That is not caution, it is this project measured. The row-B import
-    # covered phase 003 only; `phase/001-linkage.md` and `002-linkage.md`
-    # carry 16 further KRs, 12 edge lists and 27 `unlinked` declarations that
-    # are not in the store. A sweep that read the store alone would stop
-    # checking all of them and report zero findings for a reason that has
-    # nothing to do with the graph being sound — which is precisely the
-    # "the move silently drops existing edges" risk DESIGN-015 § 7 names.
-    linkage_records = P.load_linkage_store(root)
-    #: The phase an `unlinked` record belongs to, since the record does not say
-    #: — read the same way every other reader finds the current register, from
-    #: `phase/CURRENT`. Empty when there is no current phase, which matches no
-    #: register file and so leaves the store's declarations unswept rather than
-    #: swept against an arbitrary one.
-    _cur = root / "phase" / "CURRENT"
-    current_phase_number = (
-        _cur.read_text(encoding="utf-8").strip().split("-")[0]
-        if _cur.exists() else "")
-    for lf in sorted((root / "phase").glob("*-linkage.md")) if (root / "phase").is_dir() else []:
-        own = lf.name.split("-", 1)[0]
-        document = P.parse_linkage(lf.read_text())
-        doc_rel = lf.relative_to(root).as_posix()
-        phase_records = _linkage_records_for_phase(linkage_records, own)
-        if phase_records is None:
-            link, rel = document, doc_rel
-        else:
-            link, rel = P.linkage_from_store(phase_records, document), \
-                P.LINKAGE_STORE
+    # This used to iterate `phase/*-linkage.md` and choose, per phase, between
+    # the store and that phase's document. All three of this project's
+    # registers were imported by ADR-019, so there is no second authority to
+    # choose between — but the FALLBACK for a project that has never had a
+    # store survives, one loop down: a phase whose KRs are declared only in a
+    # `phase/<NNN>-<slug>.md` table is still swept from that table.
+    linkage_records = P.load_linkage_store(root) or []
+    store_phases = sorted({
+        str(r.get("phase") or "") for r in linkage_records
+        if isinstance(r, dict) and r.get("kind") in ("objective", "kr")
+        and r.get("phase")})
+    for slug in store_phases:
+        own = P.linkage_phase_number(slug)
+        if not own:
+            continue
+        link = P.load_linkage(root, own)
+        rel = P.LINKAGE_STORE
         if not link.ok:
             continue
-        # **A linkage file belongs to ITS phase, not to the current one.**
-        # This judged every `*-linkage.md` against the CURRENT phase's KR set,
-        # so the moment a phase was scored and the next one opened, the old
-        # phase's registry — which correctly names the KRs it was written for —
-        # was reported as dangling. It fired on the first rollover this project
-        # ever did, on `phase/001-linkage.md`, naming KRs that exist exactly
-        # where they should.
-        #
-        # A guard written when there had only ever been one phase. The file
-        # names its own phase (`<NNN>-linkage.md`), so the right KR set is
-        # derivable with no new state. `own` is computed above, where the
-        # phase's authority is chosen.
-        #
-        # **The register declares its own KR set** — TASK-157. This used to be
-        # `re.findall(KR_ID_RE, <the phase document>)`, because the document
-        # carried a KR table that declared the same ids in the same words. It
-        # does not any more (DESIGN-013 § 5.1), and re-pointing the check at
-        # the document's prose would grade a declaration against a mention.
-        #
-        # A project that has NOT migrated — an adopted one, or a Perry project
-        # older than this row — still has that table and no `krs[]`, and its
-        # ids are still the phase's KR set. So the document is read exactly
-        # when the register declares nothing, which is the same choice
-        # `viewer/parsers.py § phase_key_results` makes, and never both.
         own_krs = {k.id for o in link.objectives for k in o.krs}
-        if not own_krs:
-            # **DESIGN-015 § 5.6 site 5, rewritten against the store rather
-            # than deleted.** The exclusion is why this fallback is safe: the
-            # register is never its own comparand, because scraping KR ids out
-            # of the file that declares them proves only that a file agrees
-            # with itself. `_is_linkage_register` is where that now lives, and
-            # it names BOTH halves of the register — the store as well as the
-            # document — so a reader is told the store is out of scope of this
-            # glob rather than left to infer it from an absence.
-            #
-            # Reaching here at all is now a stronger statement than it was: it
-            # means neither `linkage.jsonl` nor `phase/<NNN>-linkage.md`
-            # declares a KR for this phase, because `link` above is already
-            # store-first. So the document scan is the third answer, not the
-            # second.
-            mine = [m for m in sorted((root / "phase").glob(f"{own}-*.md"))
-                    if not _is_linkage_register(m)]
-            if mine:
-                own_krs = set(re.findall(
-                    KR_ID_RE, strip_comments(mine[0].read_text())))
-        # **`projects[]` is graded against the DOCUMENT, and is reported
-        # against it.** The Project↔KR registry has no counterpart record in
-        # `schema/state-schema.json § stores.declared["linkage.jsonl"]` —
-        # there are three kinds and this is not one of them — so it stays in
-        # the document, and a finding about it has to name the file that
-        # actually carries the line. `linkage_from_store` copies `projects`
-        # through for exactly this reason; reading it off `link` and filing it
-        # under `linkage.jsonl` would send a user to a file the entry is not
-        # in.
-        for pr in document.projects:
+        # **`projects[]` is graded against the same file it lives in now.**
+        # The Project↔KR registry was a `projects:` block of the deleted
+        # document and had no store record; ADR-019 declared `kind: project`
+        # for it, so a finding names `linkage.jsonl` like every other.
+        for pr in link.projects:
             if pr.serves_kr and own_krs and pr.serves_kr not in own_krs:
                 findings.append(Finding(
-                    "warn", doc_rel, "linkage-kr-exists",
+                    "warn", rel, "linkage-kr-exists",
                     f"{pr.project_id}: serves {pr.serves_kr}, which is not a "
-                    f"KR this register declares"))
+                    f"KR phase {own} declares"))
         for obj in link.objectives:
             for kr in obj.krs:
-                # **The id must name the phase whose register it sits in.**
+                # **The id must name the phase whose records it sits in.**
                 # The old form of this guard asked whether the id appeared in
                 # the phase document, which was one file's way of asking this
                 # same question and stopped being answerable when the KR table
                 # left the document. Asked directly it is stronger: a
-                # `P002-…` KR pasted into `003-linkage.md` used to be caught
-                # only because `003-storage-code.md` did not mention it, and
-                # is caught here by the id itself.
+                # `P002-…` KR filed under phase 003 used to be caught only
+                # because `003-storage-code.md` did not mention it, and is
+                # caught here by the id itself.
                 if not kr.id.startswith(f"P{own}-"):
                     findings.append(Finding(
                         "warn", rel, "linkage-kr-exists",
-                        f"{kr.id} is declared in the register for phase "
+                        f"{kr.id} is declared for phase "
                         f"{own}, and its id names a different phase. A phase "
                         f"KR id carries its phase (DESIGN-007 decision #4), "
                         f"so one of the two is wrong"))
                 # **And the objective half of the id, against the objective it
-                # is declared under.** `P001-O9-KR9` sitting under `- id: O1`
-                # used to be caught only sideways — the phase document did not
-                # mention it, so the old document-scan reported it — and that
-                # is the case `tests/test_cadence.py §
+                # is declared under.** `P001-O9-KR9` filed under `O1` used to
+                # be caught only sideways — the phase document did not mention
+                # it, so the old document-scan reported it — and that is the
+                # case `tests/test_cadence.py §
                 # test_a_genuinely_wrong_kr_is_still_reported` was written
                 # around. Asked directly it needs no second file, and it is the
                 # same question `linkage-objective-agrees` already asks of a
-                # `projects[]` entry: an id that names its own place must agree
+                # `project` record: an id that names its own place must agree
                 # with the place it was put.
                 declared_under = P.kr_objective_id(kr.id)
                 if declared_under and obj.id and declared_under != obj.id:
@@ -1520,7 +1380,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                 # A KR id USED TO BE scoped to a phase file rather than
                 # naming one: `P-O1.1`/`001` and `P-O1.1`/`002` [[old-form]]
                 # were different key results, so the only
-                # correct comparand for `001-linkage.md` was phase 001's own
+                # correct comparand for phase 001 was phase 001's own
                 # KR set — which is why that guard had to stop reading the
                 # CURRENT phase. Those two ids are `P001-O1-KR1` and
                 # `P002-O1-KR1` now (TASK-180), and the old pair is quoted
@@ -1528,14 +1388,14 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                 # reason this guard exists: re-derived, the sentence becomes
                 # "two ids that differ are different", which explains
                 # nothing. **The guard stays**, and not out of caution — a
-                # register may carry an id for a phase that is not its own,
-                # and comparing against the file's own phase is what catches
+                # phase may carry an id for a phase that is not its own,
+                # and comparing against the phase's own number is what catches
                 # that. **A task id is global.** There is one
                 # `tasks.jsonl` for the project, ids are minted across phases
                 # and never re-used, and no per-phase task store exists to
-                # read instead. So every register, current or scored, is
+                # read instead. So every phase, current or scored, is
                 # judged against today's store — that is not "the current
-                # phase leaking into an old file", it is the only store there
+                # phase leaking into an old one", it is the only store there
                 # has ever been.
                 #
                 # The consequence is intended: when TASK-167's removal path
@@ -1572,14 +1432,14 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                         f"refusal says a mis-aimed edge comes out: on the "
                         f"user's confirmation."))
 
-        # **`unlinked[]` gets the same sweep as `krs[].tasks[]`** (TASK-227).
-        # It never had one: `linkage-task-exists` above proves the task half of
-        # an EDGE, and the declaration list beside it was unchecked at the
-        # linter exactly as it was unchecked at the writer. Both holes were
-        # proven on 2026-08-28 by the same command — `perry-goals link
-        # --unlinked` accepted 48 ids space-joined into one argument, and
-        # separately the literal string `NOT-A-TASK-ID at all`, and
-        # `perry-lint` reported 0 errors over the result.
+        # **The declarations get the same sweep as `krs[].tasks[]`**
+        # (TASK-227). They never had one: `linkage-task-exists` above proves
+        # the task half of an EDGE, and the declaration list beside it was
+        # unchecked at the linter exactly as it was unchecked at the writer.
+        # Both holes were proven on 2026-08-28 by the same command —
+        # `perry-goals link --unlinked` accepted 48 ids space-joined into one
+        # argument, and separately the literal string `NOT-A-TASK-ID at all`,
+        # and `perry-lint` reported 0 errors over the result.
         #
         # `warn`, matching `linkage-task-exists`: it is the same statement one
         # key over, and a declaration naming a row that has been purged is a
@@ -1591,33 +1451,17 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
         # row carries is a row the standup says was answered, and no such row
         # exists to have answered for.
         #
-        # **Where the list comes from, and why it is not `link.unlinked`.**
-        # `_linkage_records_for_phase` hands back `kr` and `edge` records only,
-        # because an `unlinked` record carries no phase and nothing in it says
-        # which register it belongs to. So a store-covered phase takes the
-        # store's whole declaration set — but only when it is the CURRENT
-        # phase, which is the register `perry-goals link --unlinked` writes to
-        # and the one a stale declaration is corrected in. Any other
-        # store-covered phase takes none, and reporting each stale id once per
-        # phase is what that avoids. A phase the store does not cover keeps
-        # reading its own document, unchanged.
-        if phase_records is None:
-            declared_unlinked = list(link.unlinked or [])
-            unlinked_rel = rel
-        elif own == current_phase_number:
-            declared_unlinked = [str(r.get("task") or "")
-                                 for r in (linkage_records or [])
-                                 if isinstance(r, dict)
-                                 and r.get("kind") == "unlinked"]
-            unlinked_rel = P.LINKAGE_STORE
-        else:
-            declared_unlinked = []
-            unlinked_rel = rel
-        for tid in declared_unlinked:
+        # **Each declaration is swept ONCE, under its own phase.** It used to
+        # be swept under the current phase only, because the record carried no
+        # phase field and every phase would otherwise have reported the same
+        # stale id. ADR-019 added `unlinked.phase`, so the slice this loop
+        # already has is the right one and a phase-001 declaration is reported
+        # against phase 001.
+        for tid in (link.unlinked or []):
             if store_ids is None or not tid or tid in store_ids:
                 continue
             findings.append(Finding(
-                "warn", unlinked_rel, "linkage-unlinked-exists",
+                "warn", rel, "linkage-unlinked-exists",
                 f"`unlinked` declares {tid!r}, which is not a record in "
                 f"`tasks.jsonl`. A declaration says a KNOWN row serves no KR; "
                 f"an id no row carries declares nothing, and "
@@ -1626,6 +1470,26 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                 f"purged, or several ids were passed to `perry-goals link "
                 f"--unlinked` as one argument — the shape that put 48 of them "
                 f"on one line here on 2026-08-28."))
+
+    # **A project that has never had a linkage store still gets swept.** Its
+    # phase KRs are declared in a `phase/<NNN>-<slug>.md` table — that is what
+    # adoption reads, and what every Perry project older than TASK-157 has —
+    # and the ids in that table are the phase's KR set. The check that can be
+    # made from a table alone is the id-shape one: a KR id must name the phase
+    # of the document it is written in.
+    if not store_phases and (root / "phase").is_dir():
+        for pf in sorted((root / "phase").glob("[0-9][0-9][0-9]-*.md")):
+            own = pf.name.split("-", 1)[0]
+            for kid in sorted(set(re.findall(
+                    KR_ID_RE, strip_comments(pf.read_text())))):
+                if not kid.startswith(f"P{own}-"):
+                    findings.append(Finding(
+                        "warn", pf.relative_to(root).as_posix(),
+                        "linkage-kr-exists",
+                        f"{kid} is declared in the phase document for phase "
+                        f"{own}, and its id names a different phase. A phase "
+                        f"KR id carries its phase (DESIGN-007 decision #4), "
+                        f"so one of the two is wrong"))
 
     # design: locked docs need an implementation plan
     for df in sorted((root / "design").glob("*.md")) if (root / "design").is_dir() else []:
@@ -4472,94 +4336,27 @@ _JSONL_STORE_KEY = "linkage.jsonl"
 _JSONL_STORE_LABEL = "linkage store"
 
 
-def _empty_linkage_store_drift_stats() -> dict:
-    """The typed machine-readable state before a linkage comparison runs.
+def _empty_linkage_store_stats() -> dict:
+    """The typed machine-readable state before the linkage store is read.
 
-    The same four keys as the other six registers, so a reader of `--json`
-    meets one shape seven times rather than seven shapes.
+    **`drifted` is gone from this shape, and its absence is the finding
+    ADR-019 records.** The other six registers project from a markdown
+    document and can disagree with it; `linkage.jsonl` projected from
+    `phase/<NNN>-linkage.md`, and `linkage-store-drift` reported the
+    disagreement — `1 row(s) drifted` on `P003-O3-KR2`, on this project, on
+    the day the ADR was written. The document is deleted. A drift count over
+    one copy is not zero, it is meaningless, and publishing `0 drifted` here
+    would be the strongest possible version of the `unchecked`-read-as-`clean`
+    mistake `P003-O1-KR3` exists to prevent. What is left to report is what
+    can still be true or false: how many records there are and whether every
+    one of them matches a declared shape.
     """
-    return {"store_present": False, "comparison_performed": False,
-            "records": 0, "drifted": 0}
+    return {"store_present": False, "records": 0, "malformed": 0}
 
 
-def _linkage_drift_rows(records: list, state_root: Path) -> tuple[int, list[str], int]:
-    """`linkage.jsonl` against `phase/<NNN>-linkage.md` — the drift comparison.
-
-    Returns `(drifted, messages, compared)`. **`compared` is the count of
-    registers this could actually be run against**, and it is what turns
-    `comparison_performed` from a deferral into an answer: a store whose
-    phases have no document beside them has nothing to compare, and the census
-    must go on saying `unchecked, not clean` rather than publishing a verdict
-    nothing computed. That is `P003-O1-KR3`'s rule, and reporting `0 drifted`
-    for "I did not look" is exactly what it exists to stop.
-
-    **Only the schema'd half is compared, and that is not a shortcut.**
-    `schema/state-schema.json § stores.declared["linkage.jsonl"]` is the list
-    of what the store owns, and its `derived_not_stored` block names the three
-    things it deliberately does not: `metric`, `never_asked`, and a KR's
-    `tasks[]` array. A comparison that reported `metric` as drift would report
-    DESIGN-015 Decision 2 as a defect on every run.
-
-    Until row E strips the document's schema'd half, the two hold the same
-    facts and the honest verdict is `0 drifted`. After row E, this reports
-    the document's remaining fields against the store and finds none to
-    compare — which is the state row E is trying to reach, and this is the
-    check that can say whether it got there.
-    """
-    krs = [r for r in records if isinstance(r, dict) and r.get("kind") == "kr"]
-    drifted, messages, compared = 0, [], 0
-    phases = sorted({str(r.get("phase") or "").split("-")[0] for r in krs
-                     if r.get("phase")})
-    cur = state_root / "phase" / "CURRENT"
-    current = (cur.read_text(encoding="utf-8").strip().split("-")[0]
-               if cur.exists() else "")
-    for number in phases:
-        doc_path = state_root / "phase" / f"{number}-linkage.md"
-        if not doc_path.exists():
-            continue
-        document = P.parse_linkage(doc_path.read_text(errors="replace"))
-        if not document.ok:
-            continue
-        compared += 1
-        rel = _rel(doc_path, state_root)
-        phase_records = _linkage_records_for_phase(records, number) or []
-        store_side = P.linkage_from_store(phase_records, document)
-        # The typed half of each KR, keyed by id. `metric` and `due` are read
-        # from the document by BOTH sides, so they cannot differ and are not
-        # compared; that is the declaration, not an omission.
-        def typed(link) -> dict:
-            return {k.id: (k.title, k.target, k.current, bool(k.stretch),
-                           k.linked, tuple(k.tasks or []), o.id)
-                    for o in link.objectives for k in o.krs}
-        want, got = typed(store_side), typed(document)
-        for kr_id in sorted(set(want) | set(got)):
-            if want.get(kr_id) == got.get(kr_id):
-                continue
-            drifted += 1
-            if kr_id not in got:
-                messages.append(f"{kr_id} is in the store and not in {rel}")
-            elif kr_id not in want:
-                messages.append(f"{kr_id} is in {rel} and not in the store")
-            else:
-                messages.append(f"{kr_id} differs between the store and {rel}")
-        if number == current:
-            store_unlinked = [str(r.get("task") or "") for r in records
-                              if isinstance(r, dict)
-                              and r.get("kind") == "unlinked"]
-            only_store = sorted(set(store_unlinked) - set(document.unlinked))
-            only_doc = sorted(set(document.unlinked) - set(store_unlinked))
-            drifted += len(only_store) + len(only_doc)
-            for tid in only_store[:DRIFT_ROWS_SHOWN]:
-                messages.append(f"{tid} is declared unlinked in the store and "
-                                f"not in {rel}")
-            for tid in only_doc[:DRIFT_ROWS_SHOWN]:
-                messages.append(f"{tid} is declared unlinked in {rel} and not "
-                                f"in the store")
-    return drifted, messages, compared
-
-
-def _linkage_record_findings(records: list,
-                             declared: dict) -> tuple[list[dict], list]:
+def _linkage_record_findings(records: list, declared: dict,
+                             enums: dict | None = None
+                             ) -> tuple[list[dict], list]:
     """Valid records, and findings for the malformed ones — schema-driven.
 
     **The field list is not written here.** It is read from
@@ -4622,6 +4419,24 @@ def _linkage_record_findings(records: list,
                                                                    value):
                 bad.append(f"`{name}` is {value!r}, which does not match "
                            f"`{pattern}`")
+                continue
+            # **A named enum, read from `schema.enums` rather than restated as
+            # a pattern.** `project.status` is `linkage_status`, which four
+            # other declarations already key on; spelling it `^(active|done)$`
+            # here is how a value space comes to have two definitions that
+            # disagree — and it did: that pattern named two of the four, so a
+            # `dropped` Project was a malformed record, and `bin/perry-goals §
+            # resolve_target`'s "a retired Project is named rather than used"
+            # refusal was unreachable through a record the linter accepted.
+            named = spec.get("enum")
+            if named and isinstance(value, str):
+                allowed = (enums or {}).get(named)
+                if allowed is None:
+                    bad.append(f"`{name}` declares enum {named!r}, which "
+                               f"`schema.enums` does not define")
+                elif value not in allowed:
+                    bad.append(f"`{name}` is {value!r}, which is not one of "
+                               f"{'/'.join(allowed)}")
         if bad:
             findings.append({"line": line, "message": "; ".join(bad)})
             continue
@@ -4629,35 +4444,99 @@ def _linkage_record_findings(records: list,
     return good, findings
 
 
-def check_linkage_store_drift(project_root: Path, state_root: Path,
-                              schema: dict) -> list["Finding"]:
-    """`linkage.jsonl` — the seventh store — TASK-276, DESIGN-015 row A.
+def _linkage_graph_findings(records: list, rel: str) -> list["Finding"]:
+    """The three graph-integrity rules, over one phase's records.
 
-    **Row C completes the comparison this function was written deferring.**
-    TASK-276 declared the store and could compare nothing, because the readers
-    still answered from `phase/<NNN>-linkage.md`; row B filled it and still
-    could not, because a store nothing reads has no second opinion to be
-    checked against. Now that the six readers of § 5.6 answer from the store,
-    the document beside it is the projection, and the two can be held up
-    against each other exactly as the other six registers are.
-    `comparison_performed` is therefore `True` whenever there is a register
-    document to compare against — and only then.
-
-    **`unchecked`, not `clean`, is the point of the line.** `P003-O1-KR3` is
-    the phase-003 operating rule that a store reports `unchecked` when its file
-    is absent, measured for the other six by TASK-229. A seventh store that
-    reported `clean` with no records behind it would be a green gate on a false
-    premise. The same rule is why `comparison_performed` is driven by
-    `_linkage_drift_rows`'s `compared` count and not by "the store parsed": a
-    store whose phases have no document beside them has nothing to compare,
-    and `0 drifted` would then mean "I did not look".
-
-    It also validates every record against the schemas `stores.declared`
-    declares, so a record of the wrong shape is a finding rather than a silent
-    row.
+    They lived in `check_frontmatter`, grading `phase/<NNN>-linkage.md`'s
+    frontmatter against `files[id=linkage]`. ADR-019 deleted that entry and
+    that file. The rules are unchanged in id, severity and wording — what
+    changed is that `tasks[]` is now a set of `edge` records and `projects[]`
+    a set of `project` records, so each reads the store instead of a mapping.
     """
     findings: list[Finding] = []
-    check_linkage_store_drift.stats = _empty_linkage_store_drift_stats()
+
+    # A task may serve at most one KR. **`error`, and not softened by the
+    # move**: an ambiguous attribution is what `perry-goals link` refuses to
+    # create and what `resolve_kr` cannot answer.
+    seen: dict[str, str] = {}
+    for rec in records:
+        if not isinstance(rec, dict) or rec.get("kind") != "edge":
+            continue
+        task, kr = str(rec.get("task") or ""), str(rec.get("kr") or "")
+        prev = seen.get(task)
+        if prev and prev != kr:
+            findings.append(Finding(
+                "error", rel, "linkage-task-single-kr",
+                f"task {task} is listed under both {prev} and {kr} — "
+                "its attribution would be ambiguous"))
+        seen[task] = kr
+
+    # Objective agreement + name/alias uniqueness across projects.
+    claimed: dict[str, str] = {}
+    for rec in records:
+        if not isinstance(rec, dict) or rec.get("kind") != "project":
+            continue
+        pid, serves = str(rec.get("id") or ""), str(rec.get("kr") or "")
+        # **`objective` is derived from the KR id and checked against the
+        # OBJECTIVE RECORDS**, where it used to be checked against a second
+        # `objective:` field on the registry entry. `kind: project` stores no
+        # such field — ADR-019 declined to carry a fact the id already
+        # encodes — so the disagreement this rule reports is now between the
+        # KR id a Project serves and the set of objectives its phase declares.
+        # The old form could only be prefix-matched: `P002-O3-KR1` says which
+        # phase, which objective and which KR, so there is nothing left to
+        # infer from position. A `kr` still written `P-O3.1` [[old-form]] no
+        # longer matches — and does not slip past unmentioned:
+        # `check_cross_file § kr-id-legacy-form` reads every `phase/*.md` and
+        # errors on it by name.
+        m = re.match(r"^P\d{3}-(O\d+)-KR\d+$", serves)
+        objectives = {str(r.get("id") or "") for r in records
+                      if isinstance(r, dict) and r.get("kind") == "objective"}
+        if m and objectives and m.group(1) not in objectives:
+            findings.append(Finding(
+                "error", rel, "linkage-objective-agrees",
+                f"{pid}: serves {serves} (which is {m.group(1)}) but this "
+                f"phase declares no objective {m.group(1)}"))
+        for label in [rec.get("name"), *(rec.get("aliases") or [])]:
+            key2 = str(label or "").strip().lower()
+            if not key2:
+                continue
+            if key2 in claimed and claimed[key2] != pid:
+                findings.append(Finding(
+                    "error", rel, "linkage-names-unique",
+                    f"name/alias {label!r} is claimed by both {claimed[key2]} and {pid} — "
+                    "attribution cannot resolve it to one KR"))
+            claimed[key2] = pid
+    return findings
+
+
+def check_linkage_store(project_root: Path, state_root: Path,
+                       schema: dict) -> list["Finding"]:
+    """`linkage.jsonl` — TASK-276, DESIGN-015 row A, ADR-019.
+
+    **THE DRIFT COMPARISON IS GONE, AND THAT IS THE POINT OF ADR-019.** This
+    function used to hold `linkage.jsonl` up against `phase/<NNN>-linkage.md`
+    and report where the two disagreed, exactly as the other six registers are
+    held against their markdown. It found something, too — `linkage store: 124
+    record(s), 1 row(s) drifted` on `P003-O3-KR2`, this project's own computed
+    KR, on the day the ADR was written. ADR-019's argument is that a check for
+    a disagreement is the ongoing cost of the duplication rather than a fix
+    for it, so the document was deleted and the class of defect became
+    impossible instead of detected. There is one copy; there is nothing to
+    compare it to.
+
+    What remains is the half that was never about a second file: every record
+    is validated against the shapes `schema/state-schema.json §
+    stores.declared` declares, so a record of the wrong shape is a finding
+    rather than a silent row.
+
+    **`unchecked`, not `clean`, still governs the census line.** `P003-O1-KR3`
+    is the phase-003 operating rule that a store reports `unchecked` when its
+    file is absent, measured for the other six by TASK-229. An absent store
+    returns before reading anything and the line says so.
+    """
+    findings: list[Finding] = []
+    check_linkage_store.stats = _empty_linkage_store_stats()
 
     declared = ((schema.get("stores") or {}).get("declared")
                 or {}).get(_JSONL_STORE_KEY)
@@ -4668,7 +4547,7 @@ def check_linkage_store_drift(project_root: Path, state_root: Path,
     if not store_path.exists():
         return []
 
-    check_linkage_store_drift.stats["store_present"] = True
+    check_linkage_store.stats["store_present"] = True
     rel_store = _rel(store_path, project_root)
     try:
         on_disk = [json.loads(line) for line in
@@ -4680,40 +4559,36 @@ def check_linkage_store_drift(project_root: Path, state_root: Path,
                         f"({type(exc).__name__}: {exc}) — there is nothing "
                         f"here to check")]
 
-    good, issues = _linkage_record_findings(on_disk, declared)
-    check_linkage_store_drift.stats["records"] = len(good)
+    good, issues = _linkage_record_findings(on_disk, declared,
+                                            schema.get("enums"))
+    check_linkage_store.stats["records"] = len(good)
+    check_linkage_store.stats["malformed"] = len(issues)
     for issue in issues[:DRIFT_ROWS_SHOWN]:
         findings.append(Finding(
             "warn", rel_store, "linkage-store-malformed",
             f"line {issue['line']}: {issue['message']}. The record shapes are "
             f"declared in `schema/state-schema.json § stores.declared` "
-            f"(DESIGN-015 § 5.1)."))
+            f"(DESIGN-015 § 5.1, extended by ADR-019)."))
     if len(issues) > DRIFT_ROWS_SHOWN:
         findings.append(Finding(
             "warn", rel_store, "linkage-store-malformed",
             f"and {len(issues) - DRIFT_ROWS_SHOWN} further record(s) do not "
             f"match a declared shape."))
 
-    # **The comparison, which is what row C makes possible.** Only the valid
-    # records are compared: a malformed record has already been reported once
-    # by name and line, and grading it a second time as drift would report one
-    # defect twice in two vocabularies.
-    drifted, messages, compared = _linkage_drift_rows(good, state_root)
-    if compared:
-        check_linkage_store_drift.stats["comparison_performed"] = True
-        check_linkage_store_drift.stats["drifted"] = drifted
-        for message in messages[:DRIFT_ROWS_SHOWN]:
-            findings.append(Finding(
-                "warn", rel_store, "linkage-store-drift",
-                f"{message}. The store is what the readers answer from "
-                f"(DESIGN-015 § 5.6), so the document is the stale side "
-                f"unless `perry-goals` wrote it last."))
-        if len(messages) > DRIFT_ROWS_SHOWN:
-            findings.append(Finding(
-                "warn", rel_store, "linkage-store-drift",
-                f"and {len(messages) - DRIFT_ROWS_SHOWN} further "
-                f"disagreement(s) between the store and the register "
-                f"document(s)."))
+    # **Per phase, because both rules are per phase.** One task may serve one
+    # KR *in a phase*, and a Project name is unique *within the registry it is
+    # in*; grading the whole store at once would report a `REL-001` linked in
+    # phase 001 and again in 002 as an ambiguity, which is two phases doing
+    # their job. Only the valid records are graded: a malformed record has
+    # been reported once by name and line, and grading it again would report
+    # one defect twice in two vocabularies.
+    phases = sorted({str(r.get("phase") or "") for r in good
+                     if r.get("kind") in ("objective", "kr") and r.get("phase")})
+    for slug in phases:
+        number = P.linkage_phase_number(slug)
+        mine = P.linkage_records_for_phase(good, number) if number else None
+        if mine:
+            findings.extend(_linkage_graph_findings(mine, rel_store))
     return findings
 
 
@@ -5457,14 +5332,14 @@ def main(argv: list[str]) -> int:
                     check_md_store_drift(project_root, root, _doc))
             # And the seventh (TASK-276, DESIGN-015 row A), on the same
             # terms and at the same cost: it returns before reading anything
-            # when there is no `linkage.jsonl`, which is every project today
-            # including this one. It is in the DEFAULT pass rather than behind
-            # a flag for the reason the six above are — a store the census
-            # does not print is a store nobody checked, and this row's whole
-            # question is whether the seventh JOINS that population or merely
-            # appears in a JSON file.
+            # when there is no `linkage.jsonl`. It is in the DEFAULT pass
+            # rather than behind a flag for the reason the six above are — a
+            # store the census does not print is a store nobody checked. It
+            # reports no DRIFT, because ADR-019 left it no second copy to
+            # drift from; what it reports is whether every record matches a
+            # declared shape.
             findings.extend(
-                check_linkage_store_drift(project_root, root, schema))
+                check_linkage_store(project_root, root, schema))
             # **In the DEFAULT pass, not behind `--specs`.** A flag nobody
             # types is not a report: `--specs` shipped in round 1 and was
             # invoked from nothing — not `work/`, not `modes/`, not `tests/run`
@@ -5520,9 +5395,14 @@ def main(argv: list[str]) -> int:
             for _doc, _label in _MD_STORE_DOCS:
                 payload[f"{_doc.name}_store_drift"] = dict(
                     _md.get(_doc.name) or _empty_md_store_drift_stats())
-            payload["linkage_store_drift"] = dict(getattr(
-                check_linkage_store_drift, "stats",
-                _empty_linkage_store_drift_stats()))
+            # **The key is `linkage_store`, not `linkage_store_drift`.** It
+            # was renamed rather than kept with a `drifted: 0` inside it,
+            # because a consumer reading `drifted` off a store with one copy
+            # would be reading a number that cannot be non-zero and taking it
+            # for a check that passed. `perry-lint/1.x` records the move.
+            payload["linkage_store"] = dict(getattr(
+                check_linkage_store, "stats",
+                _empty_linkage_store_stats()))
             # Carried in the default payload for the reason the drift stats
             # are: a caller reading this JSON to decide whether to dispatch
             # should not have to run a second command to learn that the gate
@@ -5643,26 +5523,23 @@ def main(argv: list[str]) -> int:
 
         # The seventh line, for the reason the six above have their own:
         # "no linkage store" and "a clean linkage store" are different
-        # answers. TASK-276 declares the store and DESIGN-015 row B imports
-        # it, so on this project the file is ABSENT and this line reads
-        # `unchecked, not clean` — which is `P003-O1-KR3`'s rule reaching the
-        # seventh store on the day it is declared rather than on the day it is
-        # filled. The `comparison_performed` branch is not dead code waiting
-        # for row B either: it is the state the store is in from the moment
-        # row B lands until row C moves the readers, and it says so rather
-        # than reporting a drift verdict nothing computed.
-        _lst = getattr(check_linkage_store_drift, "stats", None)
+        # answers, and `P003-O1-KR3`'s rule is that the absent one must not
+        # print as the clean one.
+        #
+        # **It does not say `drifted`, and no line of this census will again
+        # for this store.** The six above compare a store against the markdown
+        # it projects; ADR-019 deleted the markdown this one projected, so
+        # there is one copy and `0 row(s) drifted` would be a verdict about
+        # nothing. What is checkable is the shape of every record, and that is
+        # what is printed.
+        _lst = getattr(check_linkage_store, "stats", None)
         if _lst and not mode_templates:
             if not _lst["store_present"]:
-                print(f"  · no `{_JSONL_STORE_KEY}` — drift against the "
+                print(f"  · no `{_JSONL_STORE_KEY}` — the "
                       f"{_JSONL_STORE_LABEL} is unchecked, not clean")
-            elif not _lst["comparison_performed"]:
-                print(f"  · {_JSONL_STORE_LABEL}: {_lst['records']} valid "
-                      f"record(s), comparison incomplete — drift is "
-                      f"unchecked, not clean")
             else:
                 print(f"  · {_JSONL_STORE_LABEL}: {_lst['records']} "
-                      f"record(s), {_lst['drifted']} row(s) drifted")
+                      f"record(s), {_lst['malformed']} malformed")
         # And a line for the dispatch pre-flight's own input, on the same rule
         # the six above follow: "no specs" and "every spec declares a scope"
         # are different answers, and the second one is the only one that means

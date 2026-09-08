@@ -61,7 +61,7 @@ Usage:
   perry-goals list [--json] [--level overall|phase]
 
   perry-goals krs [--json] [--phase <NNN>]
-      The current phase's key results, printed from `phase/<NNN>-linkage.md`.
+      The current phase's key results, printed from `linkage.jsonl`.
       READ-ONLY, and the only surface for them: TASK-157 removed the KR table
       from `phase/<NNN>-<slug>.md` because those four facts were written there
       AND in the register, with nothing comparing the two and the markdown copy
@@ -82,7 +82,7 @@ Usage:
   perry-goals link --unlinked <TASK-ID>
   perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"
 
-  `link` writes `phase/<NNN>-linkage.md` for the CURRENT phase, in place.
+  `link` appends to `linkage.jsonl` for the CURRENT phase.
   <KR-ID> may also be a Project id or a registered alias, resolved in that
   order; anything that does not resolve to exactly ONE KR is REFUSED with its
   candidates named. Nothing here is fuzzy-matched, and nothing here writes a
@@ -505,7 +505,22 @@ class Okr:
 # payload now carries `semantics`, the array below. Nothing already emitted
 # changed, so `LIST_SEMANTICS` gains no entry for `2.3` itself —
 # `perry-events/list/1.1` added the same key under the same reading.
-LIST_CONTRACT = "perry-goals/list/2.3"
+#
+# ADR-019 / TASK-155 moves it to `3.0`, and **`3.0` rather than `2.4`
+# because a key is REMOVED.** `linkage.updated` is gone: it was the deleted
+# register document's one file-level stamp, and there is no file left for it
+# to be the stamp of. Keeping the key at `""` forever was the alternative and
+# it is the same mistake `progress` was — a value a consumer reads as "never
+# updated" when the truth is "that is not a thing any more". Rule 2 says `2.x`
+# only adds keys, so this cannot be a minor; `2.0` set the precedent when it
+# removed `progress` for the same reason.
+#
+# The same version also changes what three values under UNMOVED keys mean —
+# `current_provenance.source`, `.asserted_at` and `.asserted_scope` — which
+# would have been a minor on its own, on `2.2`'s reading. It is recorded in
+# `LIST_SEMANTICS` under `3.0` so a consumer crossing the major is told both
+# halves rather than only the removal it cannot miss.
+LIST_CONTRACT = "perry-goals/list/3.0"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -537,6 +552,29 @@ LIST_SEMANTICS = [
              "parsed these as naive local timestamps, or that compared one of "
              "them against a clock of its own, was correct before 2.2 and is "
              "not now."},
+    {"version": "3.0",
+     "fields": ["krs[].current_provenance.source",
+                "krs[].current_provenance.asserted_at",
+                "krs[].current_provenance.asserted_scope",
+                "krs[].current_staleness.since",
+                "krs[].current_staleness.evaluated"],
+     "note": "The assertion date is PER KR now, not per file. `source` reads "
+             "`linkage-store` where it read `linkage-register`; "
+             "`asserted_scope` reads `kr` where it read `register`; and "
+             "`asserted_at` is the KR's own `asserted_at` field rather than "
+             "the deleted `phase/<NNN>-linkage.md`'s file-level `updated:` "
+             "stamp. The consequence a consumer must handle: an ASSERTED "
+             "`current` can now carry `asserted_at: \"\"` and "
+             "`asserted_scope: \"\"`, which means nobody recorded when the "
+             "number was arrived at — and `current_staleness.evaluated` is "
+             "then `false`. Before ADR-019 the date was never empty on an "
+             "asserted number, because it belonged to the file rather than to "
+             "the number, which is the defect (TASK-155) this removes: "
+             "appending one edge re-dated every asserted `current` in the "
+             "phase. The same version REMOVES `linkage.updated`, which is "
+             "why it is a major; that removal is in the Changelog rather than "
+             "here, because a key a consumer can no longer read is not a "
+             "meaning it has to re-check."},
 ]
 
 _PERRY_STATE = None
@@ -881,8 +919,12 @@ def kr_rows(snap, events: list | None = None,
     for o in (getattr(lk, "objectives", None) or []):
         for k in (getattr(o, "krs", None) or []):
             reg[k.id] = {"target": k.target, "current": k.current,
-                         "due": k.due, "tasks": list(k.tasks or [])}
-    register_updated = getattr(lk, "updated", "") or ""
+                         "due": k.due, "tasks": list(k.tasks or []),
+                         # **Per KR, off its own record.** It was the
+                         # register document's one file-level `updated:`
+                         # stamp until ADR-019, shared by every KR in the
+                         # phase — TASK-155.
+                         "asserted_at": getattr(k, "asserted_at", "") or ""}
     status_by_id = lib.task_status_index(
         getattr(snap, "project_root", "."), getattr(snap, "board", None))
     # Raw store records for the one KR whose metric is re-run rather than read.
@@ -938,7 +980,7 @@ def kr_rows(snap, events: list | None = None,
                     # about a number that now has only one source.
                     **lib.kr_progress_provenance(
                         current, r.get("tasks", []),
-                        register_updated=register_updated,
+                        asserted_at=r.get("asserted_at", ""),
                         status_by_id=status_by_id,
                         events=events, events_present=events_present,
                         computed=lib.computed_kr_current(
@@ -1111,7 +1153,11 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
         "linkage": {
             "present": bool(getattr(lk, "objectives", None)),
             "phase": getattr(lk, "phase", "") or "",
-            "updated": getattr(lk, "updated", "") or "",
+            # `updated` is GONE from this block (ADR-019 / TASK-155). It was
+            # the deleted register document's one file-level stamp, and three
+            # readers took it for three different facts. Each of the three is
+            # per record now, and `krs[].current_provenance.asserted_at` is
+            # the one a consumer of THIS payload wanted.
             "error": getattr(lk, "error", "") or "",
         },
         "counts": {
@@ -1129,14 +1175,19 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
 # an agent procedure. Every refusal below quotes the sentence it implements.
 
 #: The two column sets, read from the schema rather than restated here.
-# ── phase/<NNN>-linkage.md, edited in place ───────────────────────────────
+# ── linkage.jsonl, appended to ─────────────────────────────────────────────
 #
-# TASK-119. `goals/SKILL.md § State files` has called this file "machine-
-# written" since the lane shipped, and until now nothing wrote it: this
-# project's own `perry/phase/002-linkage.md` was typed by hand on 2026-08-20,
-# every edge and every number. What follows is that missing writer, and it
-# carries two rules from the surrounding documents rather than inventing its
-# own.
+# TASK-119 wrote this lane's first register writer, against
+# `phase/<NNN>-linkage.md`. ADR-019 deleted that document, and with it ~530
+# lines of line-locating, splicing and re-reading machinery that existed
+# ENTIRELY because the target was markdown a human might have reformatted:
+# `Register`, its YAML-subset flow/block editors, and the `verify` re-read that
+# had to prove a splice had not changed a byte it was not asked to change.
+# A JSONL store needs none of it. One record is one line, appending is
+# appending, and there is no second copy for the write to disagree with.
+#
+# The two rules the old writer carried survive unchanged, because they were
+# never about the file format:
 #
 # **Never guess an attribution.** `reference/okr-linkage.md`'s one rule:
 # resolve by declared edge, then exact Project id, then registered alias, and
@@ -1153,517 +1204,23 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
 # register is written. Nothing here writes either field.
 
 
-def _indent(line: str) -> int:
-    return len(line) - len(line.lstrip(" "))
-
-
-def _unquote(tok: str) -> str:
-    """A scalar the way `parsers.parse_yaml_subset § scalar` reads one.
-
-    Quotes are stripped when they match at both ends and nothing else happens
-    — that reader does no escape processing and strips no inline comment, so
-    neither does this. Anything it would have coerced (a number, `true`) is
-    left as text here, because the values this editor moves are ids and names
-    and the semantic comparison is made against the parsed model, not here.
-    """
-    tok = tok.strip()
-    if len(tok) > 1 and tok[0] in "\"'" and tok[-1] == tok[0]:
-        return tok[1:-1]
-    return tok
-
-
-def _segments(inner: str) -> list[tuple[int, int]]:
-    """Top-level comma-separated spans of an inline flow body, with offsets.
-
-    The same quote-aware scan `parsers._split_flow` makes, keeping the offsets
-    it discards. An editor that disagreed with the reader about where an item
-    ends would splice inside one.
-    """
-    out, start, quote = [], 0, ""
-    for i, ch in enumerate(inner):
-        if quote:
-            if ch == quote:
-                quote = ""
-        elif ch in "\"'":
-            quote = ch
-        elif ch == ",":
-            out.append((start, i))
-            start = i + 1
-    out.append((start, len(inner)))
-    return out
-
-
-def flow_items(inner: str) -> list[tuple[int, int]]:
-    """(start, end) of each non-empty item in an inline flow body."""
-    spans = []
-    for a, b in _segments(inner):
-        seg = inner[a:b]
-        lead = len(seg) - len(seg.lstrip())
-        trail = len(seg) - len(seg.rstrip())
-        if b - trail > a + lead:
-            spans.append((a + lead, b - trail))
-    return spans
-
-
-def flow_span(line: str, after: int) -> tuple[int, int] | None:
-    """(open, close) offsets of the `[...]` starting after `after`, or None."""
-    depth, start, quote = 0, None, ""
-    for i in range(after, len(line)):
-        ch = line[i]
-        if quote:
-            if ch == quote:
-                quote = ""
-            continue
-        if ch in "\"'":
-            quote = ch
-        elif ch == "[":
-            if depth == 0:
-                start = i
-            depth += 1
-        elif ch == "]":
-            depth -= 1
-            if depth == 0 and start is not None:
-                return start, i
-    return None
-
-
-#: A value that can be written into a flow list without quotes. Deliberately
-#: narrow: anything the reader would coerce (`12`, `true`, `~`) or that its
-#: splitter would cut in half (`,`, `]`) is quoted instead.
-BARE_SAFE = re.compile(r"^[A-Za-z][A-Za-z0-9_./+-]*$")
-
-
-def render_scalar(value: str, like: str = "") -> str:
-    """One scalar, quoted the way its neighbours are.
-
-    `like` is an existing item from the same list — the register's own style,
-    which is the only style this writer has an opinion about. Perry's files
-    quote task ids (`["TASK-038", "TASK-088"]`); `reference/okr-linkage.md`'s
-    example does not (`tasks: [REL-001]`). Both are read identically, and a
-    writer that normalised one into the other would rewrite a line it was not
-    asked to touch.
-    """
-    quote = '"'
-    if like:
-        like = like.strip()
-        if like[:1] in "\"'" and like[-1:] == like[:1] and len(like) > 1:
-            quote = like[0]
-        elif BARE_SAFE.match(like) and BARE_SAFE.match(value):
-            return value
-    return f"{quote}{value}{quote}"
-
-
 def check_writable(value: str, what: str) -> str:
-    """Refuse a value this file cannot carry, rather than write a broken one.
+    """Refuse a value the store cannot carry, rather than write a broken one.
 
-    The reader strips matching outer quotes and does nothing else — it has no
-    escape processing at all — so a value containing the quote character it
-    would be written with cannot be read back as itself. That is a refusal and
-    not a best effort: a half-written name in the attribution registry is the
-    one place this project has said, three documents deep, that a wrong answer
-    is worse than no answer.
+    JSON escapes what YAML could not, so the quote rule the markdown register
+    needed is gone. What is left is the shape of a register VALUE: one line,
+    non-empty. A newline inside an id or a Project name is a paste accident,
+    and the attribution registry is the one place this project has said, three
+    documents deep, that a wrong answer is worse than no answer.
     """
     value = (value or "").strip()
     if not value:
         raise Refused(f"{what} is empty. Nothing was written")
     if "\n" in value or "\r" in value:
         raise Refused(
-            f"{what} contains a line break. A register value is one line of "
-            f"YAML. Nothing was written")
-    if '"' in value or "'" in value:
-        raise Refused(
-            f"{what} contains a quote character, and this register's reader "
-            f"(`parsers.parse_yaml_subset`) does no escape processing — the "
-            f"value could not be read back as itself. Nothing was written")
-    return value
-
-
-class Register:
-    """`phase/<NNN>-linkage.md` as a list of lines, edited in place.
-
-    The same rule `Okr` above states, for the same reason and with one
-    difference that makes it stricter rather than looser. `OKR.md` is prose a
-    human argued with; this file is YAML a machine reads on both sides — so
-    the cost of re-rendering it is not lost wording, it is a **semantic** slip
-    nobody can see: a re-serialiser that dropped a key, reordered a list or
-    coerced `target: 0` back onto a KR whose author never asserted one would
-    produce a file that still parses, still lints, and no longer says what it
-    said. So: no round trip. Lines are located, one line (or one span inside
-    one line) is spliced, and every other byte is the byte that was read.
-
-    Two checks stand behind that, and both run before anything is written:
-
-    - **the locator and the reader must agree.** Every entry the parsed model
-      carries must be found on a line, and vice versa; a mismatch is refused
-      rather than guessed at.
-    - **the write must produce exactly the intended model.** `verify` re-reads
-      the edited text with `parsers.parse_linkage` — the same reader Perry and
-      `perry-lint` use — and compares it against the before-model with the one
-      intended mutation applied. Anything else, including a change this writer
-      made by accident, is refused with nothing written.
-    """
-
-    KINDS = {"objectives": "objective", "krs": "kr",
-             "projects": "project", "agents": "agent"}
-
-    def __init__(self, path: Path, state_root: Path | None = None):
-        self.path = path
-        #: Where the store lives, so `link` can append the record it writes.
-        #: Defaults to the document's own directory's parent — `phase/` sits
-        #: at the state root — so a caller that constructs a `Register` for a
-        #: test fixture gets the store beside it rather than beside nothing.
-        self.state_root = Path(state_root) if state_root else path.parent.parent
-        if not path.exists():
-            raise Refused(
-                f"no linkage register at {path}. `plan-phase` writes it from "
-                f"`goals/state/linkage_TEMPLATE.md` when the phase opens "
-                f"(goals/reference/linkage.md § The four moments it changes). "
-                f"Nothing was written")
-        # **Bytes, not `read_text()`.** Text mode is universal-newlines: it
-        # would hand this editor a CRLF file with every `\r` already stripped,
-        # the guard below would never fire, and the write would silently
-        # convert the whole register to LF — a diff on every line of a file
-        # this tool was asked to append one item to.
-        self.text = path.read_bytes().decode("utf-8")
-        if "\r" in self.text:
-            raise Refused(
-                f"{path.name} has CRLF line endings; this writer splices LF "
-                f"lines and would leave the file mixed. Nothing was written")
-        self.lines = self.text.split("\n")
-        self.model = P.parse_linkage(self.text)
-        if not self.model.ok:
-            raise Refused(
-                f"{path.name} cannot be read ({self.model.error or 'no spec'}) "
-                f"— and a register Perry cannot read is one this tool must not "
-                f"append to, because the append would be judged against a graph "
-                f"nobody can see. Fix it, or run `perry-lint --root .` for the "
-                f"line. Nothing was written")
-        #: **The graph `link`'s refusals are judged against — the store when
-        #: the project has one.** `self.model` stays the DOCUMENT's parse: it
-        #: is what the line locator was built against and what `verify`
-        #: re-reads, and a splice has to be checked against the file it lands
-        #: in. `self.graph` is what is TRUE, which after DESIGN-015 row C is
-        #: what `linkage.jsonl` says. Where the two disagree,
-        #: `perry-lint § linkage-store-drift` is the thing that reports it.
-        self.graph = linkage_graph(self.state_root, self.model,
-                                   path.name.split("-", 1)[0])
-        self.lo, self.hi = self._fence()
-        self.entries = self._locate()
-        self.edits: list[tuple[int, str, str]] = []
-        #: Records this write appends to `linkage.jsonl`, filled by
-        #: `link_edge` / `link_unlinked` and flushed by `cmd_link` under the
-        #: same lock as the document write. `store_retractions` names the task
-        #: ids whose `unlinked` record this write removes — the store half of
-        #: the "it renders as both attributed and drifting" rule, and the only
-        #: line in this tool that takes a record out rather than appending one.
-        self.store_records: list[dict] = []
-        self.store_retractions: list[str] = []
-
-    # -- reading
-
-    def render(self) -> str:
-        """Exactly what `__init__` read, unless a line was edited.
-
-        `split("\n")` / `join("\n")` round-trips a file with no trailing
-        newline and one with several; `splitlines()` does not. Same reason as
-        `Okr.render`, and the same test.
-        """
-        return "\n".join(self.lines)
-
-    def unchanged(self) -> bool:
-        return self.render() == self.text
-
-    def _fence(self) -> tuple[int, int]:
-        """(first, last) line indexes of the frontmatter BODY, exclusive end."""
-        if not re.match(r"\A\ufeff?---[ \t]*$", self.lines[0] if self.lines else ""):
-            raise Refused(
-                f"{self.path.name} does not open with a `---` fence, so it "
-                f"carries no frontmatter to write. Nothing was written")
-        for i in range(1, len(self.lines)):
-            if re.match(r"^---[ \t]*$", self.lines[i]):
-                return 1, i
-        raise Refused(
-            f"{self.path.name}'s frontmatter fence is never closed. "
+            f"{what} contains a line break. A store record is one line. "
             f"Nothing was written")
-
-    def _live(self, i: int) -> bool:
-        """A line the reader looks at — not blank, not a whole-line comment."""
-        s = self.lines[i].strip()
-        return bool(s) and not s.startswith("#")
-
-    def _container(self, i: int, indent: int) -> str:
-        """The key whose list this `- ` item at `indent` belongs to."""
-        for j in range(i - 1, self.lo - 1, -1):
-            if not self._live(j):
-                continue
-            if _indent(self.lines[j]) < indent:
-                m = re.match(r"^\s*([A-Za-z_][\w.-]*)\s*:\s*$", self.lines[j])
-                return m.group(1) if m else ""
-        return ""
-
-    def _item_end(self, start: int, indent: int) -> int:
-        """First line after `start` that is outside this list item."""
-        for j in range(start + 1, self.hi):
-            if not self._live(j):
-                continue
-            if _indent(self.lines[j]) <= indent:
-                return j
-        return self.hi
-
-    def _locate(self) -> dict[str, list[dict]]:
-        """Every entry the model carries, found on a line.
-
-        The model comes from the reader; the LINE comes from here, and the two
-        are reconciled before any edit. This is the one place a second opinion
-        about the file's shape could enter, so it is also the one place that
-        refuses instead of proceeding when the opinions differ.
-        """
-        found: dict[str, list[dict]] = {k: [] for k in self.KINDS.values()}
-        for i in range(self.lo, self.hi):
-            m = re.match(r"^(\s*)-\s+id\s*:\s*(.+?)\s*$", self.lines[i])
-            if not m:
-                continue
-            indent = len(m.group(1))
-            kind = self.KINDS.get(self._container(i, indent))
-            if not kind:
-                continue
-            found[kind].append({
-                "id": _unquote(m.group(2)), "start": i, "indent": indent,
-                "end": self._item_end(i, indent)})
-        expected = {
-            "objective": [o.id for o in self.model.objectives],
-            "kr": [k.id for o in self.model.objectives for k in o.krs],
-            "project": [p.project_id for p in self.model.projects],
-            "agent": [a.id for a in self.model.agents]}
-        for kind, ids in expected.items():
-            got = [e["id"] for e in found[kind]]
-            if got != ids:
-                raise Refused(
-                    f"this writer could not find every {kind} entry of "
-                    f"{self.path.name} on a line — the reader sees {ids} and "
-                    f"the line scan sees {got}. That disagreement is this "
-                    f"tool's bug or a shape it was never taught, and either "
-                    f"way it must not edit by line number here. "
-                    f"Nothing was written")
-        return found
-
-    def entry(self, kind: str, ident: str) -> dict | None:
-        for e in self.entries[kind]:
-            if e["id"] == ident:
-                return e
-        return None
-
-    def child_indent(self, entry: dict) -> int:
-        for j in range(entry["start"] + 1, entry["end"]):
-            if self._live(j):
-                return _indent(self.lines[j])
-        return entry["indent"] + 2
-
-    def last_content_line(self, entry: dict) -> int:
-        """The last line the reader looks at inside this entry.
-
-        Where a key the entry does not carry yet is inserted. Not `end - 1`:
-        an entry may be followed by a blank line or a comment, and putting
-        `tasks:` after one of those would move it out of the entry.
-        """
-        last = entry["start"]
-        for j in range(entry["start"] + 1, entry["end"]):
-            if self._live(j):
-                last = j
-        return last
-
-    def key_line(self, name: str, lo: int, hi: int, indent: int) -> int | None:
-        """The line carrying `<name>:` at exactly `indent`, in [lo, hi)."""
-        for j in range(lo, hi):
-            if not self._live(j) or _indent(self.lines[j]) != indent:
-                continue
-            if re.match(rf"^\s*{re.escape(name)}\s*:(\s|$)", self.lines[j]):
-                return j
-        return None
-
-    def top_key_line(self, name: str) -> int | None:
-        return self.key_line(name, self.lo, self.hi, 0)
-
-    # -- editing
-    #
-    # Every mutation below goes through `_set` or `_insert`, so the record of
-    # what this write touched is kept by construction rather than recovered by
-    # diffing afterwards. `--dry-run` prints it.
-
-    def set_line(self, i: int, line: str) -> None:
-        self.edits.append((i, self.lines[i], line))
-        self.lines[i] = line
-
-    def insert_line(self, i: int, line: str) -> None:
-        """Insert, and move every index this object holds that sits after it.
-
-        The fence and the located entries are line numbers, and a writer that
-        inserted a line without moving them would make its *second* edit at an
-        offset that was correct before its first. `verify` would catch it; the
-        bookkeeping is here so it never has to."""
-        self.edits.append((i, None, line))
-        self.lines[i:i] = [line]
-        if i <= self.hi:
-            self.hi += 1
-        for entries in self.entries.values():
-            for e in entries:
-                e["start"] += (e["start"] >= i)
-                e["end"] += (e["end"] >= i)
-
-    def delete_line(self, i: int) -> None:
-        self.edits.append((i, self.lines[i], None))
-        del self.lines[i]
-        if i < self.hi:
-            self.hi -= 1
-        for entries in self.entries.values():
-            for e in entries:
-                e["start"] -= (e["start"] > i)
-                e["end"] -= (e["end"] > i)
-
-    def block_items(self, i: int, indent: int) -> list[int]:
-        """Line indexes of a block list written beneath the key on line `i`."""
-        out = []
-        for j in range(i + 1, self.hi):
-            if not self._live(j):
-                continue
-            ind = _indent(self.lines[j])
-            if ind <= indent:
-                break
-            if self.lines[j].lstrip().startswith("- "):
-                out.append(j)
-        return out
-
-    def append_to_list(self, i: int, indent: int, value: str) -> None:
-        """Append one scalar to the list on line `i` — flow or block.
-
-        Three shapes, because all three are legal and Perry's own files carry
-        two of them: `tasks: []`, `tasks: ["A"]`, and a block list of `- `
-        lines. In every case the bytes that survive are every byte that is not
-        the one item being added.
-        """
-        line = self.lines[i]
-        colon = line.index(":", _indent(line))
-        span = flow_span(line, colon)
-        if span:
-            open_at, close_at = span
-            inner = line[open_at + 1:close_at]
-            items = flow_items(inner)
-            if not items:
-                new_inner = render_scalar(value)
-            else:
-                last = inner[items[-1][0]:items[-1][1]]
-                sep = ", " if re.search(r",\s", inner) else ("," if "," in inner else ", ")
-                tail = len(inner) - len(inner.rstrip())
-                new_inner = (inner[:len(inner) - tail] + sep
-                             + render_scalar(value, last) + inner[len(inner) - tail:])
-            self.set_line(i, line[:open_at + 1] + new_inner + line[close_at:])
-            return
-        rows = self.block_items(i, indent)
-        if rows:
-            at = rows[-1]
-            like = self.lines[at].lstrip()[2:]
-            self.insert_line(at + 1, " " * _indent(self.lines[at]) + "- "
-                         + render_scalar(value, like))
-            return
-        if line[colon + 1:].strip():
-            raise Refused(
-                f"`{line.strip()}` is not a list this writer can append to — "
-                f"it carries a scalar. Nothing was written")
-        self.set_line(i, line.rstrip() + " [" + render_scalar(value) + "]")
-
-    def remove_from_list(self, i: int, indent: int, value: str) -> None:
-        """Remove one scalar from the list on line `i`. The inverse, same rules."""
-        line = self.lines[i]
-        colon = line.index(":", _indent(line))
-        span = flow_span(line, colon)
-        if span:
-            open_at, close_at = span
-            inner = line[open_at + 1:close_at]
-            items = flow_items(inner)
-            for n, (a, b) in enumerate(items):
-                if _unquote(inner[a:b]) != value:
-                    continue
-                if n + 1 < len(items):        # take the separator after it
-                    cut_a, cut_b = a, items[n + 1][0]
-                elif n:                        # or the one before it
-                    cut_a, cut_b = items[n - 1][1], b
-                else:                          # the only item
-                    cut_a, cut_b = a, b
-                self.set_line(i, line[:open_at + 1] + inner[:cut_a] + inner[cut_b:]
-                          + line[close_at:])
-                return
-            return
-        for j in self.block_items(i, indent):
-            if _unquote(self.lines[j].lstrip()[2:]) == value:
-                self.delete_line(j)
-                return
-
-    def insert_top_key(self, line: str) -> int:
-        """A top-level key the register does not carry yet, before the fence.
-
-        Placed last rather than in schema order on purpose: every existing key
-        keeps its line, so a register whose author grouped or commented the
-        frontmatter reads afterwards the way it read before, with one line
-        added at the end of the block.
-        """
-        at = self.hi
-        while at > self.lo and not self._live(at - 1):
-            at -= 1
-        self.insert_line(at, line)
-        return at
-
-    def set_updated(self, stamp: str) -> None:
-        """`updated` to a full ISO datetime, in whatever style it is written in.
-
-        Every write bumps it (`goals/reference/linkage.md § The four moments`),
-        and a day-only value is dropped by both readers rather than guessed at
-        — so this always writes the time as well.
-        """
-        i = self.top_key_line("updated")
-        if i is None:
-            self.insert_top_key(f'updated: "{stamp}"')
-            return
-        head, _, rest = self.lines[i].partition(":")
-        lead = len(rest) - len(rest.lstrip(" "))
-        self.set_line(i, f"{head}:{rest[:lead]}"
-                  + render_scalar(stamp, rest.strip() or '""'))
-
-    # -- the gate
-
-    def verify(self, expect: dict) -> None:
-        """Re-read what this write produced, and refuse anything unintended.
-
-        The counterpart of `write_okr_and_store`'s byte comparison, one layer
-        up: there, the store must reproduce the file; here, the file must
-        reproduce the model. Both run **before** anything lands, and both
-        exist because the failure they catch is invisible in the artefact — a
-        register that parses and says something slightly different is not
-        something a reviewer can see by reading the diff.
-        """
-        after = P.parse_linkage(self.render())
-        if not after.ok:
-            raise Refused(
-                f"the write would produce a register Perry could not read "
-                f"({after.error}). That is this writer's bug, not the file's. "
-                f"Nothing was written")
-        got = asdict(after)
-        if got != expect:
-            where = next((k for k in expect if got.get(k) != expect.get(k)), "?")
-            raise Refused(
-                f"the write would change more of the register than it was "
-                f"asked to — the re-read disagrees with the intended graph at "
-                f"`{where}`. That is this writer's bug, not the file's. "
-                f"Nothing was written")
-
-    def diff(self) -> list[str]:
-        """The edits, as `-`/`+` lines. What `--dry-run` prints."""
-        out = []
-        for i, before, after in self.edits:
-            if before is not None:
-                out.append(f"-{i + 1:>4}  {before}")
-            if after is not None:
-                out.append(f"+{i + 1:>4}  {after}")
-        return out
+    return value
 
 
 # ── link — accepting PMO's attribution hand-off ───────────────────────────
@@ -1672,76 +1229,103 @@ class Register:
 def linkage_store_path(state_root: Path) -> Path:
     """`<state root>/linkage.jsonl` — where an edge is canonically written.
 
-    **DESIGN-015 § 5.6 site 1.** `link` is the register's only writer today,
-    and after row C the thing it writes that anyone reads is a record in this
-    file. `register_path` below still resolves the document, and `link` still
-    edits it, because the document is the projection until row E strips its
-    schema'd half and because `metric`, `projects[]` and `agents[]` have no
-    record kind in the store. The two are written together under one lock, the
-    way `write_okr_and_store` writes `OKR.md` and `okr.jsonl` — so a reader
-    cannot catch the pair half-written, and if the process dies between them
-    `perry-lint`'s `linkage-store-drift` reports the difference rather than
-    absorbing it.
+    **DESIGN-015 § 5.6 site 1, and after ADR-019 the whole of it.** `link` is
+    this graph's only writer in the goals lane, and the thing it writes that
+    anyone reads is a record in this file. There is no longer a second file
+    written under the same lock: `phase/<NNN>-linkage.md` is gone, so the
+    half-written pair `perry-lint § linkage-store-drift` used to report cannot
+    occur.
     """
     return state_root / P.LINKAGE_STORE
 
 
-def linkage_graph(state_root: Path, document, phase_number: str):
-    """The graph `link` makes its decisions against — **store first**.
+class Register:
+    """One phase's slice of `linkage.jsonl`, and the records to append to it.
 
-    The refusals in `link_edge` and `link_unlinked` — already linked, linked
-    somewhere else, already declared — are answers about what is true of the
-    project, and after row C what is true of the project is what the store
-    says. Asking the document instead would let `link` accept an edge every
-    reader already carries, or refuse one none of them does.
+    It keeps the name the four `link_*` functions and their tests already use,
+    and nothing else of what it was. The old class held a markdown document as
+    a list of lines and spliced into it; this one holds the parsed graph and a
+    list of records, because the file underneath is JSONL.
 
-    The document is still the SPLICE target and still what `Register.verify`
-    re-reads, and that division is deliberate: the decision is made from the
-    authority, the edit is made against the file being edited. The two agree
-    on this project today and `perry-lint § linkage-store-drift` is what says
-    so on any run.
+    `graph` is what the refusals are judged against — already linked, linked
+    somewhere else, already declared — and it is now the same object the six
+    readers see, rather than a store-derived graph checked beside a document
+    model that might disagree. Where the two disagreed, `perry-lint §
+    linkage-store-drift` reported it; there is one, so it cannot.
     """
-    records = P.load_linkage_store(state_root)
-    if records is None:
-        return document
-    # **One spelling of the per-phase rule, not a second copy of it.** This
-    # filter used to be written out here as well as in `parsers.load_linkage`
-    # and `perry-lint § _linkage_records_for_phase`; TASK-278's V4 review found
-    # four separate store-versus-document decisions and defects in two of them,
-    # because the rule that had been discovered at one was never applied at the
-    # others. `mine is None` is "the store declares no KR for this phase — row
-    # B imported phase 003 only — so it is not the authority here and the
-    # document is."
-    mine = P.linkage_records_for_phase(records, phase_number)
-    if mine is None:
-        return document
-    return P.linkage_from_store(mine, document)
+
+    def __init__(self, state_root: Path, phase: str):
+        self.state_root = Path(state_root)
+        self.phase = phase
+        self.path = linkage_store_path(self.state_root)
+        self.number = P.linkage_phase_number(phase)
+        if not self.number:
+            raise Refused(
+                f"{phase!r} does not name a phase (`<NNN>-<slug>`), so there "
+                f"is no slice of {P.LINKAGE_STORE} to write into. Nothing was "
+                f"written")
+        if not self.path.exists():
+            raise Refused(
+                f"no linkage store at {self.path}. `plan-phase` writes the "
+                f"phase's `objective` and `kr` records when the phase opens "
+                f"(goals/reference/linkage.md § The four moments it changes). "
+                f"Nothing was written")
+        records = P.load_linkage_store(self.state_root)
+        if records is None:
+            raise Refused(
+                f"{P.LINKAGE_STORE} cannot be read as JSONL — and a register "
+                f"Perry cannot read is one this tool must not append to, "
+                f"because the append would be judged against a graph nobody "
+                f"can see. Run `perry-lint --root .` for the line. Nothing "
+                f"was written")
+        self.graph = P.load_linkage(self.state_root, self.number)
+        if not self.graph.ok:
+            raise Refused(
+                f"{P.LINKAGE_STORE} declares no key result for phase "
+                f"{self.number}, so there is no graph for an edge to attach "
+                f"to. `plan-phase` writes one when the phase opens. Nothing "
+                f"was written")
+        #: The `model` the old class exposed was the DOCUMENT's parse, kept
+        #: separate from `graph` because a splice had to be checked against
+        #: the file it landed in. One copy, one name — they are the same
+        #: object now, and the alias stays so the refusal messages and the
+        #: tests that read it need no second vocabulary.
+        self.model = self.graph
+        #: Records this write appends, flushed by `cmd_link` under the project
+        #: lock. `store_retractions` names the task ids whose `unlinked`
+        #: record this write removes — the "it renders as both attributed and
+        #: drifting" rule, and the only line in this tool that takes a record
+        #: out rather than appending one.
+        self.store_records: list[dict] = []
+        self.store_retractions: list[str] = []
+
+    def diff(self) -> list[str]:
+        """The records this write appends and retracts. What `--dry-run` prints."""
+        out = [f"-{P.LINKAGE_STORE}  unlinked → {t}"
+               for t in self.store_retractions]
+        out += [f"+{P.LINKAGE_STORE}  {json.dumps(r, ensure_ascii=False)}"
+                for r in self.store_records]
+        return out
 
 
 def linkage_store_text(reg, declared_at: str, actor: str) -> str | None:
     """The store's new text, or `None` when this write touches no record.
 
-    `None` and empty are different answers and the caller acts on the
-    difference: `None` is "there is no store on this project, or this mode
-    (`--alias`, `--project`) writes no record kind the store declares", and it
-    means nothing is written. Producing an empty store instead would create
-    `linkage.jsonl` on a project that has never had one, on a command that had
-    nothing to put in it — and every reader moved in this row treats a present
-    store as the authority, so an empty one would answer "no edges, anywhere"
-    for a project whose register is full.
-
     **Appended, and rewritten only to retract.** New records go on the end,
     the way a JSONL store is meant to grow. The one removal is the `unlinked`
-    record for a task that just took an edge, which is the store half of the
-    rule `link_edge` already applies to the document: a row that is both
-    attributed and declared drifting is a row the two halves disagree about.
+    record for a task that just took an edge, which is the rule `link_edge`
+    applies: a row that is both attributed and declared drifting is a row the
+    graph disagrees with itself about.
+
+    `declared_at` is the moment of THIS write and belongs to the records this
+    write appends — that is what a declaration's date is. It is emphatically
+    not a file-level stamp: the field that used to be one,
+    `phase/<NNN>-linkage.md`'s `updated:`, re-dated every record in the file
+    on every write and is what TASK-155 was opened about.
     """
-    path = linkage_store_path(reg.state_root)
-    if not path.exists():
-        return None
     if not reg.store_records and not reg.store_retractions:
         return None
-    lines = [line for line in path.read_text(encoding="utf-8").split("\n")
+    lines = [line for line in reg.path.read_text(encoding="utf-8").split("\n")
              if line.strip()]
     if reg.store_retractions:
         kept = []
@@ -1750,26 +1334,19 @@ def linkage_store_text(reg, declared_at: str, actor: str) -> str | None:
                 rec = json.loads(line)
             except json.JSONDecodeError:
                 # A line this tool cannot read is a line it must not drop.
-                # `perry-lint § linkage-store-malformed` reports it by number;
-                # silently discarding it here would make this writer the thing
-                # that lost a record nobody had looked at yet.
                 #
-                # **REACHABLE, and an earlier revision of this comment was
-                # wrong to say otherwise.** The argument was: one unparseable
-                # line makes `parsers.load_linkage_store` answer `None` for
-                # the whole store, so `reg.graph` falls back to the document
-                # and `store_retractions` stays empty. The last step does not
-                # hold. `linkage_graph` returns the `document` argument ITSELF
-                # on that fallback and `Register.__init__` passes `self.model`
-                # — so `reg.graph` IS `reg.model`, `reg.graph.unlinked` is the
-                # DOCUMENT's list, and a task the document declares unlinked
-                # requests a retraction and runs this loop.
-                #
-                # The V4 review proved it by construction and by dropping the
-                # line and watching the record vanish, with the whole suite
-                # still green. `test_an_unreadable_line_survives_a_retraction`
-                # `_too` now drives exactly that path, so this line is guarded
-                # rather than merely asserted to be unnecessary.
+                # **Unreachable through `Register` today, and kept anyway.**
+                # `load_linkage_store` answers `None` for a store with one bad
+                # line, and `Register.__init__` refuses on that `None` — so a
+                # write never reaches this loop over a file it cannot fully
+                # parse. That was NOT true before ADR-019: the graph then fell
+                # back to `phase/<NNN>-linkage.md`, the write proceeded, and
+                # this branch was the only thing carrying an unreadable line
+                # through the rewrite. `tests/test_linkage_store_readers.py §
+                # test_a_store_with_a_line_the_writer_cannot_read_is_refused`
+                # pins the refusal that replaced it, and deliberately does not
+                # pin this line: a test over a branch nothing can reach
+                # measures nothing and teaches the next reader that it does.
                 kept.append(line)
                 continue
             if (isinstance(rec, dict) and rec.get("kind") == "unlinked"
@@ -1784,26 +1361,22 @@ def linkage_store_text(reg, declared_at: str, actor: str) -> str | None:
     return "\n".join(lines) + "\n"
 
 
-def register_path(state_root: Path) -> Path:
-    """`phase/<NNN>-linkage.md` for the CURRENT phase.
+def current_phase(state_root: Path) -> str:
+    """The current phase's `<NNN>-<slug>`, or a refusal.
 
-    The same three lines `parsers.load_snapshot` uses to find the register it
-    parses — deliberately the same rule, because a writer that picked a
-    different file from the one Perry reads would append edges nothing
-    resolves. It is restated rather than imported because `load_snapshot`
-    computes it inside a 90-line function and returns the parsed graph, not
-    the path; a third caller is the moment to extract it into `parsers`, not
-    the moment to copy it again.
+    The same three lines `parsers.load_snapshot` uses to find the phase it
+    reads the graph for — deliberately the same rule, because a writer that
+    picked a different phase from the one Perry reads would append edges
+    nothing resolves.
     """
     pointer = state_root / "phase" / "CURRENT"
     slug = pointer.read_text().strip() if pointer.exists() else ""
     if not slug or slug in {"(none)", "none", "—"}:
         raise Refused(
             "there is no current phase (`phase/CURRENT` is empty or missing), "
-            "so there is no linkage register to write. `/perry goals "
+            "so there is no linkage graph to write. `/perry goals "
             "plan-phase <slug>` opens one. Nothing was written")
-    number = slug.split("-")[0]
-    return state_root / "phase" / f"{number}-linkage.md"
+    return slug
 
 
 def kr_ids(model) -> list[str]:
@@ -1895,14 +1468,14 @@ def claimed_by(model, label: str) -> str:
     return ""
 
 
-def link_edge(reg: Register, expect: dict, task: str, token: str) -> dict:
+def link_edge(reg: Register, task: str, token: str) -> dict:
     """1 — resolved → append the edge (`goals/reference/linkage.md § link`).
 
-    **Judged against `reg.graph`, written to both halves.** DESIGN-015 § 5.6
-    site 1: the question "is this task already linked, and to what" is a
-    question about the project, and after row C the store is what answers it.
-    The splice into the document is unchanged, and the `edge` record appended
-    beside it is what every reader moved in this row will actually see.
+    **Judged against the graph, written to the store, and after ADR-019 those
+    are one file.** The question "is this task already linked, and to what" is
+    a question about the project; it is answered from `linkage.jsonl`, which is
+    also where the answer is written. The old writer asked the store and
+    spliced the document, and the two could disagree between the two writes.
     """
     kr = resolve_target(reg.graph, token, task)
     if kr not in kr_ids(reg.graph):
@@ -1918,37 +1491,13 @@ def link_edge(reg: Register, expect: dict, task: str, token: str) -> dict:
         raise Refused(
             f"{task} is already listed under {holder}; linking it to {kr} as "
             f"well would make its attribution ambiguous, and `perry-lint` "
-            f"rejects that file (`linkage-task-single-kr`). Move it, don't "
+            f"rejects that (`linkage-task-single-kr`). Move it, don't "
             f"duplicate it — remove the edge under {holder} first, on the "
             f"user's confirmation. Nothing was written")
-    entry = reg.entry("kr", kr)
-    indent = reg.child_indent(entry)
-    line = reg.key_line("tasks", entry["start"], entry["end"], indent)
-    if line is None:
-        line = reg.last_content_line(entry) + 1
-        reg.insert_line(line, " " * indent + "tasks: []")
-    reg.append_to_list(line, indent, task)
-    for o in expect["objectives"]:
-        for k in o["krs"]:
-            if k["id"] == kr:
-                k["tasks"] = list(k["tasks"]) + [task]
     out = {"kr": kr, "task": task}
     reg.store_records.append({"kind": "edge", "task": task, "kr": kr})
-    # "If the task is currently in `unlinked[]`, remove it there in the same
-    # edit — otherwise it renders as both attributed and drifting."
-    #
-    # **The document is spliced from `reg.model` and the store from
-    # `reg.graph`, and both conditions are asked.** A row declared unlinked in
-    # one and not the other is drift `perry-lint` reports; retracting only the
-    # half this writer happened to look at would leave the row rendering as
-    # both attributed and drifting, which is the exact outcome this clause
-    # exists to prevent.
-    if task in reg.model.unlinked:
-        at = reg.top_key_line("unlinked")
-        if at is not None:
-            reg.remove_from_list(at, 0, task)
-        expect["unlinked"] = [t for t in expect["unlinked"] if t != task]
-        out["undeclared_unlinked"] = True
+    # "If the task is currently declared unlinked, retract that in the same
+    # write — otherwise it renders as both attributed and drifting."
     if task in reg.graph.unlinked:
         reg.store_retractions.append(task)
         out["undeclared_unlinked"] = True
@@ -1960,12 +1509,12 @@ def link_edge(reg: Register, expect: dict, task: str, token: str) -> dict:
 TASK_ID_SHAPE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\d+$")
 
 
-def link_unlinked(reg: Register, expect: dict, task: str) -> dict:
+def link_unlinked(reg: Register, task: str) -> dict:
     """3 — unresolved → declare it unlinked. A DECLARATION, never inferred.
 
     **The argument is validated as a shape before anything is written**
     (TASK-227). This path validated nothing at all, and `perry-lint` did not
-    check `unlinked[]` either, so two malformed declarations went in on
+    check the declarations either, so two malformed ones went in on
     2026-08-28 and the lint reported 0 errors over both:
 
     - the literal string `NOT-A-TASK-ID at all`, and
@@ -1998,46 +1547,44 @@ def link_unlinked(reg: Register, expect: dict, task: str) -> dict:
             f"{task!r} is not a task id. `--unlinked` declares that a KNOWN "
             f"row serves no KR, so the argument has to be a handle something "
             f"can be looked up by — `TASK-123`, `REL-007`. Nothing was written")
-    # **Asked of `reg.graph`, which is the store when the project has one.**
-    # DESIGN-015 § 5.6 site 1: "is this row already linked" is a question the
-    # readers answer from `linkage.jsonl` after row C, so the writer that
-    # refuses on it has to ask the same file, or it will accept a declaration
-    # that contradicts every reader.
     holder = reg.graph.kr_for_task(task)
     if holder:
         raise Refused(
             f"{task} is linked to {holder}. Declaring it unlinked as well "
-            f"would render it as both attributed and drifting, and the two "
-            f"lists would disagree about the same task. Remove the edge under "
-            f"{holder} first, on the user's confirmation. Nothing was written")
-    if task in reg.graph.unlinked and task in reg.model.unlinked:
+            f"would render it as both attributed and drifting, and the graph "
+            f"would disagree with itself about the same task. Remove the edge "
+            f"under {holder} first, on the user's confirmation. Nothing was "
+            f"written")
+    if task in reg.graph.unlinked:
         return {"already": f"{task} is already declared unlinked"}
-    if task not in reg.model.unlinked:
-        at = reg.top_key_line("unlinked")
-        if at is None:
-            at = reg.insert_top_key("unlinked: []")
-        reg.append_to_list(at, 0, task)
-        expect["unlinked"] = list(expect["unlinked"]) + [task]
-    if task not in reg.graph.unlinked:
-        reg.store_records.append({"kind": "unlinked", "task": task})
+    reg.store_records.append({"kind": "unlinked", "task": task,
+                              "phase": reg.graph.phase or reg.phase})
     return {"task": task, "unlinked": True}
 
 
-def link_alias(reg: Register, expect: dict, pid: str, name: str) -> dict:
+def link_alias(reg: Register, pid: str, name: str) -> dict:
     """2 — a name was confirmed as an existing Project → append the alias.
 
     Only on the user's confirmation, which this tool cannot check and does not
     pretend to: what it can check is that the name is not already somebody
     else's, which is the ambiguity the registry exists to prevent.
+
+    **An alias is a NEW `project` record, not an edit to the old one.** The
+    store is append-only apart from the one retraction `link_edge` makes, so
+    the alias arrives as a second record for the same Project id carrying the
+    full alias list; `parsers.linkage_from_store` reads the records in file
+    order and the later one wins. Rewriting the earlier line would be this
+    writer editing a record it did not write, on a file where every other
+    change is an append.
     """
-    project = next((p for p in reg.model.projects if p.project_id == pid), None)
+    project = next((p for p in reg.graph.projects if p.project_id == pid), None)
     if project is None:
         raise Refused(
             f"no Project {pid} in this phase's graph. Its Project ids are: "
-            f"{', '.join(p.project_id for p in reg.model.projects) or '(none)'}"
+            f"{', '.join(p.project_id for p in reg.graph.projects) or '(none)'}"
             f". A new one is registered with `link --project <PROJECT-ID> "
             f"<KR-ID> \"<name>\"`. Nothing was written")
-    owner = claimed_by(reg.model, name)
+    owner = claimed_by(reg.graph, name)
     if owner == pid:
         return {"already": f"{pid} already answers to {name!r}"}
     if owner:
@@ -2047,34 +1594,29 @@ def link_alias(reg: Register, expect: dict, pid: str, name: str) -> dict:
             f"prevent — attribution could not resolve it to one KR, and "
             f"`perry-lint` rejects it (`linkage-names-unique`). Nothing was "
             f"written")
-    entry = reg.entry("project", pid)
-    indent = reg.child_indent(entry)
-    line = reg.key_line("aliases", entry["start"], entry["end"], indent)
-    if line is None:
-        line = reg.last_content_line(entry) + 1
-        reg.insert_line(line, " " * indent + "aliases: []")
-    reg.append_to_list(line, indent, name)
-    for p in expect["projects"]:
-        if p["project_id"] == pid:
-            p["aliases"] = list(p["aliases"]) + [name]
+    rec = {"kind": "project", "phase": reg.graph.phase or reg.phase,
+           "id": pid, "kr": project.serves_kr, "name": project.name,
+           "aliases": list(project.aliases) + [name]}
+    if project.status and project.status != "active":
+        rec["status"] = project.status
+    reg.store_records.append(rec)
     return {"project": pid, "alias": name}
 
 
-def link_project(reg: Register, expect: dict, pid: str, kr: str,
-                 name: str) -> dict:
+def link_project(reg: Register, pid: str, kr: str, name: str) -> dict:
     """4 — a new Project appeared mid-phase → append it to the registry."""
-    if any(p.project_id == pid for p in reg.model.projects):
+    if any(p.project_id == pid for p in reg.graph.projects):
         raise Refused(
             f"Project {pid} is already in this phase's graph. A Project "
             f"serves exactly one KR; if this is a second one, it needs its "
             f"own id. Nothing was written")
-    if kr not in kr_ids(reg.model):
+    if kr not in kr_ids(reg.graph):
         raise Refused(
             f"{kr} is not a KR id in this phase's graph. Its KR ids are: "
-            f"{', '.join(kr_ids(reg.model)) or '(none)'}. A Project is "
+            f"{', '.join(kr_ids(reg.graph)) or '(none)'}. A Project is "
             f"registered against a declared KR, never against a new one. "
             f"Nothing was written")
-    owner = claimed_by(reg.model, name)
+    owner = claimed_by(reg.graph, name)
     if owner:
         raise Refused(
             f"{name!r} is already claimed by {owner}. Two Projects answering "
@@ -2083,10 +1625,11 @@ def link_project(reg: Register, expect: dict, pid: str, kr: str,
             f"same Project under a new name, that is an alias: `link --alias "
             f"{owner} \"{name}\"`. Nothing was written")
     # `objective` is DERIVED from the KR id — `P002-O1-KR2` → `O1` — and then
-    # checked against the objective the KR actually sits under. The linter
-    # checks the first agreement (`linkage-objective-agrees`); the second is
-    # this writer refusing to add a row to a graph whose own nesting already
-    # disagrees with its ids, rather than picking a side.
+    # checked against the objective the KR actually sits under. The `project`
+    # record STORES no objective for exactly this reason (one fact, one
+    # place); what this refusal catches is a graph whose own KR ids already
+    # disagree with the objectives they sit under, which is a disagreement
+    # this writer must not pick a side in.
     # Anchored end to end (TASK-180). The pre-2026-08-28 `P-O1.2` [[old-form]]
     # was prefix-matched here because its phase was nowhere in the id; the
     # new form has every segment labelled, so a partial match would only
@@ -2097,7 +1640,7 @@ def link_project(reg: Register, expect: dict, pid: str, kr: str,
     # because `objective` falls back to the nesting and the refusal below
     # is the only thing that notices.
     m = re.match(r"^P\d{3}-(O\d+)-KR\d+$", kr)
-    nests_under = objective_of(reg.model, kr)
+    nests_under = objective_of(reg.graph, kr)
     objective = m.group(1) if m else nests_under
     if m and nests_under and objective != nests_under:
         raise Refused(
@@ -2106,35 +1649,9 @@ def link_project(reg: Register, expect: dict, pid: str, kr: str,
             f"cannot tell, and a Project entry would have to agree with one "
             f"of them. Fix the graph first (`perry-lint --root .`). "
             f"Nothing was written")
-    at = reg.top_key_line("projects")
-    if at is None:
-        at = reg.insert_top_key("projects:")
-    else:
-        span = flow_span(reg.lines[at], reg.lines[at].index(":"))
-        if span:
-            if flow_items(reg.lines[at][span[0] + 1:span[1]]):
-                raise Refused(
-                    "`projects:` is written as an inline list of maps, which "
-                    "this register's reader does not support (nested flow "
-                    "maps are outside `parse_yaml_subset`). Nothing was "
-                    "written")
-            reg.set_line(at, reg.lines[at][:span[0]].rstrip())
-    rows = reg.block_items(at, 0)
-    indent = _indent(reg.lines[rows[-1]]) if rows else 2
-    tail = reg.entries["project"][-1]["end"] if reg.entries["project"] \
-        else at + 1
-    block = [f'{" " * indent}- id: {render_scalar(pid)}',
-             f'{" " * (indent + 2)}serves: {kr}']
-    if objective:
-        block.append(f'{" " * (indent + 2)}objective: {objective}')
-    block += [f'{" " * (indent + 2)}name: {render_scalar(name)}',
-              f'{" " * (indent + 2)}aliases: []',
-              f'{" " * (indent + 2)}status: active']
-    for n, line in enumerate(block):
-        reg.insert_line(tail + n, line)
-    expect["projects"] = list(expect["projects"]) + [{
-        "project_id": pid, "serves_kr": kr, "objective": objective,
-        "name": name, "aliases": [], "status": "active"}]
+    reg.store_records.append({
+        "kind": "project", "phase": reg.graph.phase or reg.phase,
+        "id": pid, "kr": kr, "name": name, "aliases": []})
     return {"project": pid, "serves": kr, "objective": objective,
             "name": name}
 
@@ -2143,9 +1660,7 @@ LINK_MODES = ("alias", "unlinked", "project")
 
 
 def cmd_link(args, ctx) -> dict:
-    """`link` — the four moments `goals/reference/linkage.md` documents.
-
-    One command, four shapes, and the argument grammar is that page's own:
+    """`link` — the only writer of the O→KR→task graph in the goals lane.
 
         link <TASK-ID> <KR-ID>                     the edge
         link --alias <PROJECT-ID> "<name>"         a confirmed second name
@@ -2187,69 +1702,55 @@ def cmd_link(args, ctx) -> dict:
                                 f"(argument {n + 1})".strip())
               for n, v in enumerate(rest)]
 
-    expect = asdict(reg.model)
-    stamp = lib.register_stamp()
     if mode == "edge":
-        result = link_edge(reg, expect, values[0], values[1])
+        result = link_edge(reg, values[0], values[1])
     elif mode == "unlinked":
-        result = link_unlinked(reg, expect, values[0])
+        result = link_unlinked(reg, values[0])
     elif mode == "alias":
-        result = link_alias(reg, expect, values[0], values[1])
+        result = link_alias(reg, values[0], values[1])
     else:
-        result = link_project(reg, expect, values[0], values[1], values[2])
+        result = link_project(reg, values[0], values[1], values[2])
 
     result["mode"] = mode
     result["file"] = str(reg.path)
     if result.get("already"):
-        # Nothing to write, and saying so is the whole answer. A no-op that
-        # bumped `updated` would report the graph as freshly asserted on a run
-        # that changed nothing — the same lie `current: 0` tells one field over.
+        # Nothing to write, and saying so is the whole answer.
         result["written"] = False
         result["diff"] = []
         return result
-    # **Bumping `updated` also re-dates every `current` in the register**, and
-    # that is reported rather than absorbed. `goals/reference/linkage.md` says
-    # every write bumps it, and both readers need it — but TASK-120's
-    # `asserted_at` is read FROM it, at `asserted_scope: "register"`, because
-    # there is no per-KR assertion date. So an edge appended to one KR moves
-    # the staleness reference of numbers asserted weeks ago under every other
-    # KR: a `current` whose linked task moved yesterday reported STALE before
-    # this write and reads fresh after it, with nothing about the number
-    # changed. One field is carrying two facts — when the graph last changed,
-    # and when a number was arrived at — which is the same shape as the `By
-    # when` column TASK-091 had to split into `due` + `by_when_note`.
+    # **THE `updated` BUMP IS GONE, AND SO IS THE WARNING THAT STOOD HERE.**
     #
-    # It is NOT fixed here: a per-KR assertion date is a new field in
-    # `schema/state-schema.json`, which is behind this project's safety gate
-    # (TASK-119 § verification 5). Naming it on every write is what keeps it
-    # from being discovered as a silent number months later.
-    redated = [k.id for o in reg.model.objectives for k in o.krs
-               if k.current is not None]
-    if redated:
-        result["current_assertions_redated"] = redated
-        if not args.as_json:
-            print(f"perry-goals: ⚠ this write bumps `updated`, which is also "
-                  f"where `current`'s assertion date is read from "
-                  f"(`asserted_scope: register` — there is no per-KR date). "
-                  f"{len(redated)} KR(s) with an asserted `current` will read "
-                  f"as freshly asserted and lose any staleness signal: "
-                  f"{', '.join(redated)}. Nothing about those numbers "
-                  f"changed.", file=sys.stderr)
-    reg.set_updated(stamp)
-    expect["updated"] = stamp
-    reg.verify(expect)
-    result["updated"] = stamp
+    # What used to be here: every write bumped `phase/<NNN>-linkage.md`'s
+    # file-level `updated:` stamp, because `goals/reference/linkage.md` said
+    # every write bumps it and both readers needed it. But TASK-120's
+    # `asserted_at` was read FROM that same field, at `asserted_scope:
+    # "register"`, because there was no per-KR assertion date. So an edge
+    # appended to one KR moved the staleness reference of numbers asserted
+    # weeks ago under every other KR: a `current` whose linked task moved
+    # yesterday reported STALE before the write and read fresh after it, with
+    # nothing about the number changed. One field carried three facts — when
+    # the graph changed, when a number was arrived at, and when each of 115
+    # imported records was declared.
+    #
+    # Twenty-four lines here named that defect on every run and declined to
+    # fix it, because a per-KR assertion date was a new field in
+    # `schema/state-schema.json` and that file is behind this project's safety
+    # gate. ADR-019 opened the gate and deleted the document. Each of the
+    # three facts is now its own per-record field — `kr.asserted_at`,
+    # `edge.declared_at`, `unlinked.declared_at` — so this write dates the
+    # records it appends and touches no other. TASK-155 is not fixed here; it
+    # is unable to happen here.
     result["diff"] = reg.diff()
     # **DESIGN-015 § 5.6 site 1, and § 5.5's per-kind discipline made
     # auditable.** Every record this lane writes carries `actor` and `via`
-    # from the start, before anything enforces which lane may write which
-    # kind, because § 7's mitigation for that risk is that the rule be
-    # readable off the records. `via: "link"` is the half of `P003-O3-KR2`
-    # this path is NOT — the KR counts edges declared in the same action as
-    # `add`, and `perry-task add --kr` writing `via: "add"` is row D.
+    # from the start, because § 7's mitigation for the risk that a lane writes
+    # a kind it may not is that the rule be readable off the records.
+    # `via: "link"` is the half of `P003-O3-KR2` this path is NOT — the KR
+    # counts edges declared in the same action as `add`, and `perry-task add
+    # --kr` writing `via: "add"` is row D.
     store_text = linkage_store_text(reg, lib.register_stamp(), args.actor)
     if store_text is not None:
-        result["store"] = str(linkage_store_path(ctx["state_root"]))
+        result["store"] = str(reg.path)
         result["store_records_written"] = len(reg.store_records)
         result["store_records_retracted"] = list(reg.store_retractions)
     event = {"ts": lib.event_stamp(),
@@ -2262,16 +1763,8 @@ def cmd_link(args, ctx) -> dict:
         result["dry_run"] = True
         result["written"] = False
         return result
-    write_atomic(ctx["state_root"], reg.path, reg.render())
-    # The store is written second and unconditionally, under the same project
-    # lock as the document above — the rule `write_okr_and_store` already
-    # follows for `OKR.md` and `okr.jsonl`, and for the same reason: a reader
-    # cannot catch the pair half-written, and a process that dies between them
-    # leaves a difference `perry-lint § linkage-store-drift` reports rather
-    # than one that is absorbed in silence.
     if store_text is not None:
-        write_atomic(ctx["state_root"],
-                     linkage_store_path(ctx["state_root"]), store_text)
+        write_atomic(ctx["state_root"], reg.path, store_text)
     result["written"] = True
     result["event_written"] = append_event(ctx["project_root"], event)
     return result
@@ -3182,7 +2675,8 @@ def canonical_of(header_cell: str, names: list[str]) -> str:
 # field lives in both.*
 #
 # A phase KR's id, title, metric, target and linked overall KR are schema'd
-# fields of `phase/<NNN>-linkage.md`. They were ALSO written into a markdown
+# fields of `linkage.jsonl` (they were fields of `phase/<NNN>-linkage.md`
+# until ADR-019 deleted that file). They were ALSO written into a markdown
 # table in `phase/<NNN>-<slug>.md`, by hand, by `plan-phase` — the same four
 # facts twice, in two files in one directory, with nothing comparing them.
 # `perry-lint` reported drift for six declared stores and nothing for this
@@ -3213,24 +2707,20 @@ def kr_table_columns() -> list[str]:
                   "tool cannot invent a header for one")
 
 
-def phase_register(state_root: Path, phase: str | None) -> Path:
-    """The register to read — the current phase's, or the one `--phase` names.
+def phase_number_to_read(state_root: Path, phase: str | None) -> str:
+    """Which phase's slice of the store to read — the current one, or `--phase`.
 
     `--phase` takes the number (`003`) rather than the slug, because that is
-    what the file is named by and it is the half of `<NNN>-<slug>` that cannot
-    be misremembered.
+    the half of `<NNN>-<slug>` that cannot be misremembered and it is what
+    every record in the store is filtered by.
     """
     if not phase:
-        return register_path(state_root)
+        return P.linkage_phase_number(current_phase(state_root))
     number = str(phase).strip()
     if not re.fullmatch(r"\d{3}", number):
         raise Refused(f"--phase takes a three-digit phase number such as "
                       f"`003`, not {phase!r}")
-    path = state_root / "phase" / f"{number}-linkage.md"
-    if not path.exists():
-        raise Refused(f"no linkage register at "
-                      f"{path.relative_to(state_root).as_posix()}")
-    return path
+    return number
 
 
 def cmd_krs(args, ctx) -> dict:
@@ -3239,25 +2729,30 @@ def cmd_krs(args, ctx) -> dict:
     Read-only by construction: it takes no write path, appends no event and
     holds no `--write`. `perry-goals link` is still the register's only writer.
 
-    **DESIGN-015 § 5.6 site 2.** The typed half — ids, titles, `target`,
-    `current`, `stretch`, `linked`, and the edges under each KR — is read from
-    the store; `metric` and `due` are read from the document beside it, which
-    is where an argument about a number belongs (Decision 2). `phase_register`
-    still resolves that document, and the payload still names it, because it
-    is the file a user edits and the one the render points at.
+    **DESIGN-015 § 5.6 site 2, finished by ADR-019.** Every field printed
+    here — ids, titles, `metric`, `target`, `current`, `stretch`, `linked`,
+    and the edges under each KR — comes from `linkage.jsonl`. `metric` and
+    `due` used to be read from `phase/<NNN>-linkage.md` beside it, on the
+    ground that an argument about a number belongs in a document; that
+    document is gone, so there is one file and one answer.
     """
     if args.rest:
         raise Refused(f"`krs` takes no positional arguments and no `--write`; "
                       f"got {' '.join(args.rest)!r}. It is a READ — the phase "
                       f"document has no KR table for it to write into, which "
                       f"is the whole of TASK-157. Nothing was printed")
-    path = phase_register(ctx["state_root"], args.phase)
-    model = P.load_linkage(ctx["state_root"], path)
+    number = phase_number_to_read(ctx["state_root"], args.phase)
+    model = P.load_linkage(ctx["state_root"], number)
     if model.error:
-        raise Refused(f"{path.name} does not parse as a linkage register "
+        raise Refused(f"{P.LINKAGE_STORE} does not read as a linkage graph "
                       f"({model.error}). A half-read graph would print a KR "
                       f"table missing whichever rows it dropped, which is the "
                       f"one thing this command must never do")
+    if not model.ok:
+        raise Refused(f"{P.LINKAGE_STORE} declares no key result for phase "
+                      f"{number}. `plan-phase` writes them when the phase "
+                      f"opens; nothing was printed, because an empty table "
+                      f"and a phase with no register read the same")
     objectives = []
     for obj in model.objectives:
         objectives.append({
@@ -3268,8 +2763,8 @@ def cmd_krs(args, ctx) -> dict:
                      "stretch": bool(k.stretch), "tasks": list(k.tasks or [])}
                     for k in obj.krs],
         })
-    return {"register": path.name, "phase": model.phase,
-            "updated": model.updated, "objectives": objectives,
+    return {"register": P.LINKAGE_STORE, "phase": model.phase,
+            "objectives": objectives,
             "counts": {"objectives": len(objectives),
                        "krs": sum(len(o["krs"]) for o in objectives)}}
 
@@ -3284,9 +2779,8 @@ def render_krs(result: dict) -> str:
     """
     columns = kr_table_columns()
     out = [f"# Phase {result['phase'] or '—'} — key results",
-           f"> Declared in `phase/{result['register']}` · updated "
-           f"{result['updated'] or '—'}. This is a render, not a file: the "
-           f"register is the only place these values live."]
+           f"> Declared in `{result['register']}`. This is a render, not a "
+           f"file: the store is the only place these values live."]
     for obj in result["objectives"]:
         out += ["", f"## {obj['id']} — {obj['title']}", ""]
         if not obj["krs"]:
@@ -3431,17 +2925,17 @@ def main(argv: list[str]) -> int:
             # disagreements, because a disagreement needs a foreign project.
             # `--migrate`'s exemption went with it: with no gate to be exempt
             # from, a migration is just a write.
-            register_file = None
+            phase_slug = None
             if args.cmd == "link":
-                register_file = register_path(state_root)
+                phase_slug = current_phase(state_root)
             with project_lock(state_root):
                 ctx = {"project_root": project_root, "state_root": state_root}
-                if register_file is not None:
+                if phase_slug is not None:
                     # `link` needs no `OKR.md` and no track register: it writes
                     # one file and reads one file, and requiring the other two
                     # would refuse an attribution on a project whose OKR is
                     # mid-interview.
-                    ctx["register"] = Register(register_file, state_root)
+                    ctx["register"] = Register(state_root, phase_slug)
                 else:
                     ctx.update({"okr": Okr(state_root / "OKR.md"),
                                 "tracks": tracks_of(project_root),

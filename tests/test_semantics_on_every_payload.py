@@ -160,12 +160,20 @@ class TestNothingWasInventedToFillThem(Base):
             with self.subTest(contract=name):
                 self.assertEqual([], self.live[name]["semantics"])
 
+    #: The minor at which each contract ADDED `semantics`. For the three that
+    #: have nothing to say it is still the current one; `perry-goals/list`
+    #: moved past it at `2.4`, which IS a meaning change and does carry an
+    #: entry — so "the current minor" stopped being the right question and the
+    #: minor is named.
+    KEY_ADDED_AT = {"perry-goals/list": "2.3"}
+
     def test_the_minor_that_added_the_key_is_not_itself_an_entry(self):
         """Adding `semantics` is a key addition, which rule 2 already covers.
         An entry announcing the array's own arrival would be the first false
         alarm in it — the call `perry-task` made for its `1.15` and `1.17`."""
         for name in EMPTY_TODAY + ("perry-goals/list",):
-            minor = self.live[name]["contract"].rsplit("/", 1)[-1]
+            current = self.live[name]["contract"].rsplit("/", 1)[-1]
+            minor = self.KEY_ADDED_AT.get(name, current)
             with self.subTest(contract=name):
                 self.assertNotIn(
                     minor, [e["version"]

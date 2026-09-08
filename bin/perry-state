@@ -1752,10 +1752,15 @@ def encode_risk(r):
     return out
 
 
-def encode_linkage_objective(obj, *, updated, status_by_id, events,
+def encode_linkage_objective(obj, *, status_by_id, events,
                              events_present, linkage_records=None):
-    """One objective from the register, with each KR's `current` carrying the
-    provenance the register cannot state for itself.
+    """One objective from the store, with each KR's `current` carrying the
+    provenance the record cannot state for itself.
+
+    **`updated` is gone from this signature, and that is TASK-155's fix.** It
+    was `phase/<NNN>-linkage.md`'s one file-level stamp, passed in here and
+    used as the assertion date of every KR in the phase. Each KR now carries
+    its own `asserted_at`, read off its own `kr` record.
 
     Same rule as `encode_risk` one function up: the register STORES a number
     and the thing a reader needs — whether it can still be trusted — is derived
@@ -1772,7 +1777,7 @@ def encode_linkage_objective(obj, *, updated, status_by_id, events,
     out = encode(obj)
     for encoded, kr in zip(out.get("krs") or [], getattr(obj, "krs", []) or []):
         encoded.update(lib.kr_progress_provenance(
-            kr.current, kr.tasks, register_updated=updated,
+            kr.current, kr.tasks, asserted_at=getattr(kr, "asserted_at", ""),
             status_by_id=status_by_id, events=events,
             events_present=events_present,
             # DESIGN-015 § 6 row F. `None` for every KR but the one the
@@ -2113,7 +2118,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # KR attribution — exact resolution only; the rest are surfaced, not guessed.
     link = snap.linkage
     if link.spec and link.error:
-        warnings.append(f"phase linkage file is unreadable ({link.error}) — KR roll-up is off.")
+        warnings.append(f"linkage store is unreadable ({link.error}) — KR roll-up is off.")
     # **The three buckets are DISJOINT** (TASK-228). `unlinked` used to mean
     # "did not resolve to a KR", which is true of a declared row as well as an
     # undeclared one — so every row in `unlinked[]` was reported twice, once
@@ -2165,7 +2170,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # raw records: `via` is a record field with no counterpart on `Linkage`.
     _linkage_records = P.load_linkage_store(root)
     linkage_objectives = [
-        encode_linkage_objective(o, updated=link.updated,
+        encode_linkage_objective(o,
                                  status_by_id=_status_by_id, events=_events,
                                  events_present=_events_present,
                                  linkage_records=_linkage_records)
@@ -2330,14 +2335,16 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "started": snap.phase.started,
             "day": snap.phase.day,
             "focus_present": bool(snap.phase.focus),
-            # **The KRs come from `phase/<NNN>-linkage.md`, not from the phase
-            # document** — TASK-157. Their id, title, metric, target and
-            # linked overall KR used to be written in both files with nothing
+            # **The KRs come from `linkage.jsonl`, not from the phase
+            # document** — TASK-157, and after ADR-019 not from a register
+            # document either. Their id, title, metric, target and linked
+            # overall KR used to be written in two files with nothing
             # comparing the two, and the markdown copy is the one that went
-            # stale. DESIGN-013 § 5.1 put them in the register alone;
+            # stale. DESIGN-013 § 5.1 put them in one store;
             # `phase_key_results_by_objective` is the one resolver and it
-            # reads the document only on a project that has no register, so
-            # the KEY SHAPE here is unchanged and only its source moved.
+            # reads the phase document's table only when the store declares
+            # no KR for the phase, so the KEY SHAPE here is unchanged and only
+            # its source moved.
             "objectives": [
                 {"title": o.title, "krs": [encode(k) for k in krs]}
                 for o, krs in zip(
@@ -2387,7 +2394,12 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         "linkage": None if not link.ok else {
             "spec": link.spec,
             "phase": link.phase,
-            "updated": link.updated,
+            # `updated` is GONE from this block, and its removal is the point
+            # rather than an omission (TASK-155, ADR-019). It was the deleted
+            # register document's one file-level stamp and three different
+            # readers took it for three different facts. Each of the three is
+            # now per record: `krs[].current_provenance.asserted_at` here,
+            # `edge.declared_at` and `unlinked.declared_at` in the store.
             "objectives": linkage_objectives,
             "unlinked": link.unlinked,
             "agents": [encode(a) for a in link.agents],

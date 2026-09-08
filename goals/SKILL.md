@@ -25,7 +25,7 @@ This `SKILL.md` is intentionally lean: it holds what runs on **every** invocatio
 | `reference/setup.md` | `init`, `revise` (overall `OKR.md` creation + versioning) |
 | `reference/phases.md` | `plan-phase`, `score-phase`, `snapshot` (the phase cadence + the ten mandatory sections) |
 | `reference/weekly.md` | `plan-week` (the PMO hand-off) |
-| `reference/linkage.md` | `link` — owning `phase/<NNN>-linkage.md`: accepting PMO's attribution hand-off, aliases, unlinked |
+| `reference/linkage.md` | `link` — owning `linkage.jsonl`: accepting PMO's attribution hand-off, aliases, unlinked |
 | `reference/pivots.md` | `pivot`, `dashboard` |
 | `reference/hooks.md` | Configuring `.perry/hook.md` for a project |
 | `$PERRY_HOME/reference/input-quality.md` (shared) | `init`, `plan-phase`, `plan-week` — the advisory quality pass |
@@ -68,7 +68,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present, for document language, chat language and repo layout. `OKR.md` and every phase file are written in `Document language`; the snapshot, the TL;DR and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; KR ids (`KR-O1.2`, `P<NNN>-O<n>-KR<n>`), phase slugs, dates and enum values stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
-2. **Compute the state — one call**: `"$PERRY_HOME/bin/perry-state" --json`. Deterministic, read-only, stdlib-only. It resolves the current phase via `phase/CURRENT`, parses `OKR.md` and the phase file, reads `phase/<NNN>-linkage.md`, cross-checks `BOARD.md`, and returns objectives, KR ids, phase day, scope-reduction triggers, cost-ceiling lines, `attribution.linked` / `attribution.unlinked`, and tier-1 cap overruns. **Every number in the snapshot comes from this payload** — never count by eye; a field the payload doesn't carry prints `—`. On non-zero exit, say so in one line and read `OKR.md` + the phase file directly.
+2. **Compute the state — one call**: `"$PERRY_HOME/bin/perry-state" --json`. Deterministic, read-only, stdlib-only. It resolves the current phase via `phase/CURRENT`, parses `OKR.md` and the phase file, reads `linkage.jsonl`, cross-checks `BOARD.md`, and returns objectives, KR ids, phase day, scope-reduction triggers, cost-ceiling lines, `attribution.linked` / `attribution.unlinked`, and tier-1 cap overruns. **Every number in the snapshot comes from this payload** — never count by eye; a field the payload doesn't carry prints `—`. On non-zero exit, say so in one line and read `OKR.md` + the phase file directly.
 3. **Read the source text** only when the conversation is about its content — the phase narrative, an Objective's wording, an Operating Principle. The payload answers "how many / how far / what's unlinked" without loading it.
 4. **Render the headline + snapshot.** Two parts, in order:
 
@@ -122,12 +122,12 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 | `init` | First-time bootstrap of overall `OKR.md` (interview) | `reference/setup.md` |
 | `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
 | `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `Due` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
-| `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the `phase/<NNN>-linkage.md` graph. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
+| `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the phase's `objective` and `kr` records in `linkage.jsonl`. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
 | `score-phase [<NNN>]` | End current phase: per-KR scoring; writes `phase/<NNN>-<slug>.md § Retro` and the `-final` snapshots. **Hands the retro summary to `work`; does not write `evidence/`** — see `reference/phases.md` step 5. Suggests next `plan-phase` | `reference/phases.md` |
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
 | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |
-| `link <TASK-ID> <KR-ID>` / `--alias` / `--unlinked` / `--project` | Accept PMO's attribution hand-off and write it into `phase/<NNN>-linkage.md` (the only writer). **`bin/perry-goals link` does the write**, in place; it refuses anything that does not resolve to exactly one KR and names the candidates | `reference/linkage.md` |
-| `krs` | Print the current phase's key results from `phase/<NNN>-linkage.md`. **`bin/perry-goals krs` is the whole command** and it is read-only. The phase document carries no KR table (TASK-157 / DESIGN-013 § 5.1 — a fact with a schema lives in exactly one store); `--phase <NNN>` reads a scored phase's | `reference/phases.md` |
+| `link <TASK-ID> <KR-ID>` / `--alias` / `--unlinked` / `--project` | Accept PMO's attribution hand-off and write it into `linkage.jsonl` (the only writer in this lane). **`bin/perry-goals link` does the write**, appending; it refuses anything that does not resolve to exactly one KR and names the candidates | `reference/linkage.md` |
+| `krs` | Print the current phase's key results from `linkage.jsonl`. **`bin/perry-goals krs` is the whole command** and it is read-only. The phase document carries no KR table (TASK-157 / DESIGN-013 § 5.1 — a fact with a schema lives in exactly one store); `--phase <NNN>` reads a scored phase's | `reference/phases.md` |
 | `pivot <reason>` | Mid-phase goal change (high-friction by design) | `reference/pivots.md` |
 | `dashboard` | Detailed view per Objective (computes status, projection) | `reference/pivots.md` |
 | `help [<subcommand>]` | Print this index; with arg, print + read the matching reference | (handled here) |
@@ -149,12 +149,12 @@ With arg: locate the row for `<subcommand>`, print it, then **read the matching 
 | `OKR.md` | okr | Versioned overall OKR with Operating Principles + Anti-Goals. `## Commitments` is written by `bin/perry-goals commit`, never by hand — see the note below | `state/OKR_TEMPLATE.md` |
 | `phase/<NNN>-<slug>.md` | okr | Phase OKR with Focus, Rules, Cost Ceiling, User Commitments, Degradation, Scope Reduction, Objectives, DoD, Not Doing | `state/phase_TEMPLATE.md` |
 | `phase/CURRENT` | okr | One-line pointer to current phase (`<NNN>-<slug>`). Empty / missing = no current phase | (plain text) |
-| `phase/<NNN>-linkage.md` | okr | **The O→KR→task→agent graph** (tier 2, YAML frontmatter, spec `linkage: 1`). Declares task→KR edges, numeric KR progress, declared-unlinked work, and the stable Project ID ↔ aliases registry that stops attribution from being guessed. Machine-written by `bin/perry-goals link`, never by hand; read by Perry *and* the frontend. PMO reads, never writes. | `state/linkage_TEMPLATE.md` |
+| `linkage.jsonl` | perry | **The O→KR→task→agent graph** (a store: one JSON object per line, six record kinds declared in `schema/state-schema.json § stores.declared`). Declares the phase's objectives and key results, task→KR edges, numeric KR progress with its own `asserted_at`, declared-unlinked work, and the stable Project ID ↔ aliases registry that stops attribution from being guessed. Machine-written by `bin/perry-goals link` and `bin/perry-task add --kr`, never by hand; read by Perry *and* the frontend. It was `phase/<NNN>-linkage.md` until ADR-019. | — (a store has no template) |
 | `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md` | okr | Frozen point-in-time copies of phase OKR. Auto-written on `score-phase` (with `-final` suffix) or `snapshot` (no suffix) | — |
 | `BOARD.md` | pmo | Read by OKR for cross-check; never written | (in pmo skill) |
 | `evidence/<YYYY-MM>/retro.md` | pmo | Read by OKR `score-phase` after PMO writes it; never written | (in pmo skill) |
 
-**`phase/<NNN>-linkage.md` has a deterministic writer too.** `bin/perry-goals
+**`linkage.jsonl` has a deterministic writer too.** `bin/perry-goals
 link` appends the four things that page describes — a task→KR edge, a confirmed
 alias, a declared-unlinked task, a new Project — editing the register in place
 and never re-rendering it. It resolves an attribution by declared edge, then
@@ -193,7 +193,7 @@ If `OKR.md` exists but no current phase (no `phase/CURRENT` or it points at a ph
 - **Write the declared structure, not an approximation of it.** `OKR.md` and `phase/<NNN>-<slug>.md` have a contract in `$PERRY_HOME/schema/state-schema.json`: named sections, KR ids matching `KR-O<n>.<m>` / `P-O<n>.<m>`, KRs in tables with the declared columns, `Started:` as a real date. Everything downstream — the standup's numbers, attribution, aiMark — reads that structure; a KR written as a prose bullet is invisible to all of it. After any write to a tier 1 file, run `"$PERRY_HOME/bin/perry-lint" --root .` and fix what it reports.
 - **Stretch ≠ commit.** Mark stretch KRs explicitly. Don't shame underdelivery on stretch.
 - **Cite evidence paths.** Every progress claim points to a `BOARD.md` row or `evidence/<YYYY-MM>/<file>.md`.
-- **Never guess a Project's KR/Objective.** Resolve through `phase/<NNN>-linkage.md` in order: declared `tasks[]` edge → Project ID → registered alias. If it doesn't resolve to exactly one KR, ask via `AskUserQuestion` — never fuzzy-match a name. Unresolved → `unlinked`, excluded from KR roll-up, surfaced. Full rule: `$PERRY_HOME/reference/okr-linkage.md`. This is a hard gate, not advisory.
+- **Never guess a Project's KR/Objective.** Resolve through `linkage.jsonl` in order: declared `edge` record → Project ID → registered alias. If it doesn't resolve to exactly one KR, ask via `AskUserQuestion` — never fuzzy-match a name. Unresolved → `unlinked`, excluded from KR roll-up, surfaced. Full rule: `$PERRY_HOME/reference/okr-linkage.md`. This is a hard gate, not advisory.
 - **A KR's `target` / `current` are numbers or absent.** Never coerce a prose target ("≤ 15% drawdown") into a number to fill the field — the frontend draws a progress bar from it, and a ceiling shown as progress is a lie about a risk limit. Put the prose in `metric`.
 - **Never write to PMO files.** Hand off via chat.
 - **Pivot is paid in friction.** Force the `pivot` interview; never silently edit `OKR.md`.

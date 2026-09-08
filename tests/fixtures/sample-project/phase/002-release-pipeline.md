@@ -42,7 +42,7 @@ Remove every manual step between merge and production.
 
 ### Key Results
 
-> Declared in `phase/002-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> Declared in `linkage.jsonl`; `bin/perry-goals krs` prints them. Not written
 > here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects (seed for PMO TASK-IDs)
@@ -58,7 +58,7 @@ Remove every manual step between merge and production.
 
 ### Key Results
 
-> Declared in `phase/002-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> Declared in `linkage.jsonl`; `bin/perry-goals krs` prints them. Not written
 > here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects

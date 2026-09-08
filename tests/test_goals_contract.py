@@ -68,8 +68,17 @@ class TestShape(unittest.TestCase):
                              f"{k.get('id')}: missing {self.KR - set(k)}")
 
     def test_version_handle(self):
+        """The handle, not the number.
+
+        It read `2.` until ADR-019 took the contract to `3.0` — a MAJOR,
+        because `linkage.updated` was removed and `2.x` may only add keys.
+        Pinning the major here would make this test a second place the version
+        is declared, and the two would disagree on the day of the next break;
+        `tests/test_contract_invariance.py § test_the_shipped_version_is
+        _recorded_in_its_own_changelog` is what holds a bump to its page.
+        """
         _, d = run(FIXTURE)
-        self.assertTrue(d["contract"].startswith("perry-goals/list/2."))
+        self.assertRegex(d["contract"], r"^perry-goals/list/\d+\.\d+$")
 
     def test_level_filter(self):
         _, d = run(FIXTURE, "--level", "phase")

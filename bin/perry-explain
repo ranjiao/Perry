@@ -498,7 +498,57 @@ def harvest(root: Path) -> dict:
                 if loc != e["defined"] and len(e["mentions"]) < 40:
                     e["mentions"].append(loc)
 
+    harvest_linkage_store(root, ent)
     return entries
+
+
+def harvest_linkage_store(root: Path, ent) -> None:
+    """Every phase KR the linkage store declares, with its title.
+
+    **This reads a JSONL store, and this whole tool otherwise reads
+    markdown.** It has to: a phase KR id is one of the nine families Perry
+    mints and hands to a user, and until ADR-019 it was defined in
+    `phase/<NNN>-linkage.md` frontmatter, which `walk_md` reached and the
+    `- id:` / `title:` YAML pair above resolved. That file is deleted. Without
+    this pass `perry-explain P003-O1-KR1` answers *"not found in this
+    project"* for an id the project's own board cites — which is the exact
+    complaint this tool exists to answer, aimed at its own output.
+
+    `objective` records are read too: `O1` is not an id `find_ids` treats as a
+    family, so nothing here mints one, but a KR's objective title is what a
+    reader needs when the KR id is the only thing they were given.
+    """
+    for state in {root, resolve_state_root(root)}:
+        store = Path(state) / "linkage.jsonl"
+        if not store.exists():
+            continue
+        rel = str(store.relative_to(root)) if store.is_relative_to(root) \
+            else store.name
+        try:
+            lines = store.read_text(encoding="utf-8",
+                                    errors="replace").split("\n")
+        except OSError:
+            continue
+        for n, line in enumerate(lines, 1):
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                # `perry-lint § linkage-store-malformed` reports it by number.
+                # A resolver that raised here would make one bad line hide
+                # every id in the file.
+                continue
+            if not isinstance(rec, dict) or rec.get("kind") != "kr":
+                continue
+            kid = str(rec.get("id") or "")
+            if not ID_RE.fullmatch(kid) or not is_real_id(kid):
+                continue
+            e = ent(kid)
+            e["defined"] = e["defined"] or f"{rel}:{n}"
+            e["kind"] = e["kind"] or "linkage entry"
+            e["title"] = e["title"] or (str(rec.get("title") or "") or None)
+            e["in_tracking_doc"] = True
 
 
 def label(e: dict) -> str:

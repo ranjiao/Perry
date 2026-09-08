@@ -2780,16 +2780,15 @@ def linkage_add_change(state_root: Path,
     was never created.
 
     **`None` when the project has no store for an `--kr` edge, and the store
-    is NOT created.** This is the same rule, for the same reason, that
-    `bin/perry-goals § linkage_store_text` states: every reader moved by row C
-    reads `linkage.jsonl` FIRST and falls back to `phase/<NNN>-linkage.md`
-    only when the file is absent (`parsers.load_linkage`). Creating a
-    one-record store on a project whose register lives in the document would
-    therefore not add an edge — it would silently replace the whole graph
-    with a single edge, and every KR that project has would vanish from every
-    render. A pre-DESIGN-015 project keeps `kr: null`'s sibling behaviour: the
-    event records the answer, the store stays absent, and `perry-goals link`
-    remains the way the edge is declared.
+    is NOT created.** An `edge` record naming a KR is only meaningful beside
+    the `kr` record that declares that KR, and `plan-phase` is what writes
+    those. Creating a one-record store here would produce a graph consisting
+    of one edge and no key results — `parsers.load_linkage` would then answer
+    with that graph, and a project whose phase has never been planned would
+    start rendering a KR-less register instead of none. A project with no
+    store keeps `kr: null`'s sibling behaviour: the event records the answer,
+    the store stays absent, and `perry-goals link` declares the edge once the
+    phase is planned.
 
     **`--unlinked` on a store-less project is REFUSED, not silently dropped,
     and that asymmetry is deliberate.** The two flags degrade differently
@@ -2839,10 +2838,10 @@ def linkage_add_change(state_root: Path,
                 f"--unlinked needs `{P.LINKAGE_STORE}` and this project has "
                 f"none, so the declaration would be accepted and stored "
                 f"nowhere. Unlike `--kr`, it has no event field to fall back "
-                f"to: `{task}` would file and still read as never-asked. On a "
-                f"project whose register lives in `phase/<NNN>-linkage.md`, "
-                f"`perry-goals link --unlinked <TASK-ID>` is the way to "
-                f"declare it. Nothing was written.")
+                f"to: `{task}` would file and still read as never-asked. "
+                f"`/perry goals plan-phase` writes the store when a phase "
+                f"opens, and `perry-goals link --unlinked <TASK-ID>` declares "
+                f"it after that. Nothing was written.")
         return None
     try:
         current = path.read_text(encoding="utf-8")
@@ -2864,11 +2863,49 @@ def linkage_add_change(state_root: Path,
     common = {"declared_at": lib.register_stamp(),
               "actor": str(event.get("actor") or "agent"),
               "via": "add"}
-    record = ({"kind": "unlinked", "task": task, **common} if declared_unlinked
-              else {"kind": "edge", "task": task, "kr": kr, **common})
+    # **An `unlinked` record carries the phase it was declared under, and an
+    # `edge` does not.** ADR-019 added `unlinked.phase` because the store now
+    # holds every phase at once and "this row serves no KR" is a statement
+    # made against ONE board: without it, phase 001's 23 declarations would
+    # count against phase 003's. An `edge` needs no such field — the KR id it
+    # names carries the phase (DESIGN-007 decision #4), which is what
+    # `parsers.linkage_records_for_phase` filters on. Read from the store's
+    # own `kr` records rather than from `phase/CURRENT`, so the value cannot
+    # disagree with the graph the record joins.
+    record = {"kind": "edge", "task": task, "kr": kr, **common}
+    if declared_unlinked:
+        phase = _current_store_phase(state_root)
+        if not phase:
+            raise Refused(
+                f"`{P.LINKAGE_STORE}` declares no key result for the current "
+                f"phase, so an `unlinked` declaration has no phase to be made "
+                f"against and would be counted under every phase at once. "
+                f"`/perry goals plan-phase` writes the phase's records. "
+                f"Nothing was written.")
+        record = {"kind": "unlinked", "task": task, "phase": phase, **common}
     lines = [line for line in current.split("\n") if line.strip()]
     lines.append(json.dumps(record, ensure_ascii=False))
     return (path, "\n".join(lines) + "\n", record)
+
+
+def _current_store_phase(state_root: Path) -> str:
+    """The `<NNN>-<slug>` the linkage store declares for the CURRENT phase.
+
+    `phase/CURRENT` says which phase is open; the store says how that phase's
+    records spell their `phase` field. Both are asked, and the store's
+    spelling is what is written, so a declaration cannot carry a slug no
+    record in the file uses.
+    """
+    pointer = state_root / "phase" / "CURRENT"
+    slug = pointer.read_text(encoding="utf-8").strip() if pointer.exists() else ""
+    number = P.linkage_phase_number(slug)
+    if not number:
+        return ""
+    for rec in (P.load_linkage_store(state_root) or []):
+        if (isinstance(rec, dict) and rec.get("kind") == "kr"
+                and str(rec.get("phase") or "").startswith(f"{number}-")):
+            return str(rec["phase"])
+    return ""
 
 
 def replace_canonical_pair(state_root: Path,
@@ -5086,78 +5123,16 @@ _REFERENCE_SCAN_MAX_BYTES = 1 << 20
 _REFERENCE_SCAN_SUFFIXES = (".md", ".markdown")
 
 
-def _tasks_list_regions(lines: list[str]) -> list[tuple[int, str, list[int]]]:
-    """Every `tasks:` list in a register, as `(key line, section, item lines)`.
-
-    Line numbers are 1-based, so they can be printed straight into a refusal.
-    This locates; it does not decide. `live_references` below decides through
-    `parse_linkage` and uses this only to name the line to EDIT — the two are
-    independent problems, and collapsing them into one regex is what let a
-    block-style register defeat the guard.
-
-    **The list shapes, enumerated from `parse_yaml_subset § parse_map`'s own
-    branches rather than from the two examples this project happens to carry.**
-    A `tasks:` value is one of exactly seven things, and four can carry an id
-    a reader resolves:
-
-    - `tasks: ["A"]` / `[A]` — a flow list; the ids are on the key line.
-    - `tasks: A` — a bare scalar; `_as_list` wraps it, so it is a one-item
-      list and the id is on the key line.
-    - `tasks:` then `- A` indented deeper — a block list, the shape
-      `bin/perry-goals § append_to_list` writes and preserves.
-    - `tasks:` then `- A` at the key's OWN indent — a block list too;
-      `parse_map`'s `elif … indent_of(lines[pos]) == level` accepts it.
-
-    The other three carry nothing a reader resolves: `tasks: |` becomes one
-    string with its newline (`kr_for_task` matches exactly, so it never hits),
-    a nested map becomes a stringified dict, and an absent value is `[]`. A
-    flow list split across physical lines is not a fifth shape — `parse_yaml_subset`
-    RAISES on it (`unexpected indent`), so `parse_linkage` returns `error` and
-    the register declares nothing at all.
-
-    Both block shapes are collected here: an item is a `- ` line at an indent
-    at or deeper than the key's, and the run ends at the first line that is
-    not one. Over-collecting an item costs an over-report the user can clear;
-    under-collecting costs a permanently deleted row.
-
-    **A QUOTED KEY IS DELIBERATELY NOT MATCHED, and that is the union earning
-    its keep.** `parse_map` does `key.strip().strip("\\"'")`, so `"tasks":
-    ["TASK-087"]` parses into a real edge that this regex does not see. It is
-    left unmatched rather than widened: no writer Perry has emits a quoted key,
-    and the case is exactly what the STRUCTURAL half of `live_references` is
-    for — the parse declares the edge, the guard refuses, and the refusal says
-    the line could not be located instead of pretending there is none. Widening
-    the regex would close the reporting gap and simultaneously remove the only
-    input that proves the structural half is load-bearing.
-    """
-    out: list[tuple[int, str, list[int]]] = []
-    section = ""
-    for i, line in enumerate(lines):
-        top = re.match(r"([A-Za-z_][A-Za-z0-9_]*):\s*$", line)
-        if top:
-            section = top.group(1)
-        m = re.match(r"(\s*)tasks:", line)
-        if not m:
-            continue
-        indent = len(m.group(1))
-        items: list[int] = []
-        for j in range(i + 1, len(lines)):
-            nxt = lines[j]
-            # Blank lines and `#` comments are skipped for the reason
-            # `parse_yaml_subset` skips them: they are not list items and they
-            # do not end the list. Breaking on a comment would stop the scan
-            # at the first annotated register and leave every item BELOW the
-            # comment unlocated — the parse still sees those ids, so the row
-            # would be refused without a line rather than with one.
-            if not nxt.strip() or nxt.lstrip().startswith("#"):
-                continue
-            nind = len(nxt) - len(nxt.lstrip(" "))
-            if nxt.lstrip().startswith("- ") and nind >= indent:
-                items.append(j + 1)
-                continue
-            break
-        out.append((i + 1, section, items))
-    return out
+#: **`_tasks_list_regions` lived here and is gone — ADR-019.**
+#:
+#: 70 lines that located every `tasks:` list in a `phase/<NNN>-linkage.md`
+#: register, enumerating the four YAML list shapes `parse_yaml_subset` accepts
+#: so that `live_references` could name the LINE a reference sat on. It
+#: existed because the register was markdown: detection had to be structural
+#: (through the parse) and location had to be textual (through this), because
+#: the parsed model carried no line numbers. `linkage.jsonl` needs neither
+#: half — one record is one line, so `json.loads` answers both questions at
+#: once, which the store branch of `live_references` was already doing.
 
 
 def live_references(ctx, tid: str) -> list[str]:
@@ -5256,102 +5231,44 @@ def live_references(ctx, tid: str) -> list[str]:
                 # A record this reader cannot parse is `perry-lint`'s finding
                 # to report (`linkage-store-unreadable`), not this guard's.
                 continue
-            if (isinstance(rec, dict) and rec.get("kind") == "edge"
+            if not isinstance(rec, dict):
+                continue
+            if (rec.get("kind") == "edge"
                     and str(rec.get("task") or "") == tid):
                 out.append(f"{P.LINKAGE_STORE}:{n} edge → "
                            f"{rec.get('kr') or '?'}")
-    # **UNION, not an alternative — and this line is the fix for a live data
-    # loss.** The register documents are scanned WHETHER OR NOT the store
-    # exists. This was an `else:` on the branch above, which made the two
-    # scans exclusive; because `linkage.jsonl` covers phase 003 ONLY (row B
-    # imported one phase), the presence of the store silently retired
-    # `phase/001-linkage.md`'s 18 edges and 16 `agents[].tasks` entries and
-    # `phase/002-linkage.md`'s 13 edges as live references. `purge` deletes a
-    # record permanently and `mint_id` never re-issues the number, so the
-    # exclusive read let `purge` destroy rows that a register still names:
-    # measured on this project, TASK-028 (`001-linkage.md:16`), TASK-046
-    # (`:24`) and TASK-087 (`002-linkage.md:69`) all stopped refusing.
-    #
-    # A reference guard is the one place where reading BOTH authorities is
-    # not redundancy but the requirement. Over-reporting costs a refusal the
-    # user can clear by editing; under-reporting costs a record that cannot be
-    # recovered and an id that is never minted again. So this fails closed:
-    # store and documents both. The two never produce the same line — a store
-    # reference names `linkage.jsonl:<n>` and a document reference names
-    # `<NNN>-linkage.md:<n>` — so a phase the store covers and the document
-    # still carries reports twice, once per file, which is the truth.
-    #
-    # **DETECTION IS STRUCTURAL; THE LINE NUMBER IS LOCATED SEPARATELY.** These
-    # are two problems and the guard needs both answers, so it asks two
-    # questions instead of one regex that half-answers each.
-    #
-    # The regex this replaces — `re.match(r"\s*tasks:", line) and
-    # names_id(line, tid)` — required the id to sit on the SAME PHYSICAL LINE
-    # as `tasks:`. That is true of a flow list and false of a block list:
-    #
-    #     tasks:
-    #       - "TASK-087"
-    #
-    # so `purge` deleted rows a block-style register still named. The shape is
-    # legal and every other part of Perry agrees it is: `perry-goals link`
-    # writes it (`bin/perry-goals § append_to_list`), `parse_linkage` reads it,
-    # `tests/test_linkage_writer.py § test_a_block_list_is_appended_to_as_a_block_list`
-    # asserts it, and `perry-lint` grades such a register 0 errors. The gap
-    # predates DESIGN-015 row C — the same line scan sits at `2acec65:4819` —
-    # so this is a shape the guard never covered, not a regression to revert.
-    #
-    # Reverting to `parse_linkage` ALONE is not the fix either: the model
-    # carries no line numbers, and a refusal that cannot say which line to
-    # edit is a refusal the user cannot clear. Hence both.
-    #
-    # **The union is with the TEXT, not just within the parse.** A register
-    # whose frontmatter does not parse returns `Linkage(error=...)` carrying no
-    # objectives at all, so a structural read alone would see nothing and let
-    # `purge` proceed — the same irreversible loss by a different door. Every
-    # located line is therefore reported whether or not the parse confirms it,
-    # and anything the parse DOES confirm is reported even when no line can be
-    # pinned to it. Over-reporting costs a refusal the user clears by editing;
-    # under-reporting costs a record that cannot be recovered and an id
-    # `mint_id` never re-issues.
-    for path in sorted((ctx["state_root"] / "phase").glob("*-linkage.md")):
-        try:
-            text = path.read_text(errors="replace")
-        except OSError:
-            continue
-        lines = text.split("\n")
+            # **`agent` records too, and that is not a widening — it is the
+            # scan the register documents used to get.** `agents[].tasks` was
+            # a separate YAML list in `phase/<NNN>-linkage.md`, and it held
+            # live references: measured on this project, `phase/001-linkage.md`
+            # named TASK-028 and fifteen more under `Coding Agent`, and
+            # `purge` refusing on them is what stopped it destroying rows a
+            # register still cited. ADR-019 imported those entries as
+            # `kind: agent` records, so the same references are found here.
+            if (rec.get("kind") == "agent"
+                    and str(rec.get("task") or "") == tid):
+                out.append(f"{P.LINKAGE_STORE}:{n} agent → "
+                           f"{rec.get('id') or '?'}")
 
-        # What the register DECLARES, read through the same parser every other
-        # reader uses — so a shape the readers honour cannot be a shape this
-        # guard misses. All KRs are walked, not just the first: `kr_for_task`
-        # short-circuits, and this needs the whole truth.
-        model = P.parse_linkage(text)
-        declared: set[str] = set()
-        if not model.error:
-            for obj in model.objectives:
-                for kr in obj.krs:
-                    if tid in kr.tasks:
-                        declared.add("krs[].tasks")
-            for ag in model.agents:
-                if tid in ag.tasks:
-                    declared.add("agents[].tasks")
-
-        # Where to edit. The `section` a region sits in is what reports
-        # `agents[].tasks` as itself rather than as a KR edge; a top-level key
-        # is a bare `name:` in column 0, the only shape this file's four
-        # blocks (`objectives`, `unlinked`, `agents`, `projects`) are in.
-        located: set[str] = set()
-        for n, section, items in _tasks_list_regions(lines):
-            kind = ("agents[].tasks" if section == "agents"
-                    else "krs[].tasks")
-            for ln in [n] + items:
-                if names_id(lines[ln - 1], tid):
-                    located.add(kind)
-                    out.append(f"{path.name}:{ln} {kind}")
-
-        # Declared, but no line could be pinned to it — report it anyway.
-        for kind in sorted(declared - located):
-            out.append(f"{path.name} {kind} (line not located)")
-
+    # **THE DOCUMENT SCAN IS GONE, AND SO IS THE UNION IT WAS HALF OF.**
+    #
+    # ~90 lines stood here reading every `phase/*-linkage.md` twice — once
+    # through `parse_linkage` to DETECT a reference, once through
+    # `_tasks_list_regions` to LOCATE its line — and their comment was the
+    # record of a live data loss. The two scans had once been exclusive
+    # (`else:` on the branch above), and because `linkage.jsonl` covered phase
+    # 003 only, the store's mere presence retired `phase/001-linkage.md`'s 18
+    # edges and 16 `agents[].tasks` entries and `002-linkage.md`'s 13 edges as
+    # live references: TASK-028, TASK-046 and TASK-087 all stopped refusing.
+    # `purge` deletes permanently and `mint_id` never re-issues a number, so
+    # that was rows destroyed while a register named them.
+    #
+    # ADR-019 imported all three registers into `linkage.jsonl`. **The union
+    # is not dropped — its second half moved into its first**, and the
+    # argument that made the union necessary is what makes the move safe:
+    # every reference the documents carried is a record in the loop above,
+    # found by the same `json.loads` that finds phase 003's, and the line
+    # number is exact rather than located by regex.
     # The goals store's own linkage field. Empty on this project today, which
     # is a fact about this project and not about the register.
     okr = ctx["state_root"] / "okr.jsonl"

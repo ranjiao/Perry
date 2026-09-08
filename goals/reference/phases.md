@@ -183,8 +183,8 @@ The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical com
    - Goal (1–2 sentences)
    - A `### Key Results` heading carrying the template's pointer and **no
      table**. 3–5 Key Results per Objective, ids matching `P<NNN>-O<n>-KR<m>`,
-     are declared in `phase/<NNN>-linkage.md` at step 2 of *After write* below
-     and printed by `bin/perry-goals krs`.
+     are declared in `linkage.jsonl` at step 2 of *After write* below and
+     printed by `bin/perry-goals krs`.
 
      **This step used to say "write them in a `### Key Results` table" and that
      is the defect TASK-157 closed.** A KR's id, title, metric, target and
@@ -209,14 +209,18 @@ Then confirm with the user and write `phase/<NNN>-<slug>.md` from `state/phase_T
 
 After write:
 1. Update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>`).
-2. **Write the linkage graph**: `phase/<NNN>-linkage.md` from `state/linkage_TEMPLATE.md` — YAML frontmatter, spec `linkage: 1`. One `objectives[]` entry per phase Objective with its KRs (`tasks: []` for now). **This is where the KRs are declared** — `id`, `title`, `metric`, `target`, and `linked` (the overall KR this one serves). Nothing else in the project holds them, so a KR left out here is a KR the phase does not have. Check what you wrote with `bin/perry-goals krs`, which prints the table the phase document used to carry. Set `updated` to a full ISO datetime (`date -u +%Y-%m-%dT%H:%M:%SZ`) — a day-only value is dropped by both readers rather than guessed at. Every `projects[]` entry is then `bin/perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"`, one per Project defined above, which derives `objective` from the KR id and sets `status: active`; every task edge afterwards is `bin/perry-goals link`, and nothing in this file is edited by hand once it exists (`reference/linkage.md`).
+2. **Write the linkage graph**: append records to `linkage.jsonl` — one JSON object per line, shapes declared in `schema/state-schema.json § stores.declared["linkage.jsonl"]`. One `kind: objective` record per phase Objective (`phase`, `id`, `title`; file order is objective order), then one `kind: kr` record per Key Result. **This is where the KRs are declared** — `id`, `title`, `metric`, `target`, and `linked` (the overall KR this one serves). Nothing else in the project holds them, so a KR left out here is a KR the phase does not have. Check what you wrote with `bin/perry-goals krs`, which prints the table the phase document used to carry. Every Project is then `bin/perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"`, one per Project defined above; every task edge afterwards is `bin/perry-goals link`, and nothing in this store is edited by hand once it exists (`reference/linkage.md`).
+
+   **These records lived in a per-phase register document until ADR-019** (2026-09-08), authored from a shipped template. That document's 61 lines of frontmatter duplicated the store record for record and its 30 lines of prose carried four claims that were false when they were counted, so it and its template were deleted. What changed for this step is the FORMAT, not the fact that an agent authors it: `plan-phase` has never had a deterministic writer for the KRs themselves, here or before, which is why the step below is exempt from ADR-007 rule 3 exactly as instantiating the template was.
+
+   **There is no file-level `updated:` to set, and that is TASK-155.** The document carried one, and two readers took it for three different facts — when the graph changed, when a KR's `current` was asserted, and when each edge was declared — so appending one edge re-dated every asserted number in the phase. Each is a per-record field now: `kr.asserted_at` (write it **only** when you write a `current`, and only with the date that number was actually measured), `edge.declared_at` and `unlinked.declared_at` (written by `perry-goals link` and `perry-task add`, at the moment of the write). Never fill `asserted_at` with today's clock for a number somebody else measured.
 
    Two things to get right, because a reader can't recover from either:
    - **`target` / `current` are numbers or omitted.** A KR whose target is prose ("≤ 15% drawdown", "6–10% annualised") carries no `target` — the number goes in `metric` as text. A ceiling rendered as a progress bar reports a risk limit as two-thirds achieved. **`current` is an author's assertion: leave it out until someone asserts one.** The template no longer carries `current: 0`, because most KRs drive a count down and a defaulted zero reads as met on the day the register is written.
-   - **`unlinked` starts empty and is only ever appended deliberately.** It means "this work serves no KR", not "we haven't got round to it".
+   - **There are no `unlinked` records at phase start, and they are only ever appended deliberately.** One means "this work serves no KR", not "we haven't got round to it". Each carries the `phase` it was declared against, because the store holds every phase at once.
 
    This graph is the stable-ID source of truth that keeps attribution from being guessed later, and it is what the frontend draws the O→KR→task chain from. See `$PERRY_HOME/reference/okr-linkage.md`.
-3. Verify structure: `"$PERRY_HOME/bin/perry-lint" --root .` — it checks the ten sections, the KR id pattern, that the graph parses at all, that no task serves two KRs, that every KR id names the phase whose register it sits in, and that each project's `objective` agrees with its `serves` KR.
+3. Verify structure: `"$PERRY_HOME/bin/perry-lint" --root .` — it checks the ten sections, the KR id pattern, that every record matches its declared shape, that no task serves two KRs, that every KR id names the phase its records are filed under, and that each `project` record serves a KR under an objective the phase declares.
 4. Optionally call `plan-week` for week 1 immediately.
 
 ## `krs`
@@ -230,9 +234,9 @@ them.**
 "$PERRY_HOME/bin/perry-goals" krs --json           # for a consumer
 ```
 
-It reads `phase/<NNN>-linkage.md` and prints the id, KR text, metric/target and
-linked overall KR of every KR the register declares, grouped by Objective — the
-table `phase/<NNN>-<slug>.md` used to carry.
+It reads `linkage.jsonl` and prints the id, KR text, metric/target and linked
+overall KR of every KR the store declares for that phase, grouped by Objective
+— the table `phase/<NNN>-<slug>.md` used to carry.
 
 **Why the phase document no longer carries it.** Those four facts were written
 in both files, in full: by hand here at `plan-phase` step 7, and machine-written
@@ -261,7 +265,7 @@ chosen, never merged; `krs` itself needs a register and says so if there is none
 
 Close out a phase. Default: the current phase (read from `phase/CURRENT`). Cross-reference `evidence/<YYYY-MM>/` (for the calendar months the phase spanned) and `BOARD.md` Done section.
 
-Attribute each done task to its KR **by ID through `phase/<NNN>-linkage.md`**, per `$PERRY_HOME/reference/okr-linkage.md`; any task that does not resolve to exactly one KR is listed under a `## Unlinked at scoring` note and **not** averaged into any KR score — surface it and ask rather than guessing which KR it belonged to. `"$PERRY_HOME/bin/perry-state" --section attribution` lists exactly these.
+Attribute each done task to its KR **by ID through `linkage.jsonl`**, per `$PERRY_HOME/reference/okr-linkage.md`; any task that does not resolve to exactly one KR is listed under a `## Unlinked at scoring` note and **not** averaged into any KR score — surface it and ask rather than guessing which KR it belonged to. `"$PERRY_HOME/bin/perry-state" --section attribution` lists exactly these.
 
 1. For each phase KR: final metric, status from {`achieved`, `partial`, `missed`, `dropped`}, evidence path. **Use `AskUserQuestion`** with one question per KR (header = the KR id, e.g., `"P<NNN>-O1-KR2"`); options = the 4-status set; recommended option pre-selected based on observed metric vs target.
 2. Compute KR score 0.0–1.0 (overshot caps at 1.0; record stretch overshoot separately).
@@ -272,9 +276,9 @@ Attribute each done task to its KR **by ID through `phase/<NNN>-linkage.md`**, p
    - Lessons for next phase
    - Carry-overs proposed (with rationale)
 5. **Hand the retro summary to `work`; do not write it.** `evidence/` is the `work` lane's directory (`goals/SKILL.md`: *"Never write to PMO files"*), and this step instructed writing into it for a release. Print the summary and the target path — `evidence/<YYYY-MM>/retro.md`, calendar month at scoring time, with a `Phase: #<NNN>-<slug> · started <start-date> · scored <today>` header — and let `/perry work` write it.
-6. **Auto-snapshot before closing**: copy `phase/<NNN>-<slug>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>-final.md` (the `-final` suffix marks this as the terminal snapshot for the phase). **Snapshot the linkage graph alongside it** — `phase/<NNN>-linkage.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-linkage-final.md`. The graph is how a future reader tells which task served which KR; a retro without it can only say *that* a KR scored, not *what* moved it.
+6. **Auto-snapshot before closing**: copy `phase/<NNN>-<slug>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>-final.md` (the `-final` suffix marks this as the terminal snapshot for the phase). **The linkage graph is NOT snapshotted, and that changed at ADR-019.** It used to be a document that the next phase's `plan-phase` wrote a sibling of, so a copy was the only way to keep the old one legible. `linkage.jsonl` keeps every phase's records forever, each carrying its own `phase` — `bin/perry-goals krs --phase <NNN>` prints a scored phase's KRs from the live store — so a snapshot would be a second copy of records that never move, which is what this whole store exists to stop.
 
-   The live `phase/<NNN>-linkage.md` stays where it is. It is named by phase number, so the next `plan-phase` writes its own file and nothing is overwritten. **Carry forward** into the new graph: any Project still `active` (as a `projects[]` entry, with its aliases intact — a carried-over Project's old names must keep resolving), and any task the retro moved to the next phase, appended to whichever new KR it now serves. Do **not** carry `unlinked[]` forward blindly: re-declare it against the new phase's KRs, since work that served no KR last phase may well serve one now.
+   The scored phase's records stay in `linkage.jsonl` and are never rewritten. Every record names its phase, so the next `plan-phase` appends its own and nothing is overwritten. **Carry forward** into the new phase: any Project still `active` (as a new `kind: project` record for the new phase, with its aliases intact — a carried-over Project's old names must keep resolving), and any task the retro moved to the next phase, as a new `edge` under whichever new KR it now serves. Do **not** carry the `unlinked` declarations forward blindly: re-declare them against the new phase's KRs, since work that served no KR last phase may well serve one now.
 7. Flip the phase header to `**Status**: scored`, then clear `phase/CURRENT` (delete the file or write `(none)` until the next `plan-phase`).
 8. If the overall period closed: append **Retro** to `OKR.md` for the relevant version.
 9. Suggest `/okr plan-phase <new-slug>` for the next phase.

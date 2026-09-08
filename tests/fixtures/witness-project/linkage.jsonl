@@ -1,0 +1,7 @@
+{"kind": "objective", "phase": "001-witness", "id": "O1", "title": "Hold the collections open"}
+{"kind": "kr", "phase": "001-witness", "objective": "O1", "id": "O1-KR1", "title": "Collections a live board leaves empty", "metric": "4 of 4 non-empty (baseline 0 of 4)", "target": 4, "current": 2, "stretch": false, "asserted_at": "2026-08-05T00:00:00Z"}
+{"kind": "kr", "phase": "001-witness", "objective": "O1", "id": "P001-O1-KR1", "title": "Collections a live board leaves empty", "metric": "4 of 4 non-empty (baseline 0 of 4)", "target": 4, "current": 2, "stretch": false, "linked": "O1-KR1", "asserted_at": "2026-08-05T00:00:00Z"}
+{"kind": "edge", "task": "WIT-001", "kr": "O1-KR1", "declared_at": "2026-08-05T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "WIT-002", "kr": "O1-KR1", "declared_at": "2026-08-05T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "WIT-001", "kr": "P001-O1-KR1", "declared_at": "2026-08-05T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "edge", "task": "WIT-002", "kr": "P001-O1-KR1", "declared_at": "2026-08-05T00:00:00Z", "actor": "goals", "via": "link"}

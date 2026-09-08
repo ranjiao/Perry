@@ -272,10 +272,6 @@
    "sec": 3.25,
    "source": "unstamped-pre-304"
   },
-  "test_linkage_import.py": {
-   "sec": 4.05,
-   "source": "task-277-linkage-import"
-  },
   "test_linkage_store_declared.py": {
    "sec": 1.34,
    "source": "task-276-linkage-store"
