@@ -1,0 +1,5 @@
+{"kind": "setting", "key": "document_language", "label": "Document language", "value": "English", "order": 0}
+{"kind": "setting", "key": "repo_layout", "label": "Repo layout", "value": "single", "order": 1}
+{"kind": "setting", "key": "pmo_repo_path", "label": "PMO repo path", "value": "tests/fixtures/witness-project", "order": 2}
+{"kind": "setting", "key": "code_repo_path", "label": "Code repo path", "value": "", "order": 3}
+{"kind": "setting", "key": "last_updated", "label": "Last updated", "value": "2026-08-27", "order": 4}

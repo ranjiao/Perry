@@ -1,0 +1,7 @@
+{"kind": "setting", "key": "document_language", "label": "Document language", "value": "中文", "order": 0}
+{"kind": "setting", "key": "chat_language", "label": "Chat language", "value": "follow user", "order": 1}
+{"kind": "setting", "key": "repo_layout", "label": "Repo layout", "value": "single", "order": 2}
+{"kind": "setting", "key": "state_root", "label": "State root", "value": "", "order": 3}
+{"kind": "setting", "key": "pmo_repo_path", "label": "PMO repo path", "value": "/tmp/sample-project-zh", "order": 4}
+{"kind": "setting", "key": "code_repo_path", "label": "Code repo path", "value": "", "order": 5}
+{"kind": "setting", "key": "last_updated", "label": "Last updated", "value": "2026-08-16", "order": 6}

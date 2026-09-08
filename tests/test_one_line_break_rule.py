@@ -32,6 +32,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "viewer"))
 import tables as T  # noqa: E402
 
+import config_store  # noqa: E402
+
 #: Every boundary `str.splitlines()` breaks on that is not LF or CR. These are
 #: the six that diverged, enumerated from the language rather than from the
 #: bug report — the bug report named two.
@@ -138,10 +140,7 @@ class TestTheRefusalNamesTheFlag(unittest.TestCase):
         self.dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.dir.cleanup)
         self.root = pathlib.Path(self.dir.name)
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n")
+        config_store.write_config(self.root)
         (self.root / "BOARD.md").write_text(BOARD)
         seed = subprocess.run(
             [sys.executable, str(ROOT / "bin" / "perry-tasks"), "write",
@@ -210,19 +209,12 @@ class TestTheRefusalNamesTheFlag(unittest.TestCase):
 #: `queue` and `pipeline` modes and `commit` refuses to create the section
 #: without one. `main` is `project` so the fixture also holds a track that
 #: cannot take a commitment.
-GOALS_CONFIG = """# Perry configuration
-
-- Document language: English
-- Repo layout: single
-- State root: .
-
-## Tracks
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| ops | queue | commitments | intake -> doing | — | 5d | weekly | V2 |
-| main | project | okr | — | — | — | — | V2 |
-"""
+GOALS_TRACKS = [
+    config_store.track("ops", "queue", spine="commitments",
+                       stages="intake -> doing", sla="5d", cycle="weekly",
+                       default_rung="V2"),
+    config_store.track("main", "project", spine="okr", default_rung="V2"),
+]
 
 #: Schema-shaped, because the fixture is DECLARED rather than gate-exempt and
 #: The fixture used to `perry-conform declare` this file so the ADR-004 gate
@@ -274,8 +266,7 @@ def declare(root: pathlib.Path) -> None:
     refusal's. Declaring is also what a real project does (ADR-004), so the
     refusal is being read in the state a user reads it in.
     """
-    (root / ".perry").mkdir()
-    (root / ".perry" / "config.md").write_text(GOALS_CONFIG)
+    config_store.write_config(root, tracks=GOALS_TRACKS)
     (root / "OKR.md").write_text(GOALS_OKR)
 
 

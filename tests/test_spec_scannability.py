@@ -73,6 +73,8 @@ STATE = PERRY_HOME / "bin" / "perry-state"
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
 
+import config_store  # noqa: E402
+
 #: The shape `perry-task add` renders and `add-task` step 3 tells the author to
 #: copy. Reproduced here from `bin/perry-task § cmd_add`'s `definition` block,
 #: not invented: this is what following the procedure verbatim produces.
@@ -162,8 +164,7 @@ class TestTheLinterReportsIt(unittest.TestCase):
 
     def project(self, specs: dict[str, str]) -> Path:
         root = Path(tempfile.mkdtemp())
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text("# Config\n")
+        config_store.write_config(root)
         (root / ".perry" / "hook.md").write_text(HOOK)
         (root / "evidence" / "2026-09").mkdir(parents=True)
         for name, text in specs.items():
@@ -236,8 +237,7 @@ class TestTheMutation(unittest.TestCase):
 
     def project(self, spec_text: str) -> Path:
         root = Path(tempfile.mkdtemp())
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text("# Config\n")
+        config_store.write_config(root)
         (root / ".perry" / "hook.md").write_text(HOOK)
         (root / "evidence" / "2026-09").mkdir(parents=True)
         (root / "evidence" / "2026-09" / "TASK-002-spec.md").write_text(
@@ -306,8 +306,7 @@ class TestTheDefaultPassIsTheReader(unittest.TestCase):
 
     def project(self, specs: dict) -> Path:
         root = Path(tempfile.mkdtemp())
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text("# Config\n")
+        config_store.write_config(root)
         (root / ".perry" / "hook.md").write_text(HOOK)
         (root / "evidence" / "2026-09").mkdir(parents=True)
         for name, text in specs.items():
@@ -336,7 +335,7 @@ class TestTheDefaultPassIsTheReader(unittest.TestCase):
         # trigger is RECORDED in `check_specs`, not implemented here.
         #
         # The exit code is deliberately not asserted: a bare temp project is
-        # "adopted" the moment `.perry/config.md` exists and then reports its
+        # "adopted" the moment `.perry/config.jsonl` exists and then reports its
         # absent required state files as errors, so this process exits 1 for
         # reasons that predate TASK-284 and would make the assertion measure
         # something else. Severity is the property this check owns.
@@ -386,9 +385,7 @@ class TestTheDefaultPassIsTheReader(unittest.TestCase):
         # unresolved temp root fails that test and this case would silently
         # skip rather than run.
         root = Path(tempfile.mkdtemp()).resolve()
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Config\n\n- State root: perry\n")
+        config_store.write_config(root, {"State root": "perry"})
         (root / ".perry" / "hook.md").write_text(HOOK)
         state = root / "perry"
         (state / "evidence" / "2026-09").mkdir(parents=True)
@@ -661,8 +658,7 @@ class TestTheLinterDoesNotFakeItsLocalization(unittest.TestCase):
 
     def hooked(self) -> Path:
         root = Path(tempfile.mkdtemp())
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text("# Config\n")
+        config_store.write_config(root)
         (root / ".perry" / "hook.md").write_text(HOOK)
         return root
 
@@ -1217,8 +1213,7 @@ class TestABoundIsRequiredBeforeTheRoundNotAfterIt(unittest.TestCase):
 
     def project(self, specs: dict, extra: dict | None = None) -> Path:
         root = Path(tempfile.mkdtemp())
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text("# Config\n")
+        config_store.write_config(root)
         (root / ".perry" / "hook.md").write_text(HOOK)
         (root / "evidence" / "2026-09").mkdir(parents=True)
         for name, text in specs.items():
