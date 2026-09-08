@@ -54,11 +54,23 @@ user can produce.
 
 ## Known-red baseline
 
-Three tests were failing before this change and must still fail, no more and no
+**Two** tests fail before this change and must still fail, no more and no
 fewer:
 
 ```
 test_contract_key_parity.TestAWitnessProjectMakesAnEmptyCollectionObservable.test_without_the_witness_the_four_are_unobservable
 test_contract_key_parity.TestTheWitnessedKeysRedden.test_the_same_mutation_is_silent_without_the_witness
-test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks
 ```
+
+**Amended 2026-09-08, after this page was first written and before the round
+ran.** It named a third:
+`test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks`.
+That test is now green, and no code change made it so — `LOAD-03` fires when
+open questions pile up, four of them were answered, and it stopped firing. The
+amendment is recorded rather than silently applied because criteria edited
+after a result are a negotiation with it; this one predates the round, and the
+reviewer should treat a *third* red as a finding, not as the baseline.
+
+Note for any id-set comparison: the set is unchanged at 3393 ids. What moved is
+one id's **outcome**, from `FAIL` to `ok`. Files captured earlier in the day
+carry the old outcome.
