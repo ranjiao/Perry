@@ -693,6 +693,31 @@ def run_module(name: str) -> dict:
             "ids": parse_ids(proc.stderr)}
 
 
+#: **The harness's own self-tests, left out of a default run.** TASK-400.
+#:
+#: These three assert things about `tests/` rather than about Perry: that the
+#: tree guard can fail, that the scheduler may reorder but never drop, and that
+#: `durations.json` describes the tree in front of it. They cost 52.4 of the
+#: suite's seconds and `test_tree_guard` alone is 41.4 of that, at 1.7s per
+#: test, because each case unpacks a repository copy.
+#:
+#: **The guard itself does NOT move.** `tests/run` step 0 runs
+#: `tests/tree_guard.py` on every exit path including `--lint`, and that is a
+#: different file from `tests/test_tree_guard.py`. What is deferred is the
+#: proof that the guard can go red, not the guard.
+#:
+#: `test_restore_check` was considered and kept: it tests
+#: `bin/perry-restore-check`, which is a product tool a mutation round depends
+#: on, not part of this harness.
+#:
+#: Run them with `bash tests/run --slow` or `python3 tests/parallel --slow`.
+HARNESS_SELF_TESTS = frozenset({
+    "test_tree_guard.py",
+    "test_parallel_runner.py",
+    "test_durations_provenance.py",
+})
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("only", nargs="*", help="module name prefixes to run")
@@ -705,6 +730,9 @@ def main() -> int:
                     help="write every test id and its outcome to FILE")
     ap.add_argument("--record", action="store_true",
                     help="refresh tests/durations.json from this run")
+    ap.add_argument("--slow", action="store_true",
+                    help="also run the harness's own self-tests, which the "
+                         "default run leaves out (see HARNESS_SELF_TESTS)")
     ap.add_argument("--alphabetical", action="store_true",
                     help="ignore the stopwatch and run modules in name order "
                          "— the pre-TASK-230 schedule, kept so the saving can "
@@ -712,13 +740,23 @@ def main() -> int:
     args = ap.parse_args()
 
     all_mods = sorted(p.name for p in (ROOT / "tests").glob("test_*.py"))
-    mods = all_mods
+    # **The self-test filter applies to the DEFAULT set only.** Naming a module
+    # explicitly reaches it whether or not a plain run would have picked it up:
+    # `--only test_tree_guard` means run that, and answering "no test module
+    # matches" to a name that is sitting on disk is a lie. Filtering before
+    # `--only` did exactly that, and `test_parallel_runner`'s own cases caught
+    # it — they drive `main()` with `mod: "test_parallel_runner.py"`, which is
+    # in the set, and got exit 2 instead of 0.
     if args.only:
-        mods = [m for m in mods if any(m.startswith(p.removesuffix(".py"))
-                                       for p in args.only)]
+        mods = [m for m in all_mods
+                if any(m.startswith(p.removesuffix(".py")) for p in args.only)]
         if not mods:
             print(f"no test module matches {args.only}", file=sys.stderr)
             return 2
+    elif args.slow:
+        mods = all_mods
+    else:
+        mods = [m for m in all_mods if m not in HARNESS_SELF_TESTS]
 
     t0 = time.time()
     with cf.ThreadPoolExecutor(max_workers=args.j) as ex:
