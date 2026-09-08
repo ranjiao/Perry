@@ -1,7 +1,7 @@
 """TASK-136 — the queue breach step, which is the SLA's first consumer.
 
-`.perry/config.md § Tracks` has carried an `SLA` per queue track since work
-modes shipped. `bin/perry-state` computed `stage_counts` and `wip_breaches` off
+The track register has carried an `SLA` per queue track since work modes
+shipped — as a `## Tracks` cell then, as a store field since ADR-019. `bin/perry-state` computed `stage_counts` and `wip_breaches` off
 that register and nothing else, and the only reader of a track SLA **anywhere**
 was `bin/lib § classify_due` — which governs a Commitments `Due` cell, not a row
 clock. `today − Arrived` was computed nowhere.
@@ -43,20 +43,21 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import lib  # noqa: E402
 
+import config_store  # noqa: E402
+from config_store import track  # noqa: E402
+
 STATE = PERRY_HOME / "bin" / "perry-state"
 TASK = PERRY_HOME / "bin" / "perry-task"
 
-CONFIG = ("# Perry configuration\n\n- State root: perry\n"
-          + "\n## Tracks\n\n"
-          "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-          "|---|---|---|---|---|---|---|---|\n{rows}")
+SETTINGS = {"State root": "perry"}
 
 HEAD = ("| ID | Title | Owner | Status | Next action | Evidence | "
         "Verification | Track | Stage | Arrived | Commitment |\n"
         "|---|---|---|---|---|---|---|---|---|---|---|\n")
 
 #: One queue track with a five-calendar-day promise, and nothing else declared.
-OPS_5D = "| ops | queue | OKR.md | — | — | 5d | 1w | V2 |\n"
+OPS_5D = [track("ops", "queue", spine="OKR.md", sla="5d", cycle="1w",
+                default_rung="V2")]
 
 TODAY = date.today()
 
@@ -72,14 +73,13 @@ def row(tid: str, arrived: str, track: str = "ops",
 
 
 class Base(unittest.TestCase):
-    def project(self, tracks: str, board_rows: str = "") -> Path:
+    def project(self, tracks: list[dict], board_rows: str = "") -> Path:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            CONFIG.format(rows=tracks), encoding="utf-8")
+        config_store.write_config(root, SETTINGS, tracks)
         (root / "perry" / "BOARD.md").write_text(
             "# Board\n\n## P1\n\n" + HEAD + board_rows, encoding="utf-8")
         return root
@@ -323,7 +323,8 @@ class TestATrackWithNoSlaCannotRunTheStep(Base):
     one is declared.
     """
 
-    BARE = "| bare | queue | OKR.md | — | — | — | 1w | V2 |\n"
+    BARE = [track("bare", "queue", spine="OKR.md", cycle="1w",
+                  default_rung="V2")]
 
     def track_bare(self, rows: str = "") -> dict:
         return self.track(self.project(self.BARE, rows), "bare")
@@ -356,7 +357,8 @@ class TestATrackWithNoSlaCannotRunTheStep(Base):
         for cell in ("no SLA — best effort", "5 working days"):
             with self.subTest(cell=cell):
                 tr = self.track(self.project(
-                    f"| bare | queue | OKR.md | — | — | {cell} | 1w | V2 |\n",
+                    [track("bare", "queue", spine="OKR.md", sla=cell,
+                           cycle="1w", default_rung="V2")],
                     row("T-ANCIENT", ago(400), track="bare")), "bare")
                 self.assertFalse(tr["sla_check"]["runnable"])
                 self.assertEqual(tr["sla_check"]["reason"],
@@ -370,7 +372,8 @@ class TestATrackWithNoSlaCannotRunTheStep(Base):
         this there would report every row as clockless, which is a finding
         about the mode rather than about the rows."""
         tr = self.track(self.project(
-            "| rel | pipeline | phase/ | — | — | 5d | 2w | V3 |\n"), "rel")
+            [track("rel", "pipeline", spine="phase/", sla="5d", cycle="2w",
+                   default_rung="V3")]), "rel")
         self.assertFalse(tr["sla_check"]["runnable"])
         self.assertEqual(tr["sla_check"]["reason"], "not-a-queue-track")
         self.assertEqual(tr["sla_breaches"], [])
@@ -381,7 +384,8 @@ class TestTheArithmeticIsTheBoringKind(Base):
 
     def breached(self, days_old: int, sla: str = "5d") -> list[str]:
         root = self.project(
-            f"| ops | queue | OKR.md | — | — | {sla} | 1w | V2 |\n",
+            [track("ops", "queue", spine="OKR.md", sla=sla, cycle="1w",
+                   default_rung="V2")],
             row("T-1", ago(days_old)))
         return [b["id"] for b in self.track(root)["sla_breaches"]]
 
@@ -497,7 +501,8 @@ class TestADeclaredAndEmptyQueueTrack(Base):
         """The whole point of item 5, asserted as the comparison it is."""
         empty = self.track(self.project(OPS_5D))["sla_check"]
         bare = self.track(self.project(
-            "| bare | queue | OKR.md | — | — | — | 1w | V2 |\n"), "bare")["sla_check"]
+            [track("bare", "queue", spine="OKR.md", cycle="1w",
+                   default_rung="V2")]), "bare")["sla_check"]
         self.assertEqual((empty["runnable"], bare["runnable"]), (True, False))
         self.assertEqual(empty["sla_breaches"] if "sla_breaches" in empty
                          else [], [])
@@ -518,9 +523,7 @@ class TestTheImplicitTrackKeepsTheShape(Base):
         root = Path(tmp.name)
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: perry\n",
-            encoding="utf-8")
+        config_store.write_config(root, SETTINGS)
         (root / "perry" / "BOARD.md").write_text(
             "# Board\n\n## P1\n\n" + HEAD, encoding="utf-8")
         tr = self.track(root, "main")

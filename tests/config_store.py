@@ -77,6 +77,15 @@ def config_jsonl(settings: dict[str, str] | None = None,
     `PMO repo path` mints to without either one noticing.
     """
     settings = DEFAULT_SETTINGS if settings is None else settings
+    # **A `## Tracks` table is refused, not written.** A fixture handing this a
+    # markdown row would otherwise raise deep inside `perry_md_store.record`
+    # with `'str' object has no attribute 'get'` — a stack trace about a
+    # dictionary, four frames from the fixture that is actually wrong.
+    if isinstance(tracks, str) or any(isinstance(r, str) for r in tracks or []):
+        raise AssertionError(
+            "tracks are RECORDS, not `## Tracks` markdown rows: ADR-019 "
+            "deleted `.perry/config.md` and nothing reads one. Use "
+            "`config_store.track(name, mode, ...)`.")
     out = []
     for n, (label, value) in enumerate(settings.items()):
         out.append(_M.record("setting", {"key": _M.setting_key(label),

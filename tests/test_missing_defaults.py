@@ -26,23 +26,26 @@ STATE = PERRY_HOME / "bin" / "perry-state"
 LINT = PERRY_HOME / "bin" / "perry-lint"
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 
-TRACKS = ("# Perry configuration\n\n- State root: perry\n\n## Tracks\n\n"
-          "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-          "|---|---|---|---|---|---|---|---|\n{rows}")
+import config_store  # noqa: E402
+from config_store import track  # noqa: E402
+
+SETTINGS = {"State root": "perry"}
 BOARD = ("# Board\n\n## P1\n\n"
          "| ID | Title | Owner | Status | Next action | Evidence | Verification |\n"
          "|---|---|---|---|---|---|---|\n")
 
 
 class Base(unittest.TestCase):
-    def project(self, rows: str) -> Path:
+    def project(self, rows: list[dict]) -> Path:
+        """`rows` are track RECORDS. They were `## Tracks` table rows until
+        ADR-019; the em dash a table wrote for a blank cell is the empty string
+        a record holds, which is why `test_an_em_dash_counts_as_undeclared`
+        below now passes the marker explicitly."""
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
-        (root / ".perry").mkdir()
-        (root / "perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            TRACKS.format(rows=rows), encoding="utf-8")
+        (root / "perry").mkdir(parents=True)
+        config_store.write_config(root, SETTINGS, rows)
         (root / "perry" / "BOARD.md").write_text(BOARD, encoding="utf-8")
         return root
 
@@ -63,9 +66,13 @@ class Base(unittest.TestCase):
 
 
 class TestTriageCanSeeWhatItMustReport(Base):
-    ROWS = ("| ops | queue | OKR.md | new,triaged | — | — | — | V2 |\n"
-            "| rel | pipeline | phase/ | brief,done | 3 | 5d | 2w | V3 |\n"
-            "| main | project | phase/ | — | — | — | — | V3 |\n")
+    ROWS = [
+        track("ops", "queue", spine="OKR.md", stages="new,triaged",
+              default_rung="V2"),
+        track("rel", "pipeline", spine="phase/", stages="brief,done", wip="3",
+              sla="5d", cycle="2w", default_rung="V3"),
+        track("main", "project", spine="phase/", default_rung="V3"),
+    ]
 
     def test_a_queue_track_with_no_sla_names_it(self):
         t = self.tracks(self.project(self.ROWS))
@@ -86,8 +93,9 @@ class TestTriageCanSeeWhatItMustReport(Base):
         """`SKILL.md`'s own example track row writes empty cells as `—`, so a
         check that only tested for the empty string would pass over every
         register Perry itself taught people to write."""
-        t = self.tracks(self.project(
-            "| ops | queue | OKR.md | new | — | — | — | V2 |\n"))
+        t = self.tracks(self.project([
+            track("ops", "queue", spine="OKR.md", stages="new", wip="—",
+                  sla="—", cycle="—", default_rung="V2")]))
         self.assertIn("SLA", t["ops"]["missing_defaults"])
 
     def test_the_reader_and_the_linter_name_the_same_tracks(self):
@@ -107,7 +115,7 @@ class TestTriageCanSeeWhatItMustReport(Base):
 
 class TestBothTrackShapesCarryTheSameKeys(Base):
     """**The implicit `main` track is the shape most consumers see**, because
-    most projects declare no `## Tracks` register at all.
+    most projects declare no track at all.
 
     `missing_defaults` and `stages_declared` were added to the declared branch
     and not to `DEFAULT_TRACK`, so a reader that worked on a track-declaring
@@ -121,9 +129,7 @@ class TestBothTrackShapesCarryTheSameKeys(Base):
             root = Path(tmp)
             (root / ".perry").mkdir()
             (root / "perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: perry\n",
-                encoding="utf-8")
+            config_store.write_config(root, SETTINGS)
             (root / "perry" / "BOARD.md").write_text(BOARD, encoding="utf-8")
             r = subprocess.run([sys.executable, str(STATE), "--json",
                                 "--root", str(root)],
@@ -131,8 +137,9 @@ class TestBothTrackShapesCarryTheSameKeys(Base):
             return json.loads(r.stdout)["project"]["config"]["tracks"][0]
 
     def test_the_key_sets_are_identical(self):
-        declared = self.tracks(self.project(
-            "| ops | queue | OKR.md | a,b | — | — | — | V2 |\n"))["ops"]
+        declared = self.tracks(self.project([
+            track("ops", "queue", spine="OKR.md", stages="a,b",
+                  default_rung="V2")]))["ops"]
         self.assertEqual(sorted(self.implicit()), sorted(declared))
 
     def test_the_implicit_track_answers_every_question_with_a_value(self):

@@ -332,6 +332,18 @@ MODE_NO_DEFAULT: dict[str, list[str]] = {}
 #: put the `->` / `→` bug in circulation to begin with.
 STAGE_SEPARATORS: dict[str, list[str]] = {}
 
+#: `schema § enums`, whole. `check_file`'s header-field check reaches the same
+#: table through its `enums` local; `check_config_store` has no file spec to
+#: carry one, so it reads this.
+DECLARED_ENUMS: dict[str, list[str]] = {}
+
+#: `{track field: enum name}` — `mode` and `default_rung`. It was
+#: `files[id=config].tables[Tracks].enum_columns` until ADR-019 and is
+#: `stores.declared[".perry/config.jsonl"].records.track.enum_fields` now.
+#: Read, never restated: a mode the schema stops declaring must stop being
+#: accepted here in the same edit.
+TRACK_ENUM_FIELDS: dict[str, str] = {}
+
 #: What a user writes in a cell to mean "nothing here". `SKILL.md`'s own
 #: example track row spells an empty cell `—`, so a check that only tested for
 #: the empty string would pass over every register Perry itself taught people
@@ -355,6 +367,11 @@ def load_glossary(schema: dict) -> None:
         MODE_NO_DEFAULT[mode] = list((cfg or {}).get("no_default") or [])
     STAGE_SEPARATORS.update(
         (schema.get("work_modes") or {}).get("stage_separators") or {})
+    DECLARED_ENUMS.update(schema.get("enums") or {})
+    TRACK_ENUM_FIELDS.update(
+        ((((schema.get("stores") or {}).get("declared") or {})
+          .get(".perry/config.jsonl") or {}).get("records") or {})
+        .get("track", {}).get("enum_fields") or {})
     card = next((f for f in (schema.get("files") or [])
                  if f.get("id") == "knowledge-card"), None) or {}
     CARD_KINDS[:] = ((card.get("discriminator") or {}).get("values") or [])
@@ -4278,13 +4295,27 @@ def check_config_store(project_root: Path, state_root: Path) -> list["Finding"]:
       `no_default_by_mode` spec and went with that entry. `work_modes.modes.
       <mode>.no_default` is still the one list, read through `MODE_NO_DEFAULT`,
       so the linter and `bin/perry-state § missing_defaults` cannot report
-      different tracks.
+      different tracks;
+    - **does `mode` / `default_rung` name something the schema declares**,
+      which was `enum_columns` on the same table spec;
+    - **did the `stages` field actually split**, which was the `Stages` column
+      half of the same block. A cell using a separator Perry does not split on
+      becomes ONE stage whose name is the whole list, and every stage-based
+      measure then runs on it — silently. That failure mode does not care
+      whether the value arrived through a markdown cell or a JSON string.
 
-    `no-default` stays a WARN for the reason the schema gives at length: an
-    error would retroactively invalidate every register written before the
-    rule. The question is FORCED at creation instead, and the hard stops exist
-    at the point of use (`goals/reference/phases.md` refuses a queue commitment
-    against a track with no SLA).
+    **Three checks that would have gone quiet with the `files[]` entry, and
+    did not.** Deleting a projection is allowed to remove a comparison; it is
+    not allowed to remove a check about the thing that is left. Each reads the
+    same schema list its table-driven twin read, so the linter cannot come to
+    disagree with the splitter or with `bin/perry-state`.
+
+    `no-default` and `stage-separator` stay WARN for the reason the schema
+    gives at length: an error would retroactively invalidate every register
+    written before the rule. The question is FORCED at creation instead, and
+    the hard stops exist at the point of use (`goals/reference/phases.md`
+    refuses a queue commitment against a track with no SLA). `bad-enum` stays
+    an ERROR, as it is everywhere else.
     """
     findings: list[Finding] = []
     stats = _empty_config_store_stats()
@@ -4325,11 +4356,45 @@ def check_config_store(project_root: Path, state_root: Path) -> list["Finding"]:
     stats["comparison_performed"] = not issues
     stats["records"] = len(good)
 
+    seps = STAGE_SEPARATORS
     for rec in good:
         if rec.get("kind") != "track":
             continue
         who = (rec.get("track") or "").strip() or "?"
         mode = (rec.get("mode") or "project").strip().lower()
+
+        for field, enum_name in TRACK_ENUM_FIELDS.items():
+            allowed = DECLARED_ENUMS.get(enum_name) or []
+            value = str(rec.get(field) or "").strip()
+            if not allowed or not value or value in UNDECLARED_CELL:
+                continue
+            if value not in allowed:
+                findings.append(Finding(
+                    "error", rel_store, "bad-enum",
+                    f"track {who!r}: `{field}: {value}` is not one of "
+                    f"{allowed}"))
+
+        # **A `stages` value that did not split is reported by name.**
+        # `split_stages` accepts the separators in `schema § work_modes.
+        # stage_separators.accepted`; a value using any other one becomes ONE
+        # stage whose name is the whole list, and WIP, stage age and this
+        # mode's triage question all measure against it. Reproduced on a
+        # project reporting 8 lint errors, not one of which named the cell.
+        # Both halves read the SAME schema list, which is what stops the
+        # splitter and this check disagreeing about what a separator is.
+        cell = str(rec.get("stages") or "").strip()
+        if cell and cell not in UNDECLARED_CELL and seps.get("suspect") \
+                and not any(a in cell for a in (seps.get("accepted") or [])):
+            hit = next((c for c in seps["suspect"] if c in cell), None)
+            if hit:
+                findings.append(Finding(
+                    "warn", rel_store, "stage-separator",
+                    f"track {who!r} lists its stages with {hit!r}, which Perry "
+                    f"does not split on — the whole value becomes ONE stage "
+                    f"named {cell!r}, and WIP, stage age and this mode's "
+                    f"triage question all measure against it. Use one of "
+                    f"{', '.join(repr(a) for a in seps['accepted'])}."))
+
         for col in MODE_NO_DEFAULT.get(mode, []):
             # `UNDECLARED_CELL` and `PLACEHOLDER` are the SAME two the table
             # check used, so a blank spelled `—` reads undeclared here exactly
