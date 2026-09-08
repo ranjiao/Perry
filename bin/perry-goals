@@ -1144,7 +1144,11 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
         "linkage": {
             "present": bool(getattr(lk, "objectives", None)),
             "phase": getattr(lk, "phase", "") or "",
-            "updated": getattr(lk, "updated", "") or "",
+            # `updated` is GONE from this block (ADR-019 / TASK-155). It was
+            # the deleted register document's one file-level stamp, and three
+            # readers took it for three different facts. Each of the three is
+            # per record now, and `krs[].current_provenance.asserted_at` is
+            # the one a consumer of THIS payload wanted.
             "error": getattr(lk, "error", "") or "",
         },
         "counts": {

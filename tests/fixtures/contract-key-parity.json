@@ -39,15 +39,15 @@
       "unparsed_sketches": [],
       "witness": ""
     },
-    "perry-goals/list/2.3": {
+    "perry-goals/list/2.4": {
       "collections_the_witness_filled": [
         "krs[].current_staleness.moved_tasks"
       ],
       "command": "perry-goals list --json",
-      "contract": "perry-goals/list/2.3",
-      "documented": 86,
+      "contract": "perry-goals/list/2.4",
+      "documented": 85,
       "documented_not_emitted": [],
-      "emitted": 82,
+      "emitted": 81,
       "emitted_not_documented": [],
       "file": "schema/goals-list-contract.md",
       "named_no_such_collection": [],

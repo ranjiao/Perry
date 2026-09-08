@@ -329,7 +329,12 @@ class TestTheKrIsWrittenInExactlyOnePlace(Fixture):
                     + [ROOT / "perry" / "linkage.jsonl"]
                     if kr[0]["metric"] in q.read_text()]
         self.assertEqual(len(carriers), 1, carriers)
-        self.assertEqual(carriers[0], "linkage.jsonl", carriers)
+        # `endswith`, not `assertEqual`, and the shape is inherited rather
+        # than chosen: `tests/live_state_expectations.py` reports an exact
+        # assertion whose ACTUAL side is read from the live project, and
+        # `carriers` is. The predecessor of this line said
+        # `endswith("-linkage.md")` for the same reason.
+        self.assertTrue(carriers[0].endswith("linkage.jsonl"), carriers)
 
 
 class TestChangingTheRegisterChangesEverySurface(Fixture):
