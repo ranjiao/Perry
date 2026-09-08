@@ -264,6 +264,33 @@ class TestTheStateRootReadsTheStore(Fixture):
         d = self.project(markdown=None, store=False)
         self.assertEqual(P.resolve_state_root(d), d)
 
+    def test_a_markdown_only_project_declares_no_state_root(self):
+        """**The markdown-only project — found green by mutation, 2026-09-08.**
+
+        Every other case in this module has a store, so a fallback added back
+        to `declared_state_root` never runs and every assertion stays true.
+        Measured: re-inserting the `- State root:` regex over
+        `.perry/config.md` for the no-store branch passed the WHOLE suite —
+        3390 tests, 3 known reds, none of them this.
+
+        This is the case that distinguishes it, and it is the one shape the
+        module's own docstring says it exists for: `.perry/config.md` present
+        and inert. `MD_SAYS` declares `from-the-markdown` and the fixture
+        creates that directory, so a reader that grew the regex back would
+        resolve to it — the assertion is caught by the VALUE, not by the
+        absence of one.
+        """
+        d = self.project(markdown=MD_SAYS, store=False)
+        self.assertTrue((d / ".perry" / "config.md").exists())
+        self.assertTrue((d / "from-the-markdown").is_dir(),
+                        "the fixture no longer offers the markdown's state "
+                        "root as a real directory, so a reader that read it "
+                        "would be turned back by the escape guard instead")
+        value, why = P.declared_state_root(d)
+        self.assertEqual(value, "")
+        self.assertEqual(why, P.CONFIG_STORE_ABSENT)
+        self.assertEqual(P.resolve_state_root(d), d)
+
     def test_a_stored_state_root_outside_the_project_is_still_refused(self):
         """The escape guard is upstream of where the value came from."""
         settings = [dict(r) for r in STORE_SETTINGS]
@@ -303,6 +330,42 @@ class TestAStoreAloneIsAConfiguredProject(Fixture):
 
     def test_neither_is_not(self):
         self.assertFalse(P.configured(self.bare(markdown=None, store=False)))
+
+    def test_a_markdown_only_project_is_not_configured(self):
+        """**The half the removed disjunction left unmeasured.**
+
+        The two deleted cases above asserted `configured` answered TRUE for a
+        markdown-only project. Deleting them left NO case where the markdown
+        is present and the store is not, so the disjunction the comment above
+        says is gone could be put straight back: measured 2026-09-08, `or
+        (root / ".perry" / "config.md").exists()` in `viewer/parsers.py §
+        configured` passed the whole suite.
+
+        `bare` removes `BOARD.md` and `OKR.md` for the reason its docstring
+        gives — every caller ORs this predicate with those, and a fixture
+        carrying one answers True whatever this does.
+        """
+        d = self.bare(markdown=MD_SAYS, store=False)
+        self.assertTrue((d / ".perry" / "config.md").exists(),
+                        "the fixture writes no markdown, so this case is the "
+                        "same one as `test_neither_is_not`")
+        self.assertFalse(P.configured(d))
+
+    def test_a_markdown_only_project_declares_no_tracks(self):
+        """`bin/perry-goals § tracks_of`, the third reader with the same gap.
+
+        Its empty list is what `track_named` turns into "this project declares
+        no tracks", so widening the gate to accept a leftover `.perry/config.md`
+        makes `--track main` succeed on a project that never configured Perry.
+        Measured green the same day and by the same method.
+
+        `MD_SAYS` carries a `## Tracks` table declaring `main`, so the table is
+        there to be read and the assertion is that nothing read it.
+        """
+        goals = load_bin_module("perry-goals")
+        d = self.project(markdown=MD_SAYS, store=False)
+        self.assertIn("## Tracks", (d / ".perry" / "config.md").read_text())
+        self.assertEqual(goals.tracks_of(d), [])
 
     def test_the_linter_calls_a_store_only_project_adopted(self):
         """`is_adopted` gates every "this file is missing" finding.
