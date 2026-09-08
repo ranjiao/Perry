@@ -37,6 +37,9 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+import config_store
+from config_store import track
+
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 TASK = PERRY_HOME / "bin" / "perry-task"
@@ -48,18 +51,18 @@ TODAY = f"{date.today():%Y-%m-%d}"
 #: One `project` track, one `queue`, one `pipeline`, one second `queue`. The
 #: fourth is not padding: "an existing `Arrived` is carried, never restamped"
 #: is only observable across two tracks that both read one.
-TRACKS = (
-    "| main | project | OKR.md | — | — | — | — | V3 |\n"
-    "| intake | queue | standing | new→triaged→in_progress→resolved "
-    "| 6 | 5d | weekly | V3 |\n"
-    "| press | pipeline | commitments | — | — | 2w | 1w | V5 |\n"
-    "| ops | queue | standing | new→triaged→resolved | 3 | 3d | weekly | V2 |\n"
-)
+TRACKS = [
+    track("main", "project", spine="OKR.md", default_rung="V3"),
+    track("intake", "queue", spine="standing",
+          stages="new→triaged→in_progress→resolved", wip="6", sla="5d",
+          cycle="weekly", default_rung="V3"),
+    track("press", "pipeline", spine="commitments", sla="2w", cycle="1w",
+          default_rung="V5"),
+    track("ops", "queue", spine="standing", stages="new→triaged→resolved",
+          wip="3", sla="3d", cycle="weekly", default_rung="V2"),
+]
 
-CONFIG = ("# Perry configuration\n\n- State root: perry\n"
-          + "\n## Tracks\n\n"
-          "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-          "|---|---|---|---|---|---|---|---|\n" + TRACKS)
+SETTINGS = {"State root": "perry"}
 
 HEAD = ("| ID | Title | Owner | Status | Next action | Evidence "
         "| Verification |\n|---|---|---|---|---|---|---|\n")
@@ -72,7 +75,7 @@ class Base(unittest.TestCase):
         root = Path(tmp.name)
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
-        (root / ".perry" / "config.md").write_text(CONFIG, encoding="utf-8")
+        config_store.write_config(root, SETTINGS, TRACKS)
         (root / "perry" / "BOARD.md").write_text(
             f"# Board\n\n## {heading}\n\n" + HEAD, encoding="utf-8")
         for n in range(rows):
@@ -211,15 +214,15 @@ class TestTheRefusalIsByName(Base):
         add the missing one. Printing the set alone — which is what a bare
         Python list repr did — names the problem and not the fix."""
         msg = self.refusal(self.project())
-        self.assertIn(".perry/config.md", msg)
+        self.assertIn(".perry/config.jsonl", msg)
         self.assertIn("Nothing was written", msg)
 
     def test_it_creates_nothing(self):
         root = self.project()
-        config_before = (root / ".perry" / "config.md").read_bytes()
+        config_before = (root / ".perry" / "config.jsonl").read_bytes()
         board_before = self.board(root)
         self.refusal(root)
-        self.assertEqual((root / ".perry" / "config.md").read_bytes(),
+        self.assertEqual((root / ".perry" / "config.jsonl").read_bytes(),
                          config_before)
         self.assertEqual(self.board(root), board_before)
         self.assertEqual([e for e in self.events(root)

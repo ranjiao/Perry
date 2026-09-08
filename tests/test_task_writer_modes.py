@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from config_store import track
 from task_writer_support import (
     BASIC_MODE_TRACKS, BOARD, MODE_TRACKS, PERRY_HOME, PT, Project,
     ROUND_TRIP_BOARD, ROUND_TRIP_ROW_IDS, ROUND_TRIP_ROW_PRIORITIES, TASKS,
@@ -19,13 +20,7 @@ from task_writer_support import (
 class TestModeColumns(unittest.TestCase):
     """The container creation four review rounds kept finding missing."""
 
-    TRACKS = ("\n## Tracks\n\n"
-              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-              "|---|---|---|---|---|---|---|---|\n"
-              "| core | project | phase/ | — | — | — | — | V3 |\n"
-              "| blog | pipeline | commitments | brief->draft->published | review:2 | 5d | 2026-W34 | V5 |\n"
-              "| ops | queue | commitments | new->triaged->resolved | — | 5d | monthly | V2 |\n"
-              "| study | inquiry | questions | open->researching->answered | open:5 | — | — | V4 |\n")
+    TRACKS = BASIC_MODE_TRACKS
 
     def test_a_project_track_adds_no_columns(self):
         """DESIGN-003 goal 7: declaring nothing costs nothing."""
@@ -90,13 +85,7 @@ class TestModeAwareWrites(unittest.TestCase):
     created (round 4, F2).
     """
 
-    TRACKS = ("\n## Tracks\n\n"
-              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-              "|---|---|---|---|---|---|---|---|\n"
-              "| core | project | phase/ | — | — | — | — | V3 |\n"
-              "| blog | pipeline | commitments | brief->draft->review->published | review:2 | 5d | 2026-W34 | V5 |\n"
-              "| ops | queue | commitments | new->triaged->in_progress->resolved | — | 5d | monthly | V2 |\n"
-              "| study | inquiry | questions | open->researching->answered | open:5 | — | — | V4 |\n")
+    TRACKS = MODE_TRACKS
 
     def cells(self, p: "Project", tid: str) -> dict:
         board = p.board()
@@ -455,10 +444,9 @@ class TestANarrowSectionIsWidenedWhicheverFlagNamedIt(unittest.TestCase):
 | TECH-1 | pre-existing | Coding Agent | not_started |
 """
 
-    TRACKS = ("\n## Tracks\n\n"
-              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-              "|---|---|---|---|---|---|---|---|\n"
-              "| ops | queue | commitments | new->triaged->resolved | — | 5d | monthly | V2 |\n")
+    TRACKS = [track("ops", "queue", spine="commitments",
+                    stages="new->triaged->resolved", sla="5d",
+                    cycle="monthly", default_rung="V2")]
 
     def widths(self, p: Project) -> tuple[str, list[str]]:
         header = next(l for l in p.board().split("\n") if l.startswith("| ID |"))
@@ -565,11 +553,9 @@ class TestEveryWriterThatFilesARowReadsGroup(unittest.TestCase):
 """
     HEADING = "Open — 工程线 · phase #004 W24（流程层）"
 
-    TRACKS = ("\n## Tracks\n\n"
-              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-              "|---|---|---|---|---|---|---|---|\n"
-              "| ops | queue | commitments | new->triaged->resolved | — | 5d "
-              "| monthly | V2 |\n")
+    TRACKS = [track("ops", "queue", spine="commitments",
+                    stages="new->triaged->resolved", sla="5d",
+                    cycle="monthly", default_rung="V2")]
 
     def drained(self, *extra) -> tuple[Project, int, dict]:
         p = Project(tracks=self.TRACKS, board=self.WORKSTREAM)
@@ -909,13 +895,7 @@ class TestOneRuleOneImplementation(unittest.TestCase):
     wrong for exactly the rows nobody wrote the storing path for.
     """
 
-    TRACKS = ("\n## Tracks\n\n"
-              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-              "|---|---|---|---|---|---|---|---|\n"
-              "| core | project | phase/ | — | — | — | — | V3 |\n"
-              "| blog | pipeline | commitments | brief->draft->review->published | review:2 | 5d | 2026-W34 | V5 |\n"
-              "| ops | queue | commitments | new->triaged->in_progress->resolved | — | 5d | monthly | V2 |\n"
-              "| study | inquiry | questions | open->researching->answered | open:5 | — | — | V4 |\n")
+    TRACKS = MODE_TRACKS
 
     # -- m-6: the stage vocabulary parser
 

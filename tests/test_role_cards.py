@@ -21,6 +21,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import config_store  # noqa: E402
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 LINT = PERRY_HOME / "bin" / "perry-lint"
 STATE = PERRY_HOME / "bin" / "perry-state"
@@ -57,9 +59,7 @@ class Base(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n", encoding="utf-8")
+        config_store.write_config(root, {"State root": "."})
         for name, text in (cards or {}).items():
             p = root / ".perry" / "roles" / name
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -129,8 +129,7 @@ class TestTheShippedDefaults(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".perry" / "roles").mkdir(parents=True)
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: .\n", encoding="utf-8")
+            config_store.write_config(root, {"State root": "."})
             for p in rdir.glob("*.md"):
                 (root / ".perry" / "roles" / p.name).write_text(
                     p.read_text(), encoding="utf-8")
@@ -318,8 +317,7 @@ class TestTheRolesPayloadIsVersioned(unittest.TestCase):
     def test_the_contract_is_present_before_the_data(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text("State root: .\n")
+            config_store.write_config(root, {"State root": "."})
             (root / "BOARD.md").write_text("# Board\n")
             self.assertEqual(self.payload(root)["contract"],
                              "perry-roles/list/1.1")
@@ -328,7 +326,7 @@ class TestTheRolesPayloadIsVersioned(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / ".perry" / "roles").mkdir(parents=True)
-            (root / ".perry" / "config.md").write_text("State root: .\n")
+            config_store.write_config(root, {"State root": "."})
             (root / "BOARD.md").write_text("# Board\n")
             (root / ".perry" / "roles" / "finance.md").write_text(
                 "# Finance\n\n"
@@ -347,7 +345,7 @@ class TestTheRolesPayloadIsVersioned(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / ".perry" / "roles").mkdir(parents=True)
-            (root / ".perry" / "config.md").write_text("State root: .\n")
+            config_store.write_config(root, {"State root": "."})
             (root / "BOARD.md").write_text("# Board\n")
             (root / ".perry" / "roles" / "finance.md").write_text(
                 "# Finance\n\n- Accepted by: x\n- Default rung: V5\n")

@@ -32,28 +32,28 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
 
+import config_store  # noqa: E402
+from config_store import track  # noqa: E402
+
 STATE = PERRY_HOME / "bin" / "perry-state"
 TASK = PERRY_HOME / "bin" / "perry-task"
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 
-CONFIG = ("# Perry configuration\n\n- State root: perry\n"
-          + "\n## Tracks\n\n"
-          "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-          "|---|---|---|---|---|---|---|---|\n{rows}")
+SETTINGS = {"State root": "perry"}
 HEAD = ("| ID | Title | Owner | Status | Next action | Evidence | "
         "Verification | Track | Stage |\n"
         "|---|---|---|---|---|---|---|---|---|\n")
 
 
 class Base(unittest.TestCase):
-    def project(self, rows: str, board_rows: str = "", heading: str = "P1") -> Path:
+    def project(self, rows: list[dict], board_rows: str = "",
+                heading: str = "P1") -> Path:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            CONFIG.format(rows=rows), encoding="utf-8")
+        config_store.write_config(root, SETTINGS, rows)
         (root / "perry" / "BOARD.md").write_text(
             f"# Board\n\n## {heading}\n\n" + HEAD + board_rows, encoding="utf-8")
         return root
@@ -77,7 +77,8 @@ class Base(unittest.TestCase):
 
 
 class TestTheReaderAndTheWriterAgreeAboutStages(Base):
-    ROW = "| ops | queue | OKR.md | — | — | 3d | 1w | V2 |\n"
+    ROW = [track("ops", "queue", spine="OKR.md", sla="3d", cycle="1w",
+                 default_rung="V2")]
 
     def test_a_blank_stages_cell_reports_the_modes_vocabulary(self):
         """`[]` said the track had no stages. It has the mode's — which is
@@ -94,7 +95,8 @@ class TestTheReaderAndTheWriterAgreeAboutStages(Base):
 
     def test_a_declared_vocabulary_is_reported_as_declared(self):
         t = self.tracks(self.project(
-            "| ops | queue | OKR.md | a,b,c | — | 3d | 1w | V2 |\n"))["ops"]
+            [track("ops", "queue", spine="OKR.md", stages="a,b,c", sla="3d",
+                   cycle="1w", default_rung="V2")]))["ops"]
         self.assertEqual(t["stage_list"], ["a", "b", "c"])
         self.assertTrue(t["stages_declared"])
 
@@ -140,7 +142,9 @@ class TestTheBoardReaderCanSeeTheModeColumns(Base):
 
 
 class TestWipOverflowIsNowAScriptCatch(Base):
-    ROW = "| rel | pipeline | phase/ | brief,draft,review,done | review:2 | 5d | 2w | V3 |\n"
+    ROW = [track("rel", "pipeline", spine="phase/",
+                 stages="brief,draft,review,done", wip="review:2", sla="5d",
+                 cycle="2w", default_rung="V3")]
     ROWS = ("| T-1 | a | o | in_progress | n | — | V3 | rel | review |\n"
             "| T-2 | b | o | in_progress | n | — | V3 | rel | review |\n"
             "| T-3 | c | o | in_progress | n | — | V3 | rel | review |\n"
@@ -161,7 +165,8 @@ class TestWipOverflowIsNowAScriptCatch(Base):
         """Silence where the project made no promise. Inventing a limit is the
         mistake `no_default` exists to prevent."""
         t = self.tracks(self.project(
-            "| rel | pipeline | phase/ | a,b | — | 5d | 2w | V3 |\n",
+            [track("rel", "pipeline", spine="phase/", stages="a,b", sla="5d",
+                   cycle="2w", default_rung="V3")],
             self.ROWS))["rel"]
         self.assertEqual(t["wip_breaches"], [])
         self.assertEqual(t["stage_counts"], {"review": 3, "draft": 1})
@@ -191,10 +196,12 @@ class TestWipOverflowIsNowAScriptCatch(Base):
 
 
 class TestCustomTaskGroupsReachTheStateReader(Base):
-    PIPELINE = ("| rel | pipeline | phase/ | brief,draft,review,published | "
-                "review:1 | 5d | 2w | V5 |\n")
-    QUEUE = ("| ops | queue | commitments | new,triaged,in_progress,resolved | "
-             "triaged:1 | 3d | 1w | V2 |\n")
+    PIPELINE = [track("rel", "pipeline", spine="phase/",
+                      stages="brief,draft,review,published", wip="review:1",
+                      sla="5d", cycle="2w", default_rung="V5")]
+    QUEUE = [track("ops", "queue", spine="commitments",
+                   stages="new,triaged,in_progress,resolved", wip="triaged:1",
+                   sla="3d", cycle="1w", default_rung="V2")]
 
     def test_pipeline_add_is_visible_to_tasks_open_counts_and_wip(self):
         root = self.project(self.PIPELINE, heading="Release train")

@@ -565,7 +565,11 @@ class TestTheRoundLimitIsDeclaredNotHardcoded(ReviewLintCase):
             "label": "Review rounds before escalation",
             "value": value}) + "\n")
 
-    def markdown(self, body):
+    def stray_markdown(self, body):
+        """A `.perry/config.md` nothing should read. ADR-019 deleted the file;
+        a leftover copy in a working tree is inert, and that is the assertion.
+        Writing one anyway is what tells the fallback's REMOVAL apart from the
+        fallback merely going unexercised."""
         (self.dir / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n" + body + "\n")
 
@@ -593,23 +597,22 @@ class TestTheRoundLimitIsDeclaredNotHardcoded(ReviewLintCase):
         self.store("5")
         self.assertEqual(self.resolved(), (5, ".perry/config.jsonl"))
 
-    def test_the_markdown_is_the_fallback_when_there_is_no_store(self):
-        self.markdown("- Review rounds before escalation: 5")
-        self.assertEqual(self.resolved(), (5, ".perry/config.md"))
+    def test_a_stray_markdown_is_not_a_register_when_there_is_no_store(self):
+        """The fallback ADR-019 removed. With no store at all, a
+        `.perry/config.md` declaring 5 answers nothing and the schema does."""
+        self.stray_markdown("- Review rounds before escalation: 5")
+        self.assertEqual(self.resolved(), (2, "schema § thresholds"))
 
-    def test_the_two_registers_are_named_apart(self):
-        """Reporting a store value as `.perry/config.md` sends the reader to
-        edit a projection instead of the register that answered."""
+    def test_a_stray_markdown_does_not_compete_with_the_store(self):
         self.store("5")
-        self.markdown("- Review rounds before escalation: 9")
+        self.stray_markdown("- Review rounds before escalation: 9")
         self.assertEqual(self.resolved(), (5, ".perry/config.jsonl"))
 
     def test_a_store_without_the_key_does_NOT_fall_through_to_the_markdown(self):
-        """The store is derived from the preamble, so a key it does not carry
-        is a line the file does not have. Falling through would put one
-        setting in two registers — the drift TASK-233 removed."""
+        """A key the store does not carry is a setting the project does not
+        declare, and there is no second register to ask."""
         self.store("English", key="document_language")
-        self.markdown("- Review rounds before escalation: 5")
+        self.stray_markdown("- Review rounds before escalation: 5")
         self.assertEqual(self.resolved(), (2, "schema § thresholds"))
 
     def test_env_beats_the_declared_field(self):

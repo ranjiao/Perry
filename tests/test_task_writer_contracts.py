@@ -820,10 +820,10 @@ class TestFromAimarksProductionReport(unittest.TestCase):
         p = Project(board=BOARD.replace(
             "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
             "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
-            "| TASK-900 | Multi | User | done | — | `BOARD.md`, `.perry/config.md`, `nope.md` |\n\n## P1", 1))
+            "| TASK-900 | Multi | User | done | — | `BOARD.md`, `.perry/config.jsonl`, `nope.md` |\n\n## P1", 1))
         _, d = p.run("list", "--all")
         t = next(x for x in d["tasks"] if x["id"] == "TASK-900")
-        self.assertEqual(t["evidence_paths"], ["BOARD.md", ".perry/config.md"])
+        self.assertEqual(t["evidence_paths"], ["BOARD.md", ".perry/config.jsonl"])
         self.assertIn({"id": "TASK-900", "paths": ["nope.md"]},
                       d["conformance"]["evidence_not_found"])
         self.assertIn("`BOARD.md`", t["evidence"], "the raw cell was lost")

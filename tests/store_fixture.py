@@ -9,6 +9,8 @@ import sys
 import tempfile
 import unittest
 
+import config_store
+
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TASKS = ROOT / "bin" / "perry-tasks"
@@ -48,12 +50,15 @@ BOARD = """# Board - Store fixture
 - (no active risks)
 """
 
-CONFIG = """# Perry configuration
-
-- Document language: English
-- Repo layout: single
-- State root: perry
-"""
+#: The settings the fixture project declares. Written as a store, because
+#: since ADR-019 there is nowhere else to write them — a `.perry/config.md`
+#: here would be a file no tool opens, and every assertion below would be
+#: measuring an unconfigured project.
+CONFIG_SETTINGS = {
+    "Document language": "English",
+    "Repo layout": "single",
+    "State root": "perry",
+}
 
 
 class StoreFixture(unittest.TestCase):
@@ -69,8 +74,6 @@ class StoreFixture(unittest.TestCase):
         (root / ".perry" / "events.jsonl").write_text("", encoding="utf-8")
 
         if markdown_stores:
-            shutil.copy2(ROOT / ".perry" / "config.md",
-                         root / ".perry" / "config.md")
             shutil.copy2(ROOT / ".perry" / "config.jsonl",
                          root / ".perry" / "config.jsonl")
             shutil.copy2(ROOT / "perry" / "OKR.md",
@@ -78,8 +81,7 @@ class StoreFixture(unittest.TestCase):
             shutil.copy2(ROOT / "perry" / "okr.jsonl",
                          root / "perry" / "okr.jsonl")
         else:
-            (root / ".perry" / "config.md").write_text(
-                CONFIG, encoding="utf-8")
+            config_store.write_config(root, CONFIG_SETTINGS)
 
         if with_store:
             self.write_store(root)

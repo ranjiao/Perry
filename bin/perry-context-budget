@@ -41,9 +41,9 @@ Usage:
 
   --ceiling      the budget. Accepts 200000 or 200k. Most specific wins:
                  this flag, then env `PERRY_CONTEXT_CEILING`, then the
-                 project's `- Session context ceiling:` in `.perry/config.md`
-                 (or its store), then `schema § thresholds`. Every report
-                 names which of the four answered.
+                 project's `session_context_ceiling` setting in
+                 `.perry/config.jsonl`, then `schema § thresholds`. Every
+                 report names which of the four answered.
   --session      measure this transcript instead of the newest one for the
                  project. The escape hatch for "the newest file is not me".
   --composition  scan the WHOLE transcript and report what the context is made
@@ -98,16 +98,16 @@ CEILING_SETTING_KEY = "session_context_ceiling"
 def declared_ceiling(project_root: Path) -> tuple[str | None, str]:
     """The project's own ceiling and WHICH register answered, or (None, _).
 
-    The two registers are named apart because reporting a store value as
-    though the markdown set it sends the reader to edit a file that is a
-    projection — the drift this repository keeps finding, in the message that
-    exists to prevent it.
+    **`.perry/config.jsonl` is the only register** (ADR-019). This used to read
+    the store first and fall back to `.perry/config.md`, which was the
+    arrangement TASK-233 settled while the markdown still existed; the
+    projection is gone, so the fallback has no subject. A usable store that does
+    not carry the key is an ANSWER — the key is simply not declared — and that
+    was already true before the second register went away.
 
-    **The store first, the markdown only when there is no store** — the
-    arrangement TASK-233 settled for every other setting. A usable store that
-    does not carry the key is an ANSWER: the store is derived from the
-    preamble, so a key it lacks is a line the file does not have. Reading the
-    markdown there would put the setting in two registers again.
+    The register name still travels with the value, for the reason it always
+    did: a budget that stops a run has to name the file a reader can edit to
+    argue with it.
 
     Read directly rather than through `viewer.parsers` on purpose: this tool
     answers a question about the SESSION and must keep working in a directory
@@ -132,12 +132,6 @@ def declared_ceiling(project_root: Path) -> tuple[str | None, str]:
         # reads it when there IS a value. Said once here rather than returned
         # as a string no test can distinguish.
         return None, ""
-    cfg = project_root / ".perry" / "config.md"
-    if cfg.exists():
-        m = re.search(r"Session context ceiling\s*[:：]\s*([^\n]+)",
-                      cfg.read_text(errors="replace"), re.I)
-        if m:
-            return (m.group(1).strip().strip("*` ") or None), ".perry/config.md"
     return None, ""
 
 

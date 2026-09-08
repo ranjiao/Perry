@@ -1,8 +1,8 @@
-"""`OKR.md` and `.perry/config.md` — the stores, and the renderers of them.
+"""`OKR.md` — the store, and the renderer of it.
 
 ADR-007's second slice (TASK-092). `perry/tasks.jsonl` proved the shape on
-`BOARD.md`; these two files are the same move on the two documents that are
-mostly *not* table. The whole design is one sentence:
+`BOARD.md`; this is the same move on the document that is mostly *not* table.
+The whole design is one sentence:
 
     the STORE holds what is written; every other byte of the file is LAYOUT
     and comes back out of the file untouched.
@@ -12,7 +12,7 @@ mostly *not* table. The whole design is one sentence:
 `render_lines` are imported. A second cell model is the defect ADR-007 exists
 to remove, and it would show up exactly where it is hardest to see: on a rule
 like "a declared blank marker such as `—` is layout, not data", which would
-then mean one thing in `BOARD.md` and another in `.perry/config.md`.
+then mean one thing in `BOARD.md` and another in `OKR.md`.
 
 Why byte-identity rather than "parses the same". `TASK-037-spec` is marked
 manual on DESIGN-005 § 5.5's verdict that "the risk is not one a test catches:
@@ -45,23 +45,20 @@ What each store holds
                        `id` is minted here** — the field is carried and left
                        empty, and DESIGN-009 step 3 is what fills it.
 
-`.perry/config.jsonl`
-
-    kind `setting`     one `- Key: value` line of the preamble.
-    kind `track`       one row of `## Tracks`.
-
 Everything else — the mission, the operating principles, the rationale
 paragraphs, gimegime-pmo's nine screens of dispatch lessons — is layout. It is
 never parsed and never re-rendered.
 
-**"Never at risk" was true of a renderer that always had the file in front of
-it, and `scaffold_config` below is the one that does not** (TASK-233).
-`perry-config render` with no `.perry/config.md` on disk rebuilds the document
-from the store alone, which is the settings, the table, and the fixed lines of
-the shape — so layout survives a render and does not survive a deletion.
-`reference/config.md § Prose in this file is layout` states that to a user and
-points at `.perry/hook.md`, which is where Perry's own `## Why the state root is
-not .` went.
+**`.perry/config.jsonl` was the second store this module served**, through a
+`CONFIG` `Doc` whose file was `.perry/config.md`: `setting` records for the
+preamble's `- Key: value` lines and `track` records for the `## Tracks` table,
+with `scan_config` reading them out and `scaffold_config` rebuilding the whole
+document from the store alone. ADR-019 deleted that file. The store stays and
+is canonical; what left with the projection is everything in this module that
+was about turning it back into markdown. The two record shapes are still
+declared here in `STORED`, and the schema declares their fields at
+`stores.declared[".perry/config.jsonl"]` rather than as the columns of a table
+that no longer exists.
 """
 
 from __future__ import annotations
@@ -138,9 +135,11 @@ def field_map(columns: dict[str, str], extra: dict[str, str] | None = None) -> d
 def column_field(name: str) -> str:
     """`Default rung` → `default_rung`. The one rule, applied everywhere.
 
-    It is what `bin/perry-state § _TRACK_KEYS` writes out by hand, so a track
-    column the schema declares and the key the store files it under cannot come
-    apart.
+    `bin/perry-state § _TRACK_KEYS` used to write the track half out by hand,
+    so this was what kept a column the schema declared and the key the store
+    filed it under from coming apart. Those are store FIELDS since ADR-019 and
+    have no column to be derived from; what is left here serves `OKR.md`'s
+    tables, on the same one rule.
     """
     return name.strip().lower().replace(" ", "_")
 
@@ -191,11 +190,38 @@ VERSION_COLUMNS = {"Version": "version", "Date": "date",
 VERSION_EXTRA = {"版本": "version", "日期": "date", "变更": "what",
                  "改了什么": "what", "原因": "why", "为什么": "why"}
 
-#: `.perry/config.md § Tracks` — `Track` and `Mode` are required and the rest
-#: are per-mode optional; all of them come from the schema, under the same keys
-#: `bin/perry-state § _TRACK_KEYS` reads, so a track the register declares and
-#: a track the store holds cannot come to be different sets.
-TRACK_COLUMNS = table_columns(".perry/config.md", "Tracks")
+def store_record_fields(store_path: str, kind: str) -> list[str]:
+    """The fields one record kind of a declared store carries, from the schema.
+
+    `table_columns` above answers the same question for a record kind that
+    projects from a markdown table, by reading that table's column list.
+    `.perry/config.jsonl` has no table to read: ADR-019 deleted
+    `.perry/config.md`, and its `files[]` entry — which was where the track
+    columns were declared — went with it. The declaration moved to
+    `stores.declared[".perry/config.jsonl"]`, beside `linkage.jsonl`'s, and
+    this is the reader for it.
+
+    Read, not restated, for the same reason `table_columns` is: a second copy
+    would disagree the day a field is added, and it would disagree in silence.
+    """
+    spec = ((schema().get("stores") or {}).get("declared") or {}).get(store_path)
+    if not spec:
+        raise Refused(f"schema/state-schema.json declares no store at "
+                      f"{store_path!r}; this tool cannot invent one")
+    rec = (spec.get("records") or {}).get(kind)
+    if not rec:
+        raise Refused(f"schema/state-schema.json declares no {kind!r} record "
+                      f"for {store_path!r}; this tool cannot invent one")
+    return list(rec.get("fields") or [])
+
+
+#: The fields a `kind: track` record carries — `track` and `mode` are required
+#: and the rest are per-mode optional. From the schema, so a track the register
+#: declares and a track the store holds cannot come to be different sets.
+TRACK_FIELDS = store_record_fields(".perry/config.jsonl", "track")
+
+#: The same, for a `kind: setting` record.
+SETTING_FIELDS = store_record_fields(".perry/config.jsonl", "setting")
 
 #: Fields carried per record kind, in a fixed order, so two writes of the same
 #: state produce the same bytes. Same rule and same reason as
@@ -236,14 +262,19 @@ def _assert_every_declared_column_is_stored() -> None:
     the only thing that would notice and only if the cell was non-empty. This
     turns that into an import-time refusal naming the column.
     """
-    for kind, columns in (("commitment", COMMITMENT_COLUMNS),
-                          ("track", TRACK_COLUMNS)):
-        missing = sorted(set(columns.values()) - set(STORED[kind]))
+    declared = [("commitment", set(COMMITMENT_COLUMNS.values())),
+                # `track` and `setting` are declared as store FIELDS rather
+                # than as table columns since ADR-019 — see
+                # `store_record_fields` — and the guard is the same guard.
+                ("track", set(TRACK_FIELDS)),
+                ("setting", set(SETTING_FIELDS))]
+    for kind, fields in declared:
+        missing = sorted(fields - set(STORED[kind]))
         if missing:
             raise Refused(
-                f"schema/state-schema.json declares column(s) {missing} that "
-                f"`STORED[{kind!r}]` has no field for. Add them there — a "
-                f"column read and not stored is a value dropped in silence")
+                f"schema/state-schema.json declares field(s) {missing} that "
+                f"`STORED[{kind!r}]` has no slot for. Add them there — a "
+                f"field read and not stored is a value dropped in silence")
 
 
 _assert_every_declared_column_is_stored()
@@ -531,9 +562,6 @@ def okr_table_under(needle: str) -> re.Pattern:
     return table_under("OKR.md", needle)
 
 
-def config_table_under(needle: str) -> re.Pattern:
-    return table_under(".perry/config.md", needle)
-
 
 def scan_okr(text: str) -> tuple[list[str], list[dict]]:
     """`OKR.md` → its lines, and every line the store claims."""
@@ -629,19 +657,15 @@ def scan_okr(text: str) -> tuple[list[str], list[dict]]:
     return lines, sites
 
 
-# ── .perry/config.md ──────────────────────────────────────────────────────
-
-
-#: `- Document language: English`. The label is everything before the first
-#: colon, the value everything after it. Restricted to the PREAMBLE — the lines
-#: above the first `##` — because a real config's prose sections are full of
-#: bullets that carry a colon and are not settings: gimegime-pmo's
-#: `## Notes` opens with "Cross-reference convention: PMO docs → code via …",
-#: which is a sentence, not a key. `bin/perry-state § parse_config` reads a
-#: fixed set of labels and never meets the question; a store that holds
-#: whatever is written has to answer it, and the preamble is where every
-#: documented key is written.
-_SETTING = re.compile(r"^(\s*[-*]\s+)([^:：]+?)\s*([:：])(.*)$")
+# ── the settings half of `.perry/config.jsonl` ───────────────────────────
+#
+# `scan_config` stood here: `.perry/config.md` -> the lines a store record
+# claims, one site per `- Key: value` bullet in the preamble and one per
+# `## Tracks` row. ADR-019 deleted the file, so there is nothing left to
+# scan and no projection to plan against. `setting_key` survives it because
+# the KEY rule outlived the syntax it was written for: a setting is still
+# addressed by `document_language` and still shown to a human as the label
+# they wrote, and `bin/perry-config set` mints the one from the other.
 
 
 def setting_key(label: str) -> str:
@@ -649,161 +673,46 @@ def setting_key(label: str) -> str:
     return re.sub(r"[^\w]+", "_", squash(label)).strip("_")
 
 
-def scan_config(text: str) -> tuple[list[str], list[dict]]:
-    """`.perry/config.md` → its lines, and every line the store claims."""
-    lines = text.split("\n")
-    tables = markdown_tables(lines, 0, len(lines), squash)
-    ctx = _heading_context(lines)
-    sites: list[dict] = []
-
-    tracks_heading = config_table_under("Tracks")
-    for tbl in tables:
-        h2, _h3 = ctx[tbl["header_line"]]
-        if not tracks_heading.match(h2):
-            continue
-        sites += _table_sites(lines, [tbl], "track", TRACK_COLUMNS)
-
-    inside = {r["line"] for t in tables for r in t["rows"]}
-    for i, line in enumerate(lines):
-        if ctx[i][0]:
-            break                       # the preamble ended at the first `##`
-        if i in inside:
-            continue
-        m = _SETTING.match(line)
-        if not m:
-            continue
-        label = m.group(2).strip()
-        key = setting_key(label)
-        if not key:
-            continue
-        sites.append({
-            "line": i, "kind": "setting", "how": "slots",
-            "values": {"key": key, "label": label,
-                       "value": stored_value(m.group(4))},
-            "slots": [(m.end(3), len(line), "value")],
-        })
-    sites.sort(key=lambda s: s["line"])
-    return lines, sites
-
-
 # ── the two documents, as one interface ───────────────────────────────────
 
 
-# ── rebuilding a projection that is not there ─────────────────────────────
-#
-# TASK-233. Everything above renders the store INTO a file that exists: `plan`
-# scans the file for the lines the store fills, and every other byte comes back
-# untouched. That is the right contract while there is a file, and it is the
-# whole of `cmp` being the bar. It also means that until this section existed,
-# `perry-config render` on a project whose `.perry/config.md` had been deleted
-# printed `no .perry/config.md` and wrote nothing — an in-place cell updater,
-# not the projection `BOARD.md` is.
-#
-# **A scaffold is a stated contract, not a recovery.** What comes back is the
-# canonical shape and the stored values, and nothing else: the title, the
-# `## Tracks` heading and the table header are fixed parts of the shape
-# (`reference/config.md § .perry/config.md shape`), and PROSE IS NOT
-# RECOVERABLE — DESIGN-013 § 5.1 puts a schema'd fact in exactly one store and
-# § 5.5 rejects moving prose into one, so a store that could rebuild the prose
-# would be the design's own rejected alternative. `reference/config.md § Prose
-# in this file is layout` is where that is written for a user, and it is the
-# reason Perry's own commentary moved to `.perry/hook.md`.
-
-#: The first line of `.perry/config.md`. Layout, and fixed: `SKILL.md § 195`
-#: records why the field names stay English in every language — this is the
-#: file that declares the language, so it has to be readable before the
-#: language is known — and the title is that argument's first line.
-CONFIG_TITLE = "# Perry configuration"
-
-#: The heading `scan_config` matches `## Tracks` under. Spelled once so the
-#: scaffold and the scanner cannot come to disagree about it.
-TRACKS_HEADING = "## Tracks"
-
-
-def scaffold_config(records: list[dict]) -> str:
-    """`.perry/config.jsonl` → a complete `.perry/config.md`, from the store ALONE.
-
-    For the case there is no file to project onto. Settings become the
-    preamble in stored order, tracks become the `## Tracks` table in stored
-    order, and a store carrying no track record writes no section at all —
-    DESIGN-003 reads an absent `## Tracks` as one implicit `main`, so writing
-    an empty table would state something the store does not.
-
-    A stored blank comes back as the blank marker, because that is how the file
-    writes "empty" and `stored_value` normalised it away on the way in. The
-    marker is `lib.blank_marker`'s, not a literal here.
-
-    **The caller must check that this round-trips.** `main` renders the result
-    through `plan`/`render` and refuses when the bytes move or when a record
-    finds no line — a scaffold that cannot express a record would otherwise
-    write a file that silently drops it, which is the failure mode this whole
-    file exists to make impossible.
-    """
-    blank = lib.blank_marker()
-
-    def shown(value) -> str:
-        text = value if isinstance(value, str) else (
-            "" if value is None else str(value))
-        return text or blank
-
-    settings = sorted((r for r in records if r.get("kind") == "setting"),
-                      key=lambda r: (r.get("order") if isinstance(
-                          r.get("order"), int) else 0))
-    tracks = sorted((r for r in records if r.get("kind") == "track"
-                     and (r.get("track") or "").strip()),
-                    key=lambda r: (r.get("order") if isinstance(
-                        r.get("order"), int) else 0))
-
-    out = [CONFIG_TITLE, ""]
-    for rec in settings:
-        label = (rec.get("label") or "").strip()
-        if not label:
-            # A record with no label cannot be written as `- Label: value`.
-            # Refusing here rather than inventing one from the key: the key is
-            # `setting_key`'s lossy squash of the label — `PMO repo path` and
-            # `pmo repo path` mint the same key — so reconstructing it would
-            # guess at the user's own capitalisation.
-            raise Refused(
-                f"the store holds a setting with no label "
-                f"({rec.get('key')!r}); `.perry/config.md` cannot be rebuilt "
-                f"from it, because the label is the line")
-        out.append(f"- {label}: {shown(rec.get('value'))}")
-    if tracks:
-        columns = list(TRACK_COLUMNS)
-        out += ["", TRACKS_HEADING, "",
-                render_row(columns),
-                render_separator(len(columns))]
-        out += [render_row([shown(rec.get(TRACK_COLUMNS[c])) for c in columns])
-                for rec in tracks]
-    return "\n".join(out) + "\n"
+# A projection that is not there used to be rebuilt here — `scaffold_config`
+# (TASK-233), which turned `.perry/config.jsonl` back into a whole
+# `.perry/config.md` from the store alone, because a renderer that can only
+# produce a file when a copy of it already exists is an in-place cell updater
+# rather than a projection. ADR-019 removed the destination, and the `scaffold`
+# hook on `Doc` went with its only implementation. `OKR.md` was always the
+# `scaffold=None` case and is unaffected: its file is mostly mission,
+# principles and per-objective narrative, and a scaffold there would emit a KR
+# table under headings the store has no record of — a file that looks like an
+# `OKR.md` and asserts nothing the project wrote. `perry-okr render` on a
+# project with no `OKR.md` refuses, and says why.
 
 
 class Doc:
     """One markdown file that has become a projection of a store.
 
-    Two instances, one implementation. `scan` is the only thing that differs
-    between `OKR.md` and `.perry/config.md`, which is the point: everything
-    below — deriving, planning, rendering, byte-comparing, reporting drift —
-    is the same code for both, and both reach `bin/perry_store.py` for the
-    cell model rather than carrying one.
+    **One instance now, and still a class.** `scan` was the only thing that
+    differed between `OKR.md` and `.perry/config.md`; ADR-019 deleted the
+    second file, and everything below — deriving, planning, rendering,
+    byte-comparing, reporting drift — is the code that was written to be the
+    same for both. It is kept as a class rather than folded into `OKR` because
+    what it factors out is a REAL boundary — a document, its store, and the one
+    scanner between them — and the day another document projects from a store
+    is the day that boundary is needed again. Folding it in would be the
+    "inline it because there is one caller" move that this repository has paid
+    to undo before.
+
+    Both halves still reach `bin/perry_store.py` for the cell model rather than
+    carrying one, which was the point of ADR-007.
     """
 
-    def __init__(self, name, rel_file, rel_store, scan, under_state_root,
-                 scaffold=None):
+    def __init__(self, name, rel_file, rel_store, scan, under_state_root):
         self.name = name
         self.rel_file = rel_file
         self.rel_store = rel_store
         self.scan = scan
         self.under_state_root = under_state_root
-        #: How to rebuild the whole file from the store when there is no file
-        #: to project onto, or `None` for a document that has no declared
-        #: shape to rebuild into. `OKR.md` is the `None` case and stays one:
-        #: its file is mostly mission, principles and per-objective narrative,
-        #: and a scaffold there would emit a KR table under headings the store
-        #: has no record of — a file that looks like an `OKR.md` and asserts
-        #: nothing the project wrote. `perry-okr render` on a project with no
-        #: `OKR.md` still refuses, and says why.
-        self.scaffold = scaffold
 
     def base(self, project_root: Path, state_root: Path) -> Path:
         return state_root if self.under_state_root else project_root
@@ -816,10 +725,7 @@ class Doc:
 
 
 OKR = Doc("okr", "OKR.md", "okr.jsonl", scan_okr, under_state_root=True)
-CONFIG = Doc("config", Path(".perry") / "config.md",
-             Path(".perry") / "config.jsonl", scan_config,
-             under_state_root=False, scaffold=scaffold_config)
-DOCS = {"okr": OKR, "config": CONFIG}
+DOCS = {"okr": OKR}
 
 
 def derive(doc: Doc, text: str) -> list[dict]:
@@ -1030,11 +936,13 @@ def would_discard(on_disk: list[dict], derived: list[dict]) -> list[str]:
 
 # ── the command line ──────────────────────────────────────────────────────
 #
-# ONE implementation, two executables. `bin/perry-okr` and `bin/perry-config`
-# differ by the `Doc` they pass and by nothing else, so a fix to `diff`'s
-# reporting cannot reach one file's tool and miss the other's — which is the
-# whole reason `bin/perry-tasks` re-binds `bin/perry_store.py`'s names instead
-# of reimplementing them.
+# ONE implementation, and `bin/perry-okr` is what is left calling it.
+# `bin/perry-config` was the other executable and differed by the `Doc` it
+# passed and by nothing else, so a fix to `diff`'s reporting could not reach
+# one file's tool and miss the other's — the same reason `bin/perry-tasks`
+# re-binds `bin/perry_store.py`'s names instead of reimplementing them. ADR-019
+# deleted the document `perry-config` projected; that tool now writes the store
+# directly and shares nothing with this one.
 
 USAGE = """\
 {tool} — `{file}` as a store, and the projection of it.
@@ -1163,38 +1071,17 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
             return 2
 
         if text is None:
-            scaffold = getattr(doc, "scaffold", None)
-            if scaffold is None:
-                print(f"{tool}: no {doc.rel_file} at {path}, and this document "
-                      f"has no scaffold — there is no declared shape to rebuild "
-                      f"it into from {doc.rel_store} alone.", file=sys.stderr)
-                return 2
-            try:
-                text = scaffold(records)
-            except Refused as exc:
-                print(f"{tool}: cannot rebuild {doc.rel_file} from "
-                      f"{doc.rel_store} — {exc}", file=sys.stderr)
-                return 2
-            # **The scaffold is checked, not trusted.** It is written
-            # independently of `scan_config` and `render_lines`, so passing it
-            # back through them is a real round trip: a column written in the
-            # wrong order comes back with the cells rewritten, and a record the
-            # scaffold cannot express lands in `records_not_in_the_file`.
-            # Either way this refuses instead of writing a file that silently
-            # says less than the store does.
-            rendered, report = render(doc, text, records)
-            missing = report["records_not_in_the_file"]
-            if rendered != text or missing:
-                print(json.dumps({
-                    "refused": f"the shape rebuilt from {doc.rel_store} does "
-                               f"not round-trip through this tool's own reader; "
-                               f"nothing was written",
-                    "records_not_in_the_file": missing,
-                    "first_difference": _first_difference(text, rendered),
-                }, ensure_ascii=False, indent=2), file=sys.stderr)
-                return 2
-        else:
-            rendered, report = render(doc, text, records)
+            # **The rebuild-from-the-store-alone path went with ADR-019.**
+            # `scaffold_config` was its only implementation, and the file it
+            # rebuilt no longer exists. `OKR.md` was the declared `None` case
+            # from the start — see `Doc.scaffold`'s note — so this is now the
+            # only branch, and it is the branch that was always right for the
+            # document that is left.
+            print(f"{tool}: no {doc.rel_file} at {path}, and this document has "
+                  f"no scaffold — there is no declared shape to rebuild it "
+                  f"into from {doc.rel_store} alone.", file=sys.stderr)
+            return 2
+        rendered, report = render(doc, text, records)
         if cmd == "render":
             if "--write" not in argv:
                 sys.stdout.write(rendered)
@@ -1229,7 +1116,7 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
             # `1` has meant "the file and the store's projection differ in
             # bytes" since TASK-092, and `bin/perry-goals` and `bin/README.md`
             # describe it that way; `2` already means "the input is unusable"
-            # (no store, malformed store, a scaffold that will not round-trip).
+            # (no store, malformed store, no file to project onto).
             # So the new answer — "the bytes match and the store is not what
             # produced them" — takes the next free code rather than borrowing
             # a taken one. Every caller testing `!= 0` gains the gate; every
@@ -1341,12 +1228,12 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
 # docstring described, goes with it.
 
 
-__all__ = ["CONFIG", "COMMANDS", "CONFIG_TITLE", "DOCS", "FELL_BACK_TO_COPYING",
-           "OBJECTIVE_LABEL",
-           "OKR", "Doc", "Refused", "STORED", "TRACKS_HEADING", "derive",
+__all__ = ["COMMANDS", "DOCS", "FELL_BACK_TO_COPYING",
+           "OBJECTIVE_LABEL", "SETTING_FIELDS", "TRACK_FIELDS",
+           "OKR", "Doc", "Refused", "STORED", "derive",
            "every_line_and_cell_came_from_the_store",
            "field_map", "load_store", "main", "objective_title",
            "okr_objective_heading", "plan", "record", "record_key", "render",
-           "scaffold_config", "scan_config", "scan_okr", "setting_key",
+           "scan_okr", "setting_key", "store_record_fields",
            "store_text", "stored_value", "touches", "validate_records",
            "would_discard"]

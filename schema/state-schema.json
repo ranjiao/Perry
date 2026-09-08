@@ -1099,6 +1099,66 @@
             }
           }
         }
+      },
+      ".perry/config.jsonl": {
+        "owner": "perry",
+        "anchor": "project",
+        "format": "jsonl",
+        "discriminator": "kind",
+        "spec_key": "config_store",
+        "spec_version": 1,
+        "description": "The project's configuration, as a store (ADR-007, TASK-092; sole copy since ADR-019). Two record kinds: the `- Key: value` settings that were the file's preamble, and the tracks that were its `## Tracks` table. Anchored at the project root, inside the `.perry/` anchor rather than behind the State root pointer, because this is the file that declares where the state root is and it cannot sit behind its own pointer.\n\nDeclared HERE rather than in `files[]` because there is no longer a file to declare. `files[]` says what a markdown document must look like; `.perry/config.md` was such a document and ADR-019 deleted it, so its entry went and the record shapes it was the only home for moved into this one - the same place `linkage.jsonl` declares shapes that project from no document at all.",
+        "records": {
+          "setting": {
+            "note": "One `- Key: value` line of the configuration. `key` is the label with decoration stripped and spaces folded to underscores (`Document language` -> `document_language`); `label` is what a human wrote, kept so a reader is shown the words the project used rather than the key it minted.",
+            "fields": [
+              "key",
+              "label",
+              "value"
+            ],
+            "required": [
+              "kind",
+              "key",
+              "value"
+            ]
+          },
+          "track": {
+            "note": "One declared track (DESIGN-003 section 5.2). OPTIONAL: a project that declares none has one implicit track named `main`, mode `project`, which is what keeps every pre-DESIGN-003 project valid. Only `track` and `mode` are required; the rest are per-mode and an absent field takes the mode default.\n\nThis was `files[id=config].tables[Tracks]` until ADR-019 - a spec for the columns of a rendered markdown table. The file is gone and the register is not, so the declaration moved here rather than being deleted with the projection it happened to be written against.",
+            "fields": [
+              "track",
+              "mode",
+              "spine",
+              "stages",
+              "wip",
+              "sla",
+              "cycle",
+              "default_rung"
+            ],
+            "required": [
+              "kind",
+              "track",
+              "mode"
+            ],
+            "enum_fields": {
+              "mode": "mode",
+              "default_rung": "verification_rung"
+            },
+            "field_notes": {
+              "spine": "Free text: where this track's goals/commitments live.",
+              "stages": "Ordered stage vocabulary, arrow-separated, e.g. `brief->draft->review->approved->published`. Pipeline, queue and inquiry modes. Absent = the mode's default vocabulary. SEPARATOR: `->` is canonical. `→` (U+2192) is accepted and means the same thing; readers must normalize before splitting. Three spellings were in circulation and nothing normalized, so 'the first stage' and 'the terminal stage' were computed by splitting on a separator the corpus spelled three ways (V4 round 4, finding 11).",
+              "wip": "Per-stage limits, BY NAME ONLY: `stage:n`, comma-separated, e.g. `review:2,draft:4`. A stage not named has no limit. A positional grammar was considered and dropped - two grammars is one parser too many, and a user following the wrong one would produce a config that lints clean and evaluates to no limits at all. Pipeline default: `review:3`. Inquiry uses `open:n`, default `open:5`. Queue has no WIP control at all (depth is reported, never enforced), so the column is meaningless there.",
+              "sla": "The single home for turnaround expectations, for both pipeline dwell time and queue response time. V4 finding S7: the two mode files put SLA in two different places for modes the design expects to coexist in one project.",
+              "cycle": "What bounds the current horizon. Pipeline mode: a cycle boundary (`2026-W34`, `until 2026-09-30`, a campaign name). Queue mode: the review period, which reports rather than closes, and may be recurring (`monthly`, `quarterly`). V4 finding S6 created it for pipeline; re-review finding N8 widened it to the mode that also pointed at it. No default in any mode - see work_modes.defaults_note.",
+              "default_rung": "Overrides the mode default from `work_modes.modes.<mode>.default_rung`."
+            },
+            "no_default_by_mode": {
+              "source": "work_modes.modes.<mode>.no_default",
+              "severity": "warn",
+              "checked_by": "bin/perry-lint § check_config_store",
+              "note": "The enforcement point for `work_modes.defaults_note`, which stated the rule and then left it to be obeyed by hand: a column listed in a mode's `no_default` is a commitment the project makes to somebody, so Perry may not invent one, and a track that never declared it cannot run the triage step that reads it. A queue track with no `SLA` therefore lints clean today while `modes/queue.md`'s breach step, age sort and triage question all measure against a clock that does not exist.\n\nThe list is NOT copied here. It is read out of `work_modes.modes.<mode>.no_default` per row, so a mode that gains or loses a no-default column changes this check and nothing else - two lists of which modes need an `SLA` is the two-implementations-of-one-rule defect ADR-004 is about. An em dash counts as undeclared, because `SKILL.md`'s own example track row writes empty cells that way and a check that only tested for the empty string would pass over every register Perry itself taught people to write.\n\nWARN, not error, deliberately. (a) An error would retroactively invalidate every track register written before this rule existed, which is the DESIGN-003 decision-4 argument. (b) Worse, under the ADR-004 gate a file carrying errors cannot be declared conformant, so one blank cell would escalate into a write refusal on `.perry/config.md` - the whole track register goes read-only because one track has no SLA. Neither is proportionate, and neither is needed, because the hard stops already exist at both ends: `goals/reference/phases.md` REFUSES to write a queue commitment while the track has no `SLA` cell, and `modes/queue.md` has triage REPORT the missing SLA rather than skip the breach step. This finding is the earlier, cheaper notice of the same fact.\n\nThe place the question is FORCED is creation - first-time setup and `/perry adopt` do not write a queue or pipeline row without asking (`modes/queue.md` section 'Declaring a queue track'), because at creation there is no legacy to invalidate and no honest default to fall back on. A default SLA was rejected explicitly: a number Perry invented is one the project never promised, and every triage run afterwards would measure real work against it."
+            }
+          }
+        }
       }
     }
   },
@@ -2098,85 +2158,6 @@
       "required": false,
       "headings": [],
       "anchor": "state"
-    },
-    {
-      "id": "config",
-      "path": ".perry/config.md",
-      "owner": "perry",
-      "tier": 1,
-      "required": false,
-      "header_fields": [
-        {
-          "name": "Document language"
-        },
-        {
-          "name": "Chat language",
-          "required": false,
-          "note": "language of the agent's conversational replies. Absent (or 'follow user') means mirror whatever language the user typed; a named language pins replies to it regardless. Written state files always follow `Document language`, never this field."
-        },
-        {
-          "name": "Repo layout",
-          "pattern": "single|split"
-        },
-        {
-          "name": "State root",
-          "required": false,
-          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves — it is the anchor that holds this pointer."
-        },
-        {
-          "name": "Packs",
-          "required": false,
-          "note": "Comma-separated pack names active in this project, resolved under $PERRY_HOME/packs/<name>/. Absent = software-ops only, which is what every pre-DESIGN-003 project effectively had. A pack supplies defaults - mode, stage vocabulary, rubrics, high-stakes additions, display glossary - never content."
-        },
-        {
-          "name": "Conformance gate",
-          "required": false,
-          "pattern": "advisory|enforce",
-          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'enforce' (TASK-047). It shipped 'advisory' for one release on a stated expiry condition - for a project that is not already Perry-shaped the way forward is the migration, and a refusal naming a command nobody can run is a wall - and that condition fired when TASK-044 landed bin/perry-migrate on 2026-08-19, so every refusal now names a road: 'perry-conform declare' for a file that already matches, 'perry-migrate' for one that does not. Set 'advisory' here to go back to writing-under-protest for this project; the env var PERRY_CONFORMANCE overrides this field either way. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.jsonl, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself. THAT REASONING SURVIVED THE FORMAT CHANGE UNCHANGED AND IS RESTATED RATHER THAN CARRIED SILENTLY (TASK-234): the record was .perry/conformance.md until 2026-08-30 and became a store under DESIGN-013 section 5.1, and nothing about becoming a store makes a record of decisions into state. It is also what makes the conversion possible at all - the file gates every write under ADR-004's enforce gate INCLUDING the write that migrates it, and the migration needs no exemption because no writer has ever called the gate about a file that is not a files[] entry. An exemption would have been a hole; this is a file the gate has no opinion about. IT IS NOT A claims[] ENTRY OF ITS OWN EITHER, and that is a separate question with its own answer rather than the same one. claims[] asks what territory Perry occupies in someone else's project, and .perry/ is already claimed as a dir - so the store is covered, exactly as the markdown was, and tests/test_conformance.py section 9 measures that declaring conformance does not make Perry collide with itself. .perry/events.jsonl and .perry/config.jsonl are named individually inside that same territory, which tests/test_claims.py reads as naming rather than coverage - 'it adds no second immovable place, it names a file in the immovable one'. So a seventh entry would add nothing the collision check can see, and it would add a seventh store to the six that phase 003's KR1, KR2 and KR3 are each phrased 'of 6' over. Moving that denominator is the goals lane's decision, not a side effect of a format change."
-        },
-        {
-          "name": "Review rounds before escalation",
-          "required": false,
-          "pattern": "\\d+",
-          "note": "How many V4 FAILs a row may take before `perry-lint --reviews` reports `review-rounds-exhausted`. Absent = the shipped default in `thresholds.review_fail_rounds_before_escalation` (2, measured — see that note). `PERRY_REVIEW_ROUNDS` in the environment beats this field, which beats the default."
-        },
-        {
-          "name": "Session context ceiling",
-          "required": false,
-          "pattern": "\\d+[kKmM]?",
-          "note": "The context size at which `autopilot` stops, hands off and lets a fresh session resume, measured by `bin/perry-context-budget`. Accepts 200000 or 200k. Absent = the shipped default in `thresholds.session_context_ceiling`. `--ceiling` beats `PERRY_CONTEXT_CEILING`, which beats this field, which beats the default. A project doing genuinely wide reads can raise it; the cost of doing so is superlinear, not linear."
-        }
-      ],
-      "tables": [
-        {
-          "under": "^Tracks\\b|^轨道",
-          "note": "The track register (DESIGN-003 section 5.2). OPTIONAL: this spec is skipped entirely when the section is absent, which is what keeps every pre-DESIGN-003 project valid. Tracks are configuration, not state, which is why they live in a path Perry already claims rather than in a new file. Only Track and Mode are required; the rest are per-mode and absent columns take the mode default.",
-          "columns": [
-            "Track",
-            "Mode"
-          ],
-          "enum_columns": {
-            "Mode": "mode",
-            "Default rung": "verification_rung"
-          },
-          "no_default_by_mode": {
-            "mode_column": "Mode",
-            "id_column": "Track",
-            "source": "work_modes.modes.<mode>.no_default",
-            "severity": "warn",
-            "note": "The enforcement point for `work_modes.defaults_note`, which stated the rule and then left it to be obeyed by hand: a column listed in a mode's `no_default` is a commitment the project makes to somebody, so Perry may not invent one, and a track that never declared it cannot run the triage step that reads it. A queue track with no `SLA` therefore lints clean today while `modes/queue.md`'s breach step, age sort and triage question all measure against a clock that does not exist.\n\nThe list is NOT copied here. It is read out of `work_modes.modes.<mode>.no_default` per row, so a mode that gains or loses a no-default column changes this check and nothing else - two lists of which modes need an `SLA` is the two-implementations-of-one-rule defect ADR-004 is about. An em dash counts as undeclared, because `SKILL.md`'s own example track row writes empty cells that way and a check that only tested for the empty string would pass over every register Perry itself taught people to write.\n\nWARN, not error, deliberately. (a) An error would retroactively invalidate every track register written before this rule existed, which is the DESIGN-003 decision-4 argument. (b) Worse, under the ADR-004 gate a file carrying errors cannot be declared conformant, so one blank cell would escalate into a write refusal on `.perry/config.md` - the whole track register goes read-only because one track has no SLA. Neither is proportionate, and neither is needed, because the hard stops already exist at both ends: `goals/reference/phases.md` REFUSES to write a queue commitment while the track has no `SLA` cell, and `modes/queue.md` has triage REPORT the missing SLA rather than skip the breach step. This finding is the earlier, cheaper notice of the same fact.\n\nThe place the question is FORCED is creation - first-time setup and `/perry adopt` do not write a queue or pipeline row without asking (`modes/queue.md` section 'Declaring a queue track'), because at creation there is no legacy to invalidate and no honest default to fall back on. A default SLA was rejected explicitly: a number Perry invented is one the project never promised, and every triage run afterwards would measure real work against it."
-          },
-          "optional_columns": {
-            "Spine": "Free text: where this track's goals/commitments live.",
-            "Stages": "Ordered stage vocabulary, arrow-separated, e.g. `brief->draft->review->approved->published`. Pipeline, queue and inquiry modes. Absent = the mode's default vocabulary. SEPARATOR: `->` is canonical. `→` (U+2192) is accepted and means the same thing; readers must normalize before splitting. Three spellings were in circulation and nothing normalized, so 'the first stage' and 'the terminal stage' were computed by splitting on a separator the corpus spelled three ways (V4 round 4, finding 11).",
-            "WIP": "Per-stage limits, BY NAME ONLY: `stage:n`, comma-separated, e.g. `review:2,draft:4`. A stage not named has no limit. A positional grammar was considered and dropped - two grammars is one parser too many, and a user following the wrong one would produce a config that lints clean and evaluates to no limits at all. Pipeline default: `review:3`. Inquiry uses `open:n`, default `open:5`. Queue has no WIP control at all (depth is reported, never enforced), so the column is meaningless there.",
-            "SLA": "The single home for turnaround expectations, for both pipeline dwell time and queue response time. V4 finding S7: the two mode files put SLA in two different places for modes the design expects to coexist in one project.",
-            "Cycle": "What bounds the current horizon. Pipeline mode: a cycle boundary (`2026-W34`, `until 2026-09-30`, a campaign name). Queue mode: the review period, which reports rather than closes, and may be recurring (`monthly`, `quarterly`). V4 finding S6 created it for pipeline; re-review finding N8 widened it to the mode that also pointed at it. No default in any mode - see work_modes.defaults_note.",
-            "Default rung": "Overrides the mode default from `work_modes.modes.<mode>.default_rung`."
-          }
-        }
-      ],
-      "anchor": "project"
     },
     {
       "id": "hook",

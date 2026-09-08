@@ -9,6 +9,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import config_store
+from config_store import track as _track
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 TOOL = PERRY_HOME / "bin" / "perry-task"
 TASKS = PERRY_HOME / "bin" / "perry-tasks"
@@ -124,20 +127,57 @@ ZH_BOARD = """# BOARD
 """
 
 
-BASIC_MODE_TRACKS = '\n## Tracks\n\n| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n|---|---|---|---|---|---|---|---|\n| core | project | phase/ | — | — | — | — | V3 |\n| blog | pipeline | commitments | brief->draft->published | review:2 | 5d | 2026-W34 | V5 |\n| ops | queue | commitments | new->triaged->resolved | — | 5d | monthly | V2 |\n| study | inquiry | questions | open->researching->answered | open:5 | — | — | V4 |\n'
+#: One track per DESIGN-003 mode. **Records, not a `## Tracks` table.** They
+#: were the table until ADR-019 deleted the file it lived in; a fixture still
+#: writing one declares nothing, and `perry-task add --track ops` then refuses
+#: by name rather than exercising queue mode at all.
+BASIC_MODE_TRACKS = [
+    _track("core", "project", spine="phase/", default_rung="V3"),
+    _track("blog", "pipeline", spine="commitments",
+           stages="brief->draft->published", wip="review:2", sla="5d",
+           cycle="2026-W34", default_rung="V5"),
+    _track("ops", "queue", spine="commitments",
+           stages="new->triaged->resolved", sla="5d", cycle="monthly",
+           default_rung="V2"),
+    _track("study", "inquiry", spine="questions",
+           stages="open->researching->answered", wip="open:5",
+           default_rung="V4"),
+]
 
-MODE_TRACKS = '\n## Tracks\n\n| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n|---|---|---|---|---|---|---|---|\n| core | project | phase/ | — | — | — | — | V3 |\n| blog | pipeline | commitments | brief->draft->review->published | review:2 | 5d | 2026-W34 | V5 |\n| ops | queue | commitments | new->triaged->in_progress->resolved | — | 5d | monthly | V2 |\n| study | inquiry | questions | open->researching->answered | open:5 | — | — | V4 |\n'
+#: The same four with `review` and `in_progress` back in the two staged
+#: vocabularies — the difference the mode tests turn on.
+MODE_TRACKS = [
+    _track("core", "project", spine="phase/", default_rung="V3"),
+    _track("blog", "pipeline", spine="commitments",
+           stages="brief->draft->review->published", wip="review:2", sla="5d",
+           cycle="2026-W34", default_rung="V5"),
+    _track("ops", "queue", spine="commitments",
+           stages="new->triaged->in_progress->resolved", sla="5d",
+           cycle="monthly", default_rung="V2"),
+    _track("study", "inquiry", spine="questions",
+           stages="open->researching->answered", wip="open:5",
+           default_rung="V4"),
+]
 
 class Project:
     """A throwaway Perry project the tool can write into."""
 
-    def __init__(self, tracks: str = "", board: str = BOARD):
+    def __init__(self, tracks: list[dict] | None = None, board: str = BOARD):
         self.dir = tempfile.TemporaryDirectory()
         self.root = Path(self.dir.name)
         (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + tracks)
+        # **A string is refused rather than ignored.** `tracks` was a `##
+        # Tracks` table until ADR-019, and a fixture still passing one would
+        # write settings, declare no track, and then fail somewhere far away
+        # with "track 'ops' is not declared" — which is the same message a
+        # genuine typo produces. Fail here, at the fixture, naming the change.
+        if isinstance(tracks, str):
+            raise AssertionError(
+                "Project(tracks=...) takes track RECORDS, not a `## Tracks` "
+                "markdown table: ADR-019 deleted `.perry/config.md` and "
+                "nothing reads one. Use `config_store.track(name, mode, ...)`, "
+                "or one of MODE_TRACKS / BASIC_MODE_TRACKS above.")
+        config_store.write_config(self.root, tracks=tracks or [])
         (self.root / "BOARD.md").write_text(board)
         self.import_board()
 

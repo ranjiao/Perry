@@ -29,6 +29,9 @@ import sys
 import tempfile
 import unittest
 
+import config_store
+from config_store import track
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-diagnose"
 
@@ -65,27 +68,22 @@ UNTRACKED_COMMITMENT = """# OKR
 | COM-001 |  | standing work | — | monthly |
 """
 
-REGISTER = """# Config
+SETTINGS = {"State root": "perry"}
 
-State root: perry
-
-## Tracks
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| ops | pipeline | OKR.md | brief,draft | — | 3d | — | V2 |
-"""
+#: One declared `pipeline` track. Records since ADR-019; the fixture's `None`
+#: case below is now "no `.perry/config.jsonl`", which is what "this project
+#: never declared a register" has always meant to every reader.
+REGISTER = [track("ops", "pipeline", spine="OKR.md", stages="brief,draft",
+                  sla="3d", default_rung="V2")]
 
 
 class TrackCase(unittest.TestCase):
-    def project(self, register: str | None, board: str = BOARD,
+    def project(self, register: list[dict] | None, board: str = BOARD,
                 okr: str = "# OKR\n\n## Objectives\n\n- O1 ship it\n"):
         d = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "perry").mkdir()
-        (d / ".perry").mkdir()
-        (d / ".perry" / "config.md").write_text(
-            register if register else "# Config\n\nState root: perry\n")
+        config_store.write_config(d, SETTINGS, register or [])
         (d / "perry" / "BOARD.md").write_text(board)
         (d / "perry" / "OKR.md").write_text(okr)
         (d / "perry" / "phase").mkdir()
@@ -175,17 +173,16 @@ class TestAProjectWithNoRegisterIsUnmoved(TrackCase):
     """
 
     def test_a_project_with_no_register_reads_one_implicit_main_track(self):
-        tracks, w = self.modes("# Config\n\nState root: perry\n")
+        tracks, w = self.modes([])
         self.assertFalse(w["register_declared"])
         self.assertEqual([t["track"] for t in w["tracks"]], ["main"])
         self.assertEqual(tracks["main"]["mode"], "project")
 
     def test_this_repository_reads_back_the_register_its_file_declares(self):
         declared = [
-            line.split("|")[1].strip()
-            for line in (ROOT / ".perry" / "config.md").read_text().splitlines()
-            if line.startswith("|") and "---" not in line
-            and line.split("|")[1].strip() not in ("", "Track")
+            json.loads(line)["track"]
+            for line in (ROOT / ".perry" / "config.jsonl").read_text().split("\n")
+            if line.strip() and json.loads(line).get("kind") == "track"
         ]
         proc = subprocess.run(
             [sys.executable, str(TOOL), "--json"],

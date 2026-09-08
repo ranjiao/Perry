@@ -6,7 +6,8 @@ at, NOT the skill directory.
 Two roots, and they are not always the same directory. `PROJECT_ROOT` is where
 `.perry/` is anchored — what $PERRY_PROJECT holds and what `bin/perry-state
 --root` takes. `STATE_ROOT` is where the state files live, which
-`.perry/config.md § State root` may move into a subdirectory (Perry's own
+`.perry/config.jsonl`'s `state_root` setting may move it into a subdirectory
+(Perry's own
 project does). `resolve_state_root` goes one way and `resolve_project_root`
 goes back; every reader here takes whichever of the two it actually needs."""
 
@@ -46,7 +47,7 @@ from tables import (UnrenderableCell, header_index, render_row,  # noqa: E402
 # ── localization glossary ─────────────────────────────────────────────────
 #
 # A project writes its state files in the language declared by
-# `.perry/config.md § Document language`, so a section heading may read
+# `.perry/config.jsonl`'s `document_language` setting, so a heading may read
 # `## Top risks` or `## 主要风险` and a column header `Owner` or `负责人`.
 # Which spellings count is declared once, in `schema/state-schema.json §
 # i18n`, so this reader, `bin/perry-lint` and any external frontend agree.
@@ -244,11 +245,12 @@ def status_cleared_date(status_cell: str) -> str:
 
 # ── `.perry/config.jsonl`, read in ONE place ──────────────────────────────
 #
-# TASK-233 / P003-O2-KR1. `.perry/config.md` is a PROJECTION of
-# `.perry/config.jsonl` wherever that store exists, and until this row three
-# readers scanned the markdown as truth: `resolve_state_root` below,
-# `bin/perry-state § parse_config` and `bin/perry-conform § gate_mode`. Each of
-# them now asks the two functions here.
+# TASK-233 / P003-O2-KR1, and then ADR-019. `.perry/config.md` was a
+# PROJECTION of `.perry/config.jsonl`, and until TASK-233 three readers scanned
+# the markdown as truth: `resolve_state_root` below, `bin/perry-state §
+# parse_config` and `bin/perry-conform § gate_mode`. Each of them asks the two
+# functions here. ADR-019 then deleted the projection, so there is no longer a
+# second answer for them to be pointed away from.
 #
 # **This file, not `bin/perry-state`, because this file is the bottom of the
 # import graph** — `perry-conform` cannot import a hyphenated `perry-state`
@@ -360,30 +362,31 @@ def config_store_settings(project_root: Path) -> tuple[dict[str, str] | None, st
 def declared_state_root(project_root: Path) -> tuple[str, str]:
     """The raw `State root` value this project declares, and where it came from.
 
-    Store first, `.perry/config.md` as the fallback for a project that has no
-    store. Split out of `resolve_state_root` so the source is inspectable by a
-    test — the resolved `Path` alone cannot tell a store answer from a markdown
-    one, and TASK-233's whole subject is that they can differ.
+    **`.perry/config.jsonl` is the only register** (ADR-019). This read the
+    store first and fell back to `.perry/config.md`; the projection is gone, so
+    the fallback has no subject and a project with no store declares no state
+    root — which is the pre-existing answer for that case anyway, because the
+    code fallback has always been the project root.
+
+    Still split out of `resolve_state_root` so the source is inspectable by a
+    test: the resolved `Path` alone cannot say WHY it is what it is, and
+    `why` is what separates "declared `.`" from "there is no store to ask".
     """
     stored, why = config_store_settings(project_root)
     if stored is not None:
         return stored.get("state_root", ""), why
-    cfg = Path(project_root) / ".perry" / "config.md"
-    if not cfg.exists():
-        return "", why
-    m = re.search(r"State root\s*[:：]\s*([^\n]+)",
-                  cfg.read_text(errors="replace"), re.I)
-    return (m.group(1).strip().strip("*`  ") if m else ""), why
+    return "", why
 
 
 def configured(project_root: Path) -> bool:
-    """Has this project been configured at all? **Either register counts.**
+    """Has this project been configured at all? **The store is the register.**
 
     The one predicate behind "is there a `.perry/config.md`", which stopped
-    being the right question when the file became a projection (TASK-233): a
-    project whose markdown has been deleted, or that was cloned before
-    `perry-config render --write` put it back, is configured and its store says
-    so. `bin/perry-goals § tracks_of` already asked it the wide way.
+    being the right question when the file became a projection (TASK-233) and
+    stopped being a question at all when ADR-019 deleted the file. It accepted
+    either register for one release, so that a project whose markdown had been
+    deleted still read as configured; there is now one register and the
+    disjunction is gone with the file.
 
     **Nine call sites ask it here, and the count reached nine in three
     rounds.** Round 1 converted four — `bin/perry-lint § is_adopted` and its
@@ -401,8 +404,7 @@ def configured(project_root: Path) -> bool:
     it also accepts — `BOARD.md`, `OKR.md`, `phase/` — because those differ per
     caller and this does not.
     """
-    perry = Path(project_root) / ".perry"
-    return (perry / "config.jsonl").exists() or (perry / "config.md").exists()
+    return (Path(project_root) / ".perry" / "config.jsonl").exists()
 
 
 def resolve_state_root(project_root: Path) -> Path:
@@ -411,7 +413,7 @@ def resolve_state_root(project_root: Path) -> Path:
     Defaults to the project root, which is what every project written before
     this field existed assumes. A project that already uses a name Perry claims
     — `design/` is the common one — declares `State root: <relpath>` in
-    `.perry/config.md` and Perry's whole tree moves under it.
+    `state_root` in `.perry/config.jsonl` and Perry's whole tree moves under it.
 
     `.perry/` itself never moves: it is the anchor that says "this is a Perry
     project" and it is where the pointer lives, so it cannot be behind the
@@ -458,7 +460,7 @@ def resolve_project_root(state_root: Path) -> Path:
     root": `_resolve_project_root` below returned the directory holding
     `BOARD.md` — the STATE root — while `bin/perry-viewer` exports
     `$PERRY_PROJECT` as the project root and `bin/perry-state --root` expects
-    the project root. On Perry's own layout (`.perry/config.md § State root:
+    the project root. On Perry's own layout (`state_root:
     perry`) those are different directories, so **the viewer rendered an empty
     snapshot when pointed where its own launcher points it.** Both directions
     now come out of this one pair of functions, so there is one answer rather
@@ -492,8 +494,8 @@ def _resolve_project_root() -> Path:
     defect this function used to be half of.
 
     The walk is `perry-state § resolve_root`'s walk, predicate for predicate:
-    `.perry/config.md` OR `BOARD.md` OR `OKR.md`, first ancestor wins. It reads
-    `.perry/config.md` as well as the state files so that standing in a project
+    `.perry/config.jsonl` OR `BOARD.md` OR `OKR.md`, first ancestor wins. It
+    reads `.perry/` as well as the state files so that standing in a project
     root whose state is a subdirectory resolves to that project root rather than
     falling through to the CWD — the second half of the same defect.
     `tests/test_project_root.py` asserts the two walks against each other rather
@@ -2588,7 +2590,7 @@ def _parse_okr_objectives(body: str,
 
 def parse_phase(slug: str, text: str) -> Phase:
     # Section labels are bilingual: a project's document language may be English
-    # or 中文 (per .perry/config.md), so the phase file can use either set of
+    # or 中文 (per .perry/config.jsonl), so the phase file can use either set of
     # headers. Match both. Chinese uses a fullwidth colon （：）in some labels.
     phase = Phase(slug=slug, raw_text=text)
     text = _strip_comments(text)
@@ -4649,7 +4651,7 @@ class PMOSnapshot:
     arch_meta: ArchMeta
     #: Where `.perry/` is anchored — what a `bin/` tool's `--root` takes.
     #: `state_root` is where everything in this snapshot was read from. They
-    #: are the same directory unless `.perry/config.md` moved the state, and
+    #: are the same directory unless the store moved the state root, and
     #: reporting one under the other's name is what TASK-159 came from.
     project_root: Path
     state_root: Path

@@ -32,6 +32,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import config_store  # noqa: E402
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 FIXTURE = PERRY_HOME / "tests" / "fixtures" / "interrupted-adoption"
 
@@ -336,9 +338,7 @@ class TestRecoveryGate(unittest.TestCase):
     def test_transaction_path_is_relative_to_project_root(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            config = root / ".perry" / "config.md"
-            config.parent.mkdir()
-            config.write_text("State root: perry\n")
+            config_store.write_config(root, {"State root": "perry"})
             state_root = root / "perry"
             state_root.mkdir()
             (state_root / ".perry-task-transaction.json").write_text(

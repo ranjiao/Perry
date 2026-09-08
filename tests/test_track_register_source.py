@@ -38,6 +38,23 @@ recoverable by re-running the command. `perry-task` still lets READS through,
 because refusing `list` would make a corrupt store un-diagnosable with the tool
 the user has in their hand.
 
+**Everything below that compared the store to `## Tracks` is gone with
+ADR-019**, which deleted `.perry/config.md`. This module's instrument was a
+fixture whose table declared `main` while its store declared `main` AND
+`intake`, so that "which register did you read" had an observable answer. With
+one register the question is unaskable, and the three predicates built on it —
+`tracks_the_projection_declares`, `tracks_the_register_contradicts`,
+`tracks_the_register_cannot_place` — raise rather than answer.
+
+What survives is the half TASK-095 was actually failed for and which has
+nothing to do with the projection: **`no store` and `store present but
+unusable` are still different answers**, the four sources are still
+distinguished, `perry-state` still warns and exits 0, and `perry-task` and
+`perry-goals` still refuse a write against a register they could not read. The
+consequence of getting that wrong is worse now, not better: the fallback used
+to be the table's rows and is now DESIGN-003's implicit `main`, so a store
+silently missing `intake` no longer even leaves a second copy to notice.
+
 Run: python3 tests/parallel test_track_register_source
 """
 
@@ -75,27 +92,22 @@ def _state_module():
 
 PS = _state_module()
 
-#: `""` is appended rather than spelled out: `tests/gate.py` exists so
-#: that renaming the `Conformance gate` matcher reddens every fixture using it
-#: at once, and a fixture that inlines the line opts itself out of that.
-CONFIG_MD = ("""# Perry configuration
+#: A pre-ADR-019 `.perry/config.md`, for the one test that asserts a leftover
+#: copy is inert. It declares a track no store in this module holds, so a
+#: reader that fell back to it would be caught by the NAME and not merely by a
+#: count — `fromthemarkdown` can only have come from here.
+STRAY_CONFIG_MD = """# Perry configuration
 
 - Document language: English
 - Repo layout: single
 - State root: .
-""" + """
+
 ## Tracks
 
 | Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
 |---|---|---|---|---|---|---|---|
-| main | project | phase/ | — | — | — | — | V3 |
-""")
-
-#: The same config with a SECOND declared track. Needed because the divergence
-#: this module measures is "the table declares something the store does not",
-#: and a one-row table has nothing to lose.
-CONFIG_MD_TWO = CONFIG_MD + (
-    "| intake | queue | standing | new→done | 6 | 5d | weekly | V3 |\n")
+| fromthemarkdown | queue | standing | new→done | 6 | 5d | weekly | V3 |
+"""
 
 BOARD = (
     "# Board — track source fixture\n\n> Last updated: 2026-08-29\n\n"
@@ -117,9 +129,10 @@ def track_record(name: str, mode: str, order: int) -> str:
     }, ensure_ascii=False)
 
 
-#: A store holding BOTH tracks. `.perry/config.md` above declares only `main`,
-#: so any test whose answer contains `intake` read the store and any test whose
-#: answer does not read the projection. The divergence IS the instrument.
+#: A store holding BOTH tracks. `intake` in an answer is proof the register
+#: was READ; DESIGN-003's implicit `main` is what every non-answer produces, so
+#: a test probing `main` alone cannot tell the two apart and every probe here
+#: is `intake`.
 #: The `conformance_gate` record rides along on every hand-built store here for
 #: the reason `tests/gate.py § gate_off_record` states: `gate_mode` reads
 #: `.perry/config.jsonl` first (TASK-233), so a store that omits the setting is
@@ -132,31 +145,30 @@ GOOD_STORE = track_record("main", "project", 0) + "\n" \
 
 class Fixture(unittest.TestCase):
 
-    def project(self, store: str | None, *, md_declares: bool = True,
-                md_declares_two: bool = False) -> pathlib.Path:
-        """The `.perry/config.md` half of the fixture, in three shapes.
+    def project(self, store: str | None, *,
+                stray_markdown: bool = False) -> pathlib.Path:
+        """A project whose register is `store`, or which has none.
 
-        `md_declares=True` (default) writes a `## Tracks` table declaring ONLY
-        `main`, while `GOOD_STORE` declares `main` AND `intake` — that
-        divergence is the instrument every assertion about "did it read the
-        store or the projection" rests on, and it must not be disturbed.
+        **The `.perry/config.md` half of this fixture is gone** (ADR-019). It
+        wrote a `## Tracks` table declaring only `main` while `GOOD_STORE`
+        declares `main` AND `intake`, and that divergence was the instrument
+        every "did it read the store or the projection" assertion rested on.
+        There is one register, so the parameters that shaped the table
+        (`md_declares`, `md_declares_two`) are gone with the tests that used
+        them rather than left as flags that change nothing.
 
-        `md_declares=False` writes no `## Tracks` section at all. That is the
-        shape three of this repo's six config files have.
-
-        `md_declares_two=True` writes a table declaring `main` AND `intake`,
-        which is the ONLY shape where a `store-default` answer loses something
-        — the distinction round 3 failed on. It is opt-in for the same reason
-        the default is one track: turning it on globally would make the store
-        and the table agree and quietly disarm the other twenty tests.
+        `stray_markdown=True` writes one anyway — a pre-ADR-019 config
+        declaring a track called `fromthemarkdown`, left in a working tree the
+        way a real one would be. Exactly one test uses it, and what it asserts
+        is that the file is inert. A leftover copy is the state a user actually
+        arrives in after pulling this change, and "nothing reads it" is a claim
+        worth one test rather than none.
         """
         d = pathlib.Path(tempfile.mkdtemp(prefix="perry-track-source-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / ".perry").mkdir()
-        (d / ".perry" / "config.md").write_text(
-            CONFIG_MD_TWO if md_declares_two else
-            CONFIG_MD if md_declares else
-            CONFIG_MD.split("## Tracks")[0])
+        if stray_markdown:
+            (d / ".perry" / "config.md").write_text(STRAY_CONFIG_MD)
         (d / "BOARD.md").write_text(BOARD)
         # `perry-goals commit` refuses before it reaches the track register
         # without one, and a refusal for the wrong reason is a test that passes
@@ -175,17 +187,10 @@ class Fixture(unittest.TestCase):
         return [t["track"] for t in self.detail(d)[0]]
 
 
-class TestTheInstrumentWorks(Fixture):
-    """The control: the store and the projection must actually disagree.
-
-    Without this, every assertion below could pass on two identical answers
-    and the module would be measuring nothing.
-    """
-
-    def test_the_store_and_the_markdown_declare_different_tracks(self):
-        self.assertEqual(self.names(self.project(GOOD_STORE)),
-                         ["main", "intake"])
-        self.assertEqual(self.names(self.project(None)), ["main"])
+# `TestTheInstrumentWorks` was the control: it asserted that the store
+# and the table really did declare different tracks, so that every
+# assertion resting on the divergence was resting on something. There is
+# no table to diverge from.
 
 
 class TestTheFourSituationsAreDistinguished(Fixture):
@@ -242,7 +247,7 @@ class TestTheFourSituationsAreDistinguished(Fixture):
         setting = json.dumps({"kind": "setting", "key": "language",
                               "value": "English", "order": 0})
         self.assertEqual(
-            self.detail(self.project(setting + "\n", md_declares=False))[1],
+            self.detail(self.project(setting + "\n"))[1],
             PS.TRACKS_STORE_DEFAULT)
 
     def test_a_store_with_no_track_record_HAS_ANSWERED(self):
@@ -265,7 +270,7 @@ class TestTheFourSituationsAreDistinguished(Fixture):
         setting = json.dumps({"kind": "setting", "key": "language",
                               "value": "English", "order": 0})
         tracks, source = self.detail(
-            self.project(setting + "\n", md_declares=False))
+            self.project(setting + "\n"))
         self.assertEqual(source, PS.TRACKS_STORE_DEFAULT,
                          "round 4: the answer came from DEFAULT_TRACK, not "
                          "from a record, and the label must say so")
@@ -289,6 +294,22 @@ class TestTheFourSituationsAreDistinguished(Fixture):
                 self.assertTrue(self.detail(self.project(store))[0],
                                 "the router has no empty-register branch")
 
+    def test_a_leftover_config_md_is_inert(self):
+        """The state a user is in after pulling ADR-019 with a dirty tree.
+
+        `STRAY_CONFIG_MD` declares `fromthemarkdown` and no store here holds
+        it, so a reader that fell back would be caught by the name. Asserted
+        against BOTH a healthy store and no store at all: the second is where
+        the old fallback actually lived, and a test that only covered the first
+        would pass on a reader that still read the file when it had nothing
+        else to read.
+        """
+        for label, store in (("a healthy store", GOOD_STORE),
+                             ("no store at all", None)):
+            with self.subTest(label):
+                d = self.project(store, stray_markdown=True)
+                self.assertNotIn("fromthemarkdown", self.names(d))
+
     def test_every_unusable_source_has_a_sentence_for_a_human(self):
         """One wording, so three callers cannot describe one state three ways."""
         for source in PS.TRACKS_STORE_UNUSABLE:
@@ -305,32 +326,14 @@ SETTING_ONLY = json.dumps({"kind": "setting", "key": "language",
                            "value": "English", "order": 0}) + "\n" \
     + ""
 
-#: A `## Tracks` row whose every cell is FILLED, so that a store record which
-#: merely EXISTS under the same name still contradicts it. Round 5's FAIL
-#: lived in the gap between "a record named `main`" and "a record that says
-#: what the table says", and `CONFIG_MD` above cannot express it: its `main`
-#: row agrees with `GOOD_STORE`'s `main` record cell for cell.
-DECLARING_MAIN = ("""# Perry configuration
-
-- Document language: English
-- Repo layout: single
-- State root: .
-""" + """
-## Tracks
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| main | queue | standing | new→triaged→done | 4 | 3d | weekly | V2 |
-""")
-
-#: The same table, localized. `perry_md_store` takes the heading AND every
-#: column name from `schema/state-schema.json § i18n` — the same place
-#: `perry-lint` takes them from — so this is one register read one way, not
-#: an English path and a Chinese one.
-DECLARING_MAIN_ZH = DECLARING_MAIN.replace(
-    "## Tracks", "## 轨道").replace(
-    "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |",
-    "| 轨道 | 模式 | 主线 | 阶段序列 | 在制上限 | 时限 | 周期 | 默认验证级 |")
+# `DECLARING_MAIN` and `DECLARING_MAIN_ZH` stood here: a `## Tracks` row with
+# every cell filled, and the same table localized. The first was the
+# instrument for round 5's FAIL — the gap between "a record named `main`" and
+# "a record that says what the table says" — and the second proved the
+# comparison read one register one way rather than an English path and a
+# Chinese one. Both are gone with the table (ADR-019). The localization
+# property they stood for is now structural rather than checked: a track's
+# fields are ASCII keys, so there is no Chinese path for the register to have.
 
 
 class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
@@ -361,7 +364,7 @@ class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
 
     def test_a_complete_default_is_labelled_store_default(self):
         tracks, source = self.detail(
-            self.project(SETTING_ONLY, md_declares=False))
+            self.project(SETTING_ONLY))
         self.assertEqual(source, PS.TRACKS_STORE_DEFAULT)
         self.assertEqual([t["track"] for t in tracks], ["main"])
         self.assertNotIn(source, PS.TRACKS_STORE_UNUSABLE)
@@ -369,50 +372,24 @@ class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
     def test_it_is_not_labelled_store_because_no_record_answered(self):
         """`store` would assert a provenance the answer does not have."""
         self.assertNotEqual(
-            self.detail(self.project(SETTING_ONLY, md_declares=False))[1],
+            self.detail(self.project(SETTING_ONLY))[1],
             PS.TRACKS_FROM_STORE)
 
     DEFAULTED = [dict(PS.DEFAULT_TRACK)]
 
-    def contradicts(self, d: pathlib.Path) -> list[str]:
-        return PS.tracks_the_register_contradicts(d, self.detail(d)[1])
-
     def test_a_complete_default_loses_nothing(self):
-        """**The trackless case, named.** No `## Tracks` section and a store
-        with no track record: nothing is declared, so nothing is contradicted.
-        Three of this repo's six `config.md` files are this shape and round 2
-        hard-blocked every one of them."""
-        d = self.project(SETTING_ONLY, md_declares=False)
+        """**The trackless case, named.** A store with no track record
+        declares nothing, so nothing is lost by answering `main`. Three of
+        this repo's six configs were this shape and round 2 hard-blocked every
+        one of them; the half of this test that asked what a `## Tracks` table
+        declared instead is gone with the table."""
+        d = self.project(SETTING_ONLY)
         self.assertEqual(self.detail(d)[1], PS.TRACKS_STORE_DEFAULT)
-        self.assertEqual(self.contradicts(d), [])
-        self.assertEqual(PS.tracks_the_register_cannot_place(
-            d, self.DEFAULTED, PS.TRACKS_STORE_DEFAULT), [])
+        self.assertEqual(self.detail(d)[0], self.DEFAULTED)
 
-    def test_a_table_that_DECLARES_main_is_not_a_complete_default(self):
-        """**Round 4's FAIL.** The predicate filtered on the NAME `main`, so a
-        table DECLARING `| main | queue | … | 4 | 3d | … | V2 |` beside a
-        trackless store looked identical to no table at all — and every one of
-        those settings vanished in silence with an allowed write, while
-        `perry-lint` reported `config-store-drift · track/main`.
-        """
-        self.assertEqual(self.contradicts(
-            self.project(SETTING_ONLY, md_declares=True)), ["main"])
-
-    def test_it_names_every_declared_track_the_register_lacks(self):
-        self.assertEqual(self.contradicts(
-            self.project(SETTING_ONLY, md_declares_two=True)),
-            ["intake", "main"])
-
-    def test_the_predicate_is_empty_where_a_register_did_not_answer(self):
-        """`absent` is the adoption path — there is nothing to compare — and
-        the two unusable sources are already refused on their own terms, so a
-        second finding would double-report."""
-        d = self.project(SETTING_ONLY, md_declares_two=True)
-        for source in (PS.TRACKS_STORE_ABSENT, PS.TRACKS_STORE_UNREADABLE,
-                       PS.TRACKS_STORE_INVALID):
-            with self.subTest(source):
-                self.assertEqual(
-                    PS.tracks_the_register_contradicts(d, source), [])
+    # `test_a_table_that_DECLARES_main_is_not_a_complete_default` and
+    # `test_it_names_every_declared_track_the_register_lacks` stood here.
+    # Both asked what a `## Tracks` table declares that the store does not.
 
     #: Each retired name with the arity ITS OWN callers used, so the
     #: `TypeError` comes from the body and not from Python counting arguments
@@ -422,11 +399,23 @@ class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
             fn(d, PS.TRACKS_STORE_DEFAULT),
         "tracks_missing_from_the_register": lambda fn, d, rows:
             fn(d, rows, PS.TRACKS_STORE_DEFAULT),
+        # The three ADR-019 retired. They are here rather than merely deleted
+        # for the reason the two above are: `bin/perry-task`,
+        # `bin/perry-goals`, `bin/perry-diagnose` and `bin/perry-state § build`
+        # all called them, and a stale caller must get a sentence explaining
+        # that the comparison has no second side rather than an empty list
+        # that reads as "no drift".
+        "tracks_the_projection_declares": lambda fn, d, rows: fn(d),
+        "tracks_the_register_contradicts": lambda fn, d, rows:
+            fn(d, PS.TRACKS_STORE_DEFAULT),
+        "tracks_the_register_cannot_place": lambda fn, d, rows:
+            fn(d, rows, PS.TRACKS_STORE_DEFAULT),
     }
 
     def test_the_retired_names_raise_rather_than_answering_narrowly(self):
-        """Both earlier spellings — round 4's and round 5's. A caller reaching
-        for one is asking a question that has since been split in two, and a
+        """Every retired spelling — round 4's, round 5's, and the three
+        ADR-019 removed. A caller reaching for one is asking a question that
+        was either split in two or has lost its second side entirely, and a
         silently narrower answer under an old name is the shape this row keeps
         being failed for."""
         self.assertEqual(sorted(PS._RETIRED_TRACK_PREDICATES),
@@ -438,154 +427,11 @@ class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
                     call(getattr(PS, name), d, self.DEFAULTED)
 
 
-class TestOneTableTwoStoresOneVerdict(Fixture):
-    """**Round 5's FAIL, and the principle the user settled in USER-905.**
-
-    *A declared row the register contradicts is drift* — principle A, one
-    principle everywhere, with no second principle for the synthesised `main`.
-
-    Round 5 compared a set of NAMES, so a register record that CONTRADICTED a
-    declared row counted as carrying it. One table
-    (`main/queue/standing/4/3d/V2`) against two stores differing ONLY in
-    whether a `main` record exists got opposite responses — `source=store`,
-    no warning, `add` rc 0 with a record; `source=store-default`, one warning,
-    `add` rc 1 without one — while `perry-lint` reported the same rule on the
-    same row in both.
-
-    The fix is not a better comparison written here. It is not writing one:
-    `tracks_the_register_contradicts` hands the file and the store's records
-    to `perry_md_store.plan`, which is exactly what `bin/perry-lint §
-    check_md_store_drift` does.
-    """
-
-    #: The store that CONTRADICTS the declared row: a real `kind: track`
-    #: record named `main`, saying `project`/`phase/`/`V3` where the table
-    #: says `queue`/`standing`/`V2`.
-    CONTRADICTING = SETTING_ONLY + track_record("main", "project", 0) + "\n"
-
-    def declaring(self, store: str, *, zh: bool = False) -> pathlib.Path:
-        d = self.project(store)
-        (d / ".perry" / "config.md").write_text(
-            DECLARING_MAIN_ZH if zh else DECLARING_MAIN)
-        return d
-
-    def lint_track_rows(self, d: pathlib.Path) -> list[str]:
-        """`perry-lint`'s own verdict — the independent control."""
-        proc = subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-lint"), "--root",
-             str(d), "--json"], capture_output=True, text=True, cwd=ROOT)
-        payload = json.loads(proc.stdout)
-        return sorted({f["message"].split(" — ")[0]
-                       for f in payload["findings"]
-                       if f["rule"] == "config-store-drift"
-                       and f["message"].startswith("track/")})
-
-    def run_task(self, d: pathlib.Path, *argv):
-        return subprocess.run(
-            [sys.executable, str(TASK), *argv, "--root", str(d)],
-            capture_output=True, text=True, cwd=ROOT)
-
-    def test_the_two_stores_really_do_differ(self):
-        """The control. Without it every assertion below could pass on two
-        identical fixtures."""
-        self.assertEqual(self.detail(self.declaring(self.CONTRADICTING))[1],
-                         PS.TRACKS_FROM_STORE)
-        self.assertEqual(self.detail(self.declaring(SETTING_ONLY))[1],
-                         PS.TRACKS_STORE_DEFAULT)
-
-    def test_perry_lint_reports_the_same_rule_on_both(self):
-        for label, store in (("record", self.CONTRADICTING),
-                             ("no record", SETTING_ONLY)):
-            with self.subTest(label):
-                self.assertEqual(
-                    self.lint_track_rows(self.declaring(store)), ["track/main"])
-
-    def test_the_writer_gives_the_same_verdict_on_both(self):
-        """Same table, same drift, same answer — and the answer is *write, and
-        say so*, because a register holding a row for every declared name can
-        place every row it is asked to place (USER-905 decision 2)."""
-        for label, store in (("record", self.CONTRADICTING),
-                             ("no record", SETTING_ONLY)):
-            with self.subTest(label):
-                d = self.declaring(store)
-                out = self.run_task(d, "add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable",
-                                    "d", "--verification", "v")
-                self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-                self.assertIn("the track register disagrees", out.stderr)
-
-    def test_the_payload_warns_on_both(self):
-        for label, store in (("record", self.CONTRADICTING),
-                             ("no record", SETTING_ONLY)):
-            with self.subTest(label):
-                d = self.declaring(store)
-                proc = subprocess.run(
-                    [sys.executable, str(STATE), "--root", str(d), "--json"],
-                    capture_output=True, text=True, cwd=ROOT)
-                self.assertEqual(proc.returncode, 0, proc.stderr)
-                hits = [w for w in json.loads(proc.stdout)["warnings"]
-                        if "track register" in w]
-                self.assertTrue(hits, "the payload said nothing about drift "
-                                      "perry-lint reports on this row")
-                self.assertIn("main", hits[0])
-
-    def test_the_goals_lane_gives_the_same_verdict_on_both(self):
-        """Asserted as an EQUALITY between the two stores, not as a rc of 0.
-
-        `commit` on this fixture is refused either way, for a reason that is
-        not this row's: `DECLARING_MAIN` declares `main` as `queue` work, both
-        registers answer `project`, and `OKR.md` has no `## Commitments`
-        section. That refusal is identical on both sides, which is the point —
-        what must not differ is the track-register verdict, and a test pinned
-        to `rc == 0` would be measuring the commitments gate instead.
-        """
-        seen = []
-        for label, store in (("record", self.CONTRADICTING),
-                             ("no record", SETTING_ONLY)):
-            out = subprocess.run(
-                [sys.executable, str(GOALS), "commit", "--track", "main",
-                 "--promise", "p", "--to", "someone", "--due",
-                 "2026-09-30", "--root", str(self.declaring(store))],
-                capture_output=True, text=True, cwd=ROOT)
-            blob = out.stdout + out.stderr
-            with self.subTest(label):
-                self.assertIn("the track register disagrees", out.stderr)
-                self.assertNotIn("the track register does not carry", blob,
-                                 "the lane refused for a track-register "
-                                 "reason on one store and not the other — "
-                                 "the round 5 FAIL")
-            seen.append((out.returncode,
-                         "the track register disagrees" in out.stderr))
-        self.assertEqual(seen[0], seen[1],
-                         "one table, two stores, two different verdicts")
-
-    def test_the_contradicted_declaration_is_named_by_the_predicate(self):
-        """**The contradicted-declaration case, named.** The store HAS a
-        record for `main` and it says something else — the case round 5's set
-        of names could not see at all."""
-        d = self.declaring(self.CONTRADICTING)
-        self.assertEqual(PS.tracks_the_register_contradicts(
-            d, PS.TRACKS_FROM_STORE), ["main"])
-        # …and it is NOT a refusal: the register can place a `main` row.
-        self.assertEqual(PS.tracks_the_register_cannot_place(
-            d, self.detail(d)[0], PS.TRACKS_FROM_STORE), [])
-
-    def test_the_localized_table_behaves_identically(self):
-        """`## 轨道` with localized column headers, at both states.
-        Round 5 got this right and it must not regress: the aliases come from
-        `schema/state-schema.json § i18n`, which is where `perry-lint` gets
-        them."""
-        for label, store in (("record", self.CONTRADICTING),
-                             ("no record", SETTING_ONLY)):
-            with self.subTest(label):
-                zh = self.declaring(store, zh=True)
-                en = self.declaring(store)
-                self.assertEqual(self.lint_track_rows(zh),
-                                 self.lint_track_rows(en))
-                self.assertEqual(
-                    PS.tracks_the_register_contradicts(zh, self.detail(zh)[1]),
-                    PS.tracks_the_register_contradicts(en, self.detail(en)[1]))
-                self.assertEqual(["main"], PS.tracks_the_register_contradicts(
-                    zh, self.detail(zh)[1]))
+# `TestOneTableTwoStoresOneVerdict` held USER-905's principle A — one
+# table over two stores differing only in whether a `main` record exists
+# must get ONE verdict from the linter, the writer, the payload and the
+# goals lane. All four verdicts were about drift between the table and
+# the store, and `perry-lint`'s `config-store-drift` is gone with them.
 
 
 class TestThePayloadSaysWhichAnswerItGave(Fixture):
@@ -619,9 +465,14 @@ class TestThePayloadSaysWhichAnswerItGave(Fixture):
         self.assertIn(pay["project"]["config"]["tracks_source"],
                       PS.TRACKS_STORE_UNUSABLE)
         hits = [w for w in pay["warnings"] if "track register" in w]
-        self.assertTrue(hits, "the payload fell back to the projection and "
-                              "said nothing — the round 1 FAIL")
-        self.assertIn("config.md", hits[0])
+        self.assertTrue(hits, "the payload answered from somewhere and said "
+                              "nothing — the round 1 FAIL")
+        # It names the register it could not read, and says what the payload
+        # carries instead. Before ADR-019 that was the projection's rows; it
+        # is DESIGN-003's implicit `main` now, which is a WORSE thing to be
+        # silent about — there is no second copy left to notice.
+        self.assertIn(".perry/config.jsonl", hits[0])
+        self.assertIn("implicit `main`", hits[0])
 
     def test_perry_state_still_exits_zero_on_a_corrupt_store(self):
         """It may warn; it may not become the thing that crashes.
@@ -678,7 +529,7 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
     def test_a_write_is_fine_with_a_trackless_store(self):
         """The round 2 regression at the write path, where it actually bit.
 
-        **`md_declares=False`, and the round 4 review failed this row because
+        **A trackless store, and the round 4 review failed this row because
         it was not.** The round 2 regression bit on projects with NO
         `## Tracks` section; this guard was built with the fixture default,
         which WRITES a table declaring `main`, so it asserted an allowed write
@@ -687,224 +538,24 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
         different one.
         """
         out = self.run_task(
-            self.project(SETTING_ONLY, md_declares=False),
+            self.project(SETTING_ONLY),
             "intake", "--title", "a request")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
 
 
-class TestAWriteAgainstADefaultedRegisterIsRefused(Fixture):
-    """State 7 at the write path, which is where round 3 did the damage.
-
-    Round 2 refused here and the reviewer called it *"correctly, loudly"*.
-    Round 3 allowed the write against a register provably missing a declared
-    track — and then refused `--track intake` with a message pointing at the
-    very table that declares it on line 14.
-
-    The refusal now names the STORE as the register that answered.
-    """
-
-    def run_task(self, d: pathlib.Path, *argv):
-        return subprocess.run(
-            [sys.executable, str(TASK), *argv, "--root", str(d)],
-            capture_output=True, text=True, cwd=ROOT)
-
-    def test_a_write_is_refused_and_nothing_is_written(self):
-        d = self.project(SETTING_ONLY, md_declares_two=True)
-        out = self.run_task(d, "add", "--title", "t",
-                            "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                            "--deliverable", "d", "--verification", "v")
-        self.assertNotEqual(out.returncode, 0)
-        self.assertFalse((d / "tasks.jsonl").exists(),
-                         "the refusal must mean NOTHING was written")
-
-    def test_the_message_names_the_store_not_the_table(self):
-        """Round 3's message told the user a track was "not declared in
-        `.perry/config.md § Tracks`" while pointing at a table that declares
-        it. The store is the register that answered; say so."""
-        d = self.project(SETTING_ONLY, md_declares_two=True)
-        out = self.run_task(d, "add", "--title", "t",
-                            "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                            "--deliverable", "d", "--verification", "v")
-        blob = out.stdout + out.stderr
-        self.assertIn("the track register does not carry", blob)
-        self.assertIn("intake", blob, "the message must name what was lost")
-        # Round 3's message read "track 'intake' is not declared in
-        # `.perry/config.md § Tracks`" while pointing at a table that declares
-        # it on line 14. The register is what does not carry it; the table is
-        # the thing that DOES declare it, and the wording must not swap them.
-        self.assertNotIn("is not declared in", blob)
-        self.assertIn("`.perry/config.md § Tracks` declares", blob)
-
-    def test_a_read_is_still_allowed(self):
-        d = self.project(SETTING_ONLY, md_declares_two=True)
-        self.assertEqual(self.run_task(d, "list", "--json").returncode, 0)
-
-    def test_a_COMPLETE_default_still_writes(self):
-        """The other half. Three of this repo's six config files are this
-        shape, and round 2 hard-blocked every one of them."""
-        out = self.run_task(
-            self.project(SETTING_ONLY, md_declares=False),
-            "add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-            "--verification", "v")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+# `TestAWriteAgainstADefaultedRegisterIsRefused` pinned USER-905
+# decision 2: a write is refused when the store answered by DEFAULT while
+# the table declared tracks it has no record for. That is
+# `tracks_the_register_cannot_place`, whose other side was the table. A
+# store-default answer is now simply the answer.
 
 
-class TestTheThreeHandEditWorkflowsStillWrite(Fixture):
-    """**USER-905 decision 2, measured as commands.**
-
-    The V4 round 5 review measured three ordinary hand-edit workflows — each
-    starting from a store genuinely derived by `perry-config write
-    --from-file` — hard-blocked by a refusal widened from `store-default` to
-    every drifted row. All three wrote at `45a355d` and at round 4. On W3 the
-    block could not even be cleared by the one command either refusal message
-    names: `perry-config write --from-file` exits 1 there, so the front door
-    was locked from the inside.
-
-    | | the hand edit | round 5 | here |
-    |---|---|---|---|
-    | W1 | no `## Tracks`, then add a `main` row | refused | writes |
-    | W2 | one track, then add a second | refused | writes |
-    | W3 | two tracks, then SWAP one row | refused | writes |
-
-    W1 is the one that separates this from round 4: round 4 also wrote here,
-    by filtering the projection's names on the string `main`, and that filter
-    is what round 4 was failed for. The refusal asks the register what it
-    returned instead, which says the same thing about `store-default` without
-    saying anything false about state 8.
-    """
-
-    NO_TRACKS = CONFIG_MD.split("## Tracks")[0]
-    ONE_TRACK = CONFIG_MD
-    TWO_TRACKS = CONFIG_MD_TWO
-    #: **W3's swap**, and it is the NAME that swaps: the second declared row
-    #: is replaced by a row for a track the register has no record of. This
-    #: is the shape that reproduces the round 5 reviewer's measurement exactly
-    #: — refused at `main`, and `perry-config write --from-file` exits 1 on it
-    #: with *"track/intake: in the store, no line in the file — the whole
-    #: record would be dropped"*, so the block cannot be cleared by the one
-    #: command the refusal names.
-    TWO_TRACKS_SWAPPED = CONFIG_MD_TWO.replace(
-        "| intake | queue |", "| ops | queue |")
-
-    #: The other reading of "swap one row" — the row keeps its name and
-    #: changes what it says. Measured at `main` too: this one already WROTE
-    #: there, because round 5 compared names, which is finding 1. It is kept
-    #: because it is the shape whose stored cells the remedy would overwrite.
-    TWO_TRACKS_RECELLED = CONFIG_MD_TWO.replace(
-        "| main | project | phase/ | — | — | — | — | V3 |",
-        "| main | queue | standing | new→triaged→done | 4 | 3d | weekly | V2 |")
-
-    def derived(self, config_md: str) -> pathlib.Path:
-        """A project whose store `perry-config write --from-file` built."""
-        d = self.project(None)
-        (d / ".perry" / "config.md").write_text(config_md)
-        out = self.tool(CONFIG, d, "write", "--from-file")
-        self.assertEqual(out.returncode, 0,
-                         "the fixture's own precondition failed: "
-                         + out.stdout + out.stderr)
-        self.assertTrue((d / ".perry" / "config.jsonl").exists())
-        return d
-
-    def tool(self, exe: pathlib.Path, d: pathlib.Path, *argv):
-        return subprocess.run(
-            [sys.executable, str(exe), *argv, "--root", str(d)],
-            capture_output=True, text=True, cwd=ROOT)
-
-    def hand_edit_then_write(self, before: str, after: str):
-        d = self.derived(before)
-        (d / ".perry" / "config.md").write_text(after)
-        out = self.tool(TASK, d, "add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-                       "--verification", "v")
-        return d, out
-
-    def test_W1_no_section_then_a_main_row_is_added(self):
-        d, out = self.hand_edit_then_write(self.NO_TRACKS, self.ONE_TRACK)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertTrue((d / "tasks.jsonl").exists(), "nothing was written")
-
-    def test_W2_one_track_then_a_second_is_added(self):
-        d, out = self.hand_edit_then_write(self.ONE_TRACK, self.TWO_TRACKS)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertTrue((d / "tasks.jsonl").exists(), "nothing was written")
-
-    def test_W3_two_tracks_then_one_row_is_swapped(self):
-        """The one whose named remedy fails. `perry-config write --from-file`
-        exits 1 on this project — a defect of that command, filed separately —
-        so a refusal here is a board the user cannot unblock through the front
-        door."""
-        d, out = self.hand_edit_then_write(self.TWO_TRACKS,
-                                           self.TWO_TRACKS_SWAPPED)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertTrue((d / "tasks.jsonl").exists(), "nothing was written")
-
-    def test_W3b_the_other_reading_of_a_swapped_row_also_writes(self):
-        """Same name, different cells. Round 5 allowed this one — its
-        comparison was on names — and round 6 must not lose it while fixing
-        the case round 5 blocked."""
-        d, out = self.hand_edit_then_write(self.TWO_TRACKS,
-                                           self.TWO_TRACKS_RECELLED)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("the track register disagrees", out.stderr)
-        self.assertTrue((d / "tasks.jsonl").exists(), "nothing was written")
-
-    def test_W3_says_so_rather_than_writing_in_silence(self):
-        """Allowed is not the same as unreported: the register really does
-        disagree with the table, and `perry-lint` says so too."""
-        _d, out = self.hand_edit_then_write(self.TWO_TRACKS,
-                                            self.TWO_TRACKS_SWAPPED)
-        self.assertIn("the track register disagrees", out.stderr)
-
-    def test_a_hand_edited_SETTING_is_not_reported_as_a_track(self):
-        """**The V4 round 6 reviewer's finding, asserted on the message.**
-
-        `plan`'s `cells_the_store_and_the_file_disagree_on` is not filtered by
-        record kind — it carries `setting/…` keys beside `track/…` ones — so
-        the `startswith("track/")` filter at `bin/perry-state §
-        tracks_the_register_contradicts` is what keeps a hand-edited SETTING
-        out of an answer about the track register. Deleting it left all 56
-        tests green, which under USER-905 means it did not count.
-
-        The state: a `## Tracks` table whose track row AGREES with the store
-        cell for cell, plus one hand-edited setting. Without the filter,
-        `perry-task` prints *"the track register disagrees with `.perry/
-        config.md § Tracks` on document_language"* — a sentence about the
-        track register, naming a setting, pointing at a section that does not
-        contain it. The assertion is on that sentence rather than on the
-        predicate's return value, because the sentence is the harm.
-        """
-        d = self.derived(self.ONE_TRACK)
-        (d / ".perry" / "config.md").write_text(
-            self.ONE_TRACK.replace("- Document language: English",
-                                   "- Document language: 中文"))
-        # The control: the file and the store really do disagree, and
-        # `perry-lint` — which owns the rule — says so. Without this the test
-        # could pass on a project with no drift at all.
-        lint = json.loads(self.tool(LINT, d, "--json").stdout)
-        drifted = sorted({f["message"].split(" — ")[0] for f in lint["findings"]
-                          if f["rule"] == "config-store-drift"})
-        self.assertEqual(drifted, ["setting/document_language"],
-                         "the fixture does not carry the drift it is for")
-        out = self.tool(TASK, d, "add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-                        "--verification", "v")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertNotIn(
-            "the track register disagrees", out.stderr,
-            "a hand-edited SETTING was reported as a track-register "
-            "disagreement — the message names `## Tracks`, which does not "
-            "contain it")
-
-    def test_the_named_remedy_really_does_fail_on_W3(self):
-        """The instrument for the sentence above. If `perry-config write
-        --from-file` starts succeeding here, the argument for the narrower
-        refusal weakens and this test is where that shows up — rather than in
-        a paragraph nobody re-measures."""
-        d = self.derived(self.TWO_TRACKS)
-        (d / ".perry" / "config.md").write_text(self.TWO_TRACKS_SWAPPED)
-        out = self.tool(CONFIG, d, "write", "--from-file")
-        self.assertNotEqual(
-            out.returncode, 0,
-            "`perry-config write --from-file` now recovers W3 — re-open "
-            "USER-905 decision 2 rather than deleting this test")
+# `TestTheThreeHandEditWorkflowsStillWrite` measured the three
+# hand-edit workflows round 5's wider refusal blocked: add a `## Tracks`
+# section, add a row to it, swap a row. All three are edits to a file
+# that no longer exists; the equivalent today is `perry-config track`,
+# which writes the register directly and cannot leave it disagreeing with
+# anything.
 
 
 class TestABlankTrackNameIsNotSilentlyADefault(Fixture):
@@ -934,74 +585,9 @@ class TestABlankTrackNameIsNotSilentlyADefault(Fixture):
                          "a blank-named record became a track")
 
 
-class TestWhatTheProjectionDeclares(Fixture):
-    """`tracks_the_projection_declares` — names only, and only track rows.
-
-    It feeds the write refusal, so anything that leaks into it becomes a
-    refusal naming something that is not a track. Its two filters — *this
-    site is a track site* and *the name is not blank* — MASK EACH OTHER under
-    single-line mutation: a settings site carries no `track` value, so
-    dropping the kind filter leaks a blank that the blank filter catches, and
-    the scanner already drops a `## Tracks` row whose first cell is empty, so
-    dropping the blank filter leaks nothing the kind filter has not already
-    excluded. Each alone is therefore an equivalent mutant. Both together are
-    not, and that is what this asserts.
-    """
-
-    #: Settings in the preamble, a `## Tracks` row with a BLANK first cell,
-    #: and one real row. Nothing but `main` may come out.
-    RAGGED = ("""# Perry configuration
-
-- Document language: English
-- Repo layout: single
-- State root: .
-""" + """
-## Tracks
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-|  | queue | standing | — | 4 | 3d | — | V2 |
-| main | project | phase/ | — | — | — | — | V3 |
-""")
-
-    def test_only_named_track_rows_come_out(self):
-        d = self.project(SETTING_ONLY)
-        (d / ".perry" / "config.md").write_text(self.RAGGED)
-        self.assertEqual(PS.tracks_the_projection_declares(d), ["main"])
-
-    def test_nothing_nameless_reaches_the_refusal(self):
-        """The consequence, at the writer: a leaked blank would refuse every
-        write with an empty name in the message."""
-        d = self.project(SETTING_ONLY)
-        (d / ".perry" / "config.md").write_text(self.RAGGED)
-        lost = PS.tracks_the_register_cannot_place(
-            d, [dict(PS.DEFAULT_TRACK)], PS.TRACKS_STORE_DEFAULT)
-        self.assertEqual(lost, [], "a nameless or non-track site reached the "
-                                   "write refusal")
-
-    def test_no_config_md_declares_nothing(self):
-        """The adoption shape. Round 4's review found this branch untested and
-        round 5 left it that way."""
-        d = self.project(SETTING_ONLY)
-        (d / ".perry" / "config.md").unlink()
-        self.assertEqual(PS.tracks_the_projection_declares(d), [])
-
-    def test_an_unusable_store_with_no_config_md_beside_it_still_answers(self):
-        """A store present and unusable, and no projection to fall back TO.
-
-        `declared_tracks_detail`'s `cfg.exists()` guard is the only thing
-        between this state and a `FileNotFoundError` out of the tool that is
-        supposed to keep working when everything else has broken. It was
-        GREEN across the whole suite at rounds 4 and 5 — the round 4 review
-        recorded it and round 5 left it — so it is asserted here rather than
-        carried for a third round.
-        """
-        d = self.project(GOOD_STORE + '{"kind": "track", "track": "hal')
-        (d / ".perry" / "config.md").unlink()
-        tracks, source = self.detail(d)
-        self.assertIn(source, PS.TRACKS_STORE_UNUSABLE)
-        self.assertEqual([t["track"] for t in tracks], ["main"])
-        self.assertEqual(PS.tracks_the_register_contradicts(d, source), [])
+# `TestWhatTheProjectionDeclares` was the unit test for
+# `tracks_the_projection_declares` — which names the tracks `## Tracks`
+# declares. It has no subject and the function raises.
 
 
 class TestTheGoalsLaneRefusesToo(Fixture):
@@ -1037,38 +623,16 @@ class TestTheGoalsLaneRefusesToo(Fixture):
         self.assertNotIn("track register", out.stdout + out.stderr)
 
     def test_goals_is_fine_with_a_trackless_store(self):
-        """`md_declares=False` — see the note on the `perry-task` twin."""
+        """A trackless store — see the note on the `perry-task` twin."""
         setting = json.dumps({"kind": "setting", "key": "language",
                               "value": "English", "order": 0})
         out = self.run_goals(
-            self.project(setting + "\n", md_declares=False),
+            self.project(setting + "\n"),
             *self.REACHES_REGISTER)
         self.assertNotIn("track register", out.stdout + out.stderr)
 
-    def test_goals_refuses_when_a_declared_track_has_no_row_at_all(self):
-        """**The assertion this class was missing, and Decision 3 of USER-905.**
-
-        `bin/perry-goals`' refusal was measured again at round 5: `if lost:` →
-        `if False:` left the FULL suite at exactly the baseline, because none
-        of this class's three tests reached the `lost` branch — all three used
-        fixtures where the table declares nothing the register lacks. That is
-        the same defect this class's own docstring records against round 2,
-        one branch to the side.
-
-        State 7 is the branch: a settings-only store beside a table declaring
-        `main` AND `intake`. The register has no row for `intake` at all, so
-        `commit --track main` would still write `phase/` and the linkage
-        register off a truncated list.
-        """
-        out = self.run_goals(self.project(SETTING_ONLY, md_declares_two=True),
-                             *self.REACHES_REGISTER)
-        self.assertNotEqual(out.returncode, 0,
-                            "the goals lane wrote against a register that "
-                            "carries no row for a declared track")
-        blob = out.stdout + out.stderr
-        self.assertIn("the track register does not carry", blob)
-        self.assertIn("intake", blob, "the message must name what was lost")
-
+    # `test_goals_refuses_when_a_declared_track_has_no_row_at_all` was
+    # the goals lane's half of the same refusal, over the same table.
 
 class TestDiagnoseSaysWhichRegisterItRead(Fixture):
     """The FOURTH call site, which round 2's own design note never mentioned.
@@ -1089,11 +653,11 @@ class TestDiagnoseSaysWhichRegisterItRead(Fixture):
         self.assertEqual(self.work_modes(self.project(GOOD_STORE))
                          .get("tracks_source"), "store")
 
-    def test_it_labels_the_projection_fallback(self):
-        wm = self.work_modes(
-            self.project(GOOD_STORE + '{"kind": "track", "track": "hal'))
-        self.assertIn(wm.get("tracks_source"), PS.TRACKS_STORE_UNUSABLE,
-                      "diagnose read the projection and did not say so")
+    # `test_it_labels_the_projection_fallback`,
+    # `test_a_label_with_no_drift_signal_was_the_silent_one` and
+    # `test_it_reports_the_contradicted_declaration_too` stood here. The
+    # first labelled a fallback that no longer exists; the other two were
+    # `MODE-02`, the diagnose finding for a table and a store disagreeing.
 
     def payload(self, d: pathlib.Path) -> dict:
         proc = subprocess.run(
@@ -1102,41 +666,9 @@ class TestDiagnoseSaysWhichRegisterItRead(Fixture):
         self.assertEqual(proc.returncode, 0, proc.stderr[:400])
         return json.loads(proc.stdout)
 
-    def test_a_label_with_no_drift_signal_was_the_silent_one(self):
-        """**V4 amended criterion 9.** Round 5 measured `perry-diagnose` on
-        state 7 reporting `store-default` / `['main']` with empty stderr while
-        `perry-state` warned and both writers refused. It carried WHICH
-        register answered and nothing about that register contradicting the
-        table beside it. `MODE-02` is that half."""
-        d = self.project(SETTING_ONLY, md_declares_two=True)
-        pay = self.payload(d)
-        wm = pay["work_modes"]
-        self.assertEqual(wm["tracks_source"], PS.TRACKS_STORE_DEFAULT)
-        self.assertEqual(wm["tracks_contradicted"], ["intake", "main"])
-        self.assertIn("MODE-02", [f["id"] for f in pay["findings"]])
-
-    def test_it_reports_the_contradicted_declaration_too(self):
-        """The other half of the one principle: a store record that DISAGREES
-        with the declared row, not merely a missing one."""
-        d = self.project(SETTING_ONLY + track_record("main", "project", 0)
-                         + "\n")
-        (d / ".perry" / "config.md").write_text(DECLARING_MAIN)
-        pay = self.payload(d)
-        self.assertEqual(pay["work_modes"]["tracks_source"],
-                         PS.TRACKS_FROM_STORE)
-        self.assertEqual(pay["work_modes"]["tracks_contradicted"], ["main"])
-        self.assertIn("MODE-02", [f["id"] for f in pay["findings"]])
-
-    def test_an_agreeing_register_gets_no_finding(self):
-        """The other direction, or the check is decorative: `GOOD_STORE`'s
-        `main` record agrees with `CONFIG_MD`'s `main` row cell for cell, and
-        `intake` being in the store and not the table is the register
-        declaring MORE — `perry-lint`'s to report, not a contradiction of a
-        declared row."""
-        pay = self.payload(self.project(GOOD_STORE))
-        self.assertEqual(pay["work_modes"]["tracks_contradicted"], [])
-        self.assertNotIn("MODE-02", [f["id"] for f in pay["findings"]])
-
+    # `test_an_agreeing_register_gets_no_finding` stood here: the other
+    # direction of `MODE-02`, so the finding was not decorative. Gone with
+    # the finding.
 
 def _lint_module():
     """`bin/perry-lint` as a module — same loader, same reason, as `PS`."""
@@ -1177,10 +709,11 @@ class TestLintTypesACellAgainstTheRegister(Fixture):
     which is the one failure a linter cannot show you.
     """
 
-    #: The store declares BOTH tracks and `CONFIG_MD` declares only `main`,
-    #: so `intake` resolving is proof the store was read and `{}` is proof the
-    #: projection was. Same instrument as `TestTheInstrumentWorks`, and it is
-    #: why these tests do not need to delete `.perry/config.md` to be honest.
+    #: The track `GOOD_STORE` declares and `DEFAULT_TRACK` does not, so
+    #: resolving it is proof the register was read rather than defaulted. It
+    #: used to be proof of something narrower — that the STORE was read and not
+    #: the table beside it — and the probe is unchanged because the thing it
+    #: has to tell apart is still a real answer from a fallback.
     RESOLVED_FROM_THE_STORE = "intake"
 
     def setUp(self):
@@ -1228,21 +761,12 @@ class TestLintTypesACellAgainstTheRegister(Fixture):
                          "`Due` cell against; a name with no mode is not a "
                          "resolved track")
 
-    def test_it_reads_the_store_and_not_the_projection_when_BOTH_exist(self):
-        """The divergence instrument, pointed at the linter.
-
-        `CONFIG_MD` declares `main` only; `GOOD_STORE` declares `main` and
-        `intake`. A reader of the projection cannot produce `intake` here, so
-        this is the assertion an inline `config.md` parser cannot pass however
-        well written it is.
-        """
-        d = self.project(GOOD_STORE)
-        self.assertEqual((d / ".perry" / "config.md").exists(), True,
-                         "both files must be present or this proves nothing")
-        got = self.context(d, self.RESOLVED_FROM_THE_STORE)
-        self.assertTrue(got, "`intake` is in the store and not in the table, "
-                             "so `{}` means the projection was read")
-        self.assertEqual(got.get("mode"), "queue")
+    # `test_it_reads_the_store_and_not_the_projection_when_BOTH_exist`
+    # and `test_no_store_at_all_still_reads_the_projection` stood here: the
+    # linter's typed-cell check resolving a track against one register while
+    # the other said otherwise. `test_a_store_only_project_resolves_a_track
+    # _it_declares` above is what is left, and it is now the ordinary case
+    # rather than the interesting one.
 
     # ── the controls ──────────────────────────────────────────────────────
 
@@ -1252,8 +776,9 @@ class TestLintTypesACellAgainstTheRegister(Fixture):
         `{}` is the documented permissive case and the reason a typo in the
         register does not silently make a column stricter.
         """
-        for d in (self.store_only(), self.project(GOOD_STORE)):
-            with self.subTest(store_only=not (d / ".perry" / "config.md").exists()):
+        for label, d in (("store only", self.store_only()),
+                        ("good store", self.project(GOOD_STORE))):
+            with self.subTest(label):
                 PL._TRACK_CONTEXTS.clear()
                 self.assertEqual(self.context(d, "no-such-track"), {})
 
@@ -1261,14 +786,16 @@ class TestLintTypesACellAgainstTheRegister(Fixture):
         """**The `TRACKS_STORE_UNUSABLE` half, which is the whole point.**
 
         `declared_tracks_detail` still ANSWERS when a store is present and
-        could not be read — with the projection's rows and a `source` saying
-        so, and its own docstring forbids treating those as truth. A caller
-        that takes them silently is the defect the V4 round 1 review found;
-        this asserts `perry-lint` is not that caller.
+        could not be read — with DESIGN-003's implicit `main` and a `source`
+        saying so, and its own docstring forbids treating that as the project's
+        register. A caller that takes it silently is the defect the V4 round 1
+        review found; this asserts `perry-lint` is not that caller.
 
-        `main` is the probe, not `intake`: `CONFIG_MD` declares `main`, so the
-        projection HAS a row to hand back here. Probing a track the table does
-        not carry would pass on a reader that took the projection.
+        `main` is the probe, not `intake`, and after ADR-019 that matters
+        MORE. The fallback used to be the table's rows; it is now the implicit
+        `main`, which is a row the answer really does carry — so probing
+        `intake`, which no fallback produces, would pass on a reader that took
+        the fallback whole.
         """
         d = self.project(GOOD_STORE + '{"kind": "track", "track": "hal')
         self.assertIn(self.detail(d)[1], PS.TRACKS_STORE_UNUSABLE,
@@ -1279,12 +806,6 @@ class TestLintTypesACellAgainstTheRegister(Fixture):
         self.assertEqual(self.context(d, "main"), {},
                          "the projection's row was returned as the "
                          "register's answer")
-
-    def test_no_store_at_all_still_reads_the_projection(self):
-        """The adoption path the KR EXCLUDES, so it must keep working."""
-        d = self.project(None)
-        self.assertEqual(self.detail(d)[1], PS.TRACKS_STORE_ABSENT)
-        self.assertEqual(self.context(d, "main").get("mode"), "project")
 
     # ── the cache ─────────────────────────────────────────────────────────
 
@@ -1329,21 +850,10 @@ class TestLintTypesACellAgainstTheRegister(Fixture):
         # **A shape where each reader has something to filter**, or the
         # assertion is over rows that were never at risk. The first draft of
         # this test used only the fixtures above, none of which carries a
-        # nameless row — so dropping `parse_tracks`' filter mutated GREEN
-        # through it, and the test was measuring the store side alone.
-        # `Track` is deliberately not the first column: `parse_tracks` skips a
-        # row on an empty `cells[0]`, so a nameless row in a table whose first
-        # column IS `Track` never reaches the filter under test.
-        nameless = self.project(None)
-        (nameless / ".perry" / "config.md").write_text(
-            CONFIG_MD.split("## Tracks")[0] + """
-## Tracks
-
-| Mode | Track | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| project |  | phase/ | — | — | — | — | V3 |
-| queue | intake | standing | new→done | 6 | 5d | weekly | V3 |
-""")
+        # nameless row — so dropping the filter mutated GREEN through it. One
+        # of the two shapes it added was a `## Tracks` table with a nameless
+        # row; that reader is gone with ADR-019, and the store side, which is
+        # the one that still has a filter to lose, stays.
         nameless_store = self.project(
             track_record("main", "project", 0) + "\n"
             + json.dumps({"kind": "track", "track": "   ", "mode": "queue",
@@ -1352,12 +862,10 @@ class TestLintTypesACellAgainstTheRegister(Fixture):
         shapes = {
             "healthy store": self.project(GOOD_STORE),
             "no store": self.project(None),
-            "trackless store": self.project(setting + "\n", md_declares=False),
+            "trackless store": self.project(setting + "\n"),
             "unreadable store": self.project(
                 GOOD_STORE + '{"kind": "track", "track": "hal'),
             "empty store": self.project(""),
-            "table declares two": self.project(None, md_declares_two=True),
-            "table carries a nameless row": nameless,
             "store carries a nameless record": nameless_store,
         }
         for label, d in shapes.items():
@@ -1376,16 +884,18 @@ class TestLintTypesACellAgainstTheRegister(Fixture):
     def test_perry_lint_holds_no_reader_of_the_track_register_projection(self):
         """`P003-O2-KR1`, asserted against the file rather than against a count.
 
-        The KR targets ZERO `bin/` call sites reading the track register from
-        `.perry/config.md` while the store exists. The four it enumerated were
-        `parse_tracks` callers; this one was not, which is exactly how it went
-        uncounted. A grep for `parse_tracks` would not have found it and does
-        not guard it now — the inline parser's own shape is what does.
+        The KR targeted ZERO `bin/` call sites reading the track register
+        from `.perry/config.md` while the store exists. **ADR-019 drives it to
+        zero by construction** — the file is gone — and this test is kept
+        because it never measured the filename: it asserts that `perry-lint`
+        holds no inline TABLE PARSER of its own. The four call sites the KR
+        enumerated were `parse_tracks` callers; this one was not, which is
+        exactly how it went uncounted, and a grep for `parse_tracks` would
+        not have found it.
 
-        `bin/perry-lint` still names `.perry/config.md` in prose and still
-        reads a SETTING out of it when no store is there (`§ review_rounds`,
-        store-first, the legitimate `absent` fallback). Neither is a register
-        read, so this asserts the parser's shape and not the filename.
+        So what is left is the guard against the shape coming back under
+        another register: a header probe and a row parser written inline, in a
+        file whose one legitimate reader is `declared_tracks_detail`.
         """
         text = LINT.read_text(encoding="utf-8")
         self.assertNotIn('column_index(cells, "Mode")', text,

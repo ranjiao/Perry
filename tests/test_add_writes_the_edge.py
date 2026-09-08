@@ -86,20 +86,21 @@ def load_tool():
 
 PT = load_tool()
 
+import config_store  # noqa: E402
+from config_store import track  # noqa: E402
+
 TASK = ROOT / "bin" / "perry-task"
 STATE = ROOT / "bin" / "perry-state"
 
 # Two tracks, because `route` is a QUEUE-mode operation and refuses on a
 # project-mode track. A fixture with only `main` makes the route test skip,
 # and a skipped test states nothing about the behaviour it names.
-CONFIG = ("# Perry configuration\n\n- Document language: English\n"
-          "- Repo layout: single\n- State root: .\n\n"
-          "## Tracks\n\n"
-          "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-          "|---|---|---|---|---|---|---|---|\n"
-          "| main | project | phase/ | — | — | — | — | V3 |\n"
-          "| intake | queue | standing | "
-          "new→triaged→in_progress→resolved | 6 | 5d | weekly | V3 |\n")
+TRACKS = [
+    track("main", "project", spine="phase/", default_rung="V3"),
+    track("intake", "queue", spine="standing",
+          stages="new→triaged→in_progress→resolved", wip="6", sla="5d",
+          cycle="weekly", default_rung="V3"),
+]
 HOOK = ("# Perry hook\n\n## High-stakes operations\n\n"
         "- Anything that writes outside this fixture\n")
 
@@ -219,8 +220,7 @@ class Fixture(unittest.TestCase):
         d = pathlib.Path(tempfile.mkdtemp(prefix="perry-add-edge-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "phase").mkdir()
-        (d / ".perry").mkdir()
-        (d / ".perry" / "config.md").write_text(CONFIG)
+        config_store.write_config(d, tracks=TRACKS)
         (d / ".perry" / "hook.md").write_text(HOOK)
         (d / "BOARD.md").write_text(BOARD)
         (d / "phase" / "CURRENT").write_text("003-storage\n")
@@ -544,6 +544,7 @@ class TestTheEdgeIsNotASecondTransaction(Fixture):
 
     CHILD = r'''
 import importlib.machinery, importlib.util, os, signal, sys
+
 TOOL, ROOT, N, TITLE, KR = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
 spec = importlib.util.spec_from_loader(
     "perry_task", importlib.machinery.SourceFileLoader("perry_task", TOOL))

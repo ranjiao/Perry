@@ -20,6 +20,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import config_store  # noqa: E402
+
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or Path(__file__).resolve().parent.parent)
 TOOL = PERRY_HOME / "bin" / "perry-goals"
 FIXTURE = PERRY_HOME / "tests" / "fixtures" / "sample-project"
@@ -139,10 +141,8 @@ class TestDerivedFieldsAreReallyDerived(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         root = Path(tmp)
         self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- State root: goalsdir\n")
+        config_store.write_config(root, {"Document language": "English",
+                                        "State root": "goalsdir"})
         (root / "goalsdir").mkdir()
         (root / "goalsdir" / "OKR.md").write_text(TestRealProjectShapes.OKR)
 
@@ -189,9 +189,7 @@ class TestDerivedFieldsAreReallyDerived(unittest.TestCase):
         one with nothing in it."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: .\n")
+            config_store.write_config(root, {"State root": "."})
             code, d = run(root)
             self.assertEqual(code, 0, d)
             self.assertEqual(set(d), TestShape.TOP)
@@ -213,9 +211,7 @@ class TestRealProjectShapes(unittest.TestCase):
     def okr_project(self, body: str) -> Path:
         tmp = tempfile.mkdtemp()
         root = Path(tmp)
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n")
+        config_store.write_config(root, {"State root": "."})
         (root / "OKR.md").write_text(body)
         self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
         return root

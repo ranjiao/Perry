@@ -10,6 +10,8 @@ from pathlib import Path
 
 from tests.test_store_is_the_write_target import Project, task_module
 
+import config_store  # noqa: E402
+
 
 ROOT = Path(__file__).resolve().parent.parent
 EXPLAIN = ROOT / "bin" / "perry-explain"
@@ -200,16 +202,12 @@ class TaskSummaryContract(unittest.TestCase):
             "|---|---|---|---|---|---|---|---|",
         ).replace("| — | — |", "| — | — | ops | brief |")
         project = Project(self, board=board)
-        # Overwrites the config `Project` wrote, so it carries `""`
-        # forward itself — see tests/gate.py.
-        (project.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n"
-            + "\n## Tracks\n\n"
-            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-            "|---|---|---|---|---|---|---|---|\n"
-            "| ops | pipeline | OKR.md | brief,draft | — | 3d | — | V2 |\n",
-            encoding="utf-8")
+        # Overwrites the config `Project` wrote, so it carries the whole
+        # settings set forward itself.
+        config_store.write_config(project.root, tracks=[
+            config_store.track("ops", "pipeline", spine="OKR.md",
+                               stages="brief,draft", sla="3d",
+                               default_rung="V2")])
         rc, out = project.task("summary", "TASK-002", "--summary",
                                SENTINEL)
         self.assertEqual(rc, 0, out)

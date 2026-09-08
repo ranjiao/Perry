@@ -1,0 +1,11 @@
+{"kind": "setting", "key": "document_language", "label": "Document language", "value": "中文（chat replies mirror user; written artifacts use 中文 for narrative + EN for technical IDs）", "order": 0}
+{"kind": "setting", "key": "repo_layout", "label": "Repo layout", "value": "split", "order": 1}
+{"kind": "setting", "key": "state_root", "label": "State root", "value": "", "order": 2}
+{"kind": "setting", "key": "pmo_repo_path", "label": "PMO repo path", "value": "/tmp/second-project-pmo", "order": 3}
+{"kind": "setting", "key": "code_repo_path", "label": "Code repo path", "value": "/tmp/second-project", "order": 4}
+{"kind": "setting", "key": "available_executors", "label": "Available executors", "value": "claude-subagent, codex", "order": 5}
+{"kind": "setting", "key": "conformance_gate", "label": "Conformance gate", "value": "advisory", "order": 6}
+{"kind": "setting", "key": "last_updated", "label": "Last updated", "value": "2026-05-07 (post auto-trade push)", "order": 7}
+{"kind": "track", "track": "main", "mode": "project", "spine": "", "stages": "", "wip": "", "sla": "", "cycle": "", "default_rung": "", "order": 0}
+{"kind": "track", "track": "research", "mode": "pipeline", "spine": "OKR.md § Commitments", "stages": "intake, screen, backtest, memo", "wip": "screen:2, backtest:1", "sla": "", "cycle": "", "default_rung": "V4", "order": 1}
+{"kind": "track", "track": "ops", "mode": "queue", "spine": "OKR.md § Commitments", "stages": "", "wip": "", "sla": "3d", "cycle": "", "default_rung": "V2", "order": 2}

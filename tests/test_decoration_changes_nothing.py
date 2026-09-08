@@ -112,9 +112,11 @@ class TestDecorationIsInvisible(unittest.TestCase):
             for f in (root / "perry").rglob("*.md"):
                 f.write_text(bold_headers(f.read_text(errors="replace")),
                              encoding="utf-8")
-            cfg = root / ".perry" / "config.md"
-            cfg.write_text(bold_headers(cfg.read_text(errors="replace")),
-                           encoding="utf-8")
+            # `.perry/config.md` was bolded here too, because it was a
+            # markdown file every reader parsed. ADR-019 deleted it;
+            # `.perry/config.jsonl` has no headers to decorate, which is the
+            # decoration question answered by construction rather than by a
+            # check.
         return root
 
     @staticmethod
