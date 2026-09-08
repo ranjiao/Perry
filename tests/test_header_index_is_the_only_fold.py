@@ -39,6 +39,8 @@ import tables                                  # noqa: E402
 import parsers as P                            # noqa: E402
 from header_rule import header_sites           # noqa: E402
 
+import config_store  # noqa: E402
+
 #: The header cells this module watches — **decorated ones only, and that is
 #: the whole trick.** A plain `ID` is folded twice for two different reasons:
 #: once as a cell the project wrote, and once as the canonical English column
@@ -49,9 +51,17 @@ from header_rule import header_sites           # noqa: E402
 #: argument to the call the evidence, with no list of function names in it.
 #:
 #: `**Default** rung` is the divergence the whole row exists for: it
-#: lowercases to `default** rung` and matches nothing.
+#: lowercases to `default** rung` and matches nothing. **It left this list with
+#: ADR-019.** It was a `## Tracks` header cell, `bin/perry-state § parse_tracks`
+#: was the only reader that ever folded it, and both are deleted — a track is a
+#: store record whose fields are keys. Keeping the cell here would fail
+#: `test_every_decorated_header_cell_reached_header_index` forever, on a
+#: document no reader can be asked about. The PROPERTY it stands for is
+#: unchanged and still measured by the seven below, `**KR**` and `**Due**`
+#: among them: a cell whose decoration sits inside the word rather than around
+#: it lowercases to something that matches nothing.
 HEADER_CELLS = ["**Risk**", "**Title**", "**Arrived**", "**Needed from user**",
-                "**Default** rung", "**KR**", "**Due**", "**File**"]
+                "**KR**", "**Due**", "**File**"]
 
 #: What those cells resolve TO. Matched on the KEY rather than on the byte
 #: string, because two readers strip part of the decoration on the way in —
@@ -88,15 +98,15 @@ WATCHED = [
     "_parse_task_table", "read_legacy_conformance", "is_risk_register_header",
     "is_intake_register_header", "is_user_register_header",
     # bin/
-    "parse_tracks",            # bin/perry-state
-    # `_track_context` (bin/perry-lint) was listed here until TASK-283 and is
-    # deliberately gone. It held a header row of its own because it carried an
-    # inline parser of `.perry/config.md § Tracks`; it now reads the register
-    # through `perry-state § declared_tracks_detail` and folds no cell itself.
-    # The workload still DRIVES it (`parse_everything`), and the fold it
-    # reaches is `parse_tracks`' one line above — which is the point of the
-    # conversion: one reader of that table, watched once. Re-adding the name
-    # without re-adding a fold goes red on the "claimed and not observed"
+    # `parse_tracks` (bin/perry-state) was listed here and is gone with
+    # ADR-019: it read `.perry/config.md § Tracks`, and there is no such table.
+    # `_track_context` (bin/perry-lint) was listed until TASK-283 and went for
+    # the neighbouring reason — it had carried an inline parser of the same
+    # table and was converted to read the register through `perry-state §
+    # declared_tracks_detail`. The workload still DRIVES `_track_context`
+    # (`parse_everything`), and it now folds nothing at all, because the
+    # register it reaches has no header cells left to fold. Re-adding either
+    # name without re-adding a fold goes red on the "claimed and not observed"
     # half of the set equality.
     "md_table",                # bin/perry-diagnose
     "harvest",                 # bin/perry-explain
@@ -155,11 +165,12 @@ UNCOVERED = [
     ("convert", "bin/perry_store.py", "plan"),
 ]
 
-CONFIG = (
-    "# Perry configuration\n\n- State root: .\n\n## Tracks\n\n"
-    "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | **Default** rung |\n"
-    "|---|---|---|---|---|---|---|---|\n"
-    "| ops | queue | OKR.md | new -> done | — | 3d | — | V2 |\n")
+#: The track the fixtures below declare. A `## Tracks` table with a bolded
+#: `| **Default** rung |` header until ADR-019 — the decoration is what this
+#: module is named for, and a store record has nowhere to carry it.
+CONFIG = [config_store.track("ops", "queue", spine="OKR.md",
+                             stages="new -> done", sla="3d",
+                             default_rung="V2")]
 
 BOARD = (
     "# Board\n\n## Work\n\n"
@@ -226,8 +237,9 @@ INTAKE_BOARD = (
     "|---|---|---|---|---|---|\n"
     "| TASK-001 | ship it | me | open | ops | new |\n")
 
-INTAKE_CONFIG = ("# Perry configuration\n\n- Document language: English\n"
-                 "- Repo layout: single\n- State root: .\n")
+# `INTAKE_CONFIG` was a settings-only `.perry/config.md`; the fixture writes
+# `config_store.write_config(root)`'s defaults instead, which are the same
+# three settings.
 
 #: **Round 11.** A board with the columns the WRITE side refuses without —
 #: `Next action` and `Evidence` for `replace_row`, a `## P1` section for
@@ -414,8 +426,7 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
-        (self.tmp / ".perry").mkdir()
-        (self.tmp / ".perry" / "config.md").write_text(CONFIG, encoding="utf-8")
+        config_store.write_config(self.tmp, {"State root": "."}, CONFIG)
         (self.tmp / ".perry" / "conformance.md").write_text(
             CONFORMANCE, encoding="utf-8")
         (self.tmp / "BOARD.md").write_text(BOARD, encoding="utf-8")
@@ -423,11 +434,9 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
 
     def parse_everything(self):
         """Every reader this row named, over the decorated fixtures."""
-        state = load("perry-state")
         lint = load("perry-lint")
         diagnose = load("perry-diagnose")
         explain = load("perry-explain")
-        state.parse_tracks(CONFIG)
         P.parse_board(BOARD)
         P.parse_okr(OKR)
         P.read_legacy_conformance(self.tmp)
@@ -441,11 +450,11 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
                    "request": {"request"}, "outcome": {"outcome"}}
         for section in BOARD.split("\n## "):
             diagnose.md_table(section.split("\n"), aliases)
-        # Still driven after TASK-283, and no longer its own fold: the fixture
-        # has a `.perry/config.md` and no store, so this reaches the register
-        # through `declared_tracks_detail`'s `absent` branch and folds in
-        # `parse_tracks`. Driving the real linter entry point is what keeps
-        # that route covered rather than assumed.
+        # Still driven after TASK-283, and folding nothing since ADR-019:
+        # the fixture's register is `.perry/config.jsonl` and a record has no
+        # header cells. Driving the real linter entry point is what keeps the
+        # route covered rather than assumed — a reader that grew a fold of its
+        # own would be caught here and nowhere else.
         lint._track_context(self.tmp / "BOARD.md", "ops")
         explain.harvest(self.tmp)
         # **Round 8's workload stopped here**, and its reviewer measured the
@@ -513,9 +522,7 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
         """
         root = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(INTAKE_CONFIG,
-                                                   encoding="utf-8")
+        config_store.write_config(root)
         (root / "BOARD.md").write_text(INTAKE_BOARD, encoding="utf-8")
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -692,15 +699,14 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
             "reference and the watch did not see it")
         self.assertIs(lint.norm, real, "`__exit__` left the reader patched")
 
-    def test_the_decorated_header_still_resolves(self):
-        """Behaviour, not accounting. A guard satisfied by a rename is not one."""
-        state = load("perry-state")
-        tracks = state.parse_tracks(CONFIG)
-        self.assertEqual(tracks[0].get("default_rung"), "V2",
-                         "the bolded header lost its column")
-        plain = state.parse_tracks(
-            CONFIG.replace("**Default** rung", "Default rung"))
-        self.assertEqual(tracks, plain)
+    # `test_the_decorated_header_still_resolves` stood here: it parsed the
+    # track table with `| **Default** rung |` and with `| Default rung |` and
+    # asserted the two agreed — behaviour rather than accounting, so a guard
+    # satisfied by a rename would still fail. ADR-019 deleted the table and
+    # `parse_tracks` with it. The behavioural half of the property is still
+    # asserted, on the readers that still parse a document: `**KR**` through
+    # `P._table_rows` above, and `**Title**` / `**Risk**` through
+    # `P.parse_board`.
 
 
 class TestTheDecoratedHeaderReachesTheOneFold(unittest.TestCase):
@@ -729,7 +735,6 @@ class TestTheDecoratedHeaderReachesTheOneFold(unittest.TestCase):
             P.parse_okr(OKR)
             P.parse_board(BOARD)
             P.read_legacy_conformance(self._conformance_root())
-            load("perry-state").parse_tracks(CONFIG)
         via = {w.real(arg) for stack, arg in w.folds_of_a_header_cell()
                if "header_index" in stack}
         missing = sorted(HEADER_KEYS - via)

@@ -56,6 +56,8 @@ STORE_KEY = "linkage.jsonl"
 sys.path.insert(0, str(ROOT / "viewer"))
 import parsers as P  # noqa: E402
 
+import config_store  # noqa: E402
+
 
 def declared() -> dict:
     return ((SCHEMA.get("stores") or {}).get("declared") or {}).get(STORE_KEY)
@@ -104,12 +106,8 @@ projects: []
 Body prose. Never read by the import.
 """
 
-CONFIG = """# Perry configuration
-
-- Document language: English
-- Repo layout: single
-- State root: perry
-"""
+SETTINGS = {"Document language": "English", "Repo layout": "single",
+            "State root": "perry"}
 
 
 class LinkageFixture(unittest.TestCase):
@@ -120,9 +118,8 @@ class LinkageFixture(unittest.TestCase):
                 extra_registers: bool = False) -> pathlib.Path:
         root = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        (root / ".perry").mkdir()
         (root / "perry" / "phase").mkdir(parents=True)
-        (root / ".perry" / "config.md").write_text(CONFIG, encoding="utf-8")
+        config_store.write_config(root, SETTINGS)
         (root / ".perry" / "events.jsonl").write_text("", encoding="utf-8")
         (root / "perry" / "phase" / "CURRENT").write_text(current,
                                                           encoding="utf-8")
