@@ -30,6 +30,8 @@ import sys
 import tempfile
 import unittest
 
+import config_store  # noqa: E402
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 #: The cell that separates a correct reader from one with its own splitter. A
@@ -60,8 +62,7 @@ class TestEveryReaderAgrees(unittest.TestCase):
         self.dir = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
         (self.dir / "perry").mkdir()
-        (self.dir / ".perry").mkdir()
-        (self.dir / ".perry" / "config.md").write_text("State root: perry\n")
+        config_store.write_config(self.dir, {"State root": "perry"})
         (self.dir / "perry" / "BOARD.md").write_text(BOARD)
         seeded = subprocess.run(
             [sys.executable, str(ROOT / "bin" / "perry-tasks"), "write",

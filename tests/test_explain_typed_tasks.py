@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import config_store  # noqa: E402
+
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 EXPLAIN = PERRY_HOME / "bin" / "perry-explain"
@@ -18,11 +20,7 @@ class TypedTaskLookup(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n",
-            encoding="utf-8",
-        )
+        config_store.write_config(self.root, {"State root": "."})
 
     def tearDown(self):
         self.temp.cleanup()
@@ -104,7 +102,7 @@ class TypedTaskLookup(unittest.TestCase):
     def test_an_unadopted_projects_tasks_jsonl_is_not_claimed_by_perry(self):
         self.write_false_markdown_definition("TASK-999")
         self.write_store([{"id": "TASK-999", "title": "unrelated store"}])
-        (self.root / ".perry" / "config.md").unlink()
+        (self.root / ".perry" / "config.jsonl").unlink()
         (self.root / ".perry").rmdir()
 
         result = self.run_explain("TASK-999", "--json")

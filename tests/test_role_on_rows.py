@@ -24,6 +24,8 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import tables as T  # noqa: E402
 
+import config_store  # noqa: E402
+
 TOOL = PERRY_HOME / "bin" / "perry-task"
 HEADER = ["ID", "Title", "Owner", "Status", "Next action", "Evidence"]
 CARD = """# Role · coding
@@ -57,9 +59,7 @@ class Base(unittest.TestCase):
         root = Path(tmp.name)
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\nState root: perry/\n",
-            encoding="utf-8")
+        config_store.write_config(root, {"State root": "perry/"})
         (root / "perry" / "BOARD.md").write_text("\n".join([
             "# Board", "",
             "## P1", "", T.render_row(HEADER), "|" + "---|" * len(HEADER), "",

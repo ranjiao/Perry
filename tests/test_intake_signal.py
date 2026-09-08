@@ -31,6 +31,8 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
 
+import config_store  # noqa: E402
+
 LINT = PERRY_HOME / "bin" / "perry-lint"
 STATE = PERRY_HOME / "bin" / "perry-state"
 
@@ -45,8 +47,7 @@ class Base(unittest.TestCase):
         root = Path(tmp.name)
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: perry\n", encoding="utf-8")
+        config_store.write_config(root, {"State root": "perry"})
         board = ["# Board", "", "## P1", "", TASK_HEAD.rstrip("\n")]
         board += [f"| T-{i} | t | o | not_started | n | — | V2 |"
                   for i in range(task_rows)]
