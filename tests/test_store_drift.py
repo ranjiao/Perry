@@ -657,11 +657,21 @@ CENSUS_LINES = {
     "asks.jsonl": ("· ask store:", "no `asks.jsonl`"),
     "okr.jsonl": ("· OKR store:", "no `okr.jsonl`"),
     ".perry/config.jsonl": ("· config store:", "no `.perry/config.jsonl`"),
-    # The seventh (TASK-276, DESIGN-015 row A). Declared before it exists,
-    # like `intake.jsonl` and `asks.jsonl` were: the import is row B, so on
-    # this project only the absence line is reachable today.
+    # The seventh (TASK-276, DESIGN-015 row A). **Its line reports records
+    # and malformed count, never `drifted`** — ADR-019 deleted
+    # `phase/<NNN>-linkage.md`, so this store projects from nothing and a
+    # drift verdict over one copy would be a number that cannot be non-zero.
     "linkage.jsonl": ("· linkage store:", "no `linkage.jsonl`"),
 }
+
+#: The stores that PROJECT from a markdown document and can therefore drift
+#: from it. Six of the seven. `linkage.jsonl` is claimed, censused and
+#: shape-checked like the rest; what it has no second copy of is a document,
+#: so `perry-lint --json` gives it a `linkage_store` block rather than a
+#: `linkage_store_drift` one. Named here rather than special-cased at the
+#: assertion, because "not covered" and "nothing to compare it to" are the two
+#: answers this suite exists to keep apart.
+PROJECTS_FROM_A_DOCUMENT = set(CENSUS_LINES) - {"linkage.jsonl"}
 
 #: The event log is claimed and is NOT one of the six: it is append-only
 #: history, not a store any file is projected from, so there is nothing to
@@ -732,13 +742,47 @@ class TestTheCensusCoversEveryDeclaredStore(Fixture):
         _, payload = self.lint(d)
         blocks = {k: v for k, v in payload.items()
                   if k.endswith("store_drift") or k == "store_drift"}
-        self.assertEqual(len(blocks), len(declared_stores()), sorted(blocks))
+        self.assertEqual(len(blocks), len(PROJECTS_FROM_A_DOCUMENT),
+                         sorted(blocks))
         for name, block in blocks.items():
             with self.subTest(name):
                 self.assertIn("store_present", block)
                 self.assertIn("comparison_performed", block)
                 self.assertIn("records", block)
                 self.assertIn("drifted", block)
+
+    def test_the_seventh_store_carries_a_block_with_no_drift_count(self):
+        """**Every declared store still has a block; one of them is a
+        different shape, and the difference is the finding.**
+
+        Six stores project from a markdown document and report `drifted`.
+        `linkage.jsonl` projected from `phase/<NNN>-linkage.md` and reported
+        `1 row(s) drifted` on this project — `P003-O3-KR2` — on the day
+        ADR-019 was written. The ADR's argument is that the check is the
+        ongoing cost of the duplication rather than a fix for it, so the
+        document went and the class became impossible.
+
+        A `drifted: 0` left in place would be worse than no key: a consumer
+        reading it would take a number that cannot be non-zero for a check
+        that passed, which is the `unchecked`-read-as-`clean` mistake
+        `P003-O1-KR3` exists to prevent. So the key is renamed, and this
+        asserts BOTH halves — the block is present, and `drifted` is not in
+        it.
+        """
+        d = self.project()
+        self.store(d)
+        _, payload = self.lint(d)
+        self.assertNotIn("linkage_store_drift", payload)
+        block = payload["linkage_store"]
+        self.assertIn("store_present", block)
+        self.assertIn("records", block)
+        self.assertIn("malformed", block)
+        self.assertNotIn("drifted", block)
+        # And every declared store is still accounted for, which is the
+        # count TASK-209 was opened over.
+        blocks = {k for k in payload
+                  if k.endswith("store_drift") or k == "store_drift"}
+        self.assertEqual(len(blocks) + 1, len(declared_stores()))
 
 
 class MarkdownStore(Fixture):

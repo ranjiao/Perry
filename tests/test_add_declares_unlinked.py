@@ -158,8 +158,13 @@ class TestTheOneSequence(Fixture):
         # Field-for-field the goals lane's `unlinked` record, `via` apart. Two
         # writers of one store spelling one record two ways is the drift
         # DESIGN-015 exists to remove.
-        self.assertEqual(sorted(rec),
-                         sorted(["kind", "task", "declared_at", "actor", "via"]))
+        #
+        # `phase` joined the shape at ADR-019: the store holds every phase at
+        # once now, and a declaration is made against ONE board — without it
+        # phase 001's declarations would count against phase 003's.
+        self.assertEqual(
+            sorted(rec),
+            sorted(["kind", "task", "phase", "declared_at", "actor", "via"]))
         self.assertEqual(rec["kind"], "unlinked")
         self.assertEqual(rec["via"], "add")
         self.assertNotIn("kr", rec,

@@ -293,7 +293,12 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
         "handoff/<YYYY-MM-DD>.md": "handoff/",
         "OKR.md": "OKR.md",
         "phase/[0-9][0-9][0-9]-*.md": "phase/<NNN>-<slug>.md",
-        "phase/[0-9][0-9][0-9]-linkage.md": "phase/<NNN>-<slug>.md",
+        # `phase/[0-9][0-9][0-9]-linkage.md` stood here and is gone with the
+        # `files[]` entry ADR-019 deleted. Its owner did not change and no
+        # contract row moved: the register is `linkage.jsonl` now, which is a
+        # STORE and is declared under `claims[]` with `owner: perry` — the
+        # branch above skips `perry` before it reaches this table.
+
         "design/*.md": "design/<DESIGN-ID>-<slug>.md",
         "decisions/ADR-NNN-<slug>.md": "decisions/",
         # Moved from `user` to `work` on 2026-08-20 under a fresh V5
@@ -379,8 +384,12 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
                 f"contract assigns it to {claimed_by}",
             )
             checked += 1
+        # **6, and it was 7 until ADR-019.** The floor is a guard against a
+        # file falling through the mapping unnoticed, so it moves only when a
+        # file genuinely leaves the schema —
+        # `phase/[0-9][0-9][0-9]-linkage.md` did, with the document itself.
         self.assertGreaterEqual(
-            checked, 7,
+            checked, 6,
             f"only {checked} lane-owned files were checked; the schema has "
             f"more and they must not fall through")
 
