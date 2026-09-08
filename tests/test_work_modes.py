@@ -37,6 +37,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import config_store  # noqa: E402
+
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
@@ -51,6 +53,16 @@ def file_spec(file_id: str) -> dict:
         if f["id"] == file_id:
             return f
     raise AssertionError(f"no files[] entry with id {file_id!r}")
+
+
+#: `stores.declared[".perry/config.jsonl"]` — where the track register's shape
+#: went when ADR-019 deleted the document its table was in.
+STORE_SPEC = SCHEMA["stores"]["declared"][".perry/config.jsonl"]
+
+#: `work_modes.modes.<mode>.default_stages`, by mode. Read rather than typed:
+#: a mode that changes its vocabulary changes this test and nothing else.
+DEFAULT_STAGES = {m: list((c or {}).get("default_stages") or [])
+                  for m, c in SCHEMA["work_modes"]["modes"].items()}
 
 
 def table_spec(file_id: str, under_fragment: str) -> dict | None:
@@ -109,15 +121,19 @@ class TestEnums(unittest.TestCase):
 class TestOptInIsFree(unittest.TestCase):
     """The new structure must be invisible to a project that never opts in."""
 
-    def test_tracks_is_a_table_spec_not_a_required_heading(self):
-        spec = file_spec("config")
-        self.assertNotIn(
-            "Tracks",
-            json.dumps(spec.get("headings", [])),
-            "## Tracks in headings[] would make it required and invalidate "
-            "every pre-DESIGN-003 project",
-        )
-        self.assertIsNotNone(table_spec("config", "Tracks"))
+    def test_a_track_record_is_optional_not_a_required_file(self):
+        """`## Tracks` was a `tables[]` spec and deliberately NOT a
+        `headings[]` entry, because a required heading would have invalidated
+        every pre-DESIGN-003 project. ADR-019 deleted the file, and the
+        property is stronger rather than weaker: there is no `files[]` entry
+        for a project to fail to match, and `stores.declared` says in as many
+        words that a project declaring no track has one implicit `main`."""
+        self.assertIsNone(
+            next((f for f in SCHEMA["files"] if f["id"] == "config"), None),
+            "ADR-019 removed the .perry/config.md files[] entry")
+        rec = STORE_SPEC["records"]["track"]
+        self.assertIn("OPTIONAL", rec["note"])
+        self.assertIn("main", rec["note"])
 
     def test_intake_is_a_table_spec_not_a_required_heading(self):
         spec = file_spec("board")
@@ -151,122 +167,98 @@ class TestOptInIsFree(unittest.TestCase):
         """If a fixture opted in, the no-op guarantee would stop being tested
         by the rest of the suite."""
         for name in ("sample-project", "sample-project-zh"):
-            cfg = PERRY_HOME / "tests" / "fixtures" / name / ".perry" / "config.md"
+            cfg = (PERRY_HOME / "tests" / "fixtures" / name / ".perry"
+                   / "config.jsonl")
             if cfg.exists():
-                self.assertNotIn("## Tracks", cfg.read_text())
+                self.assertNotIn('"kind": "track"',
+                                 cfg.read_text(encoding="utf-8"))
 
 
 class TestOptInIsChecked(unittest.TestCase):
     """Declaring a track must be validated, or the enum is decoration."""
 
-    def _project(self, tracks_block: str) -> str:
+    def _project(self, tracks: list[dict]) -> str:
+        """**The enum check moved with the register** (ADR-019).
+
+        These were `## Tracks` rows and the check was
+        `files[id=config].tables[Tracks].enum_columns`, driven by
+        `perry-lint`'s generic table walk. The table is gone; the same two
+        enums are now read off a `kind: track` RECORD in
+        `perry-lint § check_config_store`, from the same `schema § enums`.
+        """
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n"
-                "- Document language: English\n"
-                "- Repo layout: single\n"
-                "- State root: .\n"
-                f"{tracks_block}"
-            )
+            config_store.write_config(root, tracks=tracks)
             return lint(root)
 
-    HEADER = (
-        "\n## Tracks\n\n"
-        "| Track | Mode | Spine | Stages / SLA | Default rung |\n"
-        "|---|---|---|---|---|\n"
-    )
-
     def test_valid_tracks_lint_clean(self):
-        out = self._project(
-            self.HEADER
-            + "| core | project | phase/ | — | V3 |\n"
-            + "| docs | pipeline | commitments | draft→review→published | V5 |\n"
-            + "| issues | queue | standing | 5-day SLA | V2 |\n"
-            + "| why | inquiry | questions | — | V4 |\n"
-        )
+        out = self._project([
+            config_store.track("core", "project", spine="phase/",
+                               default_rung="V3"),
+            config_store.track("docs", "pipeline", spine="commitments",
+                               stages="draft→review→published",
+                               default_rung="V5"),
+            config_store.track("issues", "queue", spine="standing", sla="5d",
+                               cycle="weekly", default_rung="V2"),
+            config_store.track("why", "inquiry", spine="questions",
+                               default_rung="V4"),
+        ])
         self.assertNotIn("bad-enum", out)
 
     def test_unknown_mode_is_rejected(self):
-        out = self._project(self.HEADER + "| issues | kanban | standing | — | V2 |\n")
+        out = self._project([
+            config_store.track("issues", "kanban", spine="standing",
+                               default_rung="V2")])
         self.assertIn("bad-enum", out)
         self.assertIn("kanban", out)
 
     def test_unknown_rung_is_rejected(self):
-        out = self._project(self.HEADER + "| core | project | phase/ | — | V9 |\n")
+        out = self._project([
+            config_store.track("core", "project", spine="phase/",
+                               default_rung="V9")])
         self.assertIn("bad-enum", out)
         self.assertIn("V9", out)
 
-    def test_missing_mode_column_is_rejected(self):
-        out = self._project(
-            "\n## Tracks\n\n| Track | Spine |\n|---|---|\n| core | phase/ |\n"
-        )
-        self.assertIn("table-columns", out)
+    def test_a_track_record_with_no_mode_is_DETERMINED_not_rejected(self):
+        """`table-columns` was the finding while `Mode` was a required COLUMN
+        of a table that could omit it. A record cannot omit a field, and an
+        EMPTY `mode` is a state DESIGN-003 already answers: `project`.
+
+        So this is not the same check moved — it is a check whose subject the
+        format removed, and the honest replacement is the assertion that the
+        state is determined rather than reported. It is asserted here rather
+        than left silent, because "the linter says nothing" and "the reader
+        answers `project`" are different facts and only one of them is true.
+        """
+        out = self._project([dict(
+            config_store.track("core", "project", spine="phase/"),
+            mode="")])
+        self.assertNotIn("bad-enum", out)
+        state = load_bin_module("perry-state")
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_store.write_config(root, tracks=[dict(
+                config_store.track("core", "project", spine="phase/"),
+                mode="")])
+            self.assertEqual(
+                [t["mode"] for t in state.declared_tracks(root)], ["project"])
 
 
 
 
-class TestTrackParsing(unittest.TestCase):
-    """`bin/perry-state` must never hand the router an empty track list.
-
-    The router has no "no tracks declared" branch by design — every project
-    reports at least the implicit `main` track — so an empty list here would
-    turn into a silent no-mode-loaded session rather than a visible error.
-    """
-
-    def setUp(self):
-        import importlib.util
-        spec = importlib.util.spec_from_loader(
-            "perry_state",
-            importlib.machinery.SourceFileLoader(
-                "perry_state", str(PERRY_HOME / "bin" / "perry-state")),
-        )
-        self.ps = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.ps)
-
-    def test_no_tracks_section_yields_the_implicit_main_track(self):
-        got = self.ps.parse_tracks("# Perry configuration\n\n- Repo layout: single\n")
-        self.assertEqual(len(got), 1)
-        self.assertEqual(got[0]["track"], "main")
-        self.assertEqual(got[0]["mode"], "project")
-        self.assertFalse(got[0]["declared"])
-
-    def test_declared_tracks_are_parsed_in_order(self):
-        got = self.ps.parse_tracks(
-            "## Tracks\n\n"
-            "| Track | Mode | Spine | Stages / SLA | Default rung |\n"
-            "|---|---|---|---|---|\n"
-            "| core | project | phase/ | — | V3 |\n"
-            "| docs | pipeline | commitments | draft→review | V5 |\n"
-        )
-        self.assertEqual([t["track"] for t in got], ["core", "docs"])
-        self.assertEqual([t["mode"] for t in got], ["project", "pipeline"])
-        self.assertEqual(got[1]["default_rung"], "V5")
-        self.assertTrue(all(t["declared"] for t in got))
-
-    def test_an_empty_tracks_table_still_yields_the_default(self):
-        got = self.ps.parse_tracks(
-            "## Tracks\n\n| Track | Mode |\n|---|---|\n"
-        )
-        self.assertEqual(len(got), 1)
-        self.assertEqual(got[0]["track"], "main")
-
-    def test_a_later_section_does_not_bleed_into_tracks(self):
-        got = self.ps.parse_tracks(
-            "## Tracks\n\n"
-            "| Track | Mode |\n|---|---|\n| core | project |\n\n"
-            "## Why the state root is not `.`\n\n"
-            "| Not | A track |\n|---|---|\n| x | y |\n"
-        )
-        self.assertEqual([t["track"] for t in got], ["core"])
-
-    def test_chinese_tracks_heading_is_recognized(self):
-        got = self.ps.parse_tracks(
-            "## 轨道\n\n| 轨道 | 模式 |\n|---|---|\n| core | queue |\n"
-        )
-        self.assertEqual(got[0]["track"], "core")
-        self.assertEqual(got[0]["mode"], "queue")
+# `TestTrackParsing` stood here: six unit tests over `bin/perry-state §
+# parse_tracks`, the `## Tracks` reader. Its subject was that the router has no
+# "no tracks declared" branch, so an empty list from that reader would become a
+# silent no-mode-loaded session rather than a visible error.
+#
+# ADR-019 deleted the table and the reader. **The invariant did not go with
+# them** — it moved one function up, to `declared_tracks_detail`, which returns
+# `[dict(DEFAULT_TRACK)]` for every source that is not `store`, and it is
+# asserted by `TestTheTrackRegisterIsReadFromTheStore` below over a project
+# with no store at all. What is gone is the table-shaped half: a heading
+# spelled `## 轨道`, a header row that must be recognised before a row can be
+# read, and a later `## …` section bleeding into the register. A record has
+# none of those failure modes, which is most of why ADR-019 was taken.
 
 
 def load_bin_module(name: str):
@@ -292,38 +284,31 @@ _STORE_TRACKS = (
     ' "stages": "new→triaged→resolved", "wip": "4", "sla": "5d",'
     ' "cycle": "weekly", "default_rung": "V2", "order": 1}\n'
 )
-_TABLE_TRACKS = (
-    "\n## Tracks\n\n"
-    "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-    "|---|---|---|---|---|---|---|---|\n"
-    "| main | project | phase/ | — | — | — | — | V3 |\n"
-)
-
-
 class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
-    """`.perry/config.jsonl` is the register; `## Tracks` is its projection.
+    """`.perry/config.jsonl` is the register, and since ADR-019 the only one.
 
     ADR-007 made `.perry/config.md` a rendered projection of
     `.perry/config.jsonl`, and four call sites went on reading the rendering as
     truth: `bin/perry-state § parse_config`, `bin/perry-goals § tracks_of`,
     `bin/perry-diagnose § scan_work_modes` and `bin/perry-task § main`
-    (P003-O2-KR1). Nothing could see the difference, because on every project
-    in the repo the two agree — so the fixture here makes them disagree, which
-    is the only state in which the question "which one did you read" has an
-    observable answer.
+    (P003-O2-KR1). This class was built to catch that: the fixture wrote a
+    `## Tracks` table that CONTRADICTED the store, because on every real
+    project the two agree and "which one did you read" has no observable
+    answer unless they differ.
 
-    **This is the gate the row's mutation step points at.** Point any one of
-    the four back at `.perry/config.md` and the corresponding test below goes
-    red: the store's `intake` track disappears, `main` reverts to the table's
-    `project` mode, and `perry-task` refuses a track the project really does
-    declare.
+    **That question is now unaskable, and the tests below are what is left of
+    it.** ADR-019 deleted the file, so the four readers cannot disagree with
+    each other about which register answered — they can only disagree about
+    what the one register SAYS, and that is what each test asserts: `main` is
+    `project` and `intake` is `queue` with a 5d SLA, in all four, out of one
+    store. A reader that started inventing its own default rather than reading
+    the record still goes red here.
 
-    The last two tests pin the two properties that make the conversion safe
-    rather than merely done: a project with no store still reads its table (the
-    adoption/migration path, which is every foreign project `perry-diagnose`
-    exists for), and a blank cell still reports the blank marker the table
-    wrote, so the payload `perry-state --json` hands the dashboard does not
-    move.
+    The last two tests pin what makes the register usable rather than merely
+    present: a project with NO store falls back to DESIGN-003's implicit
+    `main` rather than to nothing, and a blank field still reports the blank
+    marker, so the payload `perry-state --json` hands the dashboard did not
+    move when the table it used to be rendered from went away.
     """
 
     def setUp(self):
@@ -332,15 +317,13 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
         self.root = Path(self.tmp) / "project"
         shutil.copytree(PERRY_HOME / "tests" / "fixtures" / "sample-project",
                         self.root)
-        cfg = self.root / ".perry" / "config.md"
-        cfg.write_text(cfg.read_text() + _TABLE_TRACKS)
-        # The store is hand-built, so the opt-out has to be said in it too:
-        # `gate_mode` reads `.perry/config.jsonl` first (TASK-233) and a store
-        # that carries no `conformance_gate` record is a project declaring no
-        # gate. `gate_off` above puts the same line in the markdown, which is
-        # what a derived store would have carried.
-        (self.root / ".perry" / "config.jsonl").write_text(
-            _STORE_TRACKS + "")
+        # The fixture project's own settings, plus this class's two tracks.
+        # Appended to the store rather than replacing it: `State root` and the
+        # document language are what make it a project the readers below can
+        # resolve at all.
+        cfg = self.root / ".perry" / "config.jsonl"
+        cfg.write_text(cfg.read_text(encoding="utf-8") + _STORE_TRACKS,
+                       encoding="utf-8")
 
     def declared(self, tracks) -> list[tuple[str, str]]:
         return [(t["track"], t["mode"]) for t in tracks]
@@ -386,8 +369,15 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
                          f"{payload.get('refused')}")
         self.assertIn("| intake | triaged |", payload["row"])
 
-    def test_a_project_with_no_store_still_reads_its_table(self):
-        """The adoption/migration path — `parse_tracks` is why it survives."""
+    def test_a_project_with_no_store_reads_the_implicit_main_track(self):
+        """The invariant `TestTrackParsing` used to hold one function lower.
+
+        This was `test_a_project_with_no_store_still_reads_its_table` — the
+        adoption/migration path, where `parse_tracks` answered from
+        `.perry/config.md`. There is no table to fall back to, and the answer
+        is unchanged, because DESIGN-003 specifies it: one implicit track named
+        `main`, mode `project`. The router has no "no tracks declared" branch,
+        so `[]` here would be a silent no-mode-loaded session."""
         (self.root / ".perry" / "config.jsonl").unlink()
         state = load_bin_module("perry-state")
         self.assertEqual(self.declared(state.parse_config(self.root)["tracks"]),
@@ -396,8 +386,9 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
     def test_a_blank_stored_cell_still_reports_the_blank_marker(self):
         """The store holds `""` where the table wrote `—`, and they are one
         value — every consumer of these cells routes it through
-        `lib.is_blank_cell`. The payload keeps the marker so that converting
-        the reader does not change what the dashboard prints."""
+        `lib.is_blank_cell`. The payload keeps the marker, so neither
+        converting the reader (TASK-233) nor deleting the table (ADR-019)
+        changed what the dashboard prints."""
         state = load_bin_module("perry-state")
         main = state.parse_config(self.root)["tracks"][0]
         self.assertEqual(
@@ -648,12 +639,16 @@ class TestV4Corrections(unittest.TestCase):
 
     # B3 — the WIP limit had no home and no default
     def test_track_register_declares_wip_sla_and_cycle(self):
-        t = table_spec("config", "Tracks")
-        opt = t["optional_columns"]
-        for col in ("Stages", "WIP", "SLA", "Cycle"):
-            self.assertIn(col, opt, f"{col} has no declaration site")
-        self.assertEqual(t["columns"], ["Track", "Mode"],
-                         "only Track and Mode may be required, or every "
+        """B3's finding was that a WIP limit had no home. The home moved from
+        `optional_columns` on a table spec to `fields` on a store record
+        (ADR-019); `required` is the same two, for the same reason a partial
+        register must not become a lint error."""
+        rec = STORE_SPEC["records"]["track"]
+        for field in ("stages", "wip", "sla", "cycle"):
+            self.assertIn(field, rec["fields"],
+                          f"{field} has no declaration site")
+        self.assertEqual(rec["required"], ["kind", "track", "mode"],
+                         "only track and mode may be required, or every "
                          "partial register becomes a lint error")
 
     # B4 — Commitments had no track key, no item link, no owner
@@ -678,58 +673,79 @@ class TestV4Corrections(unittest.TestCase):
         self.assertNotIn("Commitments", json.dumps(okr.get("headings", [])))
 
 
-class TestTrackColumnsResolveByName(unittest.TestCase):
-    """The register is read by header name, never by position.
+class TestATrackRecordIsReadByFieldNotByPosition(unittest.TestCase):
+    """The register is read by NAME, never by position.
 
-    Only `Track` and `Mode` are required, so any other column may be absent —
+    This was `TestTrackColumnsResolveByName`, over `## Tracks` header cells:
+    only `Track` and `Mode` were required, so any other column could be absent
     and a positional read would attribute one column's value to another the
-    moment a project omits one. The same defect existed in the board-row parser
-    and was caught by the V4 review; this pins the config-side fix.
+    moment a project omitted one — the same defect the V4 review caught in the
+    board-row parser.
+
+    **ADR-019 makes the shifting failure impossible rather than checked.** A
+    record is keyed, so an absent field cannot slide another field's value into
+    its place; the column-order and missing-header cases below have no
+    counterpart at all. What survives is the property those cases existed to
+    protect — every declared field reaches the payload under its own name, and
+    a field the project did not declare reads as blank rather than as its
+    neighbour — asserted on the reader that is left.
     """
 
     def setUp(self):
-        import importlib.util
-        spec = importlib.util.spec_from_loader(
-            "perry_state",
-            importlib.machinery.SourceFileLoader(
-                "perry_state", str(PERRY_HOME / "bin" / "perry-state")))
-        self.ps = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.ps)
+        self.ps = load_bin_module("perry-state")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
 
-    def test_full_register_maps_every_column(self):
-        got = self.ps.parse_tracks(
-            "## Tracks\n\n"
-            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-            "|---|---|---|---|---|---|---|---|\n"
-            "| blog | pipeline | commitments | a→b→c | b:2 | 5d | 2026-W34 | V5 |\n")[0]
+    def tracks(self, records):
+        config_store.write_config(self.root, tracks=records)
+        return self.ps.declared_tracks(self.root)
+
+    def test_a_full_record_maps_every_field(self):
+        got = self.tracks([config_store.track(
+            "blog", "pipeline", spine="commitments", stages="a→b→c",
+            wip="b:2", sla="5d", cycle="2026-W34", default_rung="V5")])[0]
         self.assertEqual(got["stages"], "a→b→c")
         self.assertEqual(got["wip"], "b:2")
         self.assertEqual(got["sla"], "5d")
         self.assertEqual(got["cycle"], "2026-W34")
         self.assertEqual(got["default_rung"], "V5")
 
-    def test_omitted_columns_do_not_shift_the_others(self):
-        """The whole point: a minimal register must not read `V3` as a stage."""
-        got = self.ps.parse_tracks(
-            "## Tracks\n\n| Track | Mode | Default rung |\n|---|---|---|\n"
-            "| core | project | V3 |\n")[0]
-        self.assertEqual(got["default_rung"], "V3")
-        self.assertEqual(got["stages"], "")
-        self.assertEqual(got["wip"], "")
-        self.assertEqual(got["sla"], "")
+    def test_undeclared_fields_do_not_take_a_neighbours_value(self):
+        """The whole point: a minimal register must not read `V3` as a stage.
 
-    def test_reordered_columns_still_resolve(self):
-        got = self.ps.parse_tracks(
-            "## Tracks\n\n| Mode | Default rung | Track | SLA |\n|---|---|---|---|\n"
-            "| queue | V2 | ops | 3d |\n")[0]
+        The marker rather than `""` on the way out is `track_from_record`'s
+        rule — a declared blank is spelled the way this project's files spell
+        it, so the payload did not move when the reader converted.
+        """
+        got = self.tracks([config_store.track(
+            "core", "project", default_rung="V3")])[0]
+        self.assertEqual(got["default_rung"], "V3")
+        for field in ("stages", "wip", "sla"):
+            self.assertEqual(got[field], "—", field)
+        self.assertEqual(got["stage_list"],
+                         DEFAULT_STAGES["project"])
+        self.assertFalse(got["stages_declared"])
+
+    def test_a_record_whose_fields_arrive_in_any_order_still_resolves(self):
+        """`json.dumps` writes a dict in insertion order, so a store written by
+        hand can carry the fields in any order at all. `record` re-keys them;
+        nothing downstream reads a position."""
+        rec = config_store.track("ops", "queue", sla="3d", default_rung="V2")
+        shuffled = {k: rec[k] for k in reversed(list(rec))}
+        got = self.tracks([shuffled])[0]
         self.assertEqual(got["track"], "ops")
         self.assertEqual(got["mode"], "queue")
         self.assertEqual(got["default_rung"], "V2")
         self.assertEqual(got["sla"], "3d")
 
-    def test_a_table_with_no_recognizable_header_is_refused_not_guessed(self):
-        got = self.ps.parse_tracks(
-            "## Tracks\n\n| a | b |\n|---|---|\n| core | project |\n")
+    def test_a_store_that_declares_no_track_is_the_implicit_main(self):
+        """`test_a_table_with_no_recognizable_header_is_refused_not_guessed`
+        was here: a `## Tracks` table whose header nothing recognised had to
+        yield the implicit `main` rather than a guess. A record has no header
+        to be unrecognisable; the state that is left is a store carrying no
+        track record at all, and it answers the same way."""
+        got = self.tracks([])
         self.assertEqual(got[0]["track"], "main")
         self.assertFalse(got[0]["declared"])
 
@@ -745,7 +761,11 @@ class TestI18n(unittest.TestCase):
             self.assertTrue(cols[name].get("zh"))
 
     def test_track_section_headers_accept_chinese(self):
-        self.assertIn("轨道", table_spec("config", "Tracks")["under"])
+        """`## 轨道` was the localized spelling of the track section. There is
+        no section: a track is a record and its fields are ASCII keys in every
+        language, which is the same rule `schema § i18n.invariant` already
+        applied to this register's field NAMES. `## 收件` is unaffected —
+        `BOARD.md` is still a document."""
         self.assertIn("收件", table_spec("board", "Intake")["under"])
 
 
@@ -794,8 +814,7 @@ class TestInquiryHasDataForEveryControl(unittest.TestCase):
             self.assertIn(named, cols,
                           f"inquiry.md relies on {named}, which the schema lacks")
         self.assertIn("WIP", (PERRY_HOME / "modes" / "inquiry.md").read_text())
-        cfg = table_spec("config", "Tracks")
-        self.assertIn("WIP", cfg["optional_columns"])
+        self.assertIn("wip", STORE_SPEC["records"]["track"]["fields"])
 
 
 class TestProvenanceLint(unittest.TestCase):
@@ -908,10 +927,23 @@ class TestPackGlossary(unittest.TestCase):
             self.assertIn(protected, inv,
                           f"the packs contract does not protect {protected} names")
 
-    def test_packs_field_is_optional_in_config(self):
-        c = file_spec("config")
-        f = next(x for x in c["header_fields"] if x["name"] == "Packs")
-        self.assertFalse(f.get("required", True))
+    def test_packs_is_optional_in_the_config_store(self):
+        """`Packs` was a `header_fields` entry with `required: false`, on the
+        `files[]` spec ADR-019 removed. A `setting` record carries whatever the
+        project declared and nothing else, so optionality is structural: a
+        project that declares no pack has no record, and
+        `bin/perry-state § parse_config` reads that as `software-ops`."""
+        self.assertEqual(STORE_SPEC["records"]["setting"]["required"],
+                         ["kind", "key", "value"])
+        self.assertNotIn("packs",
+                         STORE_SPEC["records"]["setting"]["required"])
+        state = load_bin_module("perry-state")
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_store.write_config(root)
+            self.assertEqual(
+                [p["name"] for p in state.parse_config(root)["packs"]],
+                ["software-ops"])
 
 
 class TestEveryModeColumnHasAWriter(unittest.TestCase):
