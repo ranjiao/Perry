@@ -506,15 +506,21 @@ class Okr:
 # changed, so `LIST_SEMANTICS` gains no entry for `2.3` itself —
 # `perry-events/list/1.1` added the same key under the same reading.
 #
-# ADR-019 / TASK-155 moves it to `2.4`, and adds no key either. Three values
-# under three unmoved keys mean something different:
-# `current_provenance.source`, `.asserted_at` and `.asserted_scope`. The date
-# used to be `phase/<NNN>-linkage.md`'s one file-level `updated:` stamp,
-# emitted for every KR in the phase at `asserted_scope: "register"`; that file
-# is gone and each KR now carries its own `asserted_at`. So the date can now
-# be `""` on an ASSERTED number — meaning nobody recorded when it was arrived
-# at — where before it was always the file's date. Same case as `2.2`.
-LIST_CONTRACT = "perry-goals/list/2.4"
+# ADR-019 / TASK-155 moves it to `3.0`, and **`3.0` rather than `2.4`
+# because a key is REMOVED.** `linkage.updated` is gone: it was the deleted
+# register document's one file-level stamp, and there is no file left for it
+# to be the stamp of. Keeping the key at `""` forever was the alternative and
+# it is the same mistake `progress` was — a value a consumer reads as "never
+# updated" when the truth is "that is not a thing any more". Rule 2 says `2.x`
+# only adds keys, so this cannot be a minor; `2.0` set the precedent when it
+# removed `progress` for the same reason.
+#
+# The same version also changes what three values under UNMOVED keys mean —
+# `current_provenance.source`, `.asserted_at` and `.asserted_scope` — which
+# would have been a minor on its own, on `2.2`'s reading. It is recorded in
+# `LIST_SEMANTICS` under `3.0` so a consumer crossing the major is told both
+# halves rather than only the removal it cannot miss.
+LIST_CONTRACT = "perry-goals/list/3.0"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -546,7 +552,7 @@ LIST_SEMANTICS = [
              "parsed these as naive local timestamps, or that compared one of "
              "them against a clock of its own, was correct before 2.2 and is "
              "not now."},
-    {"version": "2.4",
+    {"version": "3.0",
      "fields": ["krs[].current_provenance.source",
                 "krs[].current_provenance.asserted_at",
                 "krs[].current_provenance.asserted_scope",
@@ -565,7 +571,10 @@ LIST_SEMANTICS = [
              "asserted number, because it belonged to the file rather than to "
              "the number, which is the defect (TASK-155) this removes: "
              "appending one edge re-dated every asserted `current` in the "
-             "phase. No key was added, removed or retyped."},
+             "phase. The same version REMOVES `linkage.updated`, which is "
+             "why it is a major; that removal is in the Changelog rather than "
+             "here, because a key a consumer can no longer read is not a "
+             "meaning it has to re-check."},
 ]
 
 _PERRY_STATE = None

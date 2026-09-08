@@ -1,6 +1,6 @@
 # `perry-goals list --json` — the goals contract
 
-> Contract: **`perry-goals/list/2.4`**
+> Contract: **`perry-goals/list/3.0`**
 > Locked by `tests/test_goals_contract.py`.
 > DESIGN-005 § 6 step 2.
 
@@ -33,7 +33,7 @@ Perry's tests cannot reach.
 
 ```jsonc
 {
-  "contract":     "perry-goals/list/2.4",
+  "contract":     "perry-goals/list/3.0",
   "semantics":    [ /* below */ ],         // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",
@@ -313,7 +313,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `2.1` | 2026-08-21 | **additive, TASK-120.** Four keys added, none removed or retyped: `krs[].current_provenance`, `krs[].current_staleness`, `krs[].linked_task_completion` and `conformance.krs_with_stale_current`. `current` itself is unchanged in type and in value; what changed is that the payload now says it is an author's assertion rather than a measurement, and says when a linked task has moved since. |
 | `2.1` | 2026-08-21 | **unchanged by TASK-131.** The payload sketch now carries `okr.objectives[].id` and the whole of `phase.objectives[]`, and *The phase* gained an `objectives` row. All five paths have shipped since `1.0`; only the page moved, so the version does not. Why the objective entry is a list rather than a key table is stated where it is written. |
 | `2.2` | 2026-08-28 | **no key added, one value's meaning changed, TASK-144.** `current_provenance.asserted_at`, `current_staleness.since` and `moved_tasks[].at` are now UTC and carry a `Z`; `at` in particular is no longer the local text the event log holds. Before this the register's UTC and the log's local wall clock were compared as text, and staleness answered wrongly inside the machine's offset in one direction or the other. The minor moves for the same reason `perry-task/events/1.1` moved: no key changed and the same key returns something different. |
-| `2.4` | 2026-09-08 | **no key added, three values' meaning changed, TASK-155 / ADR-019.** `current_provenance.source` reads `linkage-store` where it read `linkage-register`; `.asserted_scope` reads `kr` (or `""`) where it read `register`; `.asserted_at` is the KR record's own `asserted_at` field rather than `phase/<NNN>-linkage.md`'s file-level `updated:` stamp, which that ADR deleted along with the document. **The consequence a consumer must handle:** an *asserted* `current` can now carry `asserted_at: ""` and `asserted_scope: ""` — nobody recorded when the number was arrived at — and `current_staleness.evaluated` is then `false`. Before this the date was never empty on an asserted number, because it belonged to the file rather than to the number: that is the defect, and it meant appending one edge to one KR re-dated every asserted `current` in the phase. Minor for the same reason `2.2` was. |
+| `3.0` | 2026-09-08 | **breaking: `linkage.updated` removed, and three values' meaning changed. TASK-155 / ADR-019.** The key was the deleted `phase/<NNN>-linkage.md`'s one file-level `updated:` stamp; there is no file left for it to be the stamp of, and keeping it at `""` would be a value a consumer reads as *never updated* when the truth is *that is not a thing any more* — the same mistake `progress` was at `2.0`. And, under three keys that did not move: `current_provenance.source` reads `linkage-store` where it read `linkage-register`; `.asserted_scope` reads `kr` (or `""`) where it read `register`; `.asserted_at` is the KR record's own `asserted_at` field rather than `phase/<NNN>-linkage.md`'s file-level `updated:` stamp, which that ADR deleted along with the document. **The consequence a consumer must handle:** an *asserted* `current` can now carry `asserted_at: ""` and `asserted_scope: ""` — nobody recorded when the number was arrived at — and `current_staleness.evaluated` is then `false`. Before this the date was never empty on an asserted number, because it belonged to the file rather than to the number: that is the defect, and it meant appending one edge to one KR re-dated every asserted `current` in the phase. Minor for the same reason `2.2` was. |
 | `2.3` | 2026-08-28 | **additive, TASK-205.** One key added, none removed or retyped: top-level `semantics`, the array documented above. A consumer could read this payload's minor and had nowhere to find out what a minor had changed, so `CONTRACT_TESTED` against `2.2` could never go red — the same gap `perry-task/list` closed at `1.7` and `perry-events/list` at `1.1`. Adding the key changed no value, so the array itself carries no `2.3` entry; it carries `2.2`. |
 | `2.0` | 2026-08-19 | **unchanged by TASK-091.** `OKR.md § Commitments` split `By when` into a typed `Due` and a prose `By when note`, and this payload does not carry that register — so no key here was added, removed or retyped, and `tests/test_contract_invariance.py` is right to see nothing. The columns are documented under *Not here* for consumers that parse the markdown. |
 
