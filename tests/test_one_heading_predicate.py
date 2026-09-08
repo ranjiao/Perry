@@ -35,6 +35,8 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
 
+import config_store  # noqa: E402
+
 TASK = PERRY_HOME / "bin" / "perry-task"
 STATE = PERRY_HOME / "bin" / "perry-state"
 
@@ -113,11 +115,8 @@ class TestEveryMatcherAgrees(unittest.TestCase):
         implementation, and the one migration acts on."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / ".perry").mkdir()
             (root / "perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: perry\n",
-                encoding="utf-8")
+            config_store.write_config(root, {"State root": "perry"})
             (root / "perry" / "BOARD.md").write_text(board_text, encoding="utf-8")
             r = subprocess.run(
                 [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
@@ -131,11 +130,8 @@ class TestEveryMatcherAgrees(unittest.TestCase):
         four: they made risks unreadable, this one made migration *write*."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / ".perry").mkdir()
             (root / "perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: perry\n",
-                encoding="utf-8")
+            config_store.write_config(root, {"State root": "perry"})
             board = root / "perry" / "BOARD.md"
             board.write_text(FULL_BOARD.format(heading="**Top risks**"),
                              encoding="utf-8")
@@ -182,11 +178,8 @@ class TestTheWriterDoesNotDuplicateTheSection(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
-        (root / ".perry").mkdir()
         (root / "perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: perry\n",
-            encoding="utf-8")
+        config_store.write_config(root, {"State root": "perry"})
         (root / "perry" / "BOARD.md").write_text(
             BOARD.format(heading=heading), encoding="utf-8")
         return root

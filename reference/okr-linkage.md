@@ -23,7 +23,7 @@ This is a hard gate, the same class as `pmo` "no `done` without evidence" and
 
 ### Resolution order (stop at the first that yields exactly one KR)
 
-1. **A declared edge** — the task id appears in some KR's `tasks[]` in `phase/<NNN>-linkage.md`. Authoritative, no inference. Done.
+1. **A declared edge** — the store holds a `kind: edge` record naming the task and a KR. Authoritative, no inference. Done.
 2. **Exact Project ID** in the graph's `projects[]` → its `serves` KR.
 3. **Alias match** in that project's `aliases[]` (former/other names) → its `serves` KR.
 4. **Otherwise** — zero matches, OR two-plus candidates → **ask** (see below). Do **not** proceed to a fuzzy/semantic name match. A near-match is not a match.
@@ -68,48 +68,38 @@ KR/Objective roll-up, count it separately, and surface it in the standup** as a
 pending user decision. **Never fabricate a KR mapping to make a number look
 complete.** An unlinked task is a User-Input-Queue item, not a rolled-up one.
 
-## The linkage graph — `phase/<NNN>-linkage.md`
+## The linkage graph — `linkage.jsonl`
 
-**Owner: `okr`** (it lives under `phase/`, which `okr` is the only writer of).
-**Tier 2** (agent-state, no line cap) — this is why it can hold one entry per
-Project even when an Objective has 40 of them without touching the phase file's
-300-line tier-1 cap. **PMO reads it for roll-up + resolution; PMO never writes it.**
+**Owner: `perry`** — the store belongs to no lane, which is what lets `work`
+write an `edge` at `perry-task add --kr` and `goals` write one at `perry-goals
+link` without either touching the other's directory. Within `goals`,
+`perry-goals link` is the only writer. **PMO reads it for roll-up + resolution.**
 
-It is **YAML frontmatter, spec `linkage: 1`** — machine-written, machine-read, by
-Perry *and* by the frontend. The full field contract is in
-`$PERRY_HOME/schema/state-schema.json` and explained in
-`$PERRY_HOME/schema/README.md § The linkage contract`. The template is
-`goals/state/linkage_TEMPLATE.md`.
+It is **one JSON object per line**, machine-written and machine-read by Perry
+*and* by the frontend. Six record kinds, declared field by field in
+`$PERRY_HOME/schema/state-schema.json § stores.declared["linkage.jsonl"]`.
 
-```yaml
----
-linkage: 1
-phase: "002-release-pipeline"
-updated: "2026-08-14T09:15:00Z"
-objectives:
-  - id: O1
-    title: "Automate the deploy path"
-    krs:
-      - id: P<NNN>-O1-KR1
-        title: "Deploy script green in staging"
-        metric: "3 consecutive green runs"
-        target: 3           # numbers only — omit for prose targets
-        current: 1
-        stretch: false
-        tasks: [REL-001]    # ← the task → KR edge
-unlinked: [REL-009]         # declared, never inferred
-agents:
-  - id: "Coding Agent"
-    tasks: [REL-001]
-projects:                   # Perry's attribution registry
-  - id: REL-001
-    serves: P<NNN>-O1-KR1
-    objective: O1
-    name: "Deploy script hardening"
-    aliases: [deploy-hardening]
-    status: active          # active | done | dropped | unlinked
----
+**It was `phase/<NNN>-linkage.md` until ADR-019** (2026-09-08). That document's
+61 lines of frontmatter duplicated this store record for record — 6 KRs against
+6 `kr` records, its `unlinked:` array of 100 ids against 100 `unlinked` records
+— and `perry-lint` reported the two disagreeing about one of them on the day the
+ADR was written. The document is deleted and the drift class with it.
+
+```jsonl
+{"kind": "objective", "phase": "002-release-pipeline", "id": "O1", "title": "Automate the deploy path"}
+{"kind": "kr", "phase": "002-release-pipeline", "objective": "O1", "id": "P002-O1-KR1", "title": "Deploy script green in staging", "metric": "3 consecutive green runs", "target": 3, "current": 1, "stretch": false, "asserted_at": "2026-08-14T09:15:00Z"}
+{"kind": "edge", "task": "REL-001", "kr": "P002-O1-KR1", "declared_at": "2026-08-14T09:15:00Z", "actor": "goals", "via": "link"}
+{"kind": "unlinked", "task": "REL-009", "phase": "002-release-pipeline", "declared_at": "2026-08-14T09:15:00Z", "actor": "goals", "via": "link"}
+{"kind": "project", "phase": "002-release-pipeline", "id": "REL-001", "kr": "P002-O1-KR1", "name": "Deploy script hardening", "aliases": ["deploy-hardening"], "declared_at": "2026-08-14T09:15:00Z", "actor": "goals", "via": "link"}
+{"kind": "agent", "phase": "002-release-pipeline", "id": "Coding Agent", "task": "REL-001", "declared_at": "2026-08-14T09:15:00Z", "actor": "goals", "via": "link"}
 ```
+
+**One edge is one record**, which is the whole point: a `tasks: [...]` array
+could not carry `via`, and `via` is what says whether the edge was declared in
+the same action as the row's `add` or swept in later. **Every phase's records
+live in the same file**, each naming its own `phase`, so a scored phase's graph
+is still readable — `perry-goals krs --phase 002` prints it — and nothing is
+snapshotted or carried forward.
 
 Three rules earn their place, and all three exist to stop a reader from showing a
 number nobody wrote down:
@@ -123,11 +113,17 @@ number nobody wrote down:
    on the day the file is first written.
 3. **A KR may legitimately carry zero tasks.** That is the single most valuable
    thing the view shows — a commitment nobody is working on — not a parse error.
+4. **`asserted_at` is absent unless somebody measured the number.** It says when
+   THIS KR's `current` was arrived at, and `""` means nobody wrote that down —
+   a different fact from "just now", and the only one of the two that a writer
+   which did not measure it can honestly report. TASK-155: the register document
+   had one file-level `updated:` stamp read as every KR's assertion date, so
+   appending one edge marked every number in the phase freshly asserted.
 
 ### Integrity invariants (checked by `bin/perry-lint`)
 
-- A task id may appear under at most one KR's `tasks[]` — two would make its attribution ambiguous.
-- Every project's `objective` must match the Objective encoded in its `serves` KR id.
+- A task id may carry at most one `edge` record per phase — two would make its attribution ambiguous.
+- Every `project` record must serve a KR under an Objective its phase declares. (The record stores no `objective` of its own: the KR id encodes it, and a second field is a second place for the two to disagree.)
 - No two projects may share a `name` or an alias — that is the "duplicate name" trap.
 - Every KR id named in the graph should exist in the current phase file's KR set.
 - A task whose Project resolves to no entry → `unlinked`, surfaced.
@@ -136,7 +132,7 @@ number nobody wrote down:
 
 | Skill | Step | Does |
 |---|---|---|
-| `okr` | `plan-phase` | Writes the graph from `state/linkage_TEMPLATE.md` — one objective/KR entry per phase KR, one `projects[]` entry per Project, `tasks[]` empty, status `active`. |
+| `okr` | `plan-phase` | Writes the phase's `objective` and `kr` records — one per Objective and one per KR — and one `project` record per Project. No edges yet. |
 | `okr` | `plan-week` | As a Project becomes Task(s), appends each task id to its KR's `tasks[]`. If the source names the Project differently → confirm with the user, append the alias. Never tag by guessing. |
 | `okr` | `score-phase` / `dashboard` | Rolls up KR progress **only** from tasks that resolve to a single KR; `unlinked` listed separately, never averaged in. |
 | `pmo` | standup roll-up | Reads `perry-state`'s `attribution` section; unresolved → `🔗 Unlinked` row + a suggestion to attribute. |

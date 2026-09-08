@@ -120,7 +120,7 @@ HOOK = (
 
 def register(tasks: list[str], own_phase: str,
              kr: str = "P{phase}-O1-KR1") -> str:
-    """A linkage register, authored by hand.
+    """One phase's slice of `linkage.jsonl`, authored by hand.
 
     Written directly rather than through `perry-goals link` for the reason
     TASK-163's fixture writes its `BOARD.md` by hand: the file has to hold a
@@ -128,16 +128,20 @@ def register(tasks: list[str], own_phase: str,
     of the writer. (`link` does in fact append this edge — measured, see
     `TestTheShippedWriterCanProduceThisState` — but a fixture that depended on
     that is a fixture that breaks the day the writer is fixed.)
+
+    It was `phase/<NNN>-linkage.md` frontmatter until ADR-019 deleted that
+    file; the edges it hangs are `kind: edge` records now, one per edge.
     """
-    ids = ", ".join(f'"{t}"' for t in tasks)
-    return (
-        f'---\nlinkage: 1\nphase: "{own_phase}"\n'
-        f'updated: "2026-08-20T00:00:00Z"\nobjectives:\n  - id: O1\n'
-        f'    title: "a"\n    krs:\n      - id: {kr}\n'
-        f'        title: "work"\n        metric: "1"\n        target: 1\n'
-        f'        current: 1\n        stretch: false\n'
-        f'        tasks: [{ids}]\n---\n\n# Linkage\n'
-    )
+    at = "2026-08-20T00:00:00Z"
+    rows = [
+        {"kind": "objective", "phase": own_phase, "id": "O1", "title": "a"},
+        {"kind": "kr", "phase": own_phase, "objective": "O1", "id": kr,
+         "title": "work", "metric": "1", "target": 1, "current": 1,
+         "stretch": False, "asserted_at": at},
+    ]
+    rows += [{"kind": "edge", "task": tid, "kr": kr, "declared_at": at,
+              "actor": "goals", "via": "link"} for tid in tasks]
+    return "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
 
 
 def record(tid: str) -> str:
@@ -169,14 +173,17 @@ class Fixture(unittest.TestCase):
             phase_file("001", "old", "2026-08-01", "scored"))
         (d / "phase" / "002-new.md").write_text(
             phase_file("002", "new", "2026-08-19", "active"))
-        for name, tasks in (linkage or {"002": ["TASK-100"]}).items():
-            # `{phase}` is filled from the register's OWN phase. One
-            # literal used to serve both registers; a phase-KR id now names
-            # its phase, so a fixture that shared one across two phases
-            # would be writing an edge to the other phase's KR.
-            (d / "phase" / f"{name}-linkage.md").write_text(
-                register(tasks, {"001": "001-old"}.get(name, "002-new"),
-                         kr=kr.format(phase=name)))
+        # `{phase}` is filled from the records' OWN phase. One literal used
+        # to serve both phases; a phase-KR id names its phase, so a fixture
+        # that shared one across two would be writing an edge to the other
+        # phase's KR. One file holds both phases' records now, appended in
+        # order, which is what `linkage_records_for_phase` slices apart.
+        text = "".join(
+            register(tasks, {"001": "001-old"}.get(name, "002-new"),
+                     kr=kr.format(phase=name))
+            for name, tasks in (linkage or {"002": ["TASK-100"]}).items())
+        if text:
+            (d / "linkage.jsonl").write_text(text)
         if store_text is not None:
             (d / "tasks.jsonl").write_text(store_text)
         elif store is not None:
@@ -210,7 +217,7 @@ class TestADanglingEdgeIsReported(Fixture):
         self.assertIn("TASK-404", rows[0]["message"])
         self.assertIn("P002-O1-KR1", rows[0]["message"],
                       "the finding does not name the KR the edge hangs on")
-        self.assertEqual(rows[0]["file"], "phase/002-linkage.md")
+        self.assertEqual(rows[0]["file"], "linkage.jsonl")
 
     def test_the_id_that_resolves_is_not_reported(self):
         """The other half of the assertion above, stated on its own: a
@@ -405,7 +412,7 @@ class TestAnOldPhaseIsJudgedAgainstTodaysStore(Fixture):
         _, payload = self.lint(d)
         rows = self.dangling(payload)
         self.assertEqual(len(rows), 1, rows)
-        self.assertEqual(rows[0]["file"], "phase/001-linkage.md")
+        self.assertEqual(rows[0]["file"], "linkage.jsonl")
         self.assertIn("TASK-100", rows[0]["message"])
 
     def test_the_rationale_says_why_the_kr_comment_does_not_transfer(self):
@@ -433,8 +440,10 @@ class TestTheShippedWriterCanProduceThisState(Fixture):
     check that the graph carries that KR) and asks nothing at all about the
     task id: `link TASK-999 P002-O1-KR1` on a store holding neither returns
     0,
-    appends the edge, bumps `updated`, and signs off with `↪ validate:
-    perry-lint --root .` — which, before this row, had nothing to say about it.
+    appends the edge, and signs off with `↪ validate: perry-lint --root .` —
+    which, before this row, had nothing to say about it. (It used to bump the
+    register document's `updated:` stamp too; ADR-019 deleted the document and
+    the write now dates only the record it appends.)
 
     So this is not a hand-authored-only defect and the guard is not only a
     backstop for TASK-167's removal path. The fixture cases above stay
@@ -458,7 +467,7 @@ class TestTheShippedWriterCanProduceThisState(Fixture):
             self.skipTest(f"perry-goals link now refuses an unresolvable "
                           f"task id: {proc.stdout.strip()[-200:]}")
         self.assertIn(
-            "TASK-999", (d / "phase" / "002-linkage.md").read_text(),
+            "TASK-999", (d / "linkage.jsonl").read_text(),
             "link reported success and wrote no edge")
         rows = self.dangling(self.lint(d)[1])
         self.assertEqual(len(rows), 1, rows)

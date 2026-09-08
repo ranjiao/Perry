@@ -301,19 +301,44 @@ class TestItRefusesALiveReference(PurgeCase):
         self.assertEqual(code, 1)
         self.assertIn(f"{other['id']}.next_action", out["refused"])
 
-    def test_a_linkage_register_that_names_it_is_refused(self):
+    def test_a_linkage_edge_that_names_it_is_refused(self):
+        """An edge is a live reference: purging leaves the KR crediting work
+        no record carries, and `mint_id` never re-issues the number.
+
+        The register was `phase/001-linkage.md` until ADR-019; the refusal
+        names `linkage.jsonl:<line>` now, and the line number is EXACT rather
+        than located by regex, because one record is one line.
+        """
+        import json as _json
         p = Project()
         tid = self.closed_row(p)
-        phase = p.root / "phase"
-        phase.mkdir(exist_ok=True)
-        (phase / "001-linkage.md").write_text(
-            "---\nlinkage: 1\nobjectives:\n  - id: O1\n    krs:\n"
-            "      - id: P001-O1-KR1\n        title: \"a key result\"\n"
-            f"        tasks: [\"{tid}\"]\n---\n")
+        (p.root / "linkage.jsonl").write_text(
+            _json.dumps({"kind": "edge", "task": tid, "kr": "P001-O1-KR1",
+                         "declared_at": "2026-09-05T00:00:00Z",
+                         "actor": "goals", "via": "link"}) + "\n")
         code, out = self.purge(p, tid)
         self.assertEqual(code, 1)
-        self.assertIn("001-linkage.md", out["refused"])
-        self.assertIn("krs[].tasks", out["refused"])
+        self.assertIn("linkage.jsonl:1", out["refused"])
+        self.assertIn("P001-O1-KR1", out["refused"])
+
+    def test_an_agent_assignment_that_names_it_is_refused(self):
+        """The other half of what the deleted document's `agents[].tasks`
+        block held. When the store and document scans were exclusive, those
+        entries stopped protecting rows and three were deletable; ADR-019
+        imported them as `kind: agent` records so the guard keeps seeing
+        them."""
+        import json as _json
+        p = Project()
+        tid = self.closed_row(p)
+        (p.root / "linkage.jsonl").write_text(
+            _json.dumps({"kind": "agent", "phase": "001-x",
+                         "id": "Coding Agent", "task": tid,
+                         "declared_at": "2026-09-05T00:00:00Z",
+                         "actor": "goals", "via": "link"}) + "\n")
+        code, out = self.purge(p, tid)
+        self.assertEqual(code, 1)
+        self.assertIn("linkage.jsonl:1", out["refused"])
+        self.assertIn("Coding Agent", out["refused"])
 
     def test_the_goals_store_linked_field_is_refused(self):
         p = Project()

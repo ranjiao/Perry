@@ -112,3 +112,20 @@ projection, and legitimate where the file is the user's.*
   the boundary is drawn in the wrong place.
 - `BOARD.md` survives as a file people read raw, in which case the premise that
   it is a projection is wrong.
+
+## Changes
+
+2026-09-08 — **`ADR-019` narrows one entry of this ADR's tier-1 list:
+`.perry/config.md`.** That file stops existing, so "the user must be able to
+read and change it raw" no longer applies to it. Everything else in this ADR
+stands: the rule itself, the tier-2 half, and the other four tier-1 paths
+(`OKR.md`, `phase/<NNN>-<slug>.md`, `.perry/hook.md`, `.perry/roles/*.md`).
+Status stays `active`.
+
+Recorded here as well as in `ADR-019` because the contradiction is only
+visible from this side if this file says so. Noted in the same entry: this
+ADR's list called `.perry/config.md` *"authored, not projected"* on 2026-09-02,
+three days after `TASK-233` had already made it a projection — so the entry was
+inaccurate when written, and `ADR-019` § Relationship to ADR-015 carries the
+account.
+

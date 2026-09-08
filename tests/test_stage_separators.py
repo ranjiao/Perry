@@ -45,10 +45,22 @@ def _load(name: str):
 
 ST = _load("perry_state")
 
-TRACKS = ("# Perry configuration\n\n- State root: perry\n\n## Tracks\n\n"
-          "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-          "|---|---|---|---|---|---|---|---|\n"
-          "| ops | queue | OKR.md | {stages} | — | 3d | — | V2 |\n")
+import config_store  # noqa: E402
+from config_store import track  # noqa: E402
+
+SETTINGS = {"State root": "perry"}
+
+
+def tracks(stages: str) -> list[dict]:
+    """One queue track whose `stages` is the value under test.
+
+    A `## Tracks` table until ADR-019. The check moved with the register —
+    `perry-lint § check_config_store` reads the `stages` FIELD of a store
+    record — and the failure it reports is unchanged: a value that did not
+    split becomes one stage named after the whole list.
+    """
+    return [track("ops", "queue", spine="OKR.md", stages=stages, sla="3d",
+                  default_rung="V2")]
 BOARD = ("# Board\n\n## P1\n\n"
          "| ID | Title | Owner | Status | Next action | Evidence | Verification |\n"
          "|---|---|---|---|---|---|---|\n")
@@ -65,7 +77,7 @@ class TestTheSeparatorsAPersonActuallyTypes(unittest.TestCase):
                          ["new", "triaged", "resolved"])
 
     def test_the_chinese_comma_and_enumeration_comma_split(self):
-        """`.perry/config.md` is edited by hand in the project's own language."""
+        """A stage vocabulary is written in the project's own language."""
         self.assertEqual(ST.split_stages("新，分诊，已解决"), ["新", "分诊", "已解决"])
         self.assertEqual(ST.split_stages("新、分诊、已解决"), ["新", "分诊", "已解决"])
 
@@ -106,8 +118,7 @@ class TestAnUnsupportedSeparatorIsNamed(unittest.TestCase):
             root = Path(tmp)
             (root / ".perry").mkdir()
             (root / "perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                TRACKS.format(stages=stages), encoding="utf-8")
+            config_store.write_config(root, SETTINGS, tracks(stages))
             (root / "perry" / "BOARD.md").write_text(BOARD, encoding="utf-8")
             r = subprocess.run(
                 [sys.executable, str(LINT), "--root", str(root), "--json"],

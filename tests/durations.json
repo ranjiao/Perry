@@ -1,568 +1,494 @@
 {
  "schema": 1,
  "sources": {
-  "unstamped-pre-304": {
-   "ref": null,
-   "taken": null,
-   "workers": null,
-   "load1": null,
-   "note": "Inherited from the flat tests/durations.json as it stood at d49964e. No run recorded itself, so when, at what ref, at what worker count and under what load these were taken is not known and is not guessed here. Two independent reasons to distrust them as a set: tests/parallel's own docstring says they were taken under foreign load and are 3-4x too LARGE, while test_header_rule_harness.py is 10x too SMALL (25.53 recorded; 265.996s and 260.74s measured at d49964e, the very commit that wrote this file). Both cannot be true of one run. Their serial total is 1968.9s against a measured 162.4s at 8 workers = 1299 worker-seconds, so as a set they describe no run that has happened. Retained anyway: TASK-230 measured that even these produce a schedule equal to the perfect-knowledge one in three runs of four. A hint may be wrong and still useful; it may not be wrong and silent. Replace with `python3 tests/parallel --record` on a quiet machine."
-  },
-  "never-measured": {
-   "ref": null,
-   "taken": null,
-   "workers": null,
-   "load1": null,
-   "note": "Listed with no number because none has ever been taken. sec:null sorts as inf, so these still run FIRST - which is what an unmentioned module already did, now by declaration instead of by omission. Being listed is what lets the drift check tell 'nobody has measured this yet' apart from 'somebody deleted the entry'; those were the same thing before TASK-304."
-  },
-  "task-067-one-choke-point": {
-   "ref": "47ffa26",
-   "taken": "2026-09-03",
-   "workers": 1,
-   "load1": 3.16,
-   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_one_choke_point with __pycache__ cleared before each — 1.49 / 1.54 / 1.52s, median 1.52 — at load1 3.16 on the machine that ran the TASK-067 suite the same hour. Serial rather than under the parallel runner on purpose: a 1.5s module's figure is a sort key and a worker-contended number would be a worse one. The spread is quoted whole rather than best-case, as tests/parallel's own docstring asks."
-  },
-  "task-273-duplicate-ids": {
-   "ref": "942c79a",
-   "taken": "2026-09-03",
-   "workers": 1,
-   "load1": 25.41,
-   "note": "Measured, not guessed. Three serial runs of tests.test_duplicate_ids_are_refused with __pycache__ cleared before each: 2.20s, 1.84s, 2.06s wall. The LARGEST is recorded, so the hint never under-books the module. **Taken under load1 25.4**, immediately after an 8-worker suite run on the same machine, and that is stated rather than rounded away: the number is very likely PESSIMISTIC on an idle machine. That is the safe direction for a sort key whose only job is to start the long modules first, and it is the reason no attempt was made to wait for a quiet machine and report a prettier figure. TASK-273."
-  },
-  "task-276-linkage-store": {
-   "ref": "0bed540",
-   "taken": "2026-09-04",
-   "workers": 1,
-   "load1": 42.41,
-   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_linkage_store_declared with __pycache__ cleared before each - 1.34 / 1.17 / 1.20s wall, on the machine that ran TASK-276. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set. load1 is high and is recorded honestly rather than waited out: five other agents were running tests/run on this machine and a quiet moment never arrived. It turned out not to matter - the three runs agree to within 0.17s, because the module's cost is 19 unittest cases and a handful of perry-lint subprocesses, not CPU. ONE CONTRARY OBSERVATION, recorded so a later reader is not surprised: the same module reported 83.9s inside a full tests/run while SIX suites at 8 workers each were competing. That is a contention figure, not this module's cost, and it is named here rather than averaged in - a number that folds two regimes together describes neither."
-  },
-  "task-277-linkage-import": {
-   "ref": "c924a52",
-   "taken": "2026-09-04",
-   "workers": 1,
-   "load1": 13.35,
-   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_linkage_import with __pycache__ cleared before each - 3.81 / 4.05 / 3.75s wall, on the machine that ran TASK-277. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and task-276-linkage-store followed. load1 is recorded honestly rather than waited out: it was 31.5 when this row started and 13.35 at the moment of these runs, and a bare `python3 -c pass` measured 4,467ms on this machine at load 114 earlier in the week - so the regime matters more than the number. It turned out not to matter here: the three runs agree to within 0.30s, because the module's cost is 32 unittest cases each spawning a perry-tasks or perry-lint subprocess, which is process startup and not CPU. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost, and it is named here rather than averaged in."
-  },
-  "task-278-linkage-readers": {
-   "ref": "1032e76",
-   "taken": "2026-09-07",
-   "workers": 1,
-   "load1": 18.98,
-   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_linkage_store_readers with __pycache__ cleared before each - 2.97 / 4.07 / 3.75s wall, on the machine that ran TASK-278. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and the two linkage rows before this one followed. load1 is recorded honestly rather than waited out: the machine sat between 10 and 19 for the whole round and never went quiet, though a bare `python3 -c pass` measured 17-19ms throughout, so this was not the load-114 regime the task-277 note warns about. The spread here is wider than that row's - 1.10s across three runs against its 0.30 - and the reason is worth recording rather than averaging away: this module spawns perry-lint over a fixture project 12 times, and perry-lint's cost is dominated by reading schema/state-schema.json and walking the tree, so it is more sensitive to page cache than to CPU. The first run after a cold cache is the fast one here only because the largest run happened to land on a load spike. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
-  },
-  "task-279-add-writes-the-edge": {
-   "ref": "e106f1f",
-   "taken": "2026-09-07",
-   "workers": 1,
-   "load1": 6.01,
-   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_add_writes_the_edge with __pycache__ cleared before each - 3.24 / 3.28 / 3.70s wall, on the machine that ran TASK-279. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and the three linkage rows before this one followed. load1 was 6.01 at the start and 5.54 at the end, the quietest this machine has been for any of the DESIGN-015 rows, and it is recorded rather than rounded away because the spread here (0.46s) is wider than task-277's 0.30 on a much busier machine. The reason is worth naming rather than averaging out: four of these 20 tests SIGKILL a child mid-write and then run a second locked perry-task to recover it, so the module's cost is dominated by process startup and by fsync inside replace_canonical_pair, not by CPU - and fsync is the part that does not get faster on an idle machine. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
-  },
-  "task-281-same-action-linkage": {
-   "ref": "6551d00",
-   "taken": "2026-09-07",
-   "workers": 1,
-   "load1": 5.73,
-   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_same_action_linkage with __pycache__ cleared before each - 1.14 / 1.08 / 1.04s wall, on the machine that ran TASK-281. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and the four DESIGN-015 rows before this one followed. load1 was 5.73 at the start and 5.83 at the end - the quietest this machine has been for any of these rows, and quieter than the 18.98 task-278 recorded the same day. It is stated rather than rounded away because the spread here (0.10s) is the tightest of the DESIGN-015 set, and the reason is structural rather than lucky: 24 of these 29 cases call bin/lib directly with constructed records and events and spawn no subprocess at all. Only the five in BothReadersPublishTheOneNumber shell out, twice each to perry-state and perry-goals over the live repository, and they are what the second of wall clock is. Expect a larger figure inside a full tests/run at 8 workers - it reported 2.7s there in the run that registered this entry - and that is a contention figure, not this module's cost."
-  },
-  "adr-017-overall-kr-grammar": {
-   "ref": "1c26ec9",
-   "taken": "2026-09-07",
-   "workers": 1,
-   "load1": 6.47,
-   "note": "Measured, not inherited and not guessed. Three serial runs of tests.test_overall_kr_grammar with __pycache__ cleared before each - 0.99 / 0.87 / 1.00s wall, on the machine that ran ADR-017 step 1 round 2. The LARGEST is recorded, so the hint never under-books, which is the rule task-273-duplicate-ids set and every stamped row since has followed. load1 was 6.47 (1m) against 13.30 (5m) and 19.99 (15m) and is recorded rather than waited out: the machine was coming down off a full 8-worker suite run and a quiet moment never arrived. The spread is 0.13s, the tightest of any stamped row here, and the reason is structural rather than lucky: 17 of these 23 cases are pure regex and parser calls with no subprocess at all. Only the six in TheClaimSurfaceAcceptsBothOverallForms, BothFormsResolveEndToEnd and TheDeadPhaseFormIsStillRefused shell out - to perry-lint and perry-goals over a copied fixture in a temp directory - and they are what the second of wall clock is. Expect a larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
-  },
-  "task-394-add-declares-unlinked": {
-   "ref": "3caec08e",
-   "taken": "2026-09-07",
-   "workers": 1,
-   "load1": 4.5,
-   "note": "Measured, not inherited and not guessed. Three serial runs of test_add_declares_unlinked with __pycache__ cleared before each and each clear taken past the whole-second boundary - 5.15 / 5.21 / 5.40s of unittest's own clock (5.33 / 5.37 / 5.55s wall). The LARGEST is recorded so the hint never under-books, which is the rule task-273-duplicate-ids set and every DESIGN-015 row since has followed. load1 was 4.50 at the start and 4.90 at the end. The figure is larger than task-279-add-writes-the-edge's 3.7 for a reason worth naming rather than averaging away: this module drives SEVEN SIGKILL crash points to row D's four, and each one is a child process killed mid-write plus a second locked perry-task run to recover it. The cost is process startup and the fsync inside replace_canonical_pair, not CPU - so it does not shrink on an idle machine. Expect a much larger figure inside a full tests/run at 8 workers; that is a contention figure and not this module's cost."
+  "2026-09-08-083955": {
+   "ref": "281dacc6059757d910ef5cc2a9ef3d12b5e896df",
+   "taken": "2026-09-08T08:39:55Z",
+   "workers": 8,
+   "load1": 32.21,
+   "note": "`tests/parallel --record -j 8`."
   }
  },
  "modules": {
   "test_add_declares_unlinked.py": {
-   "sec": 5.4,
-   "source": "task-394-add-declares-unlinked"
+   "sec": 6.73,
+   "source": "2026-09-08-083955"
   },
   "test_add_writes_the_edge.py": {
-   "sec": 3.7,
-   "source": "task-279-add-writes-the-edge"
+   "sec": 5.47,
+   "source": "2026-09-08-083955"
   },
   "test_amend_matches_create.py": {
-   "sec": 0.28,
-   "source": "unstamped-pre-304"
+   "sec": 0.08,
+   "source": "2026-09-08-083955"
   },
   "test_answered_ask_is_legible.py": {
-   "sec": 16.7,
-   "source": "unstamped-pre-304"
+   "sec": 7.7,
+   "source": "2026-09-08-083955"
   },
   "test_ask_is_a_node.py": {
-   "sec": 20.93,
-   "source": "unstamped-pre-304"
+   "sec": 12.55,
+   "source": "2026-09-08-083955"
   },
   "test_asks_store.py": {
-   "sec": 13.61,
-   "source": "unstamped-pre-304"
+   "sec": 5.65,
+   "source": "2026-09-08-083955"
   },
   "test_attribution_buckets.py": {
-   "sec": 6.16,
-   "source": "unstamped-pre-304"
+   "sec": 1.51,
+   "source": "2026-09-08-083955"
   },
   "test_blank_cell_is_one_rule.py": {
-   "sec": 0.29,
-   "source": "unstamped-pre-304"
+   "sec": 0.11,
+   "source": "2026-09-08-083955"
   },
   "test_board_render.py": {
-   "sec": 45.67,
-   "source": "unstamped-pre-304"
+   "sec": 42.41,
+   "source": "2026-09-08-083955"
   },
   "test_cadence.py": {
-   "sec": 22.14,
-   "source": "unstamped-pre-304"
+   "sec": 12.89,
+   "source": "2026-09-08-083955"
   },
   "test_claims.py": {
-   "sec": 15.79,
-   "source": "unstamped-pre-304"
+   "sec": 11.04,
+   "source": "2026-09-08-083955"
   },
   "test_config_store_readers.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 0.8,
+   "source": "2026-09-08-083955"
   },
   "test_context_budget.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 0.81,
+   "source": "2026-09-08-083955"
   },
   "test_contract_invariance.py": {
-   "sec": 7.64,
-   "source": "unstamped-pre-304"
+   "sec": 4.52,
+   "source": "2026-09-08-083955"
   },
   "test_contract_key_parity.py": {
-   "sec": 48.4,
-   "source": "unstamped-pre-304"
+   "sec": 43.5,
+   "source": "2026-09-08-083955"
   },
   "test_count_fields.py": {
-   "sec": 2.47,
-   "source": "unstamped-pre-304"
+   "sec": 1.68,
+   "source": "2026-09-08-083955"
   },
   "test_decide_status_enum.py": {
-   "sec": 7.1,
-   "source": "unstamped-pre-304"
+   "sec": 2.88,
+   "source": "2026-09-08-083955"
   },
   "test_decide_writer.py": {
-   "sec": 12.86,
-   "source": "unstamped-pre-304"
+   "sec": 7.46,
+   "source": "2026-09-08-083955"
   },
   "test_decoration_changes_nothing.py": {
-   "sec": 20.27,
-   "source": "unstamped-pre-304"
+   "sec": 14.65,
+   "source": "2026-09-08-083955"
   },
   "test_design_handoff.py": {
-   "sec": 0.88,
-   "source": "unstamped-pre-304"
+   "sec": 2.37,
+   "source": "2026-09-08-083955"
   },
   "test_diagnose.py": {
-   "sec": 83.25,
-   "source": "unstamped-pre-304"
+   "sec": 66.72,
+   "source": "2026-09-08-083955"
   },
   "test_dispatch_limit_honesty.py": {
-   "sec": 3.12,
-   "source": "unstamped-pre-304"
+   "sec": 2.01,
+   "source": "2026-09-08-083955"
   },
   "test_duplicate_ids_are_refused.py": {
-   "sec": 2.2,
-   "source": "task-273-duplicate-ids"
+   "sec": 2.92,
+   "source": "2026-09-08-083955"
   },
   "test_durations_provenance.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 0.61,
+   "source": "2026-09-08-083955"
   },
   "test_entrance.py": {
-   "sec": 0.15,
-   "source": "unstamped-pre-304"
+   "sec": 0.12,
+   "source": "2026-09-08-083955"
   },
   "test_escalation_boundaries.py": {
-   "sec": 2.49,
-   "source": "unstamped-pre-304"
+   "sec": 0.25,
+   "source": "2026-09-08-083955"
   },
   "test_escalation_union.py": {
-   "sec": 7.19,
-   "source": "unstamped-pre-304"
+   "sec": 3.5,
+   "source": "2026-09-08-083955"
   },
   "test_escaped_pipe_corpus.py": {
-   "sec": 2.58,
-   "source": "unstamped-pre-304"
+   "sec": 1.06,
+   "source": "2026-09-08-083955"
   },
   "test_events_feed.py": {
-   "sec": 5.89,
-   "source": "unstamped-pre-304"
+   "sec": 3.18,
+   "source": "2026-09-08-083955"
   },
   "test_evidence_relation.py": {
-   "sec": 4.86,
-   "source": "unstamped-pre-304"
+   "sec": 4.1,
+   "source": "2026-09-08-083955"
   },
   "test_explain_typed_tasks.py": {
-   "sec": 1.74,
-   "source": "unstamped-pre-304"
+   "sec": 1.16,
+   "source": "2026-09-08-083955"
   },
   "test_glossary.py": {
-   "sec": 50.5,
-   "source": "unstamped-pre-304"
+   "sec": 52.3,
+   "source": "2026-09-08-083955"
   },
   "test_goals_contract.py": {
-   "sec": 2.43,
-   "source": "unstamped-pre-304"
+   "sec": 1.59,
+   "source": "2026-09-08-083955"
   },
   "test_goals_writer.py": {
-   "sec": 86.22,
-   "source": "unstamped-pre-304"
+   "sec": 54.98,
+   "source": "2026-09-08-083955"
   },
   "test_header_index_is_the_only_fold.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 17.48,
+   "source": "2026-09-08-083955"
   },
   "test_header_rule_harness.py": {
-   "sec": 25.53,
-   "source": "unstamped-pre-304"
+   "sec": 41.98,
+   "source": "2026-09-08-083955"
   },
   "test_heading_defines.py": {
-   "sec": 1.71,
-   "source": "unstamped-pre-304"
+   "sec": 0.94,
+   "source": "2026-09-08-083955"
   },
   "test_heading_title.py": {
-   "sec": 2.48,
-   "source": "unstamped-pre-304"
+   "sec": 1.51,
+   "source": "2026-09-08-083955"
   },
   "test_host_support.py": {
-   "sec": 34.29,
-   "source": "unstamped-pre-304"
+   "sec": 35.17,
+   "source": "2026-09-08-083955"
   },
   "test_i18n.py": {
-   "sec": 1.8,
-   "source": "unstamped-pre-304"
+   "sec": 0.56,
+   "source": "2026-09-08-083955"
   },
   "test_i18n_one_table.py": {
-   "sec": 0.39,
-   "source": "unstamped-pre-304"
+   "sec": 0.16,
+   "source": "2026-09-08-083955"
   },
   "test_id_families.py": {
-   "sec": 6.02,
-   "source": "unstamped-pre-304"
+   "sec": 1.33,
+   "source": "2026-09-08-083955"
   },
   "test_intake_signal.py": {
-   "sec": 2.8,
-   "source": "unstamped-pre-304"
+   "sec": 0.86,
+   "source": "2026-09-08-083955"
   },
   "test_intake_store.py": {
-   "sec": 18.6,
-   "source": "unstamped-pre-304"
+   "sec": 8.36,
+   "source": "2026-09-08-083955"
   },
   "test_knowledge_cards.py": {
-   "sec": 6.08,
-   "source": "unstamped-pre-304"
+   "sec": 1.87,
+   "source": "2026-09-08-083955"
   },
   "test_knowledge_promotion.py": {
-   "sec": 12.18,
-   "source": "unstamped-pre-304"
+   "sec": 4.67,
+   "source": "2026-09-08-083955"
   },
   "test_kr_progress_provenance.py": {
-   "sec": 6.34,
-   "source": "unstamped-pre-304"
+   "sec": 3.28,
+   "source": "2026-09-08-083955"
   },
   "test_last_updated_header.py": {
-   "sec": 3.25,
-   "source": "unstamped-pre-304"
-  },
-  "test_linkage_import.py": {
-   "sec": 4.05,
-   "source": "task-277-linkage-import"
+   "sec": 2.08,
+   "source": "2026-09-08-083955"
   },
   "test_linkage_store_declared.py": {
-   "sec": 1.34,
-   "source": "task-276-linkage-store"
+   "sec": 1.17,
+   "source": "2026-09-08-083955"
   },
   "test_linkage_store_readers.py": {
-   "sec": 4.07,
-   "source": "task-278-linkage-readers"
+   "sec": 3.95,
+   "source": "2026-09-08-083955"
   },
   "test_linkage_task_exists.py": {
-   "sec": 3.79,
-   "source": "unstamped-pre-304"
+   "sec": 2.23,
+   "source": "2026-09-08-083955"
   },
   "test_linkage_writer.py": {
-   "sec": 15.58,
-   "source": "unstamped-pre-304"
+   "sec": 5.81,
+   "source": "2026-09-08-083955"
   },
   "test_live_state_expectations.py": {
-   "sec": 6.45,
-   "source": "unstamped-pre-304"
+   "sec": 6.58,
+   "source": "2026-09-08-083955"
   },
   "test_md_store.py": {
-   "sec": 15.06,
-   "source": "unstamped-pre-304"
+   "sec": 4.92,
+   "source": "2026-09-08-083955"
   },
   "test_missing_defaults.py": {
-   "sec": 2.48,
-   "source": "unstamped-pre-304"
+   "sec": 0.97,
+   "source": "2026-09-08-083955"
   },
   "test_ns_collision.py": {
-   "sec": 26.19,
-   "source": "unstamped-pre-304"
+   "sec": 18.95,
+   "source": "2026-09-08-083955"
   },
   "test_okr_store_is_the_source.py": {
-   "sec": 11.79,
-   "source": "unstamped-pre-304"
+   "sec": 3.66,
+   "source": "2026-09-08-083955"
   },
   "test_one_choke_point.py": {
-   "sec": 1.52,
-   "source": "task-067-one-choke-point"
+   "sec": 3.71,
+   "source": "2026-09-08-083955"
   },
   "test_one_header_rule.py": {
-   "sec": 1.85,
-   "source": "unstamped-pre-304"
+   "sec": 9.92,
+   "source": "2026-09-08-083955"
   },
   "test_one_heading_predicate.py": {
-   "sec": 3.62,
-   "source": "unstamped-pre-304"
+   "sec": 1.48,
+   "source": "2026-09-08-083955"
   },
   "test_one_line_break_rule.py": {
-   "sec": 12.5,
-   "source": "unstamped-pre-304"
+   "sec": 4.55,
+   "source": "2026-09-08-083955"
   },
   "test_one_primitive.py": {
-   "sec": 0.25,
-   "source": "unstamped-pre-304"
+   "sec": 0.19,
+   "source": "2026-09-08-083955"
   },
   "test_one_startable_rule.py": {
-   "sec": 9.5,
-   "source": "unstamped-pre-304"
+   "sec": 3.94,
+   "source": "2026-09-08-083955"
   },
   "test_overall_kr_grammar.py": {
-   "sec": 1.0,
-   "source": "adr-017-overall-kr-grammar"
+   "sec": 1.61,
+   "source": "2026-09-08-083955"
   },
   "test_ownership.py": {
-   "sec": 0.43,
-   "source": "unstamped-pre-304"
+   "sec": 0.22,
+   "source": "2026-09-08-083955"
   },
   "test_parallel_runner.py": {
-   "sec": 0.32,
-   "source": "unstamped-pre-304"
+   "sec": 9.1,
+   "source": "2026-09-08-083955"
   },
   "test_parsers.py": {
-   "sec": 6.37,
-   "source": "unstamped-pre-304"
+   "sec": 2.87,
+   "source": "2026-09-08-083955"
   },
   "test_phase_kr_declared_once.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 2.96,
+   "source": "2026-09-08-083955"
   },
   "test_pointers_resolve.py": {
-   "sec": 0.69,
-   "source": "unstamped-pre-304"
+   "sec": 0.43,
+   "source": "2026-09-08-083955"
   },
   "test_prioritize.py": {
-   "sec": 18.23,
-   "source": "unstamped-pre-304"
+   "sec": 7.74,
+   "source": "2026-09-08-083955"
   },
   "test_procedures_call_the_tool.py": {
-   "sec": 2.36,
-   "source": "unstamped-pre-304"
+   "sec": 0.5,
+   "source": "2026-09-08-083955"
   },
   "test_procedures_read_the_contract.py": {
-   "sec": 1.17,
-   "source": "unstamped-pre-304"
+   "sec": 0.27,
+   "source": "2026-09-08-083955"
   },
   "test_project_root_resolution.py": {
-   "sec": 27.37,
-   "source": "unstamped-pre-304"
+   "sec": 20.65,
+   "source": "2026-09-08-083955"
   },
   "test_purge.py": {
-   "sec": 85.95,
-   "source": "unstamped-pre-304"
+   "sec": 38.29,
+   "source": "2026-09-08-083955"
   },
   "test_queue_sla.py": {
-   "sec": 22.49,
-   "source": "unstamped-pre-304"
+   "sec": 11.69,
+   "source": "2026-09-08-083955"
   },
   "test_reference_pages_are_reachable.py": {
-   "sec": 0.18,
-   "source": "unstamped-pre-304"
+   "sec": 0.13,
+   "source": "2026-09-08-083955"
   },
   "test_register_minters.py": {
-   "sec": 35.1,
-   "source": "unstamped-pre-304"
+   "sec": 19.66,
+   "source": "2026-09-08-083955"
   },
   "test_register_store_invariant.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 20.64,
+   "source": "2026-09-08-083955"
   },
   "test_register_substitution.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 15.27,
+   "source": "2026-09-08-083955"
   },
   "test_restore_check.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 5.0,
+   "source": "2026-09-08-083955"
   },
   "test_resume.py": {
-   "sec": 7.46,
-   "source": "unstamped-pre-304"
+   "sec": 1.88,
+   "source": "2026-09-08-083955"
   },
   "test_retired_tolerance.py": {
-   "sec": 5.68,
-   "source": "unstamped-pre-304"
+   "sec": 1.31,
+   "source": "2026-09-08-083955"
   },
   "test_review_verdicts.py": {
-   "sec": 9.54,
-   "source": "unstamped-pre-304"
+   "sec": 9.75,
+   "source": "2026-09-08-083955"
   },
   "test_risks.py": {
-   "sec": 49.98,
-   "source": "unstamped-pre-304"
+   "sec": 23.85,
+   "source": "2026-09-08-083955"
   },
   "test_risks_store.py": {
-   "sec": 26.34,
-   "source": "unstamped-pre-304"
+   "sec": 13.72,
+   "source": "2026-09-08-083955"
   },
   "test_role_cards.py": {
-   "sec": 11.01,
-   "source": "unstamped-pre-304"
+   "sec": 5.51,
+   "source": "2026-09-08-083955"
   },
   "test_role_delegation.py": {
-   "sec": 11.43,
-   "source": "unstamped-pre-304"
+   "sec": 2.18,
+   "source": "2026-09-08-083955"
   },
   "test_role_on_rows.py": {
-   "sec": 8.29,
-   "source": "unstamped-pre-304"
+   "sec": 1.29,
+   "source": "2026-09-08-083955"
   },
   "test_router_budget.py": {
-   "sec": 2.09,
-   "source": "unstamped-pre-304"
+   "sec": 0.38,
+   "source": "2026-09-08-083955"
   },
   "test_row_integrity.py": {
-   "sec": 5.56,
-   "source": "unstamped-pre-304"
+   "sec": 1.2,
+   "source": "2026-09-08-083955"
   },
   "test_rung_vocabulary.py": {
-   "sec": 72.67,
-   "source": "unstamped-pre-304"
+   "sec": 41.7,
+   "source": "2026-09-08-083955"
   },
   "test_same_action_linkage.py": {
-   "sec": 1.14,
-   "source": "task-281-same-action-linkage"
+   "sec": 3.53,
+   "source": "2026-09-08-083955"
   },
   "test_semantics_on_every_payload.py": {
-   "sec": 12.44,
-   "source": "unstamped-pre-304"
+   "sec": 4.28,
+   "source": "2026-09-08-083955"
   },
   "test_shipped_vocabulary.py": {
-   "sec": 8.79,
-   "source": "unstamped-pre-304"
+   "sec": 2.21,
+   "source": "2026-09-08-083955"
   },
   "test_spec_scannability.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 4.68,
+   "source": "2026-09-08-083955"
   },
   "test_stage_separators.py": {
-   "sec": 2.88,
-   "source": "unstamped-pre-304"
+   "sec": 0.95,
+   "source": "2026-09-08-083955"
   },
   "test_stale_blocked.py": {
-   "sec": 23.76,
-   "source": "unstamped-pre-304"
+   "sec": 9.83,
+   "source": "2026-09-08-083955"
   },
   "test_state_cost.py": {
-   "sec": 43.81,
-   "source": "unstamped-pre-304"
+   "sec": 22.37,
+   "source": "2026-09-08-083955"
   },
   "test_store_drift.py": {
-   "sec": 14.33,
-   "source": "unstamped-pre-304"
+   "sec": 13.03,
+   "source": "2026-09-08-083955"
   },
   "test_store_is_canonical.py": {
-   "sec": 10.96,
-   "source": "unstamped-pre-304"
+   "sec": 11.24,
+   "source": "2026-09-08-083955"
   },
   "test_store_is_the_write_target.py": {
-   "sec": 46.72,
-   "source": "unstamped-pre-304"
+   "sec": 18.33,
+   "source": "2026-09-08-083955"
   },
   "test_stranded_rows.py": {
-   "sec": 71.98,
-   "source": "unstamped-pre-304"
+   "sec": 28.77,
+   "source": "2026-09-08-083955"
   },
   "test_summary_is_asked_for.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 3.88,
+   "source": "2026-09-08-083955"
   },
   "test_task_store.py": {
-   "sec": 58.41,
-   "source": "unstamped-pre-304"
+   "sec": 21.73,
+   "source": "2026-09-08-083955"
   },
   "test_task_store_read_cutover.py": {
-   "sec": 6.59,
-   "source": "unstamped-pre-304"
+   "sec": 2.01,
+   "source": "2026-09-08-083955"
   },
   "test_task_summary.py": {
-   "sec": 34.75,
-   "source": "unstamped-pre-304"
+   "sec": 14.94,
+   "source": "2026-09-08-083955"
   },
   "test_task_writer_contracts.py": {
-   "sec": 22.82,
-   "source": "unstamped-pre-304"
+   "sec": 29.81,
+   "source": "2026-09-08-083955"
   },
   "test_task_writer_core.py": {
-   "sec": 26.28,
-   "source": "unstamped-pre-304"
+   "sec": 37.73,
+   "source": "2026-09-08-083955"
   },
   "test_task_writer_dependencies.py": {
-   "sec": 22.91,
-   "source": "unstamped-pre-304"
+   "sec": 30.38,
+   "source": "2026-09-08-083955"
   },
   "test_task_writer_intake.py": {
-   "sec": 22.4,
-   "source": "unstamped-pre-304"
+   "sec": 27.92,
+   "source": "2026-09-08-083955"
   },
   "test_task_writer_modes.py": {
-   "sec": 22.43,
-   "source": "unstamped-pre-304"
+   "sec": 28.76,
+   "source": "2026-09-08-083955"
   },
   "test_track_attribution.py": {
-   "sec": 24.93,
-   "source": "unstamped-pre-304"
+   "sec": 10.41,
+   "source": "2026-09-08-083955"
   },
   "test_track_axes.py": {
-   "sec": 0.31,
-   "source": "unstamped-pre-304"
+   "sec": 0.06,
+   "source": "2026-09-08-083955"
   },
   "test_track_move.py": {
-   "sec": 94.96,
-   "source": "unstamped-pre-304"
+   "sec": 22.87,
+   "source": "2026-09-08-083955"
   },
   "test_track_register_source.py": {
-   "sec": 15.56,
-   "source": "unstamped-pre-304"
+   "sec": 1.68,
+   "source": "2026-09-08-083955"
   },
   "test_tree_guard.py": {
-   "sec": null,
-   "source": "never-measured"
+   "sec": 61.3,
+   "source": "2026-09-08-083955"
   },
   "test_unlinked_declaration.py": {
-   "sec": 20.68,
-   "source": "unstamped-pre-304"
+   "sec": 4.26,
+   "source": "2026-09-08-083955"
   },
   "test_v5_signoff.py": {
-   "sec": 62.66,
-   "source": "unstamped-pre-304"
+   "sec": 19.85,
+   "source": "2026-09-08-083955"
   },
   "test_wip_and_stages.py": {
-   "sec": 9.69,
-   "source": "unstamped-pre-304"
+   "sec": 1.47,
+   "source": "2026-09-08-083955"
   },
   "test_work_modes.py": {
-   "sec": 35.88,
-   "source": "unstamped-pre-304"
+   "sec": 8.8,
+   "source": "2026-09-08-083955"
   }
  }
 }

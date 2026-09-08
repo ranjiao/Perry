@@ -157,13 +157,35 @@ SUBPROCESS = frozenset({
 # itself; a guard that named any of them would have missed the others.
 
 def state_root(root: pathlib.Path) -> str:
-    """The `State root:` pointer, as a repo-relative prefix (`""` for `.`)."""
-    config = root / ".perry" / "config.md"
-    if not config.exists():
+    """The `state_root` setting, as a repo-relative prefix (`""` for `.`).
+
+    **It read the `- State root:` line of `.perry/config.md` until ADR-019.**
+    That file is deleted and `.perry/config.jsonl` is the only copy, so the
+    pointer is read out of the store — which is what `viewer/parsers.py §
+    resolve_state_root` has always done first and now does only.
+
+    Read with `json.loads` rather than through `viewer/parsers.py`, and that is
+    deliberate: this module is the guard OVER the test suite, and a guard that
+    imports the code under test to decide what it is guarding is one bad
+    refactor away from agreeing with a bug. A missing or unreadable store means
+    "no prefix" rather than an exception — a repository without one is a
+    repository whose state sits at the top, which is exactly `""`.
+    """
+    store = root / ".perry" / "config.jsonl"
+    if not store.exists():
         return ""
-    m = re.search(r"^-\s*State root:\s*(\S+)\s*$", config.read_text(), re.M)
-    value = (m.group(1) if m else ".").strip("`").strip()
-    return "" if value == "." else value.strip("/")
+    value = "."
+    try:
+        for line in store.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            if rec.get("kind") == "setting" and rec.get("key") == "state_root":
+                value = str(rec.get("value") or ".")
+    except (OSError, ValueError):
+        return ""
+    value = value.strip("`").strip()
+    return "" if value in ("", ".") else value.strip("/")
 
 
 def live_patterns(root: pathlib.Path = ROOT) -> list[str]:

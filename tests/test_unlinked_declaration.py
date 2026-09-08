@@ -78,14 +78,14 @@ class Case(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         dest = d / "sample-project"
         shutil.copytree(SAMPLE, dest)
-        # **Without this, every refusal below passes for the wrong reason.**
-        # The copied fixture is undeclared, so ADR-004's gate refuses the write
-        # before `link_unlinked` is ever reached — `assertNotEqual(rc, 0)` goes
-        # green on a refusal that has nothing to do with this row. Caught by
-        # the one test that expects a SUCCESS. The refusal tests assert on the
-        # message for the same reason.
-        cfg = dest / ".perry" / "config.md"
-        cfg.write_text(cfg.read_text())
+        # A no-op rewrite of `.perry/config.md` stood here, to declare the
+        # copied fixture so ADR-004's gate would not refuse the write before
+        # `link_unlinked` was reached — a refusal that has nothing to do with
+        # this row would have turned every `assertNotEqual(rc, 0)` below green.
+        # That gate went at TASK-261 and the file went at ADR-019. The hazard
+        # it guarded against is still real, which is why the refusal tests
+        # assert on the MESSAGE and not only on the exit code, and why the one
+        # case that expects a SUCCESS is the control for all of them.
         rows = STORE_ROWS if store is None else store
         if rows is not None:
             (dest / "tasks.jsonl").write_text(
@@ -104,11 +104,20 @@ class Case(unittest.TestCase):
         return json.loads(proc.stdout)
 
     def register(self, d: pathlib.Path) -> str:
-        return (d / "phase" / "002-linkage.md").read_text()
+        """The register's raw text — `linkage.jsonl` since ADR-019.
+
+        Kept as raw text rather than as parsed records, because what the
+        `assertNotIn` cases below are proving is that a refused id reached NO
+        BYTE of the file: a check over parsed `unlinked` records would pass
+        while the id sat in a malformed line nothing could read.
+        """
+        return (d / "linkage.jsonl").read_text()
 
     def declared(self, d: pathlib.Path) -> list[str]:
-        m = re.search(r"^unlinked: \[(.*?)\]$", self.register(d), re.M | re.S)
-        return re.findall(r"[A-Za-z][A-Za-z0-9_-]*-\d+", m.group(1) if m else "")
+        return [str(r.get("task") or "") for r in
+                (json.loads(line) for line in
+                 self.register(d).splitlines() if line.strip())
+                if r.get("kind") == "unlinked"]
 
 
 class TestTheWriterRefusesAShapeThatIsNotOneId(Case):
@@ -214,12 +223,14 @@ class TestTheLinterChecksTheDeclarationList(Case):
         nothing downstream said so.
         """
         d = self.project()
-        reg = d / "phase" / "002-linkage.md"
-        reg.write_text(re.sub(r"^unlinked: \[.*?\]$",
-                              'unlinked: ["REL-501 REL-502 REL-503"]',
-                              reg.read_text(), count=1, flags=re.M))
+        reg = d / "linkage.jsonl"
+        reg.write_text(reg.read_text() + json.dumps(
+            {"kind": "unlinked", "task": "REL-501 REL-502 REL-503",
+             "phase": "002-release-pipeline",
+             "declared_at": "2026-08-14T09:15:00Z", "actor": "goals",
+             "via": "link"}) + "\n")
         self.assertTrue(self.findings(d),
-                        "a hand-written blob in unlinked[] lints clean")
+                        "a hand-written blob in an unlinked record lints clean")
 
 
 if __name__ == "__main__":

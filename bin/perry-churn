@@ -1,0 +1,406 @@
+#!/usr/bin/env python3
+"""perry-churn — per-day line churn from git history, docs split from code.
+
+Reads `git log --numstat` and groups every added / deleted line by the day
+its commit was authored, in two buckets:
+
+  docs   files whose extension is a documentation extension (.md, .markdown,
+         .mdx by default) or whose path matches a --doc-glob
+  code   everything else
+
+Binary files carry no line counts in numstat; they are counted as files and
+reported in a footer, never folded into the line totals.
+
+Nothing is installed and nothing is imported beyond the Python 3 standard
+library, so it runs in any git repository as-is.
+
+Usage:
+  perry-churn [--days N] [options] [-- <git log args>]
+
+Options:
+  -n, --days <N>       the last N days, today included. Days with no commits
+                       are still printed, as zero rows.
+  -C <dir>             run against the repository at <dir> (default: cwd)
+  --since <when>       passed to git log (e.g. "30 days ago", 2026-01-01)
+  --until <when>       passed to git log
+  --author <pattern>   passed to git log (substring / regex on the author)
+  --rev <rev>          revision range or branch to walk (default: HEAD)
+  --by day|week|month  bucket size (default: day)
+  --doc-ext <list>     comma-separated extensions counted as docs
+                       (default: .md,.markdown,.mdx). Replaces the default.
+  --doc-glob <pat>     also count paths matching this glob as docs
+                       (repeatable, e.g. --doc-glob 'docs/*')
+  --include-merges     count merge commits too (default: skipped)
+  --committer-date     bucket by committer date instead of author date
+  --reverse            newest bucket first (default: oldest first)
+  --csv                emit CSV instead of the table
+  --json               emit JSON instead of the table
+  -h, --help           this text
+
+Anything after `--` goes to git log verbatim — use it for pathspecs:
+  perry-churn --since "14 days ago" -- ':!vendor/'
+
+Examples:
+  perry-churn --days 7
+  perry-churn -C ~/proj/other --days 14
+  perry-churn --since "30 days ago"
+  perry-churn --by week --author ranjiao
+  perry-churn --json --since 2026-01-01 > churn.json
+"""
+
+import json
+import subprocess
+import sys
+from collections import OrderedDict
+from datetime import date, timedelta
+from fnmatch import fnmatch
+
+DEFAULT_DOC_EXT = (".md", ".markdown", ".mdx")
+
+# Field separators inside the --pretty format. \x01 marks a commit header
+# line so it can never be confused with a numstat line.
+REC = "\x01"
+SEP = "\x1f"
+
+
+def die(msg, code=2):
+    sys.stderr.write("perry-churn: %s\n" % msg)
+    sys.exit(code)
+
+
+def parse_args(argv):
+    opts = {
+        "days": None,
+        "cwd": None,
+        "since": None,
+        "until": None,
+        "author": None,
+        "rev": "HEAD",
+        "by": "day",
+        "doc_ext": list(DEFAULT_DOC_EXT),
+        "doc_globs": [],
+        "merges": False,
+        "committer": False,
+        "reverse": False,
+        "fmt": "table",
+        "git_args": [],
+    }
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            sys.stdout.write(__doc__)
+            sys.exit(0)
+        elif a == "--":
+            opts["git_args"] = argv[i + 1:]
+            break
+        elif a in ("-n", "--days", "-C", "--since", "--until", "--author",
+                   "--rev", "--by", "--doc-ext", "--doc-glob"):
+            if i + 1 >= len(argv):
+                die("%s needs a value" % a)
+            val = argv[i + 1]
+            i += 2
+            if a in ("-n", "--days"):
+                try:
+                    opts["days"] = int(val)
+                except ValueError:
+                    opts["days"] = 0
+                if opts["days"] < 1:
+                    die("--days takes a positive whole number of days (got %r)" % val)
+            elif a == "-C":
+                opts["cwd"] = val
+            elif a == "--since":
+                opts["since"] = val
+            elif a == "--until":
+                opts["until"] = val
+            elif a == "--author":
+                opts["author"] = val
+            elif a == "--rev":
+                opts["rev"] = val
+            elif a == "--by":
+                if val not in ("day", "week", "month"):
+                    die("--by takes day, week or month (got %r)" % val)
+                opts["by"] = val
+            elif a == "--doc-ext":
+                exts = []
+                for e in val.split(","):
+                    e = e.strip().lower()
+                    if not e:
+                        continue
+                    exts.append(e if e.startswith(".") else "." + e)
+                if not exts:
+                    die("--doc-ext got no extensions")
+                opts["doc_ext"] = exts
+            elif a == "--doc-glob":
+                opts["doc_globs"].append(val)
+            continue
+        elif a == "--include-merges":
+            opts["merges"] = True
+        elif a == "--committer-date":
+            opts["committer"] = True
+        elif a == "--reverse":
+            opts["reverse"] = True
+        elif a == "--csv":
+            opts["fmt"] = "csv"
+        elif a == "--json":
+            opts["fmt"] = "json"
+        elif a.startswith("-"):
+            die("unknown option %r (see --help)" % a)
+        else:
+            die("unexpected argument %r — pathspecs go after `--`" % a)
+        i += 1
+    return opts
+
+
+def window_start(days):
+    """First day of a --days N window: today counts as day 1."""
+    return date.today() - timedelta(days=days - 1)
+
+
+def git_log(opts):
+    date_tok = "%cd" if opts["committer"] else "%ad"
+    cmd = [
+        "git", "-c", "core.quotepath=false", "log",
+        "--numstat", "--date=short",
+        "--pretty=format:%s%%H%s%s%s%%an" % (REC, SEP, date_tok, SEP),
+        opts["rev"],
+    ]
+    if not opts["merges"]:
+        cmd.append("--no-merges")
+    if opts["since"]:
+        cmd.append("--since=%s" % opts["since"])
+    elif opts["days"]:
+        cmd.append("--since=%s 00:00:00" % window_start(opts["days"]).isoformat())
+    if opts["until"]:
+        cmd.append("--until=%s" % opts["until"])
+    if opts["author"]:
+        cmd.append("--author=%s" % opts["author"])
+    if opts["git_args"]:
+        cmd.append("--")
+        cmd.extend(opts["git_args"])
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          cwd=opts["cwd"])
+    if proc.returncode != 0:
+        die(proc.stderr.decode("utf-8", "replace").strip() or "git log failed", proc.returncode)
+    return proc.stdout.decode("utf-8", "replace")
+
+
+def resolved_path(path):
+    """numstat renders a rename as `old => new` or `dir/{a => b}/f`.
+
+    Only the destination path decides the bucket, so pull that out.
+    """
+    if "=>" not in path:
+        return path
+    if "{" in path and "}" in path:
+        head, rest = path.split("{", 1)
+        mid, tail = rest.split("}", 1)
+        new = mid.split("=>", 1)[1].strip()
+        joined = head + new + tail
+        while "//" in joined:
+            joined = joined.replace("//", "/")
+        return joined.strip("/") if joined.startswith("/") else joined
+    return path.split("=>", 1)[1].strip()
+
+
+def is_doc(path, opts):
+    low = path.lower()
+    for ext in opts["doc_ext"]:
+        if low.endswith(ext):
+            return True
+    for pat in opts["doc_globs"]:
+        if fnmatch(path, pat) or fnmatch(low, pat.lower()):
+            return True
+    return False
+
+
+def bucket_key(day, by):
+    if by == "day":
+        return day
+    y, m, d = (int(x) for x in day.split("-"))
+    if by == "month":
+        return "%04d-%02d" % (y, m)
+    monday = date(y, m, d) - timedelta(days=date(y, m, d).weekday())
+    return monday.isoformat()
+
+
+def new_bucket():
+    return {
+        "commits": 0,
+        "doc_added": 0, "doc_deleted": 0, "doc_files": 0,
+        "code_added": 0, "code_deleted": 0, "code_files": 0,
+        "binary_files": 0,
+    }
+
+
+def collect(text, opts):
+    buckets = OrderedDict()
+    seen_commits = set()
+    cur = None
+    for line in text.split("\n"):
+        if not line:
+            continue
+        if line.startswith(REC):
+            sha, day, _author = line[1:].split(SEP, 2)
+            key = bucket_key(day, opts["by"])
+            cur = buckets.setdefault(key, new_bucket())
+            if sha not in seen_commits:
+                seen_commits.add(sha)
+                cur["commits"] += 1
+            continue
+        if cur is None or "\t" not in line:
+            continue
+        added, deleted, path = line.split("\t", 2)
+        path = resolved_path(path)
+        if added == "-" or deleted == "-":
+            cur["binary_files"] += 1
+            continue
+        kind = "doc" if is_doc(path, opts) else "code"
+        cur[kind + "_added"] += int(added)
+        cur[kind + "_deleted"] += int(deleted)
+        cur[kind + "_files"] += 1
+    return buckets
+
+
+def fill_window(buckets, opts):
+    """A --days window is a calendar, not a list of the days that had commits.
+
+    Without this, "the last 7 days" prints however many days happened to have
+    a commit, and a quiet day is indistinguishable from a day off the end of
+    the range.
+    """
+    if not opts["days"]:
+        return buckets
+    start, today = window_start(opts["days"]), date.today()
+    day = start
+    while day <= today:
+        buckets.setdefault(bucket_key(day.isoformat(), opts["by"]), new_bucket())
+        day += timedelta(days=1)
+    return buckets
+
+
+def totals(buckets):
+    tot = new_bucket()
+    for b in buckets.values():
+        for k in tot:
+            tot[k] += b[k]
+    return tot
+
+
+def rows(buckets, opts):
+    keys = sorted(buckets)
+    if opts["reverse"]:
+        keys.reverse()
+    return [(k, buckets[k]) for k in keys]
+
+
+def fmt_pm(added, deleted):
+    return "+%s -%s" % ("{:,}".format(added), "{:,}".format(deleted))
+
+
+def print_table(buckets, opts):
+    data = rows(buckets, opts)
+    tot = totals(buckets)
+    header = ("day" if opts["by"] == "day" else opts["by"]).upper()
+    cols = [header, "COMMITS", "DOCS", "CODE", "NET"]
+    lines = []
+    for key, b in data:
+        lines.append([
+            key,
+            "{:,}".format(b["commits"]),
+            fmt_pm(b["doc_added"], b["doc_deleted"]),
+            fmt_pm(b["code_added"], b["code_deleted"]),
+            "{:+,}".format(b["doc_added"] + b["code_added"] - b["doc_deleted"] - b["code_deleted"]),
+        ])
+    total_row = [
+        "TOTAL",
+        "{:,}".format(tot["commits"]),
+        fmt_pm(tot["doc_added"], tot["doc_deleted"]),
+        fmt_pm(tot["code_added"], tot["code_deleted"]),
+        "{:+,}".format(tot["doc_added"] + tot["code_added"] - tot["doc_deleted"] - tot["code_deleted"]),
+    ]
+    width = [len(c) for c in cols]
+    for row in lines + [total_row]:
+        for i, cell in enumerate(row):
+            width[i] = max(width[i], len(cell))
+
+    def render(row):
+        out = [row[0].ljust(width[0])]
+        out.extend(row[i].rjust(width[i]) for i in range(1, len(row)))
+        return "  ".join(out).rstrip()
+
+    print(render(cols))
+    print("  ".join("-" * w for w in width))
+    if not lines:
+        print("(no commits in range)")
+    for row in lines:
+        print(render(row))
+    print("  ".join("-" * w for w in width))
+    print(render(total_row))
+    print()
+    print("docs %s lines in %s files · code %s lines in %s files" % (
+        "{:,}".format(tot["doc_added"] + tot["doc_deleted"]), "{:,}".format(tot["doc_files"]),
+        "{:,}".format(tot["code_added"] + tot["code_deleted"]), "{:,}".format(tot["code_files"]),
+    ))
+    if tot["binary_files"]:
+        n = tot["binary_files"]
+        print("%s binary file change%s carr%s no line count and %s excluded."
+              % ("{:,}".format(n), "" if n == 1 else "s",
+                 "ies" if n == 1 else "y", "is" if n == 1 else "are"))
+
+
+def print_csv(buckets, opts):
+    import csv
+    w = csv.writer(sys.stdout)
+    w.writerow([opts["by"], "commits", "doc_added", "doc_deleted", "doc_files",
+                "code_added", "code_deleted", "code_files", "binary_files"])
+    for key, b in rows(buckets, opts):
+        w.writerow([key, b["commits"], b["doc_added"], b["doc_deleted"], b["doc_files"],
+                    b["code_added"], b["code_deleted"], b["code_files"], b["binary_files"]])
+
+
+def print_json(buckets, opts):
+    tot = totals(buckets)
+    payload = {
+        "group_by": opts["by"],
+        "rev": opts["rev"],
+        "days": opts["days"],
+        "since": opts["since"] or (
+            window_start(opts["days"]).isoformat() if opts["days"] else None),
+        "until": opts["until"],
+        "author": opts["author"],
+        "doc_ext": opts["doc_ext"],
+        "doc_globs": opts["doc_globs"],
+        "merges_included": opts["merges"],
+        "date_field": "committer" if opts["committer"] else "author",
+        "buckets": [dict(b, **{opts["by"]: key}) for key, b in rows(buckets, opts)],
+        "total": tot,
+    }
+    json.dump(payload, sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+
+
+def main(argv):
+    opts = parse_args(argv)
+    check = subprocess.run(["git", "rev-parse", "--git-dir"], cwd=opts["cwd"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if check.returncode != 0:
+        die("not inside a git repository%s"
+            % (" (%s)" % opts["cwd"] if opts["cwd"] else ""))
+    buckets = fill_window(collect(git_log(opts), opts), opts)
+    if opts["fmt"] == "csv":
+        print_csv(buckets, opts)
+    elif opts["fmt"] == "json":
+        print_json(buckets, opts)
+    else:
+        print_table(buckets, opts)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except BrokenPipeError:
+        sys.exit(0)
+    except KeyboardInterrupt:
+        sys.exit(130)

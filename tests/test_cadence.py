@@ -761,11 +761,17 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
             "> **Status**: active\n\n## Objective 1 — b\n\n"
             "| Id | KR text | Metric / Target | Linked overall KR |\n"
             "|---|---|---|---|\n| P002-O1-KR9 | new work | 1 | — |\n")
-        (d / "phase" / "001-linkage.md").write_text(
-            '---\nlinkage: 1\nphase: "001-old"\nobjectives:\n  - id: O1\n'
-            '    title: "a"\n    krs:\n      - id: P001-O1-KR1\n'
-            '        title: "old work"\n        metric: "1"\n        target: 1\n'
-            '        current: 1\n        stretch: false\n        tasks: []\n---\n')
+        # The scored phase's records. They were `phase/001-linkage.md` until
+        # ADR-019; one file holds every phase now, which is exactly why the
+        # per-phase rule this class is about had to keep working.
+        (d / "linkage.jsonl").write_text("".join(
+            json.dumps(r) + "\n" for r in (
+                {"kind": "objective", "phase": "001-old", "id": "O1",
+                 "title": "a"},
+                {"kind": "kr", "phase": "001-old", "objective": "O1",
+                 "id": "P001-O1-KR1", "title": "old work", "metric": "1",
+                 "target": 1, "current": 1, "stretch": False,
+                 "asserted_at": "2026-08-01T00:00:00Z"})))
         return d
 
     def rules(self, d):
@@ -793,10 +799,9 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
         every other module in the suite green.
         """
         d = self.project("002-new")
-        for name in ("001-old.md", "001-linkage.md"):
-            f = d / "phase" / name
-            f.write_text(f.read_text().replace("P001-O1-KR1",
-                                               "P-O1.1"))  # [[old-form]]
+        f = d / "phase" / "001-old.md"
+        f.write_text(f.read_text().replace("P001-O1-KR1",
+                                           "P-O1.1"))  # [[old-form]]
         rules = self.rules(d)
         self.assertIn("kr-id-legacy-form", rules)
         self.assertNotIn("kr-id-legacy-form", self.rules(self.project("002-new")),
@@ -807,7 +812,7 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
         import subprocess
         import sys
         d = self.project("002-new")
-        f = d / "phase" / "001-linkage.md"
+        f = d / "phase" / "001-old.md"
         f.write_text(f.read_text().replace("P001-O1-KR1",
                                            "P-O1.1"))  # [[old-form]]
         proc = subprocess.run(
@@ -817,7 +822,7 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
                 if x["rule"] == "kr-id-legacy-form"]
         self.assertEqual(len(hits), 1, hits)
         self.assertEqual(hits[0]["severity"], "error")
-        self.assertEqual(hits[0]["file"], "phase/001-linkage.md")
+        self.assertEqual(hits[0]["file"], "phase/001-old.md")
         self.assertIn("P-O1.1", hits[0]["message"])  # [[old-form]] echoed back
         self.assertIn("P001-O<n>-KR<n>", hits[0]["message"],
                       "the finding does not say what to write instead")
@@ -827,7 +832,7 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
         off. A registry naming a KR its OWN phase does not have is a real
         finding."""
         d = self.project("002-new")
-        p = d / "phase" / "001-linkage.md"
+        p = d / "linkage.jsonl"
         p.write_text(p.read_text().replace("P001-O1-KR1", "P001-O9-KR9"))
         self.assertIn("linkage-kr-exists", self.rules(d))
 
@@ -848,7 +853,7 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
         directly must not lose that.
         """
         d = self.project("002-new")
-        p = d / "phase" / "001-linkage.md"
+        p = d / "linkage.jsonl"
         # Objective `O1` is kept, so the objective-agreement half is SILENT and
         # only the phase half can produce the finding.
         p.write_text(p.read_text().replace("P001-O1-KR1", "P002-O1-KR1"))
@@ -861,7 +866,7 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
         import subprocess
         import sys
         d = self.project("002-new")
-        p = d / "phase" / "001-linkage.md"
+        p = d / "linkage.jsonl"
         p.write_text(p.read_text().replace("P001-O1-KR1", "P002-O1-KR1"))
         proc = subprocess.run(
             [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
@@ -870,7 +875,7 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
                 if x["rule"] == "linkage-kr-exists"
                 and "P002-O1-KR1" in x["message"]]
         self.assertEqual(len(hits), 1, hits)
-        self.assertEqual(hits[0]["file"], "phase/001-linkage.md")
+        self.assertEqual(hits[0]["file"], "linkage.jsonl")
         self.assertIn("001", hits[0]["message"],
                       "the finding does not name the phase whose register "
                       "this is")

@@ -50,6 +50,10 @@ def _load():
 sys.path.insert(0, str(ROOT / 'viewer'))
 import tables as T  # noqa: E402
 
+import config_store
+import inproc  # noqa: E402
+from config_store import track  # noqa: E402
+
 G = _load()
 GOALS = ROOT / "bin" / "perry-goals"
 
@@ -298,20 +302,20 @@ text
         self.assertEqual("ops/1", o.rows(lo, hi)[0][1]["id"])
 
 
-TRACKS = """# Perry configuration
-
-- Document language: English
-- Repo layout: single
-
-## Tracks
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| ops | queue | commitments | intake -> doing | — | 5d | weekly | V2 |
-| rel | pipeline | commitments | draft -> shipped | 3 | 10d | weekly | V3 |
-| bare | queue | commitments | intake -> doing | — |  | weekly | V2 |
-| main | project | okr | — | — | — | — | V2 |
-"""
+#: The fixture's track register. **Records, not a `## Tracks` table** — ADR-019
+#: deleted the file that table lived in, and a fixture still writing one
+#: declares nothing, so every `--track ops` below would be refused by name.
+#: `bare` is the queue track with no `sla`, which is what the missing-clock
+#: refusals are measured against.
+TRACKS = [
+    track("ops", "queue", spine="commitments", stages="intake -> doing",
+          sla="5d", cycle="weekly", default_rung="V2"),
+    track("rel", "pipeline", spine="commitments", stages="draft -> shipped",
+          wip="3", sla="10d", cycle="weekly", default_rung="V3"),
+    track("bare", "queue", spine="commitments", stages="intake -> doing",
+          cycle="weekly", default_rung="V2"),
+    track("main", "project", spine="okr", default_rung="V2"),
+]
 
 BARE_OKR = """# OKR — fixture
 
@@ -426,20 +430,32 @@ class Project:
     """A throwaway project root. Never the Perry repo — a previous agent ran a
     writer against it and the test writes landed in Perry's real board."""
 
-    def __init__(self, okr: str = BARE_OKR, tracks: str | None = TRACKS):
+    def __init__(self, okr: str = BARE_OKR, tracks: list[dict] | None = TRACKS,
+                 settings: dict[str, str] | None = None):
         self.dir = pathlib.Path(tempfile.mkdtemp(prefix="perry-goals-test-"))
         self.okr_path = self.dir / "OKR.md"
         self.okr_path.write_text(okr)
         (self.dir / ".perry").mkdir()
+        # `tracks=None` means "this project has never been configured", which
+        # is now the absence of `.perry/config.jsonl` rather than the absence
+        # of a markdown file. `tracks=[]` is the other thing — configured, and
+        # declaring no track — and the two take different branches in
+        # `perry-goals § tracks_of`.
         if tracks is not None:
-            (self.dir / ".perry" / "config.md").write_text(tracks)
+            config_store.write_config(self.dir, settings, tracks=tracks)
 
     def run(self, *argv, expect=None, **env):
-        e = dict(os.environ, PERRY_CONFORMANCE="advisory", PERRY_HOME=str(ROOT))
+        # **In-process, not a subprocess.** 194 calls from this module, and
+        # `perry-goals list` on a fixture is 67.2 ms as a child against 3.5 ms
+        # here — the boundary is 95% of it, because an extensionless script is
+        # recompiled on every invocation. The return shape is unchanged, so no
+        # call site below moved. `tests/inproc.py` carries what is and is not
+        # faithful about that swap, and TASK-402's evidence file carries the
+        # two modules where this was measured and was the WRONG instrument.
+        e = dict(PERRY_CONFORMANCE="advisory", PERRY_HOME=str(ROOT))
         e.update(env)
-        p = subprocess.run(
-            [sys.executable, str(GOALS), *argv, "--root", str(self.dir)],
-            capture_output=True, text=True, env=e)
+        p = inproc.run("perry-goals",
+                       [*argv, "--root", str(self.dir)], env=e)
         if expect is not None:
             assert p.returncode == expect, (p.returncode, p.stdout, p.stderr)
         return p
@@ -564,9 +580,7 @@ class TestCreatingTheSection(WriterCase):
         """`OKR_TEMPLATE.md` says to omit the section entirely on an
         all-`project` project. Creating it because someone typed `commit`
         would add a spine to a shape that has no use for one."""
-        only_project = TRACKS.replace("| ops | queue", "| ops | project") \
-                             .replace("| rel | pipeline", "| rel | project") \
-                             .replace("| bare | queue", "| bare | project")
+        only_project = [dict(r, mode="project") for r in TRACKS]
         p = self.project(BARE_OKR, only_project)
         before = p.text()
         r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
@@ -842,7 +856,7 @@ class TestDueIsTypedAndTheNoteIsNot(WriterCase):
         p = self.project()
         r = p.commit("--track", "bare", "--promise", "a", "--to", "x",
                      "--due", "3d", "--by-when-note", "within the track SLA", expect=1)
-        self.assertIn("no `SLA`", r.stderr)
+        self.assertIn("gives it no `sla`", r.stderr)
         self.assertNotIn("bare/1", p.text())
 
     def test_an_undeclared_track_is_refused(self):
@@ -883,14 +897,15 @@ class TestTheFileIsCheckedAndNotOnlyTheWriter(WriterCase):
     LINT = ROOT / "bin" / "perry-lint"
 
     def lint(self, due_header: str, cell: str, track: str = "main",
-             tracks: str = TRACKS) -> str:
+             tracks: list[dict] = TRACKS,
+             settings: dict[str, str] | None = None) -> str:
         proj = self.project(okr=(
             "# OKR v1\n\n## Objectives\n\n| ID | Objective |\n|---|---|\n"
             "| O1 | ship |\n\n## Commitments\n\n"
             f"| Id | Track | Promise | To whom | {due_header} | Status |\n"
             "|---|---|---|---|---|---|\n"
             f"| ops/1 | {track} | ship the thing | ops | {cell} | active |\n"),
-            tracks=tracks)
+            tracks=tracks, settings=settings)
         out = subprocess.run(
             [sys.executable, str(self.LINT), "--root", str(proj.dir)],
             capture_output=True, text=True)
@@ -987,31 +1002,44 @@ class TestTheFileIsCheckedAndNotOnlyTheWriter(WriterCase):
                                      f"{track_name}/{value!r}: writer={writer_ok}, "
                                      f"lint={reader_ok}")
 
-    def test_localized_track_headers_keep_writer_and_lint_in_parity(self):
-        tracks = ("# Perry configuration\n\n"
-                  "- Document language: 中文\n"
-                  "- Repo layout: single\n\n"
-                  "## 轨道\n\n"
-                  "| 轨道 | 模式 | 时限 |\n"
-                  "|---|---|---|\n"
-                  "| rel | pipeline | 10d |\n"
-                  "| bare | queue | |\n")
+    def test_a_chinese_project_keeps_writer_and_lint_in_parity(self):
+        """**The localized-HEADER half of this test went with ADR-019.**
+
+        It declared the same two tracks under `## 轨道` with `| 轨道 | 模式 |
+        时限 |`, and measured that the writer and the linter resolved those
+        spellings the same way. A store has no headers: a track is a record
+        whose fields are `mode` and `sla` in every language, so there is no
+        spelling left for the two to disagree about — `bin/perry-state §
+        track_columns`, which resolved them, is deleted.
+
+        What is left is the half that was never about the table, and it is the
+        half the cases below actually assert: on a project whose DOCUMENT
+        language is Chinese, `perry-goals commit` and `perry-lint` still agree
+        about a pipeline track's `Due` and a queue track with no clock.
+        """
+        tracks = [track("rel", "pipeline", sla="10d"),
+                  track("bare", "queue")]
+        settings = {"Document language": "中文", "Repo layout": "single"}
         cases = (("rel", "3d", "is `pipeline` mode",
                   "pipeline track requires"),
-                 ("bare", "2026-09-30", "gives it no `SLA`",
+                 ("bare", "2026-09-30", "gives it no `sla`",
                   "queue track has no declared clock"))
 
-        for track, due, writer_phrase, lint_phrase in cases:
-            with self.subTest(track=track, due=due):
-                proj = self.project(tracks=tracks)
+        # `track_name`, not `track`: the loop variable used to shadow nothing
+        # and now shadows `config_store.track`, the helper the fixture above is
+        # built from.
+        for track_name, due, writer_phrase, lint_phrase in cases:
+            with self.subTest(track=track_name, due=due):
+                proj = self.project(tracks=tracks, settings=settings)
                 before = proj.okr_path.read_bytes()
-                out = proj.commit("--track", track, "--promise", "ship",
+                out = proj.commit("--track", track_name, "--promise", "ship",
                                   "--to", "ops", "--due", due, expect=1)
                 self.assertIn(writer_phrase, out.stderr)
                 self.assertEqual(before, proj.okr_path.read_bytes())
                 self.assertEqual([], proj.events())
 
-                lint_out = self.lint("Due", due, track=track, tracks=tracks)
+                lint_out = self.lint("Due", due, track=track_name,
+                                     tracks=tracks, settings=settings)
                 self.assertIn("bad-typed-cell", lint_out)
                 self.assertIn(lint_phrase, lint_out)
 
@@ -1490,10 +1518,16 @@ class TestTheReadContractDidNotMove(unittest.TestCase):
     or retyped — which is the other half of the same rule: a payload that gains
     a key states that it did. TASK-205 moved it to `2.3` on the same terms:
     one key, `semantics`, and the version string edited in the same commit.
+    ADR-019 / TASK-155 moved it to `3.0` — a MAJOR, on rule 2's own
+    terms: `linkage.updated` was removed, and `2.x` may only add keys.
+    `2.0` set that precedent when it removed `progress`. The same version
+    also changed what three values under unmoved keys mean, which would
+    have been a minor on `2.2`'s reading and is recorded in
+    `LIST_SEMANTICS` so a consumer crossing the major is told both.
     """
 
     def test_the_version_is_unchanged(self):
-        self.assertEqual("perry-goals/list/2.3", G.LIST_CONTRACT)
+        self.assertEqual("perry-goals/list/3.0", G.LIST_CONTRACT)
 
     def test_the_contract_document_agrees(self):
         doc = (ROOT / "schema" / "goals-list-contract.md").read_text()
@@ -1784,10 +1818,8 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
            "| Id | Track | Promise | To whom | Due | Status | Discharged by |\n"
            "|---|---|---|---|---|---|---|\n"
            "| C-1 | ops | keep it up | Finance | 3d | active | — |\n")
-    TRACKS = ("\n## Tracks\n\n"
-              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-              "|---|---|---|---|---|---|---|---|\n"
-              "| ops | queue | OKR.md | new,triaged | — | 3d | — | V2 |\n")
+    TRACKS = [track("ops", "queue", spine="OKR.md", stages="new,triaged",
+                    sla="3d", default_rung="V2")]
 
     def project(self):
         return Project(okr=self.OKR, tracks=self.TRACKS)

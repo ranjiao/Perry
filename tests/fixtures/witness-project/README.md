@@ -13,7 +13,7 @@ and every entry they report here is **derived** from the files below:
 | collection | what in here produces it |
 |---|---|
 | `perry-decide` → `expired_sunsets` | `decisions/ADR-001-sunset-that-passed.md` is `active` with `Sunset: 2026-06-30` |
-| `perry-goals` → `krs[].current_staleness.moved_tasks` | `phase/001-linkage.md` asserts `current` at 2026-08-05; both linked rows moved on 2026-08-06 |
+| `perry-goals` → `krs[].current_staleness.moved_tasks` | `linkage.jsonl` asserts each KR's `current` at 2026-08-05 (`asserted_at`); both linked rows moved on 2026-08-06 |
 | `perry-task` → `conformance.depends_on_unknown` | `WIT-002` depends on `WIT-404`, an id no register here carries |
 | `perry-task` → `conformance.in_progress_with_no_live_run` | `WIT-001` is `in_progress`, holds no dispatch slot, and nothing has moved it since 2026-08-06 |
 | `perry-task` → `conformance.review_idle` | `WIT-003` has been in `review` since 2026-08-06 and nobody has ruled on it |
@@ -38,7 +38,7 @@ is a true statement about **this** project.
 
 - **Do not fix the findings.** They are the deliverable. `WIT-404` stays
   unresolved, `WIT-001` stays idle, `WIT-003` stays unreviewed, ADR-001 stays
-  `active` past its sunset, and `phase/001-linkage.md` keeps a date older than
+  `active` past its sunset, and `linkage.jsonl` keeps an `asserted_at` older than
   `.perry/events.jsonl`.
 - **`WIT-001`'s evidence cell was written into the store and the board by
   hand, on purpose, and no event was logged for it.** `perry-task evidence`
@@ -61,4 +61,4 @@ is a true statement about **this** project.
   unobservable. **Add the state, never the finding.**
 - A payload lists a collection's entry shape from its FIRST element, so a
   condition that only holds on `krs[3]` is not observable. That is why
-  `phase/001-linkage.md` registers the overall KR as well as the phase one.
+  `linkage.jsonl` registers the overall KR as well as the phase one.

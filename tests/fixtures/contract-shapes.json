@@ -33,7 +33,7 @@
     }
   },
   "perry-goals/list": {
-    "contract": "perry-goals/list/2.0",
+    "contract": "perry-goals/list/3.0",
     "shape": {
       "answered_by": "str",
       "conformance": "dict",
@@ -66,7 +66,6 @@
       "linkage.error": "str",
       "linkage.phase": "str",
       "linkage.present": "bool",
-      "linkage.updated": "str",
       "okr": "dict",
       "okr.anti_goals": "list",
       "okr.mission": "str",

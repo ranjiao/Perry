@@ -191,11 +191,31 @@ def line_count(path: Path) -> int:
         return 0
 
 
+#: Every file this tool reads, it reads about four times. Measured 2026-09-08
+#: on this repository: 2,791 `read_text` calls over 736 distinct files, 3.79
+#: each — 556 of them exactly four times, `schema/state-schema.json` nine and
+#: `perry/BOARD.md` eight. The phases each walk the corpus for their own
+#: reason and none of them knew another had just read the same bytes.
+#:
+#: A run is read-only and lasts seconds, so there is nothing to invalidate:
+#: the cache lives for one invocation and dies with the process. It is keyed
+#: on `(path, cap)` because `cap` truncates and two callers may disagree
+#: about it — keying on the path alone would serve a 400k caller a shorter
+#: string that an earlier, stricter caller had asked for.
+_TEXT_CACHE: dict[tuple[str, int], str] = {}
+
+
 def read_text(path: Path, cap: int = 400_000) -> str:
+    key = (str(path), cap)
+    hit = _TEXT_CACHE.get(key)
+    if hit is not None:
+        return hit
     try:
-        return path.read_text(encoding="utf-8", errors="replace")[:cap]
+        out = path.read_text(encoding="utf-8", errors="replace")[:cap]
     except OSError:
-        return ""
+        out = ""
+    _TEXT_CACHE[key] = out
+    return out
 
 
 def days_since_mtime(path: Path) -> int | None:
@@ -1136,6 +1156,12 @@ def scan_docs(root: Path, inventory: dict, tier0_paths: set[str],
         stems.setdefault(Path(d["path"]).name.lower(), []).append(d["path"])
 
     referenced: set[str] = set()
+    # `root.resolve()` is loop-invariant and used to sit inside the token loop
+    # below, which ran it once per token: 92,674 calls and 2.5 of the 8.6
+    # seconds `perry-diagnose --root .` took on this repository, profiled
+    # 2026-09-08. Hoisted, not cached — the value cannot change inside this
+    # function, so there is nothing to invalidate.
+    root_resolved = root.resolve()
     for d in docs:
         base = Path(d["path"]).parent
         toks: set[str] = set()
@@ -1150,7 +1176,7 @@ def scan_docs(root: Path, inventory: dict, tier0_paths: set[str],
             if not tok or tok.startswith(("http://", "https://")):
                 continue
             try:
-                resolved = str((base / tok).resolve().relative_to(root.resolve()))
+                resolved = str((base / tok).resolve().relative_to(root_resolved))
             except (ValueError, OSError):
                 resolved = None
             if resolved and resolved in by_path:
@@ -1615,11 +1641,6 @@ WHY = {
         "that label — so it will keep asking what is aging in review when the "
         "real question is what came in and never got answered, and the check "
         "that would have caught something never runs.",
-    "MODE-02":
-        "There are two copies of the track list — one Perry reads and one you "
-        "read — and they no longer say the same thing. Every tool answers "
-        "from the one you do not see, so the settings written in the table "
-        "you are looking at are not the settings anything is using.",
     "FIT-02":
         "This project is small enough that three files would cover it: the "
         "rules, what's true right now, and what you've decided. Anything "
@@ -1920,12 +1941,13 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     """Which of DESIGN-003's four shapes each track's work actually fits."""
     try:
         state = load_sibling("perry-state")
-        # The STORE first, `.perry/config.md` only when there is no store
-        # (P003-O2-KR1). Both halves matter here: a Perry-managed project's
-        # register is `.perry/config.jsonl` and the table is its projection,
-        # while a FOREIGN project — the ones this tool exists to read — has no
-        # store at all and the table is the register. `declared_tracks` is that
-        # one decision, made once.
+        # The STORE, and only the store (P003-O2-KR1, then ADR-019). This used
+        # to read `.perry/config.md` when there was none, which mattered for
+        # the FOREIGN projects this tool exists to read — they had no store and
+        # the rendered table was their register. They have neither now: a
+        # project with no `.perry/config.jsonl` declares no track and gets
+        # DESIGN-003's implicit `main`, which is what a foreign project without
+        # a `## Tracks` section always got.
         # **`_detail`, not the plain reader.** This is the FOURTH converted
         # call site, and the V4 round 2 review found it still falling back
         # silently while the other three had learned to say so: on a store
@@ -1938,20 +1960,19 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         # findings channel — so the provenance travels on the payload the same
         # way `perry-state` carries `tracks_source`.
         tracks, tracks_source = state.declared_tracks_detail(root)
-        # **The drift signal, so this reader is not the silent one.** The V4
-        # round 5 review measured `perry-diagnose` carrying `tracks_source`
-        # with no drift signal at all: on a table declaring `main` beside a
-        # trackless store it reported `store-default` / `['main']` with empty
-        # stderr while the other three warned or refused. Same function, same
-        # rule — `perry-lint`'s own comparison, asked once.
-        tracks_contradicted = state.tracks_the_register_contradicts(
-            root, tracks_source)
+        # **The drift signal that stood here is gone with its subject**
+        # (ADR-019). The V4 round 5 review had measured `perry-diagnose`
+        # carrying `tracks_source` with no drift signal at all, and
+        # `tracks_the_register_contradicts` was the answer; it compared the
+        # store against `.perry/config.md § Tracks`, and with that file deleted
+        # there is no second copy of the track list for the two to disagree
+        # about. `MODE-02` went with it.
     except Exception:
         # Reported absent rather than defaulted. A fallback here would make
         # every project read as one implicit `project` track, and MODE-01 would
         # go quiet instead of red.
         return {"available": False, "register_declared": False, "tracks": [],
-                "tracks_source": "unavailable", "tracks_contradicted": []}
+                "tracks_source": "unavailable"}
 
     aliases = column_aliases()
     board = read_text(state_root / "BOARD.md")
@@ -2186,9 +2207,6 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         # its projection — and on a store present-but-unusable the two give
         # different track lists. See the `_detail` call above.
         "tracks_source": tracks_source,
-        # Which declared rows that register CONTRADICTS. `MODE-02` is the
-        # finding; this is the machine-readable half, beside the label.
-        "tracks_contradicted": tracks_contradicted,
         "tracks": out,
     }
 
@@ -2227,7 +2245,7 @@ def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
             f"track `{t['track']}` is written down as `{t['declared_mode']}` "
             f"work and looks like `{t['mode']}` work",
             f"One of the two is wrong and only you can say which. Either "
-            f"change the `Mode` cell for `{t['track']}` in `.perry/config.md` "
+            f"change `mode` on `{t['track']}`'s record in `.perry/config.jsonl` "
             f"to `{t['mode']}`, or keep the label and fix what is on the board "
             f"to match it. Do not leave them disagreeing: the label is what "
             f"picks the review questions, so a wrong one asks about the wrong "
@@ -2235,24 +2253,12 @@ def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
             t["evidence"].get(t["mode"], [])[:6],
         ))
 
-    # The register and its table disagree about a row the table declares.
-    # Reported once for the file, not once per row: it is one hand edit or one
-    # interrupted write, and the rows are named in the detail.
-    _contradicted = (modes or {}).get("tracks_contradicted") or []
-    if _contradicted:
-        out.append(finding(
-            "MODE-02", "warn",
-            f"`.perry/config.md` and `.perry/config.jsonl` disagree about "
-            f"{', '.join(_contradicted)}",
-            f"Perry answers from `.perry/config.jsonl`, so what the table in "
-            f"`.perry/config.md` says about "
-            f"{', '.join(_contradicted)} is not in force. Pick the side that "
-            f"is right and make the other match it: `perry-config write "
-            f"--from-file` takes the table as correct, `perry-config render "
-            f"--write` takes the stored one as correct. `perry-lint` reports "
-            f"the same disagreement.",
-            [f"`{n}`" for n in _contradicted][:6],
-        ))
+    # `MODE-02` stood here: the register and its rendered table disagreeing
+    # about a row the table declared. ADR-019 deleted `.perry/config.md`, so
+    # there is one copy of the track list and no second side to disagree with
+    # it. The id is not reissued (ADR-013's rule for ADR ids, applied to
+    # findings for the same reason): a `MODE-02` in an old diagnosis must keep
+    # resolving to what it meant.
 
     # ── namespace ──
     # Stays `warn`, never `error`: a user may knowingly keep one file in a
@@ -2516,6 +2522,12 @@ def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
 
 
 def diagnose(root: Path, max_files: int) -> dict:
+    # **The cache is per RUN, not per process.** `read_text` memoises for the
+    # length of one diagnosis. A caller that imports this module and diagnoses
+    # twice would otherwise get the first run's bytes for a file the second run
+    # rewrote — and `tests/test_diagnose.load_bin_module` imports it exactly
+    # that way, so this is a live caller, not a hypothetical one.
+    _TEXT_CACHE.clear()
     state_root = lib.resolve_state_root(root)
     inv = walk(root, max_files)
     ctx = scan_context_load(root, inv)

@@ -11,19 +11,24 @@ did:
     viewer/parsers.py § resolve_state_root  `State root` — the one every other
                                             read is relative to
 
-**Every assertion here is built as a DIVERGENCE, and that is deliberate.** A
-fixture whose store and whose markdown agree cannot tell a store read from a
-markdown read: the answer is the same either way, and a test written on one
-passes against a reader that does neither of the things it claims. So every
-fixture below writes a `.perry/config.md` that says one thing and a
-`.perry/config.jsonl` that says another, and asserts the store's answer. Revert
-any of the three readers to its regex and the divergence flips the assertion.
+**Every assertion here was built as a DIVERGENCE, and ADR-019 removed the
+other side.** A fixture whose store and whose markdown agreed could not tell a
+store read from a markdown read — the answer is the same either way — so every
+fixture wrote a `.perry/config.md` saying one thing and a `.perry/config.jsonl`
+saying another, and asserted the store's answer. Reverting any of the three
+readers to its regex flipped it.
 
-The other half of the row is `perry-config render`, which could not rebuild
-`.perry/config.md` at all with the file absent — it printed `no
-.perry/config.md` and wrote nothing. `TestRenderRebuildsTheFileFromTheStore`
-is the guard on that, and `TestTheScaffoldIsCheckedNotTrusted` is the guard on
-the check that stops it writing a file that says less than the store does.
+`.perry/config.md` is deleted, so the instrument is gone and with it every
+test that could only be stated in terms of it: the `absent` fallbacks (the one
+branch P003-O2-KR1 excluded by name, because reading the markdown there was
+CORRECT), `configured`'s disjunction, and the two `perry-config render`
+classes that rebuilt the file from the store alone.
+
+**The fixture still writes a stray `.perry/config.md`, and that is the point.**
+It says `from-the-markdown` where the store says `from-the-store`, and every
+assertion below still names the store's value — so a reader that grew the
+regex back is caught by the VALUE, not by the absence of one. That is the same
+instrument, pointed at the only question left: is this file inert.
 
 Run: python3 tests/parallel test_config_store_readers
 """
@@ -122,7 +127,13 @@ def store_text(records) -> str:
 
 
 class Fixture(unittest.TestCase):
-    """A project whose two registers disagree about everything they both hold."""
+    """A project whose store says one thing and whose leftover file another.
+
+    `markdown=MD_SAYS` (the default) writes a pre-ADR-019 `.perry/config.md`
+    contradicting the store on every setting it carries. Nothing reads it; a
+    reader that did would answer `中文`, `split` and `from-the-markdown`, and
+    every assertion below names the store's value instead.
+    """
 
     def project(self, *, markdown: str | None = MD_SAYS,
                 store: str | None = None) -> pathlib.Path:
@@ -196,15 +207,10 @@ class TestParseConfigReadsTheStore(Fixture):
         """
         self.assertEqual(self.cfg(self.project())["code_repo"], "—")
 
-    def test_every_setting_still_resolves_with_no_markdown_at_all(self):
-        """V4 step 1. This is the sentence the row was filed on."""
-        cfg = self.cfg(self.project(markdown=None))
-        self.assertTrue(cfg["present"],
-                        "an absent markdown still reads as 'never configured'")
-        self.assertEqual(
-            [cfg["language"], cfg["chat_language"], cfg["layout"],
-             cfg["state_root"], cfg["pmo_repo"], cfg["code_repo"]],
-            ["English", "中文", "single", "from-the-store", "/store/pmo", "—"])
+    # `test_every_setting_still_resolves_with_no_markdown_at_all` was the
+    # half of `parse_config` that mattered while there were two registers: a
+    # store-only project must not report six empty strings. It is now what
+    # `test_every_setting_comes_from_the_store` asserts unconditionally.
 
     def test_the_source_says_which_register_answered(self):
         """`settings_source` travels with the settings, as `tracks_source` does.
@@ -217,38 +223,22 @@ class TestParseConfigReadsTheStore(Fixture):
         self.assertEqual(
             self.cfg(self.project(store=False))["settings_source"], "absent")
 
-    def test_a_project_with_no_store_still_reads_its_markdown(self):
-        """The adoption path, which `P003-O2-KR1` excludes by name.
-
-        There is no store, so the markdown IS the register and reading it is
-        correct. A conversion that broke this would break every project that
-        has never run `perry-config write --from-file`.
-        """
-        cfg = self.cfg(self.project(store=False))
-        self.assertEqual(cfg["language"], "Klingon")
-        self.assertEqual(cfg["state_root"], "from-the-markdown")
-        self.assertTrue(cfg["present"])
+    # `test_a_project_with_no_store_still_reads_its_markdown` stood here
+    # twice — once for the settings and once for the state root. It was the
+    # `absent` branch, the one fallback P003-O2-KR1 excluded by name because
+    # it was correct. ADR-019 removed the file it fell back TO, so a project
+    # with no store declares nothing and the settings are their defaults.
 
     def test_a_project_with_neither_register_is_the_one_that_is_not_configured(self):
         cfg = self.cfg(self.project(markdown=None, store=False))
         self.assertFalse(cfg["present"])
         self.assertEqual(cfg["language"], "")
 
-    def test_an_unusable_store_answers_from_the_markdown_and_says_so(self):
-        """A store present on disk and broken is not the adoption path.
-
-        The values come back from the projection because there is nothing else
-        to read, and `settings_source` is what stops a caller treating them as
-        the register's. The truncated trailing line is the shape an interrupted
-        write leaves.
-        """
-        broken = store_text(STORE_SETTINGS) + '{"kind": "setting", "key": "sta'
-        cfg = self.cfg(self.project(store=broken))
-        self.assertIn(cfg["settings_source"], P.CONFIG_STORE_UNUSABLE)
-        self.assertEqual(cfg["language"], "Klingon")
-
-
-
+    # `test_an_unusable_store_answers_from_the_markdown_and_says_so`
+    # asserted that a store present and unreadable answered from the
+    # markdown WITH a `settings_source` saying so, so a caller could tell.
+    # There is nothing to answer from; the source still says `unreadable`,
+    # which is asserted by `test_the_source_says_which_register_answered`.
 
 class TestTheStateRootReadsTheStore(Fixture):
     """`viewer/parsers.py § resolve_state_root` — the third reader.
@@ -259,20 +249,46 @@ class TestTheStateRootReadsTheStore(Fixture):
     file that has just been deleted.
     """
 
-    def test_the_store_wins_over_the_markdown(self):
-        d = self.project()
-        self.assertEqual(P.resolve_state_root(d), d / "from-the-store")
+    # `test_the_store_wins_over_the_markdown` and
+    # `test_it_still_resolves_with_no_markdown_at_all` were the two halves of
+    # "the store is FIRST". With one register neither half has content;
+    # `test_a_project_with_neither_register_is_rooted_at_itself` below is the
+    # case that still distinguishes something.
 
-    def test_it_still_resolves_with_no_markdown_at_all(self):
-        d = self.project(markdown=None)
-        self.assertEqual(P.resolve_state_root(d), d / "from-the-store")
-
-    def test_a_project_with_no_store_still_reads_its_markdown(self):
-        d = self.project(store=False)
-        self.assertEqual(P.resolve_state_root(d), d / "from-the-markdown")
+    # `test_a_project_with_no_store_still_reads_its_markdown` stood here for
+    # the state root, as it did for the settings above. A project with no
+    # store declares no state root, and the code fallback — the project root
+    # — is what it always was.
 
     def test_a_project_with_neither_register_is_rooted_at_itself(self):
         d = self.project(markdown=None, store=False)
+        self.assertEqual(P.resolve_state_root(d), d)
+
+    def test_a_markdown_only_project_declares_no_state_root(self):
+        """**The markdown-only project — found green by mutation, 2026-09-08.**
+
+        Every other case in this module has a store, so a fallback added back
+        to `declared_state_root` never runs and every assertion stays true.
+        Measured: re-inserting the `- State root:` regex over
+        `.perry/config.md` for the no-store branch passed the WHOLE suite —
+        3390 tests, 3 known reds, none of them this.
+
+        This is the case that distinguishes it, and it is the one shape the
+        module's own docstring says it exists for: `.perry/config.md` present
+        and inert. `MD_SAYS` declares `from-the-markdown` and the fixture
+        creates that directory, so a reader that grew the regex back would
+        resolve to it — the assertion is caught by the VALUE, not by the
+        absence of one.
+        """
+        d = self.project(markdown=MD_SAYS, store=False)
+        self.assertTrue((d / ".perry" / "config.md").exists())
+        self.assertTrue((d / "from-the-markdown").is_dir(),
+                        "the fixture no longer offers the markdown's state "
+                        "root as a real directory, so a reader that read it "
+                        "would be turned back by the escape guard instead")
+        value, why = P.declared_state_root(d)
+        self.assertEqual(value, "")
+        self.assertEqual(why, P.CONFIG_STORE_ABSENT)
         self.assertEqual(P.resolve_state_root(d), d)
 
     def test_a_stored_state_root_outside_the_project_is_still_refused(self):
@@ -307,11 +323,49 @@ class TestAStoreAloneIsAConfiguredProject(Fixture):
     def test_a_store_with_no_markdown_is_configured(self):
         self.assertTrue(P.configured(self.bare(markdown=None, store=None)))
 
-    def test_a_markdown_with_no_store_is_configured(self):
-        self.assertTrue(P.configured(self.bare(markdown=MD_SAYS, store=False)))
+    # `test_a_markdown_with_no_store_is_configured` and
+    # `test_the_markdown_alone_still_counts` asserted the other half of
+    # `configured`'s disjunction. There is no disjunction: a project is
+    # configured when `.perry/config.jsonl` is there.
 
     def test_neither_is_not(self):
         self.assertFalse(P.configured(self.bare(markdown=None, store=False)))
+
+    def test_a_markdown_only_project_is_not_configured(self):
+        """**The half the removed disjunction left unmeasured.**
+
+        The two deleted cases above asserted `configured` answered TRUE for a
+        markdown-only project. Deleting them left NO case where the markdown
+        is present and the store is not, so the disjunction the comment above
+        says is gone could be put straight back: measured 2026-09-08, `or
+        (root / ".perry" / "config.md").exists()` in `viewer/parsers.py §
+        configured` passed the whole suite.
+
+        `bare` removes `BOARD.md` and `OKR.md` for the reason its docstring
+        gives — every caller ORs this predicate with those, and a fixture
+        carrying one answers True whatever this does.
+        """
+        d = self.bare(markdown=MD_SAYS, store=False)
+        self.assertTrue((d / ".perry" / "config.md").exists(),
+                        "the fixture writes no markdown, so this case is the "
+                        "same one as `test_neither_is_not`")
+        self.assertFalse(P.configured(d))
+
+    def test_a_markdown_only_project_declares_no_tracks(self):
+        """`bin/perry-goals § tracks_of`, the third reader with the same gap.
+
+        Its empty list is what `track_named` turns into "this project declares
+        no tracks", so widening the gate to accept a leftover `.perry/config.md`
+        makes `--track main` succeed on a project that never configured Perry.
+        Measured green the same day and by the same method.
+
+        `MD_SAYS` carries a `## Tracks` table declaring `main`, so the table is
+        there to be read and the assertion is that nothing read it.
+        """
+        goals = load_bin_module("perry-goals")
+        d = self.project(markdown=MD_SAYS, store=False)
+        self.assertIn("## Tracks", (d / ".perry" / "config.md").read_text())
+        self.assertEqual(goals.tracks_of(d), [])
 
     def test_the_linter_calls_a_store_only_project_adopted(self):
         """`is_adopted` gates every "this file is missing" finding.
@@ -416,12 +470,6 @@ class TestPerryStateAsksItToo(Fixture):
             "No Perry state found — run /perry for first-time setup.",
             payload.get("warnings") or [],
             "the exact string this row was filed to remove, still printed")
-
-    def test_the_markdown_alone_still_counts(self):
-        """The control. Neither site may become "store only"."""
-        d = self.bare(markdown=MD_SAYS, store=False)
-        self.assertTrue(run_state("--root", str(d), cwd=ROOT)["installed"])
-
 
 def run_diagnose(root: pathlib.Path) -> dict:
     """`bin/perry-diagnose --root <p> --json`, out of process, as shipped.
@@ -641,267 +689,35 @@ def run_config(*args, root: pathlib.Path):
         capture_output=True, text=True, cwd=str(ROOT))
 
 
-class TestRenderRebuildsTheFileFromTheStore(unittest.TestCase):
-    """V4 step 2: delete the file, rebuild it, compare the bytes.
-
-    Run on a COPY of Perry's own `.perry/` rather than on a synthetic fixture,
-    because the file this row is about is that one, and a fixture written to
-    match the scaffold would be comparing the scaffold with itself.
-    """
-
-    def project(self) -> tuple[pathlib.Path, str]:
-        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-config-render-"))
-        self.addCleanup(__import__("shutil").rmtree, d, ignore_errors=True)
-        (d / ".perry").mkdir()
-        original = (ROOT / ".perry" / "config.md").read_text(encoding="utf-8")
-        (d / ".perry" / "config.md").write_text(original, encoding="utf-8")
-        (d / ".perry" / "config.jsonl").write_text(
-            (ROOT / ".perry" / "config.jsonl").read_text(encoding="utf-8"),
-            encoding="utf-8")
-        # `State root: perry` — the lock and every path resolve through it.
-        (d / "perry").mkdir()
-        return d, original
-
-    def test_the_rebuilt_file_is_byte_identical_to_the_deleted_one(self):
-        d, original = self.project()
-        (d / ".perry" / "config.md").unlink()
-        out = run_config("render", "--write", root=d)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertEqual((d / ".perry" / "config.md").read_text(
-            encoding="utf-8"), original)
-
-    def test_it_is_the_store_that_is_being_read_and_not_a_leftover_file(self):
-        """Anti-vacuity. Move one stored value and the rebuild moves with it.
-
-        Without this, the test above passes against a renderer that recovered
-        the file from a backup, a temp copy, or anything else that is not the
-        store.
-        """
-        d, original = self.project()
-        store = d / ".perry" / "config.jsonl"
-        store.write_text(store.read_text(encoding="utf-8").replace(
-            '"value": "single"', '"value": "split"'), encoding="utf-8")
-        (d / ".perry" / "config.md").unlink()
-        self.assertEqual(run_config("render", "--write", root=d).returncode, 0)
-        rebuilt = (d / ".perry" / "config.md").read_text(encoding="utf-8")
-        self.assertIn("- Repo layout: split", rebuilt)
-        self.assertNotEqual(rebuilt, original)
-
-    def test_render_to_stdout_needs_no_file_either(self):
-        d, original = self.project()
-        (d / ".perry" / "config.md").unlink()
-        out = run_config("render", root=d)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(out.stdout, original)
-        self.assertFalse((d / ".perry" / "config.md").exists(),
-                         "`render` without `--write` wrote a file")
-
-    def test_it_returns_non_zero_when_there_is_no_store_to_rebuild_from(self):
-        """*"returns non-zero when it cannot"*, on the case that matters most.
-
-        Rendering a file from a store built out of that same file proves
-        nothing, and with neither on disk there is nothing to render at all.
-        """
-        d, _original = self.project()
-        (d / ".perry" / "config.md").unlink()
-        (d / ".perry" / "config.jsonl").unlink()
-        out = run_config("render", "--write", root=d)
-        self.assertNotEqual(out.returncode, 0)
-        self.assertFalse((d / ".perry" / "config.md").exists())
-
-    def test_it_returns_non_zero_on_a_store_it_cannot_read(self):
-        """A truncated trailing line — the shape an interrupted write leaves.
-
-        Refused in `load_store`, which never reaches validation. The next test
-        is the OTHER branch, and the two are separate cases because a first
-        draft of this one had them confused: a mutation that disabled the
-        validation branch left this test green, so it was guarding the JSON
-        decode and nothing else.
-        """
-        d, _original = self.project()
-        store = d / ".perry" / "config.jsonl"
-        store.write_text(store.read_text(encoding="utf-8")
-                         + '{"kind": "setting", "key": "sta',
-                         encoding="utf-8")
-        (d / ".perry" / "config.md").unlink()
-        out = run_config("render", "--write", root=d)
-        blob = out.stdout + out.stderr
-        self.assertNotEqual(out.returncode, 0, blob)
-        # **A refusal, not a crash**, and `assertNotEqual(rc, 0)` alone cannot
-        # tell those apart: a traceback also exits non-zero. Narrowing the
-        # `except` clause in `main` left this test green until it said so.
-        self.assertIn("store is not readable JSONL", blob)
-        self.assertNotIn("Traceback (most recent call last)", blob)
-        self.assertFalse((d / ".perry" / "config.md").exists())
-
-    def test_it_returns_non_zero_on_a_store_that_does_not_validate(self):
-        """Well-formed JSONL that `validate_records` rejects.
-
-        A duplicate key, which is what two `- State root:` bullets in one file
-        mint. It parses, so `load_store` is happy; the findings branch is the
-        one that has to refuse.
-        """
-        d, _original = self.project()
-        store = d / ".perry" / "config.jsonl"
-        store.write_text(store.read_text(encoding="utf-8")
-                         + json.dumps({"kind": "setting", "key": "state_root",
-                                       "label": "State root",
-                                       "value": "elsewhere", "order": 99},
-                                      ensure_ascii=False) + "\n",
-                         encoding="utf-8")
-        (d / ".perry" / "config.md").unlink()
-        out = run_config("render", "--write", root=d)
-        self.assertNotEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("store_findings", out.stdout + out.stderr)
-        self.assertFalse((d / ".perry" / "config.md").exists())
-
-    def test_okr_has_no_scaffold_and_still_refuses(self):
-        """`OKR.md` is mostly mission, principles and narrative.
-
-        A scaffold there would emit a KR table under headings the store has no
-        record of — a file that looks like an `OKR.md` and asserts nothing the
-        project wrote. `perry-okr render` with no file refuses and says so.
-        """
-        self.assertIsNone(M.OKR.scaffold)
-        d, _original = self.project()
-        (d / "perry" / "okr.jsonl").write_text(
-            json.dumps({"kind": "kr", "version": "v1", "objective": "O1",
-                        "id": "KR1", "text": "t", "metric": "m",
-                        "stretch": "", "deadline": "", "linked": "",
-                        "qualifier": "", "form": "table", "order": 0},
-                       ensure_ascii=False) + "\n", encoding="utf-8")
-        out = subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-okr"), "render",
-             "--write", "--root", str(d)],
-            capture_output=True, text=True, cwd=str(ROOT))
-        self.assertNotEqual(out.returncode, 0)
-        self.assertFalse((d / "perry" / "OKR.md").exists())
+# `TestRenderRebuildsTheFileFromTheStore` was TASK-233's V4 step 2:
+# delete `.perry/config.md`, run `perry-config render --write`, compare
+# the bytes. It proved the projection was recoverable from the store —
+# the promise `reference/config.md § Prose in this file is layout` made a
+# user, and the reason deleting the file was ever safe.
+#
+# **ADR-019 collects on that promise rather than breaking it.** The store
+# holds every setting and every track; what the render put back was those
+# values plus a fixed shape. There is no destination now, `scaffold_config`
+# is deleted, and `perry-config render` with it. `TestTheScaffoldIsChecked
+# NotTrusted` below went the same way: it round-tripped the scaffold
+# through the scanner so a rebuild could not silently say less than the
+# store did.
 
 
-class TestTheScaffoldIsCheckedNotTrusted(unittest.TestCase):
-    """The round trip that makes the rebuild a guard rather than a second
-    renderer.
-
-    `scaffold_config` is written independently of `scan_config` and
-    `render_lines`. `main` renders its output back through those and refuses
-    unless the bytes are unchanged and every record found a line — so a
-    scaffold that emitted the table's columns in the wrong order, or that could
-    not express a record, refuses instead of writing a file that silently says
-    less than the store does.
-    """
-
-    def project(self) -> pathlib.Path:
-        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-config-scaffold-"))
-        self.addCleanup(__import__("shutil").rmtree, d, ignore_errors=True)
-        (d / ".perry").mkdir()
-        (d / ".perry" / "config.jsonl").write_text(
-            store_text(STORE_SETTINGS + STORE_TRACKS), encoding="utf-8")
-        (d / "from-the-store").mkdir()
-        return d
-
-    def broken(self, doc_scaffold):
-        return M.Doc("config", pathlib.Path(".perry") / "config.md",
-                     pathlib.Path(".perry") / "config.jsonl", M.scan_config,
-                     under_state_root=False, scaffold=doc_scaffold)
-
-    def test_a_scaffold_that_drops_a_record_refuses(self):
-        d = self.project()
-        doc = self.broken(lambda records: M.scaffold_config(
-            [r for r in records if r.get("track") != "intake"]))
-        rc = M.main(doc, ["render", "--write", "--root", str(d)])
-        self.assertEqual(rc, 2)
-        self.assertFalse((d / ".perry" / "config.md").exists())
-
-    def test_a_scaffold_whose_bytes_do_not_round_trip_refuses(self):
-        """A table written with its columns swapped.
-
-        The scanner maps cells by header name, so the renderer puts each stored
-        value back under its own column and the bytes move. Nothing else in the
-        tool notices; this check does.
-        """
-        d = self.project()
-
-        def swapped(records):
-            text = M.scaffold_config(records)
-            return text.replace("| Track | Mode |", "| Mode | Track |")
-
-        rc = M.main(self.broken(swapped), ["render", "--write", "--root",
-                                           str(d)])
-        self.assertEqual(rc, 2)
-        self.assertFalse((d / ".perry" / "config.md").exists())
-
-    def test_a_setting_record_with_no_label_refuses(self):
-        """The label IS the line, and `setting_key` is a lossy squash of it.
-
-        `PMO repo path` and `pmo repo path` mint the same key, so rebuilding a
-        label from a key would guess at the user's own capitalisation.
-        """
-        d = self.project()
-        store = d / ".perry" / "config.jsonl"
-        store.write_text(store.read_text(encoding="utf-8").replace(
-            '"label": "Repo layout"', '"label": ""'), encoding="utf-8")
-        out = run_config("render", "--write", root=d)
-        self.assertNotEqual(out.returncode, 0)
-        self.assertFalse((d / ".perry" / "config.md").exists())
-
-    def test_a_store_with_no_track_record_writes_no_tracks_section(self):
-        """DESIGN-003 reads an absent `## Tracks` as one implicit `main`.
-
-        An empty table would state something the store does not.
-        """
-        text = M.scaffold_config(STORE_SETTINGS)
-        self.assertNotIn("## Tracks", text)
-        self.assertIn("- Repo layout: single", text)
-
-
-class TestTheProseHasADeclaredHome(unittest.TestCase):
-    """Deliverable 3, and the reason the byte comparison above can be exact.
-
-    `.perry/config.md` carried 29 lines the store has no field for. They are in
-    `.perry/hook.md § Configuration notes` now — tier 1, read at every standup,
-    and rendered from nothing, so a render cannot destroy them and a deletion
-    cannot lose them. `reference/config.md` states the general rule.
-    """
-
-    #: One sentence from each of the two relocated sections. Long enough to be
-    #: unambiguous, short enough to survive a reflow.
-    MOVED = ("carries the work that ARRIVES",
-             "would make Perry claim")
-
-    def test_the_relocated_prose_is_in_the_hook(self):
-        hook = (ROOT / ".perry" / "hook.md").read_text(encoding="utf-8")
-        for sentence in self.MOVED:
-            self.assertIn(sentence, hook)
-
-    def test_it_is_not_still_in_the_projection_as_well(self):
-        """One place per fact (DESIGN-013 § 5.1), applied to the prose too.
-
-        Left in both, the copy in `.perry/config.md` is the one a render
-        deletes, and a reader would then have two versions of the same
-        explanation with no way to tell which was current.
-        """
-        cfg = (ROOT / ".perry" / "config.md").read_text(encoding="utf-8")
-        for sentence in self.MOVED:
-            self.assertNotIn(sentence, cfg)
-
-    def test_the_general_rule_names_the_home(self):
-        ref = (ROOT / "reference" / "config.md").read_text(encoding="utf-8")
-        self.assertIn("Prose in this file is layout", ref)
-        self.assertIn(".perry/hook.md", ref)
-
-    def test_perrys_own_config_round_trips(self):
-        """The consequence, asserted on this repo's real file.
-
-        With the prose moved out, `.perry/config.md` is exactly what the store
-        renders — so a deletion of it is recoverable in full rather than in
-        part. This is the assertion that goes red if prose comes back into the
-        file, which is the moment the recovery stops being complete.
-        """
-        text = (ROOT / ".perry" / "config.md").read_text(encoding="utf-8")
-        records, findings = M.validate_records(
-            M.load_store(ROOT / ".perry" / "config.jsonl"))
-        self.assertEqual(findings, [])
-        self.assertEqual(M.scaffold_config(records), text)
+# `TestTheProseHasADeclaredHome` asserted deliverable 3 of TASK-233:
+# Perry's own two configuration notes had moved out of `.perry/config.md`
+# and into `.perry/hook.md`, were not left in both, and that
+# `reference/config.md` stated the general rule. The move is what made
+# the byte comparison above exact.
+#
+# It is the one class here whose subject ADR-019 makes permanent rather
+# than moot: prose was never storable, and the file that could hold it is
+# gone, so `.perry/hook.md` is not merely the recommended home but the
+# only one. What the class measured — "not in the projection as well" —
+# cannot be false. The rule itself is still asserted, in
+# `tests/test_spec_scannability.py`'s reading of `reference/config.md`
+# and by `tests/fixtures/second-project`, whose nine screens of dispatch
+# rules now live in that fixture's own hook.
 
 
 if __name__ == "__main__":

@@ -51,11 +51,38 @@ STORE_KEY = "linkage.jsonl"
 #: reads the schema to check the schema asserts only that JSON round-trips.
 #: The design is locked, so this list is a fixed target: if it and the schema
 #: disagree, one of them is wrong and the round has to say which.
+#: The record shapes, and where each field came from.
+#:
+#: DESIGN-015 § 5.1 spelled three kinds; ADR-019 added three more and four
+#: fields, because it deleted `phase/<NNN>-linkage.md` and every fact that
+#: file's frontmatter carried had to be declared here or lost. The additions
+#: are listed apart from § 5.1's set so the two authorities stay separable —
+#: a later reader can see which line came from which decision.
 DESIGN_015_5_1 = {
     "kr": {"kind", "phase", "objective", "id", "title", "target", "current",
            "stretch", "linked", "current_provenance"},
     "edge": {"kind", "task", "kr", "declared_at", "actor", "via"},
     "unlinked": {"kind", "task", "declared_at", "actor", "via"},
+}
+
+ADR_019 = {
+    #: `metric` and `due` were the document's; `asserted_at` never existed
+    #: anywhere and is TASK-155's fix.
+    "kr": {"metric", "due", "asserted_at"},
+    "edge": set(),
+    #: WHICH PHASE'S BOARD the declaration was made against. § 5.1 gave the
+    #: record no phase field on the ground that "this row serves no KR" is a
+    #: statement about the row — true while the store covered one phase.
+    "unlinked": {"phase"},
+    "objective": {"kind", "phase", "id", "title"},
+    "project": {"kind", "phase", "id", "kr", "name", "aliases", "status",
+                "declared_at", "actor", "via"},
+    "agent": {"kind", "phase", "id", "task", "declared_at", "actor", "via"},
+}
+
+EXPECTED = {
+    kind: DESIGN_015_5_1.get(kind, set()) | ADR_019.get(kind, set())
+    for kind in set(DESIGN_015_5_1) | set(ADR_019)
 }
 
 
@@ -172,8 +199,18 @@ class TestTheThreeRecordSchemas(unittest.TestCase):
             "LINE of it must contain, so row B has nothing to validate an "
             "import against")
 
-    def test_there_are_exactly_three_kinds(self):
-        self.assertEqual(set(declared()["records"]), set(DESIGN_015_5_1))
+    def test_the_kinds_are_exactly_the_declared_ones(self):
+        """Three from DESIGN-015 § 5.1, three from ADR-019 — and no seventh.
+
+        A `kind` nothing writes is a shape a reader will one day be surprised
+        not to find, and a kind written but not declared is a record
+        `perry-lint` reports as malformed on every run.
+        """
+        self.assertEqual(set(declared()["records"]), set(EXPECTED))
+        self.assertEqual(set(EXPECTED) - set(DESIGN_015_5_1),
+                         {"objective", "project", "agent"},
+                         "ADR-019 added exactly the three kinds the deleted "
+                         "document was the only home for")
 
     def test_there_is_no_fourth_kind(self):
         """§ 5.2 — never-asked is DERIVED, not stored.
@@ -187,24 +224,70 @@ class TestTheThreeRecordSchemas(unittest.TestCase):
         self.assertNotIn("never_asked", declared()["records"])
         self.assertNotIn("never-asked", declared()["records"])
 
-    def test_each_kind_carries_exactly_the_fields_design_015_spells(self):
-        for kind, want in DESIGN_015_5_1.items():
+    def test_each_kind_carries_exactly_the_fields_declared_for_it(self):
+        for kind, want in EXPECTED.items():
             with self.subTest(kind=kind):
                 got = set(declared()["records"][kind]["fields"])
                 self.assertEqual(
                     got, want,
                     f"`{kind}` record: schema has {sorted(got)}, "
-                    f"DESIGN-015 § 5.1 spells {sorted(want)}")
+                    f"§ 5.1 + ADR-019 spell {sorted(want)}")
 
-    def test_metric_is_absent_from_the_kr_record(self):
-        """Decision 2, and the reason the store is not just the file again.
+    def test_metric_is_on_the_kr_record_and_that_reverses_decision_2(self):
+        """DESIGN-015 decision 2 said a `metric:` value is an argument about
+        how a number was reached — 976 B of it in one case, 43% of the
+        register by bytes — and that arguments are what a document is for. It
+        named `phase/<NNN>-linkage.md` as the document.
 
-        A `metric:` value is an argument about how a number was reached — 976 B
-        of it in one case, 43% of the register by bytes. Arguments are what a
-        document is for. Keeping it here would reproduce `DESIGN-013 § 5.1`'s
-        second violation inside the store built to remove the first.
+        **ADR-019 deleted that document**, so the choice stopped being "store
+        or document" and became "store or lose it". This asserts the reversal
+        explicitly rather than letting the field appear in a set, because a
+        locked design decision reversing is the kind of thing a reader must
+        be able to find by grep.
         """
-        self.assertNotIn("metric", declared()["records"]["kr"]["fields"])
+        fields = declared()["records"]["kr"]["fields"]
+        self.assertIn("metric", fields)
+        self.assertFalse(fields["metric"].get("required"),
+                         "a KR measured in a bare number has no argument to "
+                         "make, and requiring one would invent prose")
+        self.assertIn("ADR-019", fields["metric"].get("note", ""),
+                      "the field must carry the reason it reverses a locked "
+                      "decision, or the next reader re-argues decision 2")
+
+    def test_asserted_at_is_per_kr_and_optional(self):
+        """TASK-155's fix, as a shape.
+
+        The defect: `phase/<NNN>-linkage.md` carried ONE `updated:` stamp,
+        `bin/lib § kr_progress_provenance` read it as every KR's assertion
+        date, and appending one edge re-dated every asserted number in the
+        phase. The field is per KR now.
+
+        **OPTIONAL, and that is the load-bearing half.** Required would force
+        every writer to supply a date, and the only date a writer that did not
+        measure the number can supply is `now` — which is the same defect with
+        a different spelling. `""` has to stay sayable, because "nobody
+        recorded when" is a fact.
+        """
+        spec = declared()["records"]["kr"]["fields"]["asserted_at"]
+        self.assertEqual(spec["type"], "string")
+        self.assertFalse(spec.get("required"))
+        self.assertEqual(spec.get("format"), "iso-datetime")
+        self.assertIn("TASK-155", spec.get("note", ""))
+
+    def test_an_unlinked_declaration_names_its_phase(self):
+        """§ 5.1 gave it none, deliberately, and ADR-019 had to add one.
+
+        The old argument was sound while the store held one phase: "this row
+        serves no KR" is a statement about the row. The store holds every
+        phase now — three on this project — and
+        `parsers.linkage_records_for_phase` handed the WHOLE unlinked set to
+        whichever phase was asked, so phase 001's 23 declarations would have
+        counted against phase 003's board.
+        """
+        spec = declared()["records"]["unlinked"]["fields"]["phase"]
+        self.assertTrue(spec.get("required"))
+        self.assertIn("5.1", spec.get("note", ""),
+                      "the note must name the decision it reverses")
 
     def test_tasks_is_absent_from_the_kr_record(self):
         """One edge, one record — the whole point of the store.
@@ -285,14 +368,24 @@ class TestTheCensusCountsIt(StoreFixture):
     def test_the_census_prints_a_line_for_the_seventh_store(self):
         self.assertTrue(self.linkage_line(self.project()))
 
-    def test_the_typed_payload_carries_the_same_four_keys_as_the_other_six(self):
-        """One shape seven times, not seven shapes."""
+    def test_the_typed_payload_reports_records_and_shape_not_drift(self):
+        """**This store's payload key is `linkage_store`, not
+        `linkage_store_drift`, and the difference is ADR-019's whole claim.**
+
+        The other six stores project from a markdown document and can disagree
+        with it, so each carries a `drifted` count. This one projected from
+        `phase/<NNN>-linkage.md` and did too — it reported `1 row(s) drifted`
+        on this project, on `P003-O3-KR2`, the day the ADR was written. The
+        document is deleted, so a `drifted` key here could only ever be zero,
+        and a consumer reading zero would take it for a check that passed.
+        Renaming rather than keeping it at `0` is what makes the absence
+        visible to a reader instead of reassuring.
+        """
         payload = self.payload(self.project())
-        self.assertIn("linkage_store_drift", payload)
-        self.assertEqual(
-            set(payload["linkage_store_drift"]),
-            set(payload["ask_store_drift"]),
-            "a reader of --json must meet one store-drift shape, not two")
+        self.assertNotIn("linkage_store_drift", payload)
+        self.assertEqual(set(payload["linkage_store"]),
+                         {"store_present", "records", "malformed"})
+        self.assertNotIn("drifted", payload["linkage_store"])
 
     def test_the_records_it_counts_are_the_ones_the_schema_declares(self):
         """The declaration is load-bearing: a bad record is a finding.
@@ -312,25 +405,28 @@ class TestTheCensusCountsIt(StoreFixture):
                           "actor": "Coding Agent", "via": "swept-in"}) + "\n",
             encoding="utf-8")
         payload = self.payload(root)
-        self.assertEqual(payload["linkage_store_drift"]["records"], 1,
+        self.assertEqual(payload["linkage_store"]["records"], 1,
                          "the record with an undeclared `via` was counted")
+        self.assertEqual(payload["linkage_store"]["malformed"], 1)
         codes = [f["rule"] for f in payload["findings"]]
         self.assertIn("linkage-store-malformed", codes)
 
 
 class TestNoRecordsIsNeverClean(StoreFixture):
-    """`P003-O1-KR3`'s rule, reaching the seventh store on day one.
+    """`P003-O1-KR3`'s rule, and what is left of it once drift cannot occur.
 
     The rule is that a store reports `unchecked` rather than `clean` when its
     file is absent — 6 of 6, measured by TASK-229 by removing each store in
     turn. A seventh that reported `clean` with nothing behind it would be the
-    census asserting a register is in order at the moment it holds nothing,
-    which is the same class of defect as a green gate on a false premise.
+    census asserting a register is in order at the moment it holds nothing.
 
-    Two states are pinned, because this row creates BOTH. The file is absent
-    until DESIGN-015 row B imports it; and from row B until row C moves the
-    readers, the file exists while nothing compares it to the document the
-    edges still live in. Neither state is `clean`.
+    **The second state this class used to pin is gone with its cause.** It
+    was "records present but nothing compared them yet" — the window between
+    DESIGN-015 row B filling the store and row C moving the readers, where the
+    line read `121 valid record(s), comparison incomplete`. There is no
+    comparison to be incomplete: ADR-019 deleted the document, so the line
+    reports what can still be true or false, which is how many records there
+    are and how many of them match a declared shape.
     """
 
     def line(self, root: pathlib.Path) -> str:
@@ -346,60 +442,57 @@ class TestNoRecordsIsNeverClean(StoreFixture):
         root = self.project()
         self.assertFalse((root / "perry" / STORE_KEY).exists())
         line = self.line(root)
-        # The WHOLE sentence, not its last two words. A mutation that
-        # dropped "drift against the" left an earlier version of this test
-        # green: the line still ended "is unchecked, not clean" while no
-        # longer saying what was unchecked or against which store. Pinning
-        # only the suffix pins the reassurance and not the content.
-        self.assertIn(
-            "drift against the linkage store is unchecked, not clean", line)
+        # The WHOLE sentence, not its last two words. A mutation that dropped
+        # "the linkage store" left an earlier version of this test green: the
+        # line still ended "is unchecked, not clean" while no longer saying
+        # what was unchecked. Pinning only the suffix pins the reassurance and
+        # not the content.
+        self.assertIn("the linkage store is unchecked, not clean", line)
 
     def test_with_the_file_absent_the_line_never_says_drifted(self):
         """"Unchecked" and "0 drifted" are different answers.
 
         A count beside a declining is the defect TASK-117 closed for the task
         store: it read as drifted on 175 of 175 records while `perry-state`
-        read the same tree as `drift: 0`. Both tools now decline, and neither
-        emits a number beside the declining.
+        read the same tree as `drift: 0`.
         """
         self.assertNotIn("drifted", self.line(self.project()))
 
-    def test_records_present_but_uncompared_is_also_not_clean(self):
-        """Row B lands before row C, and that window must not read clean.
+    def test_no_linkage_census_line_says_drifted_in_any_state(self):
+        """**The drift class cannot occur, so the word must not appear.**
 
-        DESIGN-015's one hard ordering constraint is C before D, and its named
-        failure mode is silent: the edge lands, every reader still answers
-        from the document, and attribution reports never-asked for a row that
-        was just linked. The census must not call that state clean either.
+        Not "it happens to be zero" — there is one copy of this graph and
+        nothing to compare it to, so a `drifted` count on this line would be a
+        verdict about nothing. That is the strongest version of the mistake
+        `P003-O1-KR3` exists to prevent: unchecked printed as clean.
         """
-        root = self.project()
-        (root / "perry" / STORE_KEY).write_text(
-            json.dumps({"kind": "unlinked", "task": "TASK-001",
-                        "declared_at": "2026-09-04T10:00:00+08:00",
-                        "actor": "Coding Agent", "via": "link"}) + "\n",
-            encoding="utf-8")
-        line = self.line(root)
-        self.assertIn("1 valid record(s)", line)
-        self.assertIn("unchecked, not clean", line)
-
-    def test_the_word_clean_appears_on_no_linkage_census_line_yet(self):
-        """The whole claim of this class, said once and directly.
-
-        Nothing in row A computes a drift verdict for this store — comparing
-        it against `phase/<NNN>-linkage.md` moves the six readers, which is
-        row C. So there is no state reachable today in which this line is
-        entitled to the word `clean` unqualified.
-        """
-        for records in (None, [{"kind": "unlinked", "task": "TASK-001",
-                                "declared_at": "2026-09-04T10:00:00+08:00",
-                                "actor": "Coding Agent", "via": "link"}]):
+        for records in (None,
+                        [],
+                        [{"kind": "unlinked", "task": "TASK-001",
+                          "phase": "003-storage-code",
+                          "declared_at": "2026-09-04T10:00:00+08:00",
+                          "actor": "Coding Agent", "via": "link"}]):
             with self.subTest(records=records):
                 root = self.project()
                 if records is not None:
                     (root / "perry" / STORE_KEY).write_text(
                         "".join(json.dumps(r) + "\n" for r in records),
                         encoding="utf-8")
-                self.assertIn("unchecked, not clean", self.line(root))
+                self.assertNotIn("drifted", self.line(root))
+
+    def test_a_present_store_reports_its_records_and_its_malformed_count(self):
+        """The control for the two tests above: a line that said nothing at
+        all would satisfy both."""
+        root = self.project()
+        (root / "perry" / STORE_KEY).write_text(
+            json.dumps({"kind": "unlinked", "task": "TASK-001",
+                        "phase": "003-storage-code",
+                        "declared_at": "2026-09-04T10:00:00+08:00",
+                        "actor": "Coding Agent", "via": "link"}) + "\n",
+            encoding="utf-8")
+        line = self.line(root)
+        self.assertIn("1 record(s)", line)
+        self.assertIn("0 malformed", line)
 
 
 if __name__ == "__main__":

@@ -286,7 +286,7 @@
       "ID prefixes and ID bodies (REL-002, ADR-001, DESIGN-001, KR-O1.2, O<n>-KR<m>, P<NNN>-O<n>-KR<n>, USER-014)",
       "enum values (not_started, in_progress, blocked, review, done, dropped, single, split, ...)",
       "header field names in .perry/config.md and .perry/hook.md",
-      "YAML frontmatter keys and values in phase/<NNN>-linkage.md",
+      "record `kind`s and field names in every JSONL store (linkage.jsonl's `objective`/`kr`/`edge`/`unlinked`/`project`/`agent`, and their fields)",
       "priority section names (P0, P1, P2) and architecture section markers (§1…§8)",
       "dates (YYYY-MM-DD), ISO weeks (YYYY-WW), commit SHAs, file paths",
       "command and subcommand names (/perry okr plan-phase)",
@@ -823,7 +823,7 @@
     }
   },
   "stores": {
-    "note": "Record shapes for the JSONL stores whose records are NOT a projection of a markdown document. `files[]` declares the markdown files Perry validates (template, tier, cap, headings) and `claims[]` declares the territory Perry occupies; neither answers what one LINE of a store must contain. The five stores that project from a document answer it through the document's own contract - `files[id=linkage].frontmatter` is that answer for `phase/<NNN>-linkage.md`, and `perry_store.py` / `perry_md_store.py` hold the field lists for the rest. `linkage.jsonl` projects from nothing, so its shape is declared here or nowhere. Added by TASK-276 (DESIGN-015 implementation row A) under the 2026-09-04 authorisation recorded at `evidence/2026-09/2026-09-04-high-stakes-authorisation.md`; that authorisation covers adding this store's claim and its three record schemas and NOTHING else, and no existing claim's path or owner was touched.",
+    "note": "Record shapes for the JSONL stores whose records are NOT a projection of a markdown document. `files[]` declares the markdown files Perry validates (template, tier, cap, headings) and `claims[]` declares the territory Perry occupies; neither answers what one LINE of a store must contain. The stores that project from a document answer it through the document's own contract, and `perry_store.py` / `perry_md_store.py` hold their field lists. `linkage.jsonl` projects from nothing, so its shape is declared here or nowhere. Added by TASK-276 (DESIGN-015 implementation row A) under the 2026-09-04 authorisation recorded at `evidence/2026-09/2026-09-04-high-stakes-authorisation.md`; that authorisation covered adding this store's claim and its first three record schemas. The `objective`, `project` and `agent` kinds and the `metric` / `due` / `asserted_at` / `unlinked.phase` fields were added by ADR-019 under the separate 2026-09-08 in-session authorisation that ADR records, which is what deleted `phase/<NNN>-linkage.md` and left this the only place those facts can live. No existing claim's path or owner was touched by either.",
     "declared": {
       "linkage.jsonl": {
         "owner": "perry",
@@ -832,15 +832,39 @@
         "discriminator": "kind",
         "spec_key": "linkage_store",
         "spec_version": 1,
-        "description": "The O->KR->task edge register, as a store. DESIGN-015 section 5.1. Flat JSONL with a `kind` discriminator, matching `okr.jsonl` and `.perry/config.jsonl` rather than inventing a shape. This declaration is row A of the implementation plan: no reader and no writer moves here, and the file does not exist yet. Until the import (row B) runs, `bin/perry-lint` must report this store `unchecked`, NOT `clean` - the phase-003 operating rule behind `P003-O1-KR3`, measured for the other six stores by TASK-229.",
+        "description": "The O->KR->task register, and after ADR-019 the ONLY copy of it. DESIGN-015 section 5.1 made it canonical; ADR-019 (2026-09-08) deleted the document it was canonical AGAINST - `phase/<NNN>-linkage.md` - so every fact that file's frontmatter carried is declared here or nowhere. Flat JSONL with a `kind` discriminator, matching `okr.jsonl` and `.perry/config.jsonl` rather than inventing a shape. Six record kinds: `objective`, `kr`, `edge`, `unlinked`, `project`, `agent`. The first, fifth and sixth, and the `metric` / `due` / `asserted_at` fields on `kr`, arrived with ADR-019 because the document that used to hold them stopped existing.",
         "derived_not_stored": {
           "never_asked": "There is no fourth `kind`. A task is never-asked when the store holds neither an `edge` nor an `unlinked` record for it - DESIGN-015 section 5.2. Storing it would need the record DELETED the moment an answer arrives, which is a second write and a chance to desync; absence cannot drift. The same rule `asks.jsonl` applies to `Idle`.",
-          "metric": "A KR's `metric` is DELIBERATELY absent from the `kr` record - DESIGN-015 decision 2. It is an argument about how a number was reached (976 B in one case), and an argument is what a document is for. It stays in `phase/<NNN>-linkage.md`, which survives this design as a document holding what has no schema.",
-          "tasks": "The `tasks[]` array on a KR in `phase/<NNN>-linkage.md` frontmatter has NO counterpart field on the `kr` record. One edge is one `edge` record - that is the whole point of the store - so an array of task ids here would be the same fact in two places, which is the DESIGN-013 section 5.1 violation this store exists to remove."
+          "tasks": "The `tasks[]` array a KR used to carry in `phase/<NNN>-linkage.md` frontmatter has NO counterpart field on the `kr` record. One edge is one `edge` record - that is the whole point of the store - so an array of task ids here would be the same fact in two places, which is the DESIGN-013 section 5.1 violation this store exists to remove.",
+          "metric_note": "`metric` IS stored, on the `kr` record, and that reverses DESIGN-015 decision 2. That decision said an argument about how a number was reached is what a document is for, and it named `phase/<NNN>-linkage.md` as the document. ADR-019 deleted that file, so the choice is no longer 'store or document' but 'store or lose it'. Same for a KR's `due` and for the objective TITLES, which are now `objective` records."
         },
         "records": {
+          "objective": {
+            "description": "One phase objective - its id and its title. ADR-019: the objective titles and their ORDER used to come from `phase/<NNN>-linkage.md`'s `objectives:` block, which is gone. Written by `goals` at `plan-phase`; NEVER by `work`. File order is objective order.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "objective",
+                "required": true
+              },
+              "phase": {
+                "type": "string",
+                "required": true,
+                "note": "<NNN>-<slug>, e.g. `003-storage-code`. Same value space as the `phase` field on `kr`."
+              },
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^O\\d+$"
+              },
+              "title": {
+                "type": "string",
+                "required": true
+              }
+            }
+          },
           "kr": {
-            "description": "The typed half of a phase KR. Written by `goals` (`link`, `plan-phase`, `score-phase`); NEVER by `work`. DESIGN-015 section 5.5.",
+            "description": "The typed half of a phase KR, and after ADR-019 its prose half too. Written by `goals` (`link`, `plan-phase`, `score-phase`); NEVER by `work`. DESIGN-015 section 5.5.",
             "fields": {
               "kind": {
                 "type": "string",
@@ -850,7 +874,7 @@
               "phase": {
                 "type": "string",
                 "required": true,
-                "note": "<NNN>-<slug>, e.g. `003-storage-code`. Same value space as `files[id=linkage].frontmatter.phase`."
+                "note": "<NNN>-<slug>, e.g. `003-storage-code`. Same value space as the `phase` field on `objective`."
               },
               "objective": {
                 "type": "string",
@@ -860,21 +884,31 @@
               "id": {
                 "type": "string",
                 "required": true,
-                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$"
               },
               "title": {
                 "type": "string",
                 "required": true
               },
+              "metric": {
+                "type": "string",
+                "required": false,
+                "note": "PROSE, and the argument for how a number was reached - 976 B in one case. It lived in `phase/<NNN>-linkage.md` until ADR-019 deleted that file; DESIGN-015 decision 2's reasoning ('an argument is what a document is for') survives only where the document does. Always safe to display; nothing validates it."
+              },
               "target": {
                 "type": "number",
                 "required": false,
-                "note": "NUMBER ONLY, and OPTIONAL. Omit for a prose target ('<= 15% drawdown'); the text lives in the document's `metric`, not here. Half of real KRs are ceilings, and drawing a limit as completion reports a risk budget as two-thirds achieved. Same rule as `files[id=linkage].frontmatter` KR `target`, and measured on this project: `P003-O2-KR3` carries no `target` today."
+                "note": "NUMBER ONLY, and OPTIONAL. Omit for a prose target ('<= 15% drawdown'); the words then live in `metric` beside it. Half of real KRs are ceilings, and drawing a limit as completion reports a risk budget as two-thirds achieved. Measured on this project: `P003-O2-KR3` carries no `target` today."
               },
               "current": {
                 "type": "number",
                 "required": false,
                 "note": "OPTIONAL, and absent is NOT zero. A KR the register never gave a number reports `unasserted`, not `0.0` - `bin/lib/__init__.py § kr_progress_provenance` says why: with six of eight phase KRs driving a count to zero, a `current` defaulted to `0` reads as met before the work starts. Measured on this project: `P003-O2-KR1`, `P003-O2-KR3` and `P003-O3-KR2` carry no `current`."
+              },
+              "due": {
+                "type": "string",
+                "required": false,
+                "note": "The date this KR is answered by, if it has one. Prose or ISO; nothing validates it. Moved off the deleted document by ADR-019."
               },
               "stretch": {
                 "type": "boolean",
@@ -885,10 +919,16 @@
                 "required": false,
                 "note": "The overall KR this phase KR serves. Additive and optional, as it is in the document's frontmatter."
               },
+              "asserted_at": {
+                "type": "string",
+                "required": false,
+                "format": "iso-datetime",
+                "note": "WHEN THIS KR's `current` WAS ARRIVED AT, and the whole of TASK-155's fix. Full datetime with an offset; a day-only value is dropped, not guessed. Written by the same command that writes `current`, and ABSENT when there is no `current`. It is NOT defaulted to the time of any other write: before ADR-019 there was no per-KR assertion date at all and `bin/lib/__init__.py § kr_progress_provenance` read the deleted document's file-level `updated:` stamp instead, at `asserted_scope: \"register\"` - so appending one edge re-dated every asserted number in the phase (TASK-155). A `current` carrying no `asserted_at` therefore reports `asserted_scope: \"\"` and staleness `evaluated: false`: 'nobody recorded when this number was measured' and 'it was measured just now' are different facts and only one of them is true."
+              },
               "current_provenance": {
                 "type": "object",
                 "required": false,
-                "note": "DECLARED BECAUSE DESIGN-015 section 5.1 SPELLS IT, AND FLAGGED. Nothing stores this field today: `bin/lib/__init__.py § kr_progress_provenance` DERIVES it at read time from `current`, the linked tasks' live statuses, the register's `updated` stamp and the event log, and `bin/perry-goals` / `bin/perry-state` both emit it from there. It appears nowhere in `phase/003-linkage.md`. A stored copy would be a derived value in a store - which is what section 5.2 argues against for never-asked, and what `asks.jsonl` refuses for `Idle` on the ground that a stored age is stale the moment it is written. Left OPTIONAL so row B imports nothing into it and no writer is obliged to fill it; resolving section 5.1 against section 5.2 is a decision for the design's owner, not for this row. See `evidence/2026-09/TASK-276-result.md`."
+                "note": "DECLARED BECAUSE DESIGN-015 section 5.1 SPELLS IT, AND FLAGGED. Nothing stores this field: `bin/lib/__init__.py § kr_progress_provenance` DERIVES it at read time from `current`, `asserted_at`, the linked tasks' live statuses and the event log, and `bin/perry-goals` / `bin/perry-state` both emit it from there. A stored copy would be a derived value in a store - which is what section 5.2 argues against for never-asked, and what `asks.jsonl` refuses for `Idle` on the ground that a stored age is stale the moment it is written. `asserted_at` above is the one piece of it that IS stored, because it is an input rather than a derivation. Left OPTIONAL so no writer is obliged to fill it."
               }
             }
           },
@@ -903,18 +943,19 @@
               "task": {
                 "type": "string",
                 "required": true,
-                "pattern": "^TASK-\\d+$"
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\\d+$",
+                "note": "One `PREFIX-NUMBER` handle, the same shape `bin/perry-goals § TASK_ID_SHAPE` validates a declaration against. NOT `^TASK-\\d+$`, which is what this said until ADR-019 and which was only ever true of Perry's own board: a task id prefix is per project (`REL-001`, `WIT-002`), and the narrow pattern reported every record of a project that prefixes its rows any other way as malformed. It went unnoticed because the only store in existence was this project's own."
               },
               "kr": {
                 "type": "string",
                 "required": true,
-                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$"
               },
               "declared_at": {
                 "type": "string",
                 "required": true,
                 "format": "iso-datetime",
-                "note": "Full datetime WITH offset. A day-only value is dropped, not guessed - the rule `files[id=linkage].frontmatter.updated` already carries."
+                "note": "Full datetime WITH offset. A day-only value is dropped, not guessed - a midnight nobody meant is worse than an absent date."
               },
               "actor": {
                 "type": "string",
@@ -940,7 +981,13 @@
               "task": {
                 "type": "string",
                 "required": true,
-                "pattern": "^TASK-\\d+$"
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\\d+$",
+                "note": "One `PREFIX-NUMBER` handle, the same shape `bin/perry-goals § TASK_ID_SHAPE` validates a declaration against. NOT `^TASK-\\d+$`, which is what this said until ADR-019 and which was only ever true of Perry's own board: a task id prefix is per project (`REL-001`, `WIT-002`), and the narrow pattern reported every record of a project that prefixes its rows any other way as malformed. It went unnoticed because the only store in existence was this project's own."
+              },
+              "phase": {
+                "type": "string",
+                "required": true,
+                "note": "<NNN>-<slug> - WHICH PHASE'S BOARD this declaration was made against. DESIGN-015 section 5.1 gave `unlinked` no phase field on the ground that 'this row serves no KR' is a statement about the row, and that held only while the store covered ONE phase: `parsers.linkage_records_for_phase` handed the WHOLE unlinked set to whichever phase was asked. ADR-019 imported three phases into this store at once, so without this field phase 001's 23 declarations would count against phase 003's board."
               },
               "declared_at": {
                 "type": "string",
@@ -956,6 +1003,159 @@
                 "required": true,
                 "pattern": "^(add|link)$"
               }
+            }
+          },
+          "project": {
+            "description": "One entry of the Project<->KR registry - the thing that keeps attribution from being guessed. `reference/okr-linkage.md § Resolution order`: a declared edge, then an exact Project id, then a registered alias, stopping at the first step that yields exactly ONE KR. It lived in `phase/<NNN>-linkage.md`'s `projects:` block until ADR-019. Written by `goals` at `perry-goals link --project` and `--alias`; NEVER by `work`.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "project",
+                "required": true
+              },
+              "phase": {
+                "type": "string",
+                "required": true
+              },
+              "id": {
+                "type": "string",
+                "required": true,
+                "note": "The Project id a report may name instead of a KR. Free-form: on this project they are TASK ids, on others they are `PROJ-...`."
+              },
+              "kr": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$",
+                "note": "The KR this Project serves. `serves:` in the deleted document's frontmatter."
+              },
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "aliases": {
+                "type": "array",
+                "required": false,
+                "note": "Confirmed second names, each of which resolves to this Project and therefore to its KR. Never a guess: `perry-goals link --alias` is the only writer and it refuses an ambiguous one."
+              },
+              "status": {
+                "type": "string",
+                "required": false,
+                "enum": "linkage_status",
+                "note": "`active` when absent, which is what the document's optional `status:` always meant. The value space is the `linkage_status` enum - active, done, dropped, unlinked - and it is read from there rather than restated, because `bin/perry-goals § resolve_target` treats `dropped` and `unlinked` as RETIRED: a retired Project's KR edge is history, not an attribution for new work, and a declaration that could not express those two would make that refusal unreachable."
+              },
+              "declared_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime"
+              },
+              "actor": {
+                "type": "string",
+                "required": true
+              },
+              "via": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(add|link)$"
+              }
+            }
+          },
+          "agent": {
+            "description": "One agent->task assignment, one record - the same 'one fact one record' rule `edge` follows. The deleted document wrote these as an `agents:` block of `{id, tasks: [...]}`, and an array here would be the DESIGN-013 section 5.1 violation the store exists to remove. NOTHING IN PERRY WRITES THIS KIND TODAY: the two agents that exist were typed by hand into `phase/001-linkage.md` on 2026-08-18 and imported by ADR-019 so that `perry-task purge`'s reference guard keeps seeing them. Declared so that import is not silent data loss, not because a writer is planned.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "agent",
+                "required": true
+              },
+              "phase": {
+                "type": "string",
+                "required": true
+              },
+              "id": {
+                "type": "string",
+                "required": true,
+                "note": "The agent's name, as written."
+              },
+              "task": {
+                "type": "string",
+                "required": true,
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\\d+$",
+                "note": "One `PREFIX-NUMBER` handle, the same shape `bin/perry-goals § TASK_ID_SHAPE` validates a declaration against. NOT `^TASK-\\d+$`, which is what this said until ADR-019 and which was only ever true of Perry's own board: a task id prefix is per project (`REL-001`, `WIT-002`), and the narrow pattern reported every record of a project that prefixes its rows any other way as malformed. It went unnoticed because the only store in existence was this project's own."
+              },
+              "declared_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime"
+              },
+              "actor": {
+                "type": "string",
+                "required": true
+              },
+              "via": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(add|link)$"
+              }
+            }
+          }
+        }
+      },
+      ".perry/config.jsonl": {
+        "owner": "perry",
+        "anchor": "project",
+        "format": "jsonl",
+        "discriminator": "kind",
+        "spec_key": "config_store",
+        "spec_version": 1,
+        "description": "The project's configuration, as a store (ADR-007, TASK-092; sole copy since ADR-019). Two record kinds: the `- Key: value` settings that were the file's preamble, and the tracks that were its `## Tracks` table. Anchored at the project root, inside the `.perry/` anchor rather than behind the State root pointer, because this is the file that declares where the state root is and it cannot sit behind its own pointer.\n\nDeclared HERE rather than in `files[]` because there is no longer a file to declare. `files[]` says what a markdown document must look like; `.perry/config.md` was such a document and ADR-019 deleted it, so its entry went and the record shapes it was the only home for moved into this one - the same place `linkage.jsonl` declares shapes that project from no document at all.",
+        "records": {
+          "setting": {
+            "note": "One `- Key: value` line of the configuration. `key` is the label with decoration stripped and spaces folded to underscores (`Document language` -> `document_language`); `label` is what a human wrote, kept so a reader is shown the words the project used rather than the key it minted.",
+            "fields": [
+              "key",
+              "label",
+              "value"
+            ],
+            "required": [
+              "kind",
+              "key",
+              "value"
+            ]
+          },
+          "track": {
+            "note": "One declared track (DESIGN-003 section 5.2). OPTIONAL: a project that declares none has one implicit track named `main`, mode `project`, which is what keeps every pre-DESIGN-003 project valid. Only `track` and `mode` are required; the rest are per-mode and an absent field takes the mode default.\n\nThis was `files[id=config].tables[Tracks]` until ADR-019 - a spec for the columns of a rendered markdown table. The file is gone and the register is not, so the declaration moved here rather than being deleted with the projection it happened to be written against.",
+            "fields": [
+              "track",
+              "mode",
+              "spine",
+              "stages",
+              "wip",
+              "sla",
+              "cycle",
+              "default_rung"
+            ],
+            "required": [
+              "kind",
+              "track",
+              "mode"
+            ],
+            "enum_fields": {
+              "mode": "mode",
+              "default_rung": "verification_rung"
+            },
+            "field_notes": {
+              "spine": "Free text: where this track's goals/commitments live.",
+              "stages": "Ordered stage vocabulary, arrow-separated, e.g. `brief->draft->review->approved->published`. Pipeline, queue and inquiry modes. Absent = the mode's default vocabulary. SEPARATOR: `->` is canonical. `→` (U+2192) is accepted and means the same thing; readers must normalize before splitting. Three spellings were in circulation and nothing normalized, so 'the first stage' and 'the terminal stage' were computed by splitting on a separator the corpus spelled three ways (V4 round 4, finding 11).",
+              "wip": "Per-stage limits, BY NAME ONLY: `stage:n`, comma-separated, e.g. `review:2,draft:4`. A stage not named has no limit. A positional grammar was considered and dropped - two grammars is one parser too many, and a user following the wrong one would produce a config that lints clean and evaluates to no limits at all. Pipeline default: `review:3`. Inquiry uses `open:n`, default `open:5`. Queue has no WIP control at all (depth is reported, never enforced), so the column is meaningless there.",
+              "sla": "The single home for turnaround expectations, for both pipeline dwell time and queue response time. V4 finding S7: the two mode files put SLA in two different places for modes the design expects to coexist in one project.",
+              "cycle": "What bounds the current horizon. Pipeline mode: a cycle boundary (`2026-W34`, `until 2026-09-30`, a campaign name). Queue mode: the review period, which reports rather than closes, and may be recurring (`monthly`, `quarterly`). V4 finding S6 created it for pipeline; re-review finding N8 widened it to the mode that also pointed at it. No default in any mode - see work_modes.defaults_note.",
+              "default_rung": "Overrides the mode default from `work_modes.modes.<mode>.default_rung`."
+            },
+            "no_default_by_mode": {
+              "source": "work_modes.modes.<mode>.no_default",
+              "severity": "warn",
+              "checked_by": "bin/perry-lint § check_config_store",
+              "note": "The enforcement point for `work_modes.defaults_note`, which stated the rule and then left it to be obeyed by hand: a column listed in a mode's `no_default` is a commitment the project makes to somebody, so Perry may not invent one, and a track that never declared it cannot run the triage step that reads it. A queue track with no `SLA` therefore lints clean today while `modes/queue.md`'s breach step, age sort and triage question all measure against a clock that does not exist.\n\nThe list is NOT copied here. It is read out of `work_modes.modes.<mode>.no_default` per row, so a mode that gains or loses a no-default column changes this check and nothing else - two lists of which modes need an `SLA` is the two-implementations-of-one-rule defect ADR-004 is about. An em dash counts as undeclared, because `SKILL.md`'s own example track row writes empty cells that way and a check that only tested for the empty string would pass over every register Perry itself taught people to write.\n\nWARN, not error, deliberately. (a) An error would retroactively invalidate every track register written before this rule existed, which is the DESIGN-003 decision-4 argument. (b) Worse, under the ADR-004 gate a file carrying errors cannot be declared conformant, so one blank cell would escalate into a write refusal on `.perry/config.md` - the whole track register goes read-only because one track has no SLA. Neither is proportionate, and neither is needed, because the hard stops already exist at both ends: `goals/reference/phases.md` REFUSES to write a queue commitment while the track has no `SLA` cell, and `modes/queue.md` has triage REPORT the missing SLA rather than skip the breach step. This finding is the earlier, cheaper notice of the same fact.\n\nThe place the question is FORCED is creation - first-time setup and `/perry adopt` do not write a queue or pipeline row without asking (`modes/queue.md` section 'Declaring a queue track'), because at creation there is no legacy to invalidate and no honest default to fall back on. A default SLA was rejected explicitly: a number Perry invented is one the project never promised, and every triage run afterwards would measure real work against it."
             }
           }
         }
@@ -1328,7 +1528,6 @@
     {
       "id": "phase",
       "path": "phase/[0-9][0-9][0-9]-*.md",
-      "exclude": "phase/*-linkage.md",
       "template": "goals/state/phase_TEMPLATE.md",
       "owner": "goals",
       "tier": 1,
@@ -1411,169 +1610,9 @@
           "id_column": "Id",
           "id_pattern": "^P\\d{3}-O\\d+-KR\\d+$",
           "optional": true,
-          "note": "PRE-TASK-157 SHAPE — still validated, no longer written. A phase KR's id, title, metric, target and linked overall KR are schema'd fields, and DESIGN-013 § 5.1 puts a schema'd fact in exactly one store: phase/<NNN>-linkage.md. `plan-phase` no longer authors this table, goals/state/phase_TEMPLATE.md no longer carries one, and `perry-goals krs` prints it from the register instead. The entry stays because an ADOPTED project's phase file has a table and nothing else holds its KRs — viewer/parsers.py § phase_key_results reads the document exactly when there is no register — and a table Perry can still meet is a table Perry must still validate."
+          "note": "PRE-TASK-157 SHAPE — still validated, no longer written. A phase KR's id, title, metric, target and linked overall KR are schema'd fields, and DESIGN-013 § 5.1 puts a schema'd fact in exactly one store: `linkage.jsonl` (it was phase/<NNN>-linkage.md until ADR-019 deleted that file and moved its last document-only fields — metric, due, the objective titles — into the store). `plan-phase` no longer authors this table, goals/state/phase_TEMPLATE.md no longer carries one, and `perry-goals krs` prints it from the store instead. The entry stays because an ADOPTED project's phase file has a table and nothing else holds its KRs — viewer/parsers.py § phase_key_results reads the document exactly when the store declares no KR for the phase — and a table Perry can still meet is a table Perry must still validate."
         }
       ],
-      "anchor": "state"
-    },
-    {
-      "id": "linkage",
-      "path": "phase/[0-9][0-9][0-9]-linkage.md",
-      "template": "goals/state/linkage_TEMPLATE.md",
-      "owner": "goals",
-      "tier": 2,
-      "required": false,
-      "format": "yaml-frontmatter",
-      "frontmatter": {
-        "spec_key": "linkage",
-        "spec_version": 1,
-        "description": "The O→KR→task→agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
-        "fields": {
-          "linkage": {
-            "type": "integer",
-            "const": 1,
-            "required": true
-          },
-          "phase": {
-            "type": "string",
-            "required": false,
-            "note": "<NNN>-<slug>"
-          },
-          "updated": {
-            "type": "string",
-            "required": false,
-            "format": "iso-datetime",
-            "note": "full datetime; a day-only value is dropped, not guessed"
-          },
-          "objectives": {
-            "type": "array",
-            "required": false,
-            "items": {
-              "id": {
-                "type": "string",
-                "required": true,
-                "pattern": "^O\\d+$"
-              },
-              "title": {
-                "type": "string",
-                "required": true
-              },
-              "krs": {
-                "type": "array",
-                "required": false,
-                "items": {
-                  "id": {
-                    "type": "string",
-                    "required": true,
-                    "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
-                  },
-                  "title": {
-                    "type": "string",
-                    "required": true
-                  },
-                  "metric": {
-                    "type": "string",
-                    "required": false,
-                    "note": "prose; always safe to display"
-                  },
-                  "target": {
-                    "type": "number",
-                    "required": false,
-                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') — rendering a ceiling as completion is worse than rendering nothing."
-                  },
-                  "current": {
-                    "type": "number",
-                    "required": false
-                  },
-                  "due": {
-                    "type": "string",
-                    "required": false
-                  },
-                  "stretch": {
-                    "type": "boolean",
-                    "required": false
-                  },
-                  "linked": {
-                    "type": "string",
-                    "required": false,
-                    "note": "The overall KR this phase KR serves — the `Linked overall KR` column the phase document used to carry. TASK-157 moved it here with the rest of the KR; additive and optional, so `linkage: 1` is unchanged and a register written without it means what an empty cell always meant."
-                  },
-                  "tasks": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "required": false,
-                    "note": "BOARD task ids. This is the task->KR edge; a task listed here needs no inference."
-                  }
-                }
-              }
-            }
-          },
-          "unlinked": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "required": false,
-            "note": "DECLARED, never inferred. Set arithmetic over the board would report the whole un-triaged backlog as drift."
-          },
-          "agents": {
-            "type": "array",
-            "required": false,
-            "items": {
-              "id": {
-                "type": "string",
-                "required": true
-              },
-              "tasks": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "required": false
-              }
-            }
-          },
-          "projects": {
-            "type": "array",
-            "required": false,
-            "note": "Perry's attribution registry. Extra key beyond the frontend's schema; the frontend ignores it.",
-            "items": {
-              "id": {
-                "type": "string",
-                "required": true
-              },
-              "serves": {
-                "type": "string",
-                "required": true,
-                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
-              },
-              "objective": {
-                "type": "string",
-                "required": false,
-                "pattern": "^O\\d+$"
-              },
-              "name": {
-                "type": "string",
-                "required": false
-              },
-              "aliases": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "required": false
-              },
-              "status": {
-                "type": "string",
-                "required": false,
-                "enum": "linkage_status"
-              }
-            }
-          }
-        }
-      },
       "anchor": "state"
     },
     {
@@ -1727,7 +1766,7 @@
               "kr": {
                 "type": "string",
                 "required": false,
-                "pattern": "^P\\d{3}-O\\d+-KR\\d+$",
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$",
                 "note": "result of the cluster->KR pass. Absent = not yet attributed. Every task in the cluster inherits this edge; it is DECLARED by the user, never matched by name."
               }
             }
@@ -2121,85 +2160,6 @@
       "anchor": "state"
     },
     {
-      "id": "config",
-      "path": ".perry/config.md",
-      "owner": "perry",
-      "tier": 1,
-      "required": false,
-      "header_fields": [
-        {
-          "name": "Document language"
-        },
-        {
-          "name": "Chat language",
-          "required": false,
-          "note": "language of the agent's conversational replies. Absent (or 'follow user') means mirror whatever language the user typed; a named language pins replies to it regardless. Written state files always follow `Document language`, never this field."
-        },
-        {
-          "name": "Repo layout",
-          "pattern": "single|split"
-        },
-        {
-          "name": "State root",
-          "required": false,
-          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves — it is the anchor that holds this pointer."
-        },
-        {
-          "name": "Packs",
-          "required": false,
-          "note": "Comma-separated pack names active in this project, resolved under $PERRY_HOME/packs/<name>/. Absent = software-ops only, which is what every pre-DESIGN-003 project effectively had. A pack supplies defaults - mode, stage vocabulary, rubrics, high-stakes additions, display glossary - never content."
-        },
-        {
-          "name": "Conformance gate",
-          "required": false,
-          "pattern": "advisory|enforce",
-          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'enforce' (TASK-047). It shipped 'advisory' for one release on a stated expiry condition - for a project that is not already Perry-shaped the way forward is the migration, and a refusal naming a command nobody can run is a wall - and that condition fired when TASK-044 landed bin/perry-migrate on 2026-08-19, so every refusal now names a road: 'perry-conform declare' for a file that already matches, 'perry-migrate' for one that does not. Set 'advisory' here to go back to writing-under-protest for this project; the env var PERRY_CONFORMANCE overrides this field either way. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.jsonl, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself. THAT REASONING SURVIVED THE FORMAT CHANGE UNCHANGED AND IS RESTATED RATHER THAN CARRIED SILENTLY (TASK-234): the record was .perry/conformance.md until 2026-08-30 and became a store under DESIGN-013 section 5.1, and nothing about becoming a store makes a record of decisions into state. It is also what makes the conversion possible at all - the file gates every write under ADR-004's enforce gate INCLUDING the write that migrates it, and the migration needs no exemption because no writer has ever called the gate about a file that is not a files[] entry. An exemption would have been a hole; this is a file the gate has no opinion about. IT IS NOT A claims[] ENTRY OF ITS OWN EITHER, and that is a separate question with its own answer rather than the same one. claims[] asks what territory Perry occupies in someone else's project, and .perry/ is already claimed as a dir - so the store is covered, exactly as the markdown was, and tests/test_conformance.py section 9 measures that declaring conformance does not make Perry collide with itself. .perry/events.jsonl and .perry/config.jsonl are named individually inside that same territory, which tests/test_claims.py reads as naming rather than coverage - 'it adds no second immovable place, it names a file in the immovable one'. So a seventh entry would add nothing the collision check can see, and it would add a seventh store to the six that perry/phase/003-linkage.md's KR1, KR2 and KR3 are each phrased 'of 6' over. Moving that denominator is the goals lane's decision, not a side effect of a format change."
-        },
-        {
-          "name": "Review rounds before escalation",
-          "required": false,
-          "pattern": "\\d+",
-          "note": "How many V4 FAILs a row may take before `perry-lint --reviews` reports `review-rounds-exhausted`. Absent = the shipped default in `thresholds.review_fail_rounds_before_escalation` (2, measured — see that note). `PERRY_REVIEW_ROUNDS` in the environment beats this field, which beats the default."
-        },
-        {
-          "name": "Session context ceiling",
-          "required": false,
-          "pattern": "\\d+[kKmM]?",
-          "note": "The context size at which `autopilot` stops, hands off and lets a fresh session resume, measured by `bin/perry-context-budget`. Accepts 200000 or 200k. Absent = the shipped default in `thresholds.session_context_ceiling`. `--ceiling` beats `PERRY_CONTEXT_CEILING`, which beats this field, which beats the default. A project doing genuinely wide reads can raise it; the cost of doing so is superlinear, not linear."
-        }
-      ],
-      "tables": [
-        {
-          "under": "^Tracks\\b|^轨道",
-          "note": "The track register (DESIGN-003 section 5.2). OPTIONAL: this spec is skipped entirely when the section is absent, which is what keeps every pre-DESIGN-003 project valid. Tracks are configuration, not state, which is why they live in a path Perry already claims rather than in a new file. Only Track and Mode are required; the rest are per-mode and absent columns take the mode default.",
-          "columns": [
-            "Track",
-            "Mode"
-          ],
-          "enum_columns": {
-            "Mode": "mode",
-            "Default rung": "verification_rung"
-          },
-          "no_default_by_mode": {
-            "mode_column": "Mode",
-            "id_column": "Track",
-            "source": "work_modes.modes.<mode>.no_default",
-            "severity": "warn",
-            "note": "The enforcement point for `work_modes.defaults_note`, which stated the rule and then left it to be obeyed by hand: a column listed in a mode's `no_default` is a commitment the project makes to somebody, so Perry may not invent one, and a track that never declared it cannot run the triage step that reads it. A queue track with no `SLA` therefore lints clean today while `modes/queue.md`'s breach step, age sort and triage question all measure against a clock that does not exist.\n\nThe list is NOT copied here. It is read out of `work_modes.modes.<mode>.no_default` per row, so a mode that gains or loses a no-default column changes this check and nothing else - two lists of which modes need an `SLA` is the two-implementations-of-one-rule defect ADR-004 is about. An em dash counts as undeclared, because `SKILL.md`'s own example track row writes empty cells that way and a check that only tested for the empty string would pass over every register Perry itself taught people to write.\n\nWARN, not error, deliberately. (a) An error would retroactively invalidate every track register written before this rule existed, which is the DESIGN-003 decision-4 argument. (b) Worse, under the ADR-004 gate a file carrying errors cannot be declared conformant, so one blank cell would escalate into a write refusal on `.perry/config.md` - the whole track register goes read-only because one track has no SLA. Neither is proportionate, and neither is needed, because the hard stops already exist at both ends: `goals/reference/phases.md` REFUSES to write a queue commitment while the track has no `SLA` cell, and `modes/queue.md` has triage REPORT the missing SLA rather than skip the breach step. This finding is the earlier, cheaper notice of the same fact.\n\nThe place the question is FORCED is creation - first-time setup and `/perry adopt` do not write a queue or pipeline row without asking (`modes/queue.md` section 'Declaring a queue track'), because at creation there is no legacy to invalidate and no honest default to fall back on. A default SLA was rejected explicitly: a number Perry invented is one the project never promised, and every triage run afterwards would measure real work against it."
-          },
-          "optional_columns": {
-            "Spine": "Free text: where this track's goals/commitments live.",
-            "Stages": "Ordered stage vocabulary, arrow-separated, e.g. `brief->draft->review->approved->published`. Pipeline, queue and inquiry modes. Absent = the mode's default vocabulary. SEPARATOR: `->` is canonical. `→` (U+2192) is accepted and means the same thing; readers must normalize before splitting. Three spellings were in circulation and nothing normalized, so 'the first stage' and 'the terminal stage' were computed by splitting on a separator the corpus spelled three ways (V4 round 4, finding 11).",
-            "WIP": "Per-stage limits, BY NAME ONLY: `stage:n`, comma-separated, e.g. `review:2,draft:4`. A stage not named has no limit. A positional grammar was considered and dropped - two grammars is one parser too many, and a user following the wrong one would produce a config that lints clean and evaluates to no limits at all. Pipeline default: `review:3`. Inquiry uses `open:n`, default `open:5`. Queue has no WIP control at all (depth is reported, never enforced), so the column is meaningless there.",
-            "SLA": "The single home for turnaround expectations, for both pipeline dwell time and queue response time. V4 finding S7: the two mode files put SLA in two different places for modes the design expects to coexist in one project.",
-            "Cycle": "What bounds the current horizon. Pipeline mode: a cycle boundary (`2026-W34`, `until 2026-09-30`, a campaign name). Queue mode: the review period, which reports rather than closes, and may be recurring (`monthly`, `quarterly`). V4 finding S6 created it for pipeline; re-review finding N8 widened it to the mode that also pointed at it. No default in any mode - see work_modes.defaults_note.",
-            "Default rung": "Overrides the mode default from `work_modes.modes.<mode>.default_rung`."
-          }
-        }
-      ],
-      "anchor": "project"
-    },
-    {
       "id": "hook",
       "path": ".perry/hook.md",
       "template": "work/state/hook_TEMPLATE.md",
@@ -2342,12 +2302,12 @@
     {
       "id": "linkage-objective-agrees",
       "severity": "error",
-      "description": "Each linkage row's Objective must match the Objective encoded in its Serves KR id (P002-O1-KR2 -> O1)."
+      "description": "Each `project` record's Objective must match the Objective encoded in the KR id it serves (P002-O1-KR2 -> O1)."
     },
     {
       "id": "linkage-kr-exists",
       "severity": "warn",
-      "description": "Each linkage row's Serves KR should exist in the current phase file's KR set."
+      "description": "Each `project` record's KR should exist in the phase's own `kr` record set."
     },
     {
       "id": "locked-design-has-plan",
@@ -2372,7 +2332,7 @@
     {
       "id": "linkage-names-unique",
       "severity": "error",
-      "description": "No two linkage projects may share a name or an alias — that ambiguity is exactly what the registry exists to prevent."
+      "description": "No two `project` records may share a name or an alias — that ambiguity is exactly what the registry exists to prevent."
     },
     {
       "id": "linkage-task-single-kr",

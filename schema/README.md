@@ -281,10 +281,17 @@ Reference implementation: `viewer/parsers.py § _parse_task_table`. Locked by
 
 ## The linkage contract
 
-`phase/<NNN>-linkage.md` is the one Perry file that is **machine-written and
-machine-read on both sides**, so it's YAML frontmatter rather than prose:
-spec `linkage: 1`, full field list under `files[id=linkage].frontmatter` in the
-schema. It carries the O→KR→task→agent graph.
+`linkage.jsonl` carries the O→KR→task→agent graph. It is **machine-written and
+machine-read on both sides**, so it is a store rather than a document: one JSON
+object per line, six record kinds, full field list under
+`stores.declared["linkage.jsonl"]` in the schema.
+
+It was `phase/<NNN>-linkage.md` — YAML frontmatter, spec `linkage: 1` — until
+ADR-019, whose argument is worth keeping here because this section is where a
+reader meets the file: the frontmatter duplicated the store record for record,
+`perry-lint`'s `linkage-store-drift` reported the two disagreeing, and a check
+for a disagreement is the ongoing cost of the duplication rather than a fix for
+it.
 
 Three of its rules are load-bearing, and all three exist to stop a reader from
 displaying a number nobody wrote down:
@@ -302,19 +309,22 @@ displaying a number nobody wrote down:
 A fourth rule was added by TASK-157 and it is about where the KR lives rather
 than about what it says: **`phase/<NNN>-<slug>.md` carries no KR table.** The
 id, title, metric, target and `linked` (the overall KR this one serves) used to
-be written here AND in that document, with nothing comparing them, and the
-document's copy is the one that went stale. DESIGN-013 § 5.1 — a fact with a
-schema lives in exactly one store — puts them here alone; `bin/perry-goals krs`
-prints them. `linked` is the field the move added: additive and optional, so
-`linkage: 1` is unchanged and a register written before it reads as the empty
-`Linked overall KR` cell always did.
+be written in the register AND in that document, with nothing comparing them,
+and the document's copy is the one that went stale. DESIGN-013 § 5.1 — a fact
+with a schema lives in exactly one store — puts them in the store alone;
+`bin/perry-goals krs` prints them.
 
-Perry reads it back with a deliberately small YAML subset reader
-(`parsers.parse_yaml_subset`) because Perry ships zero dependencies. That is
-only acceptable because the file is machine-written to a declared shape:
-anything outside the subset raises rather than half-parsing, and `perry-lint`
-uses the *same* reader, so "the linter passed" and "Perry can read it" cannot
-diverge.
+A fifth came with ADR-019, and it is the one a writer gets wrong:
+**`asserted_at` is per KR and absent unless somebody measured the number.** It
+belonged to the file before — one `updated:` stamp read as every KR's assertion
+date — so appending one edge marked every `current` in the phase freshly
+asserted. Filling it from the clock reproduces that exactly.
+
+Perry reads it back with `json.loads`, one line at a time, because Perry ships
+zero dependencies and a store needs no reader of its own. A line that will not
+parse makes the whole store unreadable rather than half-read — `perry-lint`
+reports it by number, and `perry-goals link` refuses to append to a graph it
+cannot see.
 
 ## Where the files are
 

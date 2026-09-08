@@ -38,6 +38,8 @@ import sys
 import tempfile
 import unittest
 
+import config_store  # noqa: E402
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-state-cost"
 
@@ -61,7 +63,8 @@ class Repo(unittest.TestCase):
         self.git("config", "commit.gpgsign", "false")
 
         self.write("src/app.py", "x = 1\n" * 200)
-        self.write(".perry/config.md", "State root: perry\n")
+        self.write(".perry/config.jsonl",
+                   config_store.config_jsonl({"State root": "perry"}))
         self.commit(DAY1)
 
         self.write("perry/BOARD.md", "# Board\n" + "| a |\n" * 40)
@@ -171,10 +174,11 @@ class TestItMeasuresWhatIsThere(Repo):
         trend = self.payload()["trend"]
         self.assertEqual([t["date"] for t in trend],
                          ["2026-01-05", "2026-01-06", "2026-01-07"])
-        # Day one has `.perry/config.md` and nothing else — the anchor exists
-        # before any state does, which is exactly the live project's shape.
+        # Day one has `.perry/config.jsonl` and nothing else — the anchor
+        # exists before any state does, which is exactly the live project's
+        # shape.
         self.assertEqual(trend[0]["state_bytes"],
-                         (self.dir / ".perry" / "config.md").stat().st_size)
+                         (self.dir / ".perry" / "config.jsonl").stat().st_size)
         self.assertLess(trend[0]["state_bytes"], trend[1]["state_bytes"])
         self.assertLess(trend[1]["state_bytes"], trend[2]["state_bytes"])
         self.assertLess(trend[0]["share"], trend[2]["share"],
@@ -298,7 +302,7 @@ class TestHistoryIsNotBytes(Repo):
         # Read the file's OWN row. It used to roll up under `.perry/`; TASK-100
         # gave `.perry/events.jsonl` a claim of its own (`e3f8621`), so the
         # directory row no longer carries it and `.perry/` now reports only
-        # `config.md`. The number asserted below is unchanged, because the
+        # `config.jsonl`. The number asserted below is unchanged, because the
         # behaviour never was — only which row states it.
         row = self.payload()["snapshot"]["paths"][".perry/events.jsonl"]
         superseded = len('{"ev": 1}\n') * 100

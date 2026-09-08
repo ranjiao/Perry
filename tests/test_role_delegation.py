@@ -30,6 +30,8 @@ import unittest
 from datetime import date, timedelta
 from pathlib import Path
 
+import config_store  # noqa: E402
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 STATE = PERRY_HOME / "bin" / "perry-state"
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
@@ -88,10 +90,7 @@ class Base(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n", encoding="utf-8")
+        config_store.write_config(root)
         (root / "BOARD.md").write_text("# Board — T\n", encoding="utf-8")
         for name, text in (cards or {"finance.md": CARD}).items():
             p = root / ".perry" / "roles" / name
@@ -290,8 +289,7 @@ class TestTheRosterAnswersAimarksAsk(unittest.TestCase):
         root = Path(tmp.name)
         (root / ".perry" / "roles").mkdir(parents=True)
         (root / "perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: perry\n", encoding="utf-8")
+        config_store.write_config(root, {"State root": "perry"})
         for r in roles:
             (root / ".perry" / "roles" / f"{r}.md").write_text(
                 self.CARD.format(name=r), encoding="utf-8")

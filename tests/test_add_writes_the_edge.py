@@ -86,20 +86,21 @@ def load_tool():
 
 PT = load_tool()
 
+import config_store  # noqa: E402
+from config_store import track  # noqa: E402
+
 TASK = ROOT / "bin" / "perry-task"
 STATE = ROOT / "bin" / "perry-state"
 
 # Two tracks, because `route` is a QUEUE-mode operation and refuses on a
 # project-mode track. A fixture with only `main` makes the route test skip,
 # and a skipped test states nothing about the behaviour it names.
-CONFIG = ("# Perry configuration\n\n- Document language: English\n"
-          "- Repo layout: single\n- State root: .\n\n"
-          "## Tracks\n\n"
-          "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-          "|---|---|---|---|---|---|---|---|\n"
-          "| main | project | phase/ | — | — | — | — | V3 |\n"
-          "| intake | queue | standing | "
-          "new→triaged→in_progress→resolved | 6 | 5d | weekly | V3 |\n")
+TRACKS = [
+    track("main", "project", spine="phase/", default_rung="V3"),
+    track("intake", "queue", spine="standing",
+          stages="new→triaged→in_progress→resolved", wip="6", sla="5d",
+          cycle="weekly", default_rung="V3"),
+]
 HOOK = ("# Perry hook\n\n## High-stakes operations\n\n"
         "- Anything that writes outside this fixture\n")
 
@@ -162,7 +163,8 @@ def document(edges: dict[str, list[str]], unlinked: list[str] | None = None) -> 
 
 
 def store(edges: dict[str, list[str]], unlinked: list[str] | None = None) -> str:
-    lines = []
+    lines = [json.dumps({"kind": "objective", "phase": "003-storage",
+                         "id": "O1", "title": "an objective"})]
     for suffix in ("KR1", "KR2"):
         lines.append(json.dumps({
             "kind": "kr", "phase": "003-storage", "objective": "O1",
@@ -176,7 +178,7 @@ def store(edges: dict[str, list[str]], unlinked: list[str] | None = None) -> str
                 "actor": "goals", "via": "link"}))
     for tid in (unlinked or []):
         lines.append(json.dumps({
-            "kind": "unlinked", "task": tid,
+            "kind": "unlinked", "task": tid, "phase": "003-storage",
             "declared_at": "2026-09-05T00:00:00Z",
             "actor": "goals", "via": "link"}))
     return "".join(line + "\n" for line in lines)
@@ -218,8 +220,7 @@ class Fixture(unittest.TestCase):
         d = pathlib.Path(tempfile.mkdtemp(prefix="perry-add-edge-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "phase").mkdir()
-        (d / ".perry").mkdir()
-        (d / ".perry" / "config.md").write_text(CONFIG)
+        config_store.write_config(d, tracks=TRACKS)
         (d / ".perry" / "hook.md").write_text(HOOK)
         (d / "BOARD.md").write_text(BOARD)
         (d / "phase" / "CURRENT").write_text("003-storage\n")
@@ -373,13 +374,28 @@ class TestWithoutAKr(Fixture):
                          "record, of any kind, may be written for it")
         self.assertEqual([r for r in after if r.get("task") == tid], [])
 
-    def test_there_is_no_fourth_kind(self):
+    def test_there_is_no_never_asked_kind(self):
+        """§ 5.2 — never-asked is DERIVED, not stored.
+
+        The kinds are read from the schema rather than listed here: ADR-019
+        added three, and a literal set would have had to be edited to stay
+        green, which is a check that agrees with whatever it is told. What is
+        under test is that `add` writes nothing undeclared and that
+        `never_asked` is not, and never becomes, a record kind — storing it
+        would need the record DELETED the moment an answer arrives, which is a
+        second write and a chance to desync. Absence cannot drift.
+        """
+        import json as _json
+        declared = set(_json.loads(
+            (ROOT / "schema" / "state-schema.json").read_text()
+        )["stores"]["declared"]["linkage.jsonl"]["records"])
+        self.assertNotIn("never_asked", declared)
+        self.assertNotIn("never-asked", declared)
         d = self.project()
         self.add(d, "an unattributed row")
         kinds = {r.get("kind") for r in self.records(d)}
-        self.assertTrue(kinds <= {"kr", "edge", "unlinked"},
+        self.assertTrue(kinds <= declared,
                         f"a kind the schema does not declare: {kinds}")
-        self.assertNotIn("never_asked", kinds)
 
     def test_the_row_reports_never_asked_and_not_declared_unlinked(self):
         d = self.project()
@@ -443,12 +459,32 @@ class TestAProjectWithNoStore(Fixture):
                          "a store was created on a project that had none — "
                          "every KR in its document is now unreachable")
 
-    def test_the_document_graph_survives_the_write(self):
+    def test_the_row_files_and_the_answer_is_not_silently_dropped(self):
+        """**What this test used to assert, and why it could not survive.**
+
+        It read *"the document graph survives the write"*: a pre-DESIGN-015
+        project kept its `phase/<NNN>-linkage.md`, so with no store its own
+        edges still resolved and `attribution.linked` stayed >= 1. ADR-019
+        deleted that document. A project with no store has no graph — that is
+        not a regression, it is what "no register" now means, and it is the
+        state every project is in before `plan-phase` runs.
+
+        What has to stay true is the thing the store-less path was FOR: the
+        row still files, and the caller's answer is still recoverable. The
+        event carries it (`test_the_event_still_records_the_answer`), and
+        `attribution` must not report the row as one that was never asked —
+        which would be Perry forgetting an answer it was given.
+        """
         d = self.project(with_store=False)
-        self.add(d, "a linked row", self.DOC_KR)
+        proc = self.add(d, "a linked row", self.DOC_KR)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        tid = self.new_id(proc)
         att = self.attribution(d)
-        self.assertGreaterEqual(att["linked"], 1,
-                                "the document's own edges stopped resolving")
+        self.assertEqual(att["linked"], 0,
+                         "a project with no store has no graph; reporting an "
+                         "edge means one was invented")
+        self.assertIn(tid, [u["id"] for u in att["unlinked"]],
+                      "the row vanished from every bucket")
 
     def test_the_event_still_records_the_answer(self):
         d = self.project(with_store=False)
@@ -508,6 +544,7 @@ class TestTheEdgeIsNotASecondTransaction(Fixture):
 
     CHILD = r'''
 import importlib.machinery, importlib.util, os, signal, sys
+
 TOOL, ROOT, N, TITLE, KR = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
 spec = importlib.util.spec_from_loader(
     "perry_task", importlib.machinery.SourceFileLoader("perry_task", TOOL))

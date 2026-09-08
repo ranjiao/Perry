@@ -31,7 +31,7 @@ Behind it:
 
 **What TASK-094 changed about this module, and what it did not.** ADR-007
 decision 4 removed the category rather than hardening it *for three files*:
-`BOARD.md`, `OKR.md` and `.perry/config.md` are stores, and no task row and no
+`BOARD.md`, `OKR.md` and `.perry/config.jsonl` are stores, and no task row and no
 KR row is split out of them any more. So the last class here measures that —
 the deliverable is a count and this is the same count — and the one guard
 whose premise moved says so: `parse_board` reading what `render_row` wrote is
@@ -71,6 +71,8 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 
 import tables as T  # noqa: E402
 import parsers as P  # noqa: E402
+
+import config_store  # noqa: E402
 
 
 @contextlib.contextmanager
@@ -216,9 +218,7 @@ class TestTheWriterRefusesAndWritesNothing(unittest.TestCase):
         (self.root / "perry").mkdir()
         (self.root / "perry" / "BOARD.md").write_text(board_with([]),
                                                       encoding="utf-8")
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Config\n\nState root: perry/\n", encoding="utf-8")
+        config_store.write_config(self.root, {"State root": "perry/"})
         self.addCleanup(self.tmp.cleanup)
 
     def run_add(self, next_action: str):
@@ -493,9 +493,7 @@ class TestARaggedRowIsAFinding(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         (self.root / "perry").mkdir()
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Config\n\nState root: perry/\n", encoding="utf-8")
+        config_store.write_config(self.root, {"State root": "perry/"})
         self.addCleanup(self.tmp.cleanup)
 
     def lint(self, rows: list[str]) -> list[str]:
@@ -625,8 +623,7 @@ class TestRaggedRowPointsAtTheRow(unittest.TestCase):
         d = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "perry").mkdir()
-        (d / ".perry").mkdir()
-        (d / ".perry" / "config.md").write_text("State root: perry\n")
+        config_store.write_config(d, {"State root": "perry"})
         (d / "perry" / "BOARD.md").write_text(board)
         proc = subprocess.run(
             [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
@@ -871,13 +868,11 @@ class TestNoRowIsSplitForAStore(unittest.TestCase):
             "adoption stopped splitting KR rows")
 
     def test_no_row_is_split_for_the_config(self):
-        """`.perry/config.md`'s reader here is `resolve_state_root`, which
-        reads one declared setting with a regex and has never split a row.
-        Asserted rather than assumed: it is one of the three, and the file it
-        reads is the one that decides where the other two live."""
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Config\n\n- State root: .\n", encoding="utf-8")
+        """`.perry/config.jsonl`'s reader here is `resolve_state_root`, which
+        reads one declared setting out of the store and has never split a row.
+        Asserted rather than assumed: it is one of the three, and the register
+        it reads is the one that decides where the other two live."""
+        config_store.write_config(self.root, {"State root": "."})
         self.assertEqual(
             self.splits(lambda: P.resolve_state_root(self.root)), {})
 

@@ -309,9 +309,14 @@ class InvariantsHoldInTheFixture(unittest.TestCase):
                             "(reference/i18n.md § The invariant layer)")
 
     def test_config_field_names_stay_english(self):
-        text = (ZH / ".perry" / "config.md").read_text()
+        """The rule outlived the file. `schema § i18n.invariant` names "header
+        field names in .perry/config.md" because that was where they were
+        written; ADR-019 moved them to `label` on a `setting` record, and the
+        reason is unchanged — this register declares the language, so it has to
+        be readable before the language is known."""
+        text = (ZH / ".perry" / "config.jsonl").read_text(encoding="utf-8")
         for name in ("Document language", "Chat language", "Repo layout"):
-            self.assertIn(name + ":", text)
+            self.assertIn(f'"label": "{name}"', text)
 
     def test_priority_sections_stay_english(self):
         board = (ZH / "BOARD.md").read_text()

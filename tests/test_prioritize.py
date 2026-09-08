@@ -36,6 +36,8 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import tables as T  # noqa: E402
 
+import config_store  # noqa: E402
+
 TOOL = PERRY_HOME / "bin" / "perry-task"
 HEADER = ["ID", "Title", "Owner", "Status", "Next action", "Evidence",
           "Verification"]
@@ -72,8 +74,7 @@ class Base(unittest.TestCase):
         self.root = Path(self.tmp.name)
         (self.root / "perry").mkdir()
         (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Config\n\nState root: perry/\n", encoding="utf-8")
+        config_store.write_config(self.root, {"State root": "perry/"})
         self.addCleanup(self.tmp.cleanup)
 
     def write(self, text):

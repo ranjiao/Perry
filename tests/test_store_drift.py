@@ -36,6 +36,9 @@ import sys
 import tempfile
 import unittest
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "bin"))
+import perry_md_store as M                                      # noqa: E402
+
 from store_fixture import StoreFixture
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -657,11 +660,21 @@ CENSUS_LINES = {
     "asks.jsonl": ("· ask store:", "no `asks.jsonl`"),
     "okr.jsonl": ("· OKR store:", "no `okr.jsonl`"),
     ".perry/config.jsonl": ("· config store:", "no `.perry/config.jsonl`"),
-    # The seventh (TASK-276, DESIGN-015 row A). Declared before it exists,
-    # like `intake.jsonl` and `asks.jsonl` were: the import is row B, so on
-    # this project only the absence line is reachable today.
+    # The seventh (TASK-276, DESIGN-015 row A). **Its line reports records
+    # and malformed count, never `drifted`** — ADR-019 deleted
+    # `phase/<NNN>-linkage.md`, so this store projects from nothing and a
+    # drift verdict over one copy would be a number that cannot be non-zero.
     "linkage.jsonl": ("· linkage store:", "no `linkage.jsonl`"),
 }
+
+#: The stores that PROJECT from a markdown document and can therefore drift
+#: from it. Six of the seven. `linkage.jsonl` is claimed, censused and
+#: shape-checked like the rest; what it has no second copy of is a document,
+#: so `perry-lint --json` gives it a `linkage_store` block rather than a
+#: `linkage_store_drift` one. Named here rather than special-cased at the
+#: assertion, because "not covered" and "nothing to compare it to" are the two
+#: answers this suite exists to keep apart.
+PROJECTS_FROM_A_DOCUMENT = set(CENSUS_LINES) - {"linkage.jsonl"}
 
 #: The event log is claimed and is NOT one of the six: it is append-only
 #: history, not a store any file is projected from, so there is nothing to
@@ -689,8 +702,22 @@ class TestTheCensusCoversEveryDeclaredStore(Fixture):
     """
 
     def census_lines(self, text: str) -> list[str]:
+        """Every census line one run printed, matched by its own marker.
+
+        This read `"drifted" in l or "unchecked, not clean" in l`, which was
+        the whole vocabulary while all seven stores projected from a document.
+        ADR-019 left `.perry/config.jsonl` with no projection, so its line
+        reports records and validity — `· config store: 5 record(s), all
+        valid` — and carries neither word. Counting by vocabulary would have
+        reported six of seven and called the census incomplete.
+
+        Matched against `CENSUS_LINES` instead, which is the per-store table
+        this module already keys everything else off, so a store whose line
+        changes wording again is a table edit rather than a silent undercount.
+        """
+        markers = [m for pair in CENSUS_LINES.values() for m in pair]
         return [l.strip() for l in text.split("\n")
-                if "drifted" in l or "unchecked, not clean" in l]
+                if any(m in l for m in markers)]
 
     def test_every_declared_store_has_a_line(self):
         d = self.project()
@@ -732,7 +759,8 @@ class TestTheCensusCoversEveryDeclaredStore(Fixture):
         _, payload = self.lint(d)
         blocks = {k: v for k, v in payload.items()
                   if k.endswith("store_drift") or k == "store_drift"}
-        self.assertEqual(len(blocks), len(declared_stores()), sorted(blocks))
+        self.assertEqual(len(blocks), len(PROJECTS_FROM_A_DOCUMENT),
+                         sorted(blocks))
         for name, block in blocks.items():
             with self.subTest(name):
                 self.assertIn("store_present", block)
@@ -740,12 +768,47 @@ class TestTheCensusCoversEveryDeclaredStore(Fixture):
                 self.assertIn("records", block)
                 self.assertIn("drifted", block)
 
+    def test_the_seventh_store_carries_a_block_with_no_drift_count(self):
+        """**Every declared store still has a block; one of them is a
+        different shape, and the difference is the finding.**
+
+        Six stores project from a markdown document and report `drifted`.
+        `linkage.jsonl` projected from `phase/<NNN>-linkage.md` and reported
+        `1 row(s) drifted` on this project — `P003-O3-KR2` — on the day
+        ADR-019 was written. The ADR's argument is that the check is the
+        ongoing cost of the duplication rather than a fix for it, so the
+        document went and the class became impossible.
+
+        A `drifted: 0` left in place would be worse than no key: a consumer
+        reading it would take a number that cannot be non-zero for a check
+        that passed, which is the `unchecked`-read-as-`clean` mistake
+        `P003-O1-KR3` exists to prevent. So the key is renamed, and this
+        asserts BOTH halves — the block is present, and `drifted` is not in
+        it.
+        """
+        d = self.project()
+        self.store(d)
+        _, payload = self.lint(d)
+        self.assertNotIn("linkage_store_drift", payload)
+        block = payload["linkage_store"]
+        self.assertIn("store_present", block)
+        self.assertIn("records", block)
+        self.assertIn("malformed", block)
+        self.assertNotIn("drifted", block)
+        # And every declared store is still accounted for, which is the
+        # count TASK-209 was opened over.
+        blocks = {k for k in payload
+                  if k.endswith("store_drift") or k == "store_drift"}
+        self.assertEqual(len(blocks) + 1, len(declared_stores()))
+
 
 class MarkdownStore(Fixture):
-    """`OKR.md`/`okr.jsonl` and `.perry/config.md`/`.perry/config.jsonl`.
+    """`OKR.md`/`okr.jsonl` — the one store still projected from a document.
 
-    Both stores ship in this repository, so `self.project()` inherits them —
-    unlike `tasks.jsonl`, which the fixture strips.
+    It was two until ADR-019: `.perry/config.md` was the other, and
+    `.perry/config.jsonl` now has no second copy to be compared against. Both
+    stores ship in this repository, so `self.project()` inherits them — unlike
+    `tasks.jsonl`, which the fixture strips.
     """
 
     def project(self) -> pathlib.Path:
@@ -782,28 +845,21 @@ class TestAHandEditToEitherMarkdownStoreIsDrift(MarkdownStore):
         self.assertIn("perry-okr render --write", rows[0]["message"])
         self.assertEqual(code, 0, "drift is warn, never error")
 
-    def test_an_edited_config_cell_is_reported(self):
-        d = self.project()
-        self.edit_a_cell(d, ".perry/config.md", "- Repo layout: single",
-                         "- Repo layout: split")
-        _, payload = self.lint(d)
-        rows = self.rows(payload, "config")
-        self.assertEqual(len(rows), 1, rows)
-        self.assertEqual(payload["config_store_drift"]["drifted"], 1)
-        self.assertEqual(rows[0]["file"], ".perry/config.md")
-        self.assertIn("split", rows[0]["message"])
-        self.assertIn("perry-config render --write", rows[0]["message"])
-
-    def test_an_edited_track_row_is_reported(self):
-        """The table half of the config store — the settings above it are
-        `- Key: value` slots and take a different descriptor."""
-        d = self.project()
-        self.edit_a_cell(d, ".perry/config.md",
-                         "| intake | queue |", "| intake | pipeline |")
-        _, payload = self.lint(d)
-        rows = self.rows(payload, "config")
-        self.assertEqual(payload["config_store_drift"]["drifted"], 1, rows)
-        self.assertIn("track/intake", rows[0]["message"])
+    # `test_an_edited_config_cell_is_reported` and
+    # `test_an_edited_track_row_is_reported` stood here. They planted a hand
+    # edit in `.perry/config.md` — one on the settings' slot path, one on the
+    # `## Tracks` table path — and asserted `config-store-drift` named the
+    # cell. **ADR-019 deleted the file, so the drift is impossible rather than
+    # undetected**, which is the outcome the ADR was taken for. There is no
+    # weaker version of these to keep: a store with one copy cannot disagree
+    # with itself.
+    #
+    # `check_config_store` kept the questions that were never about the
+    # projection, and each is asserted where its rule lives:
+    # `config-store-unreadable` and `config-store-badly-typed` below,
+    # `no-default` in `tests/test_missing_defaults.py`, `bad-enum` in
+    # `tests/test_work_modes.py`, `stage-separator` in
+    # `tests/test_stage_separators.py`.
 
     def test_the_human_census_goes_red(self):
         """`--json` is not what a user reads. The `·` line has to move too."""
@@ -818,16 +874,23 @@ class TestAHandEditToEitherMarkdownStoreIsDrift(MarkdownStore):
         self.assertIn("[okr-store-drift]", after)
 
     def test_untouched_files_are_clean(self):
+        """The control for the case above. It ran over `okr` and `config`
+        until ADR-019; `config_store_drift`'s `drifted` is now structurally 0
+        rather than measured 0, so asserting it here would be asserting a
+        number that cannot move — the vacuity this whole module is arranged
+        against. Its `store_present` / `comparison_performed` halves still
+        MEASURE something and are asserted in
+        `TestARemovedMarkdownStoreIsUncheckedNotClean` and
+        `TestABadlyTypedMarkdownStoreIsExcludedNotIgnored`.
+        """
         d = self.project()
         _, payload = self.lint(d)
-        for name in ("okr", "config"):
-            with self.subTest(name):
-                block = payload[f"{name}_store_drift"]
-                self.assertTrue(block["store_present"])
-                self.assertTrue(block["comparison_performed"])
-                self.assertEqual(block["drifted"], 0)
-                self.assertGreater(block["records"], 0)
-                self.assertEqual(self.rows(payload, name), [])
+        block = payload["okr_store_drift"]
+        self.assertTrue(block["store_present"])
+        self.assertTrue(block["comparison_performed"])
+        self.assertEqual(block["drifted"], 0)
+        self.assertGreater(block["records"], 0)
+        self.assertEqual(self.rows(payload, "okr"), [])
 
 
 class TestARemovedMarkdownStoreIsUncheckedNotClean(MarkdownStore):
@@ -889,13 +952,14 @@ class TestTheMarkdownCensusReusesTheExistingComparator(MarkdownStore):
         return proc.returncode
 
     def test_lint_and_the_tool_agree_on_a_clean_tree(self):
+        """`perry-config verify` was the second leg here and ADR-019 deleted
+        it along with the other four subcommands that compared
+        `.perry/config.jsonl` to a projection of it."""
         d = self.project()
         _, payload = self.lint(d)
-        for name, tool in (("okr", "perry-okr"), ("config", "perry-config")):
-            with self.subTest(name):
-                self.assertEqual(payload[f"{name}_store_drift"]["drifted"], 0)
-                self.assertEqual(self.diff(d, tool), 0,
-                                 f"{tool} verify disagrees with perry-lint")
+        self.assertEqual(payload["okr_store_drift"]["drifted"], 0)
+        self.assertEqual(self.diff(d, "perry-okr"), 0,
+                         "perry-okr verify disagrees with perry-lint")
 
     def test_lint_and_the_tool_agree_on_an_edited_tree(self):
         d = self.project()
@@ -907,12 +971,23 @@ class TestTheMarkdownCensusReusesTheExistingComparator(MarkdownStore):
                          "perry-okr verify calls the same edit clean")
 
     def test_the_store_list_comes_from_the_module(self):
-        """`_MD_STORE_DOCS` is read off `perry_md_store`, so a third document
-        joining that module cannot be silently uncovered here."""
+        """`_MD_STORE_DOCS` is read off `perry_md_store`, so a second document
+        joining that module cannot be silently uncovered here.
+
+        `_MD_STORE.CONFIG` was asserted beside `_MD_STORE.OKR` until ADR-019
+        deleted that `Doc`. The property is the one that mattered — the list
+        is READ, and no scanner or column map is spelled a second time — and
+        it is asserted below over every name `perry_md_store` exports for a
+        `Doc`, so the day a document joins, this reads it rather than needing
+        an edit.
+        """
         source = (ROOT / "bin" / "perry-lint").read_text()
-        self.assertIn("_MD_STORE.OKR", source)
-        self.assertIn("_MD_STORE.CONFIG", source)
-        for spelled in ("scan_okr", "KR_COLUMNS", "TRACK_COLUMNS"):
+        docs = [n for n, v in vars(M).items() if isinstance(v, M.Doc)]
+        self.assertTrue(docs, "perry_md_store exports no `Doc` at all")
+        for name in docs:
+            self.assertIn(f"_MD_STORE.{name}", source,
+                          f"perry-lint's census does not name {name}")
+        for spelled in ("scan_okr", "KR_COLUMNS", "TRACK_FIELDS"):
             self.assertNotIn(spelled, source,
                              f"perry-lint spells `{spelled}` itself — that is "
                              f"the second implementation ADR-004 forbids")

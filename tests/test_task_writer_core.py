@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import config_store
+from config_store import track
 from task_writer_support import (
     BASIC_MODE_TRACKS, BOARD, MODE_TRACKS, PERRY_HOME, PT, Project,
     ROUND_TRIP_BOARD, ROUND_TRIP_ROW_IDS, ROUND_TRIP_ROW_PRIORITIES, TASKS,
@@ -242,13 +244,14 @@ class TestALocalizedBoard(unittest.TestCase):
     rounds could see it.
     """
 
-    def zh(self) -> "Project":
+    ZH_SETTINGS = {"Document language": "中文", "Repo layout": "single"}
+
+    def zh(self, tracks: list[dict] | None = None) -> "Project":
         p = Project(board=ZH_BOARD)
-        # Overwrites the config `Project` wrote, so it has to carry `""`
-        # forward itself — `ZH_BOARD` is deliberately not Perry's shape.
-        (p.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: 中文\n"
-            "- Repo layout: single\n- State root: .\n")
+        # Overwrites the config `Project` wrote, so it has to carry the whole
+        # settings set forward itself — `ZH_BOARD` is deliberately not Perry's
+        # shape and the document language is the point.
+        config_store.write_config(p.root, self.ZH_SETTINGS, tracks or [])
         return p
 
     def row(self, p: "Project") -> list[str]:
@@ -281,13 +284,8 @@ class TestALocalizedBoard(unittest.TestCase):
         """Appending `Stage` beside `阶段序列` would leave a header in two
         languages, which `perry-lint`'s localized match regexes then disagree
         about."""
-        p = self.zh()
-        (p.root / ".perry" / "config.md").write_text(
-            (p.root / ".perry" / "config.md").read_text()
-            + "\n## Tracks\n\n"
-            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-            "|---|---|---|---|---|---|---|---|\n"
-            "| blog | pipeline | commitments | brief->draft | — | — | — | V5 |\n")
+        p = self.zh([track("blog", "pipeline", spine="commitments",
+                           stages="brief->draft", default_rung="V5")])
         code, out = p.run("add", "--title", "文章", "--track", "blog", "--priority", "P0")
         self.assertEqual(code, 0, out)
         header = next(l for l in p.board().split("\n") if l.startswith("| 编号 |"))
@@ -746,10 +744,9 @@ class TestOnePriorityValidator(unittest.TestCase):
     another guarantees the mismatch eventually.
     """
 
-    TRACKS = ("\n## Tracks\n\n"
-              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-              "|---|---|---|---|---|---|---|---|\n"
-              "| ops | queue | commitments | new->triaged->in_progress | — | 5d | monthly | V2 |\n")
+    TRACKS = [track("ops", "queue", spine="commitments",
+                    stages="new->triaged->in_progress", sla="5d",
+                    cycle="monthly", default_rung="V2")]
 
     def test_route_refuses_an_unknown_priority_rather_than_crashing(self):
         p = Project(tracks=self.TRACKS)

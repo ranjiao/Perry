@@ -147,7 +147,7 @@ class Fixture(unittest.TestCase):
     def never_adopted(self) -> pathlib.Path:
         """A folder Perry has never touched that owns a `design/` directory.
 
-        No `.perry/config.md`, no `BOARD.md`, no `OKR.md`, no `phase/` — the
+        No `.perry/config.jsonl`, no `BOARD.md`, no `OKR.md`, no `phase/` — the
         four things `is_adopted` looks for. The collision ingredients are all
         present, which is what makes "the check did not run" a real result
         rather than "there was nothing to find"; `test_the_ingredients_are_all
@@ -366,7 +366,8 @@ class TestNothingElseMoved(Fixture):
         """The gate, from the other side."""
         d = self.never_adopted()
         (d / ".perry").mkdir()
-        shutil.copy(FIXTURE / ".perry" / "config.md", d / ".perry" / "config.md")
+        shutil.copy(FIXTURE / ".perry" / "config.jsonl",
+                    d / ".perry" / "config.jsonl")
         _, payload = self.lint(d)
         self.assertEqual(len(self.ns(payload)), 1, payload["findings"])
 

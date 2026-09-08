@@ -1,7 +1,7 @@
 """TASK-120 — a KR's `current` is an assertion, and both payloads say so.
 
 **The state this replaces, measured on Perry's own register.** `target` and
-`current` are hand-written into `phase/<NNN>-linkage.md` and nothing derived,
+`current` are hand-written into the linkage register and nothing derived,
 checked or aged them. The two readings a consumer could take were wrong in
 opposite directions on the same day:
 
@@ -79,7 +79,7 @@ def kr(payload: dict, kr_id: str) -> dict:
 
 # ── a project built for the purpose ───────────────────────────────────────
 #
-# `phase/002-linkage.md` in this repository is the `goals` lane's file and this
+# `perry/linkage.jsonl` in this repository is the `goals` lane's file and this
 # row does not write it, so every case that needs a particular register builds
 # its own project. Both directions of the staleness case run against ONE
 # fixture, differing only by an event appended between the two reads.
@@ -108,40 +108,41 @@ Drive two counts to zero, and leave a third KR with no number at all.
 | P001-O1-KR3 | Never given a number | 0 (baseline unmeasured) | |
 """
 
-LINKAGE = """---
-linkage: 1
-phase: "001-a-phase"
-updated: "{updated}"
-objectives:
-  - id: O1
-    title: "Drive two counts to zero"
-    krs:
-      - id: P001-O1-KR1
-        title: "Rendered from the store"
-        metric: "1 of 1"
-        target: 1
-        current: 0
-        stretch: false
-        tasks: ["TASK-001", "TASK-002"]
-      - id: P001-O1-KR2
-        title: "Readers resolving a header cell"
-        metric: "0 (baseline 5)"
-        target: 0
-        current: 0
-        stretch: false
-        tasks: ["TASK-003"]
-      - id: P001-O1-KR3
-        title: "Never given a number"
-        metric: "0 (baseline unmeasured)"
-        target: 0
-        stretch: false
-        tasks: ["TASK-004"]
-unlinked: []
-projects: []
----
+#: The graph, as `linkage.jsonl` records. `asserted_at` is per KR and only on
+#: a KR that HAS a `current` — `P001-O1-KR3` has neither, which is the case
+#: `TestAnUnassertedCurrentIsNullNotZero` reads.
+#:
+#: **This was `phase/001-linkage.md` with one file-level `updated:` stamp
+#: until ADR-019**, and that stamp was what every KR's assertion date was read
+#: from. TASK-155 is that defect; the fixture carries the date per KR now
+#: because the store does.
+def linkage_records(asserted_at: str) -> list[dict]:
+    krs = [
+        {"kind": "kr", "phase": "001-a-phase", "objective": "O1",
+         "id": "P001-O1-KR1", "title": "Rendered from the store",
+         "metric": "1 of 1", "target": 1, "current": 0, "stretch": False},
+        {"kind": "kr", "phase": "001-a-phase", "objective": "O1",
+         "id": "P001-O1-KR2", "title": "Readers resolving a header cell",
+         "metric": "0 (baseline 5)", "target": 0, "current": 0,
+         "stretch": False},
+        {"kind": "kr", "phase": "001-a-phase", "objective": "O1",
+         "id": "P001-O1-KR3", "title": "Never given a number",
+         "metric": "0 (baseline unmeasured)", "target": 0, "stretch": False},
+    ]
+    for rec in krs:
+        if "current" in rec and asserted_at:
+            rec["asserted_at"] = asserted_at
+    edges = [("TASK-001", "P001-O1-KR1"), ("TASK-002", "P001-O1-KR1"),
+             ("TASK-003", "P001-O1-KR2"), ("TASK-004", "P001-O1-KR3")]
+    return [
+        {"kind": "objective", "phase": "001-a-phase", "id": "O1",
+         "title": "Drive two counts to zero"},
+        *krs,
+        *({"kind": "edge", "task": task, "kr": kr_id,
+           "declared_at": "2026-08-01T00:00:00Z", "actor": "goals",
+           "via": "link"} for task, kr_id in edges),
+    ]
 
-# Phase #001 — linkage graph
-"""
 
 TASKS = [
     {"id": "TASK-001", "title": "One", "status": "done", "priority": "P1"},
@@ -152,8 +153,8 @@ TASKS = [
      "priority": "P1"},
 ]
 
-#: Every state move predates the register's `updated`, so the register is
-#: current until a test appends one that does not.
+#: Every state move predates each KR's `asserted_at`, so the numbers are
+#: current until a test appends a move that is not.
 #:
 #: **Zone-bearing on purpose (TASK-144).** These stamps are days away from the
 #: assertion, so no case here turns on the offset — and writing them with a
@@ -178,6 +179,15 @@ UPDATED = "2026-08-15T12:00:00Z"
 
 
 def build_project(updated: str = UPDATED) -> Path:
+    """`updated` is now each asserted KR's own `asserted_at` (ADR-019).
+
+    The parameter keeps its name because every caller passes it for the same
+    reason it always did — *when the numbers in this register were arrived
+    at* — and that is exactly what the field means now. What changed is that
+    the value lands on the KR records instead of on a file header, so passing
+    `""` means "no KR records an assertion date" rather than "the file has no
+    header stamp".
+    """
     root = Path(tempfile.mkdtemp())
     (root / ".perry").mkdir()
     (root / ".perry" / "config.md").write_text(
@@ -186,7 +196,9 @@ def build_project(updated: str = UPDATED) -> Path:
         "".join(json.dumps(e) + "\n" for e in EVENTS))
     (root / "phase").mkdir()
     (root / "phase" / "001-a-phase.md").write_text(PHASE)
-    (root / "phase" / "001-linkage.md").write_text(LINKAGE.format(updated=updated))
+    (root / "linkage.jsonl").write_text(
+        "".join(json.dumps(r, ensure_ascii=False) + "\n"
+                for r in linkage_records(updated)))
     (root / "phase" / "CURRENT").write_text("001-a-phase\n")
     (root / "OKR.md").write_text(
         "# OKR — fixture\n\n## Mission\n\nShip it.\n\n---\n\n## v1: 2026-08-01\n")
@@ -228,7 +240,7 @@ class Fixture(unittest.TestCase):
 class TestBothOfTodaysWrongReadingsFlip(Fixture):
     """Read against this repository's OWN register, unchanged.
 
-    `perry/phase/002-linkage.md` belongs to the `goals` lane and TASK-120 does
+    `perry/linkage.jsonl` belongs to the `goals` lane and TASK-120 does
     not write it. So the assertions here are about the SHAPE the payload
     reports, never about a hand-typed number: what changed is that the payload
     can no longer be read as saying either of the two wrong things.
@@ -271,11 +283,23 @@ class TestBothOfTodaysWrongReadingsFlip(Fixture):
         self.assertTrue(asserted, "the register carries no asserted `current`")
         for k in asserted:
             self.assertEqual(k["current_provenance"]["source"],
-                             "linkage-register")
-            self.assertEqual(k["current_provenance"]["asserted_scope"],
-                             "register",
-                             "the date belongs to the register, not the KR, "
-                             "and the payload must say so")
+                             "linkage-store")
+            # **`asserted_scope` is `kr` or `""`, and never `register` —
+            # TASK-155.** It read `register` until ADR-019 because the date
+            # came from `phase/<NNN>-linkage.md`'s one file-level `updated:`
+            # stamp, shared by every KR in the phase, and the scope was
+            # emitted beside it so a reader could not mistake it for this KR's
+            # own. The date is per KR now, so the scope says so — and `""`
+            # with an empty `asserted_at` is the third answer the payload must
+            # keep being able to give: nobody recorded when.
+            self.assertIn(k["current_provenance"]["asserted_scope"],
+                          ("kr", ""),
+                          "an assertion date belongs to a KR, never to a file")
+            self.assertEqual(
+                bool(k["current_provenance"]["asserted_at"]),
+                k["current_provenance"]["asserted_scope"] == "kr",
+                f"{k['id']}: `asserted_scope` and `asserted_at` disagree "
+                f"about whether a date was recorded")
 
     def test_a_drive_to_zero_kr_is_not_reported_as_met(self):
         """No key anywhere in a KR row says `met`, `achieved` or `progress`.
@@ -458,13 +482,61 @@ class TestWhatCouldNotBeDecidedSaysSo(unittest.TestCase):
     having checked.
     """
 
-    def test_a_register_with_no_updated_timestamp_cannot_be_evaluated(self):
+    def test_a_kr_with_no_asserted_at_cannot_be_evaluated(self):
+        """An asserted number with no recorded assertion date.
+
+        This read `no `updated` timestamp` until ADR-019, when the file-level
+        stamp every KR shared became a per-KR field. The guarantee it buys is
+        stronger now and is the reason `asserted_at` is not defaulted: the
+        answer to "when was this measured" can be *nobody wrote it down*, and
+        that has to be distinguishable from *just now*. Defaulting the field
+        to the time of any write — which is what reading the register's
+        `updated:` amounted to — makes every number read fresh, which is
+        TASK-155."""
         root = build_project(updated="")
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        s = kr(goals(root), "P001-O1-KR1")["current_staleness"]
+        got = kr(goals(root), "P001-O1-KR1")
+        self.assertEqual(got["current_provenance"]["state"], "asserted")
+        self.assertEqual(got["current_provenance"]["asserted_at"], "")
+        self.assertEqual(got["current_provenance"]["asserted_scope"], "")
+        s = got["current_staleness"]
         self.assertFalse(s["stale"])
         self.assertFalse(s["evaluated"])
-        self.assertIn("no `updated` timestamp", s["reason"])
+        self.assertIn("no `asserted_at` is recorded", s["reason"])
+
+    def test_one_krs_assertion_date_does_not_move_another_krs(self):
+        """TASK-155, as a property rather than as a comment.
+
+        The defect: `phase/<NNN>-linkage.md` carried ONE `updated:` stamp and
+        `kr_progress_provenance` read it as every KR's assertion date, so
+        re-dating the file — which every `perry-goals link` write did —
+        marked every number in the phase freshly asserted. Here `P001-O1-KR2`
+        is re-dated past the move that made `P001-O1-KR1` stale, and
+        `P001-O1-KR1` must not follow it."""
+        root = build_project()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        append_event(root, {"ts": "2026-08-16T09:00:00Z", "event": "done",
+                            "id": "TASK-001", "from": "in_progress",
+                            "to": "done"})
+        before = kr(goals(root), "P001-O1-KR1")["current_staleness"]
+        self.assertTrue(before["stale"], before["reason"])
+
+        store = root / "linkage.jsonl"
+        rows = [json.loads(line) for line in
+                store.read_text().splitlines() if line.strip()]
+        for row in rows:
+            if row.get("id") == "P001-O1-KR2":
+                row["asserted_at"] = "2026-08-30T00:00:00Z"
+        store.write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+        after = kr(goals(root), "P001-O1-KR1")["current_staleness"]
+        self.assertTrue(after["stale"],
+                        "re-dating P001-O1-KR2 marked P001-O1-KR1 fresh — "
+                        "one field is carrying two KRs' assertion dates again")
+        self.assertEqual(after["since"], before["since"])
+        self.assertEqual(
+            kr(goals(root), "P001-O1-KR2")["current_provenance"]["asserted_at"],
+            "2026-08-30T00:00:00Z")
 
     def test_a_project_with_no_event_log_cannot_be_evaluated(self):
         root = build_project()
@@ -480,7 +552,7 @@ class TestWhatCouldNotBeDecidedSaysSo(unittest.TestCase):
                          {"total": 2, "done": 2, "dropped": 0, "open": 0,
                           "unknown": 0})
 
-    def test_a_date_only_updated_is_read_as_midnight(self):
+    def test_a_date_only_asserted_at_is_read_as_midnight(self):
         """Errs toward staleness on purpose: a false `recheck this` costs a
         look, a false `this number is fine` costs the number."""
         root = build_project(updated="2026-08-10")
@@ -671,9 +743,11 @@ class TestADanglingEdgeIsNotCountedAsOpen(unittest.TestCase):
     def test_an_id_neither_store_knows_is_unknown(self):
         root = build_project()
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        text = (root / "phase" / "001-linkage.md").read_text().replace(
-            'tasks: ["TASK-003"]', 'tasks: ["TASK-003", "TASK-999"]')
-        (root / "phase" / "001-linkage.md").write_text(text)
+        with open(root / "linkage.jsonl", "a") as fh:
+            fh.write(json.dumps({"kind": "edge", "task": "TASK-999",
+                                 "kr": "P001-O1-KR2",
+                                 "declared_at": "2026-08-01T00:00:00Z",
+                                 "actor": "goals", "via": "link"}) + "\n")
         tally = kr(goals(root), "P001-O1-KR2")["linked_task_completion"]
         self.assertEqual(tally, {"total": 2, "done": 0, "dropped": 0,
                                  "open": 1, "unknown": 1})

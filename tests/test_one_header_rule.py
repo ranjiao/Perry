@@ -21,12 +21,13 @@ This module is the guard the previous round did not have. The previous one was
 says nothing about a third module that imported neither.
 
 **TASK-094 narrowed what this is for.** ADR-007 decision 4 removes the question
-for `BOARD.md`, `OKR.md` and `.perry/config.md`: a task row and a KR row are
+for `BOARD.md`, `OKR.md` and the config: a task row and a KR row are
 read out of a store now and nothing asks a rendered document which column a
 cell is. The last class measures that as a count. Everything above it survives
 because it is what ADOPTION needs — a foreign project's board, a project's
-`.perry/config.md § Tracks` register, `.perry/conformance.md` — and adoption
-parses by definition. A file that kept only the count would be green on a
+`.perry/conformance.md` — and adoption parses by definition. The track
+register left this list entirely when ADR-019 deleted the file its table was
+in. A file that kept only the count would be green on a
 reader that invented a sixth rule for a project arriving from outside Perry.
 
 Run: python3 -m unittest discover -s tests
@@ -58,6 +59,8 @@ import parsers as P  # noqa: E402
 # path the same way `discover` does, which is how `test_risks` already reaches
 # `test_task_writer`.
 import test_row_integrity as RI  # noqa: E402
+
+import config_store  # noqa: E402
 
 #: **The scan is one implementation, in `tests/header_rule.py`**, shared with
 #: `tests/test_header_rule_harness.py`. Round 5's review found the harness
@@ -237,33 +240,18 @@ class TestOneRuleForAHeaderCell(unittest.TestCase):
         self.assertIs(mod.norm, squash)
 
 
-class TestTheDecoratedHeaderIsActuallyRead(unittest.TestCase):
-    """Behaviour, not grep. A guard that only greps can be satisfied by a
-    rename; this one fails if the column is lost."""
-
-    CONFIG = (
-        "# Perry configuration\n\n- State root: .\n\n## Tracks\n\n"
-        "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | **Default** rung |\n"
-        "|---|---|---|---|---|---|---|---|\n"
-        "| ops | queue | OKR.md | new -> done | — | 3d | — | V2 |\n")
-
-    def _parse(self, text):
-        loader = importlib.machinery.SourceFileLoader(
-            "perry_state", str(PERRY_HOME / "bin" / "perry-state"))
-        spec = importlib.util.spec_from_loader("perry_state", loader)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod.parse_tracks(text)
-
-    def test_a_header_with_decoration_on_half_the_cell_still_resolves(self):
-        tracks = self._parse(self.CONFIG)
-        self.assertEqual(len(tracks), 1)
-        self.assertEqual(tracks[0].get("default_rung"), "V2",
-                         "the bolded header lost its column")
-
-    def test_the_plain_spelling_is_unchanged(self):
-        tracks = self._parse(self.CONFIG.replace("**Default** rung", "Default rung"))
-        self.assertEqual(tracks[0].get("default_rung"), "V2")
+# `TestTheDecoratedHeaderIsActuallyRead` stood here. It fed
+# `bin/perry-state § parse_tracks` a `## Tracks` table whose header cell read
+# `| **Default** rung |` and asserted the column was still resolved — the
+# behavioural half of the `squash` rule, so that a guard which only greps could
+# not be satisfied by a rename.
+#
+# ADR-019 deleted `.perry/config.md`, and `parse_tracks` with it. A track is a
+# store record, its fields are keys, and there is no header cell to decorate:
+# the question this class asked cannot be asked of the register any more. It is
+# removed rather than re-pointed, because the other documents in this module's
+# scope carry their own decorated-header cases and a third copy aimed at
+# whatever was nearest would be a test kept for its name.
 
 
 class TestTheFifthCopy(unittest.TestCase):
@@ -349,7 +337,7 @@ class TestNoHeaderCellIsResolvedForAStore(unittest.TestCase):
     """Verification 1, the header-cell half. TASK-094, ADR-007 decision 4.
 
     **The rule above is not being hardened, it is being removed** — for three
-    files. `BOARD.md`, `OKR.md` and `.perry/config.md` are stores now, and a
+    files. `BOARD.md`, `OKR.md` and the config are stores now, and a
     reader that asks a rendered document which column a cell is, is asking
     about a shape that no longer exists. What survives is adoption of a
     foreign project, which parses by definition, and the zeros below are
@@ -410,9 +398,7 @@ class TestNoHeaderCellIsResolvedForAStore(unittest.TestCase):
                       self.resolutions(lambda: P.parse_okr(RI.STORED_OKR)))
 
     def test_no_header_cell_of_the_config_is_resolved_here(self):
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Config\n\n- State root: .\n", encoding="utf-8")
+        config_store.write_config(self.root, {"State root": "."})
         self.assertEqual(
             self.resolutions(lambda: P.resolve_state_root(self.root)), {})
 

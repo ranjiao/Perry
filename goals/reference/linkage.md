@@ -1,51 +1,59 @@
-# `okr link` — owning `phase/<NNN>-linkage.md`
+# `okr link` — owning `linkage.jsonl`
 
 Loaded when `/okr link` fires, or whenever PMO hands over an attribution result.
 
-The linkage graph is the one Perry file that is machine-written and machine-read
-on both sides: Perry resolves KR attribution through it, and the frontend draws
-the project's O→KR→task chain from it. `okr` is its **only writer** — PMO reads
-it and hands changes over, because PMO never writes `phase/`.
+The linkage graph is machine-written and machine-read on both sides: Perry
+resolves KR attribution through it, and the frontend draws the project's
+O→KR→task chain from it. In the `goals` lane `okr` is its **only writer** — PMO
+reads it and hands changes over. (`bin/perry-task add --kr` writes an `edge` in
+the same action as the row it opens, which is the one write this lane does not
+make; the store is `owner: perry` for exactly that reason.)
 
 **`bin/perry-goals link` is the write.** Every command on this page is that tool
-with the arguments shown; nothing here is edited by hand. It edits the register
-**in place** — one line, or one span inside one line — never re-rendering it, for
-the reason `perry-goals commit` gives about `OKR.md § Commitments` and one
-stricter: this file is read by machines on both sides, so a re-serialiser that
-dropped a key or coerced a number would produce a graph that still parses, still
-lints, and no longer says what its author said. Every refusal below is enforced
-by the tool, and a refusal means **nothing was written**.
+with the arguments shown; nothing here is edited by hand. It **appends** a
+record; the one exception is the retraction below, which removes an `unlinked`
+record superseded by an edge. Every refusal is enforced by the tool, and a
+refusal means **nothing was written**.
 
-Shape, field list and the three load-bearing rules: `$PERRY_HOME/schema/README.md
-§ The linkage contract`. Attribution rules: `$PERRY_HOME/reference/okr-linkage.md`.
+**It was `phase/<NNN>-linkage.md` until ADR-019** — YAML frontmatter spliced in
+place, one line at a time, by ~530 lines of line-locating machinery that existed
+because the target was markdown somebody might have reformatted. The store is
+JSONL: one record is one line, appending is appending, and there is no second
+copy for the write to disagree with.
+
+Shape and field list: `schema/state-schema.json § stores.declared["linkage.jsonl"]`.
+Attribution rules: `$PERRY_HOME/reference/okr-linkage.md`.
 
 ## The four moments it changes
 
 | When | What |
 |---|---|
-| `plan-phase` | Created from `state/linkage_TEMPLATE.md` — objectives + KRs, `tasks: []`, `unlinked: []`, one `projects[]` entry per Project. See `phases.md`. |
-| `plan-week` | Each approved task id appended to its KR's `tasks[]`. See `weekly.md` step 7. |
+| `plan-phase` | The phase's `objective` and `kr` records, and one `project` record per Project. No edges yet. See `phases.md`. |
+| `plan-week` | One `edge` record per approved task. See `weekly.md` step 7. |
 | **PMO hand-off** (`add-task`, `coordinate`, `digest`) | PMO resolved — or failed to resolve — a task's KR and hands the result here. This file. |
-| `score-phase` | Snapshotted with the phase, then carried forward or retired. See `phases.md`. |
+| `score-phase` | Nothing moves. Every record names its phase and stays where it is; the next phase appends its own. See `phases.md`. |
 
-Every write bumps `updated` to a full ISO datetime — the tool does it, in the
-register's own quoting style:
+**There is no file-level stamp to bump, and that is TASK-155.** The register
+document carried one `updated:` field, and three readers took it for three
+different facts: when the graph last changed, when a KR's `current` was
+asserted, and when each of 115 imported records was declared. So appending one
+edge re-dated every asserted number in the phase — a `current` that reported
+STALE because a linked task had moved read fresh afterwards, with nothing about
+the number changed. The tool named the affected KR ids on stderr and wrote them
+anyway.
 
-```
-date -u +%Y-%m-%dT%H:%M:%SZ
-```
+Each of the three is its own per-record field now:
 
-A day-only value is **dropped by both readers**, not guessed at — so a graph with
-`updated: 2026-08-14` reports "never updated", which is worse than the truth.
+| Field | On | Written by | Means |
+|---|---|---|---|
+| `declared_at` | `edge`, `unlinked`, `project`, `agent` | the write that appends the record | when this declaration was made |
+| `asserted_at` | `kr` | whatever writes `current`, and nothing else | when THIS number was arrived at |
 
-**Known, and printed on every write that meets it**: `updated` is also where
-TASK-120 reads each KR's `current` assertion date from (`asserted_scope:
-"register"` — there is no per-KR date). So bumping it re-dates numbers this write
-did not touch: a `current` that reported STALE because a linked task had moved
-reads fresh afterwards, with nothing about the number changed. The tool names the
-affected KR ids on stderr rather than absorbing it. The fix is a per-KR assertion
-date, which is a new field in `schema/state-schema.json` and therefore a decision
-the user makes, not a writer's.
+`asserted_at` is optional and **absent is a real answer**: it means nobody
+recorded when. It is never filled from the clock by a command that did not
+measure the number — that is TASK-155 with a different spelling, and every
+`current` would read as measured this second. A day-only value is dropped, not
+guessed at.
 
 ## `link` — accepting PMO's hand-off
 
@@ -59,7 +67,7 @@ performs the write.
 "$PERRY_HOME/bin/perry-goals" link --root . <TASK-ID> <KR-ID>
 ```
 
-Appends `<TASK-ID>` to that KR's `tasks[]`. `<KR-ID>` may also be an **exact**
+Appends one `edge` record. `<KR-ID>` may also be an **exact**
 Project id or an **exact** registered alias, resolved in that order — the same
 order `bin/perry-state § resolve_kr` reads with, and with the same fourth step,
 which is to refuse. Anything matching two Projects, or none, is refused with its
@@ -69,8 +77,9 @@ candidates named; nothing is ever matched by resemblance. Refuses if:
   A task under two KRs makes its attribution ambiguous, and `bin/perry-lint`
   rejects it. Move it, don't duplicate it.
 
-If the task is currently in `unlinked[]`, remove it there in the same edit —
-otherwise it renders as both attributed and drifting.
+If the task currently carries an `unlinked` record, that record is retracted in
+the same write — otherwise it renders as both attributed and drifting. This is
+the only place this tool removes a record rather than appending one.
 
 ### 2. A name was confirmed as an existing Project → append the alias
 
@@ -78,7 +87,9 @@ otherwise it renders as both attributed and drifting.
 "$PERRY_HOME/bin/perry-goals" link --root . --alias <PROJECT-ID> "<the other name>"
 ```
 
-Appends to that project's `aliases[]`. This is what makes name drift survivable:
+Appends a second `project` record for that id, carrying the full alias list;
+the readers take the file in order and the later record wins. This is what makes
+name drift survivable:
 a later progress report arriving under the old name resolves to the same KR
 instead of failing. Refuse if another project already claims that name or alias
 — that ambiguity is exactly what the registry exists to prevent, and the linter
@@ -93,7 +104,9 @@ alike; that is the fuzzy match the whole gate forbids.
 "$PERRY_HOME/bin/perry-goals" link --root . --unlinked <TASK-ID>
 ```
 
-Appends to `unlinked[]`. This is a **declaration**, not an inference: never
+Appends one `unlinked` record, carrying the phase it was declared against —
+the store holds every phase at once, so a declaration with no phase would count
+against all of them. This is a **declaration**, not an inference: never
 populate the list by subtracting linked tasks from `BOARD.md`, which would report
 the entire un-triaged backlog as drift the day the graph is written. Refused if
 the task already carries an edge — it would render as attributed and drifting at
@@ -109,12 +122,14 @@ make a number look complete.
 "$PERRY_HOME/bin/perry-goals" link --root . --project <PROJECT-ID> <KR-ID> "<name>"
 ```
 
-Appends to `projects[]` with `objective` derived from the KR id (`P<NNN>-O1-KR2` → `O1`;
-they must agree or the linter refuses) and `status: active`. The tool also checks
-that derivation against the objective the KR actually sits under in the graph,
-and refuses when the two disagree rather than picking one. Flip `status` to
-`done` / `dropped` as the Project resolves — the entry stays, because a retired
-Project's name must keep resolving for historical progress reports.
+Appends one `project` record. `objective` is DERIVED from the KR id
+(`P<NNN>-O1-KR2` → `O1`) and stored nowhere — the id already encodes it, and a
+second field is a second place for the two to disagree. The tool checks that
+derivation against the objective the KR is filed under and refuses when they
+disagree rather than picking one. `status` is `active` when absent; append a
+record with `done` / `dropped` as the Project resolves — the entry stays,
+because a retired Project's name must keep resolving for historical progress
+reports, and `resolve_target` names it rather than using it.
 
 ## After any write
 
@@ -122,17 +137,22 @@ Project's name must keep resolving for historical progress reports.
 "$PERRY_HOME/bin/perry-lint" --root .
 ```
 
-It parses the graph with the **same reader Perry uses**, so a pass means Perry
+It validates every record against its declared shape, so a pass means Perry
 can read it. It also checks: no task under two KRs, no two projects sharing a
-name or alias, every project's `objective` agreeing with its `serves` KR, every
-KR id naming the phase whose register it sits in, and every KR id agreeing with
-the objective it is declared under.
+name or alias, every project serving a KR under an objective its phase declares,
+every KR id naming the phase its records are filed under, and every KR id
+agreeing with the objective it is declared under.
 
 The last two used to be one check — *every KR id present in the phase file* —
 which read the KR table the phase document carried. TASK-157 removed that
 table, so the questions are asked of the id directly, which needs no second
-file and is strictly stronger: a `P002-…` KR pasted into `003-linkage.md` used
-to be caught only because `003-storage-code.md` happened not to mention it.
+file and is strictly stronger: a `P002-…` KR filed under phase 003 used to be
+caught only because `003-storage-code.md` happened not to mention it.
+
+**It does not report drift, and it never will again.** The store projected from
+`phase/<NNN>-linkage.md` and `linkage-store-drift` compared the two; ADR-019
+deleted the document, so the class is impossible rather than checked. The census
+line reports how many records there are and how many match a declared shape.
 
 ## What `okr` must not do here
 
@@ -143,14 +163,17 @@ one.
 - **Not invent a number.** `target` / `current` are numbers or absent. `current`
   is an author's assertion, so it is **absent until asserted** — never `0`. Most
   KRs here drive a count down, so a defaulted zero reads as met on day one; that
-  default was in `state/linkage_TEMPLATE.md` until TASK-119 removed it. A KR whose
-  target is prose ("最大回撤 ≤15%", "vs 1pp 线") gets a `metric:` string and no
+  default was in the register template until TASK-119 removed it. A KR whose
+  target is prose ("最大回撤 ≤15%", "vs 1pp 线") gets a `metric` string and no
   `target`. Half of real KRs are ceilings; a ceiling drawn as a progress bar
-  reports a risk budget as two-thirds achieved.
+  reports a risk budget as two-thirds achieved. **And not invent a DATE**: write
+  `asserted_at` only with the day the number was measured, never with today's
+  clock because the record needed a value.
 - **Not fill an empty KR.** A KR with zero tasks is the most valuable thing the
   chain shows — a commitment nobody is working on. Do not invent a task for it.
-- **Not drop a done task.** Completed work stays in `tasks[]`; that is what an
-  achieved KR looks like.
-- **Not leave `{{placeholder}}` behind.** Both readers refuse a frontmatter
-  containing `{{…}}` outright, because every placeholder is a valid YAML string
-  and an unfilled template would otherwise render as a committed OKR.
+- **Not drop a done task.** Completed work keeps its `edge` record; that is what
+  an achieved KR looks like.
+- **Not hand-edit the store.** Every refusal on this page is enforced by the
+  tool and by nothing else, so a record typed in by hand is a record no rule
+  was applied to. `perry-lint` catches a shape it can name; it cannot catch an
+  attribution somebody guessed.

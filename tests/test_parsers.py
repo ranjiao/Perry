@@ -93,13 +93,14 @@ class TemplateContract(unittest.TestCase):
         self.assertEqual(len(ph.objectives), 2,
                          "the Objectives themselves must survive — they are "
                          "the document's own headings, not the register's")
-        self.assertIn("linkage.md", read("goals/state/phase_TEMPLATE.md"),
+        self.assertIn("linkage.jsonl", read("goals/state/phase_TEMPLATE.md"),
                       "the template must point at the file that does declare "
                       "them, or the KRs are simply missing")
-        link = P.parse_linkage(read("goals/state/linkage_TEMPLATE.md"))
-        self.assertTrue(link.error or link.objectives,
-                        "linkage_TEMPLATE.md declares neither KRs nor a "
-                        "refusal — the KRs would then live nowhere at all")
+        self.assertFalse(
+            (PERRY_HOME / "goals" / "state" /
+             "linkage_TEMPLATE.md").exists(),
+            "ADR-019 deleted the register document; a template for it would "
+            "be a template for a file nothing reads")
 
     def test_phase_template_placeholder_status_is_not_a_real_status(self):
         """The template ships `{{armed / disarmed / tripped}}`; reading that as
@@ -114,10 +115,21 @@ class TemplateContract(unittest.TestCase):
         self.assertEqual(board.p0, [])
         self.assertEqual(board.user_input_queue, [])
 
-    def test_linkage_template_placeholders_are_rejected(self):
-        link = P.parse_linkage(read("goals/state/linkage_TEMPLATE.md"))
-        self.assertFalse(link.ok, "unfilled template must not look populated")
-        self.assertIn("placeholder", link.error)
+    def test_an_empty_linkage_store_is_not_a_populated_graph(self):
+        """What `linkage_TEMPLATE.md`'s placeholder test used to buy.
+
+        The template shipped `{{...}}` placeholders and `parse_linkage`
+        refused them, so an unfilled register could not read as a populated
+        one. There is no template and no document; the equivalent hazard is a
+        store file that exists and declares nothing, and the equivalent
+        guarantee is that it reports `not ok` rather than an empty graph.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "linkage.jsonl").write_text("")
+            link = P.load_linkage(root, "001-demo")
+            self.assertFalse(link.ok, "an empty store must not look populated")
+            self.assertEqual(link.objectives, [])
 
 
 class FixtureProject(unittest.TestCase):
@@ -176,14 +188,19 @@ class FixtureProject(unittest.TestCase):
 
     def test_unlinked_survives_a_round_trip(self):
         """`unlinked` is declared, never inferred — so it has to come back out
-        exactly as written, including when it is the only key present."""
-        link = P.parse_linkage(
-            "---\nlinkage: 1\nunlinked: [A-1, B-2]\n---\n")
+        exactly as written, and in the order it was written in."""
+        link = P.linkage_from_store([
+            {"kind": "kr", "phase": "001-x", "objective": "O1",
+             "id": "P001-O1-KR1", "title": "t"},
+            {"kind": "unlinked", "task": "A-1", "phase": "001-x",
+             "declared_at": "2026-01-01T00:00:00Z", "actor": "goals",
+             "via": "link"},
+            {"kind": "unlinked", "task": "B-2", "phase": "001-x",
+             "declared_at": "2026-01-01T00:00:00Z", "actor": "goals",
+             "via": "link"},
+        ])
         self.assertTrue(link.ok, link.error)
         self.assertEqual(link.unlinked, ["A-1", "B-2"])
-        block = P.parse_linkage(
-            "---\nlinkage: 1\nunlinked:\n  - A-1\n  - B-2\n---\n")
-        self.assertEqual(block.unlinked, ["A-1", "B-2"])
 
     def test_a_phase_kr_bullet_is_read_in_the_migrated_form(self):
         """`_RE_KR_BULLET` moved from `P-O` to `P\\d+-O` in TASK-180.
@@ -212,19 +229,36 @@ class FixtureProject(unittest.TestCase):
 
     def test_a_prose_target_is_never_coerced(self):
         """The linter rejects it, but the reader must not invent one either."""
-        link = P.parse_linkage(
-            '---\nlinkage: 1\nobjectives:\n  - id: O1\n    title: t\n'
-            '    krs:\n      - id: P001-O1-KR1\n        title: t\n'
-            '        metric: "max drawdown <= 15%"\n        target: "<= 15%"\n---\n')
+        link = P.linkage_from_store([
+            {"kind": "objective", "phase": "001-x", "id": "O1", "title": "t"},
+            {"kind": "kr", "phase": "001-x", "objective": "O1",
+             "id": "P001-O1-KR1", "title": "t",
+             "metric": "max drawdown <= 15%", "target": "<= 15%"},
+        ])
         self.assertTrue(link.ok, link.error)
         kr = link.objectives[0].krs[0]
         self.assertIsNone(kr.target, "a prose target must stay absent, not become 15")
         self.assertEqual(kr.metric, "max drawdown <= 15%")
 
-    def test_linkage_is_all_or_nothing(self):
-        link = P.parse_linkage("---\nlinkage: 1\nobjectives:\n\t- id: O1\n---\n")
-        self.assertFalse(link.ok)
-        self.assertEqual(link.objectives, [], "a half-parsed graph must yield no data")
+    def test_a_store_that_is_not_jsonl_reads_as_no_store(self):
+        """What `parse_linkage`'s all-or-nothing rule bought, one file over.
+
+        A half-parsed graph would render a chain missing the objectives the
+        user committed to, which reads as 'nothing is being done about that'.
+        A store with one unreadable line answers `None` from
+        `load_linkage_store` — not a partial list — and `load_linkage` turns
+        that into an empty graph rather than a shortened one."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "linkage.jsonl").write_text(
+                json.dumps({"kind": "kr", "phase": "001-x",
+                            "objective": "O1", "id": "P001-O1-KR1",
+                            "title": "t"}) + "\nnot json at all\n")
+            self.assertIsNone(P.load_linkage_store(root))
+            link = P.load_linkage(root, "001-x")
+            self.assertFalse(link.ok)
+            self.assertEqual(link.objectives, [],
+                             "a half-read graph must yield no data")
 
     def test_design_docs(self):
         by_id = {d.id: d for d in self.snap.design}
@@ -623,29 +657,40 @@ class Linter(unittest.TestCase):
             rules = {f["rule"] for f in json.loads(res.stdout)["findings"]}
             self.assertIn("bad-enum", rules)
 
+    def _mutate_store(self, proj: Path, before: str, after: str) -> None:
+        """One substitution in the fixture's `linkage.jsonl`, refused if it
+        matches nothing — a mutation that edits no byte proves nothing."""
+        f = proj / "linkage.jsonl"
+        text = f.read_text()
+        self.assertIn(before, text)
+        f.write_text(text.replace(before, after))
+
     def test_catches_duplicate_linkage_names(self):
         import shutil
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
-            f = proj / "phase" / "002-linkage.md"
-            f.write_text(f.read_text().replace(
-                'name: "Flake detector"', 'name: "Deploy script hardening"'))
+            self._mutate_store(proj, '"name": "Flake detector"',
+                               '"name": "Deploy script hardening"')
             res = self._run("--root", str(proj), "--json")
             rules = {f["rule"] for f in json.loads(res.stdout)["findings"]}
             self.assertIn("linkage-names-unique", rules)
 
     def test_catches_objective_kr_mismatch(self):
+        """A `project` record serving a KR whose objective the phase does not
+        declare. ADR-019 dropped the registry entry's own `objective:` field —
+        the KR id already encodes it — so the disagreement is now between the
+        id and the phase's `objective` records."""
         import shutil
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
-            f = proj / "phase" / "002-linkage.md"
-            f.write_text(f.read_text().replace(
-                "    serves: P002-O2-KR1\n    objective: O2",
-                "    serves: P002-O2-KR1\n    objective: O1"))
+            self._mutate_store(
+                proj,
+                '{"kind": "objective", "phase": "002-release-pipeline", '
+                '"id": "O2", "title": "Make the signal trustworthy"}\n', "")
             res = self._run("--root", str(proj), "--json")
             rules = {f["rule"] for f in json.loads(res.stdout)["findings"]}
             self.assertIn("linkage-objective-agrees", rules)
@@ -656,8 +701,8 @@ class Linter(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
-            f = proj / "phase" / "002-linkage.md"
-            f.write_text(f.read_text().replace("tasks: [REL-002]", "tasks: [REL-002, REL-001]"))
+            self._mutate_store(proj, '"task": "REL-002", "kr": "P002-O2-KR1"',
+                               '"task": "REL-001", "kr": "P002-O2-KR1"')
             res = self._run("--root", str(proj), "--json")
             rules = {f["rule"] for f in json.loads(res.stdout)["findings"]}
             self.assertIn("linkage-task-single-kr", rules)
@@ -668,11 +713,10 @@ class Linter(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
-            f = proj / "phase" / "002-linkage.md"
-            f.write_text(f.read_text().replace("target: 3", 'target: "<= 15%"'))
+            self._mutate_store(proj, '"target": 3', '"target": "<= 15%"')
             res = self._run("--root", str(proj), "--json")
             rules = {f["rule"] for f in json.loads(res.stdout)["findings"]}
-            self.assertIn("bad-type", rules)
+            self.assertIn("linkage-store-malformed", rules)
 
     def test_catches_locked_design_with_no_plan(self):
         import shutil
@@ -711,9 +755,16 @@ class Linter(unittest.TestCase):
             # .perry is the anchor: it stays at the project root, and the copy
             # that rode along under the state root would be read from nowhere.
             shutil.move(str(proj / "pm" / ".perry"), str(proj / ".perry"))
-            cfg = proj / ".perry" / "config.md"
-            cfg.write_text(cfg.read_text().rstrip()
-                           + "\n- State root: pm\n")
+            # `- State root: pm` appended to `.perry/config.md` until
+            # ADR-019. The pointer is a `setting` record now, and it is
+            # written with the tool that owns the store rather than by
+            # appending bytes — `perry-config set` is what a user has instead
+            # of the file edit this line used to be.
+            set_root = subprocess.run(
+                [sys.executable, str(PERRY_HOME / "bin" / "perry-config"),
+                 "set", "State root", "pm", "--root", str(proj)],
+                capture_output=True, text=True)
+            self.assertEqual(set_root.returncode, 0, set_root.stderr)
             (proj / "design").mkdir()
             (proj / "design" / "not-perrys.md").write_text("# theirs\n")
             res = self._run("--root", str(proj), "--json")
@@ -731,8 +782,15 @@ class Linter(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             (proj / ".perry").mkdir(parents=True)
-            (proj / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: ../elsewhere\n")
+            # **This wrote `.perry/config.md` until ADR-019, and after that
+            # file was deleted it passed for the wrong reason**: with no store
+            # at all `resolve_state_root` returns the project root anyway, so
+            # the assertion held over a project that pointed nowhere. The
+            # escaping pointer has to be IN the register the reader reads.
+            (proj / ".perry" / "config.jsonl").write_text(json.dumps(
+                {"kind": "setting", "key": "state_root",
+                 "label": "State root", "value": "../elsewhere", "order": 0},
+                ensure_ascii=False) + "\n", encoding="utf-8")
             self.assertEqual(P.resolve_state_root(proj), proj)
 
 
@@ -784,8 +842,10 @@ class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: .\n")
+            # `- State root: .` in `.perry/config.md` until ADR-019. `.` and
+            # no setting at all store the identical record, so the store this
+            # writes declares the project and nothing else.
+            (root / ".perry" / "config.jsonl").write_text("", encoding="utf-8")
             (root / "BOARD.md").write_text(self.BOARD)
             r = subprocess.run(
                 ["python3", str(PERRY_HOME / "bin" / "perry-state"),

@@ -38,6 +38,8 @@ STATE = PERRY_HOME / "bin" / "perry-state"
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
 
+import config_store  # noqa: E402
+
 #: Two terms that share no substring with anything in the other list, so a
 #: match can only have come from the side it was written on.
 HOOK_TERM = "rm -rf"
@@ -80,10 +82,7 @@ class Base(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n", encoding="utf-8")
+        config_store.write_config(root)
         if hook is not None:
             (root / ".perry" / "hook.md").write_text(hook, encoding="utf-8")
         for name, text in (cards or {}).items():

@@ -48,22 +48,22 @@ from task_writer_support import PT
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "bin"))
+sys.path.insert(0, str(PERRY_HOME / "tests"))
+import config_store  # noqa: E402
 import perry_store as S  # noqa: E402
 
 TASK = PERRY_HOME / "bin" / "perry-task"
 TASKS = PERRY_HOME / "bin" / "perry-tasks"
 LINT = PERRY_HOME / "bin" / "perry-lint"
 
-#: One queue-mode track. This repository declares one of its own — `.perry/
-#: config.md § Tracks` carries `intake | queue | …`, declared 2026-08-20 under
-#: TASK-133 — which is why the merge-hold reproduction is reachable on `main`
-#: and not only on a synthetic project.
-OPS_QUEUE = ("\n## Tracks\n\n"
-             "| Track | Mode | Spine | Stages | WIP | SLA | Cycle "
-             "| Default rung |\n"
-             "|---|---|---|---|---|---|---|---|\n"
-             "| ops | queue | OKR.md | new→triaged→resolved | 6 | 5d | 1w "
-             "| V2 |\n")
+#: One queue-mode track. This repository declares one of its own —
+#: `.perry/config.jsonl` carries a `kind: track` record for `intake` in
+#: `queue` mode, declared 2026-08-20 under TASK-133 — which is why the
+#: merge-hold reproduction is reachable on `main` and not only on a synthetic
+#: project. It was a `## Tracks` row in `.perry/config.md` until ADR-019.
+OPS_QUEUE = [config_store.track("ops", "queue", spine="OKR.md",
+                                stages="new→triaged→resolved", wip="6",
+                                sla="5d", cycle="1w", default_rung="V2")]
 
 TASK_HEAD = ("| ID | Title | Owner | Status | Next action | Evidence |\n"
              "|---|---|---|---|---|---|\n")
@@ -175,15 +175,13 @@ def parse(text: str):
 class Fixture:
     """A throwaway Perry project with the three register stores minted."""
 
-    def __init__(self, board: str, tracks: str = "", mint=("intake", "asks",
-                                                           "risks")):
+    def __init__(self, board: str, tracks: list | None = None,
+                 mint=("intake", "asks", "risks")):
         self.dir = tempfile.mkdtemp()
         self.root = Path(self.dir)
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + tracks,
-            encoding="utf-8")
+        # `.perry/config.md` with a `## Tracks` table until ADR-019; the
+        # register is `.perry/config.jsonl` and `tracks` is a list of records.
+        config_store.write_config(self.root, tracks=tracks)
         (self.root / "BOARD.md").write_text(board, encoding="utf-8")
         self._tasks("write", "--from-board")
         for name in mint:

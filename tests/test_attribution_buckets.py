@@ -65,11 +65,18 @@ class Fixture(unittest.TestCase):
         dest = d / "sample-project"
         shutil.copytree(SAMPLE, dest)
         if declared is not None:
-            link = dest / "phase" / "002-linkage.md"
-            ids = ", ".join(declared)
-            link.write_text(re.sub(r"^unlinked: \[.*?\]$",
-                                   f"unlinked: [{ids}]",
-                                   link.read_text(), count=1, flags=re.M))
+            # Rewrite the store's `unlinked` records — one per declaration
+            # since ADR-019, where they were one `unlinked: [...]` line of a
+            # register document's frontmatter.
+            store = dest / "linkage.jsonl"
+            rows = [json.loads(line) for line in
+                    store.read_text().splitlines() if line.strip()]
+            keep = [r for r in rows if r.get("kind") != "unlinked"]
+            keep += [{"kind": "unlinked", "task": tid,
+                      "phase": "002-release-pipeline",
+                      "declared_at": "2026-08-14T09:15:00Z",
+                      "actor": "goals", "via": "link"} for tid in declared]
+            store.write_text("".join(json.dumps(r) + "\n" for r in keep))
         return dest
 
     def attribution(self, d: pathlib.Path) -> dict:

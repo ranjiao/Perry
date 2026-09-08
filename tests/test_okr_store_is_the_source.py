@@ -46,23 +46,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
 sys.path.insert(0, str(ROOT / "viewer"))
+sys.path.insert(0, str(ROOT / "tests"))
+import config_store                                             # noqa: E402
 import perry_md_store as M                                      # noqa: E402
 
 
 GOALS = ROOT / "bin" / "perry-goals"
 OKR_TOOL = ROOT / "bin" / "perry-okr"
 
-CONFIG = """# Perry configuration
-
-- Document language: English
-- Repo layout: single
-""" + """
-## Tracks
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| ops | queue | commitments | intake -> doing | — | 5d | weekly | V2 |
-"""
+#: The declaration these projects run under: an `ops` track in `queue` mode.
+#: It was a `.perry/config.md` with a `## Tracks` table until ADR-019 deleted
+#: that file; `tests/config_store.py` writes the same declaration into
+#: `.perry/config.jsonl`, which is the register the tools read.
+TRACKS = [config_store.track("ops", "queue", spine="commitments",
+                             stages="intake -> doing", sla="5d",
+                             cycle="weekly", default_rung="V2")]
 
 #: Two rows, and every column the store has a field for, so a per-field sweep
 #: has a cell to mutate for each one. Hand-aligned and NOT in schema order —
@@ -104,8 +102,7 @@ class Project:
     def __init__(self, case: unittest.TestCase, okr: str = OKR):
         self.root = Path(tempfile.mkdtemp(prefix="perry-okr-source-")).resolve()
         case.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(CONFIG, encoding="utf-8")
+        config_store.write_config(self.root, tracks=TRACKS)
         self.okr_path = self.root / "OKR.md"
         self.store_path = self.root / "okr.jsonl"
         self.okr_path.write_text(okr, encoding="utf-8")
@@ -387,12 +384,13 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
         that put bytes on disk in this tool, and every one of them is reached
         from `commit` or writes the linkage register instead.
 
-        **The register is two files since DESIGN-015 row C** — the document
-        and `linkage.jsonl` — and both writes are in the list below for the
-        reason the list exists: a new write call site has to be READ and
-        placed, not waved through. Both go through this tool's own
-        `write_atomic`, so both pass `assert_owned`, which is what makes
-        "gated" true of them rather than merely likely.
+        **The register was two files between DESIGN-015 row C and ADR-019** —
+        the document and `linkage.jsonl` — and both writes were in the list
+        below for the reason the list exists: a new write call site has to be
+        READ and placed, not waved through. ADR-019 deleted the document, so
+        one of the two is gone and the remaining one goes through this tool's
+        own `write_atomic`, which is what makes "gated" true of it rather than
+        merely likely.
         """
         source = (ROOT / "bin" / "perry-goals").read_text(encoding="utf-8")
         calls = [line.strip() for line in source.split("\n")
@@ -408,14 +406,12 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
              "write_atomic(state_root, okr.path, text)",
              "lib.write_atomic(store, md_store.store_text(final))",
              'fh.write(json.dumps(event, ensure_ascii=False) + "\\n")',
-             # `cmd_link` — `phase/<NNN>-linkage.md`, never OKR.md.
-             'write_atomic(ctx["state_root"], reg.path, reg.render())',
-             # `cmd_link` again — `linkage.jsonl`, the store half of the same
-             # register, written second and under the same project lock
-             # (DESIGN-015 § 5.6 site 1, TASK-278). The continuation line is
-             # what the grep catches; the call is
-             # `write_atomic(ctx["state_root"], linkage_store_path(...), …)`.
-             'write_atomic(ctx["state_root"],'],
+             # `cmd_link` — `linkage.jsonl`, never OKR.md. ONE call, where
+             # there were two: the second wrote `phase/<NNN>-linkage.md` under
+             # the same project lock, and both had to land or a reader could
+             # catch the pair half-written. ADR-019 deleted the document, so
+             # there is no pair.
+             'write_atomic(ctx["state_root"], reg.path, store_text)'],
             "a write call site was added or moved; check it is gated")
 
 

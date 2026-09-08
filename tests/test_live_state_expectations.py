@@ -45,14 +45,22 @@ still recorded rather than asserted-to-be-zero — every entry is a hit the
 guard is expected to keep making, and a floor of zero would be a claim about
 the sweep that is false.
 
-**It was four entries and is twenty-three, and the nineteen that arrived on
-2026-08-30 are one shape.** `tests/test_config_store_readers.py` (TASK-233)
-binds `bin/perry-state` and `bin/perry-conform` at module level through
-`load_bin_module`, which reads them out of `bin/` — so the sweep taints every
-value those two modules return, including values computed entirely inside a
-tempdir the test just built. The count is not a widening of what counts as a
-false positive; it is one module whose readers are loaded from the repository
-and whose data never is.
+**It was four entries, then twenty-three, and is two.** The nineteen that
+arrived on 2026-08-30 were one shape: `tests/test_config_store_readers.py`
+(TASK-233) bound `bin/perry-state` and `bin/perry-conform` at module level
+through `load_bin_module`, which reads them out of `bin/`, so the sweep tainted
+every value those two modules returned — including values computed entirely
+inside a tempdir the test had just built. That was never a widening of what
+counts as a false positive; it was one module whose readers were loaded from
+the repository and whose data never was.
+
+Sixteen of them left on 2026-09-08 with ADR-019, and **the departure is not
+evidence of anything**: fourteen were in that one module, which was rewritten
+when `.perry/config.md` stopped existing, and two were in `test_md_store.py`'s
+two config cases, which were deleted with the file they read. Not one was
+repaired. The floor is a record of what the sweep finds, so it follows the
+suite; the discrimination is asserted on the three reconstructions out of git,
+which no rewrite can move.
 
 That the floor holds no instances is no longer evidence the guard works, so
 `test_the_floor_is_not_claimed_to_be_zero` stopped resting on it and rests on
@@ -357,7 +365,7 @@ class TestTheLiveSetIsReadOutOfTheSchema(unittest.TestCase):
         patterns = L.live_patterns(ROOT)
         for live in ("perry/BOARD.md", "perry/tasks.jsonl", "perry/OKR.md",
                      "perry/journal/2026-08/2026-08-20.md",
-                     ".perry/events.jsonl", ".perry/config.md"):
+                     ".perry/events.jsonl", ".perry/config.jsonl"):
             with self.subTest(path=live):
                 self.assertTrue(L.is_live_path(live, patterns))
         for code in ("schema/state-schema.json", "SKILL.md",
@@ -372,8 +380,15 @@ class TestTheLiveSetIsReadOutOfTheSchema(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         root = pathlib.Path(tmp.name)
         (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            f"# Perry configuration\n\n- State root: {state_root}\n")
+        # `- State root: <x>` in `.perry/config.md` until ADR-019 deleted that
+        # file. The claim is unchanged — one schema, one claim, two projects,
+        # and the path follows the pointer — and the pointer now lives in the
+        # store. Written as bytes rather than through `tests/config_store.py`
+        # because this module is the guard over the suite and its fixtures do
+        # not go through the code being guarded.
+        (root / ".perry" / "config.jsonl").write_text(json.dumps(
+            {"kind": "setting", "key": "state_root", "label": "State root",
+             "value": state_root, "order": 0}, ensure_ascii=False) + "\n")
         (root / "schema").mkdir()
         (root / "schema" / "state-schema.json").write_text(json.dumps({
             "claims": [{"path": "BOARD.md", "anchor": "state"},
@@ -447,8 +462,12 @@ class TestTheFloorIsRecordedNotAssumed(unittest.TestCase):
         `test_prioritize § test_an_id_shaped_word_in_prose_is_warned_about`'s
         `ctx` off the live task store — were repaired by TASK-150, TASK-151
         and TASK-152. Each kept its property and moved its guard onto a
-        fixture the test writes. What is left is the four named false
-        positives, and the floor is now expected to hold nothing else.
+        fixture the test writes. What is left is the named false positives —
+        four when this was written, two since ADR-019 rewrote the module that
+        carried most of them — and the floor is expected to hold nothing else.
+        The number is not restated as an assertion here for the reason the
+        paragraph above gives: a count of what the repository happens to hold
+        is the very defect this module reports.
 
         **Which is why the second half of this test exists**, and why the
         first half is not the whole of it. "Every entry is a false positive"

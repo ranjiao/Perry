@@ -40,59 +40,24 @@ def _load(stem: str):
     return mod
 
 
-class TestTheTrackRegisterReadsTheSchema(unittest.TestCase):
-    """The register every queue, pipeline and inquiry track is declared in.
-
-    `bin/perry-state § TRACK_COLUMNS` was a hand-copy whose own comment named
-    the schema as its source and transcribed it anyway. A spelling added to the
-    schema would have reached the five tools that read it and not this one — so
-    `perry-lint` would accept a localized register the track parser then read as
-    having no columns at all.
-    """
-
-    def setUp(self):
-        self.st = _load("perry-state")
-
-    def test_every_spelling_comes_from_the_schema(self):
-        cols = I18N["columns"]
-        for key, name in self.st._TRACK_KEYS.items():
-            want = tuple([name.lower()]
-                         + [a.lower() for per in (cols.get(name) or {}).values()
-                            for a in per])
-            self.assertEqual(self.st.track_columns()[key], want, key)
-
-    def test_a_spelling_the_schema_gains_reaches_the_track_parser(self):
-        """The property, not the current contents. A test that only compared
-        today's eight rows would pass on a second hand-copy."""
-        self.st._TRACK_COLUMNS = None
-        real = self.st.track_columns
-        try:
-            import builtins
-            # Re-derive with an injected schema by monkeypatching the reader's
-            # source: simplest honest check is that the function is not a
-            # literal — assert it re-reads rather than returning a constant.
-            self.st._TRACK_COLUMNS = None
-            first = self.st.track_columns()
-            self.st._TRACK_COLUMNS = None
-            second = self.st.track_columns()
-            self.assertEqual(first, second)
-        finally:
-            self.st.track_columns = real
-            self.st._TRACK_COLUMNS = None
-
-    def test_no_chinese_column_spelling_is_written_in_the_source(self):
-        """The category: a declared alias appearing as a literal in this file
-        means somebody copied the table again."""
-        src = (PERRY_HOME / "bin" / "perry-state").read_text(encoding="utf-8")
-        code = "\n".join(l for l in src.split("\n")
-                         if not l.lstrip().startswith("#"))
-        for name in I18N["columns"]:
-            for per in (I18N["columns"][name] or {}).values():
-                for alias in per:
-                    self.assertNotIn(
-                        f'"{alias}"', code,
-                        f"{alias!r} is written into bin/perry-state — the "
-                        f"schema already declares it for {name!r}")
+# `TestTheTrackRegisterReadsTheSchema` stood here, three tests deep:
+# `bin/perry-state § track_columns` resolved a `## Tracks` header cell through
+# `schema § i18n.columns`, and this class asserted it read that glossary rather
+# than a hand copy — the defect being that a spelling added to the schema
+# reached the five tools that parsed the table and not this one, so `perry-lint`
+# would accept a localized register the track parser then read as having no
+# columns at all.
+#
+# ADR-019 deleted the table. A track is a store record whose fields are `mode`
+# and `sla` in every language, so `perry-state` resolves no column spelling and
+# `track_columns` / `_TRACK_KEYS` are deleted with it.
+#
+# **The guard did not go with them.** `TestWhatIsStillHandCarried` below
+# budgets `bin/perry-state` at ZERO code lines carrying any schema-declared
+# alias as a literal, over `columns`, `fields` and `headings` alike — which is
+# the same property this class's third test asserted, measured over a wider
+# set. A file that resolves nothing cannot hand-copy anything, and that budget
+# is what fails if it starts to.
 
 
 class TestWhatIsStillHandCarried(unittest.TestCase):
