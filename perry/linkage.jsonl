@@ -122,3 +122,6 @@
 {"kind": "edge", "task": "TASK-382", "kr": "P003-O3-KR2", "declared_at": "2026-09-07T05:59:02Z", "actor": "agent", "via": "add"}
 {"kind": "edge", "task": "TASK-383", "kr": "P003-O3-KR2", "declared_at": "2026-09-07T06:00:24Z", "actor": "agent", "via": "add"}
 {"kind": "edge", "task": "TASK-394", "kr": "P003-O3-KR2", "declared_at": "2026-09-07T11:44:31Z", "actor": "agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-396", "declared_at": "2026-09-08T03:51:30Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-397", "declared_at": "2026-09-08T03:51:45Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-398", "declared_at": "2026-09-08T03:51:46Z", "actor": "pmo", "via": "add"}
