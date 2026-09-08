@@ -767,9 +767,25 @@ def main(argv: list[str]) -> int:
         if task_result is not None:
             return render_typed_task_result(task_result, want, as_json)
 
-    entries = harvest(root)
+    # **`harvest` is not called until something needs it.** It reads every
+    # markdown file under `root` — 735 of them on this project, 0.7s of I/O and
+    # another 0.5s blanking code spans — and the two fast paths below need none
+    # of it. `perry-explain V4` and `perry-explain "verification rung"` resolve
+    # out of `schema/state-schema.json` and `reference/glossary.md`
+    # respectively, and both used to pay the full scan and then discard it.
+    # Measured 2026-09-08: 1402ms per call, of which 1238ms was this. That is
+    # also why `tests/test_glossary` cost 28s — it resolves 20 terms in a loop,
+    # so it paid for 20 corpus scans whose results nothing read.
+    _harvested: dict | None = None
+
+    def entries_now() -> dict:
+        nonlocal _harvested
+        if _harvested is None:
+            _harvested = harvest(root)
+        return _harvested
 
     if mode == "all":
+        entries = entries_now()
         rows = sorted(entries.values(), key=lambda e: e["id"])
         if as_json:
             print(json.dumps(rows, indent=2))
@@ -783,6 +799,7 @@ def main(argv: list[str]) -> int:
         return 0
 
     if mode == "dangling":
+        entries = entries_now()
         bad = sorted((e for e in entries.values()
                       if not e["defined"] and e["in_tracking_doc"]),
                      key=lambda e: e["id"])
@@ -824,6 +841,10 @@ def main(argv: list[str]) -> int:
             if term["note"]:
                 print(f"  implemented in {term['note']}")
         return 0
+
+    # Past the two fast paths, and everything below resolves against the
+    # corpus, so this is where the scan is finally paid for.
+    entries = entries_now()
 
     # The old phase-KR form is REFUSED, not merely missed. Falling through to
     # the generic "not found" would have been true and useless: the reason
