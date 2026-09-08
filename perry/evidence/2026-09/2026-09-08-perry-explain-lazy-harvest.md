@@ -66,7 +66,7 @@ perry-explain ADR-019 (needs it)     1402 ms    942 ms     unchanged path
 tests/test_glossary.py                35.9 s    2.63 s     14x
 tests/test_rung_vocabulary.py         30.8 s    3.70 s      8x   (not targeted)
 
-full suite wall                      128.4 s   106.5 s     -17%
+full suite wall                      128.4 s   106.5 s     see Correction
 ```
 
 `test_rung_vocabulary` was not touched and was not the target. It resolves
@@ -98,3 +98,23 @@ by spawning `perry-task`; it was the wrong instrument here.
 The general lesson for the rest of the ranking: **measure the split before
 choosing the fix.** One in-process call against one subprocess call says which
 of the two you are looking at, and costs a minute.
+
+---
+
+## Correction, 2026-09-08 evening — the wall-time figure in this file
+
+The `full suite wall` line above is not evidence and is withdrawn as a claim.
+Whole-suite wall on this machine is not separable from load: the same commit
+measured 106s, 117s, 122s, 128s and 166s across one afternoon. A `-17%` derived
+from two such numbers is noise with a sign.
+
+The per-module figures in this file **stand** — they were measured back to back
+on one machine state, and the load-robust re-measurement confirms them:
+`test_glossary` 52.3s -> 3.09s and `test_rung_vocabulary` 41.7s -> 4.06s
+against a run whose median module ratio was 1.00.
+
+The defensible total for all four cuts is **-343 CPU-seconds, -26.8%**, and the
+method that produces it is in
+`evidence/2026-09/TASK-399-result.md § Appendix`. Two modules this change was
+never aimed at — `test_task_store` and `test_register_minters` — are in that
+table, because a product fix reaches callers nobody enumerated.

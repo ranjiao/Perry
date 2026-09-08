@@ -46,7 +46,7 @@ different roots is safe.
 
 ```
 tests/test_goals_writer.py    31.75 s -> 16.10 s     112 tests, all pass
-full suite wall              106.4 s  -> 101.0 s
+full suite wall              106.4 s  -> 101.0 s   see Correction
 ```
 
 ## Verification
@@ -80,3 +80,23 @@ It also passes alone and under the parallel runner, both above.
   conversion. The 30 `perry-lint` calls in this module are still subprocesses
   and were left alone deliberately: one instrument per round, so the id-set
   diff attributes to one change.
+
+---
+
+## Correction, 2026-09-08 evening — the wall-time figure in this file
+
+The `full suite wall` line above is not evidence and is withdrawn as a claim.
+Whole-suite wall on this machine is not separable from load: the same commit
+measured 106s, 117s, 122s, 128s and 166s across one afternoon. A `-17%` derived
+from two such numbers is noise with a sign.
+
+The per-module figures in this file **stand** — they were measured back to back
+on one machine state, and the load-robust re-measurement confirms them:
+`test_glossary` 52.3s -> 3.09s and `test_rung_vocabulary` 41.7s -> 4.06s
+against a run whose median module ratio was 1.00.
+
+The defensible total for all four cuts is **-343 CPU-seconds, -26.8%**, and the
+method that produces it is in
+`evidence/2026-09/TASK-399-result.md § Appendix`. Two modules this change was
+never aimed at — `test_task_store` and `test_register_minters` — are in that
+table, because a product fix reaches callers nobody enumerated.

@@ -69,7 +69,7 @@ A != B                       -> the cache did not leak
 ```
 perry-diagnose --root .        6.53 s -> 5.42 s   (-17%)
 tests/test_diagnose.py          39.2 s -> 36.0 s   (-8%)
-full suite wall                106.5 s -> 106.4 s  (unchanged)
+full suite wall                106.5 s -> 106.4 s  see Correction
 ```
 
 **The suite wall did not move and that is the honest result.** 3.2 CPU-seconds
@@ -92,3 +92,23 @@ $ diff <(sort ids-before.txt) <(sort ids-diag.txt) ; echo $?
 `perry-explain`'s `harvest`, which does its own `path.read_text` and so does not
 go through this cache. Routing it through would need a reader parameter on
 `harvest`, which is a cross-module API change; stopped short of it deliberately.
+
+---
+
+## Correction, 2026-09-08 evening — the wall-time figure in this file
+
+The `full suite wall` line above is not evidence and is withdrawn as a claim.
+Whole-suite wall on this machine is not separable from load: the same commit
+measured 106s, 117s, 122s, 128s and 166s across one afternoon. A `-17%` derived
+from two such numbers is noise with a sign.
+
+The per-module figures in this file **stand** — they were measured back to back
+on one machine state, and the load-robust re-measurement confirms them:
+`test_glossary` 52.3s -> 3.09s and `test_rung_vocabulary` 41.7s -> 4.06s
+against a run whose median module ratio was 1.00.
+
+The defensible total for all four cuts is **-343 CPU-seconds, -26.8%**, and the
+method that produces it is in
+`evidence/2026-09/TASK-399-result.md § Appendix`. Two modules this change was
+never aimed at — `test_task_store` and `test_register_minters` — are in that
+table, because a product fix reaches callers nobody enumerated.
