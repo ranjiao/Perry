@@ -6,7 +6,7 @@ Loaded when `/okr plan-week` fires. The most-used OKR subcommand, and the one pl
 
 1. Read `phase/<current-NNN>-<slug>.md` (via `phase/CURRENT`). Identify the current ISO week's row in the week-by-week breakdown.
 
-2. Translate each commitment into 1–2 concrete tasks. **Resolve each task's KR by ID through `phase/<NNN>-linkage.md`, never by guessing from the Project name** (resolution order + the ask in `$PERRY_HOME/reference/okr-linkage.md`). If the phase-file Project name differs from what the user says now, confirm they're the same Project and append the alias to the registry before tagging. If the KR can't be resolved to exactly one → `AskUserQuestion` (candidate KRs); never fuzzy-match.
+2. Translate each commitment into 1–2 concrete tasks. **Resolve each task's KR by ID through `linkage.jsonl`, never by guessing from the Project name** (resolution order + the ask in `$PERRY_HOME/reference/okr-linkage.md`). If the phase-file Project name differs from what the user says now, confirm they're the same Project and append the alias to the registry before tagging. If the KR can't be resolved to exactly one → `AskUserQuestion` (candidate KRs); never fuzzy-match.
 
    Each task gets:
    - Short slug id (e.g., `migrate_user_table_v2`)
@@ -27,7 +27,7 @@ Loaded when `/okr plan-week` fires. The most-used OKR subcommand, and the one pl
 
 6. Update the current week's row in `phase/<NNN>-<slug>.md` with the chosen TASK-IDs.
 
-7. **Append each task id to its KR's `tasks[]`** in `phase/<NNN>-linkage.md` — one call per task, which also bumps `updated`:
+7. **Append one `edge` record per task** to `linkage.jsonl` — one call per task, each dated by its own write:
 
    ```
    "$PERRY_HOME/bin/perry-goals" link --root . <TASK-ID> <KR-ID>

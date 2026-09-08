@@ -265,7 +265,7 @@ Write in dependency order, each through its owning subcommand:
 |---|---|---|
 | — | `.perry/config.md` | `/perry` setup (language + repo layout) |
 | `objective`, `kr` | `OKR.md` | `/perry goals init` |
-| `phase`, phase KRs | `phase/001-<slug>.md` + `phase/<NNN>-linkage.md` | `/perry goals plan-phase` |
+| `phase`, phase KRs | `phase/001-<slug>.md` + `linkage.jsonl` | `/perry goals plan-phase` |
 | `design` | `design/<ID>-<slug>.md` | `/perry decide new` |
 | `task` | `BOARD.md` + journal | `/perry work add-task` |
 | — | linkage `tasks[]` edges | `/perry goals link` (from the cluster→KR map) |
@@ -381,7 +381,7 @@ that `schema/README.md § The linkage contract` calls out.
 render the accepted clusters against the phase KRs (`AskUserQuestion`, header =
 cluster name, options = candidate KR ids + "none of these → unlinked"). Every task
 in the cluster inherits the edge; the edges are handed to `/perry goals link`, which owns
-`phase/<NNN>-linkage.md`.
+`linkage.jsonl`.
 
 This is ~6 decisions instead of ~40, and every edge is still **declared by the
 user**. It is not a relaxation of the gate — it is the same gate at cluster

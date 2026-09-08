@@ -654,7 +654,7 @@ now on, which is what `semantics` is for.
 **`ts` carries its offset** (`2026-08-28T02:15:22+08:00`) on every event appended since 1.18/1.2, and **carries no zone at all** on every line written before it. The log is append-only and its existing lines were not rewritten; `bin/lib § ts_moment` — the one place in the tree that decides what a timestamp means — reads a zoneless one as the **reading machine's local time**, which is what `datetime.now()` wrote it as. The stamp is local wall clock rather than UTC so the log's text keeps rising across the cutover instead of jumping backwards by the offset.
 
 The measurement that produced it. `.perry/events.jsonl` stamped local wall
-clock with no zone and `phase/NNN-linkage.md` stamped UTC with a `Z`, and
+clock with no zone and the linkage register stamped UTC with a `Z`, and
 `perry-goals list`'s `current_staleness` compared the two **as text** — so on a
 UTC+8 machine a task that moved six hours *before* a number was asserted was
 reported as having moved after it, and on a UTC-7 machine a task that moved two
