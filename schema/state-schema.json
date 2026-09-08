@@ -286,7 +286,7 @@
       "ID prefixes and ID bodies (REL-002, ADR-001, DESIGN-001, KR-O1.2, O<n>-KR<m>, P<NNN>-O<n>-KR<n>, USER-014)",
       "enum values (not_started, in_progress, blocked, review, done, dropped, single, split, ...)",
       "header field names in .perry/config.md and .perry/hook.md",
-      "YAML frontmatter keys and values in phase/<NNN>-linkage.md",
+      "record `kind`s and field names in every JSONL store (linkage.jsonl's `objective`/`kr`/`edge`/`unlinked`/`project`/`agent`, and their fields)",
       "priority section names (P0, P1, P2) and architecture section markers (§1…§8)",
       "dates (YYYY-MM-DD), ISO weeks (YYYY-WW), commit SHAs, file paths",
       "command and subcommand names (/perry okr plan-phase)",
@@ -823,7 +823,7 @@
     }
   },
   "stores": {
-    "note": "Record shapes for the JSONL stores whose records are NOT a projection of a markdown document. `files[]` declares the markdown files Perry validates (template, tier, cap, headings) and `claims[]` declares the territory Perry occupies; neither answers what one LINE of a store must contain. The five stores that project from a document answer it through the document's own contract - `files[id=linkage].frontmatter` is that answer for `phase/<NNN>-linkage.md`, and `perry_store.py` / `perry_md_store.py` hold the field lists for the rest. `linkage.jsonl` projects from nothing, so its shape is declared here or nowhere. Added by TASK-276 (DESIGN-015 implementation row A) under the 2026-09-04 authorisation recorded at `evidence/2026-09/2026-09-04-high-stakes-authorisation.md`; that authorisation covers adding this store's claim and its three record schemas and NOTHING else, and no existing claim's path or owner was touched.",
+    "note": "Record shapes for the JSONL stores whose records are NOT a projection of a markdown document. `files[]` declares the markdown files Perry validates (template, tier, cap, headings) and `claims[]` declares the territory Perry occupies; neither answers what one LINE of a store must contain. The stores that project from a document answer it through the document's own contract, and `perry_store.py` / `perry_md_store.py` hold their field lists. `linkage.jsonl` projects from nothing, so its shape is declared here or nowhere. Added by TASK-276 (DESIGN-015 implementation row A) under the 2026-09-04 authorisation recorded at `evidence/2026-09/2026-09-04-high-stakes-authorisation.md`; that authorisation covered adding this store's claim and its first three record schemas. The `objective`, `project` and `agent` kinds and the `metric` / `due` / `asserted_at` / `unlinked.phase` fields were added by ADR-019 under the separate 2026-09-08 in-session authorisation that ADR records, which is what deleted `phase/<NNN>-linkage.md` and left this the only place those facts can live. No existing claim's path or owner was touched by either.",
     "declared": {
       "linkage.jsonl": {
         "owner": "perry",
@@ -832,15 +832,39 @@
         "discriminator": "kind",
         "spec_key": "linkage_store",
         "spec_version": 1,
-        "description": "The O->KR->task edge register, as a store. DESIGN-015 section 5.1. Flat JSONL with a `kind` discriminator, matching `okr.jsonl` and `.perry/config.jsonl` rather than inventing a shape. This declaration is row A of the implementation plan: no reader and no writer moves here, and the file does not exist yet. Until the import (row B) runs, `bin/perry-lint` must report this store `unchecked`, NOT `clean` - the phase-003 operating rule behind `P003-O1-KR3`, measured for the other six stores by TASK-229.",
+        "description": "The O->KR->task register, and after ADR-019 the ONLY copy of it. DESIGN-015 section 5.1 made it canonical; ADR-019 (2026-09-08) deleted the document it was canonical AGAINST - `phase/<NNN>-linkage.md` - so every fact that file's frontmatter carried is declared here or nowhere. Flat JSONL with a `kind` discriminator, matching `okr.jsonl` and `.perry/config.jsonl` rather than inventing a shape. Six record kinds: `objective`, `kr`, `edge`, `unlinked`, `project`, `agent`. The first, fifth and sixth, and the `metric` / `due` / `asserted_at` fields on `kr`, arrived with ADR-019 because the document that used to hold them stopped existing.",
         "derived_not_stored": {
           "never_asked": "There is no fourth `kind`. A task is never-asked when the store holds neither an `edge` nor an `unlinked` record for it - DESIGN-015 section 5.2. Storing it would need the record DELETED the moment an answer arrives, which is a second write and a chance to desync; absence cannot drift. The same rule `asks.jsonl` applies to `Idle`.",
-          "metric": "A KR's `metric` is DELIBERATELY absent from the `kr` record - DESIGN-015 decision 2. It is an argument about how a number was reached (976 B in one case), and an argument is what a document is for. It stays in `phase/<NNN>-linkage.md`, which survives this design as a document holding what has no schema.",
-          "tasks": "The `tasks[]` array on a KR in `phase/<NNN>-linkage.md` frontmatter has NO counterpart field on the `kr` record. One edge is one `edge` record - that is the whole point of the store - so an array of task ids here would be the same fact in two places, which is the DESIGN-013 section 5.1 violation this store exists to remove."
+          "tasks": "The `tasks[]` array a KR used to carry in `phase/<NNN>-linkage.md` frontmatter has NO counterpart field on the `kr` record. One edge is one `edge` record - that is the whole point of the store - so an array of task ids here would be the same fact in two places, which is the DESIGN-013 section 5.1 violation this store exists to remove.",
+          "metric_note": "`metric` IS stored, on the `kr` record, and that reverses DESIGN-015 decision 2. That decision said an argument about how a number was reached is what a document is for, and it named `phase/<NNN>-linkage.md` as the document. ADR-019 deleted that file, so the choice is no longer 'store or document' but 'store or lose it'. Same for a KR's `due` and for the objective TITLES, which are now `objective` records."
         },
         "records": {
+          "objective": {
+            "description": "One phase objective - its id and its title. ADR-019: the objective titles and their ORDER used to come from `phase/<NNN>-linkage.md`'s `objectives:` block, which is gone. Written by `goals` at `plan-phase`; NEVER by `work`. File order is objective order.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "objective",
+                "required": true
+              },
+              "phase": {
+                "type": "string",
+                "required": true,
+                "note": "<NNN>-<slug>, e.g. `003-storage-code`. Same value space as the `phase` field on `kr`."
+              },
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^O\\d+$"
+              },
+              "title": {
+                "type": "string",
+                "required": true
+              }
+            }
+          },
           "kr": {
-            "description": "The typed half of a phase KR. Written by `goals` (`link`, `plan-phase`, `score-phase`); NEVER by `work`. DESIGN-015 section 5.5.",
+            "description": "The typed half of a phase KR, and after ADR-019 its prose half too. Written by `goals` (`link`, `plan-phase`, `score-phase`); NEVER by `work`. DESIGN-015 section 5.5.",
             "fields": {
               "kind": {
                 "type": "string",
@@ -850,7 +874,7 @@
               "phase": {
                 "type": "string",
                 "required": true,
-                "note": "<NNN>-<slug>, e.g. `003-storage-code`. Same value space as `files[id=linkage].frontmatter.phase`."
+                "note": "<NNN>-<slug>, e.g. `003-storage-code`. Same value space as the `phase` field on `objective`."
               },
               "objective": {
                 "type": "string",
@@ -866,15 +890,25 @@
                 "type": "string",
                 "required": true
               },
+              "metric": {
+                "type": "string",
+                "required": false,
+                "note": "PROSE, and the argument for how a number was reached - 976 B in one case. It lived in `phase/<NNN>-linkage.md` until ADR-019 deleted that file; DESIGN-015 decision 2's reasoning ('an argument is what a document is for') survives only where the document does. Always safe to display; nothing validates it."
+              },
               "target": {
                 "type": "number",
                 "required": false,
-                "note": "NUMBER ONLY, and OPTIONAL. Omit for a prose target ('<= 15% drawdown'); the text lives in the document's `metric`, not here. Half of real KRs are ceilings, and drawing a limit as completion reports a risk budget as two-thirds achieved. Same rule as `files[id=linkage].frontmatter` KR `target`, and measured on this project: `P003-O2-KR3` carries no `target` today."
+                "note": "NUMBER ONLY, and OPTIONAL. Omit for a prose target ('<= 15% drawdown'); the words then live in `metric` beside it. Half of real KRs are ceilings, and drawing a limit as completion reports a risk budget as two-thirds achieved. Measured on this project: `P003-O2-KR3` carries no `target` today."
               },
               "current": {
                 "type": "number",
                 "required": false,
                 "note": "OPTIONAL, and absent is NOT zero. A KR the register never gave a number reports `unasserted`, not `0.0` - `bin/lib/__init__.py § kr_progress_provenance` says why: with six of eight phase KRs driving a count to zero, a `current` defaulted to `0` reads as met before the work starts. Measured on this project: `P003-O2-KR1`, `P003-O2-KR3` and `P003-O3-KR2` carry no `current`."
+              },
+              "due": {
+                "type": "string",
+                "required": false,
+                "note": "The date this KR is answered by, if it has one. Prose or ISO; nothing validates it. Moved off the deleted document by ADR-019."
               },
               "stretch": {
                 "type": "boolean",
@@ -885,10 +919,16 @@
                 "required": false,
                 "note": "The overall KR this phase KR serves. Additive and optional, as it is in the document's frontmatter."
               },
+              "asserted_at": {
+                "type": "string",
+                "required": false,
+                "format": "iso-datetime",
+                "note": "WHEN THIS KR's `current` WAS ARRIVED AT, and the whole of TASK-155's fix. Full datetime with an offset; a day-only value is dropped, not guessed. Written by the same command that writes `current`, and ABSENT when there is no `current`. It is NOT defaulted to the time of any other write: before ADR-019 there was no per-KR assertion date at all and `bin/lib/__init__.py § kr_progress_provenance` read the deleted document's file-level `updated:` stamp instead, at `asserted_scope: \"register\"` - so appending one edge re-dated every asserted number in the phase (TASK-155). A `current` carrying no `asserted_at` therefore reports `asserted_scope: \"\"` and staleness `evaluated: false`: 'nobody recorded when this number was measured' and 'it was measured just now' are different facts and only one of them is true."
+              },
               "current_provenance": {
                 "type": "object",
                 "required": false,
-                "note": "DECLARED BECAUSE DESIGN-015 section 5.1 SPELLS IT, AND FLAGGED. Nothing stores this field today: `bin/lib/__init__.py § kr_progress_provenance` DERIVES it at read time from `current`, the linked tasks' live statuses, the register's `updated` stamp and the event log, and `bin/perry-goals` / `bin/perry-state` both emit it from there. It appears nowhere in `phase/003-linkage.md`. A stored copy would be a derived value in a store - which is what section 5.2 argues against for never-asked, and what `asks.jsonl` refuses for `Idle` on the ground that a stored age is stale the moment it is written. Left OPTIONAL so row B imports nothing into it and no writer is obliged to fill it; resolving section 5.1 against section 5.2 is a decision for the design's owner, not for this row. See `evidence/2026-09/TASK-276-result.md`."
+                "note": "DECLARED BECAUSE DESIGN-015 section 5.1 SPELLS IT, AND FLAGGED. Nothing stores this field: `bin/lib/__init__.py § kr_progress_provenance` DERIVES it at read time from `current`, `asserted_at`, the linked tasks' live statuses and the event log, and `bin/perry-goals` / `bin/perry-state` both emit it from there. A stored copy would be a derived value in a store - which is what section 5.2 argues against for never-asked, and what `asks.jsonl` refuses for `Idle` on the ground that a stored age is stale the moment it is written. `asserted_at` above is the one piece of it that IS stored, because it is an input rather than a derivation. Left OPTIONAL so no writer is obliged to fill it."
               }
             }
           },
@@ -914,7 +954,7 @@
                 "type": "string",
                 "required": true,
                 "format": "iso-datetime",
-                "note": "Full datetime WITH offset. A day-only value is dropped, not guessed - the rule `files[id=linkage].frontmatter.updated` already carries."
+                "note": "Full datetime WITH offset. A day-only value is dropped, not guessed - a midnight nobody meant is worse than an absent date."
               },
               "actor": {
                 "type": "string",
@@ -936,6 +976,103 @@
                 "type": "string",
                 "const": "unlinked",
                 "required": true
+              },
+              "task": {
+                "type": "string",
+                "required": true,
+                "pattern": "^TASK-\\d+$"
+              },
+              "phase": {
+                "type": "string",
+                "required": true,
+                "note": "<NNN>-<slug> - WHICH PHASE'S BOARD this declaration was made against. DESIGN-015 section 5.1 gave `unlinked` no phase field on the ground that 'this row serves no KR' is a statement about the row, and that held only while the store covered ONE phase: `parsers.linkage_records_for_phase` handed the WHOLE unlinked set to whichever phase was asked. ADR-019 imported three phases into this store at once, so without this field phase 001's 23 declarations would count against phase 003's board."
+              },
+              "declared_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime"
+              },
+              "actor": {
+                "type": "string",
+                "required": true
+              },
+              "via": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(add|link)$"
+              }
+            }
+          },
+          "project": {
+            "description": "One entry of the Project<->KR registry - the thing that keeps attribution from being guessed. `reference/okr-linkage.md § Resolution order`: a declared edge, then an exact Project id, then a registered alias, stopping at the first step that yields exactly ONE KR. It lived in `phase/<NNN>-linkage.md`'s `projects:` block until ADR-019. Written by `goals` at `perry-goals link --project` and `--alias`; NEVER by `work`.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "project",
+                "required": true
+              },
+              "phase": {
+                "type": "string",
+                "required": true
+              },
+              "id": {
+                "type": "string",
+                "required": true,
+                "note": "The Project id a report may name instead of a KR. Free-form: on this project they are TASK ids, on others they are `PROJ-...`."
+              },
+              "kr": {
+                "type": "string",
+                "required": true,
+                "pattern": "^P\\d{3}-O\\d+-KR\\d+$",
+                "note": "The KR this Project serves. `serves:` in the deleted document's frontmatter."
+              },
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "aliases": {
+                "type": "array",
+                "required": false,
+                "note": "Confirmed second names, each of which resolves to this Project and therefore to its KR. Never a guess: `perry-goals link --alias` is the only writer and it refuses an ambiguous one."
+              },
+              "status": {
+                "type": "string",
+                "required": false,
+                "pattern": "^(active|done)$",
+                "note": "`active` when absent, which is what the document's optional `status:` always meant."
+              },
+              "declared_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime"
+              },
+              "actor": {
+                "type": "string",
+                "required": true
+              },
+              "via": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(add|link)$"
+              }
+            }
+          },
+          "agent": {
+            "description": "One agent->task assignment, one record - the same 'one fact one record' rule `edge` follows. The deleted document wrote these as an `agents:` block of `{id, tasks: [...]}`, and an array here would be the DESIGN-013 section 5.1 violation the store exists to remove. NOTHING IN PERRY WRITES THIS KIND TODAY: the two agents that exist were typed by hand into `phase/001-linkage.md` on 2026-08-18 and imported by ADR-019 so that `perry-task purge`'s reference guard keeps seeing them. Declared so that import is not silent data loss, not because a writer is planned.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "agent",
+                "required": true
+              },
+              "phase": {
+                "type": "string",
+                "required": true
+              },
+              "id": {
+                "type": "string",
+                "required": true,
+                "note": "The agent's name, as written."
               },
               "task": {
                 "type": "string",
@@ -1328,7 +1465,6 @@
     {
       "id": "phase",
       "path": "phase/[0-9][0-9][0-9]-*.md",
-      "exclude": "phase/*-linkage.md",
       "template": "goals/state/phase_TEMPLATE.md",
       "owner": "goals",
       "tier": 1,
@@ -1411,169 +1547,9 @@
           "id_column": "Id",
           "id_pattern": "^P\\d{3}-O\\d+-KR\\d+$",
           "optional": true,
-          "note": "PRE-TASK-157 SHAPE — still validated, no longer written. A phase KR's id, title, metric, target and linked overall KR are schema'd fields, and DESIGN-013 § 5.1 puts a schema'd fact in exactly one store: phase/<NNN>-linkage.md. `plan-phase` no longer authors this table, goals/state/phase_TEMPLATE.md no longer carries one, and `perry-goals krs` prints it from the register instead. The entry stays because an ADOPTED project's phase file has a table and nothing else holds its KRs — viewer/parsers.py § phase_key_results reads the document exactly when there is no register — and a table Perry can still meet is a table Perry must still validate."
+          "note": "PRE-TASK-157 SHAPE — still validated, no longer written. A phase KR's id, title, metric, target and linked overall KR are schema'd fields, and DESIGN-013 § 5.1 puts a schema'd fact in exactly one store: `linkage.jsonl` (it was phase/<NNN>-linkage.md until ADR-019 deleted that file and moved its last document-only fields — metric, due, the objective titles — into the store). `plan-phase` no longer authors this table, goals/state/phase_TEMPLATE.md no longer carries one, and `perry-goals krs` prints it from the store instead. The entry stays because an ADOPTED project's phase file has a table and nothing else holds its KRs — viewer/parsers.py § phase_key_results reads the document exactly when the store declares no KR for the phase — and a table Perry can still meet is a table Perry must still validate."
         }
       ],
-      "anchor": "state"
-    },
-    {
-      "id": "linkage",
-      "path": "phase/[0-9][0-9][0-9]-linkage.md",
-      "template": "goals/state/linkage_TEMPLATE.md",
-      "owner": "goals",
-      "tier": 2,
-      "required": false,
-      "format": "yaml-frontmatter",
-      "frontmatter": {
-        "spec_key": "linkage",
-        "spec_version": 1,
-        "description": "The O→KR→task→agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
-        "fields": {
-          "linkage": {
-            "type": "integer",
-            "const": 1,
-            "required": true
-          },
-          "phase": {
-            "type": "string",
-            "required": false,
-            "note": "<NNN>-<slug>"
-          },
-          "updated": {
-            "type": "string",
-            "required": false,
-            "format": "iso-datetime",
-            "note": "full datetime; a day-only value is dropped, not guessed"
-          },
-          "objectives": {
-            "type": "array",
-            "required": false,
-            "items": {
-              "id": {
-                "type": "string",
-                "required": true,
-                "pattern": "^O\\d+$"
-              },
-              "title": {
-                "type": "string",
-                "required": true
-              },
-              "krs": {
-                "type": "array",
-                "required": false,
-                "items": {
-                  "id": {
-                    "type": "string",
-                    "required": true,
-                    "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
-                  },
-                  "title": {
-                    "type": "string",
-                    "required": true
-                  },
-                  "metric": {
-                    "type": "string",
-                    "required": false,
-                    "note": "prose; always safe to display"
-                  },
-                  "target": {
-                    "type": "number",
-                    "required": false,
-                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') — rendering a ceiling as completion is worse than rendering nothing."
-                  },
-                  "current": {
-                    "type": "number",
-                    "required": false
-                  },
-                  "due": {
-                    "type": "string",
-                    "required": false
-                  },
-                  "stretch": {
-                    "type": "boolean",
-                    "required": false
-                  },
-                  "linked": {
-                    "type": "string",
-                    "required": false,
-                    "note": "The overall KR this phase KR serves — the `Linked overall KR` column the phase document used to carry. TASK-157 moved it here with the rest of the KR; additive and optional, so `linkage: 1` is unchanged and a register written without it means what an empty cell always meant."
-                  },
-                  "tasks": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "required": false,
-                    "note": "BOARD task ids. This is the task->KR edge; a task listed here needs no inference."
-                  }
-                }
-              }
-            }
-          },
-          "unlinked": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "required": false,
-            "note": "DECLARED, never inferred. Set arithmetic over the board would report the whole un-triaged backlog as drift."
-          },
-          "agents": {
-            "type": "array",
-            "required": false,
-            "items": {
-              "id": {
-                "type": "string",
-                "required": true
-              },
-              "tasks": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "required": false
-              }
-            }
-          },
-          "projects": {
-            "type": "array",
-            "required": false,
-            "note": "Perry's attribution registry. Extra key beyond the frontend's schema; the frontend ignores it.",
-            "items": {
-              "id": {
-                "type": "string",
-                "required": true
-              },
-              "serves": {
-                "type": "string",
-                "required": true,
-                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
-              },
-              "objective": {
-                "type": "string",
-                "required": false,
-                "pattern": "^O\\d+$"
-              },
-              "name": {
-                "type": "string",
-                "required": false
-              },
-              "aliases": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "required": false
-              },
-              "status": {
-                "type": "string",
-                "required": false,
-                "enum": "linkage_status"
-              }
-            }
-          }
-        }
-      },
       "anchor": "state"
     },
     {
@@ -2153,7 +2129,7 @@
           "name": "Conformance gate",
           "required": false,
           "pattern": "advisory|enforce",
-          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'enforce' (TASK-047). It shipped 'advisory' for one release on a stated expiry condition - for a project that is not already Perry-shaped the way forward is the migration, and a refusal naming a command nobody can run is a wall - and that condition fired when TASK-044 landed bin/perry-migrate on 2026-08-19, so every refusal now names a road: 'perry-conform declare' for a file that already matches, 'perry-migrate' for one that does not. Set 'advisory' here to go back to writing-under-protest for this project; the env var PERRY_CONFORMANCE overrides this field either way. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.jsonl, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself. THAT REASONING SURVIVED THE FORMAT CHANGE UNCHANGED AND IS RESTATED RATHER THAN CARRIED SILENTLY (TASK-234): the record was .perry/conformance.md until 2026-08-30 and became a store under DESIGN-013 section 5.1, and nothing about becoming a store makes a record of decisions into state. It is also what makes the conversion possible at all - the file gates every write under ADR-004's enforce gate INCLUDING the write that migrates it, and the migration needs no exemption because no writer has ever called the gate about a file that is not a files[] entry. An exemption would have been a hole; this is a file the gate has no opinion about. IT IS NOT A claims[] ENTRY OF ITS OWN EITHER, and that is a separate question with its own answer rather than the same one. claims[] asks what territory Perry occupies in someone else's project, and .perry/ is already claimed as a dir - so the store is covered, exactly as the markdown was, and tests/test_conformance.py section 9 measures that declaring conformance does not make Perry collide with itself. .perry/events.jsonl and .perry/config.jsonl are named individually inside that same territory, which tests/test_claims.py reads as naming rather than coverage - 'it adds no second immovable place, it names a file in the immovable one'. So a seventh entry would add nothing the collision check can see, and it would add a seventh store to the six that perry/phase/003-linkage.md's KR1, KR2 and KR3 are each phrased 'of 6' over. Moving that denominator is the goals lane's decision, not a side effect of a format change."
+          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'enforce' (TASK-047). It shipped 'advisory' for one release on a stated expiry condition - for a project that is not already Perry-shaped the way forward is the migration, and a refusal naming a command nobody can run is a wall - and that condition fired when TASK-044 landed bin/perry-migrate on 2026-08-19, so every refusal now names a road: 'perry-conform declare' for a file that already matches, 'perry-migrate' for one that does not. Set 'advisory' here to go back to writing-under-protest for this project; the env var PERRY_CONFORMANCE overrides this field either way. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.jsonl, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself. THAT REASONING SURVIVED THE FORMAT CHANGE UNCHANGED AND IS RESTATED RATHER THAN CARRIED SILENTLY (TASK-234): the record was .perry/conformance.md until 2026-08-30 and became a store under DESIGN-013 section 5.1, and nothing about becoming a store makes a record of decisions into state. It is also what makes the conversion possible at all - the file gates every write under ADR-004's enforce gate INCLUDING the write that migrates it, and the migration needs no exemption because no writer has ever called the gate about a file that is not a files[] entry. An exemption would have been a hole; this is a file the gate has no opinion about. IT IS NOT A claims[] ENTRY OF ITS OWN EITHER, and that is a separate question with its own answer rather than the same one. claims[] asks what territory Perry occupies in someone else's project, and .perry/ is already claimed as a dir - so the store is covered, exactly as the markdown was, and tests/test_conformance.py section 9 measures that declaring conformance does not make Perry collide with itself. .perry/events.jsonl and .perry/config.jsonl are named individually inside that same territory, which tests/test_claims.py reads as naming rather than coverage - 'it adds no second immovable place, it names a file in the immovable one'. So a seventh entry would add nothing the collision check can see, and it would add a seventh store to the six that phase 003's KR1, KR2 and KR3 are each phrased 'of 6' over. Moving that denominator is the goals lane's decision, not a side effect of a format change."
         },
         {
           "name": "Review rounds before escalation",
@@ -2342,12 +2318,12 @@
     {
       "id": "linkage-objective-agrees",
       "severity": "error",
-      "description": "Each linkage row's Objective must match the Objective encoded in its Serves KR id (P002-O1-KR2 -> O1)."
+      "description": "Each `project` record's Objective must match the Objective encoded in the KR id it serves (P002-O1-KR2 -> O1)."
     },
     {
       "id": "linkage-kr-exists",
       "severity": "warn",
-      "description": "Each linkage row's Serves KR should exist in the current phase file's KR set."
+      "description": "Each `project` record's KR should exist in the phase's own `kr` record set."
     },
     {
       "id": "locked-design-has-plan",
@@ -2372,7 +2348,7 @@
     {
       "id": "linkage-names-unique",
       "severity": "error",
-      "description": "No two linkage projects may share a name or an alias — that ambiguity is exactly what the registry exists to prevent."
+      "description": "No two `project` records may share a name or an alias — that ambiguity is exactly what the registry exists to prevent."
     },
     {
       "id": "linkage-task-single-kr",

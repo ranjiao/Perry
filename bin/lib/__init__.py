@@ -1002,7 +1002,7 @@ def computed_kr_current(kr_id: str, *, linkage_records=None, events=None):
     return globals()[name](linkage_records, events)
 
 
-def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
+def kr_progress_provenance(current, task_ids, *, asserted_at: str = "",
                            status_by_id: dict | None = None,
                            events: list | None = None,
                            events_present: bool = False,
@@ -1014,10 +1014,27 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
     and `bin/perry-goals` both emit them and a second implementation is how the
     two would come to disagree about whether a number is stale.
 
-    `current` is `None` for a KR the register never gave a number, and that is
+    `current` is `None` for a KR the store never gave a number, and that is
     reported as `unasserted` rather than as `0.0`. The default matters more
     than it looks: with six of eight phase KRs driving a count to zero, a
     `current` defaulted to `0` reads as **met before the work starts**.
+
+    **`asserted_at` is the KR's OWN date, and `""` is a third answer.**
+    TASK-155: this argument used to be `register_updated`, the one file-level
+    `updated:` stamp of `phase/<NNN>-linkage.md`, shared by every KR in the
+    phase — so appending one edge to one KR re-dated numbers asserted weeks
+    ago under every other KR, and each of them read fresh with nothing about
+    the number changed. ADR-019 deleted that document and
+    `stores.declared["linkage.jsonl"].records.kr.asserted_at` is the per-KR
+    field that replaces it.
+
+    An asserted `current` with no `asserted_at` is neither fresh nor stale:
+    nobody recorded when the number was arrived at. It reports
+    `asserted_scope: ""` and `staleness.evaluated: False`. **It is never
+    defaulted to now**, which would be TASK-155's defect with a different
+    spelling — every number would read as measured this second — and it is
+    never defaulted to any other write's timestamp either, which is what
+    reading the document's `updated:` was.
     """
     status_by_id = status_by_id or {}
     events = events or []
@@ -1059,12 +1076,15 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
             # until then a consumer that wants to show "measured" has an
             # explicit answer.
             "measured": False,
-            "source": "linkage-register" if asserted else "",
-            # The register timestamps ITSELF, not each KR. A reader must not
-            # take this for the date this KR's number was arrived at, so the
-            # granularity is emitted with the date.
-            "asserted_at": ts_key(register_updated) if asserted else "",
-            "asserted_scope": "register" if asserted else "",
+            "source": "linkage-store" if asserted else "",
+            # **This KR's own date, or nothing.** `asserted_scope` is emitted
+            # beside it so a reader can tell "asserted on this date" from
+            # "asserted, date unrecorded" — the two used to be indistinguish-
+            # able because the date always came back non-empty, from a stamp
+            # that belonged to the file rather than to the number.
+            "asserted_at": ts_key(asserted_at) if asserted else "",
+            "asserted_scope": ("kr" if asserted and ts_key(asserted_at)
+                               else ""),
         }
 
     # ── the tally that is NOT progress ────────────────────────────────────
@@ -1109,8 +1129,11 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
             "`current` was never asserted, so there is nothing to go stale")
     elif not since:
         staleness["reason"] = (
-            "the register states no `updated` timestamp, so staleness cannot "
-            "be evaluated")
+            "no `asserted_at` is recorded for this KR's `current`, so there "
+            "is no date to measure a task's move against and staleness "
+            "cannot be evaluated. This is not `false` — nobody wrote down "
+            "when the number was arrived at, which is a different fact from "
+            "no task having moved since")
     elif not events_present:
         staleness["reason"] = (
             "no event log, so whether a linked task has moved since "
