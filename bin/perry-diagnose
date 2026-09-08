@@ -191,11 +191,31 @@ def line_count(path: Path) -> int:
         return 0
 
 
+#: Every file this tool reads, it reads about four times. Measured 2026-09-08
+#: on this repository: 2,791 `read_text` calls over 736 distinct files, 3.79
+#: each — 556 of them exactly four times, `schema/state-schema.json` nine and
+#: `perry/BOARD.md` eight. The phases each walk the corpus for their own
+#: reason and none of them knew another had just read the same bytes.
+#:
+#: A run is read-only and lasts seconds, so there is nothing to invalidate:
+#: the cache lives for one invocation and dies with the process. It is keyed
+#: on `(path, cap)` because `cap` truncates and two callers may disagree
+#: about it — keying on the path alone would serve a 400k caller a shorter
+#: string that an earlier, stricter caller had asked for.
+_TEXT_CACHE: dict[tuple[str, int], str] = {}
+
+
 def read_text(path: Path, cap: int = 400_000) -> str:
+    key = (str(path), cap)
+    hit = _TEXT_CACHE.get(key)
+    if hit is not None:
+        return hit
     try:
-        return path.read_text(encoding="utf-8", errors="replace")[:cap]
+        out = path.read_text(encoding="utf-8", errors="replace")[:cap]
     except OSError:
-        return ""
+        out = ""
+    _TEXT_CACHE[key] = out
+    return out
 
 
 def days_since_mtime(path: Path) -> int | None:
@@ -1136,6 +1156,12 @@ def scan_docs(root: Path, inventory: dict, tier0_paths: set[str],
         stems.setdefault(Path(d["path"]).name.lower(), []).append(d["path"])
 
     referenced: set[str] = set()
+    # `root.resolve()` is loop-invariant and used to sit inside the token loop
+    # below, which ran it once per token: 92,674 calls and 2.5 of the 8.6
+    # seconds `perry-diagnose --root .` took on this repository, profiled
+    # 2026-09-08. Hoisted, not cached — the value cannot change inside this
+    # function, so there is nothing to invalidate.
+    root_resolved = root.resolve()
     for d in docs:
         base = Path(d["path"]).parent
         toks: set[str] = set()
@@ -1150,7 +1176,7 @@ def scan_docs(root: Path, inventory: dict, tier0_paths: set[str],
             if not tok or tok.startswith(("http://", "https://")):
                 continue
             try:
-                resolved = str((base / tok).resolve().relative_to(root.resolve()))
+                resolved = str((base / tok).resolve().relative_to(root_resolved))
             except (ValueError, OSError):
                 resolved = None
             if resolved and resolved in by_path:
@@ -2496,6 +2522,12 @@ def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
 
 
 def diagnose(root: Path, max_files: int) -> dict:
+    # **The cache is per RUN, not per process.** `read_text` memoises for the
+    # length of one diagnosis. A caller that imports this module and diagnoses
+    # twice would otherwise get the first run's bytes for a file the second run
+    # rewrote — and `tests/test_diagnose.load_bin_module` imports it exactly
+    # that way, so this is a live caller, not a hypothetical one.
+    _TEXT_CACHE.clear()
     state_root = lib.resolve_state_root(root)
     inv = walk(root, max_files)
     ctx = scan_context_load(root, inv)
