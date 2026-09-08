@@ -58,6 +58,8 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 
 from test_kr_progress_provenance import build_project  # noqa: E402
 
+import config_store  # noqa: E402
+
 STATE_TOOL = PERRY_HOME / "bin" / "perry-state"
 
 #: State files a fixture moves when its state root is a subdirectory.
@@ -105,8 +107,7 @@ def nested_project(sub: str = "state") -> Path:
     dest.mkdir(parents=True)
     for name in MOVES:
         shutil.move(str(root / name), str(dest / name))
-    (root / ".perry" / "config.md").write_text(
-        f"# Perry configuration\n\n- State root: {sub}\n")
+    config_store.write_config(root, {"State root": sub})
     return root
 
 
@@ -229,7 +230,7 @@ class TestPerrysOwnConfiguration(unittest.TestCase):
     reported on."""
 
     def setUp(self):
-        self.assertTrue((PERRY_HOME / ".perry" / "config.md").exists(),
+        self.assertTrue((PERRY_HOME / ".perry" / "config.jsonl").exists(),
                         "PERRY_HOME is not a Perry project")
 
     def test_the_state_root_really_is_a_subdirectory_here(self):
@@ -343,9 +344,7 @@ class TestTheInverseIsAnInverse(unittest.TestCase):
         outer = nested_project()
         self.addCleanup(shutil.rmtree, outer, ignore_errors=True)
         inner = outer / "vendor" / "inner"
-        (inner / ".perry").mkdir(parents=True)
-        (inner / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n")
+        config_store.write_config(inner, {"State root": "."})
         self.assertEqual(self.P.resolve_project_root(inner), inner)
 
     def test_a_directory_that_is_not_the_outer_projects_state_root_is_its_own(self):
