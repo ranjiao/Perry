@@ -27,7 +27,7 @@ Loaded when `/okr plan-week` fires. The most-used OKR subcommand, and the one pl
 
 6. Update the current week's row in `phase/<NNN>-<slug>.md` with the chosen TASK-IDs.
 
-7. **Append one `edge` record per task** to `linkage.jsonl` — one call per task, each dated by its own write:
+7. **`bin/perry-goals link` appends one `edge` record per task** — one call per task, each dated by its own write:
 
    ```
    "$PERRY_HOME/bin/perry-goals" link --root . <TASK-ID> <KR-ID>
