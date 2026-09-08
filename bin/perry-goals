@@ -562,11 +562,11 @@ def _sibling(name: str):
 
 
 def perry_state():
-    """`bin/perry-state` as a module — for `parse_tracks` and nothing else.
+    """`bin/perry-state` as a module — for the track register and nothing else.
 
-    The track register lives in `.perry/config.md § Tracks` and one reader of
-    it already exists. A second would be a second opinion about which track is
-    `queue` mode, and this tool refuses a promise based on that answer.
+    The register lives in `.perry/config.jsonl` and one reader of it already
+    exists. A second would be a second opinion about which track is `queue`
+    mode, and this tool refuses a promise based on that answer.
     """
     global _PERRY_STATE
     if _PERRY_STATE is None:
@@ -2307,7 +2307,7 @@ FLAG_FOR_COLUMN = {"Track": "--track", "Promise": "--promise",
 #: while `next cycle` was refused. No sixth round: the column split instead.
 #:
 #: What is left is a **format**, not a judgement. Two spellings, both closed:
-#: an ISO date, or the `<n><unit>` SLA shorthand `.perry/config.md § Tracks`
+#: an ISO date, or the `<n><unit>` SLA shorthand a track's `sla` field
 #: already uses. Anything else is not "vague" — it is simply not this field,
 #: and it belongs in `By when note`, which nothing validates. The refusal says
 #: so and names the flag, so a user is never guessing where their words go.
@@ -2333,7 +2333,7 @@ def real_date(value: str) -> date | None:
 
 
 def is_sla_token(value: str) -> bool:
-    """`3d`, `2w`, `24h` — the shorthand `.perry/config.md § Tracks` writes."""
+    """`3d`, `2w`, `24h` — the shorthand a track's `sla` field writes."""
     return lib.is_sla_token(value)
 
 
@@ -2341,55 +2341,38 @@ def tracks_of(project_root: Path) -> list[dict]:
     """The declared tracks — from the STORE, `.perry/config.jsonl`.
 
     `bin/perry-state § declared_tracks` is the one reader (P003-O2-KR1): this
-    used to parse `.perry/config.md § Tracks` directly, which is a projection
-    of that store wherever it exists, so a register the store and the file
-    disagreed about had two answers depending on which tool asked.
+    used to parse `.perry/config.md § Tracks` directly, which was a projection
+    of that store, so a register the store and the file disagreed about had two
+    answers depending on which tool asked. ADR-019 then deleted the projection,
+    so the store is not merely first — it is the only register there is.
 
     The empty list stays the answer for a project with no config at all — it is
     what `track_named` turns into "this project declares no tracks", and
     `declared_tracks`' implicit `main` would instead accept every `--track main`
     on a project that never configured Perry.
     """
-    perry = project_root / ".perry"
-    if not (perry / "config.jsonl").exists() and not (perry / "config.md").exists():
+    if not (project_root / ".perry" / "config.jsonl").exists():
         return []
     ps = perry_state()
     tracks, source = ps.declared_tracks_detail(project_root)
-    # **The store is present and unusable → refuse, do not fall back.**
-    # TASK-095's V4 round 1 review: three of `stored_tracks`' four `None`
-    # conditions occur with `.perry/config.jsonl` on disk, and reading the
-    # projection in those states is the condition `P003-O2-KR1` counts. This
-    # lane writes `phase/` and the linkage register off the track list, so a
-    # register quietly missing a track lands in a file the user reads as
-    # authoritative.
-    # State 7 — the store answered by DEFAULT while the table declares tracks
-    # it has no row for at all; this lane writes `phase/` and the linkage
-    # register off the track list. `store-default` only, per USER-905 decision
-    # 2 — see `bin/perry-task § main` for why the wider version was reverted.
-    lost = ps.tracks_the_register_cannot_place(project_root, tracks, source)
-    if lost:
-        raise Refused(
-            f"the track register does not carry {', '.join(sorted(lost))}, "
-            f"which `.perry/config.md § Tracks` declares. The store is the "
-            f"register. Nothing was written. `perry-config write --from-file` "
-            f"rebuilds the store from the table; `perry-lint` reports the same "
-            f"disagreement as `config-store-drift`.")
-    # Allowed, and not in silence — the same rule, the same wording, the same
-    # one function `perry-state` and `perry-task` ask.
-    drift = ps.tracks_the_register_contradicts(project_root, source)
-    if drift:
-        print(f"⚠ the track register disagrees with `.perry/config.md § "
-              f"Tracks` on {', '.join(drift)}. This lane writes off the "
-              f"REGISTER. `perry-lint` reports the same disagreement as "
-              f"`config-store-drift`.", file=sys.stderr)
+    # **The store is present and unusable → refuse, do not answer.**
+    # TASK-095's V4 round 1 review: this lane writes `phase/` and the linkage
+    # register off the track list, so a register quietly missing a track lands
+    # in a file the user reads as authoritative. Before ADR-019 the fallback
+    # that made that possible was the projection; now it is DESIGN-003's
+    # implicit `main`, which is the same silent truncation by another route.
+    #
+    # The two comparisons that stood here — `tracks_the_register_cannot_place`
+    # and `tracks_the_register_contradicts` — both had `## Tracks` as their
+    # other side and are gone with it.
     if source in ps.TRACKS_STORE_UNUSABLE:
         raise Refused(
-            f"the track register cannot be read from the store: "
-            f"{ps.TRACKS_STORE_WHY[source]}. `.perry/config.md § Tracks` is a "
-            f"PROJECTION of that store and is not authoritative while the "
-            f"store exists. Nothing was written. Repair the store — "
-            f"`perry-lint` and `perry-config diff` name the disagreement — or "
-            f"remove it to fall back to the file deliberately.")
+            f"the track register cannot be read: {ps.TRACKS_STORE_WHY[source]}. "
+            f"`.perry/config.jsonl` is the only register, so writing now would "
+            f"lay down `phase/` and the linkage register against DESIGN-003's "
+            f"implicit `main` rather than this project's tracks. Nothing was "
+            f"written. Repair the store — `perry-lint` names the records that "
+            f"do not validate.")
     return tracks
 
 
@@ -2409,7 +2392,7 @@ def track_named(tracks: list[dict], name: str, flag: str = "") -> dict:
     subject = f"{flag} was given {name!r}, which is" if flag else \
         f"track {name!r} is"
     raise Refused(
-        f"{subject} not declared in `.perry/config.md § Tracks`; "
+        f"{subject} not declared in `.perry/config.jsonl`; "
         f"declared: {declared or '(none)'}. A commitment is filed against a "
         f"track, and an undeclared one has no mode and no SLA. Nothing was written")
 
@@ -2439,8 +2422,8 @@ def check_due(track: dict, value: str) -> None:
             "deadline, never a substitute for one. Nothing was written")
     if lib.due_track_missing_clock(track):
         raise Refused(
-            f"track {track.get('track')!r} is `queue` mode and "
-            f"`.perry/config.md § Tracks` gives it no `SLA`. "
+            f"track {track.get('track')!r} is `queue` mode and its record in "
+            f"`.perry/config.jsonl` gives it no `sla`. "
             f"A commitment measured against the track's SLA, pointing at "
             f"an empty register, is a promise with no clock at all. Set "
             f"the track's SLA first. Nothing was written")
@@ -2917,7 +2900,7 @@ def cmd_commit(args, ctx) -> dict:
         if not modes & {"pipeline", "queue"}:
             raise Refused(
                 "`OKR.md` has no `## Commitments` section and no track in "
-                "`.perry/config.md § Tracks` is `pipeline` or `queue` mode. "
+                "`.perry/config.jsonl` is `pipeline` or `queue` mode. "
                 "That section is the spine for exactly those two modes "
                 "(modes/pipeline.md, modes/queue.md); on an all-`project` "
                 "project a KR is the commitment, and the party is the project "

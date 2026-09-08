@@ -125,7 +125,7 @@ otherwise be no way to accept one.
                 including the one this row's own spec proposed and the corpus
                 refuted. Closed rows are not scanned; they are history.
   --state-root  with --claims, test a candidate state root other than the one
-                .perry/config.md declares (or `.` when there is none).
+                .perry/config.jsonl declares (or `.` when there is none).
   --json        machine-readable findings
   --strict      warnings count as failures
   --quiet       print nothing; use the exit code
@@ -307,7 +307,7 @@ norm = squash
 # ── localized column headers ──────────────────────────────────────────────
 #
 # A project writes its state files in the language declared by
-# `.perry/config.md § Document language`. Section headings are handled by the
+# `.perry/config.jsonl`'s `document_language`. Section headings are handled by the
 # `match` regexes in the schema (each carries its localized alternatives);
 # table column headers are exact strings, so they resolve through the
 # `i18n.columns` glossary instead. Populated once from the schema in main();
@@ -681,10 +681,11 @@ def _accepts(kind: str) -> str:
 #:
 #: It was keyed on `str(root / ".perry" / "config.md")` — the file this
 #: function used to parse, which on a store-only project is a path that does
-#: not exist. The register is a property of the ROOT (either register may
-#: answer for it), so the root is what identifies the answer; keying on one of
-#: the two sources named a source in a cache whose whole point is that the
-#: caller no longer chooses one.
+#: not exist. The register is a property of the ROOT, so the root is what
+#: identifies the answer; keying on one of the then-two sources named a source
+#: in a cache whose whole point is that the caller does not choose one. ADR-019
+#: left one source, and the key stays the root because that is what it is
+#: about.
 _TRACK_CONTEXTS: dict = {}
 
 _STATE = None
@@ -723,8 +724,10 @@ def _track_context(state_file: Path, cell: str) -> dict:
     """A track cell → its declared row from the project's track REGISTER.
 
     Through `bin/perry-state § declared_tracks_detail`, which is the register.
-    Not from `.perry/config.md § Tracks`, which is a projection of it and which
-    this function used to parse itself — see the comment on the read below.
+    Not from `.perry/config.md § Tracks`, which was a projection of it and
+    which this function used to parse itself — see the comment on the read
+    below. ADR-019 deleted that file; the read below is unchanged, because it
+    already asked the register rather than the projection.
 
     The root is walked up from the file being linted rather than passed in, so
     `check_file`'s signature — which `bin/perry-conform` also calls — does not
@@ -756,8 +759,8 @@ def _track_context(state_file: Path, cell: str) -> dict:
         if P.configured(root):
             break
         root = root.parent
-    # **The register is `.perry/config.jsonl`; `.perry/config.md` is a
-    # PROJECTION of it** (USER-903, TASK-233). This read the projection, with
+    # **The register is `.perry/config.jsonl`; `.perry/config.md` was a
+    # PROJECTION of it** (USER-903, TASK-233; deleted by ADR-019). This read the projection, with
     # a parser of its own written out below — a FIFTH register reader that
     # `P003-O2-KR1`'s baseline never enumerated, because it does not call
     # `parse_tracks` and so did not answer to the name the count was taken
@@ -2572,10 +2575,11 @@ def rounds_before_escalation(project_root: Path) -> tuple[int, str]:
     another. A reader who disagrees with the gate needs to know which file to
     edit.
 
-    **The store answering without the key is an ANSWER**, not a reason to read
-    the markdown: the store is derived from the preamble, so a key it does not
-    carry is a line the file does not have. Falling through there would
-    reintroduce the two-registers problem TASK-233 removed.
+    **`.perry/config.jsonl` is the only register the project can declare it
+    in** (ADR-019). A store answering without the key is an ANSWER — the key is
+    not declared — and there is no second file to fall through to; the
+    `.perry/config.md` branch that used to sit here lost its subject when the
+    projection was deleted.
     """
     # **A limit below 1 is not a limit, it is an inversion.** `len(fails) <
     # 0` is never true, so a declared 0 would fire this finding on every live
@@ -2597,13 +2601,6 @@ def rounds_before_escalation(project_root: Path) -> tuple[int, str]:
     if stored is not None:
         declared = (stored.get(ROUNDS_SETTING_KEY) or "").strip()
         register = ".perry/config.jsonl"
-    else:
-        cfg = Path(project_root) / ".perry" / "config.md"
-        if cfg.exists():
-            m = re.search(r"Review rounds before escalation\s*[:：]\s*([^\n]+)",
-                          cfg.read_text(errors="replace"), re.I)
-            declared = m.group(1).strip().strip("*` ") if m else None
-            register = ".perry/config.md"
     if declared and declared.isdigit() and int(declared) >= 1:
         return int(declared), register
 
@@ -4216,13 +4213,17 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
     return findings
 
 
-#: The two markdown-backed stores, in the order the census prints them, with
-#: the noun each line uses for the register. `bin/perry_md_store.py` already
-#: holds "one implementation, two instances" — `Doc` differs only in its
-#: scanner — so the census names them from that module rather than keeping a
-#: second list that would go stale the day a third document joins.
-_MD_STORE_DOCS = ((_MD_STORE.OKR, "OKR store"),
-                  (_MD_STORE.CONFIG, "config store"))
+#: The markdown-backed stores, in the order the census prints them, with the
+#: noun each line uses for the register. `bin/perry_md_store.py` holds "one
+#: implementation, N instances" — a `Doc` differs only in its scanner — so the
+#: census names them from that module rather than keeping a second list that
+#: would go stale the day another document joins.
+#:
+#: **It held two until ADR-019.** `.perry/config.md` was the other, and a
+#: document with no file has no projection to drift from; the config store is
+#: checked by `check_config_store` below and printed on its own census line, so
+#: the seven declared stores are still seven lines.
+_MD_STORE_DOCS = ((_MD_STORE.OKR, "OKR store"),)
 
 
 def _empty_md_store_drift_stats() -> dict:
@@ -4244,9 +4245,118 @@ def _empty_md_store_drift_stats_all() -> dict:
             for doc, _label in _MD_STORE_DOCS}
 
 
+def _empty_config_store_stats() -> dict:
+    """The typed machine-readable state before `.perry/config.jsonl` is read.
+
+    Same four keys as the six registers beside it so a reader of `--json` meets
+    one shape seven times. `drifted` is `0` and stays `0`: ADR-019 left one
+    copy of this state, and a single copy cannot disagree with itself. The key
+    is kept rather than dropped because the payload's shape is what a caller
+    iterates, and a seventh register that answers a different set of questions
+    is how a reader comes to special-case one store.
+    """
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def check_config_store(project_root: Path, state_root: Path) -> list["Finding"]:
+    """`.perry/config.jsonl` — the records validate, and the tracks are whole.
+
+    **This is what is left of `config-store-drift` after ADR-019.** That check
+    handed `.perry/config.md` and the store to `perry_md_store.plan` and
+    reported where the two disagreed. The file is gone, so the disagreement is
+    impossible rather than clean — which is the outcome the ADR was taken for —
+    and what remains are the two questions that were never about the
+    projection:
+
+    - **do the records validate**, which every writer already refuses on
+      (`bin/perry-state § TRACKS_STORE_UNUSABLE`) but which nothing PRINTED
+      outside a refusal, so a project could carry a broken register and read as
+      a clean lint;
+    - **does each track declare the columns its mode has no default for**,
+      which used to ride on the `files[id=config].tables[Tracks]`
+      `no_default_by_mode` spec and went with that entry. `work_modes.modes.
+      <mode>.no_default` is still the one list, read through `MODE_NO_DEFAULT`,
+      so the linter and `bin/perry-state § missing_defaults` cannot report
+      different tracks.
+
+    `no-default` stays a WARN for the reason the schema gives at length: an
+    error would retroactively invalidate every register written before the
+    rule. The question is FORCED at creation instead, and the hard stops exist
+    at the point of use (`goals/reference/phases.md` refuses a queue commitment
+    against a track with no SLA).
+    """
+    findings: list[Finding] = []
+    stats = _empty_config_store_stats()
+    check_config_store.stats = stats
+
+    store_path = Path(project_root) / ".perry" / "config.jsonl"
+    if not store_path.exists():
+        # "No store" and "clean" are different answers, and the caller prints
+        # the absence. Silent here, with a payload — the six registers beside
+        # this one return on exactly these terms.
+        return []
+
+    stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+
+    try:
+        on_disk = _MD_STORE.load_store(store_path)
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "config-store-unreadable",
+                        f"`.perry/config.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — this project's "
+                        f"settings and tracks cannot be read at all, and every "
+                        f"writer refuses until it can be")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "config-store-unreadable",
+                        f"`.perry/config.jsonl` holds something other than one "
+                        f"JSON OBJECT per line — a whole-file array and a bare "
+                        f"scalar both parse and neither is a record")]
+
+    good, issues = _MD_STORE.validate_records(on_disk)
+    for issue in issues:
+        who = issue.get("key") or f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "config-store-badly-typed",
+            f"{who} — {issue['message']}. A store holding a record that does "
+            f"not validate is refused whole by every writer, not per record."))
+
+    stats["comparison_performed"] = not issues
+    stats["records"] = len(good)
+
+    for rec in good:
+        if rec.get("kind") != "track":
+            continue
+        who = (rec.get("track") or "").strip() or "?"
+        mode = (rec.get("mode") or "project").strip().lower()
+        for col in MODE_NO_DEFAULT.get(mode, []):
+            # `UNDECLARED_CELL` and `PLACEHOLDER` are the SAME two the table
+            # check used, so a blank spelled `—` reads undeclared here exactly
+            # as it did in the cell. `perry_md_store § stored_value`
+            # normalises a declared blank to `""` on the way in, so most of
+            # the set is unreachable from a store — it is kept because a
+            # hand-written record is not, and this is the file that reports
+            # hand-written records.
+            value = str(rec.get(col.lower().replace(" ", "_")) or "").strip()
+            if value not in UNDECLARED_CELL and not PLACEHOLDER.search(value):
+                continue
+            findings.append(Finding(
+                "warn", rel_store, "no-default",
+                f"track {who!r} is mode {mode!r} and its `{col}` is "
+                f"undeclared. {mode} has no default `{col}` (schema "
+                f"work_modes.modes.{mode}.no_default) because it is a "
+                f"commitment the project makes to someone, and a number Perry "
+                f"invented is one the project never made — every triage run "
+                f"afterwards would measure real work against it. Declare it on "
+                f"this track's record; until then triage reports the gap "
+                f"instead of a verdict."))
+    return findings
+
+
 def check_md_store_drift(project_root: Path, state_root: Path,
                          doc) -> list["Finding"]:
-    """`OKR.md` / `.perry/config.md` and their stores disagree — TASK-209.
+    """`OKR.md` and its store disagree — TASK-209.
 
     **The comparison is not written here.** `perry-okr diff` and
     `perry-config diff` have compared these two files against their stores
@@ -5367,6 +5477,7 @@ def main(argv: list[str]) -> int:
     check_intake_store_drift.stats = _empty_intake_store_drift_stats()
     check_ask_store_drift.stats = _empty_ask_store_drift_stats()
     check_md_store_drift.stats = _empty_md_store_drift_stats_all()
+    check_config_store.stats = _empty_config_store_stats()
     check_specs.stats = {"specs": 0, "unscannable": 0, "unbounded": 0,
                          "checked": False}
 
@@ -5455,6 +5566,12 @@ def main(argv: list[str]) -> int:
             for _doc, _label in _MD_STORE_DOCS:
                 findings.extend(
                     check_md_store_drift(project_root, root, _doc))
+            # The config store, on the same terms: it returns before reading
+            # anything when there is no `.perry/config.jsonl`. It is checked
+            # rather than compared — ADR-019 left it no projection to disagree
+            # with — and it is in this list so that seven declared stores stay
+            # seven census lines.
+            findings.extend(check_config_store(project_root, root))
             # And the seventh (TASK-276, DESIGN-015 row A), on the same
             # terms and at the same cost: it returns before reading anything
             # when there is no `linkage.jsonl`, which is every project today
@@ -5520,6 +5637,12 @@ def main(argv: list[str]) -> int:
             for _doc, _label in _MD_STORE_DOCS:
                 payload[f"{_doc.name}_store_drift"] = dict(
                     _md.get(_doc.name) or _empty_md_store_drift_stats())
+            # Keyed `config_store_drift` and not renamed. The key is what a
+            # caller reads, `drifted` is structurally 0 now rather than
+            # measured 0, and a renamed key would make every existing reader
+            # report "no config store" on a project that has one.
+            payload["config_store_drift"] = dict(getattr(
+                check_config_store, "stats", _empty_config_store_stats()))
             payload["linkage_store_drift"] = dict(getattr(
                 check_linkage_store_drift, "stats",
                 _empty_linkage_store_drift_stats()))
@@ -5640,6 +5763,22 @@ def main(argv: list[str]) -> int:
                 else:
                     print(f"  · {_label}: {_s['records']} record(s), "
                           f"{_s['drifted']} row(s) drifted")
+        # The config store gets its own line rather than joining the loop
+        # above, because it answers a different question: not "does the file
+        # agree with the store" — there is no file — but "do these records
+        # validate". Saying `0 row(s) drifted` about a register that cannot
+        # drift would be the census reporting a check it did not run.
+        _cs = getattr(check_config_store, "stats", None)
+        if _cs and not mode_templates:
+            if not _cs["store_present"]:
+                print("  · no `.perry/config.jsonl` — this project declares no "
+                      "settings and no tracks")
+            elif not _cs["comparison_performed"]:
+                print(f"  · config store: {_cs['records']} valid record(s), "
+                      "and at least one that is not — every writer refuses "
+                      "the store whole")
+            else:
+                print(f"  · config store: {_cs['records']} record(s), all valid")
 
         # The seventh line, for the reason the six above have their own:
         # "no linkage store" and "a clean linkage store" are different

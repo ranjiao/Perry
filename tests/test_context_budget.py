@@ -263,9 +263,14 @@ class TestTheCeilingIsDeclaredNotHardcoded(BudgetCase):
 
     `--ceiling` beats env `PERRY_CONTEXT_CEILING` beats the project's declared
     `Session context ceiling` beats `schema § thresholds`. The report names
-    which one answered, and names the two config registers APART: reporting a
-    store value as though the markdown set it sends the reader to edit a
-    projection.
+    which one answered.
+
+    **There is one config register and it is `.perry/config.jsonl`** (ADR-019).
+    `.perry/config.md` used to be the fallback for a project with no store;
+    the file no longer exists, so `stray_markdown` below writes one anyway and
+    every case asserts it changes nothing. A test that merely stopped
+    exercising the markdown could not tell the fallback's removal from the
+    fallback being unreachable in the fixture.
 
     **Resolution is unit-tested; the gate is spawned once.** `resolve_ceiling`
     is a pure function, and one subprocess per precedence case was enough
@@ -285,7 +290,9 @@ class TestTheCeilingIsDeclaredNotHardcoded(BudgetCase):
             "kind": "setting", "key": key,
             "label": "Session context ceiling", "value": value}) + "\n")
 
-    def markdown(self, body):
+    def stray_markdown(self, body):
+        """A `.perry/config.md` nothing should read. ADR-019 deleted the file;
+        a leftover copy in a working tree is inert, and that is the assertion."""
         (self.proj / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n" + body + "\n")
 
@@ -305,18 +312,23 @@ class TestTheCeilingIsDeclaredNotHardcoded(BudgetCase):
         self.store("120k")
         self.assertEqual(self.resolved(), (120_000, ".perry/config.jsonl"))
 
-    def test_the_markdown_is_the_fallback_when_there_is_no_store(self):
-        self.markdown("- Session context ceiling: 90k")
-        self.assertEqual(self.resolved(), (90_000, ".perry/config.md"))
+    def test_a_stray_markdown_is_not_a_register_when_there_is_no_store(self):
+        """The fallback ADR-019 removed. With no store at all, a
+        `.perry/config.md` declaring 90k answers nothing and the schema does."""
+        self.stray_markdown("- Session context ceiling: 90k")
+        schema = json.loads((ROOT / "schema" / "state-schema.json").read_text())
+        declared = schema["thresholds"]["session_context_ceiling"]["value"]
+        self.assertEqual(self.resolved(),
+                         (declared, "schema/state-schema.json § thresholds"))
 
-    def test_the_two_registers_are_named_apart(self):
+    def test_a_stray_markdown_does_not_compete_with_the_store(self):
         self.store("120k")
-        self.markdown("- Session context ceiling: 90k")
+        self.stray_markdown("- Session context ceiling: 90k")
         self.assertEqual(self.resolved(), (120_000, ".perry/config.jsonl"))
 
     def test_a_store_without_the_key_does_NOT_fall_through(self):
         self.store("English", key="document_language")
-        self.markdown("- Session context ceiling: 90k")
+        self.stray_markdown("- Session context ceiling: 90k")
         _, src = self.resolved()
         self.assertIn("schema", src)
 

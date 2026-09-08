@@ -1,48 +1,302 @@
 #!/usr/bin/env python3
-"""`.perry/config.md` as a store, and the projection of it — ADR-007, TASK-092.
+""".perry/config.jsonl — the project's settings and tracks, read and written.
 
-    perry-config build   [--root <p>]              derive the store; write nothing
-    perry-config verify  [--root <p>]              field-compare the store to the file
-    perry-config render  [--root <p>] [--write]    the store → .perry/config.md
-    perry-config write   [--root <p>] --from-file  .perry/config.md → the store
-    perry-config diff    [--root <p>]              render and byte-compare
-                                                   (exit 3: the bytes match and
-                                                    the store did not produce them)
+    perry-config show   [--root <p>] [--json]      what the store declares
+    perry-config set    [--root <p>] <Label> <value>   upsert one setting
+    perry-config unset  [--root <p>] <Label>       remove one setting
+    perry-config track  [--root <p>] <name> [--mode M] [--spine S]
+                        [--stages S] [--wip W] [--sla S] [--cycle C]
+                        [--default-rung R]         upsert one track
+    perry-config untrack [--root <p>] <name>       remove one track
 
-The store is `.perry/config.jsonl`. It holds the preamble's `- Key: value`
-settings and every row of `## Tracks`. Every prose section — Perry's own
-`## Why the state root is not .`, gimegime-pmo's nine screens of dispatch
-lessons — is LAYOUT: never parsed, never re-rendered, reproduced byte for byte.
+The store is `.perry/config.jsonl`. It holds the project's `setting` records —
+document language, chat language, repo layout, state root, packs, and the two
+cost budgets — and one `track` record per declared track. Field names are
+declared in `schema/state-schema.json § stores.declared[".perry/config.jsonl"]`
+and are read from there, never restated here.
 
-**A tension this tool does not resolve.** `SKILL.md` calls the track register
-"a tier-1 file the user owns and edits directly, because a track is
-configuration rather than state". Making the file a rendered projection means a
-hand edit to it becomes reported drift. That may well be right — it is the same
-contract `BOARD.md` now has, and reported is not refused — but it is a change
-to what the user was promised about this particular file, and TASK-092 leaves
-the decision with them rather than making it silently.
+**The five subcommands this tool used to have are gone (ADR-019.)** `build`,
+`verify`, `render`, `write --from-file` and `diff` were all about the
+relationship between this store and `.perry/config.md`, a rendered projection
+of it: derive the store from the file, compare them field by field, render the
+file from the store, import the file into the store, render and compare bytes.
+ADR-019 deleted the file. Each of the five lost its subject completely rather
+than becoming narrower — there is no second copy to build from, verify
+against, render to, import from, or diff — so none of them survives, and the
+`Doc`/`plan`/`render` machinery in `bin/perry_md_store.py` that all five were
+built on is no longer reached from here at all.
 
-Two circularities live here and both are named rather than worked around:
-`perry-conform § gate_mode` reads this file to decide whether writes to it are
-gated, and `viewer/parsers.py § resolve_state_root` reads it to decide where
-every other state file lives. Neither is new — every reader of the config has
-always had them — but a *writer* of the config meets them for the first time.
+What replaces them is not a sixth projection command. `SKILL.md § Configuration`
+promised this was "a tier-1 file the user owns and edits directly"; ADR-019
+withdraws that promise explicitly, and the thing it owes in exchange is a way
+to change a setting or a track without hand-editing JSONL. That is `set`,
+`unset`, `track` and `untrack` above, and `show` so a human can read back what
+they wrote.
+
+**Two circularities live here and both are named rather than worked around.**
+`viewer/parsers.py § resolve_state_root` reads this store to decide where every
+other state file lives, and every writer reads it to decide which tracks exist.
+Neither is new — every reader of the config has always had them — and a writer
+of the config meets them at every write.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / "viewer"))
+sys.path.insert(0, str(HERE))
+import lib  # noqa: E402
+import parsers as P  # noqa: E402
 import perry_md_store as store  # noqa: E402
 
-if __name__ == "__main__":
-    if sys.argv[1:2] and sys.argv[1] in ("-h", "--help"):
-        print(__doc__.strip())
-        sys.exit(0)
+COMMANDS = ("show", "set", "unset", "track", "untrack")
+
+#: `--sla 3d` → the `sla` field. One flag per optional track field, minted from
+#: the schema rather than listed, so a field added there is settable here
+#: without a second edit — the same rule `store_record_fields` exists for.
+TRACK_FLAGS = {f"--{f.replace('_', '-')}": f
+               for f in store.TRACK_FIELDS if f != "track"}
+
+
+class Refused(Exception):
+    """A refusal is a first-class outcome. Nothing was written."""
+
+
+def read_records(path: Path) -> list[dict]:
+    """The store as it is on disk, validated. Refuses rather than guessing.
+
+    **A writer does not repair a store it could not read.** Rewriting one that
+    holds a record this tool cannot parse would drop that record silently,
+    which is the whole failure mode ADR-019 exists to make impossible — a value
+    replaced by a blank on the next write. `bin/perry-lint` names the bad
+    record; this refuses until somebody has looked at it.
+    """
+    if not path.exists():
+        return []
     try:
-        sys.exit(store.main(store.CONFIG, sys.argv[1:]))
+        on_disk = store.load_store(path)
+    except (OSError, ValueError) as exc:
+        raise Refused(f"{path} exists and is not readable as JSONL "
+                      f"({type(exc).__name__}: {exc}). Nothing was written; "
+                      f"move it aside and re-run, or repair it by hand.")
+    good, bad = store.validate_records(on_disk)
+    if bad:
+        raise Refused(
+            f"{path} holds {len(bad)} record(s) that do not validate: "
+            + "; ".join(f"{b.get('key') or 'line ' + str(b['line'])} — "
+                        f"{b['message']}" for b in bad[:5])
+            + ". Nothing was written — a rewrite would drop them.")
+    return good
+
+
+def renumber(records: list[dict]) -> list[dict]:
+    """`order` is the record's position, so it is assigned and not carried.
+
+    Settings first and tracks after, each in the order they were declared. The
+    field exists so two writes of the same state produce the same bytes; a
+    store whose lines reshuffle turns every write into a whole-file diff, which
+    is the argument `perry_store.record` makes for the same field one register
+    over.
+    """
+    out = []
+    for kind in ("setting", "track"):
+        n = 0
+        for rec in records:
+            if rec.get("kind") != kind:
+                continue
+            rec = dict(rec)
+            rec["order"] = n
+            n += 1
+            out.append(rec)
+    return out
+
+
+def write(path: Path, records: list[dict], what: str) -> int:
+    records = renumber(records)
+    good, bad = store.validate_records(records)
+    if bad:
+        raise Refused(f"the store this would write is one this tool could not "
+                      f"read back: {bad[0]['message']}. Nothing was written.")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lib.write_atomic(path, store.store_text(records))
+    print(f"perry-config: {what} — {path} now holds {len(records)} record(s)")
+    return 0
+
+
+def cmd_show(records: list[dict], as_json: bool) -> int:
+    settings = {r["key"]: r.get("value", "") for r in records
+                if r.get("kind") == "setting"}
+    labels = {r["key"]: r.get("label", "") for r in records
+              if r.get("kind") == "setting"}
+    tracks = [r for r in records if r.get("kind") == "track"]
+    if as_json:
+        print(json.dumps({"settings": settings, "tracks": tracks},
+                         ensure_ascii=False, indent=2))
+        return 0
+    if not records:
+        print("perry-config: this project declares nothing — no "
+              ".perry/config.jsonl, or an empty one.")
+        return 0
+    for key, value in settings.items():
+        print(f"  {labels.get(key) or key}: {value or '—'}")
+    for rec in tracks:
+        fields = ", ".join(f"{f}={rec.get(f) or '—'}"
+                           for f in store.TRACK_FIELDS if f != "track")
+        print(f"  track {rec.get('track')}: {fields}")
+    return 0
+
+
+def cmd_set(records: list[dict], label: str, value: str) -> list[dict]:
+    key = store.setting_key(label)
+    if not key:
+        raise Refused(f"{label!r} mints no setting key — a label is the words "
+                      f"before the colon, and this one is punctuation only. "
+                      f"Nothing was written.")
+    out, seen = [], False
+    for rec in records:
+        if rec.get("kind") == "setting" and rec.get("key") == key:
+            # **The label is overwritten too, and that is deliberate.** A user
+            # who re-declares `PMO repo path` having previously written `PMO
+            # Repo Path` means the new words; both mint the same key, and
+            # keeping the old label would show them back words they replaced.
+            out.append(store.record("setting", {
+                "key": key, "label": label.strip(),
+                "value": store.stored_value(value)}, 0))
+            seen = True
+            continue
+        out.append(rec)
+    if not seen:
+        out.append(store.record("setting", {
+            "key": key, "label": label.strip(),
+            "value": store.stored_value(value)}, 0))
+    return out
+
+
+def cmd_track(records: list[dict], name: str, values: dict) -> list[dict]:
+    """Upsert one track. **Unnamed flags keep their stored value.**
+
+    `perry-config track main --sla 3d` sets the SLA and leaves the mode,
+    stages and WIP alone. The alternative — every absent flag blanking its
+    field — makes a one-field edit a whole-record rewrite, which is exactly the
+    "a real value replaced by a blank" failure `perry_md_store §
+    _assert_every_declared_column_is_stored` exists to prevent one layer down.
+    """
+    name = name.strip()
+    if not name:
+        raise Refused("a track needs a name. Nothing was written.")
+    out, seen = [], False
+    for rec in records:
+        if rec.get("kind") == "track" and (rec.get("track") or "").strip() == name:
+            merged = {f: rec.get(f, "") for f in store.TRACK_FIELDS}
+            merged.update({k: store.stored_value(v) for k, v in values.items()})
+            merged["track"] = name
+            out.append(store.record("track", merged, 0))
+            seen = True
+            continue
+        out.append(rec)
+    if not seen:
+        merged = {f: "" for f in store.TRACK_FIELDS}
+        merged.update({k: store.stored_value(v) for k, v in values.items()})
+        merged["track"] = name
+        # DESIGN-003: a track with no declared mode is a `project` track. Said
+        # here at creation rather than defaulted at every read, so the record
+        # states what the project decided.
+        merged["mode"] = merged.get("mode") or "project"
+        out.append(store.record("track", merged, 0))
+    return out
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0
+    cmd = argv[0]
+    if cmd not in COMMANDS:
+        print(f"perry-config: expected {' / '.join(COMMANDS)}, got {cmd!r}",
+              file=sys.stderr)
+        return 2
+
+    rest = list(argv[1:])
+    root = Path.cwd()
+    if "--root" in rest:
+        i = rest.index("--root")
+        root = Path(rest[i + 1]).expanduser()
+        del rest[i:i + 2]
+    as_json = "--json" in rest
+    if as_json:
+        rest.remove("--json")
+    # `$PERRY_PROJECT` wins over `--root` and over the cwd, taken verbatim —
+    # exactly as `bin/perry-state § resolve_root` and `bin/perry_md_store §
+    # main` take it. Two readers disagreeing about which directory that names
+    # is the defect `viewer/parsers.py § _resolve_project_root` records.
+    root = Path(os.environ.get("PERRY_PROJECT") or root).expanduser().resolve()
+    path = root / ".perry" / "config.jsonl"
+    state_root = P.resolve_state_root(root)
+
+    # One lock spans the read, the change and the replacement, for the reason
+    # `bin/perry_md_store § main` takes it around the same span: taking it only
+    # at the rename lets a concurrent writer make every decision above that
+    # point against stale bytes.
+    with lib.project_lock(state_root, refused=Refused):
+        records = read_records(path)
+        if cmd == "show":
+            return cmd_show(records, as_json)
+        if cmd == "set":
+            if len(rest) < 2:
+                raise Refused("`set` takes a label and a value: "
+                              "`perry-config set 'Document language' English`")
+            return write(path, cmd_set(records, rest[0], " ".join(rest[1:])),
+                         f"set {rest[0]!r}")
+        if cmd == "unset":
+            if len(rest) != 1:
+                raise Refused("`unset` takes one label.")
+            key = store.setting_key(rest[0])
+            kept = [r for r in records
+                    if not (r.get("kind") == "setting" and r.get("key") == key)]
+            if len(kept) == len(records):
+                raise Refused(f"{rest[0]!r} is not declared "
+                              f"(key {key!r}); nothing was written.")
+            return write(path, kept, f"unset {rest[0]!r}")
+        if cmd == "untrack":
+            if len(rest) != 1:
+                raise Refused("`untrack` takes one track name.")
+            kept = [r for r in records
+                    if not (r.get("kind") == "track"
+                            and (r.get("track") or "").strip() == rest[0].strip())]
+            if len(kept) == len(records):
+                raise Refused(f"track {rest[0]!r} is not declared; nothing was "
+                              f"written.")
+            return write(path, kept, f"untrack {rest[0]!r}")
+
+        # `track`
+        if not rest:
+            raise Refused("`track` takes a track name.")
+        name, flags = rest[0], rest[1:]
+        values: dict[str, str] = {}
+        while flags:
+            flag = flags.pop(0)
+            if flag not in TRACK_FLAGS:
+                raise Refused(
+                    f"{flag!r} is not a track field. Declared: "
+                    f"{', '.join(sorted(TRACK_FLAGS))}. Nothing was written.")
+            if not flags:
+                raise Refused(f"{flag} takes a value. Nothing was written.")
+            values[TRACK_FLAGS[flag]] = flags.pop(0)
+        return write(path, cmd_track(records, name, values),
+                     f"track {name!r}")
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Refused as exc:
+        print(f"perry-config: refused — {exc}", file=sys.stderr)
+        sys.exit(1)
     except store.Refused as exc:
         print(f"perry-config: refused — {exc}", file=sys.stderr)
         sys.exit(1)

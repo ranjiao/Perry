@@ -1346,7 +1346,7 @@ def id_column_keys() -> set[str]:
 def header_language(header: list[str]) -> str:
     """Which language this table's headers are already written in.
 
-    Read off the board rather than out of `.perry/config.md`: a new column has
+    Read off the board rather than out of the config store: a new column has
     to match the row it is joining, and the header is the only thing that
     states that without a second file being right.
     """
@@ -3448,8 +3448,8 @@ def track_of(config: dict, name: str) -> dict:
     """The declared track by that name, or the implicit `main`.
 
     **The refusal is `check_role`'s shape, and for the same reason.** A track
-    is a declaration the project makes about itself — one row of
-    `.perry/config.md § Tracks` — so naming one that has no row is the same
+    is a declaration the project makes about itself — one `kind: track`
+    record in `.perry/config.jsonl` — so naming one with no record is the same
     mistake as naming a role with no card, and the answer a user needs is the
     same: which names DO exist, and where to add the missing one. It used to
     print a Python list repr (`declared: ['main', 'intake']`) and stop there,
@@ -3465,8 +3465,8 @@ def track_of(config: dict, name: str) -> dict:
         shown = (", ".join(declared)
                  or "(none — this project has only the implicit `main`)")
         raise Refused(
-            f"track {name!r} is not declared in `.perry/config.md § Tracks`. "
-            f"Declared: {shown}. Add a row to that table naming its mode, or "
+            f"track {name!r} is not declared in `.perry/config.jsonl`. "
+            f"Declared: {shown}. Add a track record naming its mode, or "
             f"name one of those. Nothing was written")
     return {"track": "main", "mode": "project", "default_rung": ""}
 
@@ -7322,7 +7322,7 @@ def _cmd_list_from_board(args, ctx) -> dict:
         entry["field"] = EVENT_FIELD.get(e.get("event") or "", "")
         t["timeline"].append(entry)
 
-    # `mode` is DERIVED, from `track` + `.perry/config.md § Tracks` — the same
+    # `mode` is DERIVED, from `track` + `.perry/config.jsonl` — the same
     # register `track_of` reads and the only place a project declares which
     # `modes/<mode>.md` governs a track.
     #
@@ -7727,7 +7727,7 @@ _PERRY_STATE = None
 def perry_state():
     """`bin/perry-state` as a module, loaded once per process.
 
-    The loader was inline in `main()` and gated on `.perry/config.md` existing,
+    The loader was inline in `main()` and gated on the config existing,
     so anything else that wanted a rule from `perry-state` had to copy it
     instead — which is what `split_stages` below was. Hoisted and cached so
     there is one way to reach that file and no reason to reimplement anything
@@ -8151,90 +8151,49 @@ def main(argv: list[str]) -> int:
         project_root = (Path(args.root).expanduser().resolve() if args.root
                         else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
         state_root = P.resolve_state_root(project_root)
-        # The track register comes out of the STORE, `.perry/config.jsonl`,
-        # with `.perry/config.md § Tracks` as the fallback for a project that
-        # has no store yet (P003-O2-KR1). `bin/perry-state § declared_tracks`
-        # is the one reader; reading the rendered table here made `--track` and
-        # every row's `mode` answer from the projection while the store beside
-        # it said something else. The empty list still means "no config at all",
-        # which is what `track_of` reports as "this project declares no tracks".
-        cfg_path = project_root / ".perry" / "config.md"
+        # The track register is the STORE, `.perry/config.jsonl`, and nothing
+        # else (ADR-019). `.perry/config.md § Tracks` was the fallback for a
+        # project with no store; the projection is gone, so `--track` and every
+        # row's `mode` answer from one register or from none. The empty list
+        # still means "no config at all", which is what `track_of` reports as
+        # "this project declares no tracks".
         cfg_store = project_root / ".perry" / "config.jsonl"
         config = {"tracks": []}
-        if cfg_store.exists() or cfg_path.exists():
+        if cfg_store.exists():
             _ps = perry_state()
             tracks, source = _ps.declared_tracks_detail(project_root)
-            # **A writer does not act on a projection while the store it is
-            # projected FROM sits there unusable** (TASK-095, V4 round 1).
-            # `perry-state` may fall back and warn — it is the read-everything
-            # tool and must exit 0 on a broken project. This is the write path:
-            # `--track`, every row's `mode`, and the stage/SLA columns a write
-            # stamps all come off this register, and the reviewer's fixture
-            # showed a truncated trailing line silently deleting `intake` from
-            # it. Writing a row against a register that is missing a track is
-            # not recoverable by re-running the command.
+            # **A writer does not act on a register it could not read**
+            # (TASK-095, V4 round 1). `perry-state` may answer and warn — it is
+            # the read-everything tool and must exit 0 on a broken project.
+            # This is the write path: `--track`, every row's `mode`, and the
+            # stage/SLA columns a write stamps all come off this register, and
+            # the reviewer's fixture showed a truncated trailing line silently
+            # deleting `intake` from it. Writing a row against a register that
+            # is missing a track is not recoverable by re-running the command.
             #
             # A READ is still allowed through, for the same reason
             # `perry-state` is: refusing `list` would make a corrupt store
             # un-diagnosable with the tool the user has in their hand.
-            # **State 7: the store answered by DEFAULT while the table
-            # declares tracks it has no row for at all.** A write against a
-            # register provably missing a declared track stamps `Track`,
-            # `Stage` and `Arrived` off a truncated list. Round 2 refused here
-            # and was right to; round 3 allowed it and lost `intake` and its
-            # SLA in silence.
             #
-            # **The refusal is `store-default` only, and stays there**
-            # (USER-905 decision 2). Round 5 widened it to every drifted row
-            # and hard-blocked three ordinary hand-edit workflows that wrote at
-            # `45a355d` and at round 4 — on one of them `perry-config write
-            # --from-file`, the only command this message names, exits 1, so
-            # the block could not be cleared by its own documented remedy. A
-            # register that HAS a record for every declared name can place
-            # every row it is asked to place; that it disagrees about the
-            # row's mode or SLA is drift, and drift warns, five lines below.
-            #
-            # The message names the STORE as the register that answered — the
-            # round 3 refusal told the user a track was "not declared in
-            # `.perry/config.md § Tracks`" while pointing at a table that
-            # declares it on line 14.
-            _lost = _ps.tracks_the_register_cannot_place(
-                project_root, tracks, source)
-            if _lost and args.cmd not in READ_ONLY_COMMANDS:
-                raise Refused(
-                    f"the track register does not carry "
-                    f"{', '.join(sorted(_lost))}, which "
-                    f"`.perry/config.md § Tracks` declares. The store is the "
-                    f"register, so a write now would stamp a truncated list "
-                    f"and lose that track's mode, stages, WIP and SLA. "
-                    f"Nothing was written. `perry-config write --from-file` "
-                    f"rebuilds the store from the table; `perry-lint` reports "
-                    f"the same disagreement as `config-store-drift`.")
-            # **Allowed, and not in silence.** The same drift rule the
-            # payload warns on — `perry-lint`'s, asked once — printed on
-            # stderr for every command, reads included. `perry-task list`
-            # taking the projection without a word was carried through four
-            # review rounds as an open finding; this does not fix the blank
-            # `mode` cell it is really about, and it does stop the command
-            # answering off a register it knows disagrees without saying so.
-            _drift = _ps.tracks_the_register_contradicts(project_root, source)
-            if _drift and not _lost:
-                print(f"⚠ the track register disagrees with "
-                      f"`.perry/config.md § Tracks` on {', '.join(_drift)}. "
-                      f"This command answers from the REGISTER. `perry-lint` "
-                      f"reports the same disagreement as `config-store-drift`.",
-                      file=sys.stderr)
+            # **The two refusals that stood beside this one are gone with their
+            # subject** (ADR-019). Both compared the store against
+            # `.perry/config.md § Tracks` — one refusing when the table
+            # declared a track the store had no record for, one warning when
+            # the two disagreed about a cell. With one register there is
+            # nothing to compare, and `tracks_the_register_cannot_place` and
+            # `tracks_the_register_contradicts` now raise rather than answer.
+            # What is left is the condition that was never about the
+            # projection: a store on disk that could not be read at all.
             if source in _ps.TRACKS_STORE_UNUSABLE \
                     and args.cmd not in READ_ONLY_COMMANDS:
                 raise Refused(
-                    f"the track register cannot be read from the store: "
-                    f"{_ps.TRACKS_STORE_WHY[source]}. `.perry/config.md § "
-                    f"Tracks` is a PROJECTION of that store, so writing "
-                    f"against it would stamp a register that may be missing a "
-                    f"track entirely. Nothing was written. Repair the store — "
-                    f"`perry-lint` and `perry-config diff` name the "
-                    f"disagreement — or remove it to fall back to the file "
-                    f"deliberately.")
+                    f"the track register cannot be read: "
+                    f"{_ps.TRACKS_STORE_WHY[source]}. `.perry/config.jsonl` is "
+                    f"the only register, so writing now would stamp "
+                    f"DESIGN-003's implicit `main` over whatever this project "
+                    f"actually declares and lose that track's mode, stages, "
+                    f"WIP and SLA. Nothing was written. Repair the store — "
+                    f"`perry-lint` names the records that do not validate.")
             config = {"tracks": tracks}
         with project_lock(state_root):
             recovered = recover_transaction(state_root)
