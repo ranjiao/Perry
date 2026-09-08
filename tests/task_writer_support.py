@@ -6,6 +6,8 @@ import importlib.machinery
 import importlib.util
 import json
 import subprocess
+
+import inproc
 import tempfile
 from pathlib import Path
 
@@ -206,9 +208,17 @@ class Project:
         if argv and argv[0] == "add" and "--summary" not in argv \
                 and "--title" in argv:
             argv = (*argv, *self.SUMMARY_DEFAULT)
-        r = subprocess.run(
-            ["python3", str(TOOL), *argv, "--root", str(self.root), "--json"],
-            capture_output=True, text=True)
+        # **In-process.** 21 test modules share this helper and 275 of the
+        # suite's 936 CPU-seconds are theirs. `perry-task add` against a fresh
+        # fixture is 121 ms as a child and 12.0 ms here — the boundary is 90%
+        # of the call, because an extensionless script is recompiled every
+        # time. Checked before converting, per `tests/inproc.py`: this tool's
+        # three module globals (`_ALIASES`/`_DISPLAY`, `_HEADINGS`,
+        # `_PERRY_STATE`) all derive from the schema at `PERRY_HOME` or from a
+        # sibling module, so none is root-dependent and sharing them across
+        # calls with different roots is safe.
+        r = inproc.run("perry-task",
+                       [*argv, "--root", str(self.root), "--json"])
         try:
             return r.returncode, json.loads(r.stdout or "{}")
         except json.JSONDecodeError:
@@ -229,9 +239,8 @@ class Project:
         return ""
 
     def import_board(self) -> None:
-        r = subprocess.run(
-            ["python3", str(TASKS), "write", "--from-board", "--root",
-             str(self.root)], capture_output=True, text=True)
+        r = inproc.run("perry-tasks",
+                       ["write", "--from-board", "--root", str(self.root)])
         if r.returncode:
             raise AssertionError(r.stdout + r.stderr)
 
