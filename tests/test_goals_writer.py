@@ -50,7 +50,8 @@ def _load():
 sys.path.insert(0, str(ROOT / 'viewer'))
 import tables as T  # noqa: E402
 
-import config_store  # noqa: E402
+import config_store
+import inproc  # noqa: E402
 from config_store import track  # noqa: E402
 
 G = _load()
@@ -444,11 +445,17 @@ class Project:
             config_store.write_config(self.dir, settings, tracks=tracks)
 
     def run(self, *argv, expect=None, **env):
-        e = dict(os.environ, PERRY_CONFORMANCE="advisory", PERRY_HOME=str(ROOT))
+        # **In-process, not a subprocess.** 194 calls from this module, and
+        # `perry-goals list` on a fixture is 67.2 ms as a child against 3.5 ms
+        # here — the boundary is 95% of it, because an extensionless script is
+        # recompiled on every invocation. The return shape is unchanged, so no
+        # call site below moved. `tests/inproc.py` carries what is and is not
+        # faithful about that swap, and TASK-402's evidence file carries the
+        # two modules where this was measured and was the WRONG instrument.
+        e = dict(PERRY_CONFORMANCE="advisory", PERRY_HOME=str(ROOT))
         e.update(env)
-        p = subprocess.run(
-            [sys.executable, str(GOALS), *argv, "--root", str(self.dir)],
-            capture_output=True, text=True, env=e)
+        p = inproc.run("perry-goals",
+                       [*argv, "--root", str(self.dir)], env=e)
         if expect is not None:
             assert p.returncode == expect, (p.returncode, p.stdout, p.stderr)
         return p
