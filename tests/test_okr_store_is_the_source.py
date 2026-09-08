@@ -46,23 +46,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
 sys.path.insert(0, str(ROOT / "viewer"))
+sys.path.insert(0, str(ROOT / "tests"))
+import config_store                                             # noqa: E402
 import perry_md_store as M                                      # noqa: E402
 
 
 GOALS = ROOT / "bin" / "perry-goals"
 OKR_TOOL = ROOT / "bin" / "perry-okr"
 
-CONFIG = """# Perry configuration
-
-- Document language: English
-- Repo layout: single
-""" + """
-## Tracks
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| ops | queue | commitments | intake -> doing | — | 5d | weekly | V2 |
-"""
+#: The declaration these projects run under: an `ops` track in `queue` mode.
+#: It was a `.perry/config.md` with a `## Tracks` table until ADR-019 deleted
+#: that file; `tests/config_store.py` writes the same declaration into
+#: `.perry/config.jsonl`, which is the register the tools read.
+TRACKS = [config_store.track("ops", "queue", spine="commitments",
+                             stages="intake -> doing", sla="5d",
+                             cycle="weekly", default_rung="V2")]
 
 #: Two rows, and every column the store has a field for, so a per-field sweep
 #: has a cell to mutate for each one. Hand-aligned and NOT in schema order —
@@ -104,8 +102,7 @@ class Project:
     def __init__(self, case: unittest.TestCase, okr: str = OKR):
         self.root = Path(tempfile.mkdtemp(prefix="perry-okr-source-")).resolve()
         case.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(CONFIG, encoding="utf-8")
+        config_store.write_config(self.root, tracks=TRACKS)
         self.okr_path = self.root / "OKR.md"
         self.store_path = self.root / "okr.jsonl"
         self.okr_path.write_text(okr, encoding="utf-8")

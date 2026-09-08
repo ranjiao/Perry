@@ -755,9 +755,16 @@ class Linter(unittest.TestCase):
             # .perry is the anchor: it stays at the project root, and the copy
             # that rode along under the state root would be read from nowhere.
             shutil.move(str(proj / "pm" / ".perry"), str(proj / ".perry"))
-            cfg = proj / ".perry" / "config.md"
-            cfg.write_text(cfg.read_text().rstrip()
-                           + "\n- State root: pm\n")
+            # `- State root: pm` appended to `.perry/config.md` until
+            # ADR-019. The pointer is a `setting` record now, and it is
+            # written with the tool that owns the store rather than by
+            # appending bytes — `perry-config set` is what a user has instead
+            # of the file edit this line used to be.
+            set_root = subprocess.run(
+                [sys.executable, str(PERRY_HOME / "bin" / "perry-config"),
+                 "set", "State root", "pm", "--root", str(proj)],
+                capture_output=True, text=True)
+            self.assertEqual(set_root.returncode, 0, set_root.stderr)
             (proj / "design").mkdir()
             (proj / "design" / "not-perrys.md").write_text("# theirs\n")
             res = self._run("--root", str(proj), "--json")
@@ -775,8 +782,15 @@ class Linter(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             (proj / ".perry").mkdir(parents=True)
-            (proj / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: ../elsewhere\n")
+            # **This wrote `.perry/config.md` until ADR-019, and after that
+            # file was deleted it passed for the wrong reason**: with no store
+            # at all `resolve_state_root` returns the project root anyway, so
+            # the assertion held over a project that pointed nowhere. The
+            # escaping pointer has to be IN the register the reader reads.
+            (proj / ".perry" / "config.jsonl").write_text(json.dumps(
+                {"kind": "setting", "key": "state_root",
+                 "label": "State root", "value": "../elsewhere", "order": 0},
+                ensure_ascii=False) + "\n", encoding="utf-8")
             self.assertEqual(P.resolve_state_root(proj), proj)
 
 
@@ -828,8 +842,10 @@ class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: .\n")
+            # `- State root: .` in `.perry/config.md` until ADR-019. `.` and
+            # no setting at all store the identical record, so the store this
+            # writes declares the project and nothing else.
+            (root / ".perry" / "config.jsonl").write_text("", encoding="utf-8")
             (root / "BOARD.md").write_text(self.BOARD)
             r = subprocess.run(
                 ["python3", str(PERRY_HOME / "bin" / "perry-state"),

@@ -25,6 +25,10 @@ import pathlib
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config_store                                            # noqa: E402
+from config_store import track                                 # noqa: E402
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 FIXTURE = PERRY_HOME / "tests" / "fixtures" / "sample-project"
 DIAGNOSE = PERRY_HOME / "bin" / "perry-diagnose"
@@ -847,9 +851,7 @@ class UserAskAnswerState(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = _P(td)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# c\n\n- Document language: English\n"
-                "- Repo layout: single\n- State root: .\n")
+            config_store.write_config(root)
             (root / "BOARD.md").write_text(self._board(rows))
             r = subprocess.run(
                 ["python3", str(PERRY_HOME / "bin" / "perry-diagnose"),
@@ -895,8 +897,7 @@ class NestedRepositoriesAreNotScanned(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: .\n")
+            config_store.write_config(root)
             (root / "BOARD.md").write_text(
                 "# BOARD\n\n## P0\n| ID | Title | Owner | Status | Next action | Evidence |\n"
                 "|---|---|---|---|---|---|\n\n## P1\n| ID | Title | Owner | Status | Next action | Evidence |\n"
@@ -962,8 +963,7 @@ class ImplementationPlanPlaceholdersAreNotUserDecisions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- State root: .\n")
+            config_store.write_config(root)
             (root / "design").mkdir()
             (root / "design" / "DESIGN-900-example.md").write_text(self.DOC)
             r = subprocess.run(
@@ -1026,8 +1026,7 @@ class DecisionsAreCountedPerRecordNotPerMention(unittest.TestCase):
 
     def project(self, root: Path, board: str | None = None) -> Path:
         (root / ".perry").mkdir(parents=True, exist_ok=True)
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n")
+        config_store.write_config(root)
         if board is not None:
             (root / "BOARD.md").write_text(board)
         return root
@@ -1213,8 +1212,7 @@ class AFixtureIsNotTheProjectsState(unittest.TestCase):
 
     def project(self, root: Path) -> Path:
         (root / ".perry").mkdir(parents=True, exist_ok=True)
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n")
+        config_store.write_config(root)
         return root
 
     # ── the half the objection is about ──────────────────────────────────
@@ -1336,8 +1334,7 @@ class AQuotedIdIsNotAQueueRow(unittest.TestCase):
 
     def project(self, root: Path) -> Path:
         (root / ".perry").mkdir(parents=True, exist_ok=True)
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n")
+        config_store.write_config(root)
         return root
 
     # ── the one that stops a fix which just suppresses everything ────────
@@ -1943,13 +1940,19 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
 
 # ── work modes ────────────────────────────────────────────────────────────
 
-CONFIG = "# Perry configuration\n\n- Document language: English\n- Repo layout: single\n"
+#: `CONFIG` — a `.perry/config.md` preamble — and `tracks_section`, which
+#: rendered a `## Tracks` table under it, stood here until ADR-019. Both were
+#: ways of writing a register into a markdown file that no longer exists.
+#: `declare` writes the same declaration into `.perry/config.jsonl`, which is
+#: what `bin/perry-diagnose` reads, and `track` is `tests/config_store.py`'s
+#: record builder: field names come from the schema, so a fixture naming a
+#: field the store does not declare fails there rather than writing a record
+#: every reader silently drops.
 
 
-def tracks_section(*rows: str) -> str:
-    return ("\n## Tracks\n\n"
-            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-            "|---|---|---|---|---|---|---|---|\n" + "".join(rows))
+def declare(root: Path, *rows: dict) -> None:
+    """`.perry/config.jsonl` — the settings and the track register."""
+    config_store.write_config(root, tracks=list(rows))
 
 
 def board(*sections: str) -> str:
@@ -1984,7 +1987,7 @@ class TheDatedAndProseCountersPartitionTheCommitments(unittest.TestCase):
 
     def commitments(self, td: str, header: str, cell: str) -> dict:
         root = Path(td)
-        write(root, ".perry/config.md", CONFIG)
+        declare(root)
         write(root, "OKR.md",
               "# OKR v1\n\n## Commitments\n\n"
               f"| ID | Promise | To whom | {header} | Status |\n"
@@ -2057,7 +2060,7 @@ class TheDatedAndProseCountersPartitionTheCommitments(unittest.TestCase):
         mod.lib.is_iso_date = lambda value: date_calls.append(value) is None and value == "DATE-SENTINEL"
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "OKR.md",
                   "# OKR\n\n## Commitments\n\n"
                   "| ID | Track | Promise | To whom | Due | Status | By when note |\n"
@@ -2151,7 +2154,7 @@ class TestWorkModeDetection(unittest.TestCase):
     def test_a_phase_and_objective_spine_reads_as_project(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "OKR.md", okr())
             write(root, "phase/CURRENT", "001-mvp\n")
             write(root, "phase/001-mvp.md", "# Phase 001\n")
@@ -2169,7 +2172,7 @@ class TestWorkModeDetection(unittest.TestCase):
     def test_intake_and_arrived_dates_read_as_queue(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "BOARD.md", board(
                 "## Intake\n\n| Arrived | Request | Outcome |\n|---|---|---|\n"
                 "| 2026-08-14 | Reconcile Q3 vendor spend | — |\n",
@@ -2187,7 +2190,7 @@ class TestWorkModeDetection(unittest.TestCase):
     def test_a_parent_column_and_answer_files_read_as_inquiry(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "BOARD.md", board(
                 "## P1\n\n| ID | Title | Owner | Status | Stage | Parent |\n"
                 "|---|---|---|---|---|---|\n"
@@ -2205,7 +2208,7 @@ class TestWorkModeDetection(unittest.TestCase):
     def test_stage_since_and_dated_commitments_read_as_pipeline(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "OKR.md",
                   "# OKR\n\n## Commitments\n\n"
                   "| Id | Track | Promise | To whom | Due | Status |\n"
@@ -2232,7 +2235,7 @@ class TestWorkModeDetection(unittest.TestCase):
         `By when note`."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "OKR.md",
                   "# OKR\n\n## Commitments\n\n"
                   "| Id | Track | Promise | To whom | Due | Status | By when note |\n"
@@ -2252,7 +2255,7 @@ class TestWorkModeDetection(unittest.TestCase):
         what it is, or adoption reports a project has no commitments."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "OKR.md",
                   "# OKR\n\n## Commitments\n\n"
                   "| Id | Track | Promise | To whom | By when | Status |\n"
@@ -2275,7 +2278,7 @@ class TestWorkModeDetection(unittest.TestCase):
         disagree."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "BOARD.md", board(
                 "## P1\n\n| ID | Title | Owner | Status | Arrived | Parent |\n"
                 "|---|---|---|---|---|---|\n"
@@ -2290,9 +2293,12 @@ class TestWorkModeDetection(unittest.TestCase):
         would let a declaration confirm itself, and MODE-01 could never fire."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG + tracks_section(
-                "| blog | pipeline | commitments | brief→draft→review→approved→published "
-                "| review:2 | 5d | 2026-W34 | V5 |\n"))
+            declare(
+                root,
+                track("blog", "pipeline", spine="commitments",
+                    stages="brief→draft→review→approved→published",
+                    wip="review:2", sla="5d", cycle="2026-W34",
+                    default_rung="V5"))
             write(root, "BOARD.md", board("## P1\n\n| ID | Title |\n|---|---|\n"))
             t = modes_of(scan(root))["blog"]
         self.assertIsNone(t["mode"], "the register scored itself as evidence")
@@ -2320,9 +2326,11 @@ class TestASharedSignalScoresForEveryModeThatOwnsIt(unittest.TestCase):
         permits. So the inquiry-shaped signals a scanner might look for are
         legitimately absent, and the only column left is the question clock.
         """
-        write(root, ".perry/config.md", CONFIG + tracks_section(
-            f"| study | {declared_mode} | questions | scoping→reading→synthesis "
-            f"| open:5 | — | — | V4 |\n"))
+        declare(
+            root,
+            track("study", f"{declared_mode}", spine="questions",
+                stages="scoping→reading→synthesis", wip="open:5",
+                default_rung="V4"))
         write(root, "BOARD.md", board(
             "## P1\n\n| ID | Title | Owner | Status | Track | Stage | Stage since | Parent |\n"
             "|---|---|---|---|---|---|---|---|\n"
@@ -2337,9 +2345,11 @@ class TestASharedSignalScoresForEveryModeThatOwnsIt(unittest.TestCase):
         side — the row's `Commitment` cell carries the promise's `Id` — so this
         board is doing exactly what that file asks for.
         """
-        write(root, ".perry/config.md", CONFIG + tracks_section(
-            f"| ops | {declared_mode} | commitments | waiting→working→closed "
-            f"| — | 5d | monthly | V2 |\n"))
+        declare(
+            root,
+            track("ops", f"{declared_mode}", spine="commitments",
+                stages="waiting→working→closed", sla="5d", cycle="monthly",
+                default_rung="V2"))
         write(root, "BOARD.md", board(
             "## P1\n\n| ID | Title | Owner | Status | Track | Stage | Commitment |\n"
             "|---|---|---|---|---|---|---|\n"
@@ -2397,8 +2407,11 @@ class TestASharedSignalScoresForEveryModeThatOwnsIt(unittest.TestCase):
         on `medium`."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG + tracks_section(
-                "| ops | queue | commitments | waiting→working→closed | — | 5d | monthly | V2 |\n"))
+            declare(
+                root,
+                track("ops", "queue", spine="commitments",
+                    stages="waiting→working→closed", sla="5d", cycle="monthly",
+                    default_rung="V2"))
             write(root, "BOARD.md", board(
                 "## P1\n\n| ID | Title | Owner | Status | Track | Stage | Stage since | Commitment |\n"
                 "|---|---|---|---|---|---|---|---|\n"
@@ -2449,8 +2462,10 @@ class TestHighIsMoreThanOneSignal(unittest.TestCase):
         one column could accuse a declaration."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG + tracks_section(
-                "| ops | pipeline | commitments | — | — | 5d | 2026-W34 | V5 |\n"))
+            declare(
+                root,
+                track("ops", "pipeline", spine="commitments", sla="5d",
+                    cycle="2026-W34", default_rung="V5"))
             write(root, "BOARD.md", board(
                 "## P1\n\n| ID | Title | Owner | Status | Track | Arrived |\n"
                 "|---|---|---|---|---|---|\n"
@@ -2468,8 +2483,10 @@ class TestHighIsMoreThanOneSignal(unittest.TestCase):
         keeps it out of a finding."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG + tracks_section(
-                "| ops | queue | commitments | — | — | 5d | monthly | V2 |\n"))
+            declare(
+                root,
+                track("ops", "queue", spine="commitments", sla="5d",
+                    cycle="monthly", default_rung="V2"))
             write(root, "BOARD.md", board(
                 "## P1\n\n| ID | Title | Owner | Status | Track | Stage | Arrived | Parent |\n"
                 "|---|---|---|---|---|---|---|---|\n"
@@ -2511,8 +2528,11 @@ class TestModeDisagreementIsAFinding(unittest.TestCase):
 
     @staticmethod
     def queue_shaped(root: Path, declared_mode: str) -> None:
-        write(root, ".perry/config.md", CONFIG + tracks_section(
-            f"| ops | {declared_mode} | commitments | new→triaged→resolved | — | 5d | monthly | V2 |\n"))
+        declare(
+            root,
+            track("ops", f"{declared_mode}", spine="commitments",
+                stages="new→triaged→resolved", sla="5d", cycle="monthly",
+                default_rung="V2"))
         write(root, "BOARD.md", board(
             "## Intake\n\n| Arrived | Request | Outcome |\n|---|---|---|\n"
             "| 2026-08-14 | Reconcile Q3 vendor spend | — |\n",
@@ -2548,7 +2568,7 @@ class TestModeDisagreementIsAFinding(unittest.TestCase):
         project Perry has ever adopted."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "BOARD.md", board(
                 "## Intake\n\n| Arrived | Request | Outcome |\n|---|---|---|\n"
                 "| 2026-08-14 | Reconcile Q3 vendor spend | — |\n",
@@ -2562,8 +2582,10 @@ class TestModeDisagreementIsAFinding(unittest.TestCase):
     def test_cannot_tell_never_produces_a_disagreement(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG + tracks_section(
-                "| ops | queue | commitments | — | — | 5d | monthly | V2 |\n"))
+            declare(
+                root,
+                track("ops", "queue", spine="commitments", sla="5d",
+                    cycle="monthly", default_rung="V2"))
             write(root, "BOARD.md", board("## P1\n\n| ID | Title |\n|---|---|\n"))
             payload = scan(root)
         self.assertIsNone(modes_of(payload)["ops"]["mode"])
@@ -2574,9 +2596,14 @@ class TestPerTrackAttribution(unittest.TestCase):
     def test_two_tracks_are_judged_from_their_own_rows(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG + tracks_section(
-                "| ops | queue | commitments | new→triaged→resolved | — | 5d | monthly | V2 |\n",
-                "| study | inquiry | questions | open→researching→answered | open:5 | — | — | V4 |\n"))
+            declare(
+                root,
+                track("ops", "queue", spine="commitments",
+                    stages="new→triaged→resolved", sla="5d", cycle="monthly",
+                    default_rung="V2"),
+                track("study", "inquiry", spine="questions",
+                    stages="open→researching→answered", wip="open:5",
+                    default_rung="V4"))
             write(root, "BOARD.md", board(
                 "## P1\n\n| ID | Title | Owner | Status | Track | Arrived | Parent | Stage |\n"
                 "|---|---|---|---|---|---|---|---|\n"
@@ -2596,9 +2623,11 @@ class TestPerTrackAttribution(unittest.TestCase):
         them across both would hand every track the same evidence."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG + tracks_section(
-                "| ops | queue | commitments | — | — | 5d | monthly | V2 |\n",
-                "| build | project | phase/ | — | — | — | — | V3 |\n"))
+            declare(
+                root,
+                track("ops", "queue", spine="commitments", sla="5d",
+                    cycle="monthly", default_rung="V2"),
+                track("build", "project", spine="phase/", default_rung="V3"))
             write(root, "OKR.md", okr())
             write(root, "phase/CURRENT", "001-mvp\n")
             write(root, "phase/001-mvp.md", "# Phase 001\n")
@@ -2615,8 +2644,9 @@ class TestPerTrackAttribution(unittest.TestCase):
         the strongest evidence a Perry project has."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG + tracks_section(
-                "| build | project | phase/ | — | — | — | — | V3 |\n"))
+            declare(
+                root,
+                track("build", "project", spine="phase/", default_rung="V3"))
             write(root, "OKR.md", okr())
             write(root, "phase/CURRENT", "001-mvp\n")
             write(root, "phase/001-mvp.md", "# Phase 001\n")
@@ -2632,7 +2662,7 @@ class TestModeColumnsResolveByName(unittest.TestCase):
         one — the bug a V4 review already found twice in this repo."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "BOARD.md", board(
                 "## P1\n\n| Parent | Status | ID | Stage | Title |\n"
                 "|---|---|---|---|---|\n"
@@ -2645,7 +2675,7 @@ class TestModeColumnsResolveByName(unittest.TestCase):
         and this scanner reads it rather than carrying a copy."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "BOARD.md", board(
                 "## P1\n\n| 编号 | 标题 | 状态 | 到达 | 阶段 |\n"
                 "|---|---|---|---|---|\n"
@@ -2664,7 +2694,7 @@ class TestModeColumnsResolveByName(unittest.TestCase):
         would hand a mode to any board that uses the status enum."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            write(root, ".perry/config.md", CONFIG)
+            declare(root)
             write(root, "BOARD.md", board(
                 "## P1\n\n| ID | Title | Status | Stage |\n|---|---|---|---|\n"
                 "| A-1 | Thing | review | review |\n"

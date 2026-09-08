@@ -1,4 +1,22 @@
-"""`OKR.md` and `.perry/config.md` as stores — TASK-092, ADR-007's second slice.
+"""`OKR.md` as a store — TASK-092, ADR-007's second slice.
+
+**`.perry/config.md` was the second document this module measured, and ADR-019
+deleted it.** What went with the file is every case whose subject was the
+relationship between that file and `.perry/config.jsonl`: a config round trip,
+a `## Tracks` table on the table path, a setting on the bullet path, and the
+five `perry-config` subcommands that built, verified, rendered, imported and
+diffed the pair. The store stays and is canonical; the projection is gone, so
+there is nothing to project and nothing to compare.
+
+**Nothing that was a PROPERTY of the cell model left with it.** `OKR.md`
+carries both shapes the config file did — `how: "table"` for a KR table row, a
+`## Commitments` row and a `## Versioning log` row, `how: "slots"` for a
+`- KR1: …` bullet and for an `### Objective` heading — so every case below that
+was about the boundary between them (TASK-147's escape rule, TASK-122's
+whitespace repair, the declared blank marker in a slot, prose minting no
+record, a record with no line left in the file) is asserted on this document
+instead. Each one says so where it sits. A case moved is named as moved; a
+case deleted is named as deleted, in the class it left.
 
 **The bar is `cmp`, and every claim here is measured against it.** A store that
 cannot reproduce the document it replaces has already lost data, and
@@ -22,8 +40,8 @@ the world. So each round trip is guarded three ways:
 
 **Two projects, because one project's file is a fixture wearing a disguise.**
 `tests/fixtures/second-project/` is shaped on `~/proj/gimegime-pmo` — bullet
-KRs rather than tables, Chinese prose, several version blocks, a config with
-prose sections. `TestTheSecondRealProject` runs the same comparison against
+KRs rather than tables, Chinese prose, several version blocks.
+`TestTheSecondRealProject` runs the same comparison against
 that project itself when the machine has it, and skips when it does not; the
 fixture is what holds the line everywhere else.
 
@@ -155,8 +173,63 @@ def _first_difference(a_text: str, b_text: str) -> dict:
             "rendered": (b[n] if n < len(b) else "<past end>")[:200]}
 
 
+#: An `OKR.md` whose prose carries three bullets with a colon in them, one of
+#: them opening with the letters `KR`. `scan_okr` claims KR bullets by
+#: `_RE_KR_BULLET` over every line no table already took, so these three are
+#: the adversarial set for "the scanner claims its own lines and no others" —
+#: the same set `.perry/config.md`'s prose sections were before ADR-019.
+PROSE_OKR = """\
+# OKR — a project whose prose carries colons
+
+## Mission
+
+Prove that prose mints no record.
+
+## v1: 2026-01-01
+
+### Objective 1 — the only heading here that is one
+
+| Id | KR | Metric / Target | Stretch? | Deadline |
+|----|----|------------------|----------|----------|
+| O1-KR1 | ship the thing | 1 of 1 | no | 2026-12-31 |
+
+- KR2: the bullet form, which is a record.
+
+## Why these bullets are not key results
+
+- Cross-reference convention: a pinned SHA, not a key result.
+- KRishna Iyer: a name, not a key result.
+- Target: prose, not a target.
+
+See `schema/README.md § Where the files are`.
+"""
+
+#: The blank-marker case, on the slot path. `- KR2: —` is a KR bullet whose
+#: whole text is the declared marker, so `stored_value` must read it as empty
+#: and the render must put the marker back.
+BLANK_MARKER_OKR = """\
+# OKR — a KR whose text is the declared blank marker
+
+## Mission
+
+Prove that `—` is layout on a slot.
+
+## v1: 2026-01-01
+
+### Objective 1 — one written KR and one blank one
+
+- KR1: a KR whose text is written down.
+- KR2: —
+"""
+
+
 class TestThisRepositoryIsReproducedByteForByte(unittest.TestCase, RoundTrip):
-    """V4 step 1 and 2 — Perry's own two files, not a fixture."""
+    """V4 step 1 and 2 — Perry's own `OKR.md`, not a fixture.
+
+    **This class used to carry `.perry/config.md` too, and ADR-019 deleted
+    it.** `test_config` is gone with it; the two cases below were about the
+    cell model rather than about that file, and are asserted on `OKR.md`.
+    """
 
     def test_okr(self):
         records, _ = self.assert_round_trips(M.OKR, ROOT / "perry" / "OKR.md")
@@ -191,101 +264,90 @@ class TestThisRepositoryIsReproducedByteForByte(unittest.TestCase, RoundTrip):
         # document this module writes, where the number is a fact about the
         # fixture — `TestTheScannerReadsAnOkrToItsLastLine`.
 
-    def test_config(self):
-        path = ROOT / ".perry" / "config.md"
-        records, report = self.assert_round_trips(M.CONFIG, path)
-        # `assertIn("## Why the state root is not `.`", …)` used to close the
-        # top of this test. It asserted that prose renders untouched by naming
-        # a section `.perry/config.md` happened to carry, so moving that
-        # section reddened a test whose subject is byte-identical
-        # round-tripping — the same shape as `test_okr`'s retired
-        # `assertGreater(len(krs), 20)` and repaired the same way. TASK-233
-        # moved Perry's own two configuration notes to `.perry/hook.md`,
-        # because a file `perry-config render` can rebuild from the store alone
-        # rebuilds the settings and the table and nothing else. The property is
-        # unchanged and now lives on a document this module writes:
-        # `test_a_prose_section_renders_byte_for_byte_and_mints_no_record`.
-        # Every record is accounted for by kind, and no kind is invented.
-        # This used to read `{"setting": len(records)}` — true only while this
-        # repository had declared no tracks, so declaring one reddened it
-        # (TASK-133). The invariant is that the KINDS PARTITION the records and
-        # that the prose section contributes none; "which kinds" is a fact
-        # about the file, so it is derived from the file rather than restated.
-        self.assertEqual(sum(report["kinds"].values()), len(records))
-        self.assertEqual(set(report["kinds"]),
-                         {r["kind"] for r in records})
-        has_register = "## Tracks" in path.read_text()
-        self.assertEqual("track" in report["kinds"], has_register,
-                         "the store holds track records exactly when the file "
-                         "declares a `## Tracks` register")
-        # Only a `setting` record has a `key`; a `track` record is keyed by
-        # its track name. The old line iterated every record, which worked
-        # only while every record was a setting — the same assumption the
-        # assertion above used to carry, one line further down.
-        keys = {r["key"] for r in records if r["kind"] == "setting"}
-        for expected in ("document_language", "state_root", "code_repo_path"):
-            self.assertIn(expected, keys)
+    # ── `test_config` was DELETED here by ADR-019 ────────────────────────
+    #
+    # It asserted three things about `.perry/config.md`: that it round-tripped
+    # byte for byte out of `.perry/config.jsonl`, that the report's KINDS
+    # partitioned the records and invented none, and that
+    # `document_language` / `state_root` / `code_repo_path` were among the
+    # setting keys. All three were about the RELATIONSHIP between that file and
+    # that store, and ADR-019 deleted the file — there is no second copy of a
+    # setting left to round-trip, so the property did not move anywhere. It
+    # died with its subject.
+    #
+    # What did NOT die: that the store validates and holds those keys. That was
+    # never this test's claim — it is `bin/perry-lint`'s (`config store: N
+    # record(s), all valid`) and `tests/test_config_store_readers.py`'s, and
+    # both still assert it.
+    #
+    # The retired-assertion note it carried — that naming a prose section
+    # `.perry/config.md` happened to carry made a byte-identity test red when
+    # TASK-233 moved that section — survives as the reason the case below
+    # writes its own document instead of measuring one.
 
     def test_a_prose_section_renders_byte_for_byte_and_mints_no_record(self):
         """The property V4 step 2 names, on a file this test writes.
 
-        A `.perry/config.md` carrying settings, a `## Tracks` table and two
-        prose sections — one of them holding a bullet with a colon in it, which
-        is the case `scan_config` refuses to read as a setting and the reason
-        it only scans the preamble. The store must hold no record for any of
-        it, and the render must return every byte.
+        **MOVED from `.perry/config.md` to `OKR.md` by ADR-019, not weakened.**
+        The subject was never the config file. It is that a scanner claims the
+        lines it holds a record for and NO others, so every other byte is
+        layout and comes back untouched — and that the adversarial line for
+        that claim is a prose bullet with a colon in it, which a bullet scanner
+        can mistake for a record.
+
+        `scan_okr` scans bullets the same way `scan_config` did: `_RE_KR_BULLET`
+        over every line no table already claimed. So the case transfers whole.
+        Three prose bullets carry a colon below, and one of them opens with the
+        letters `KR` — the near-miss that a scanner matching on the prefix
+        alone would file as a key result.
         """
-        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-config-prose-"))
+        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-okr-prose-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        (d / ".perry").mkdir()
-        path = d / ".perry" / "config.md"
-        path.write_text(
-            "# Perry configuration\n\n"
-            "- Document language: English\n"
-            "- State root: perry\n"
-            "- Code repo path: —\n\n"
-            "## Tracks\n\n"
-            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle "
-            "| Default rung |\n"
-            "|---|---|---|---|---|---|---|---|\n"
-            "| main | project | phase/ | — | — | — | — | V3 |\n\n"
-            "`intake` carries the work that ARRIVES. It is not decomposed\n"
-            "from a goal — it shows up.\n\n"
-            "## Why the state root is not `.`\n\n"
-            "- Cross-reference convention: PMO docs → code via a pinned SHA.\n"
-            "  A bullet with a colon in it, which is a sentence and not a key.\n\n"
-            "See `schema/README.md § Where the files are`.\n",
-            encoding="utf-8")
+        path = d / "OKR.md"
+        path.write_text(PROSE_OKR, encoding="utf-8")
         before = path.read_text(encoding="utf-8")
-        records, report = self.assert_round_trips(M.CONFIG, path)
+        records, report = self.assert_round_trips(M.OKR, path)
         self.assertEqual(path.read_text(encoding="utf-8"), before)
         self.assertEqual(report["lines_verbatim"], [])
         self.assertEqual(report["records_not_in_the_file"], [])
         self.assertEqual(sum(report["kinds"].values()), len(records))
-        # The prose contributed nothing. Three settings and one track is the
-        # whole of what was written above the prose.
-        self.assertEqual(report["kinds"], {"setting": 3, "track": 1})
-        self.assertNotIn(
-            "cross_reference_convention",
-            {r.get("key") for r in records},
-            "a bullet inside a prose section was filed as a setting")
+        # The prose contributed nothing. One table KR, one bullet KR and one
+        # Objective heading is the whole of what was written.
+        self.assertEqual(report["kinds"], {"kr": 2, "objective": 1})
+        texts = {r.get("text") for r in records}
+        for phantom in ("a pinned SHA, not a key result.",
+                        "a name, not a key result.",
+                        "prose, not a target."):
+            self.assertNotIn(
+                phantom, texts,
+                "a bullet inside a prose section was filed as a KR")
 
     def test_the_declared_blank_marker_survives_the_bullet_path(self):
-        """`- Code repo path: —` — c9018ae's rule, on a line that is not a table.
+        """c9018ae's rule, on a line that is not a table.
 
-        The marker is LAYOUT: it stays while the store's field is empty. If the
-        bullet path had grown its own blank rule, `—` would mean one thing in a
-        board cell and another in this file, which is exactly the second cell
-        model ADR-007 exists to remove.
+        **MOVED from `- Code repo path: —` in `.perry/config.md` to a KR
+        bullet in `OKR.md` by ADR-019.** The rule is `stored_value`'s and it is
+        one rule for both documents: the marker is LAYOUT, so it stays while
+        the store's field is empty. If the bullet path had grown its own blank
+        rule, `—` would mean one thing in a board cell and another in a slot,
+        which is exactly the second cell model ADR-007 exists to remove.
+
+        `- Code repo path: —` was the only `—` on a slot in this repository's
+        two documents, so the case has to write its own line now. That is the
+        same reason `SEPARATED_CONFIG` below was written rather than measured.
         """
-        path = ROOT / ".perry" / "config.md"
-        text = path.read_text()
-        self.assertIn("- Code repo path: —", text)
-        records = M.derive(M.CONFIG, text)
-        rec = next(r for r in records if r["key"] == "code_repo_path")
-        self.assertEqual(rec["value"], "",
+        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-okr-marker-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        path = d / "OKR.md"
+        path.write_text(BLANK_MARKER_OKR, encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("- KR2: —", text)
+        records = M.derive(M.OKR, text)
+        rec = next(r for r in records
+                   if r["kind"] == "kr" and r["id"] == "KR2")
+        self.assertEqual(rec["text"], "",
                          "a declared blank marker was stored as data")
-        self.assertEqual(M.render(M.CONFIG, text, records)[0], text)
+        self.assertEqual(M.render(M.OKR, text, records)[0], text)
 
 
 class TestTheScannerReadsAnOkrToItsLastLine(unittest.TestCase, RoundTrip):
@@ -391,10 +453,18 @@ class TestTheSecondProjectFixture(unittest.TestCase, RoundTrip):
     """V4 step 3, in the form that runs everywhere.
 
     Shaped on `~/proj/gimegime-pmo`: bullet KRs instead of tables, several
-    version blocks, Chinese prose, a config carrying a `## Tracks` table and
-    screens of dispatch notes. **Neither real project on this machine declares
-    a `## Tracks` table**, which is the register `DESIGN-003 § 5.2` defines and
-    `O1-KR3` is about — so the only place it can be held to `cmp` is here.
+    version blocks, Chinese prose.
+
+    **`test_config_with_a_tracks_table_and_prose_sections` stood here and
+    ADR-019 deleted it.** It held `.perry/config.md`'s `## Tracks` register to
+    `cmp` — eight settings and three tracks round-tripping byte for byte, and
+    the store agreeing with `bin/perry-state § parse_tracks`, the shipped
+    reader of that table. Both subjects are gone: there is no table, and
+    `parse_tracks` was deleted with it (`bin/perry-state:583` records where it
+    stood). A track is a `kind: track` record in `.perry/config.jsonl` and
+    nothing projects it, so there is no second reader to agree with and no
+    bytes to compare. `tests/test_config_store_readers.py` is where a track
+    register is asserted now, against the store.
     """
 
     def test_okr_with_bullet_krs_and_a_commitments_register(self):
@@ -410,51 +480,13 @@ class TestTheSecondProjectFixture(unittest.TestCase, RoundTrip):
         self.assertTrue(all(r["form"] == "bullet"
                             for r in records if r["kind"] == "kr"))
 
-    def test_config_with_a_tracks_table_and_prose_sections(self):
-        path = FIXTURES / "second-project" / ".perry" / "config.md"
-        records, report = self.assert_round_trips(
-            M.CONFIG, path, expect_kinds={"setting": 8, "track": 3})
-        tracks = [r for r in records if r["kind"] == "track"]
-        self.assertEqual([t["track"] for t in tracks],
-                         ["main", "research", "ops"])
-        self.assertEqual([t["mode"] for t in tracks],
-                         ["project", "pipeline", "queue"])
-        # `bin/perry-state § parse_tracks` is the shipped reader of this table.
-        # The store must hold what that reader reads, or the two have come
-        # apart on the register every non-`project` mode depends on.
-        declared = _parse_tracks(path.read_text())
-        self.assertEqual([t["track"] for t in declared],
-                         [t["track"] for t in tracks])
-        # Compared through `stored_value`, because the two answer slightly
-        # different questions and the difference is the design: the shipped
-        # reader is TOLERANT and hands back the `—` a project wrote, while the
-        # store holds the typed value that marker stands for — empty. Asserting
-        # the raw cells matched would be asserting the store failed to
-        # normalise anything.
-        self.assertEqual([M.stored_value(t["sla"]) for t in declared],
-                         [t["sla"] for t in tracks])
-        self.assertEqual([M.stored_value(t["stages"]) for t in declared],
-                         [t["stages"] for t in tracks])
-
     def test_the_other_bundled_projects_round_trip_too(self):
+        # `sample-project-zh/.perry/config.md` was the third leg here and went
+        # with ADR-019. Its store is `.perry/config.jsonl` and lints clean in
+        # `tests/run` step 4; there is no file left to round-trip.
         for rel in ("sample-project/OKR.md", "sample-project-zh/OKR.md"):
             with self.subTest(rel):
                 self.assert_round_trips(M.OKR, FIXTURES / rel)
-        self.assert_round_trips(
-            M.CONFIG, FIXTURES / "sample-project-zh" / ".perry" / "config.md")
-
-
-def _parse_tracks(text: str) -> list[dict]:
-    """`bin/perry-state § parse_tracks`, loaded as the module it lives in."""
-    import importlib.machinery
-    import importlib.util
-    path = ROOT / "bin" / "perry-state"
-    spec = importlib.util.spec_from_loader(
-        "perry_state_mod",
-        importlib.machinery.SourceFileLoader("perry_state_mod", str(path)))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.parse_tracks(text)
 
 
 @unittest.skipUnless(
@@ -472,22 +504,17 @@ class TestTheSecondRealProject(unittest.TestCase, RoundTrip):
     def copy(self) -> pathlib.Path:
         d = pathlib.Path(tempfile.mkdtemp(prefix="perry-second-project-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        for rel in ("OKR.md", ".perry/config.md"):
-            src = SECOND_PROJECT / rel
-            if src.is_file():
-                dst = d / rel
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dst)
+        # `.perry/config.md` was copied here too until ADR-019 deleted it.
+        src = SECOND_PROJECT / "OKR.md"
+        if src.is_file():
+            shutil.copy2(src, d / "OKR.md")
         return d
 
-    def test_okr_and_config_are_reproduced_byte_for_byte(self):
+    def test_the_okr_is_reproduced_byte_for_byte(self):
         d = self.copy()
         records, _ = self.assert_round_trips(M.OKR, d / "OKR.md")
         self.assertEqual(len([r for r in records if r["kind"] == "kr"]),
                          kr_lines((d / "OKR.md").read_text()))
-        cfg = d / ".perry" / "config.md"
-        if cfg.is_file():
-            self.assert_round_trips(M.CONFIG, cfg)
 
 
 #: An `OKR.md` whose Objective headings are written every way the two real
@@ -726,30 +753,33 @@ class TestAMutatedStoreMovesTheFile(unittest.TestCase):
         self.assertEqual(drift[0]["file"], before)
         self.assertIn(target["id"], drift[0]["key"])
 
-    def test_a_config_setting(self):
-        path = ROOT / ".perry" / "config.md"
-        text = path.read_text()
-        records = M.derive(M.CONFIG, text)
-        target = next(r for r in records if r["key"] == "state_root")
-        target["value"] = "docs"
+    def test_a_slot_on_the_bullet_path(self):
+        """**MOVED from `- State root:` in `.perry/config.md` by ADR-019.**
 
-        rendered, report = M.render(M.CONFIG, text, records)
-        self.assertIn("- State root: docs", rendered)
+        The claim is about the SLOT path — a `- Key: value` line, rendered
+        through `slot_descriptor` rather than `row_descriptor` — and it stands
+        on a KR bullet exactly as it stood on a setting. `test_an_okr_kr_field`
+        above covers the table path; without this one the class would only
+        prove the table half can be made to move.
+
+        `test_a_config_setting` and `test_a_track_row` were the two cases here
+        that were about `.perry/config.md` itself — one setting, one
+        `## Tracks` row — and both died with the file. The table half of what
+        `test_a_track_row` measured is `test_an_okr_kr_field`'s; the slot half
+        is this.
+        """
+        text = BLANK_MARKER_OKR
+        records = M.derive(M.OKR, text)
+        target = next(r for r in records
+                      if r["kind"] == "kr" and r["id"] == "KR1")
+        target["text"] = "a KR whose text the store moved."
+
+        rendered, report = M.render(M.OKR, text, records)
+        self.assertIn("- KR1: a KR whose text the store moved.", rendered)
         drift = report["cells_the_store_and_the_file_disagree_on"]
-        self.assertEqual([d["key"] for d in drift], ["setting/state_root"])
-
-    def test_a_track_row(self):
-        path = FIXTURES / "second-project" / ".perry" / "config.md"
-        text = path.read_text()
-        records = M.derive(M.CONFIG, text)
-        target = next(r for r in records if r.get("track") == "ops")
-        target["sla"] = "7d"
-
-        rendered, report = M.render(M.CONFIG, text, records)
-        self.assertIn("| 7d |", rendered)
-        drift = report["cells_the_store_and_the_file_disagree_on"]
-        self.assertEqual([(d["key"], d["column"], d["file"], d["store"])
-                          for d in drift], [("track/ops", "SLA", "3d", "7d")])
+        self.assertEqual([d["column"] for d in drift], ["text"])
+        self.assertEqual(len(drift), 1, drift)
+        self.assertTrue(drift[0]["key"].endswith("/KR1"), drift[0]["key"])
 
     def test_a_blank_marker_is_replaced_once_the_store_has_a_value(self):
         """The other direction of c9018ae's rule, which nothing else covers.
@@ -757,17 +787,21 @@ class TestAMutatedStoreMovesTheFile(unittest.TestCase):
         `—` stays while the field is empty; the moment the store carries a
         value, the marker is what gets replaced. A renderer that kept the
         marker unconditionally would pass every test above.
+
+        **MOVED from `- Code repo path: —` by ADR-019**, onto the KR bullet
+        `TestThisRepositoryIsReproducedByteForByte` uses for the other
+        direction of the same rule.
         """
-        path = ROOT / ".perry" / "config.md"
-        text = path.read_text()
-        records = M.derive(M.CONFIG, text)
-        target = next(r for r in records if r["key"] == "code_repo_path")
-        self.assertEqual(target["value"], "")
-        self.assertIn("- Code repo path: —", M.render(M.CONFIG, text, records)[0])
-        target["value"] = "/tmp/elsewhere"
-        rendered, _ = M.render(M.CONFIG, text, records)
-        self.assertIn("- Code repo path: /tmp/elsewhere", rendered)
-        self.assertNotIn("- Code repo path: —", rendered)
+        text = BLANK_MARKER_OKR
+        records = M.derive(M.OKR, text)
+        target = next(r for r in records
+                      if r["kind"] == "kr" and r["id"] == "KR2")
+        self.assertEqual(target["text"], "")
+        self.assertIn("- KR2: —", M.render(M.OKR, text, records)[0])
+        target["text"] = "no longer blank"
+        rendered, _ = M.render(M.OKR, text, records)
+        self.assertIn("- KR2: no longer blank", rendered)
+        self.assertNotIn("- KR2: —", rendered)
 
 
 class TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave(
@@ -804,20 +838,28 @@ class TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave(
         # not about whether the drift is reported.
         self.assertEqual([f["column"] for f in findings], ["repo_layout"])
 
-    def test_a_config_setting_slot_ends_without_a_trailing_space(self):
-        """`scan_config` opens the slot at the colon, so the slot owns the
-        separator's space and the render must not add a second one at the end.
+    def test_a_slot_ends_without_a_trailing_space(self):
+        """A slot ends at the value, so the render must not add a space after it.
 
-        Asserted on the real `.perry/config.md`, because that is the file the
-        refusal message names.
+        **MOVED from `.perry/config.md`'s `- State root:` by ADR-019.** The
+        rule is `describe_cell`'s `pad = " " if escape else ""`, which is one
+        rule for every slot; `scan_okr` opens a KR bullet's text slot at the
+        colon the same way `scan_config` opened a setting's, so the case
+        transfers with its subject rather than being weakened.
+
+        Asserted through a whole rendered document rather than one line,
+        because the second assertion — that the render introduced trailing
+        whitespace NOWHERE — is what `git diff --check` would complain about
+        and is the reason the case exists.
         """
-        text = (ROOT / ".perry" / "config.md").read_text()
-        records = M.derive(M.CONFIG, text)
-        next(r for r in records if r["key"] == "state_root")["value"] = "docs"
-        rendered, _ = M.render(M.CONFIG, text, records)
+        text = BLANK_MARKER_OKR
+        records = M.derive(M.OKR, text)
+        next(r for r in records
+             if r["kind"] == "kr" and r["id"] == "KR1")["text"] = "docs"
+        rendered, _ = M.render(M.OKR, text, records)
         line = next(ln for ln in rendered.split("\n")
-                    if ln.startswith("- State root:"))
-        self.assertEqual(line, "- State root: docs")
+                    if ln.startswith("- KR1:"))
+        self.assertEqual(line, "- KR1: docs")
         self.assertEqual(
             [ln for ln in rendered.split("\n") if ln != ln.rstrip()], [],
             "render --write introduced trailing whitespace into the file it "
@@ -841,12 +883,18 @@ class TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave(
     def test_the_advertised_repair_survives_git_diff_check(self):
         """V3 item 4, run rather than asserted.
 
-        A real `.perry/config.md` in a real repository, drifted, repaired by
-        the exact command the refusal message prints, and handed to the exact
-        check a commit hook would run.
+        A real `OKR.md` in a real repository, drifted, repaired by the exact
+        command the refusal message prints, and handed to the exact check a
+        commit hook would run.
+
+        **The file was `.perry/config.md` until ADR-019 deleted it.** The
+        subject is `perry-<doc> render --write`'s advice being safe to obey,
+        which `perry-okr` gives in the same words; the drift planted below is
+        on a KR table cell rather than a setting bullet, and the slot half of
+        the same claim is `test_a_slot_ends_without_a_trailing_space` above.
         """
         p = Project(self)
-        self.assertEqual(p.config("write", "--from-file").returncode, 0)
+        self.assertEqual(p.okr("write", "--from-file").returncode, 0)
 
         def git(*args):
             return subprocess.run(["git", *args], cwd=str(p.root),
@@ -859,50 +907,59 @@ class TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave(
         commit = git("commit", "-qm", "baseline")
         self.assertEqual(commit.returncode, 0, commit.stderr)
 
-        cfg = p.root / ".perry" / "config.md"
-        cfg.write_text(cfg.read_text().replace("- State root: perry",
-                                               "- State root: elsewhere"))
-        self.assertEqual(p.config("diff").returncode, 1,
+        okr = p.root / "perry" / "OKR.md"
+        self.assertIn("3 of 3 modes live", okr.read_text())
+        okr.write_text(okr.read_text().replace("3 of 3 modes live",
+                                               "SEVEN of 3 modes live"))
+        self.assertEqual(p.okr("diff").returncode, 1,
                          "the planted drift was not reported at all")
-        self.assertEqual(p.config("render", "--write").returncode, 0)
+        self.assertEqual(p.okr("render", "--write").returncode, 0)
 
         check = git("diff", "--check")
         self.assertEqual((check.returncode, check.stdout, check.stderr),
                          (0, "", ""))
         # And the repair actually restored the stored value, so the clean
         # `--check` is not the cleanliness of a file nothing happened to.
-        self.assertIn("- State root: perry", cfg.read_text())
+        self.assertIn("3 of 3 modes live", okr.read_text())
+        self.assertNotIn("SEVEN of 3 modes live", okr.read_text())
 
 
-#: TASK-147's corpus, written here rather than borrowed from `.perry/config.md`.
-#: The value under test has to CONTAIN the cell separator, and Perry's own
-#: configuration carries a pipe in no setting and no track cell — so a class
-#: pointed at that file would pass against a renderer that escapes nothing at
-#: all, and asserting what it says today would be a check reading the project
-#: around it as its expected value, which is the defect class this repository
-#: pays for most.
+#: TASK-147's corpus, written here rather than borrowed from a live document.
+#: The value under test has to CONTAIN the cell separator, and neither of this
+#: repository's documents carries a pipe in any cell — so a class pointed at
+#: one of them would pass against a renderer that escapes nothing at all, and
+#: asserting what it says today would be a check reading the project around it
+#: as its expected value, which is the defect class this repository pays for
+#: most.
 SEPARATED = "Id | Task | Owner"
 
-#: One value in both shapes: a preamble bullet, which reaches
-#: `perry_store.slot_descriptor` (the `escape=False` call site of
-#: `describe_cell`), and a `## Tracks` cell, which reaches
-#: `perry_store.row_descriptor` (the defaulted-`True` one). One file, one tool,
+#: One value in both shapes: a KR TABLE cell, which reaches
+#: `perry_store.row_descriptor` (the defaulted-`True` call site of
+#: `describe_cell`), and a KR BULLET's text slot, which reaches
+#: `perry_store.slot_descriptor` (the `escape=False` one). One file, one tool,
 #: one round trip, both sides of the boundary — `bin/perry_md_store.py § plan`
 #: dispatches on `site["how"] == "table"` and both of its branches are here.
-SEPARATED_CONFIG = """\
-# A project whose configuration writes the separator down
+#:
+#: **This corpus was a `.perry/config.md` until ADR-019.** That file carried
+#: the two shapes as a `- Key: value` preamble and a `## Tracks` table; `OKR.md`
+#: carries them as a KR table and a `- KR2: …` bullet. The boundary is the
+#: same one, in the same two functions, and the class below is the same class.
+SEPARATED_OKR = """\
+# OKR — a project whose goals write the separator down
 
-- Document language: English
-- State root: perry
-- Repo layout: single
-- Board columns: {bullet}
-{gate}
-## Tracks
+## Mission
 
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| main | project | phase/ | — | — | — | — | V3 |
-| intake | queue | {cell} | new→triaged | 6 | 5d | weekly | V3 |
+Prove that one stored value reaches the file two ways.
+
+## v1: 2026-01-01
+
+### Objective 1 — one KR in each shape
+
+| Id | KR | Metric / Target | Stretch? | Deadline |
+|----|----|------------------|----------|----------|
+| O1-KR1 | {cell} | 1 of 1 | no | 2026-12-31 |
+
+- KR2: {bullet}
 """
 
 
@@ -911,23 +968,31 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
 
     **The enumeration is the row.** `bin/perry_store.py § describe_cell` has
     exactly two call sites: `row_descriptor` (a markdown table cell, `escape`
-    left at its default `True`) and `slot_descriptor` (a `- Key: value`
-    bullet, `escape=False`). Every other decider of the flag is one of those
-    same two functions writing `escape` into the descriptor it returns, which
-    `render_line` reads back. There is no third answer to "is this inside a
-    table?" in the codebase: `viewer/tables.py § render_row` and `check_cell`
-    escape unconditionally and are only ever handed table rows, so they never
-    ask the question.
+    left at its default `True`) and `slot_descriptor` (a `- Key: value` or
+    `- KR1: …` bullet, `escape=False`). Every other decider of the flag is one
+    of those same two functions writing `escape` into the descriptor it
+    returns, which `render_line` reads back. There is no third answer to "is
+    this inside a table?" in the codebase: `viewer/tables.py § render_row` and
+    `check_cell` escape unconditionally and are only ever handed table rows, so
+    they never ask the question.
 
     Until this class the separation was asserted only by calling the function
-    that implements it. `.perry/config.md` carries BOTH shapes — preamble
-    settings on the bullet path, `## Tracks` rows on the table path — so a
-    single `perry-config` round trip crosses the boundary in both directions
-    and the guard becomes visible in the tool rather than only in the unit.
+    that implements it. `OKR.md` carries BOTH shapes — a KR table row on the
+    table path, a `- KR2: …` bullet on the slot path — so a single `perry-okr`
+    round trip crosses the boundary in both directions and the guard becomes
+    visible in the tool rather than only in the unit.
+
+    **MOVED from `.perry/config.md` to `OKR.md` by ADR-019, not weakened.**
+    The class ran through `perry-config write/render/diff/verify`, which
+    ADR-019 deleted along with the file those five projected. Nothing about the
+    escape rule moved with them: it lives in `bin/perry_store.py`, its two call
+    sites are unchanged, and `perry-okr` gives the same five subcommands over
+    a document that carries the same two shapes. Every assertion below is the
+    one it was, re-pointed.
 
     **What is asserted is a property, not a capture-day census**: ONE stored
-    value, carrying the separator, reaches the file escaped in the cell and
-    raw in the bullet, reads back as itself through the file's own reader, and
+    value, carrying the separator, reaches the file escaped in the cell and raw
+    in the bullet, reads back as itself through the file's own reader, and
     moves in both shapes when the store moves.
 
     **Byte identity is not the whole guard, and that is the finding.** Flipping
@@ -945,14 +1010,18 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         (self.root / "perry").mkdir()
         (self.root / ".perry").mkdir()
-        self.path = self.root / ".perry" / "config.md"
-        self.store = self.root / ".perry" / "config.jsonl"
+        # `state_root: perry`, so `perry-okr` looks for the document where this
+        # fixture writes it. The corpus below is the subject; where it sits is
+        # not, so this is copied rather than hand-written.
+        shutil.copy2(ROOT / ".perry" / "config.jsonl",
+                     self.root / ".perry" / "config.jsonl")
+        self.path = self.root / "perry" / "OKR.md"
+        self.store = self.root / "perry" / "okr.jsonl"
         self.path.write_text(
-            SEPARATED_CONFIG.format(bullet=SEPARATED,
-                                    cell=SEPARATED.replace("|", "\\|"),
-                                    gate=""),
+            SEPARATED_OKR.format(bullet=SEPARATED,
+                                 cell=SEPARATED.replace("|", "\\|")),
             encoding="utf-8")
-        proc = self.config("write", "--from-file")
+        proc = self.okr("write", "--from-file")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         # The corpus is evidence only while it carries the separator on both
         # sides. An edit that dropped the pipe would leave every assertion
@@ -964,11 +1033,11 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
 
     # ── the seam ──────────────────────────────────────────────────────────
 
-    def config(self, *args):
-        return run("perry-config", *args, root=self.root)
+    def okr(self, *args):
+        return run("perry-okr", *args, root=self.root)
 
     def rendered(self) -> str:
-        proc = self.config("render")
+        proc = self.okr("render")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return proc.stdout
 
@@ -978,10 +1047,10 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
 
     def bullet(self, text: str) -> str:
         return next(ln for ln in text.split("\n")
-                    if ln.startswith("- Board columns:"))
+                    if ln.startswith("- KR2:"))
 
-    def spine(self, text: str) -> tuple:
-        """The `intake` row, and its `Spine` cell read back two ways.
+    def cell(self, text: str) -> tuple:
+        """The `O1-KR1` row, and its `KR` cell read back two ways.
 
         `perry_store.cell_spans` gives the raw bytes the row carries;
         `viewer/tables.py § split_row` gives the value a reader takes out of
@@ -989,9 +1058,9 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
         code that wrote it.
         """
         lines = text.split("\n")
-        header = next(ln for ln in lines if ln.startswith("| Track "))
-        row = next(ln for ln in lines if ln.startswith("| intake "))
-        at = T.split_row(header).index("Spine")
+        header = next(ln for ln in lines if ln.startswith("| Id "))
+        row = next(ln for ln in lines if ln.startswith("| O1-KR1 "))
+        at = T.split_row(header).index("KR")
         a, b = S.cell_spans(row)[at]
         return row, row[a:b].strip(), T.split_row(row)[at]
 
@@ -1005,10 +1074,10 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
         the property below would be comparing a cell against a cell.
         """
         recs = self.records()
-        setting = next(r for r in recs if r.get("key") == "board_columns")
-        track = next(r for r in recs if r.get("track") == "intake")
-        self.assertEqual(setting["value"], SEPARATED)
-        self.assertEqual(track["spine"], SEPARATED)
+        table = next(r for r in recs if r.get("id") == "O1-KR1")
+        bullet = next(r for r in recs if r.get("id") == "KR2")
+        self.assertEqual(table["text"], SEPARATED)
+        self.assertEqual(bullet["text"], SEPARATED)
         self.assertNotIn(
             "\\|", self.store.read_text(),
             "a cell's escaping reached the store, so the store now holds two "
@@ -1024,9 +1093,9 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
         """
         text = self.rendered()
         bullet = self.bullet(text)
-        row, raw, value = self.spine(text)
+        row, raw, value = self.cell(text)
 
-        self.assertEqual(bullet, f"- Board columns: {SEPARATED}")
+        self.assertEqual(bullet, f"- KR2: {SEPARATED}")
         self.assertNotIn("\\|", bullet,
                          "a bullet slot was handed cell escaping it never had")
         self.assertEqual(
@@ -1051,23 +1120,21 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
         moved = "A | B"
         recs = self.records()
         for r in recs:
-            if r.get("key") == "board_columns":
-                r["value"] = moved
-            if r.get("track") == "intake":
-                r["spine"] = moved
+            if r.get("id") in ("O1-KR1", "KR2"):
+                r["text"] = moved
         self.store.write_text(M.store_text(recs), encoding="utf-8")
 
-        proc = self.config("render", "--write")
+        proc = self.okr("render", "--write")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         text = self.path.read_text()
-        _row, raw, value = self.spine(text)
-        self.assertEqual(self.bullet(text), f"- Board columns: {moved}")
+        _row, raw, value = self.cell(text)
+        self.assertEqual(self.bullet(text), f"- KR2: {moved}")
         self.assertEqual(raw, moved.replace("|", "\\|"))
         self.assertEqual(value, moved)
         # And the moved file is a fixed point in both shapes: rendering it
         # again changes nothing, so the move was a projection rather than an
         # edit that happens to land somewhere.
-        self.assertEqual(self.config("diff").returncode, 0)
+        self.assertEqual(self.okr("diff").returncode, 0)
 
     def test_a_round_trip_reports_no_drift_in_either_shape(self):
         """The leg `cmp` cannot carry.
@@ -1080,7 +1147,7 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
         from a plan full of phantom disagreements is one hand edit away from
         being rewritten against them.
         """
-        diff = self.config("diff")
+        diff = self.okr("diff")
         self.assertEqual(diff.returncode, 0, diff.stdout)
         report = json.loads(diff.stdout)
         self.assertTrue(report["identical"])
@@ -1091,7 +1158,7 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
             "do not")
         self.assertEqual(report["cells_verbatim"], {})
         self.assertEqual(report["cells_wearing_decoration"], {})
-        self.assertEqual(self.config("verify").returncode, 0)
+        self.assertEqual(self.okr("verify").returncode, 0)
 
         # Both shapes were actually claimed. A clean report over lines nobody
         # read is the vacuous pass this whole module is arranged against.
@@ -1099,36 +1166,43 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
         self.assertEqual(report["records_not_in_the_file"], [])
         self.assertEqual(report["lines_from_store"], len(self.records()))
         self.assertLessEqual(
-            {"board_columns", "intake"},
-            {r.get("key") or r.get("track") for r in self.records()})
+            {"O1-KR1", "KR2"}, {r.get("id") for r in self.records()})
 
     def test_a_bullet_that_gained_cell_escaping_is_reported_and_repaired(self):
         """The failure the row names, planted in the file.
 
-        A `\\|` in a `- Key: value` bullet is a table's rule leaking into a
-        list. The store never held it, so it has to be REPORTED rather than
+        A `\|` in a `- KR2: …` bullet is a table's rule leaking into a list.
+        The store never held it, so it has to be REPORTED rather than
         absorbed, and the repair the refusal message advertises has to put the
         raw separator back rather than carry the escape forward as if the file
         were the authority.
         """
         self.path.write_text(self.path.read_text().replace(
-            f"- Board columns: {SEPARATED}",
-            "- Board columns: " + SEPARATED.replace("|", "\\|")))
+            f"- KR2: {SEPARATED}",
+            "- KR2: " + SEPARATED.replace("|", "\\|")))
 
-        verify = self.config("verify")
+        verify = self.okr("verify")
         self.assertEqual(verify.returncode, 1, verify.stdout)
         drifted = json.loads(verify.stdout)[
             "cells_the_store_and_the_file_disagree_on"]
-        self.assertEqual([d["key"] for d in drifted], ["setting/board_columns"])
+        self.assertEqual(len(drifted), 1, drifted)
+        self.assertTrue(drifted[0]["key"].endswith("/KR2"), drifted[0]["key"])
+        self.assertEqual(drifted[0]["column"], "text")
 
-        self.assertEqual(self.config("render", "--write").returncode, 0)
+        self.assertEqual(self.okr("render", "--write").returncode, 0)
         self.assertEqual(self.bullet(self.path.read_text()),
-                         f"- Board columns: {SEPARATED}")
-        self.assertEqual(self.config("diff").returncode, 0)
+                         f"- KR2: {SEPARATED}")
+        self.assertEqual(self.okr("diff").returncode, 0)
+
 
 
 class Project:
-    """A throwaway project carrying Perry's own two files."""
+    """A throwaway project carrying Perry's own `OKR.md`.
+
+    It carried `.perry/config.md` beside it until ADR-019 deleted that file.
+    `.perry/` is still made, because `perry-okr` resolves its state root
+    through `viewer/parsers.py § resolve_state_root`, which looks there.
+    """
 
     def __init__(self, case: unittest.TestCase):
         self.root = pathlib.Path(tempfile.mkdtemp(prefix="perry-md-store-"))
@@ -1136,18 +1210,11 @@ class Project:
         (self.root / "perry").mkdir()
         (self.root / ".perry").mkdir()
         shutil.copy2(ROOT / "perry" / "OKR.md", self.root / "perry" / "OKR.md")
-        # Perry's own `.perry/config.md`, verbatim. The ADR-004 gate used to
-        # read this file to decide its own mode, which made a fixture writing
-        # it the file the gate consulted about itself; the gate is gone
-        # (TASK-261) and the copy is now just a copy.
-        (self.root / ".perry" / "config.md").write_text(
-            (ROOT / ".perry" / "config.md").read_text(), encoding="utf-8")
+        shutil.copy2(ROOT / ".perry" / "config.jsonl",
+                     self.root / ".perry" / "config.jsonl")
 
     def okr(self, *args):
         return run("perry-okr", *args, root=self.root)
-
-    def config(self, *args):
-        return run("perry-config", *args, root=self.root)
 
     def copy_the_real_stores(self):
         """This repository's own `okr.jsonl`, as bytes, beside its own `OKR.md`.
@@ -1176,9 +1243,6 @@ class Project:
     def okr_text(self) -> str:
         return (self.root / "perry" / "OKR.md").read_text()
 
-    def config_text(self) -> str:
-        return (self.root / ".perry" / "config.md").read_text()
-
 
 class TestTheCommandLine(unittest.TestCase):
     def test_render_and_diff_refuse_before_a_store_exists(self):
@@ -1201,22 +1265,29 @@ class TestTheCommandLine(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertIn("--from-file", proc.stderr)
 
-    def test_the_full_cycle_is_byte_identical_on_both_files(self):
+    def test_the_full_cycle_is_byte_identical(self):
+        """This ran over `perry-okr` AND `perry-config` until ADR-019.
+
+        `perry-config`'s half of the loop — `write --from-file`, `diff`,
+        `verify`, `render` — was the five subcommands that projected
+        `.perry/config.jsonl` onto `.perry/config.md`. All five are gone with
+        the file; `perry-config` now reads and writes the store directly, and
+        `tests/test_config_store_readers.py` is where that is asserted.
+        """
         p = Project(self)
-        for tool, text_of in ((p.okr, p.okr_text), (p.config, p.config_text)):
-            before = text_of()
-            self.assertEqual(tool("write", "--from-file").returncode, 0)
-            diff = tool("diff")
-            self.assertEqual(diff.returncode, 0, diff.stdout)
-            report = json.loads(diff.stdout)
-            self.assertTrue(report["identical"])
-            self.assertEqual(report["cells_verbatim"], {})
-            self.assertEqual(tool("verify").returncode, 0)
-            # `render` without `--write` prints and touches nothing.
-            rendered = tool("render")
-            self.assertEqual(rendered.returncode, 0, rendered.stderr)
-            self.assertEqual(rendered.stdout, before)
-            self.assertEqual(text_of(), before)
+        before = p.okr_text()
+        self.assertEqual(p.okr("write", "--from-file").returncode, 0)
+        diff = p.okr("diff")
+        self.assertEqual(diff.returncode, 0, diff.stdout)
+        report = json.loads(diff.stdout)
+        self.assertTrue(report["identical"])
+        self.assertEqual(report["cells_verbatim"], {})
+        self.assertEqual(p.okr("verify").returncode, 0)
+        # `render` without `--write` prints and touches nothing.
+        rendered = p.okr("render")
+        self.assertEqual(rendered.returncode, 0, rendered.stderr)
+        self.assertEqual(rendered.stdout, before)
+        self.assertEqual(p.okr_text(), before)
 
     def test_render_write_puts_a_drifted_file_back_in_line(self):
         p = Project(self)
@@ -1465,7 +1536,6 @@ class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(
     def setUp(self):
         self.p = Project(self)
         self.p.okr("write", "--from-file")
-        self.p.config("write", "--from-file")
 
     def test_an_okr_hand_edit(self):
         path = self.p.root / "perry" / "OKR.md"
@@ -1524,21 +1594,13 @@ class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(
         self.assertEqual(write.returncode, 1)
         self.assertIn("3 of 3 modes live, honest", write.stderr)
 
-    def test_a_config_hand_edit(self):
-        path = self.p.root / ".perry" / "config.md"
-        path.write_text(path.read_text().replace(
-            "- Repo layout: single", "- Repo layout: split"))
-
-        diff = self.p.config("diff")
-        self.assertEqual(diff.returncode, 1)
-        drift = json.loads(diff.stdout)["cells_the_store_and_the_file_disagree_on"]
-        self.assertEqual([(d["key"], d["file"], d["store"]) for d in drift],
-                         [("setting/repo_layout", "split", "single")])
-
-        write = self.p.config("write", "--from-file")
-        self.assertEqual(write.returncode, 1)
-        self.assertIn("setting/repo_layout", write.stderr)
-        self.assertIn("- Repo layout: split", path.read_text())
+    # `test_a_config_hand_edit` stood here and ADR-019 deleted it. It planted
+    # `- Repo layout: split` over `single` in `.perry/config.md` and asserted
+    # the three claims above on `perry-config diff` / `write --from-file`.
+    # There is no file to hand-edit and no `write --from-file` to refuse: the
+    # store is the only copy, and a hand edit to it is a hand edit to the
+    # truth. `test_an_okr_hand_edit` above is the same three claims on the
+    # document that still has a projection.
 
     def test_a_deleted_line_is_reported_rather_than_dropped(self):
         """The edit `cmp` alone would call a smaller file.
@@ -1546,14 +1608,20 @@ class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(
         A row that leaves the file is a record with nowhere to render. That is
         a hole in the projection and it has to be named, because nothing in a
         byte comparison distinguishes it from a shorter document.
+
+        **MOVED from a deleted `- Chat language:` setting to a deleted KR table
+        row by ADR-019.** The claim is `records_not_in_the_file`'s and it is
+        the store's, not the file's: a record the renderer has nowhere to put.
         """
-        path = self.p.root / ".perry" / "config.md"
+        path = self.p.root / "perry" / "OKR.md"
+        row = next(l for l in path.read_text().split("\n")
+                   if l.startswith("| O1-KR1 "))
         path.write_text("\n".join(
-            l for l in path.read_text().split("\n")
-            if not l.startswith("- Chat language:")))
-        report = json.loads(self.p.config("diff").stdout)
-        self.assertIn("setting/chat_language",
-                      report["records_not_in_the_file"])
+            l for l in path.read_text().split("\n") if l != row))
+        report = json.loads(self.p.okr("diff").stdout)
+        orphaned = report["records_not_in_the_file"]
+        self.assertEqual(len(orphaned), 1, orphaned)
+        self.assertTrue(orphaned[0].endswith("/O1-KR1"), orphaned[0])
 
 
 class TestTheReadContractsDoNotMove(unittest.TestCase):
@@ -1615,13 +1683,22 @@ class TestTheColumnSetsComeFromTheSchema(unittest.TestCase):
         self.assertEqual(
             M.COMMITMENT_COLUMNS,
             M.table_columns("OKR.md", "Commitments"))
+        # `M.TRACK_COLUMNS == M.table_columns(".perry/config.md", "Tracks")`
+        # stood here. ADR-019 deleted that table AND the `files[]` entry that
+        # declared its columns; the declaration moved to
+        # `stores.declared[".perry/config.jsonl"].records.track.fields` and
+        # `store_record_fields` is the reader for it. The property is
+        # unchanged — the set is READ from the schema, never restated — so it
+        # is asserted here against the new declaration site.
         self.assertEqual(
-            M.TRACK_COLUMNS,
-            M.table_columns(".perry/config.md", "Tracks"))
-        # And they resolve to the keys `bin/perry-state` files a track under.
-        self.assertEqual(set(M.TRACK_COLUMNS.values()),
+            M.TRACK_FIELDS,
+            M.store_record_fields(".perry/config.jsonl", "track"))
+        self.assertEqual(set(M.TRACK_FIELDS),
                          {"track", "mode", "spine", "stages", "wip", "sla",
                           "cycle", "default_rung"})
+        self.assertEqual(
+            M.SETTING_FIELDS,
+            M.store_record_fields(".perry/config.jsonl", "setting"))
 
     def test_a_declared_column_with_no_store_field_is_refused_at_import(self):
         """Guard against the guard.
@@ -1642,17 +1719,30 @@ class TestTheColumnSetsComeFromTheSchema(unittest.TestCase):
         # And it passes as shipped.
         M._assert_every_declared_column_is_stored()
 
-    def test_the_tracks_heading_is_the_schemas_own(self):
-        """`^Tracks\\b|^轨道`, read from the file that declares it.
+    # `test_the_tracks_heading_is_the_schemas_own` stood here — `^Tracks\b|^轨道`
+    # read out of the schema rather than hand-copied, so the Chinese
+    # alternative could not be lost. ADR-019 deleted the heading, the table
+    # under it, `M.config_table_under` and `bin/perry-state § parse_tracks`,
+    # the reader it was keeping in step with. A store record has no heading to
+    # match, so the property has no subject; the i18n half of it — that a
+    # spelling is read from the schema and never restated — is still asserted
+    # for every heading that survives, by `M.table_under` and
+    # `tests/test_i18n.py`.
 
-        Written out here it would be the second copy — `bin/perry-state §
-        parse_tracks` holds the first — and the Chinese half is exactly the
-        kind of alternative a hand-copy loses.
+    def test_a_store_record_kind_the_schema_does_not_declare_is_refused(self):
+        """The guard `store_record_fields` puts under the reader above.
+
+        It refuses rather than returning `[]`, because an empty field list
+        would make `TRACK_FIELDS` empty and every track record would validate
+        as holding nothing. Asserted by asking for a kind that is not there,
+        which is the only way to know the refusal can fire.
         """
-        pattern = M.config_table_under("Tracks")
-        self.assertTrue(pattern.match("Tracks"))
-        self.assertTrue(pattern.match("轨道"))
-        self.assertFalse(pattern.match("Notes"))
+        with self.assertRaises(M.Refused) as caught:
+            M.store_record_fields(".perry/config.jsonl", "not_a_kind")
+        self.assertIn("not_a_kind", str(caught.exception))
+        with self.assertRaises(M.Refused) as caught:
+            M.store_record_fields("no/such/store.jsonl", "track")
+        self.assertIn("no/such/store.jsonl", str(caught.exception))
 
 
 class TestTheWriterWritesTheStore(unittest.TestCase):
@@ -1667,8 +1757,6 @@ class TestTheWriterWritesTheStore(unittest.TestCase):
         d = pathlib.Path(tempfile.mkdtemp(prefix="perry-goals-store-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         shutil.copytree(FIXTURES / "second-project", d, dirs_exist_ok=True)
-        cfg = d / ".perry" / "config.md"
-        cfg.write_text(cfg.read_text(), encoding="utf-8")
         return d
 
     def test_commit_writes_okr_and_the_store_together(self):
