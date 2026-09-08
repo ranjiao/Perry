@@ -213,10 +213,47 @@ records it as the user's decision rather than a task.
 
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
-| 1 | How the standup gets a small structured read | New `--compact` payload (Recommended) / `--fields` selection / keep `--json` and narrow `SKILL.md` to `--section` | TBD | — |
-| 2 | Where the `--help` essays go | Behind `--verbose` (Recommended) / into `bin/README.md` / stay as they are | TBD | — |
-| 3 | Whether the store family keeps its own names | Keep `perry-tasks`/`okr`/`config` / fold into lane tools as `store` subcommands / rename with an explicit suffix | TBD | — |
-| 4 | Whether `perry-task`'s verbs get normalised | Leave as-is (Recommended for now) / normalise with aliases kept / normalise and break | TBD | — |
+| 1 | How the standup gets a small structured read | New `--compact` payload (Recommended) / `--fields` selection / keep `--json` and narrow `SKILL.md` to `--section` | New `--compact` payload | 2026-09-08 |
+| 2 | Where the `--help` essays go | Behind `--verbose` (Recommended) / into `bin/README.md` / stay as they are | Into `bin/README.md` | 2026-09-08 |
+| 3 | Whether the store family keeps its own names | Keep `perry-tasks`/`okr`/`config` / fold into lane tools as `store` subcommands / rename with an explicit suffix | Keep `perry-tasks`/`okr`/`config` | 2026-09-08 |
+| 4 | Whether `perry-task`'s verbs get normalised | Leave as-is (Recommended for now) / normalise with aliases kept / normalise and break | Leave as-is | 2026-09-08 |
+
+**Answered 2026-09-08. Three things the answers turned on that were not
+true when the questions were written:**
+
+- **Decision 1 got worse while it waited.** `perry-state --json` was 186,856
+  bytes when `USER-917` was filed on 2026-09-04; re-measured on the day it was
+  answered it is **258,989 bytes, about 65k tokens, +39%**, and `board` alone
+  is 159,648 of that — 72%. The growth is ordinary board traffic, roughly a
+  dozen rows added the same day. Option C, narrowing `SKILL.md` to `--section`
+  calls, is excluded by that number rather than by preference: `board` on its
+  own does not reach the goal.
+
+- **Decision 2's answer carries a risk the user accepted explicitly.** Moving
+  the arguments into `bin/README.md` separates them from the code they explain,
+  and the two then drift — which is the class of duplication `ADR-019` deleted
+  on the same day. The mitigation ships **with** the move, not after:
+  `bin/README.md` currently covers 19 of 19 tools and **no test references it**,
+  so that coverage is hand-maintained. The move takes a mechanical check that
+  every tool has a section and that its Usage block matches the tool's own
+  `--help`, which makes the drift reported rather than silent. Note also that
+  the defect is ordering, not volume: `perry-lint` is 136 lines with `Usage` at
+  line 8, while `perry-task` is 169 lines with `Usage` at line 51.
+
+- **Decision 3's premise dissolved half-way.** The "store family" was
+  `perry-tasks` / `perry-okr` / `perry-config`. `ADR-019` deleted
+  `.perry/config.md` on 2026-09-08, so `perry-config` no longer projects
+  anything — its subcommands are now `show set unset track untrack`, a settings
+  editor. The family is two tools, not three. Keeping the names is chosen with
+  that known, and the real cost is left standing and named: `perry-task` and
+  `perry-tasks` differ by one letter and are referenced 748 and 217 times.
+
+Decision 4 is deferred rather than settled, and the deferral now has a clock on
+it. `TASK-396` — aiMark's ask for `perry-task <verb> --describe --json` — turns
+the verb surface into a **published contract**. Normalising after that ships is
+a breaking change for a consumer that has started reading it; normalising
+before it ships is free. The order of those two rows is the decision nobody has
+taken yet.
 
 Decision 1 gates the payload work. Decisions 3 and 4 gate nothing in § 6 — they
 are recorded so § 1.4 does not have to be re-derived by whoever asks next.

@@ -7,6 +7,13 @@
    "workers": 8,
    "load1": 32.21,
    "note": "`tests/parallel --record -j 8`."
+  },
+  "2026-09-08-churn": {
+   "ref": "c56973e059133387e2f97c48c923557446d387de",
+   "taken": "2026-09-08T11:57:15Z",
+   "workers": 8,
+   "load1": 19.75,
+   "note": "`python3 tests/parallel test_churn --times`, three runs: 6.71, 6.18, 5.62; the median is recorded, not the best. One module measured on its own, not a `--record` sweep, so every other entry keeps the source it already had."
   }
  },
  "modules": {
@@ -49,6 +56,10 @@
   "test_cadence.py": {
    "sec": 12.89,
    "source": "2026-09-08-083955"
+  },
+  "test_churn.py": {
+   "sec": 6.18,
+   "source": "2026-09-08-churn"
   },
   "test_claims.py": {
    "sec": 11.04,

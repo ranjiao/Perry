@@ -27,6 +27,13 @@ one:
             extension, so a markdown fixture under `tests/` counts as a test
             rather than as documentation — which is what it is.
 
+**The four columns sum to the same grand total as the two, but `docs` is not
+the old `docs`.** A markdown fixture under `tests/` moves from documentation to
+tests, so `docs + evidence` is smaller than the two-way `docs` column by
+however much of that there is — on this repository, 268 files. That is the
+inflation the split exists to remove, not a discrepancy. `--plain` prints the
+old table unchanged, to the byte, whenever the old number is the one wanted.
+
 The state root is resolved the way every other Perry reader resolves it (see
 `viewer/parsers.py § resolve_state_root`), so a project that declares
 `State root: perry` gets `perry/evidence/` and not `evidence/`. Detection and
@@ -102,6 +109,13 @@ DEFAULT_DOC_EXT = (".md", ".markdown", ".mdx")
 # carved out of.
 KINDS = ("doc", "evidence", "code", "test")
 
+#: What each bucket is CALLED in the table and the footer. The keys stay
+#: singular because they are also the CSV column stems and the JSON field
+#: stems, and `doc_added` / `code_added` are what every existing reader of this
+#: tool's output already parses; renaming them to make a header read better
+#: would break those for a plural.
+LABELS = {"doc": "docs", "evidence": "evidence", "code": "code", "test": "tests"}
+
 #: Directory names that make everything under them a test. `spec/` and `specs/`
 #: are deliberately NOT here: a `spec/` directory is a directory of tests in
 #: Ruby and a directory of specifications in about as many other projects, and
@@ -146,6 +160,7 @@ def parse_args(argv):
         # Filled in by detect_perry(); see resolve_split().
         "perry_root": None,
         "state_root": None,
+        "state_root_from": None,
         "evidence_prefix": "",
     }
     i = 0
@@ -253,7 +268,7 @@ def git_toplevel(cwd):
 
 
 def resolve_state_root(project_root):
-    """Perry's own resolver, or the project root if it cannot be reached.
+    """`(state root, "resolver" | "fallback")` — Perry's own resolver, or a guess.
 
     **This is not a second implementation and must not become one.** The rule
     that `.perry/` never moves while everything else may — and the six ways
@@ -267,6 +282,13 @@ def resolve_state_root(project_root):
     repository-agnostic: `-C ~/proj/other` must keep working from a tarball
     install where `viewer/` is absent. A failure here costs the evidence
     column its prefix, not the run.
+
+    **Which is why the caller is told WHICH answer it got.** The fallback is
+    not a harmless default: on a project that declares `State root: perry` it
+    yields `evidence/`, a prefix that matches nothing, and the evidence column
+    then reads a confident zero. That happened on the first run of this code
+    from a copy outside `PERRY_HOME` and the table looked entirely plausible.
+    `provenance()` says so on the line under the table.
     """
     try:
         home = Path(os.environ.get("PERRY_HOME") or
@@ -275,9 +297,9 @@ def resolve_state_root(project_root):
             if str(d) not in sys.path:
                 sys.path.insert(0, str(d))
         import lib
-        return lib.resolve_state_root(project_root)
+        return lib.resolve_state_root(project_root), "resolver"
     except Exception:
-        return project_root
+        return project_root, "fallback"
 
 
 def detect_perry(opts):
@@ -307,7 +329,7 @@ def detect_perry(opts):
     if root is None:
         return None
 
-    state_root = resolve_state_root(root)
+    state_root, how = resolve_state_root(root)
     try:
         rel = state_root.resolve().relative_to(top).as_posix()
     except ValueError:
@@ -315,6 +337,7 @@ def detect_perry(opts):
     prefix = "" if rel in ("", ".") else rel.rstrip("/") + "/"
     opts["perry_root"] = str(root)
     opts["state_root"] = str(state_root)
+    opts["state_root_from"] = how
     opts["evidence_prefix"] = prefix + "evidence/"
     return root
 
@@ -557,7 +580,8 @@ def print_table(buckets, opts):
     tot = totals(buckets)
     kinds = shown_kinds(opts)
     header = ("day" if opts["by"] == "day" else opts["by"]).upper()
-    cols = [header, "COMMITS"] + [name.upper() for name, _ in kinds] + ["NET"]
+    cols = ([header, "COMMITS"]
+            + [LABELS[name].upper() for name, _ in kinds] + ["NET"])
 
     def body(key, b):
         return ([key, "{:,}".format(b["commits"])]
@@ -594,7 +618,7 @@ def print_table(buckets, opts):
             "{:,}".format(cell(tot, parts, "added") + cell(tot, parts, "deleted")),
             "{:,}".format(cell(tot, parts, "files")))
 
-    pairs = [summary(name, parts) for name, parts in kinds]
+    pairs = [summary(LABELS[name], parts) for name, parts in kinds]
     if opts["split"]:
         print(" · ".join(pairs[:2]))
         print(" · ".join(pairs[2:]))
@@ -617,9 +641,14 @@ def provenance(opts):
     actually matched is printed, every run.
     """
     if opts["split"] and opts["perry_root"]:
-        return ("perry project %s · evidence under %s · docs and code exclude "
+        line = ("perry project %s · evidence under %s · docs and code exclude "
                 "evidence and tests" % (opts["perry_root"],
                                         opts["evidence_prefix"]))
+        if opts["state_root_from"] == "fallback":
+            line += ("\n  (guessed: Perry's state-root resolver was "
+                     "unreachable from this copy — set PERRY_HOME if the "
+                     "state root is not the project root)")
+        return line
     if opts["split"]:
         ev = (", evidence from --evidence-glob only"
               if opts["evidence_globs"] else ", and no evidence tree to match")
@@ -682,7 +711,8 @@ def print_json(buckets, opts):
         payload["evidence_prefix"] = opts["evidence_prefix"] or None
         payload["test_dirs"] = sorted(TEST_DIRS)
     payload["perry"] = ({"project_root": opts["perry_root"],
-                         "state_root": opts["state_root"]}
+                         "state_root": opts["state_root"],
+                         "state_root_from": opts["state_root_from"]}
                         if opts["perry_root"] else None)
     json.dump(payload, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
