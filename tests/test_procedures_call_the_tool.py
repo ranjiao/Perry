@@ -185,22 +185,34 @@ TARGETS = {
         pattern=r"##\s*Commitments|OKR\.md\s*§\s*Commitments",
         tool="perry-goals", kind="projection"),
     # TASK-119. Declared the day `bin/perry-goals link` existed and not before:
-    # until then `phase/<NNN>-linkage.md` had no writer, so every procedure
-    # that appends an edge was an unavoidable hand edit rather than an
-    # instruction that had gone stale (exemption 1 below). The pattern is the
-    # file and the three lists that ARE the graph — a bare mention of
-    # "linkage" is how these pages name the concept in passing.
-    "phase/<NNN>-linkage.md": dict(
-        pattern=r"-linkage\.md|linkage graph|linkage registry|`tasks\[\]`"
-                r"|`unlinked\[\]`|`aliases\[\]`|`projects\[\]`",
+    # until then this graph had no writer, so every procedure that appends an
+    # edge was an unavoidable hand edit rather than an instruction that had
+    # gone stale (exemption 1 below). The pattern is the file and the lists
+    # that ARE the graph — a bare mention of "linkage" is how these pages name
+    # the concept in passing.
+    #
+    # **The target is `linkage.jsonl` since ADR-019**, which deleted
+    # `phase/<NNN>-linkage.md`. The old name stays in the pattern: a procedure
+    # instructing a write to it would be instructing a write to a file that
+    # does not exist, which is worth reporting rather than ignoring.
+    "linkage.jsonl": dict(
+        pattern=r"linkage\.jsonl|-linkage\.md|linkage graph|linkage registry"
+                r"|`tasks\[\]`|`unlinked\[\]`|`aliases\[\]`|`projects\[\]`",
         # Exemption 6 applies for the same reason it applies to `BOARD.md`:
-        # `perry-goals link` REFUSES on a missing register ("no linkage
-        # register at <path>"), so instantiating it from
-        # `state/linkage_TEMPLATE.md` at `plan-phase` is the only way the file
-        # comes to exist. Every write afterwards is the tool's.
+        # `perry-goals link` REFUSES on a store that declares no KR for the
+        # phase ("declares no key result"), so `plan-phase` writing the
+        # phase's first `objective` and `kr` records is the only way they come
+        # to exist. Every write afterwards is the tool's.
+        #
+        # **The provenance phrase changed and the hole did not.** It used to
+        # be "from `state/linkage_TEMPLATE.md`" — instantiating a document
+        # from a shipped template. ADR-019 deleted both, so the bootstrap is
+        # now an agent appending records directly. That is the SAME exemption
+        # for the same reason, and it is worth saying plainly: the KRs
+        # themselves have never had a deterministic writer, before or after.
         tool="perry-goals", kind="projection", creates_file=False,
-        template=r"\b(?:from|copy(?:ing)?|instantiate[sd]?)\b"
-                 r"[^.]{0,80}\blinkage_TEMPLATE\.md\b"),
+        template=r"\b(?:append|write)\b[^.]{0,80}"
+                 r"\brecords to `linkage\.jsonl`"),
     "knowledge/INDEX.md": dict(
         # `perry-knowledge` owns only the card catalog. Digest registration and
         # archive metadata share this file but remain authored by the digest
@@ -778,7 +790,7 @@ class ProceduresCallTheTool(unittest.TestCase):
         findings, suppressed = self.scan_text(
             "# bootstrap\n\n## Procedure\n\n"
             "1. Write `BOARD.md` from `state/BOARD_TEMPLATE.md`.\n"
-            "2. Write `BOARD.md` from `state/linkage_TEMPLATE.md`.\n")
+            "2. Write `BOARD.md` from `state/OKR_TEMPLATE.md`.\n")
         self.assertEqual([(f[0], f[1], f[2]) for f in findings],
                          [(6, "BOARD.md row", "R1")])
         templates = [s for s in suppressed
@@ -836,9 +848,9 @@ class ProceduresCallTheTool(unittest.TestCase):
                 "1. Update `## Cards by topic` in `knowledge/INDEX.md` by hand.\n",
                 "1. `perry-knowledge promote` writes `## Cards by topic` in "
                 "`knowledge/INDEX.md`.\n"),
-            "phase/<NNN>-linkage.md": (
+            "linkage.jsonl": (
                 "1. Append the task id to its KR's `tasks[]` in "
-                "`phase/<NNN>-linkage.md`.\n",
+                "`linkage.jsonl`.\n",
                 "1. `perry-goals link` appends the task id to its KR's "
                 "`tasks[]`.\n"),
         }

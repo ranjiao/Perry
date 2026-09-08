@@ -1040,8 +1040,8 @@
               "status": {
                 "type": "string",
                 "required": false,
-                "pattern": "^(active|done)$",
-                "note": "`active` when absent, which is what the document's optional `status:` always meant."
+                "enum": "linkage_status",
+                "note": "`active` when absent, which is what the document's optional `status:` always meant. The value space is the `linkage_status` enum - active, done, dropped, unlinked - and it is read from there rather than restated, because `bin/perry-goals § resolve_target` treats `dropped` and `unlinked` as RETIRED: a retired Project's KR edge is history, not an attribution for new work, and a declaration that could not express those two would make that refusal unreachable."
               },
               "declared_at": {
                 "type": "string",

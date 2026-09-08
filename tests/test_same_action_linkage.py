@@ -3,7 +3,7 @@ rows that answered **in their own `add`**.
 
 DESIGN-015 § 6 row F. The KR reads *"rows opened during phase 003 that take a
 KR edge or an `unlinked` declaration in the same action as `add`"*, and until
-this row its value was prose in `phase/003-linkage.md`'s `metric:` field — a
+this row its value was prose in the register's `metric:` field — a
 number a person typed, which cannot be wrong in a way anything detects.
 
 **What this module exists to catch, and it is not the total.** The same-action
@@ -44,7 +44,7 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME")
                   or Path(__file__).resolve().parent.parent)
 GOALS = PERRY_HOME / "bin" / "perry-goals"
 STATE = PERRY_HOME / "bin" / "perry-state"
-REGISTER = PERRY_HOME / "perry" / "phase" / "003-linkage.md"
+REGISTER = PERRY_HOME / "perry" / "linkage.jsonl"
 STORE = PERRY_HOME / "perry" / "linkage.jsonl"
 
 sys.path.insert(0, str(PERRY_HOME / "bin"))
@@ -73,8 +73,10 @@ def edge(task_id: str, kr: str, via: str) -> dict:
             "actor": "agent", "declared_at": "2026-09-05T11:00:00Z"}
 
 
-def unlinked(task_id: str, via: str) -> dict:
-    return {"kind": "unlinked", "task": task_id, "via": via,
+def unlinked(task_id: str, via: str, phase: str = "003-storage-code") -> dict:
+    """One `unlinked` record. `phase` is ADR-019's field — which phase's board
+    the declaration was made against, since the store holds every phase."""
+    return {"kind": "unlinked", "task": task_id, "phase": phase, "via": via,
             "actor": "agent", "declared_at": "2026-09-05T11:00:00Z"}
 
 
@@ -250,7 +252,7 @@ class AMeasuredNumberCannotGoStale(unittest.TestCase):
         m = lib.same_action_linkage(
             [], [add_event("TASK-910", kr="P003-O1-KR1")])
         self.p = lib.kr_progress_provenance(
-            None, [], register_updated="2026-09-03T06:06:45Z", computed=m)
+            None, [], asserted_at="2026-09-03T06:06:45Z", computed=m)
 
     def test_the_question_was_answered_not_skipped(self):
         self.assertTrue(self.p["current_staleness"]["evaluated"])
@@ -292,27 +294,17 @@ class AStoreEdgeWhoseEventDisagreesIsSurfacedNotCounted(unittest.TestCase):
 # ── the register, and the two readers ─────────────────────────────────────
 
 
-LINKAGE_DOC = """---
-linkage: 1
-phase: "003-fixture"
-updated: "2026-09-03T06:06:45Z"
-objectives:
-  - id: O3
-    title: "A fixture objective"
-    krs:
-      - id: P003-O3-KR2
-        title: "Rows that answered in their own `add`"
-        metric: "computed; see bin/lib § same_action_linkage"
-        stretch: false
-        linked: "KR-O2.3"
-        tasks: []
-unlinked: ["TASK-911"]
-agents: []
-projects: []
----
-
-# Fixture register
-"""
+#: The phase's `objective` and `kr` records — what `phase/003-linkage.md`'s
+#: frontmatter was until ADR-019 deleted it.
+LINKAGE_RECORDS = [
+    {"kind": "objective", "phase": "003-fixture", "id": "O3",
+     "title": "A fixture objective"},
+    {"kind": "kr", "phase": "003-fixture", "objective": "O3",
+     "id": "P003-O3-KR2",
+     "title": "Rows that answered in their own `add`",
+     "metric": "computed; see bin/lib § same_action_linkage",
+     "stretch": False, "linked": "KR-O2.3"},
+]
 
 
 class PerryStateReallyReadsTheStore(unittest.TestCase):
@@ -343,15 +335,13 @@ class PerryStateReallyReadsTheStore(unittest.TestCase):
         (self.root / "phase").mkdir()
         (self.root / "phase" / "003-fixture.md").write_text(
             "# Phase #003 — fixture\n\n> **Started**: 2026-08-28\n")
-        (self.root / "phase" / "003-linkage.md").write_text(LINKAGE_DOC)
         (self.root / "phase" / "CURRENT").write_text("003-fixture\n")
         (self.root / "OKR.md").write_text(
             "# OKR — fixture\n\n## Mission\n\nShip it.\n\n---\n\n## v1: 2026-08-01\n")
         (self.root / "linkage.jsonl").write_text(
-            json.dumps({"kind": "kr", "phase": "003-fixture", "objective": "O3",
-                        "id": KR, "title": "Rows that answered in their own `add`",
-                        "stretch": False, "linked": "KR-O2.3"}) + "\n"
-            + json.dumps(unlinked("TASK-911", "add")) + "\n")
+            "".join(json.dumps(r) + "\n" for r in LINKAGE_RECORDS)
+            + json.dumps(unlinked("TASK-911", "add", phase="003-fixture"))
+            + "\n")
         (self.root / "tasks.jsonl").write_text(
             json.dumps({"id": "TASK-911", "title": "a row",
                         "status": "not_started", "priority": "P1",
@@ -398,14 +388,21 @@ class TheRegisterNoLongerAssertsIt(unittest.TestCase):
 
     def test_the_metric_prose_asserts_no_current_value(self):
         """The prose that used to carry the number is gone from the live
-        register. Asserted by its exact former text, so a re-introduction is
-        caught rather than a paraphrase being argued about."""
-        text = REGISTER.read_text()
-        old = "100% of rows added this phase (baseline 0 — the edge is a separate step nobody takes)"
+        record. Asserted by its exact former text, so a re-introduction is
+        caught rather than a paraphrase being argued about.
+
+        `metric` moved from the register document into the `kr` record at
+        ADR-019 — it had no other home left — so this reads the store."""
+        rec = next(r for r in
+                   (json.loads(line) for line in
+                    REGISTER.read_text().splitlines() if line.strip())
+                   if r.get("kind") == "kr" and r.get("id") == KR)
+        old = ("100% of rows added this phase (baseline 0 — the edge is a "
+               "separate step nobody takes)")
         # The old sentence survives only inside the new prose's own account of
         # what it replaced, which is quoted in backticks.
-        self.assertNotIn(f'metric: "{old}"', text)
-        self.assertIn("NO CURRENT VALUE IS WRITTEN HERE", text)
+        self.assertNotEqual(rec.get("metric"), old)
+        self.assertIn("NO CURRENT VALUE IS WRITTEN HERE", rec["metric"])
 
 
 class TheDispatchTableIsTheWholeOfWhatIsComputed(unittest.TestCase):
@@ -420,7 +417,7 @@ class TheDispatchTableIsTheWholeOfWhatIsComputed(unittest.TestCase):
             "P003-O1-KR1", linkage_records=[], events=[]))
 
     def test_an_uncomputed_kr_keeps_its_asserted_provenance(self):
-        p = lib.kr_progress_provenance(6.0, [], register_updated="2026-09-03T06:06:45Z")
+        p = lib.kr_progress_provenance(6.0, [], asserted_at="2026-09-03T06:06:45Z")
         self.assertEqual(p["current_provenance"]["state"], "asserted")
         self.assertFalse(p["current_provenance"]["measured"])
         self.assertNotIn("current", p)
@@ -781,19 +778,53 @@ class TheUnlinkedAtAddPathHasAWriter(unittest.TestCase):
         self.assertTrue(m["declared_unlinked_at_add_reachable"])
 
     def test_the_via_add_writer_emits_an_unlinked_record_when_declared(self):
-        """The § 5.5 cell TASK-394 filled, at the writer rather than the CLI."""
+        """The § 5.5 cell TASK-394 filled, at the writer rather than the CLI.
+
+        **The store has to declare a phase now**, and that is ADR-019's
+        `unlinked.phase`: a declaration is made against one board, the store
+        holds every phase at once, and a record with no phase would be counted
+        under all of them. The `kr` record and `phase/CURRENT` are what say
+        which — read from the store's own spelling rather than from the
+        pointer, so the value cannot disagree with the graph it joins.
+        """
         task = _perry_task()
         import tempfile, shutil
         d = Path(tempfile.mkdtemp(prefix="perry-unlinked-writer-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        (d / "linkage.jsonl").write_text("")
+        (d / "phase").mkdir()
+        (d / "phase" / "CURRENT").write_text("003-fixture\n")
+        (d / "linkage.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in LINKAGE_RECORDS))
         change = task.linkage_add_change(
             d, {"event": "add", "id": "TASK-941", "kr": None,
                 "actor": "agent"}, True)
         self.assertIsNotNone(change, "`declared_unlinked` produced no record")
         self.assertEqual(change[2]["kind"], "unlinked")
         self.assertEqual(change[2]["via"], "add")
+        self.assertEqual(change[2]["phase"], "003-fixture")
         self.assertNotIn("kr", change[2])
+
+    def test_a_declaration_with_no_planned_phase_is_refused(self):
+        """The branch above's refusal, reached.
+
+        A store that holds no `kr` record for the current phase cannot say
+        which board this declaration was made against, and writing the record
+        without a phase would count it under every phase in the file. Refused
+        rather than defaulted — the same rule as `--unlinked` on a project
+        with no store at all.
+        """
+        task = _perry_task()
+        import tempfile, shutil
+        d = Path(tempfile.mkdtemp(prefix="perry-unlinked-writer-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / "phase").mkdir()
+        (d / "phase" / "CURRENT").write_text("003-fixture\n")
+        (d / "linkage.jsonl").write_text("")
+        with self.assertRaises(Exception) as caught:
+            task.linkage_add_change(
+                d, {"event": "add", "id": "TASK-941", "kr": None,
+                    "actor": "agent"}, True)
+        self.assertIn("no key result", str(caught.exception))
 
     def test_the_via_add_writer_emits_an_edge_for_a_kr(self):
         """Driven, not grepped. `--kr` must still produce an `edge`: § 5.5's
@@ -825,21 +856,23 @@ class TheUnlinkedAtAddPathHasAWriter(unittest.TestCase):
                 "actor": "agent"}))
 
     @staticmethod
-    def _with_store(d: Path) -> Path:
-        """`sample-project` ships with NO `linkage.jsonl`, and that is not an
-        oversight to route around — `--unlinked` is refused there on purpose
-        (the declaration would have nowhere to live), which the sibling test
-        below asserts. A store is seeded here because THIS test is about the
-        flag landing a record, and a fixture that cannot hold one would make
-        the assertion untestable rather than false."""
-        (d / "linkage.jsonl").write_text("", encoding="utf-8")
+    def _without_store(d: Path) -> Path:
+        """`sample-project` SHIPS a `linkage.jsonl` since ADR-019 — its KRs
+        have nowhere else to live — so the seeding runs the other way now.
+
+        The sibling test below needs a project with no store, because
+        `--unlinked` is refused there on purpose: the declaration would have
+        nowhere to go and, unlike `--kr`, it has no event field to fall back
+        to. Removing the store is how that state is reached, and it is not
+        routing around a failure: the refusal is the behaviour under test."""
+        (d / "linkage.jsonl").unlink()
         return d
 
     def test_perry_task_add_accepts_the_unlinked_flag_and_it_lands(self):
         """The CLI half, through the real binary. When this goes red the flag
         has stopped working and `UNLINKED_AT_ADD_HAS_NO_WRITER` has stopped
         being false — the constant is rewritten, not this test relaxed."""
-        d = self._with_store(_fixture_project(self))
+        d = _fixture_project(self)
         r = _add(d, "a probe row", "--unlinked")
         self.assertEqual(r.returncode, 0,
                          f"`perry-task add --unlinked` was refused: "
@@ -857,13 +890,12 @@ class TheUnlinkedAtAddPathHasAWriter(unittest.TestCase):
             "`add --unlinked` exited 0 and wrote no `unlinked` record")
 
     def test_a_project_with_no_store_refuses_the_declaration(self):
-        """The seeding above is not hiding a failure, and this says so on the
-        UNSEEDED fixture: `--unlinked` has no event field to fall back to, so
-        on a project whose register lives in the document the flag is refused
-        rather than accepted and dropped."""
-        d = _fixture_project(self)
+        """`--unlinked` has no event field to fall back to, so on a project
+        with no store the flag is refused rather than accepted and dropped —
+        the row would file and still read as never-asked."""
+        d = self._without_store(_fixture_project(self))
         self.assertFalse((d / "linkage.jsonl").exists(),
-                         "the fixture gained a store; this test now proves "
+                         "the store was not removed; this test now proves "
                          "nothing about the store-less path")
         r = _add(d, "a probe row", "--unlinked")
         self.assertNotEqual(r.returncode, 0)

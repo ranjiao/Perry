@@ -1490,10 +1490,14 @@ class TestTheReadContractDidNotMove(unittest.TestCase):
     or retyped — which is the other half of the same rule: a payload that gains
     a key states that it did. TASK-205 moved it to `2.3` on the same terms:
     one key, `semantics`, and the version string edited in the same commit.
+    ADR-019 / TASK-155 moved it to `2.4` on the OTHER half of the rule,
+    the one `2.2` established: no key added, and three values under
+    unmoved keys meaning something else — `current_provenance.source`,
+    `.asserted_at` and `.asserted_scope`.
     """
 
     def test_the_version_is_unchanged(self):
-        self.assertEqual("perry-goals/list/2.3", G.LIST_CONTRACT)
+        self.assertEqual("perry-goals/list/2.4", G.LIST_CONTRACT)
 
     def test_the_contract_document_agrees(self):
         doc = (ROOT / "schema" / "goals-list-contract.md").read_text()

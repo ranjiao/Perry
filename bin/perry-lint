@@ -4354,8 +4354,9 @@ def _empty_linkage_store_stats() -> dict:
     return {"store_present": False, "records": 0, "malformed": 0}
 
 
-def _linkage_record_findings(records: list,
-                             declared: dict) -> tuple[list[dict], list]:
+def _linkage_record_findings(records: list, declared: dict,
+                             enums: dict | None = None
+                             ) -> tuple[list[dict], list]:
     """Valid records, and findings for the malformed ones — schema-driven.
 
     **The field list is not written here.** It is read from
@@ -4418,6 +4419,24 @@ def _linkage_record_findings(records: list,
                                                                    value):
                 bad.append(f"`{name}` is {value!r}, which does not match "
                            f"`{pattern}`")
+                continue
+            # **A named enum, read from `schema.enums` rather than restated as
+            # a pattern.** `project.status` is `linkage_status`, which four
+            # other declarations already key on; spelling it `^(active|done)$`
+            # here is how a value space comes to have two definitions that
+            # disagree — and it did: that pattern named two of the four, so a
+            # `dropped` Project was a malformed record, and `bin/perry-goals §
+            # resolve_target`'s "a retired Project is named rather than used"
+            # refusal was unreachable through a record the linter accepted.
+            named = spec.get("enum")
+            if named and isinstance(value, str):
+                allowed = (enums or {}).get(named)
+                if allowed is None:
+                    bad.append(f"`{name}` declares enum {named!r}, which "
+                               f"`schema.enums` does not define")
+                elif value not in allowed:
+                    bad.append(f"`{name}` is {value!r}, which is not one of "
+                               f"{'/'.join(allowed)}")
         if bad:
             findings.append({"line": line, "message": "; ".join(bad)})
             continue
@@ -4540,7 +4559,8 @@ def check_linkage_store(project_root: Path, state_root: Path,
                         f"({type(exc).__name__}: {exc}) — there is nothing "
                         f"here to check")]
 
-    good, issues = _linkage_record_findings(on_disk, declared)
+    good, issues = _linkage_record_findings(on_disk, declared,
+                                            schema.get("enums"))
     check_linkage_store.stats["records"] = len(good)
     check_linkage_store.stats["malformed"] = len(issues)
     for issue in issues[:DRIFT_ROWS_SHOWN]:
