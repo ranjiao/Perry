@@ -78,14 +78,14 @@ class Case(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         dest = d / "sample-project"
         shutil.copytree(SAMPLE, dest)
-        # **Without this, every refusal below passes for the wrong reason.**
-        # The copied fixture is undeclared, so ADR-004's gate refuses the write
-        # before `link_unlinked` is ever reached — `assertNotEqual(rc, 0)` goes
-        # green on a refusal that has nothing to do with this row. Caught by
-        # the one test that expects a SUCCESS. The refusal tests assert on the
-        # message for the same reason.
-        cfg = dest / ".perry" / "config.md"
-        cfg.write_text(cfg.read_text())
+        # A no-op rewrite of `.perry/config.md` stood here, to declare the
+        # copied fixture so ADR-004's gate would not refuse the write before
+        # `link_unlinked` was reached — a refusal that has nothing to do with
+        # this row would have turned every `assertNotEqual(rc, 0)` below green.
+        # That gate went at TASK-261 and the file went at ADR-019. The hazard
+        # it guarded against is still real, which is why the refusal tests
+        # assert on the MESSAGE and not only on the exit code, and why the one
+        # case that expects a SUCCESS is the control for all of them.
         rows = STORE_ROWS if store is None else store
         if rows is not None:
             (dest / "tasks.jsonl").write_text(
