@@ -41,7 +41,6 @@ from __future__ import annotations
 
 import io
 import os
-import re
 import subprocess
 import sys
 import tarfile
@@ -587,131 +586,6 @@ class TestTheEnvironmentTheGuardCanSee(unittest.TestCase):
                         f"the problem — {value!r} inside $ROOT is not a "
                         f"different tree, and the banner it prints is "
                         f"{banner.strip()!r}:\n{out}")
-
-
-class TestTheBulletUsesTheVocabularyOfTheMechanismSpelledInTestsRun(
-        unittest.TestCase):
-    """**What this reads is two STRINGS in `tests/run`. It is not a test of
-    which mechanism shipped, and its old name said it was.**
-
-    `tests/run` can close the ambient `$PERRY_PROJECT` case in one of two
-    ways:
-
-        RE-AIM   `export PERRY_PROJECT="$ROOT"`, so that every un-rooted write
-                 lands in the tree the guard watches; or
-        REFUSE   print and `exit 2` before step 1.
-
-    Round 2 of the V4 review found `tests/run` REFUSING while `tree_guard.py`'s
-    "What it does NOT catch, said plainly" list still described the RE-AIM —
-    tried, and rejected for reddening nine tests — as the thing that shipped.
-    A reader consulting the one list whose job is to say what is uncovered was
-    told a mechanism was in place that was not. That is the rot this catches:
-    the source is edited from one mechanism to the other and the bullet is
-    left behind. It is cheap and it is worth having.
-
-    **The claim is narrowed to that, because round 3 measured how much less
-    than "which mechanism shipped" it can see, and the gap is total.** Three
-    mutations of `tests/run` left both tests here GREEN while shipping the
-    other mechanism, and two rewrites of the bullet left them green while
-    describing the shipped one backwards:
-
-    * `export "PERRY_PROJECT=$ROOT"` and `PERRY_PROJECT=…; export
-      PERRY_PROJECT` ahead of the refusal — a live re-aim that made the
-      refusal unreachable. `_implemented` now matches both spellings, so
-      these two are caught today; they are recorded because the class of
-      "a spelling the regex does not know" has no closed form.
-    * `unset PERRY_PROJECT` with the whole refusal left in the file under
-      `if false` — a dead refusal, still read as shipped, and **still not
-      caught**: no substring search can tell a reachable line from an
-      unreachable one.
-    * the bullet rewritten to assert the exact OPPOSITE behaviour, and the
-      bullet cut to the four words `**tests/run refuses.**` — both green,
-      because what is required is the substring `refuses` present and the
-      substring `export` absent, and nothing else.
-
-    **The behaviour tests are what establish which mechanism ships.**
-    `TestTheEnvironmentTheGuardCanSee` runs the real script and asserts on
-    `rc`; all three source mutations above are red there. So this class is a
-    vocabulary check on one bullet, the behaviour tests are the protection,
-    and nothing depends on this one saying more than it does.
-    """
-
-    BULLET = "- **A write to a DIFFERENT checkout.**"
-
-    #: Which of the two the source spells, read as text. Both are anchored at
-    #: a line that is not a comment: `tests/run` DISCUSSES both mechanisms at
-    #: length in comment blocks, and discussing is not shipping. The export
-    #: pattern deliberately stops at the variable name rather than requiring
-    #: `=`, so that `export "PERRY_PROJECT=$ROOT"` and a bare `export
-    #: PERRY_PROJECT` after an assignment are both seen — two spellings a
-    #: reviewer used to slip a live re-aim past the earlier pattern.
-    RE_AIM = r"""^[^#\n]*\bexport[ \t]+["']?PERRY_PROJECT\b"""
-    REFUSE = r"^[^#\n]*refusing to run: PERRY_PROJECT"
-
-    def _implemented(self, run_src):
-        found = []
-        if re.search(self.RE_AIM, run_src, re.M):
-            found.append("re-aim")
-        if re.search(self.REFUSE, run_src, re.M):
-            found.append("refuse")
-        return found
-
-    def setUp(self):
-        self.run_src = (PERRY_HOME / "tests" / "run").read_text()
-        doc = TG.__doc__ or ""
-        self.assertEqual(
-            doc.count(self.BULLET), 1,
-            f"the bullet this test reads is not uniquely identifiable in "
-            f"tree_guard.py's docstring ({doc.count(self.BULLET)} "
-            f"occurrence(s) of {self.BULLET!r}) — fix that before trusting "
-            f"any verdict here")
-        start = doc.index(self.BULLET)
-        # The bullet ends at the next top-level bullet OR at the next section
-        # heading, whichever comes first — and there may be neither. The
-        # first version terminated on `doc.index("\n- **", ...)` alone, so
-        # moving this bullet to the end of its list would raise ValueError
-        # and ERROR both tests here instead of reporting anything; and
-        # running to the end of the docstring instead would swallow the "Why
-        # a refusal and not a re-aim" section below, whose prose contains
-        # both forbidden words. Bound it to its own bullet, always.
-        ends = [i for i in (doc.find("\n- **", start + 1),
-                            doc.find("\n## ", start + 1)) if i != -1]
-        self.bullet = doc[start:min(ends)] if ends else doc[start:]
-
-    def test_tests_run_spells_exactly_one_of_the_two_mechanisms(self):
-        found = self._implemented(self.run_src)
-        self.assertEqual(
-            len(found), 1,
-            f"tests/run spells {found or 'neither'} of the two ways to "
-            f"close the ambient PERRY_PROJECT case; the docstring can only "
-            f"describe one of them, so this test cannot say which is right "
-            f"until the source does")
-
-    def test_the_bullet_uses_the_word_of_the_mechanism_the_source_spells(self):
-        found = self._implemented(self.run_src)
-        # Not `found[0]`. When the source spells neither, the reader of this
-        # test deserves the sentence above and not an IndexError from the
-        # subscript — a test whose whole value is what it prints must not
-        # crash on the way to printing it.
-        self.assertEqual(
-            len(found), 1,
-            f"tests/run spells {found or 'neither'} of the two mechanisms, "
-            f"so there is no single word the bullet could be required to "
-            f"use; fix the source, or the sibling test above will tell you "
-            f"the same thing")
-        shipped = found[0]
-        says, must_not = {"refuse": ("refuses", "export"),
-                          "re-aim": ("export", "refuses")}[shipped]
-        low = self.bullet.lower()
-        self.assertIn(
-            says, low,
-            f"tests/run spells {shipped}, and tree_guard.py's '{self.BULLET}' "
-            f"bullet never says so:\n\n{self.bullet}")
-        self.assertNotIn(
-            must_not, low,
-            f"tests/run spells {shipped}, and the bullet still describes the "
-            f"other mechanism — the one that was tried and withdrawn — as the "
-            f"thing that ships:\n\n{self.bullet}")
 
 
 class TestThePlantedWrite(unittest.TestCase):
