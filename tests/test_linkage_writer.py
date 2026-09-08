@@ -502,7 +502,7 @@ class TestPerryReadsWhatTheWriterWrote(Case):
               if k["id"] == "P002-O1-KR2"][0]
         self.assertIn("ZZZ-001", kr["tasks"])
         self.assertEqual(kr["current_provenance"]["asserted_scope"], "register")
-        self.assertEqual(kr["current_provenance"]["source"], "linkage-register")
+        self.assertEqual(kr["current_provenance"]["source"], "linkage-store")
         self.assertEqual(kr["current_provenance"]["asserted_at"][:4], "20" + "26"[:2])
         self.assertIn("evaluated", kr["current_staleness"])
 

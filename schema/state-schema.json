@@ -884,7 +884,7 @@
               "id": {
                 "type": "string",
                 "required": true,
-                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$"
               },
               "title": {
                 "type": "string",
@@ -943,12 +943,13 @@
               "task": {
                 "type": "string",
                 "required": true,
-                "pattern": "^TASK-\\d+$"
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\\d+$",
+                "note": "One `PREFIX-NUMBER` handle, the same shape `bin/perry-goals § TASK_ID_SHAPE` validates a declaration against. NOT `^TASK-\\d+$`, which is what this said until ADR-019 and which was only ever true of Perry's own board: a task id prefix is per project (`REL-001`, `WIT-002`), and the narrow pattern reported every record of a project that prefixes its rows any other way as malformed. It went unnoticed because the only store in existence was this project's own."
               },
               "kr": {
                 "type": "string",
                 "required": true,
-                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$"
               },
               "declared_at": {
                 "type": "string",
@@ -980,7 +981,8 @@
               "task": {
                 "type": "string",
                 "required": true,
-                "pattern": "^TASK-\\d+$"
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\\d+$",
+                "note": "One `PREFIX-NUMBER` handle, the same shape `bin/perry-goals § TASK_ID_SHAPE` validates a declaration against. NOT `^TASK-\\d+$`, which is what this said until ADR-019 and which was only ever true of Perry's own board: a task id prefix is per project (`REL-001`, `WIT-002`), and the narrow pattern reported every record of a project that prefixes its rows any other way as malformed. It went unnoticed because the only store in existence was this project's own."
               },
               "phase": {
                 "type": "string",
@@ -1023,7 +1025,7 @@
               "kr": {
                 "type": "string",
                 "required": true,
-                "pattern": "^P\\d{3}-O\\d+-KR\\d+$",
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$",
                 "note": "The KR this Project serves. `serves:` in the deleted document's frontmatter."
               },
               "name": {
@@ -1077,7 +1079,8 @@
               "task": {
                 "type": "string",
                 "required": true,
-                "pattern": "^TASK-\\d+$"
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\\d+$",
+                "note": "One `PREFIX-NUMBER` handle, the same shape `bin/perry-goals § TASK_ID_SHAPE` validates a declaration against. NOT `^TASK-\\d+$`, which is what this said until ADR-019 and which was only ever true of Perry's own board: a task id prefix is per project (`REL-001`, `WIT-002`), and the narrow pattern reported every record of a project that prefixes its rows any other way as malformed. It went unnoticed because the only store in existence was this project's own."
               },
               "declared_at": {
                 "type": "string",
@@ -1703,7 +1706,7 @@
               "kr": {
                 "type": "string",
                 "required": false,
-                "pattern": "^P\\d{3}-O\\d+-KR\\d+$",
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$",
                 "note": "result of the cluster->KR pass. Absent = not yet attributed. Every task in the cluster inherits this edge; it is DECLARED by the user, never matched by name."
               }
             }

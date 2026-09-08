@@ -3990,6 +3990,15 @@ def linkage_records_for_phase(records: list, phase_number: str) -> list | None:
       `<NNN>-<slug>`.
     - `edge` — the KR id it names, which carries its phase by DESIGN-007
       decision #4 (`P003-O1-KR1`). Not the task id, which is global.
+
+      **And also any KR id this phase's own `kr` records declare**, which is
+      not a widening of the same rule but the answer to a case it cannot
+      reach. A phase may register an OVERALL KR — `O1-KR1`, no phase in the
+      id, because an overall KR does not belong to one — and an edge to it
+      would match no `P<NNN>-` prefix and be dropped from every phase. The id
+      prefix is checked FIRST so that an edge to `P002-O1-KR1` filed under
+      phase 003 stays visible to phase 002, where `perry-lint` reports it,
+      rather than disappearing because phase 003 declares no such KR.
     - `unlinked` — its own `phase` field, which ADR-019 added. A record
       written WITHOUT one travels with every phase, which is what every
       `unlinked` record did before the field existed; that is back-compat for
@@ -4001,6 +4010,9 @@ def linkage_records_for_phase(records: list, phase_number: str) -> list | None:
         # one's objectives.
         return None
     prefix, kr_prefix = f"{phase_number}-", f"P{phase_number}-"
+    own_krs = {str(r.get("id") or "") for r in records
+               if isinstance(r, dict) and r.get("kind") == "kr"
+               and str(r.get("phase") or "").startswith(prefix)}
 
     def mine(r) -> bool:
         if not isinstance(r, dict):
@@ -4009,7 +4021,9 @@ def linkage_records_for_phase(records: list, phase_number: str) -> list | None:
         if kind in ("objective", "kr", "project", "agent"):
             return str(r.get("phase") or "").startswith(prefix)
         if kind == "edge":
-            return str(r.get("kr") or "").startswith(kr_prefix)
+            kr = str(r.get("kr") or "")
+            return kr.startswith(kr_prefix) or (
+                kr in own_krs and not re.match(r"^P\d{3}-", kr))
         if kind == "unlinked":
             at = str(r.get("phase") or "")
             return not at or at.startswith(prefix)

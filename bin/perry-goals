@@ -1321,9 +1321,19 @@ def linkage_store_text(reg, declared_at: str, actor: str) -> str | None:
                 rec = json.loads(line)
             except json.JSONDecodeError:
                 # A line this tool cannot read is a line it must not drop.
-                # `perry-lint § linkage-store-malformed` reports it by number;
-                # silently discarding it here would make this writer the thing
-                # that lost a record nobody had looked at yet.
+                #
+                # **Unreachable through `Register` today, and kept anyway.**
+                # `load_linkage_store` answers `None` for a store with one bad
+                # line, and `Register.__init__` refuses on that `None` — so a
+                # write never reaches this loop over a file it cannot fully
+                # parse. That was NOT true before ADR-019: the graph then fell
+                # back to `phase/<NNN>-linkage.md`, the write proceeded, and
+                # this branch was the only thing carrying an unreadable line
+                # through the rewrite. `tests/test_linkage_store_readers.py §
+                # test_a_store_with_a_line_the_writer_cannot_read_is_refused`
+                # pins the refusal that replaced it, and deliberately does not
+                # pin this line: a test over a branch nothing can reach
+                # measures nothing and teaches the next reader that it does.
                 kept.append(line)
                 continue
             if (isinstance(rec, dict) and rec.get("kind") == "unlinked"

@@ -563,48 +563,13 @@ def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
                     f"`stage: abandoned` so it stops being offered. The "
                     f"threshold is a calibrated default, not a law."))
 
-    # A task may serve at most one KR.
-    seen: dict[str, str] = {}
-    for obj in data.get("objectives") or []:
-        for kr in (obj or {}).get("krs") or []:
-            for task in (kr or {}).get("tasks") or []:
-                prev = seen.get(str(task))
-                if prev and prev != kr.get("id"):
-                    findings.append(Finding(
-                        "error", rel, "linkage-task-single-kr",
-                        f"task {task} is listed under both {prev} and {kr.get('id')} — "
-                        "its attribution would be ambiguous"))
-                seen[str(task)] = str(kr.get("id"))
-
-    # Objective agreement + name/alias uniqueness across projects.
-    claimed: dict[str, str] = {}
-    for pr in data.get("projects") or []:
-        if not isinstance(pr, dict):
-            continue
-        pid, serves, obj = str(pr.get("id") or ""), str(pr.get("serves") or ""), pr.get("objective")
-        # The objective segment of a phase-KR id. **Anchored end to end**,
-        # where the old form could only be prefix-matched: `P002-O3-KR1`
-        # says which phase, which objective and which KR, so there is
-        # nothing left to infer from position. A `serves` still written
-        # `P-O3.1` [[old-form]] no longer matches — and does not slip past
-        # unmentioned:
-        # `check_cross_file § kr-id-legacy-form` reads every `phase/*.md`,
-        # linkage files included, and errors on it by name.
-        m = re.match(r"^P\d{3}-(O\d+)-KR\d+$", serves)
-        if m and obj and m.group(1) != str(obj):
-            findings.append(Finding("error", rel, "linkage-objective-agrees",
-                                    f"{pid}: serves {serves} (which is {m.group(1)}) but "
-                                    f"objective says {obj}"))
-        for label in [pr.get("name"), *(pr.get("aliases") or [])]:
-            key2 = str(label or "").strip().lower()
-            if not key2:
-                continue
-            if key2 in claimed and claimed[key2] != pid:
-                findings.append(Finding(
-                    "error", rel, "linkage-names-unique",
-                    f"name/alias {label!r} is claimed by both {claimed[key2]} and {pid} — "
-                    "attribution cannot resolve it to one KR"))
-            claimed[key2] = pid
+    # **The three graph-integrity rules used to be here and are now in
+    # `_linkage_graph_findings`.** They read `objectives[].krs[].tasks[]` and
+    # `projects[]` out of a document's frontmatter, and this function grades
+    # frontmatter against a `files[]` spec. ADR-019 deleted
+    # `files[id=linkage]`, so this branch became unreachable rather than
+    # wrong; the rules moved to where the facts now live and none of the three
+    # changed its id or its severity.
     return findings
 
 
@@ -4460,6 +4425,72 @@ def _linkage_record_findings(records: list,
     return good, findings
 
 
+def _linkage_graph_findings(records: list, rel: str) -> list["Finding"]:
+    """The three graph-integrity rules, over one phase's records.
+
+    They lived in `check_frontmatter`, grading `phase/<NNN>-linkage.md`'s
+    frontmatter against `files[id=linkage]`. ADR-019 deleted that entry and
+    that file. The rules are unchanged in id, severity and wording — what
+    changed is that `tasks[]` is now a set of `edge` records and `projects[]`
+    a set of `project` records, so each reads the store instead of a mapping.
+    """
+    findings: list[Finding] = []
+
+    # A task may serve at most one KR. **`error`, and not softened by the
+    # move**: an ambiguous attribution is what `perry-goals link` refuses to
+    # create and what `resolve_kr` cannot answer.
+    seen: dict[str, str] = {}
+    for rec in records:
+        if not isinstance(rec, dict) or rec.get("kind") != "edge":
+            continue
+        task, kr = str(rec.get("task") or ""), str(rec.get("kr") or "")
+        prev = seen.get(task)
+        if prev and prev != kr:
+            findings.append(Finding(
+                "error", rel, "linkage-task-single-kr",
+                f"task {task} is listed under both {prev} and {kr} — "
+                "its attribution would be ambiguous"))
+        seen[task] = kr
+
+    # Objective agreement + name/alias uniqueness across projects.
+    claimed: dict[str, str] = {}
+    for rec in records:
+        if not isinstance(rec, dict) or rec.get("kind") != "project":
+            continue
+        pid, serves = str(rec.get("id") or ""), str(rec.get("kr") or "")
+        # **`objective` is derived from the KR id and checked against the
+        # OBJECTIVE RECORDS**, where it used to be checked against a second
+        # `objective:` field on the registry entry. `kind: project` stores no
+        # such field — ADR-019 declined to carry a fact the id already
+        # encodes — so the disagreement this rule reports is now between the
+        # KR id a Project serves and the set of objectives its phase declares.
+        # The old form could only be prefix-matched: `P002-O3-KR1` says which
+        # phase, which objective and which KR, so there is nothing left to
+        # infer from position. A `kr` still written `P-O3.1` [[old-form]] no
+        # longer matches — and does not slip past unmentioned:
+        # `check_cross_file § kr-id-legacy-form` reads every `phase/*.md` and
+        # errors on it by name.
+        m = re.match(r"^P\d{3}-(O\d+)-KR\d+$", serves)
+        objectives = {str(r.get("id") or "") for r in records
+                      if isinstance(r, dict) and r.get("kind") == "objective"}
+        if m and objectives and m.group(1) not in objectives:
+            findings.append(Finding(
+                "error", rel, "linkage-objective-agrees",
+                f"{pid}: serves {serves} (which is {m.group(1)}) but this "
+                f"phase declares no objective {m.group(1)}"))
+        for label in [rec.get("name"), *(rec.get("aliases") or [])]:
+            key2 = str(label or "").strip().lower()
+            if not key2:
+                continue
+            if key2 in claimed and claimed[key2] != pid:
+                findings.append(Finding(
+                    "error", rel, "linkage-names-unique",
+                    f"name/alias {label!r} is claimed by both {claimed[key2]} and {pid} — "
+                    "attribution cannot resolve it to one KR"))
+            claimed[key2] = pid
+    return findings
+
+
 def check_linkage_store(project_root: Path, state_root: Path,
                        schema: dict) -> list["Finding"]:
     """`linkage.jsonl` — TASK-276, DESIGN-015 row A, ADR-019.
@@ -4523,6 +4554,21 @@ def check_linkage_store(project_root: Path, state_root: Path,
             "warn", rel_store, "linkage-store-malformed",
             f"and {len(issues) - DRIFT_ROWS_SHOWN} further record(s) do not "
             f"match a declared shape."))
+
+    # **Per phase, because both rules are per phase.** One task may serve one
+    # KR *in a phase*, and a Project name is unique *within the registry it is
+    # in*; grading the whole store at once would report a `REL-001` linked in
+    # phase 001 and again in 002 as an ambiguity, which is two phases doing
+    # their job. Only the valid records are graded: a malformed record has
+    # been reported once by name and line, and grading it again would report
+    # one defect twice in two vocabularies.
+    phases = sorted({str(r.get("phase") or "") for r in good
+                     if r.get("kind") in ("objective", "kr") and r.get("phase")})
+    for slug in phases:
+        number = P.linkage_phase_number(slug)
+        mine = P.linkage_records_for_phase(good, number) if number else None
+        if mine:
+            findings.extend(_linkage_graph_findings(mine, rel_store))
     return findings
 
 
