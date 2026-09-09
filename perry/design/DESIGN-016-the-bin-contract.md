@@ -586,9 +586,24 @@ Phase C is the leverage; TASK-365 is blocked on Decision 2 (`USER-918`).
 Decision 5 rewrote C1 rather than blocking it: TASK-364's deliverable is no
 longer a manifest file.
 
-A5, A6, C4, C5 and D1 were added 2026-09-09 and are **not yet filed as rows**.
+A5, A6, C4, C5 and D1 were added 2026-09-09 and are **not yet filed as rows** —
+`BOARD.md` is over its 200-line cap and wants triage before it takes five more.
 A5 is the highest-severity item in this document: it is the one place where a
 Perry command reports a write it did not perform.
+
+**Phase A landed 2026-09-09** on `bin-contract-phase-a`, A1 through A6 in one
+commit, with `tests/test_bin_argument_contract.py` (22 tests) asserting each
+claim. Two consequences to carry into D1 and into whatever reviews this:
+
+- **`perry-diagnose` can now exit 2.** `bin/README.md:86` says it "always exits
+  `0` — an absent signal is a finding, not an error", which stays true of
+  findings and is now false of a bad invocation. D1 owns the sentence.
+- **`intake-render --write` refuses where it used to write.** A hand-deleted
+  row in a position-keyed register shifts every later row up, so the render put
+  the deleted text back into the NEXT row and dropped the last record off the
+  board — store 4 records, board 3 rows, exit 0. The test that asserted the old
+  behaviour was asserting the text coming back, not the record surviving; it
+  now asserts the refusal (`tests/test_intake_store`).
 
 Dependencies as filed: TASK-360 waits on TASK-359, TASK-361 on TASK-360,
 TASK-363 on TASK-362, TASK-365 on USER-918, TASK-366 on TASK-365. TASK-359,
@@ -653,6 +668,7 @@ TASK-364 and TASK-367 are startable now.
 - 2026-09-04 — created — audit of the eighteen `bin/` executables, run against `5d19d83`.
 - 2026-09-04 — § 1.1 gained the `perry-task add --design` drop, found while opening this doc's own rows; filed as TASK-367.
 - 2026-09-09 — incorporated an external review of the `bin/` command surface (17 findings, run 2026-09-08 on `9ff844b7`). Every claim used here was re-verified on `02a2b74c` before being written down. New: § 1.5 (`render --write` reports success and restores nothing; the uncaught `Refused`; exit code 3), § 1.6 (eight false statements in `bin/README.md`), goals 9-11, plan rows A5/A6/D1, two risks, and Decision 5 — the review's A3 asks for the dispatcher § 3 rules out. Review findings already covered here and not duplicated: silent unknown flags (§ 1.1, extended with `perry-diagnose`), `--help` essays (§ 1.3, Decision 2), tool naming (§ 1.4, Decision 3), missing `--dry-run` (§ 1.1, TASK-361, TASK-253). Two review claims were stale and are corrected here rather than copied: `perry-tasks` has no `linkage-*` verbs (ADR-019 removed them, `bin/perry-tasks:1340`), and the store family's subcommand count is 17 over four registers, not 30 over five.
+- 2026-09-09 — **phase A implemented** (A1-A6) on `bin-contract-phase-a`. Found while verifying it, and fixed in the same commit: `tests/test_slow_selector § _select` drove `tests/parallel.main()` with `--record` in-process, which writes the LIVE `tests/durations.json` — with the stub's canned `0.01` for all 123 modules, on every full suite run. The tree guard had been reporting it correctly and I misattributed it once before reading the call. Two tests that were passing for the wrong reason were corrected rather than relaxed: a `render --byte-compare` that never byte-compared, and the intake render contract named in § 6.
 - 2026-09-09 — a working session with the user on the shape of the surface, folded in whole. **Decision 5 answered**: the declaration lives in each tool, `--describe --json` reads it, `bin/perry` is a thin reader, and `bin/commands.json` is dropped rather than deferred — § 3's dispatcher Non-Goal is withdrawn and an MCP Non-Goal is added with its three costs and the conditions under which it becomes right. **§ 1.4 gained** the register-prefix table (`risk-add` against `risks-build` for the same register), the observation that the tool split is drawn on the mechanism rather than the object, and the flat 46-flag table that is the structural cause of the `--kr` and `--design` drops. **§ 1.7 is new**: the four axes (lane, register, track, mode), which two of them the command surface encodes, the two measured refusals that show the track/mode layer is already enforced, and the boundary between the static shape and the per-project vocabulary. **Goals 12-14, plan rows C4 and C5, three risks, three open questions** follow from those. B1 grew the vocabulary read; C1 stopped being a manifest file and now satisfies TASK-396; Decision 3's note records the redraw-by-object option nobody had put on the table.
 
 ## 10. References
