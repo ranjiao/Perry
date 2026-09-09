@@ -57,6 +57,26 @@ def recorded() -> dict:
     return json.loads(BASELINE.read_text())
 
 
+def _task_contract_name() -> str:
+    """`perry-task`'s own `LIST_CONTRACT`, read from the tool.
+
+    The version moves whenever the payload does — 1.19 bounded `tasks[]` — and
+    this module is about which KEYS are compared, not about which minor is
+    shipped. Typing the name made a bump fail seven cases here for a reason
+    none of them is about.
+    """
+    import importlib.machinery
+    import importlib.util
+    path = pathlib.Path(__file__).resolve().parent.parent / "bin" / "perry-task"
+    spec = importlib.util.spec_from_loader(
+        "perry_task_for_parity",
+        importlib.machinery.SourceFileLoader("perry_task_for_parity",
+                                             str(path)))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.LIST_CONTRACT
+
+
 #: A whole contract page, in the shape the check reads: a `# ` heading naming
 #: the invocation, and a ```jsonc``` sketch of the payload. `{extra}` is a key
 #: no tool emits.
@@ -258,7 +278,7 @@ class TestTheTwoWayDiffIsHeldToItsBaseline(unittest.TestCase):
         and `review_idle` carry one entry shape on purpose, so no matcher can
         tell them apart — one key table names both, and both must be
         documented by it, not one of them and not neither."""
-        task = self.live["contracts"]["perry-task/list/1.18"]
+        task = self.live["contracts"][TASK_LIST]
         for array in ("in_progress_with_no_live_run", "review_idle"):
             for key in ("id", "status", "last_event", "idle_hours",
                         "threshold_hours", "means"):
@@ -492,6 +512,11 @@ class TestAHeadingMayNameTheCollectionsItServes(unittest.TestCase):
 #:
 #: `mutate` is the text to remove from the page — a real declaration on the
 #: real page, not a marker put there for the test.
+#: The task contract's name is READ, not typed. It moves on every minor —
+#: 1.19 bounded `tasks[]` — and a table of literals here turned that bump into
+#: seven errors in a module whose subject is key coverage, not versions.
+TASK_LIST = _task_contract_name()
+
 WITNESSED = (
     ("perry-decide/list/2.0", "decide-list-contract.md", "expired_sunsets",
      "expired_sunsets[].sunset", ', "sunset": "2026-06-30"'),
@@ -499,17 +524,17 @@ WITNESSED = (
      "krs[].current_staleness.moved_tasks",
      "krs[].current_staleness.moved_tasks[].at",
      ',\n                           "at": "2026-08-21T09:10:00Z"'),
-    ("perry-task/list/1.18", "task-list-contract.md",
+    (TASK_LIST, "task-list-contract.md",
      "conformance.depends_on_unknown",
      "conformance.depends_on_unknown[].unknown",
      "| `unknown` | array | the dependency ids"),
-    ("perry-task/list/1.18", "task-list-contract.md",
+    (TASK_LIST, "task-list-contract.md",
      "conformance.in_progress_with_no_live_run",
      "conformance.in_progress_with_no_live_run[].means",
      "| `means` | string | the sentence to show a reader."),
-    ("perry-task/list/1.18", "task-list-contract.md",
+    (TASK_LIST, "task-list-contract.md",
      "conformance.review_idle", "conformance.review_idle[].means", ""),
-    ("perry-task/list/1.18", "task-list-contract.md",
+    (TASK_LIST, "task-list-contract.md",
      "tasks[].evidence_relations", "tasks[].evidence_relations[].kind", ""),
 )
 

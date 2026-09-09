@@ -205,7 +205,19 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.18"
+LIST_CONTRACT = "perry-task/list/1.19"
+
+#: How many rows `list` returns when the caller names no bound. DESIGN-016
+#: goal 6, and the measurement behind it: `perry-task list --json` on this
+#: repository is 538,134 bytes and `--all --json` is 1,683,852 — about 420k
+#: tokens, which does not fit in any context window this project can be run
+#: in. An unbounded read that nobody can consume is not a read.
+#:
+#: 200 rather than something smaller because the bound is about the runaway
+#: case, not about trimming: Perry's own board is 151 open rows and an ordinary
+#: `list` is unaffected by this number. `--limit 0` is every row, and it is the
+#: spelling a consumer that genuinely wants the whole store passes.
+LIST_DEFAULT_LIMIT = 200
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -321,6 +333,18 @@ LIST_SEMANTICS = [
     {"version": "1.18",
      "fields": ["tasks[].created", "tasks[].updated", "tasks[].timeline[].ts"],
      "note": "Every event appended from now on stamps its UTC OFFSET: `2026-08-28T02:15:22+08:00`, where the same event used to be written `2026-08-28T02:15:22` and meant local wall clock without saying so. The lines already in the log are not rewritten and still carry no zone; `bin/lib § ts_moment` reads those as the reading machine's local time, which is what `datetime.now()` wrote them as. Local rather than UTC on purpose, so the log's text goes on rising across the cutover. A consumer that parses `ts` must accept an offset — `datetime.fromisoformat` always has; a hand-rolled `%Y-%m-%dT%H:%M:%S` will not — and one that compares two of them as TEXT is why this moved: the register stamps UTC, and comparing the two shapes as strings put every move inside the machine's offset on the wrong side of the assertion it was compared against."},
+    {"version": "1.19",
+     "fields": ["bound", "tasks"],
+     "note": "`tasks[]` IS NOW BOUNDED. A call that names no `--limit` returns "
+             "at most 200 rows and `bound.truncated` says so; the count it "
+             "would have returned is `bound.total`. Before 1.19 every matching "
+             "row came back, which on this repository is 538KB for a default "
+             "call and 1.68MB for `--all` — about 420k tokens, more than any "
+             "context window it is read in. `--limit 0` restores the old "
+             "behaviour explicitly and `--limit <n>` sets another bound. "
+             "`open` and `closed` still count THIS payload's rows, so on a "
+             "truncated call they count the returned ones; `bound.total` is "
+             "the unbounded figure."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:
@@ -7644,7 +7668,36 @@ def cmd_list(args, ctx) -> dict:
     untitled = [task["id"] for task in rows if not task["title"]]
     if not args.all:
         rows = [task for task in rows if task["open"]]
+    # **The bound** (DESIGN-016 goal 6). It is declared in the payload rather
+    # than applied quietly: `bound.total` is what the call matched, `returned`
+    # is what is in `tasks[]`, and `truncated` says whether those differ. A
+    # consumer that reads `tasks[]` and nothing else sees fewer rows, so the
+    # tool also says so on stderr — `contract 1.19` and `semantics` carry it
+    # for the ones that read the payload properly.
+    total = len(rows)
+    asked = args.limit is not None
+    limit = LIST_DEFAULT_LIMIT
+    if asked:
+        try:
+            limit = int(args.limit)
+        except (TypeError, ValueError):
+            raise Refused(f"--limit takes a whole number; got {args.limit!r}. "
+                          f"`--limit 0` is every row")
+        if limit < 0:
+            raise Refused("--limit takes a whole number; `--limit 0` is every "
+                          "row")
+    truncated = bool(limit) and total > limit
+    if truncated:
+        rows = rows[:limit]
+        print(f"perry-task: list returned {limit} of {total} row(s) — the "
+              f"default bound. Pass `--limit 0` for every row, `--limit <n>` "
+              f"for a different one, or `--track <name>` to narrow the set.",
+              file=sys.stderr)
     return {"contract": LIST_CONTRACT,
+            "bound": {"limit": limit or None, "default": not asked,
+                      "returned": len(rows), "total": total,
+                      "truncated": truncated,
+                      "order": "by id, ascending"},
             "semantics": sorted(
                 LIST_SEMANTICS,
                 key=lambda entry: tuple(int(x) for x in entry["version"].split("."))),

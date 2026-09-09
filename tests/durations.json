@@ -1,506 +1,510 @@
 {
  "schema": 1,
  "sources": {
-  "2026-09-09-043951": {
-   "ref": "65780a73c689da8f440b8bdeb0eff7ca93d60566",
-   "taken": "2026-09-09T04:39:51Z",
+  "2026-09-09-052446": {
+   "ref": "28114b7e16e08a8c22f5a35af08a71d2931031df",
+   "taken": "2026-09-09T05:24:46Z",
    "workers": 8,
-   "load1": 16.87,
+   "load1": 18.23,
    "note": "`tests/parallel --record -j 8`."
   }
  },
  "modules": {
   "test_add_declares_unlinked.py": {
-   "sec": 5.0,
-   "source": "2026-09-09-043951"
+   "sec": 7.22,
+   "source": "2026-09-09-052446"
   },
   "test_add_writes_the_edge.py": {
-   "sec": 4.42,
-   "source": "2026-09-09-043951"
+   "sec": 5.28,
+   "source": "2026-09-09-052446"
   },
   "test_amend_matches_create.py": {
-   "sec": 0.06,
-   "source": "2026-09-09-043951"
+   "sec": 0.07,
+   "source": "2026-09-09-052446"
   },
   "test_answered_ask_is_legible.py": {
-   "sec": 1.51,
-   "source": "2026-09-09-043951"
+   "sec": 1.45,
+   "source": "2026-09-09-052446"
   },
   "test_ask_is_a_node.py": {
-   "sec": 1.76,
-   "source": "2026-09-09-043951"
+   "sec": 1.56,
+   "source": "2026-09-09-052446"
   },
   "test_asks_store.py": {
-   "sec": 3.1,
-   "source": "2026-09-09-043951"
+   "sec": 4.02,
+   "source": "2026-09-09-052446"
   },
   "test_attribution_buckets.py": {
-   "sec": 1.39,
-   "source": "2026-09-09-043951"
+   "sec": 1.37,
+   "source": "2026-09-09-052446"
   },
   "test_bin_argument_contract.py": {
-   "sec": 2.95,
-   "source": "2026-09-09-043951"
+   "sec": 5.31,
+   "source": "2026-09-09-052446"
   },
   "test_blank_cell_is_one_rule.py": {
-   "sec": 0.07,
-   "source": "2026-09-09-043951"
+   "sec": 0.08,
+   "source": "2026-09-09-052446"
   },
   "test_board_render.py": {
-   "sec": 17.2,
-   "source": "2026-09-09-043951"
+   "sec": 23.41,
+   "source": "2026-09-09-052446"
   },
   "test_cadence.py": {
-   "sec": 7.39,
-   "source": "2026-09-09-043951"
+   "sec": 9.02,
+   "source": "2026-09-09-052446"
   },
   "test_churn.py": {
-   "sec": 4.4,
-   "source": "2026-09-09-043951"
+   "sec": 6.13,
+   "source": "2026-09-09-052446"
   },
   "test_claims.py": {
-   "sec": 9.16,
-   "source": "2026-09-09-043951"
+   "sec": 11.19,
+   "source": "2026-09-09-052446"
+  },
+  "test_compact_payload.py": {
+   "sec": 2.2,
+   "source": "2026-09-09-052446"
   },
   "test_config_store_readers.py": {
-   "sec": 0.5,
-   "source": "2026-09-09-043951"
+   "sec": 0.59,
+   "source": "2026-09-09-052446"
   },
   "test_context_budget.py": {
-   "sec": 0.95,
-   "source": "2026-09-09-043951"
+   "sec": 0.8,
+   "source": "2026-09-09-052446"
   },
   "test_contract_invariance.py": {
-   "sec": 4.29,
-   "source": "2026-09-09-043951"
+   "sec": 4.92,
+   "source": "2026-09-09-052446"
   },
   "test_contract_key_parity.py": {
-   "sec": 6.57,
-   "source": "2026-09-09-043951"
+   "sec": 8.19,
+   "source": "2026-09-09-052446"
   },
   "test_count_fields.py": {
-   "sec": 1.53,
-   "source": "2026-09-09-043951"
+   "sec": 1.73,
+   "source": "2026-09-09-052446"
   },
   "test_decide_status_enum.py": {
-   "sec": 2.86,
-   "source": "2026-09-09-043951"
+   "sec": 2.7,
+   "source": "2026-09-09-052446"
   },
   "test_decide_writer.py": {
-   "sec": 6.67,
-   "source": "2026-09-09-043951"
+   "sec": 7.68,
+   "source": "2026-09-09-052446"
   },
   "test_decoration_changes_nothing.py": {
-   "sec": 9.52,
-   "source": "2026-09-09-043951"
+   "sec": 10.94,
+   "source": "2026-09-09-052446"
   },
   "test_design_handoff.py": {
-   "sec": 2.14,
-   "source": "2026-09-09-043951"
+   "sec": 2.1,
+   "source": "2026-09-09-052446"
   },
   "test_diagnose.py": {
-   "sec": 26.57,
-   "source": "2026-09-09-043951"
+   "sec": 30.98,
+   "source": "2026-09-09-052446"
   },
   "test_dispatch_limit_honesty.py": {
-   "sec": 1.5,
-   "source": "2026-09-09-043951"
+   "sec": 1.61,
+   "source": "2026-09-09-052446"
   },
   "test_duplicate_ids_are_refused.py": {
-   "sec": 2.23,
-   "source": "2026-09-09-043951"
+   "sec": 2.22,
+   "source": "2026-09-09-052446"
   },
   "test_durations_provenance.py": {
-   "sec": 0.15,
-   "source": "2026-09-09-043951"
+   "sec": 0.23,
+   "source": "2026-09-09-052446"
   },
   "test_entrance.py": {
    "sec": 0.05,
-   "source": "2026-09-09-043951"
+   "source": "2026-09-09-052446"
   },
   "test_escalation_boundaries.py": {
-   "sec": 0.21,
-   "source": "2026-09-09-043951"
+   "sec": 0.22,
+   "source": "2026-09-09-052446"
   },
   "test_escalation_union.py": {
-   "sec": 3.81,
-   "source": "2026-09-09-043951"
+   "sec": 3.68,
+   "source": "2026-09-09-052446"
   },
   "test_escaped_pipe_corpus.py": {
-   "sec": 0.81,
-   "source": "2026-09-09-043951"
+   "sec": 1.03,
+   "source": "2026-09-09-052446"
   },
   "test_events_feed.py": {
-   "sec": 2.94,
-   "source": "2026-09-09-043951"
+   "sec": 3.34,
+   "source": "2026-09-09-052446"
   },
   "test_evidence_relation.py": {
-   "sec": 3.47,
-   "source": "2026-09-09-043951"
+   "sec": 4.01,
+   "source": "2026-09-09-052446"
   },
   "test_explain_typed_tasks.py": {
-   "sec": 0.89,
-   "source": "2026-09-09-043951"
+   "sec": 0.96,
+   "source": "2026-09-09-052446"
   },
   "test_glossary.py": {
-   "sec": 2.17,
-   "source": "2026-09-09-043951"
+   "sec": 2.37,
+   "source": "2026-09-09-052446"
   },
   "test_goals_contract.py": {
-   "sec": 1.49,
-   "source": "2026-09-09-043951"
+   "sec": 1.5,
+   "source": "2026-09-09-052446"
   },
   "test_goals_writer.py": {
-   "sec": 19.21,
-   "source": "2026-09-09-043951"
+   "sec": 21.97,
+   "source": "2026-09-09-052446"
   },
   "test_header_index_is_the_only_fold.py": {
-   "sec": 10.49,
-   "source": "2026-09-09-043951"
+   "sec": 12.64,
+   "source": "2026-09-09-052446"
   },
   "test_header_rule_harness.py": {
-   "sec": 29.02,
-   "source": "2026-09-09-043951"
+   "sec": 32.8,
+   "source": "2026-09-09-052446"
   },
   "test_heading_defines.py": {
-   "sec": 0.63,
-   "source": "2026-09-09-043951"
+   "sec": 0.72,
+   "source": "2026-09-09-052446"
   },
   "test_heading_title.py": {
-   "sec": 1.62,
-   "source": "2026-09-09-043951"
+   "sec": 1.49,
+   "source": "2026-09-09-052446"
   },
   "test_host_support.py": {
-   "sec": 15.35,
-   "source": "2026-09-09-043951"
+   "sec": 20.2,
+   "source": "2026-09-09-052446"
   },
   "test_i18n.py": {
-   "sec": 0.42,
-   "source": "2026-09-09-043951"
+   "sec": 0.5,
+   "source": "2026-09-09-052446"
   },
   "test_i18n_one_table.py": {
    "sec": 0.14,
-   "source": "2026-09-09-043951"
+   "source": "2026-09-09-052446"
   },
   "test_id_families.py": {
-   "sec": 1.35,
-   "source": "2026-09-09-043951"
+   "sec": 1.31,
+   "source": "2026-09-09-052446"
   },
   "test_intake_signal.py": {
-   "sec": 0.79,
-   "source": "2026-09-09-043951"
+   "sec": 0.85,
+   "source": "2026-09-09-052446"
   },
   "test_intake_store.py": {
-   "sec": 4.34,
-   "source": "2026-09-09-043951"
+   "sec": 5.02,
+   "source": "2026-09-09-052446"
   },
   "test_knowledge_cards.py": {
-   "sec": 1.8,
-   "source": "2026-09-09-043951"
+   "sec": 1.87,
+   "source": "2026-09-09-052446"
   },
   "test_knowledge_promotion.py": {
-   "sec": 4.36,
-   "source": "2026-09-09-043951"
+   "sec": 5.06,
+   "source": "2026-09-09-052446"
   },
   "test_kr_progress_provenance.py": {
-   "sec": 3.7,
-   "source": "2026-09-09-043951"
+   "sec": 3.64,
+   "source": "2026-09-09-052446"
   },
   "test_last_updated_header.py": {
-   "sec": 0.54,
-   "source": "2026-09-09-043951"
+   "sec": 0.63,
+   "source": "2026-09-09-052446"
   },
   "test_linkage_store_declared.py": {
-   "sec": 0.85,
-   "source": "2026-09-09-043951"
+   "sec": 0.98,
+   "source": "2026-09-09-052446"
   },
   "test_linkage_store_readers.py": {
-   "sec": 3.81,
-   "source": "2026-09-09-043951"
+   "sec": 4.0,
+   "source": "2026-09-09-052446"
   },
   "test_linkage_task_exists.py": {
-   "sec": 2.15,
-   "source": "2026-09-09-043951"
+   "sec": 2.09,
+   "source": "2026-09-09-052446"
   },
   "test_linkage_writer.py": {
-   "sec": 4.7,
-   "source": "2026-09-09-043951"
+   "sec": 6.05,
+   "source": "2026-09-09-052446"
   },
   "test_live_state_expectations.py": {
-   "sec": 6.39,
-   "source": "2026-09-09-043951"
+   "sec": 6.96,
+   "source": "2026-09-09-052446"
   },
   "test_md_store.py": {
-   "sec": 3.65,
-   "source": "2026-09-09-043951"
+   "sec": 4.9,
+   "source": "2026-09-09-052446"
   },
   "test_missing_defaults.py": {
-   "sec": 0.67,
-   "source": "2026-09-09-043951"
+   "sec": 0.84,
+   "source": "2026-09-09-052446"
   },
   "test_ns_collision.py": {
-   "sec": 9.65,
-   "source": "2026-09-09-043951"
+   "sec": 11.05,
+   "source": "2026-09-09-052446"
   },
   "test_okr_store_is_the_source.py": {
-   "sec": 3.16,
-   "source": "2026-09-09-043951"
+   "sec": 3.78,
+   "source": "2026-09-09-052446"
   },
   "test_one_choke_point.py": {
-   "sec": 4.24,
-   "source": "2026-09-09-043951"
+   "sec": 3.95,
+   "source": "2026-09-09-052446"
   },
   "test_one_header_rule.py": {
-   "sec": 8.59,
-   "source": "2026-09-09-043951"
+   "sec": 10.3,
+   "source": "2026-09-09-052446"
   },
   "test_one_heading_predicate.py": {
-   "sec": 1.22,
-   "source": "2026-09-09-043951"
+   "sec": 1.32,
+   "source": "2026-09-09-052446"
   },
   "test_one_line_break_rule.py": {
-   "sec": 3.31,
-   "source": "2026-09-09-043951"
+   "sec": 4.19,
+   "source": "2026-09-09-052446"
   },
   "test_one_primitive.py": {
-   "sec": 0.15,
-   "source": "2026-09-09-043951"
+   "sec": 0.17,
+   "source": "2026-09-09-052446"
   },
   "test_one_startable_rule.py": {
-   "sec": 2.4,
-   "source": "2026-09-09-043951"
+   "sec": 2.01,
+   "source": "2026-09-09-052446"
   },
   "test_overall_kr_grammar.py": {
-   "sec": 1.28,
-   "source": "2026-09-09-043951"
+   "sec": 1.21,
+   "source": "2026-09-09-052446"
   },
   "test_ownership.py": {
    "sec": 0.11,
-   "source": "2026-09-09-043951"
+   "source": "2026-09-09-052446"
   },
   "test_parallel_runner.py": {
-   "sec": 8.97,
-   "source": "2026-09-09-043951"
+   "sec": 10.16,
+   "source": "2026-09-09-052446"
   },
   "test_parsers.py": {
-   "sec": 2.66,
-   "source": "2026-09-09-043951"
+   "sec": 2.59,
+   "source": "2026-09-09-052446"
   },
   "test_phase_kr_declared_once.py": {
-   "sec": 3.43,
-   "source": "2026-09-09-043951"
+   "sec": 3.17,
+   "source": "2026-09-09-052446"
   },
   "test_pointers_resolve.py": {
-   "sec": 0.25,
-   "source": "2026-09-09-043951"
+   "sec": 0.22,
+   "source": "2026-09-09-052446"
   },
   "test_prioritize.py": {
-   "sec": 5.92,
-   "source": "2026-09-09-043951"
+   "sec": 8.35,
+   "source": "2026-09-09-052446"
   },
   "test_procedures_call_the_tool.py": {
-   "sec": 0.45,
-   "source": "2026-09-09-043951"
+   "sec": 0.42,
+   "source": "2026-09-09-052446"
   },
   "test_procedures_read_the_contract.py": {
-   "sec": 0.2,
-   "source": "2026-09-09-043951"
+   "sec": 0.23,
+   "source": "2026-09-09-052446"
   },
   "test_project_root_resolution.py": {
-   "sec": 22.31,
-   "source": "2026-09-09-043951"
+   "sec": 23.79,
+   "source": "2026-09-09-052446"
   },
   "test_purge.py": {
-   "sec": 5.26,
-   "source": "2026-09-09-043951"
+   "sec": 5.74,
+   "source": "2026-09-09-052446"
   },
   "test_queue_sla.py": {
-   "sec": 6.05,
-   "source": "2026-09-09-043951"
+   "sec": 7.41,
+   "source": "2026-09-09-052446"
   },
   "test_reference_pages_are_reachable.py": {
-   "sec": 0.07,
-   "source": "2026-09-09-043951"
+   "sec": 0.08,
+   "source": "2026-09-09-052446"
   },
   "test_register_minters.py": {
-   "sec": 2.02,
-   "source": "2026-09-09-043951"
+   "sec": 1.9,
+   "source": "2026-09-09-052446"
   },
   "test_register_store_invariant.py": {
-   "sec": 14.55,
-   "source": "2026-09-09-043951"
+   "sec": 16.95,
+   "source": "2026-09-09-052446"
   },
   "test_register_substitution.py": {
-   "sec": 10.61,
-   "source": "2026-09-09-043951"
+   "sec": 13.11,
+   "source": "2026-09-09-052446"
   },
   "test_restore_check.py": {
-   "sec": 4.04,
-   "source": "2026-09-09-043951"
+   "sec": 5.79,
+   "source": "2026-09-09-052446"
   },
   "test_resume.py": {
-   "sec": 2.18,
-   "source": "2026-09-09-043951"
+   "sec": 2.34,
+   "source": "2026-09-09-052446"
   },
   "test_retired_tolerance.py": {
-   "sec": 1.35,
-   "source": "2026-09-09-043951"
+   "sec": 1.43,
+   "source": "2026-09-09-052446"
   },
   "test_review_verdicts.py": {
-   "sec": 8.61,
-   "source": "2026-09-09-043951"
+   "sec": 9.74,
+   "source": "2026-09-09-052446"
   },
   "test_risks.py": {
-   "sec": 2.88,
-   "source": "2026-09-09-043951"
+   "sec": 2.71,
+   "source": "2026-09-09-052446"
   },
   "test_risks_store.py": {
-   "sec": 3.48,
-   "source": "2026-09-09-043951"
+   "sec": 4.59,
+   "source": "2026-09-09-052446"
   },
   "test_role_cards.py": {
-   "sec": 5.49,
-   "source": "2026-09-09-043951"
+   "sec": 6.37,
+   "source": "2026-09-09-052446"
   },
   "test_role_delegation.py": {
-   "sec": 2.28,
-   "source": "2026-09-09-043951"
+   "sec": 2.16,
+   "source": "2026-09-09-052446"
   },
   "test_role_on_rows.py": {
-   "sec": 1.67,
-   "source": "2026-09-09-043951"
+   "sec": 1.56,
+   "source": "2026-09-09-052446"
   },
   "test_router_budget.py": {
-   "sec": 0.35,
-   "source": "2026-09-09-043951"
+   "sec": 0.34,
+   "source": "2026-09-09-052446"
   },
   "test_row_integrity.py": {
-   "sec": 1.21,
-   "source": "2026-09-09-043951"
+   "sec": 1.26,
+   "source": "2026-09-09-052446"
   },
   "test_rung_vocabulary.py": {
-   "sec": 3.07,
-   "source": "2026-09-09-043951"
+   "sec": 3.72,
+   "source": "2026-09-09-052446"
   },
   "test_same_action_linkage.py": {
-   "sec": 3.64,
-   "source": "2026-09-09-043951"
+   "sec": 3.75,
+   "source": "2026-09-09-052446"
   },
   "test_semantics_on_every_payload.py": {
-   "sec": 3.63,
-   "source": "2026-09-09-043951"
+   "sec": 5.08,
+   "source": "2026-09-09-052446"
   },
   "test_shipped_vocabulary.py": {
-   "sec": 2.5,
-   "source": "2026-09-09-043951"
+   "sec": 2.52,
+   "source": "2026-09-09-052446"
   },
   "test_slow_selector.py": {
-   "sec": 4.88,
-   "source": "2026-09-09-043951"
+   "sec": 7.88,
+   "source": "2026-09-09-052446"
   },
   "test_spec_scannability.py": {
-   "sec": 4.32,
-   "source": "2026-09-09-043951"
+   "sec": 4.81,
+   "source": "2026-09-09-052446"
   },
   "test_stage_separators.py": {
-   "sec": 0.68,
-   "source": "2026-09-09-043951"
+   "sec": 0.86,
+   "source": "2026-09-09-052446"
   },
   "test_stale_blocked.py": {
-   "sec": 1.46,
-   "source": "2026-09-09-043951"
+   "sec": 1.15,
+   "source": "2026-09-09-052446"
   },
   "test_state_cost.py": {
-   "sec": 10.04,
-   "source": "2026-09-09-043951"
+   "sec": 12.32,
+   "source": "2026-09-09-052446"
   },
   "test_store_drift.py": {
-   "sec": 11.59,
-   "source": "2026-09-09-043951"
+   "sec": 13.39,
+   "source": "2026-09-09-052446"
   },
   "test_store_is_canonical.py": {
-   "sec": 10.51,
-   "source": "2026-09-09-043951"
+   "sec": 12.27,
+   "source": "2026-09-09-052446"
   },
   "test_store_is_the_write_target.py": {
-   "sec": 8.07,
-   "source": "2026-09-09-043951"
+   "sec": 9.66,
+   "source": "2026-09-09-052446"
   },
   "test_stranded_rows.py": {
-   "sec": 4.64,
-   "source": "2026-09-09-043951"
+   "sec": 5.52,
+   "source": "2026-09-09-052446"
   },
   "test_summary_is_asked_for.py": {
-   "sec": 3.16,
-   "source": "2026-09-09-043951"
+   "sec": 3.93,
+   "source": "2026-09-09-052446"
   },
   "test_task_store.py": {
-   "sec": 5.89,
-   "source": "2026-09-09-043951"
+   "sec": 9.24,
+   "source": "2026-09-09-052446"
   },
   "test_task_store_read_cutover.py": {
-   "sec": 1.84,
-   "source": "2026-09-09-043951"
+   "sec": 1.95,
+   "source": "2026-09-09-052446"
   },
   "test_task_summary.py": {
-   "sec": 6.13,
-   "source": "2026-09-09-043951"
+   "sec": 7.43,
+   "source": "2026-09-09-052446"
   },
   "test_task_writer_contracts.py": {
-   "sec": 2.98,
-   "source": "2026-09-09-043951"
+   "sec": 4.43,
+   "source": "2026-09-09-052446"
   },
   "test_task_writer_core.py": {
-   "sec": 5.94,
-   "source": "2026-09-09-043951"
+   "sec": 8.06,
+   "source": "2026-09-09-052446"
   },
   "test_task_writer_dependencies.py": {
-   "sec": 3.2,
-   "source": "2026-09-09-043951"
+   "sec": 3.77,
+   "source": "2026-09-09-052446"
   },
   "test_task_writer_intake.py": {
-   "sec": 4.57,
-   "source": "2026-09-09-043951"
+   "sec": 4.15,
+   "source": "2026-09-09-052446"
   },
   "test_task_writer_modes.py": {
-   "sec": 2.69,
-   "source": "2026-09-09-043951"
+   "sec": 3.9,
+   "source": "2026-09-09-052446"
   },
   "test_track_attribution.py": {
-   "sec": 5.1,
-   "source": "2026-09-09-043951"
+   "sec": 6.53,
+   "source": "2026-09-09-052446"
   },
   "test_track_axes.py": {
-   "sec": 0.04,
-   "source": "2026-09-09-043951"
+   "sec": 0.05,
+   "source": "2026-09-09-052446"
   },
   "test_track_move.py": {
-   "sec": 17.81,
-   "source": "2026-09-09-043951"
+   "sec": 23.08,
+   "source": "2026-09-09-052446"
   },
   "test_track_register_source.py": {
-   "sec": 1.77,
-   "source": "2026-09-09-043951"
+   "sec": 1.73,
+   "source": "2026-09-09-052446"
   },
   "test_tree_guard.py": {
-   "sec": 25.16,
-   "source": "2026-09-09-043951"
+   "sec": 34.28,
+   "source": "2026-09-09-052446"
   },
   "test_unlinked_declaration.py": {
-   "sec": 2.22,
-   "source": "2026-09-09-043951"
+   "sec": 2.16,
+   "source": "2026-09-09-052446"
   },
   "test_v5_signoff.py": {
-   "sec": 8.6,
-   "source": "2026-09-09-043951"
+   "sec": 10.15,
+   "source": "2026-09-09-052446"
   },
   "test_wip_and_stages.py": {
-   "sec": 1.46,
-   "source": "2026-09-09-043951"
+   "sec": 1.68,
+   "source": "2026-09-09-052446"
   },
   "test_work_modes.py": {
-   "sec": 4.06,
-   "source": "2026-09-09-043951"
+   "sec": 4.59,
+   "source": "2026-09-09-052446"
   }
  }
 }

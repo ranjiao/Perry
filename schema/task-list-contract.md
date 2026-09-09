@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.18`**
+> Contract: **`perry-task/list/1.19`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -19,6 +19,7 @@ purpose is to **not move when Perry's storage does**.
 | `--all` | include closed and dropped tasks from `tasks.jsonl`. **Without it you get open work only.** |
 | `--json` | the payload below. Without it, a human-readable table. |
 | `--track <name>` | restrict to one declared track. |
+| `--limit <n>` | how many rows `tasks[]` may carry. **The default is 200**, and `bound` in the payload always says what was applied. `--limit 0` is every row. |
 | `--root <path>` | the project. Defaults to `$PERRY_PROJECT`, else walks up from the cwd. |
 
 `list` writes nothing. It takes the same lock every write takes, so a read
@@ -96,7 +97,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.18",  // check this before anything else
+  "contract":     "perry-task/list/1.19",  // check this before anything else
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
@@ -106,12 +107,37 @@ from task rows in Markdown.
   "asks":         { /* see below */ },     // `## User Input Queue` — needs-you
   "drift":        { /* see below */ },     // board vs. the record of how it got there
   "tasks":        [ /* see below */ ],
+  "bound":        { /* see below */ },     // how many rows tasks[] may carry, and whether it did
   "open":         3,                       // counts AFTER --track filtering
   "closed":       0,                       // 0 unless you passed --all — see below
   "events":       57,                      // lines in the event log, unfiltered
   "untitled":     ["TASK-004"]             // ids with no title in any record
 }
 ```
+
+### The bound on `tasks[]`
+
+```jsonc
+"bound": {
+  "limit":     200,               // what was applied; null when --limit 0
+  "default":   true,              // false when the caller passed --limit
+  "returned":  151,               // rows in tasks[]
+  "total":     404,               // rows the call matched, before the bound
+  "truncated": false,             // returned < total
+  "order":     "by id, ascending" // which rows survive a truncation
+}
+```
+
+**Since contract 1.19, `tasks[]` is bounded.** A call that names no `--limit`
+returns at most 200 rows, `bound.truncated` says whether that changed anything,
+and the tool prints one line on stderr when it did. Before 1.19 every matching
+row came back: on this repository that is 538,134 bytes for a default call and
+1,683,852 for `--all` — about 420k tokens, more than the context window of any
+agent reading it.
+
+Pass `--limit 0` for the old behaviour, explicitly. A consumer that pages
+should sort on `id` and pass `--track` or a smaller `--limit`; there is no
+cursor here, and the bound is a ceiling rather than a page.
 
 **`open` and `closed` count the rows in THIS payload, not in the project.**
 `--all` is what puts closed rows in it, so **a default call reports `closed: 0`
@@ -599,6 +625,26 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### 1.19 — `tasks[]` is bounded, 2026-09-09 (DESIGN-016 goal 6)
+
+**A call that names no `--limit` now returns at most 200 rows.** `bound` in the
+payload says what was applied, what the call matched before the bound
+(`bound.total`), and whether anything was dropped (`bound.truncated`); the tool
+also prints one line on stderr when it truncates. `--limit 0` returns every row
+and is the explicit spelling of the old behaviour.
+
+**Why a read got a ceiling.** Measured on Perry's own repository:
+`perry-task list --json` is 538,134 bytes and `--all --json` is 1,683,852 —
+about 420k tokens. The consumer of this contract is an agent with a context
+window, and a payload that does not fit in one is not a read; it is a failure
+that arrives as a truncated conversation rather than as an error.
+
+**What a consumer must do.** Nothing, if it reads fewer than 200 rows or passes
+`--limit 0`. Otherwise: check `bound.truncated`, and narrow with `--track` or
+raise `--limit`. `open` and `closed` still count the rows in the payload, so on
+a truncated call they count the returned ones — `bound.total` is the unbounded
+figure and is the number to render beside them.
 
 ### Not a version — the two `summary` rules that judged language are gone, 2026-09-03 (TASK-330)
 

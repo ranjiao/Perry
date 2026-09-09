@@ -64,10 +64,37 @@ stale.
 `--depth` or `--only` that disagrees with the dossier's `depth:` / `lanes:`,
 say so and ask which wins rather than resuming into a mixed scope.
 
+## Step 3 — which read, and when the big one
+
+`SKILL.md` step 3 calls `perry-state --compact`. It is a strict projection of
+`--json`, computed in the same process — `bin/perry-state § COMPACT` declares
+every field of it and `tests/test_compact_payload.py` walks that same
+declaration — so the two can never answer differently about a value they both
+carry.
+
+Measured on Perry's own project, 2026-09-09:
+
+| Call | Bytes |
+|---|---|
+| `--compact` | 9,198 |
+| `--dashboard` (text, no vocabulary) | 1,053 |
+| `--json` | 258,981 |
+
+`--compact` does not grow with the board: task rows are counted, not carried,
+so a project with two thousand of them costs the same integer. It carries what
+step 4 renders and what a WRITE needs first — the declared tracks, their modes
+and the stages legal on each, which used to mean reading `--section project`,
+11,681 bytes, three levels down.
+
+Reach for more only when something needs it. `--section <name>` gives one
+top-level key in full (`board`, `okr`, `phase`, `project`, …), `perry-explain
+<ID>` answers about one id, and `--json` is the whole payload — unchanged, and
+still the contract `schema/` documents.
+
 ## Step 3b — load the mode file for each declared track
 
-3b. **Load the mode file for each declared track** — `project.config.tracks[]`
-   in the payload above. For each distinct `mode` in that list, read
+3b. **Load the mode file for each declared track** — `project.tracks[]` in
+   the payload above (`project.config.tracks[]` under `--json`). For each distinct `mode` in that list, read
    `$PERRY_HOME/modes/<mode>.md` in full, once. **A mode that is not one of the
    four** (a typo in the register — `perry-state` passes the cell through
    verbatim) has no file: say so in one line, fall back to `project` for that
@@ -101,8 +128,8 @@ say so and ask which wins rather than resuming into a mixed scope.
 
 ## Step 3c — apply the active packs' display glossary
 
-3c. **Apply the active packs' display glossary** — `project.config.packs[]` in
-   the payload. Each entry carries a `glossary` map of *term → shown as*. When
+3c. **Apply the active packs' display glossary** — `project.packs[]` in the
+   payload (`project.config.packs[]` under `--json`). Each entry carries a `glossary` map of *term → shown as*. When
    rendering anything a human reads — the dashboard, the TL;DR, suggested
    actions, `AskUserQuestion` labels — substitute the mapped nouns.
 

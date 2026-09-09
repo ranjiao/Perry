@@ -414,7 +414,10 @@ class TestListContract(unittest.TestCase):
                 "intake", "tasks", "open", "closed", "events", "untitled",
                 # 1.6 — the three blocks that were readable only through
                 # `perry-state --json`, the payload with no version.
-                "risks", "asks", "drift"}
+                "risks", "asks", "drift",
+                # 1.19 — how many rows `tasks[]` may carry, what the call
+                # matched before the bound, and whether the two differ.
+                "bound"}
     RISKS_KEYS = {"items", "open", "cleared", "source"}
     RISK_KEYS = {"id", "title", "severity", "severity_text", "severity_rank",
                  "source", "opened", "age_days", "status", "cleared_on", "meta"}

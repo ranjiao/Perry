@@ -351,5 +351,64 @@ class TestAddWritesTheDesignEdge(unittest.TestCase):
             [], "a row opened without --design gained an edge")
 
 
+class TestListIsBounded(unittest.TestCase):
+    """DESIGN-016 B2, goal 6 — no call returns more rows than a declared cap
+    unless the caller asked for them.
+
+    `perry-task list --json` on Perry's own repository is 538,134 bytes and
+    `--all --json` is 1,683,852 — about 420k tokens, more than the context
+    window of anything that reads it.
+    """
+
+    def setUp(self):
+        self.p = Project()
+        for n in range(6):
+            self.p.run("add", "--title", f"a row to bound {n}")
+
+    def _list(self, *argv):
+        out = run("perry-task", "list", "--root", str(self.p.root), "--json",
+                  *argv)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout), out.stderr
+
+    def test_the_bound_is_declared_even_when_it_changes_nothing(self):
+        payload, _err = self._list()
+        self.assertEqual(payload["bound"]["returned"],
+                         payload["bound"]["total"])
+        self.assertFalse(payload["bound"]["truncated"])
+        self.assertTrue(payload["bound"]["default"])
+
+    def test_a_smaller_limit_truncates_and_says_so_twice(self):
+        payload, err = self._list("--limit", "2")
+        self.assertEqual(len(payload["tasks"]), 2)
+        self.assertEqual(payload["bound"]["total"], 6)
+        self.assertTrue(payload["bound"]["truncated"])
+        self.assertFalse(payload["bound"]["default"])
+        self.assertIn("2 of 6", err, "the truncation was silent on stderr")
+
+    def test_limit_zero_is_every_row(self):
+        payload, err = self._list("--limit", "0")
+        self.assertEqual(len(payload["tasks"]), 6)
+        self.assertIsNone(payload["bound"]["limit"])
+        self.assertFalse(payload["bound"]["truncated"])
+        self.assertEqual(err.strip(), "")
+
+    def test_a_limit_that_is_not_a_number_is_refused(self):
+        out = run("perry-task", "list", "--root", str(self.p.root), "--json",
+                  "--limit", "many")
+        self.assertEqual(out.returncode, 1, out.stdout)
+        # A refusal from a `--json` command comes back as JSON on stdout, not
+        # as prose on stderr — `schema/task-list-contract.md § stderr is not
+        # the failure channel`.
+        self.assertIn("--limit", out.stdout + out.stderr)
+
+    def test_the_contract_version_moved_with_the_meaning(self):
+        """A consumer pinned to 1.18 must be able to see that rows can now be
+        missing. `semantics` is where that is said."""
+        payload, _err = self._list()
+        self.assertEqual(payload["contract"], "perry-task/list/1.19")
+        self.assertIn("1.19", [e["version"] for e in payload["semantics"]])
+
+
 if __name__ == "__main__":
     unittest.main()
