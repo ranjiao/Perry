@@ -307,7 +307,7 @@ class TestTheContractAnnouncedTheChange(unittest.TestCase):
         document has to name it. Pinning the head version made every LATER
         bump fail here — which is the defect
         `test_answered_ask_is_legible` names in its own docstring, and this
-        file had it too until 1.19 walked into it."""
+        file had it too until the 2.0 bump walked into it."""
         shipped = tuple(int(n) for n
                         in PT.LIST_CONTRACT.rsplit("/", 1)[1].split("."))
         self.assertGreaterEqual(shipped, (1, 14))

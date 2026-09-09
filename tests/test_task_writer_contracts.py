@@ -423,7 +423,7 @@ class TestListContract(unittest.TestCase):
                 # 1.6 — the three blocks that were readable only through
                 # `perry-state --json`, the payload with no version.
                 "risks", "asks", "drift",
-                # 1.19 — how many rows `tasks[]` may carry, what the call
+                # 2.0 — how many rows `tasks[]` may carry, what the call
                 # matched before the bound, and whether the two differ.
                 "bound"}
     RISKS_KEYS = {"items", "open", "cleared", "source"}
@@ -513,13 +513,22 @@ class TestListContract(unittest.TestCase):
         _, out = p.run("list", "--all", *extra)
         return out
 
-    def test_the_version_handle_is_present_and_major_1(self):
+    def test_the_version_handle_is_present_and_major_2(self):
+        """**The major moved to 2 on 2026-09-09, by the user's decision.**
+
+        This test used to pin major 1 and say the bump "is intended only for a
+        removed or retyped key". No key was removed or retyped —
+        `perry-task list` grew a default 200-row ceiling, so a consumer that
+        changes nothing receives fewer ROWS, and on this repository `--all`
+        reported `open: 24` against the project's 156. The contract page's rule
+        2 now covers rows as well as keys, and this gate moved with it. It is
+        still a gate: bumping the major again has to come back here."""
         d = self.payload(self.populated())
         self.assertEqual(d["contract"], PT.LIST_CONTRACT)
-        self.assertTrue(d["contract"].startswith("perry-task/list/1."),
-                        f"major bumped to {d['contract']} — every consumer "
-                        f"checking major == 1 now refuses; that is intended "
-                        f"only for a removed or retyped key")
+        self.assertTrue(d["contract"].startswith("perry-task/list/2."),
+                        f"major moved to {d['contract']} — every consumer "
+                        f"checking `major != 2` now refuses, which is a "
+                        f"decision, not a side effect")
 
     def test_every_declared_key_is_present_on_every_task(self):
         """Rule 1 of the contract: an unknown value is "", null or [] — never a

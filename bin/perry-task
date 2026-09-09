@@ -52,7 +52,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.19"
+LIST_CONTRACT = "perry-task/list/2.0"
 
 #: How many rows `list` returns when the caller names no bound. DESIGN-016
 #: goal 6, and the measurement behind it: `perry-task list --json` on this
@@ -180,18 +180,21 @@ LIST_SEMANTICS = [
     {"version": "1.18",
      "fields": ["tasks[].created", "tasks[].updated", "tasks[].timeline[].ts"],
      "note": "Every event appended from now on stamps its UTC OFFSET: `2026-08-28T02:15:22+08:00`, where the same event used to be written `2026-08-28T02:15:22` and meant local wall clock without saying so. The lines already in the log are not rewritten and still carry no zone; `bin/lib § ts_moment` reads those as the reading machine's local time, which is what `datetime.now()` wrote them as. Local rather than UTC on purpose, so the log's text goes on rising across the cutover. A consumer that parses `ts` must accept an offset — `datetime.fromisoformat` always has; a hand-rolled `%Y-%m-%dT%H:%M:%S` will not — and one that compares two of them as TEXT is why this moved: the register stamps UTC, and comparing the two shapes as strings put every move inside the machine's offset on the wrong side of the assertion it was compared against."},
-    {"version": "1.19",
-     "fields": ["bound", "tasks"],
-     "note": "`tasks[]` IS NOW BOUNDED. A call that names no `--limit` returns "
-             "at most 200 rows and `bound.truncated` says so; the count it "
-             "would have returned is `bound.total`. Before 1.19 every matching "
-             "row came back, which on this repository is 538KB for a default "
-             "call and 1.68MB for `--all` — about 420k tokens, more than any "
-             "context window it is read in. `--limit 0` restores the old "
-             "behaviour explicitly and `--limit <n>` sets another bound. "
-             "`open` and `closed` still count THIS payload's rows, so on a "
-             "truncated call they count the returned ones; `bound.total` is "
-             "the unbounded figure."},
+    {"version": "2.0",
+     "fields": ["bound", "tasks", "open", "closed"],
+     "note": "`tasks[]` IS NOW BOUNDED, and this is a MAJOR because a "
+             "consumer that changes nothing receives fewer rows. A call that "
+             "names no `--limit` returns at most 200 and `bound.truncated` "
+             "says so; `bound.total`, `bound.open_total` and "
+             "`bound.closed_total` are the figures before the bound. Until "
+             "2.0 every matching row came back, which on this repository is "
+             "538KB for a default call and 1.68MB for `--all` — about 420k "
+             "tokens, more than any context window it is read in. `--limit 0` "
+             "restores the old behaviour explicitly. `open` and `closed` "
+             "still count THIS payload's rows, so on a truncated call they "
+             "count the returned ones: measured here, `--all` reported 24 "
+             "open against the project's 156, which is why the major is the "
+             "honest number even though no key changed."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:
@@ -7519,8 +7522,11 @@ def cmd_list(args, ctx) -> dict:
     # than applied quietly: `bound.total` is what the call matched, `returned`
     # is what is in `tasks[]`, and `truncated` says whether those differ. A
     # consumer that reads `tasks[]` and nothing else sees fewer rows, so the
-    # tool also says so on stderr — `contract 1.19` and `semantics` carry it
-    # for the ones that read the payload properly.
+    # tool also says so on stderr — `contract 2.0` and `semantics` carry it
+    # for the ones that read the payload properly. It is a MAJOR (user's
+    # decision, 2026-09-09): no key changed, but a consumer that changes
+    # nothing gets fewer rows, and a conforming one stops on `major != 1`
+    # rather than quietly rendering a window as if it were the project.
     total = len(rows)
     # **Counted before the bound.** `open` and `closed` count the rows in the
     # payload — the contract has always said so — but on a truncated call that

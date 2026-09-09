@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.19`**
+> Contract: **`perry-task/list/2.0`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -97,7 +97,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.19",  // check this before anything else
+  "contract":     "perry-task/list/2.0",   // check this before anything else
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
@@ -130,9 +130,9 @@ from task rows in Markdown.
 }
 ```
 
-**Since contract 1.19, `tasks[]` is bounded.** A call that names no `--limit`
+**Since contract 2.0, `tasks[]` is bounded.** A call that names no `--limit`
 returns at most 200 rows, `bound.truncated` says whether that changed anything,
-and the tool prints one line on stderr when it did. Before 1.19 every matching
+and the tool prints one line on stderr when it did. Until 2.0 every matching
 row came back: on this repository that is 538,134 bytes for a default call and
 1,683,852 for `--all` — about 420k tokens, more than the context window of any
 agent reading it.
@@ -565,8 +565,11 @@ comparison performed"* the same way on the same tree.
 
 1. **Every key above is always present.** An unknown value is `""`, `null` or
    `[]` — never a missing key. You need no `if "owner" in task`.
-2. **A key is never removed or retyped without a major bump.** `1.x` → `1.y` may
-   only *add* keys.
+2. **A key is never removed or retyped without a major bump, and neither are
+   ROWS.** `x.y` → `x.z` may only *add* keys and may not shrink an array a
+   consumer already reads. `2.0` is the first major, and it is one for the
+   second reason rather than the first: no key changed and `tasks[]` got a
+   default ceiling (see the changelog).
 3. **`contract` is the handle — and check BOTH halves.** The major says
    whether you can parse it. The **minor says whether a value still means what
    it meant when you wrote your code**, which is not the same question, and
@@ -633,13 +636,24 @@ change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
-### 1.19 — `tasks[]` is bounded, 2026-09-09 (DESIGN-016 goal 6)
+### 2.0 — `tasks[]` is bounded, 2026-09-09 (DESIGN-016 goal 6)
 
 **A call that names no `--limit` now returns at most 200 rows.** `bound` in the
 payload says what was applied, what the call matched before the bound
 (`bound.total`), and whether anything was dropped (`bound.truncated`); the tool
 also prints one line on stderr when it truncates. `--limit 0` returns every row
 and is the explicit spelling of the old behaviour.
+
+**Why a MAJOR when no key changed.** Rule 2 above used to cover keys only, and
+by that letter this was a minor: it shipped as `1.19` for a few hours on
+2026-09-09 and the user took it to `2.0` the same day. The reason is what a
+consumer experiences — one that changes nothing receives fewer rows, and on
+this repository `--all` reported `open: 24` against the project's 156. A minor
+tells a reader "your parsing still works", which is true and beside the point;
+a major stops them at `major != 1` and sends them here. The precedent is on
+this contract's sibling: `perry-events/list/1.1` returned different ROWS with
+no key change, and its own note says that is "precisely the change `1.x` only
+adds keys does not cover".
 
 **Why a read got a ceiling.** Measured on Perry's own repository:
 `perry-task list --json` is 538,134 bytes and `--all --json` is 1,683,852 —

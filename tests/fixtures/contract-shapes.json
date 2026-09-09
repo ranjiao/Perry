@@ -96,7 +96,7 @@
     }
   },
   "perry-task/list": {
-    "contract": "perry-task/list/1.11",
+    "contract": "perry-task/list/2.0",
     "shape": {
       "asks": "dict",
       "asks.items": "list",

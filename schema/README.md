@@ -216,7 +216,10 @@ fixtures (`tests/fixtures/sample-project/`).
 > (`schema/task-list-contract.md`) and takes a Python 3 dependency. The shared
 > artifact for task state is that **payload**, not this schema.
 >
-> **Contract 1.19 (2026-09-09) bounds that call at 200 rows.** Pass
+> **Contract 2.0 (2026-09-09) bounds that call at 200 rows.** It is a MAJOR:
+> a consumer that changes nothing gets fewer rows, so the version stops one
+> that checks `major != 1` rather than letting it render a window as the whole.
+> Pass
 > `--limit 0` for the whole store, or read `bound.open_total` and
 > `bound.closed_total`, which are counted before the bound. Unbounded, this
 > repository's own `--all` payload is 1,683,852 bytes.
