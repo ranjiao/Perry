@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+
+import inproc
 import sys
 import tempfile
 import pathlib
@@ -51,10 +53,16 @@ def load_bin_module(name: str):
 
 
 def scan(root: Path) -> dict:
-    out = subprocess.run(
-        [sys.executable, str(DIAGNOSE), "--root", str(root), "--json"],
-        capture_output=True, text=True, timeout=120,
-    )
+    # **In-process.** 121 of this module's 153 subprocess calls are this one.
+    # Against a fixture the boundary is two thirds of the call, and
+    # `perry-diagnose`'s `_TEXT_CACHE` is cleared at the top of `diagnose()`
+    # precisely so a second call in one process cannot serve the first call's
+    # bytes — see that clear's comment, which names this module as the caller
+    # it exists for. `cwd` is pinned because a tool with no `--root` walks up
+    # from the working directory, and the four calls that pass `PERRY_HOME`
+    # here would otherwise depend on where the module was invoked from.
+    out = inproc.run("perry-diagnose",
+                     ["--root", str(root), "--json"], cwd=PERRY_HOME)
     assert out.returncode == 0, f"perry-diagnose exited {out.returncode}: {out.stderr}"
     return json.loads(out.stdout)
 

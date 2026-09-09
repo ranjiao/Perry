@@ -117,6 +117,8 @@ import json
 import pathlib
 import re
 import subprocess
+
+import inproc
 import sys
 from typing import NamedTuple
 
@@ -434,10 +436,18 @@ def invoke(text: str) -> tuple[list[str], str]:
 
 def run(argv: list[str], root: str, subtree: str, label: str) -> dict:
     """The command a page's own heading states, against one project."""
-    proc = subprocess.run(
-        [sys.executable, f"bin/{argv[0]}", *argv[1:]]
-        + (["--root", root] if root else []),
-        capture_output=True, text=True, cwd=ROOT)
+    # **In-process.** Seven modules reach the tools through this one call, and
+    # `test_contract_key_parity` alone made 179 of them for 23.6 of its 24.1
+    # seconds — five different tools, every call small, so the cost is the
+    # boundary rather than the work. The `cwd=ROOT` this replaced is not lost:
+    # `tests/parallel § run_module` already spawns each module with `cwd=ROOT`,
+    # so the calling process is standing there. Checked before converting, per
+    # `tests/inproc.py`: the module globals of all five tools
+    # (`perry-task`, `perry-decide`, `perry-goals`, `perry-state`,
+    # `perry-knowledge`) derive from `schema/state-schema.json` or from a
+    # sibling module, none from the project root.
+    proc = inproc.run(argv[0], [*argv[1:]]
+                      + (["--root", root] if root else []), cwd=ROOT)
     if proc.returncode != 0:
         raise RuntimeError(f"{label}: `{' '.join(argv)}` exited "
                            f"{proc.returncode}: {proc.stderr[-300:]}")

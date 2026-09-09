@@ -133,12 +133,39 @@ def _environ(overrides: dict | None):
                 os.environ[k] = old
 
 
-def run(tool: str, argv: list[str], env: dict | None = None) -> Result:
+@contextlib.contextmanager
+def _cwd(path):
+    """Pin the working directory, then put it back.
+
+    `subprocess.run(..., cwd=X)` pins the child's directory and cannot leak;
+    in-process there is one directory for the whole test process, so a caller
+    that relied on `cwd=` gets it here explicitly or not at all. A tool with no
+    `--root` resolves its project by walking up from the cwd, so dropping the
+    pin does not fail loudly — it silently reads a DIFFERENT project. That is
+    exactly what happened when `tests/contract_key_parity` was first converted
+    and the module was then run from `tests/` rather than the repository root:
+    twelve errors that reproduced under no isolation and vanished from the
+    root. `tests/parallel § run_module` spawns with `cwd=ROOT`, so the suite
+    never saw it, which is worse rather than better.
+    """
+    if path is None:
+        yield
+        return
+    before = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(before)
+
+
+def run(tool: str, argv: list[str], env: dict | None = None,
+        cwd=None) -> Result:
     """Call `bin/<tool>`'s `main(argv)` here. Shaped like a finished process."""
     mod = load(tool)
     out, err = io.StringIO(), io.StringIO()
     code = 0
-    with _environ(env):
+    with _cwd(cwd), _environ(env):
         try:
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 rc = mod.main(list(argv))

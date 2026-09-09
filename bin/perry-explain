@@ -319,9 +319,24 @@ def heading_title(text: str, subject: str) -> str:
     return lead.strip(TITLE_TRIM)
 
 
-def harvest(root: Path) -> dict:
-    """Every ID in the project: where defined, where mentioned, what it is."""
+def harvest(root: Path, read=None) -> dict:
+    """Every ID in the project: where defined, where mentioned, what it is.
+
+    `read` is an optional `Path -> str` for a caller that has already read
+    these files. It exists for one caller and one measurement:
+    `perry-diagnose` walks the same 738 markdown files this does — its
+    `inventory["md"]` and `walk_md(root)` return the same set — reads them in
+    `scan_docs`, hands them to `scan_user_load` as `docs`, and then called
+    `harvest(root)`, which read all 738 again. `scan_user_load` was 1.79s of a
+    3.60s diagnosis, half of it that second pass.
+
+    Default behaviour is unchanged: with no `read`, this reads the files
+    itself, which is what every other caller wants.
+    """
     entries: dict[str, dict] = {}
+    if read is None:
+        def read(path: Path) -> str:
+            return path.read_text(encoding="utf-8", errors="replace")
 
     def ent(i: str) -> dict:
         return entries.setdefault(i, {
@@ -331,7 +346,7 @@ def harvest(root: Path) -> dict:
 
     for path in sorted(walk_md(root)):
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = read(path)
             lines = text.splitlines()
             mention_lines = blank_code_spans(text).splitlines()
         except OSError:

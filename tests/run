@@ -42,6 +42,16 @@ if [ "${1:-}" = "--only" ]; then
   fi
 fi
 
+# `--slow` adds the harness's own self-tests back, which a default run leaves
+# out (TASK-400; the set and the argument are `tests/parallel §
+# HARNESS_SELF_TESTS`). Step 0 below still runs the tree guard on every path,
+# including this one and `--lint` — what `--slow` restores is the proof that
+# the guard can go red, never the guard.
+slow=""
+if [ "${1:-}" = "--slow" ]; then
+  slow="--slow"
+fi
+
 # ── step 0a: the environment the guard can see ─────────────────────────
 # **The guard hashes $ROOT and only $ROOT, so every write has to be aimed at
 # $ROOT for it to see them.** `perry-task` resolves its project root from
@@ -192,6 +202,8 @@ if [ "${PERRY_TEST_SERIAL:-}" = "1" ] || [ "${1:-}" = "--serial" ]; then
   python3 -m unittest discover -s tests || fail=1
 elif [ -n "$only" ]; then
   python3 tests/parallel "$only" || fail=1
+elif [ -n "$slow" ]; then
+  python3 tests/parallel --slow || fail=1
 else
   python3 tests/parallel || fail=1
 fi
