@@ -1,494 +1,502 @@
 {
  "schema": 1,
  "sources": {
-  "2026-09-08-083955": {
-   "ref": "281dacc6059757d910ef5cc2a9ef3d12b5e896df",
-   "taken": "2026-09-08T08:39:55Z",
+  "2026-09-09-020205": {
+   "ref": "83e6ce86c807627fc9fb758e84d11466f3acacf2",
+   "taken": "2026-09-09T02:02:05Z",
    "workers": 8,
-   "load1": 32.21,
+   "load1": 17.18,
    "note": "`tests/parallel --record -j 8`."
   }
  },
  "modules": {
   "test_add_declares_unlinked.py": {
-   "sec": 6.73,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_add_writes_the_edge.py": {
-   "sec": 5.47,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_amend_matches_create.py": {
-   "sec": 0.08,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_answered_ask_is_legible.py": {
-   "sec": 7.7,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_ask_is_a_node.py": {
-   "sec": 12.55,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_asks_store.py": {
-   "sec": 5.65,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_attribution_buckets.py": {
-   "sec": 1.51,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_blank_cell_is_one_rule.py": {
-   "sec": 0.11,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_board_render.py": {
-   "sec": 42.41,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_cadence.py": {
-   "sec": 12.89,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
+  },
+  "test_churn.py": {
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_claims.py": {
-   "sec": 11.04,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_config_store_readers.py": {
-   "sec": 0.8,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_context_budget.py": {
-   "sec": 0.81,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_contract_invariance.py": {
-   "sec": 4.52,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_contract_key_parity.py": {
-   "sec": 43.5,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_count_fields.py": {
-   "sec": 1.68,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_decide_status_enum.py": {
-   "sec": 2.88,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_decide_writer.py": {
-   "sec": 7.46,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_decoration_changes_nothing.py": {
-   "sec": 14.65,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_design_handoff.py": {
-   "sec": 2.37,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_diagnose.py": {
-   "sec": 66.72,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_dispatch_limit_honesty.py": {
-   "sec": 2.01,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_duplicate_ids_are_refused.py": {
-   "sec": 2.92,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_durations_provenance.py": {
-   "sec": 0.61,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_entrance.py": {
-   "sec": 0.12,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_escalation_boundaries.py": {
-   "sec": 0.25,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_escalation_union.py": {
-   "sec": 3.5,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_escaped_pipe_corpus.py": {
-   "sec": 1.06,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_events_feed.py": {
-   "sec": 3.18,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_evidence_relation.py": {
-   "sec": 4.1,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_explain_typed_tasks.py": {
-   "sec": 1.16,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_glossary.py": {
-   "sec": 52.3,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_goals_contract.py": {
-   "sec": 1.59,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_goals_writer.py": {
-   "sec": 54.98,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_header_index_is_the_only_fold.py": {
-   "sec": 17.48,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_header_rule_harness.py": {
-   "sec": 41.98,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_heading_defines.py": {
-   "sec": 0.94,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_heading_title.py": {
-   "sec": 1.51,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_host_support.py": {
-   "sec": 35.17,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_i18n.py": {
-   "sec": 0.56,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_i18n_one_table.py": {
-   "sec": 0.16,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_id_families.py": {
-   "sec": 1.33,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_intake_signal.py": {
-   "sec": 0.86,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_intake_store.py": {
-   "sec": 8.36,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_knowledge_cards.py": {
-   "sec": 1.87,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_knowledge_promotion.py": {
-   "sec": 4.67,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_kr_progress_provenance.py": {
-   "sec": 3.28,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_last_updated_header.py": {
-   "sec": 2.08,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_linkage_store_declared.py": {
-   "sec": 1.17,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_linkage_store_readers.py": {
-   "sec": 3.95,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_linkage_task_exists.py": {
-   "sec": 2.23,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_linkage_writer.py": {
-   "sec": 5.81,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_live_state_expectations.py": {
-   "sec": 6.58,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_md_store.py": {
-   "sec": 4.92,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_missing_defaults.py": {
-   "sec": 0.97,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_ns_collision.py": {
-   "sec": 18.95,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_okr_store_is_the_source.py": {
-   "sec": 3.66,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_one_choke_point.py": {
-   "sec": 3.71,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_one_header_rule.py": {
-   "sec": 9.92,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_one_heading_predicate.py": {
-   "sec": 1.48,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_one_line_break_rule.py": {
-   "sec": 4.55,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_one_primitive.py": {
-   "sec": 0.19,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_one_startable_rule.py": {
-   "sec": 3.94,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_overall_kr_grammar.py": {
-   "sec": 1.61,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_ownership.py": {
-   "sec": 0.22,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_parallel_runner.py": {
-   "sec": 9.1,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_parsers.py": {
-   "sec": 2.87,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_phase_kr_declared_once.py": {
-   "sec": 2.96,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_pointers_resolve.py": {
-   "sec": 0.43,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_prioritize.py": {
-   "sec": 7.74,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_procedures_call_the_tool.py": {
-   "sec": 0.5,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_procedures_read_the_contract.py": {
-   "sec": 0.27,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_project_root_resolution.py": {
-   "sec": 20.65,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_purge.py": {
-   "sec": 38.29,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_queue_sla.py": {
-   "sec": 11.69,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_reference_pages_are_reachable.py": {
-   "sec": 0.13,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_register_minters.py": {
-   "sec": 19.66,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_register_store_invariant.py": {
-   "sec": 20.64,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_register_substitution.py": {
-   "sec": 15.27,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_restore_check.py": {
-   "sec": 5.0,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_resume.py": {
-   "sec": 1.88,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_retired_tolerance.py": {
-   "sec": 1.31,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_review_verdicts.py": {
-   "sec": 9.75,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_risks.py": {
-   "sec": 23.85,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_risks_store.py": {
-   "sec": 13.72,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_role_cards.py": {
-   "sec": 5.51,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_role_delegation.py": {
-   "sec": 2.18,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_role_on_rows.py": {
-   "sec": 1.29,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_router_budget.py": {
-   "sec": 0.38,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_row_integrity.py": {
-   "sec": 1.2,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_rung_vocabulary.py": {
-   "sec": 41.7,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_same_action_linkage.py": {
-   "sec": 3.53,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_semantics_on_every_payload.py": {
-   "sec": 4.28,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_shipped_vocabulary.py": {
-   "sec": 2.21,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
+  },
+  "test_slow_selector.py": {
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_spec_scannability.py": {
-   "sec": 4.68,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_stage_separators.py": {
-   "sec": 0.95,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_stale_blocked.py": {
-   "sec": 9.83,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_state_cost.py": {
-   "sec": 22.37,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_store_drift.py": {
-   "sec": 13.03,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_store_is_canonical.py": {
-   "sec": 11.24,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_store_is_the_write_target.py": {
-   "sec": 18.33,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_stranded_rows.py": {
-   "sec": 28.77,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_summary_is_asked_for.py": {
-   "sec": 3.88,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_task_store.py": {
-   "sec": 21.73,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_task_store_read_cutover.py": {
-   "sec": 2.01,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_task_summary.py": {
-   "sec": 14.94,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_task_writer_contracts.py": {
-   "sec": 29.81,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_task_writer_core.py": {
-   "sec": 37.73,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_task_writer_dependencies.py": {
-   "sec": 30.38,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_task_writer_intake.py": {
-   "sec": 27.92,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_task_writer_modes.py": {
-   "sec": 28.76,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_track_attribution.py": {
-   "sec": 10.41,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_track_axes.py": {
-   "sec": 0.06,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_track_move.py": {
-   "sec": 22.87,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_track_register_source.py": {
-   "sec": 1.68,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_tree_guard.py": {
-   "sec": 61.3,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_unlinked_declaration.py": {
-   "sec": 4.26,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_v5_signoff.py": {
-   "sec": 19.85,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_wip_and_stages.py": {
-   "sec": 1.47,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   },
   "test_work_modes.py": {
-   "sec": 8.8,
-   "source": "2026-09-08-083955"
+   "sec": 0.01,
+   "source": "2026-09-09-020205"
   }
  }
 }

@@ -1,18 +1,51 @@
 #!/usr/bin/env python3
-"""perry-churn — per-day line churn from git history, docs split from code.
+"""perry-churn — per-day line churn from git history, split by what the line is.
 
-Reads `git log --numstat` and groups every added / deleted line by the day
-its commit was authored, in two buckets:
+Reads `git log --numstat` and groups every added / deleted line by the day its
+commit was authored.
+
+In any git repository the split is two ways:
 
   docs   files whose extension is a documentation extension (.md, .markdown,
          .mdx by default) or whose path matches a --doc-glob
   code   everything else
 
+**In a Perry-managed project — one with a `.perry/` directory — the split is
+four ways instead, with no flag.** Two of those columns are the ones a churn
+number is usually wanted for, and both were previously hidden inside a larger
+one:
+
+  docs      documentation that is not evidence — the design docs, the board,
+            the reference. What actually accumulated as writing.
+  evidence  `<state root>/evidence/**` — the per-task record Perry writes as a
+            by-product of closing rows. Real output, but not the same thing.
+  code      code that is not a test — the feature work.
+  tests     files under a test tree (`tests/`, `test/`, `__tests__/`, `e2e/`,
+            `testdata/`, `__mocks__/`, `__fixtures__/`) or named like a test
+            (`test_x.py`, `x_test.go`, `x.spec.ts`, `XTest.java`, `conftest.py`
+            and friends). The test rule is about the PATH and it wins over the
+            extension, so a markdown fixture under `tests/` counts as a test
+            rather than as documentation — which is what it is.
+
+**The four columns sum to the same grand total as the two, but `docs` is not
+the old `docs`.** A markdown fixture under `tests/` moves from documentation to
+tests, so `docs + evidence` is smaller than the two-way `docs` column by
+however much of that there is — on this repository, 268 files. That is the
+inflation the split exists to remove, not a discrepancy. `--plain` prints the
+old table unchanged, to the byte, whenever the old number is the one wanted.
+
+The state root is resolved the way every other Perry reader resolves it (see
+`viewer/parsers.py § resolve_state_root`), so a project that declares
+`State root: perry` gets `perry/evidence/` and not `evidence/`. Detection and
+resolution are both best-effort: outside a Perry checkout, or with no `.perry/`
+to find, the tool falls back to the two-way split and says so.
+
 Binary files carry no line counts in numstat; they are counted as files and
 reported in a footer, never folded into the line totals.
 
 Nothing is installed and nothing is imported beyond the Python 3 standard
-library, so it runs in any git repository as-is.
+library plus, when a Perry project is found, Perry's own state-root resolver.
+It runs in any git repository as-is.
 
 Usage:
   perry-churn [--days N] [options] [-- <git log args>]
@@ -30,6 +63,15 @@ Options:
                        (default: .md,.markdown,.mdx). Replaces the default.
   --doc-glob <pat>     also count paths matching this glob as docs
                        (repeatable, e.g. --doc-glob 'docs/*')
+  --split              force the four-way split on, in a repository where no
+                       `.perry/` was found. `evidence` is then whatever
+                       --evidence-glob names, and nothing else.
+  --plain              force the two-way split, in a Perry project that would
+                       otherwise get four columns.
+  --evidence-glob <p>  also count paths matching this glob as evidence
+                       (repeatable). Implies --split.
+  --test-glob <pat>    also count paths matching this glob as tests
+                       (repeatable). Implies --split.
   --include-merges     count merge commits too (default: skipped)
   --committer-date     bucket by committer date instead of author date
   --reverse            newest bucket first (default: oldest first)
@@ -45,17 +87,45 @@ Examples:
   perry-churn -C ~/proj/other --days 14
   perry-churn --since "30 days ago"
   perry-churn --by week --author ranjiao
+  perry-churn --plain --days 30
+  perry-churn --split --test-glob 'spec/*' -C ~/proj/other
   perry-churn --json --since 2026-01-01 > churn.json
 """
 
 import json
+import os
 import subprocess
 import sys
 from collections import OrderedDict
 from datetime import date, timedelta
 from fnmatch import fnmatch
+from pathlib import Path
 
 DEFAULT_DOC_EXT = (".md", ".markdown", ".mdx")
+
+# The four buckets, in display order. `doc` and `code` lead their own family
+# because they are the ones the question is usually about — how much writing,
+# how much feature code — and the derived bucket follows the thing it was
+# carved out of.
+KINDS = ("doc", "evidence", "code", "test")
+
+#: What each bucket is CALLED in the table and the footer. The keys stay
+#: singular because they are also the CSV column stems and the JSON field
+#: stems, and `doc_added` / `code_added` are what every existing reader of this
+#: tool's output already parses; renaming them to make a header read better
+#: would break those for a plural.
+LABELS = {"doc": "docs", "evidence": "evidence", "code": "code", "test": "tests"}
+
+#: Directory names that make everything under them a test. `spec/` and `specs/`
+#: are deliberately NOT here: a `spec/` directory is a directory of tests in
+#: Ruby and a directory of specifications in about as many other projects, and
+#: the file-name rule below already catches `*_spec.rb` and `*.spec.ts` wherever
+#: they live. Guessing wrong on a whole tree is a much larger error than missing
+#: a file, and `--test-glob 'spec/*'` covers the other reading in one flag.
+TEST_DIRS = frozenset({
+    "test", "tests", "__tests__", "e2e", "testdata", "__mocks__",
+    "__fixtures__",
+})
 
 # Field separators inside the --pretty format. \x01 marks a commit header
 # line so it can never be confused with a numstat line.
@@ -79,11 +149,19 @@ def parse_args(argv):
         "by": "day",
         "doc_ext": list(DEFAULT_DOC_EXT),
         "doc_globs": [],
+        "evidence_globs": [],
+        "test_globs": [],
+        "split": None,          # None = decide by detection
         "merges": False,
         "committer": False,
         "reverse": False,
         "fmt": "table",
         "git_args": [],
+        # Filled in by detect_perry(); see resolve_split().
+        "perry_root": None,
+        "state_root": None,
+        "state_root_from": None,
+        "evidence_prefix": "",
     }
     i = 0
     while i < len(argv):
@@ -95,7 +173,8 @@ def parse_args(argv):
             opts["git_args"] = argv[i + 1:]
             break
         elif a in ("-n", "--days", "-C", "--since", "--until", "--author",
-                   "--rev", "--by", "--doc-ext", "--doc-glob"):
+                   "--rev", "--by", "--doc-ext", "--doc-glob",
+                   "--evidence-glob", "--test-glob"):
             if i + 1 >= len(argv):
                 die("%s needs a value" % a)
             val = argv[i + 1]
@@ -133,7 +212,21 @@ def parse_args(argv):
                 opts["doc_ext"] = exts
             elif a == "--doc-glob":
                 opts["doc_globs"].append(val)
+            elif a == "--evidence-glob":
+                opts["evidence_globs"].append(val)
+                if opts["split"] is None:
+                    opts["split"] = True
+            elif a == "--test-glob":
+                opts["test_globs"].append(val)
+                if opts["split"] is None:
+                    opts["split"] = True
             continue
+        elif a == "--split":
+            opts["split"] = True
+        elif a == "--plain":
+            # Last one wins, and it wins over the implication a glob carries:
+            # `--test-glob X --plain` asked for two columns and gets them.
+            opts["split"] = False
         elif a == "--include-merges":
             opts["merges"] = True
         elif a == "--committer-date":
@@ -155,6 +248,112 @@ def parse_args(argv):
 def window_start(days):
     """First day of a --days N window: today counts as day 1."""
     return date.today() - timedelta(days=days - 1)
+
+
+def git_out(args, cwd):
+    """`git <args>` stdout stripped, or None if git said no."""
+    try:
+        proc = subprocess.run(["git"] + args, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, cwd=cwd)
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.decode("utf-8", "replace").strip()
+
+
+def git_toplevel(cwd):
+    top = git_out(["rev-parse", "--show-toplevel"], cwd)
+    return Path(top).resolve() if top else None
+
+
+def resolve_state_root(project_root):
+    """`(state root, "resolver" | "fallback")` — Perry's own resolver, or a guess.
+
+    **This is not a second implementation and must not become one.** The rule
+    that `.perry/` never moves while everything else may — and the six ways
+    reading it wrong has already gone wrong — is written down once, in
+    `viewer/parsers.py § resolve_state_root`, and `bin/lib` re-exports it so
+    `bin/` has a single import site. `perry-diagnose` used to carry a mirror
+    of it, justified as avoiding an import it was already making, and the
+    mirror could not read a Chinese config.
+
+    The import is deferred and guarded because this tool is otherwise
+    repository-agnostic: `-C ~/proj/other` must keep working from a tarball
+    install where `viewer/` is absent. A failure here costs the evidence
+    column its prefix, not the run.
+
+    **Which is why the caller is told WHICH answer it got.** The fallback is
+    not a harmless default: on a project that declares `State root: perry` it
+    yields `evidence/`, a prefix that matches nothing, and the evidence column
+    then reads a confident zero. That happened on the first run of this code
+    from a copy outside `PERRY_HOME` and the table looked entirely plausible.
+    `provenance()` says so on the line under the table.
+    """
+    try:
+        home = Path(os.environ.get("PERRY_HOME") or
+                    Path(__file__).resolve().parent.parent).resolve()
+        for d in (home / "viewer", home / "bin"):
+            if str(d) not in sys.path:
+                sys.path.insert(0, str(d))
+        import lib
+        return lib.resolve_state_root(project_root), "resolver"
+    except Exception:
+        return project_root, "fallback"
+
+
+def detect_perry(opts):
+    """Fill in `perry_root` / `state_root` / `evidence_prefix`, or leave them.
+
+    A Perry project is one with a `.perry/` directory — that is the anchor the
+    whole state layout hangs off, and the one thing that never moves. The walk
+    starts at the directory being reported on and stops at the repository top
+    level, because every path `git log --numstat` prints is relative to that
+    top level and a project root above it could not be expressed as a prefix.
+    """
+    top = git_toplevel(opts["cwd"])
+    if top is None:
+        return None
+    start = Path(opts["cwd"] or ".").resolve()
+    root = None
+    d = start
+    while True:
+        if (d / ".perry").is_dir():
+            root = d
+            break
+        if d == top or d.parent == d:
+            break
+        d = d.parent
+    if root is None and (top / ".perry").is_dir():
+        root = top
+    if root is None:
+        return None
+
+    state_root, how = resolve_state_root(root)
+    try:
+        rel = state_root.resolve().relative_to(top).as_posix()
+    except ValueError:
+        rel = ""
+    prefix = "" if rel in ("", ".") else rel.rstrip("/") + "/"
+    opts["perry_root"] = str(root)
+    opts["state_root"] = str(state_root)
+    opts["state_root_from"] = how
+    opts["evidence_prefix"] = prefix + "evidence/"
+    return root
+
+
+def resolve_split(opts):
+    """Decide the four-way split, and detect the project it depends on.
+
+    Detection runs whether or not the answer is still open, because `--plain`
+    on a Perry project should still be able to say which project it declined
+    to split — and because `--split` in a Perry project must pick the evidence
+    prefix up rather than leaving the column empty.
+    """
+    detect_perry(opts)
+    if opts["split"] is None:
+        opts["split"] = opts["perry_root"] is not None
+    return opts["split"]
 
 
 def git_log(opts):
@@ -214,6 +413,64 @@ def is_doc(path, opts):
     return False
 
 
+def is_evidence(path, opts):
+    for pat in opts["evidence_globs"]:
+        if fnmatch(path, pat):
+            return True
+    prefix = opts["evidence_prefix"]
+    return bool(prefix) and path.startswith(prefix)
+
+
+def is_test(path, opts):
+    """Is this path test material?
+
+    Three rules, in the order a reader would apply them: a glob the caller
+    added, a directory that makes everything under it a test, and a file name
+    that says so on its own. The CamelCase suffixes are checked case-sensitively
+    on purpose — a lowercase `endswith("test")` counts `manifest.json` and
+    `greatest.go` as tests.
+    """
+    for pat in opts["test_globs"]:
+        if fnmatch(path, pat):
+            return True
+    parts = path.split("/")
+    for comp in parts[:-1]:
+        if comp.lower() in TEST_DIRS:
+            return True
+    base = parts[-1]
+    if base == "conftest.py":
+        return True
+    stem = os.path.splitext(base)[0]
+    low = stem.lower()
+    if low in ("test", "tests", "spec", "specs"):
+        return True
+    if low.startswith(("test_", "test-", "spec_", "spec-")):
+        return True
+    if low.endswith(("_test", "-test", ".test", "_tests", "-tests", ".tests",
+                     "_spec", "-spec", ".spec", "_specs", "-specs", ".specs")):
+        return True
+    if stem.endswith(("Test", "Tests", "TestCase", "Spec", "Specs")):
+        return True
+    return False
+
+
+def classify(path, opts):
+    """Which bucket this path's lines belong to.
+
+    **The test and evidence rules run only when the split is on**, and that is
+    not an optimisation. Without the guard, a markdown fixture under `tests/`
+    would classify as `test` and then fold back into `code` for the two-way
+    output — silently moving lines that the two-way split has always counted as
+    docs. The plain table has to keep meaning exactly what it meant.
+    """
+    if opts["split"]:
+        if is_test(path, opts):
+            return "test"
+        if is_evidence(path, opts):
+            return "evidence"
+    return "doc" if is_doc(path, opts) else "code"
+
+
 def bucket_key(day, by):
     if by == "day":
         return day
@@ -225,12 +482,12 @@ def bucket_key(day, by):
 
 
 def new_bucket():
-    return {
-        "commits": 0,
-        "doc_added": 0, "doc_deleted": 0, "doc_files": 0,
-        "code_added": 0, "code_deleted": 0, "code_files": 0,
-        "binary_files": 0,
-    }
+    b = {"commits": 0, "binary_files": 0}
+    for k in KINDS:
+        b[k + "_added"] = 0
+        b[k + "_deleted"] = 0
+        b[k + "_files"] = 0
+    return b
 
 
 def collect(text, opts):
@@ -255,7 +512,7 @@ def collect(text, opts):
         if added == "-" or deleted == "-":
             cur["binary_files"] += 1
             continue
-        kind = "doc" if is_doc(path, opts) else "code"
+        kind = classify(path, opts)
         cur[kind + "_added"] += int(added)
         cur[kind + "_deleted"] += int(deleted)
         cur[kind + "_files"] += 1
@@ -294,6 +551,26 @@ def rows(buckets, opts):
     return [(k, buckets[k]) for k in keys]
 
 
+def shown_kinds(opts):
+    """The columns this run prints, and which raw buckets each one sums.
+
+    In the two-way output `evidence` and `test` are always zero — `classify`
+    never returns them — so folding them in is arithmetic that changes nothing
+    and documents the relationship rather than hiding it.
+    """
+    if opts["split"]:
+        return [(k, (k,)) for k in KINDS]
+    return [("doc", ("doc", "evidence")), ("code", ("code", "test"))]
+
+
+def cell(bucket, parts, field):
+    return sum(bucket[p + "_" + field] for p in parts)
+
+
+def net(bucket):
+    return sum(bucket[k + "_added"] - bucket[k + "_deleted"] for k in KINDS)
+
+
 def fmt_pm(added, deleted):
     return "+%s -%s" % ("{:,}".format(added), "{:,}".format(deleted))
 
@@ -301,28 +578,24 @@ def fmt_pm(added, deleted):
 def print_table(buckets, opts):
     data = rows(buckets, opts)
     tot = totals(buckets)
+    kinds = shown_kinds(opts)
     header = ("day" if opts["by"] == "day" else opts["by"]).upper()
-    cols = [header, "COMMITS", "DOCS", "CODE", "NET"]
-    lines = []
-    for key, b in data:
-        lines.append([
-            key,
-            "{:,}".format(b["commits"]),
-            fmt_pm(b["doc_added"], b["doc_deleted"]),
-            fmt_pm(b["code_added"], b["code_deleted"]),
-            "{:+,}".format(b["doc_added"] + b["code_added"] - b["doc_deleted"] - b["code_deleted"]),
-        ])
-    total_row = [
-        "TOTAL",
-        "{:,}".format(tot["commits"]),
-        fmt_pm(tot["doc_added"], tot["doc_deleted"]),
-        fmt_pm(tot["code_added"], tot["code_deleted"]),
-        "{:+,}".format(tot["doc_added"] + tot["code_added"] - tot["doc_deleted"] - tot["code_deleted"]),
-    ]
+    cols = ([header, "COMMITS"]
+            + [LABELS[name].upper() for name, _ in kinds] + ["NET"])
+
+    def body(key, b):
+        return ([key, "{:,}".format(b["commits"])]
+                + [fmt_pm(cell(b, parts, "added"), cell(b, parts, "deleted"))
+                   for _, parts in kinds]
+                + ["{:+,}".format(net(b))])
+
+    lines = [body(key, b) for key, b in data]
+    total_row = body("TOTAL", tot)
+    total_row[0] = "TOTAL"
     width = [len(c) for c in cols]
     for row in lines + [total_row]:
-        for i, cell in enumerate(row):
-            width[i] = max(width[i], len(cell))
+        for i, c in enumerate(row):
+            width[i] = max(width[i], len(c))
 
     def render(row):
         out = [row[0].ljust(width[0])]
@@ -338,10 +611,20 @@ def print_table(buckets, opts):
     print("  ".join("-" * w for w in width))
     print(render(total_row))
     print()
-    print("docs %s lines in %s files · code %s lines in %s files" % (
-        "{:,}".format(tot["doc_added"] + tot["doc_deleted"]), "{:,}".format(tot["doc_files"]),
-        "{:,}".format(tot["code_added"] + tot["code_deleted"]), "{:,}".format(tot["code_files"]),
-    ))
+
+    def summary(name, parts):
+        return "%s %s lines in %s files" % (
+            name,
+            "{:,}".format(cell(tot, parts, "added") + cell(tot, parts, "deleted")),
+            "{:,}".format(cell(tot, parts, "files")))
+
+    pairs = [summary(LABELS[name], parts) for name, parts in kinds]
+    if opts["split"]:
+        print(" · ".join(pairs[:2]))
+        print(" · ".join(pairs[2:]))
+    else:
+        print(" · ".join(pairs))
+    print(provenance(opts))
     if tot["binary_files"]:
         n = tot["binary_files"]
         print("%s binary file change%s carr%s no line count and %s excluded."
@@ -349,18 +632,62 @@ def print_table(buckets, opts):
                  "ies" if n == 1 else "y", "is" if n == 1 else "are"))
 
 
+def provenance(opts):
+    """One line saying which split ran and why — never "it just did".
+
+    A four-way table whose evidence column reads zero has two explanations, a
+    project with no evidence and a state root resolved to the wrong place, and
+    a reader cannot tell them apart from the numbers. So the prefix that was
+    actually matched is printed, every run.
+    """
+    if opts["split"] and opts["perry_root"]:
+        line = ("perry project %s · evidence under %s · docs and code exclude "
+                "evidence and tests" % (opts["perry_root"],
+                                        opts["evidence_prefix"]))
+        if opts["state_root_from"] == "fallback":
+            line += ("\n  (guessed: Perry's state-root resolver was "
+                     "unreachable from this copy — set PERRY_HOME if the "
+                     "state root is not the project root)")
+        return line
+    if opts["split"]:
+        ev = (", evidence from --evidence-glob only"
+              if opts["evidence_globs"] else ", and no evidence tree to match")
+        return "no .perry/ found; split forced on%s" % ev
+    if opts["perry_root"]:
+        return ("perry project %s · --plain: evidence counted as docs, tests "
+                "as code" % opts["perry_root"])
+    return "not a Perry project · docs vs code only (--split to force the rest)"
+
+
+def csv_fields(opts):
+    out = []
+    for name, parts in shown_kinds(opts):
+        out.extend([(name + "_added", parts, "added"),
+                    (name + "_deleted", parts, "deleted"),
+                    (name + "_files", parts, "files")])
+    return out
+
+
 def print_csv(buckets, opts):
     import csv
+    fields = csv_fields(opts)
     w = csv.writer(sys.stdout)
-    w.writerow([opts["by"], "commits", "doc_added", "doc_deleted", "doc_files",
-                "code_added", "code_deleted", "code_files", "binary_files"])
+    w.writerow([opts["by"], "commits"] + [f[0] for f in fields] + ["binary_files"])
     for key, b in rows(buckets, opts):
-        w.writerow([key, b["commits"], b["doc_added"], b["doc_deleted"], b["doc_files"],
-                    b["code_added"], b["code_deleted"], b["code_files"], b["binary_files"]])
+        w.writerow([key, b["commits"]]
+                   + [cell(b, parts, field) for _, parts, field in fields]
+                   + [b["binary_files"]])
+
+
+def shaped(bucket, opts):
+    out = {"commits": bucket["commits"], "binary_files": bucket["binary_files"]}
+    for name, parts in shown_kinds(opts):
+        for field in ("added", "deleted", "files"):
+            out[name + "_" + field] = cell(bucket, parts, field)
+    return out
 
 
 def print_json(buckets, opts):
-    tot = totals(buckets)
     payload = {
         "group_by": opts["by"],
         "rev": opts["rev"],
@@ -373,9 +700,20 @@ def print_json(buckets, opts):
         "doc_globs": opts["doc_globs"],
         "merges_included": opts["merges"],
         "date_field": "committer" if opts["committer"] else "author",
-        "buckets": [dict(b, **{opts["by"]: key}) for key, b in rows(buckets, opts)],
-        "total": tot,
+        "split": opts["split"],
+        "buckets": [dict(shaped(b, opts), **{opts["by"]: key})
+                    for key, b in rows(buckets, opts)],
+        "total": shaped(totals(buckets), opts),
     }
+    if opts["split"]:
+        payload["evidence_globs"] = opts["evidence_globs"]
+        payload["test_globs"] = opts["test_globs"]
+        payload["evidence_prefix"] = opts["evidence_prefix"] or None
+        payload["test_dirs"] = sorted(TEST_DIRS)
+    payload["perry"] = ({"project_root": opts["perry_root"],
+                         "state_root": opts["state_root"],
+                         "state_root_from": opts["state_root_from"]}
+                        if opts["perry_root"] else None)
     json.dump(payload, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
 
@@ -387,6 +725,7 @@ def main(argv):
     if check.returncode != 0:
         die("not inside a git repository%s"
             % (" (%s)" % opts["cwd"] if opts["cwd"] else ""))
+    resolve_split(opts)
     buckets = fill_window(collect(git_log(opts), opts), opts)
     if opts["fmt"] == "csv":
         print_csv(buckets, opts)
