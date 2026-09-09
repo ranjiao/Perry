@@ -82,12 +82,23 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
                     self._narrow_at(key),
                     STATE.project_value(STATE._at(self.full, path), how))
 
-    def test_the_clock_field_is_a_stamp_of_its_own_run(self):
-        """What is true of `generated_at` across two invocations: both are ISO
-        timestamps of the moment each ran, not the same string."""
+    def test_the_clock_field_is_projected_like_everything_else(self):
+        """**One invocation, so the clock is deterministic.**
+
+        The first fix for the flake excluded `generated_at` from the walk and
+        left a case whose body called `datetime.fromisoformat` and asserted
+        NOTHING — a hard-coded `"2020-01-01T00:00:00"` would have passed it,
+        and `--compact`'s stamp stopped being compared with `--json`'s at all.
+        A V4 review found that. The flake came from making two invocations;
+        projecting the full payload in-process makes one.
+        """
         from datetime import datetime
-        for payload in (self.full, self.narrow):
-            datetime.fromisoformat(payload["generated_at"])
+        projected = STATE.project_compact(self.full)
+        self.assertEqual(projected["generated_at"], self.full["generated_at"],
+                         "the projection did not carry the stamp verbatim")
+        datetime.fromisoformat(self.narrow["generated_at"])
+        self.assertNotEqual(self.narrow["generated_at"], "",
+                            "the tool emitted an empty stamp")
 
     def test_a_scalar_is_carried_verbatim_and_a_list_is_counted(self):
         """The control: the case above passes if `project_value` is the

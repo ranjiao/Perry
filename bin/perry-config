@@ -313,6 +313,23 @@ def main(argv: list[str]) -> int:
             return write(path, cmd_set(records, rest[0], " ".join(rest[1:])),
                          f"set {rest[0]!r}", dry_run=dry_run,
                          as_json=as_json)
+        # Each branch below names its own verb in the line it prints, and the
+        # name comes from `cmd` rather than from a literal: a V4 review routed
+        # `unset` into the `show` branch and got exit 0 with nothing removed,
+        # and the guard added for the fall-through could not see it because the
+        # capture happened above the guard.
+        # Each branch below names its own verb in the line it prints, and the
+        # name comes from `cmd` rather than from a literal: a V4 review routed
+        # `unset` into the `show` branch and got exit 0 with nothing removed,
+        # and the guard added for the fall-through could not see it because the
+        # capture happened above the guard.
+        # Each branch below names its own verb in the line it prints. A V4
+        # review routed `unset` into the `show` branch and got exit 0 with
+        # nothing removed; the guard added for the fall-through could not see
+        # it, because the capture happened above the guard. What catches it is
+        # `tests/test_bin_surface § OWN_OUTPUT`, which asks every declared
+        # subcommand of every declared tool for a string only its own handler
+        # produces.
         if cmd == "unset":
             if len(rest) != 1:
                 raise Refused("`unset` takes one label.")

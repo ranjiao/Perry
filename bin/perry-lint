@@ -4485,7 +4485,9 @@ def _order_drift(stored: dict, live: dict, rel_board: str,
             f"store {' → '.join(in_store[:6])}. Row order is recorded, not "
             f"re-derived (ADR-007, TASK-089), so a row moved by hand is drift "
             f"like any other cell: `perry-task prioritize` moves a row, and "
-            f"`perry-tasks render --write` puts the file back in line."))
+            f"`perry-tasks render --write` puts the file back in line when "
+            f"every stored record still has a row, and REFUSES when one does "
+            f"not (DESIGN-016 A5)."))
     return out
 
 

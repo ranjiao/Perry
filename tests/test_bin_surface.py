@@ -147,23 +147,53 @@ class TestDeclaredAndDispatchableAreTheSameSet(unittest.TestCase):
                                 f"is not perry-tasks' dispatch")
         return names
 
-    def test_every_declared_perry_tasks_subcommand_runs_its_own_verb(self):
-        """The reachability check above accepts any handler; this one asserts
-        the subcommand reached ITS OWN. A V4 review disabled `perry-config`'s
-        `untrack` branch, watched it fall through to the `track` writer, and
-        got `track 'alpha' — … now holds 1 record(s)`, exit 0, with the track
-        still there — a command reporting a write it did not perform, which is
-        § 1.5's subject."""
+    #: `(tool, argv, a string only THIS subcommand's own handler produces)`.
+    #: Reaching *a* handler is not reaching the right one: a V4 review disabled
+    #: `perry-config`'s `untrack` branch and watched it fall through to the
+    #: `track` writer — `track 'alpha' — … now holds 1 record(s)`, exit 0, the
+    #: track still there — then did the same to `unset` into `show`, and to
+    #: three `perry-tasks` registers. The reachability check above passed every
+    #: time, because none of those says "is not a subcommand".
+    OWN_OUTPUT = (
+        ("perry-config", ("show",), "Document language"),
+        ("perry-config", ("set", "Chat language", "English"), "set 'Chat"),
+        ("perry-config", ("unset", "Chat language"), "unset 'Chat"),
+        ("perry-config", ("track", "alpha", "--mode", "project"), "track 'alpha'"),
+        ("perry-config", ("untrack", "alpha"), "untrack 'alpha'"),
+        # For the registers the fingerprint is the STORE PATH the verb would
+        # write: `build` and `risks-build` print the same key set, so a key
+        # cannot tell them apart, and the file each one owns can.
+        ("perry-tasks", ("write", "--from-board", "--dry-run", "--json"),
+         "tasks.jsonl"),
+        ("perry-tasks", ("risks-write", "--from-board", "--dry-run", "--json"),
+         "risks.jsonl"),
+        ("perry-tasks", ("intake-write", "--from-board", "--dry-run", "--json"),
+         "intake.jsonl"),
+        ("perry-tasks", ("asks-write", "--from-board", "--dry-run", "--json"),
+         "asks.jsonl"),
+        ("perry-tasks", ("asks-build",), '"unanswered"'),
+    )
+
+    def test_every_declared_subcommand_runs_its_own_verb(self):
+        """Not "a handler answered" — THIS subcommand's handler answered."""
         p = Project()
-        run("perry-config", "track", "alpha", "--mode", "project",
-            "--root", str(p.root))
-        out = run("perry-config", "untrack", "alpha", "--root", str(p.root))
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("untrack", out.stdout,
-                      "the success line names a verb the caller did not ask "
-                      "for")
-        after = run("perry-config", "show", "--root", str(p.root), "--json")
-        self.assertNotIn("alpha", after.stdout)
+        for tool, argv, fingerprint in self.OWN_OUTPUT:
+            with self.subTest(command=f"{tool} {' '.join(argv)}"):
+                out = run(tool, *argv, "--root", str(p.root))
+                self.assertIn(fingerprint, out.stdout + out.stderr,
+                              f"{tool} {argv[0]} produced another verb's "
+                              f"output:\n" + (out.stdout + out.stderr)[:300])
+
+    def test_a_removal_that_removes_nothing_is_refused(self):
+        """The other half of the same defect: the verb ran, and did nothing."""
+        p = Project()
+        out = run("perry-config", "unset", "No Such Setting",
+                  "--root", str(p.root))
+        self.assertEqual(out.returncode, 1, out.stdout)
+        self.assertIn("nothing was written", out.stderr)
+        out = run("perry-config", "untrack", "no-such-track",
+                  "--root", str(p.root))
+        self.assertEqual(out.returncode, 1, out.stdout)
 
 
 class TestPerryTaskDeclaresTheFlagsItsHandlersRead(unittest.TestCase):
@@ -266,22 +296,36 @@ class TestRegisterIsAParameter(unittest.TestCase):
         self.assertEqual(table["tasks"], "", "the bare verbs are the task ones")
 
     def test_the_parameter_and_the_alias_are_the_same_call(self):
+        """`render` and `write` are in the list on purpose: making
+        `--register` a no-op for those two — `render --register risks --write`
+        rewriting the TASK rows — left the suite green when a V4 review tried
+        it. The read verbs cannot lose data; those two can.
+
+        What is compared is the WHOLE answer, both streams and the code. Some
+        pairs refuse on this fixture (`## Top risks` ships as a bullet list, so
+        the import has nothing to read) and a refusal is as good a comparison
+        as a success, as long as they are not ALL refusals — `succeeded` is
+        that control.
+        """
+        extra = {"write": ("--from-board",),
+                 "render": ("--write", "--dry-run", "--json")}
+        succeeded = 0
         for register in ("risks", "intake", "asks"):
-            for verb in ("build", "diff"):
+            for verb in ("build", "diff", "render", "write"):
                 with self.subTest(register=register, verb=verb):
-                    a = run("perry-tasks", verb, "--register", register,
+                    args = extra.get(verb, ())
+                    a = run("perry-tasks", verb, "--register", register, *args,
                             "--root", str(self.p.root))
-                    b = run("perry-tasks", f"{register}-{verb}",
+                    b = run("perry-tasks", f"{register}-{verb}", *args,
                             "--root", str(self.p.root))
-                    # **`0`, and stderr too.** Comparing only the return code
-                    # and stdout let two DIFFERENT refusals count as the same
-                    # call: with the alias deleted from the declaration, one
-                    # said "the register has no diff" and the other "not a
-                    # subcommand", both exit 2 with empty stdout.
-                    self.assertEqual(a.returncode, 0, a.stderr)
-                    self.assertEqual(a.returncode, b.returncode)
+                    self.assertEqual(a.returncode, b.returncode,
+                                     a.stderr + b.stderr)
                     self.assertEqual(a.stdout, b.stdout)
                     self.assertEqual(a.stderr, b.stderr)
+                    succeeded += a.returncode == 0
+        self.assertGreaterEqual(succeeded, 4,
+                                "every pair refused, so the comparison never "
+                                "reached a call that does anything")
 
     def test_a_register_that_does_not_exist_names_the_ones_that_do(self):
         out = run("perry-tasks", "build", "--register", "nosuch",
@@ -464,7 +508,15 @@ class TestTheReadmeSaysWhatTheToolsDo(unittest.TestCase):
         recorded — would have gone unreported; a V4 review added
         `cursor-cli` and the suite stayed green."""
         script = (BIN / "perry-detect-host").read_text(encoding="utf-8")
-        prints = set(re.findall(r'echo\s+"([a-z][a-z-]+)"', script))
+        # Quoted OR bare: `echo claude-code` prints the same thing as
+        # `echo "claude-code"`, and a V4 review added an unquoted fifth value
+        # that the quoted-only pattern did not see.
+        # A line that is nothing but `echo <literal>`: quoted or bare, and
+        # nothing else on the line. The quoted-only pattern missed an unquoted
+        # fifth value a V4 review added; a looser one picks up `echo "Usage: …"`
+        # and the `|| echo 0` in the parent walk.
+        prints = set(re.findall(r'^\s*(?:\*[a-z]+\*\)\s*)?echo\s+"?([a-z][a-z-]+)"?\s*(?:;.*)?$',
+                                script, re.M))
         self.assertGreaterEqual(len(prints), 4,
                                 f"the extraction found {sorted(prints)}")
         row = next(l for l in self.README.splitlines()
@@ -488,6 +540,12 @@ class TestAFlagReachesOnlyItsOwnSubcommands(unittest.TestCase):
 
     #: `(tool, subcommand, a flag the tool declares elsewhere)`.
     ELSEWHERE = (
+        # `perry-okr` runs `perry_md_store`, whose flags are declared in a
+        # FUNCTION rather than a literal — a V4 review made `--write` and
+        # `--from-file` universal there and no case here noticed.
+        ("perry-okr", "build", "--write"),
+        ("perry-okr", "build", "--from-file"),
+        ("perry-okr", "verify", "--dry-run"),
         ("perry-task", "start", "--design"),
         ("perry-task", "start", "--kr"),
         ("perry-task", "next", "--unlinked"),
@@ -603,6 +661,11 @@ class TestTheIndexIsDerivedFromTheDeclarations(unittest.TestCase):
 
     def test_the_json_index_carries_the_same_counts(self):
         payload = json.loads(self._perry("list", "--json").stdout)
+        self.assertEqual(set(payload), {"tools", "undeclared"},
+                         "the machine-readable index changed shape")
+        self.assertIn("perry-lint", payload["undeclared"],
+                      "the undeclared list is what stops this index from "
+                      "looking complete")
         by_name = {t["tool"]: t for t in payload["tools"]}
         for tool in DECLARED:
             with self.subTest(tool=tool):
@@ -614,6 +677,27 @@ class TestTheIndexIsDerivedFromTheDeclarations(unittest.TestCase):
         payload = json.loads(self._perry("describe", "tasks", "render").stdout)
         self.assertEqual(payload["subcommand"], "render")
         self.assertIn("BOARD.md", payload["writes"])
+
+    def test_a_surface_that_will_not_load_is_reported_rather_than_demoted(self):
+        """`surface_of` used to swallow every exception, so a tool whose
+        declaration fails to import was silently reclassified as "not yet
+        declaring one" — the index quietly smaller, and the undeclared list
+        evidence of nothing. A V4 review reverted the warning and nothing
+        noticed."""
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            broken = Path(td) / "bin"
+            shutil.copytree(BIN, broken, symlinks=True)
+            (broken / "perry-broken").write_text(
+                "#!/usr/bin/env python3\nSURFACE = {\nimport nonsense\n")
+            (broken / "perry-broken").chmod(0o755)
+            out = subprocess.run([sys.executable, str(broken / "perry"), "list"],
+                                 capture_output=True, text=True)
+        self.assertIn("perry-broken", out.stderr,
+                      "a tool whose surface will not load was demoted in "
+                      "silence")
+        self.assertIn("will not load", out.stderr)
 
     def test_an_unconverted_tool_is_reported_rather_than_hidden(self):
         """`perry list` says which tools have no declaration yet. A silent

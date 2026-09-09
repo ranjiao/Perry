@@ -1,6 +1,15 @@
 # DESIGN-016 phase B — result
 
 > Rows: TASK-362 (B1), TASK-363 (B2).
+>
+> **Reconciled 2026-09-09 after three V4 rounds.** Two claims below were true
+> when written and are not now: the contract shipped as `1.19` and the user
+> took it to **`2.0`** the same day (a row-count change is a major), and the
+> byte figures moved — `--compact` is about 11,300 against `--json`'s about
+> 259,000, not 9,198 / 258,981. Every "1.19" and every exact byte count below
+> should be read with that. `reference/snapshot.md § Step 3` now states the
+> ratio rather than the counts, for the reason those numbers drifted three
+> times in one branch.
 > Branch: `bin-contract-phase-a`, commit `b30d3b74`. Base: `4ebc0693`.
 > Date: 2026-09-09 · Rung claimed: V3 · V4 pending.
 

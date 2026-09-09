@@ -1837,6 +1837,20 @@ def main(argv: list[str], _locked: bool = False) -> int:
         return write_store_or_say_what_would_land(dest, records, flags=flags,
                                                   unit="records")
 
+    if cmd != "verify":
+        # **The fall-through is a refusal.** Everything above dispatches on
+        # `cmd ==` or `cmd in (…)`, and what reaches here used to be `verify`
+        # OR anything the chain missed — so deleting `asks-build`'s branch made
+        # `perry-tasks asks-build` answer with the TASK store's verification,
+        # exit 0, while `--describe` still listed the subcommand. A V4 review
+        # found it by mutation; `bin/perry-config § main` had the identical
+        # hole one commit earlier. A declared subcommand that reaches no
+        # handler of its own is a bug in this file, not a caller error.
+        print(f"perry-tasks: {cmd!r} is declared and reaches no handler — "
+              f"that is a defect in this tool, not in your command. Nothing "
+              f"was written.", file=sys.stderr)
+        return 2
+
     # **`verify` reads the store FROM DISK, not the one just built.**
     #
     # The first version rebuilt the store and compared it to the board it had

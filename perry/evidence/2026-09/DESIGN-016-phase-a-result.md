@@ -12,7 +12,7 @@
 | A2 | An undeclared token exits 2; `-h` prints from any position and runs nothing | `TestAnUndeclaredTokenIsRefused` (5), `TestHelpPrintsAndRunsNothing` (2) |
 | A3 | `--dry-run` and `--json` on the writers, and they touch nothing | `TestTheWritersTakeDryRunAndJson` (3) |
 | A4 | `perry-task add --design` writes the edge, and refuses an id with no document | `TestAddWritesTheDesignEdge` (3) |
-| A5 | A render that cannot place every record refuses; the success line counts lines changed | `TestARenderThatCannotRestoreRefuses` (4) |
+| A5 | A render that cannot place every record refuses; the success line counts lines changed | `TestARenderThatCannotRestoreRefuses` (4) — **and this cite was incomplete**: it drives `perry-tasks` only, and `perry_md_store` carries a SECOND copy of the same refusal that no test touched until a V4 review deleted it and the suite stayed green. `TheOtherStoreFamilyToolRefusesToo` covers it now |
 | A6 | A refusal is one line and exit 1, never a traceback | `TestARefusalIsOneLine` (2) |
 
 All in `tests/test_bin_argument_contract.py`, 22 tests.

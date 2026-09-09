@@ -74,14 +74,21 @@ carry.
 
 Measured on Perry's own project, 2026-09-09:
 
-| Call | Bytes |
+| Call | Bytes, measured 2026-09-09 on Perry's own project |
 |---|---|
-| `--compact` | 9,198 |
+| `--compact` | ~11,300 |
 | `--dashboard` (text, no vocabulary) | 1,053 |
-| `--json` | 258,981 |
+| `--json` | ~259,000 |
 
-`--compact` does not grow with the board: task rows are counted, not carried,
-so a project with two thousand of them costs the same integer. It carries what
+**The two large figures are approximate on purpose.** They were written exact
+three times in this branch and were wrong all three times within a day, because
+they move with the project's own content: `--compact` grew 22% while phase B
+was landing, from KR titles and track declarations, not from task rows. What
+does not move is the ratio — `--compact` is about 4% of `--json` — and the
+property behind it: task ROWS are counted, not carried, so a project with two
+thousand of them costs the same integer. `tests/test_compact_payload.py`
+asserts the ratio and the growth property; nothing asserts a byte count, which
+is why none of them should be stated as one. It carries what
 step 4 renders and what a WRITE needs first — the declared tracks, their modes
 and the stages legal on each, which used to mean reading `--section project`,
 11,681 bytes, three levels down.

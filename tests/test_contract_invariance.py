@@ -212,6 +212,12 @@ def read() -> dict:
         boxes = parity.containers(parity.paths(payload),
                                   parity.empty_lists(payload))
         got[name] = {"contract": payload.get("contract"),
+                     # The versions whose MEANING moved. Read here so
+                     # `test_every_semantics_entry_has_a_changelog_section`
+                     # compares the payload against the page rather than the
+                     # page against itself.
+                     "semantics": [e.get("version")
+                                   for e in (payload.get("semantics") or [])],
                      "shape": shape(payload),
                      "empty_lists": sorted(empty_lists(payload)),
                      "declared": declared_types.declared(
@@ -346,6 +352,31 @@ class TestNothingIsRemovedOrRetyped(unittest.TestCase):
             was = (rec["contract"] or "").rsplit("/", 1)[-1].split(".")[0]
             now = (self.live[name]["contract"] or "").rsplit("/", 1)[-1].split(".")[0]
             self.assertEqual(was, now, f"{name} changed major version")
+
+    def test_every_semantics_entry_has_a_changelog_section(self):
+        """The shipped version is checked above; **every version whose MEANING
+        moved** is checked here.
+
+        `semantics[]` is what a consumer pinned to an older minor reads to find
+        out what changed under it. An entry with no section on the page sends
+        them to a heading that does not exist — and a V4 review deleted the
+        `### 1.5` heading from `task-list-contract.md` with the whole suite
+        staying green.
+        """
+        version_row = re.compile(r"(?m)^###\s+(\d+\.\d+)\b"
+                                 r"|^\|\s*`(\d+\.\d+)`\s*\|")
+        for name, (_, page) in sorted(CONTRACTS.items()):
+            text = (ROOT / page).read_text()
+            recorded = {a or b for a, b in version_row.findall(text)}
+            versions = self.live[name].get("semantics") or []
+            self.assertTrue(versions or name != "perry-task/list",
+                            "the payload carried no semantics to check")
+            for version in versions:
+                with self.subTest(contract=name, version=version):
+                    self.assertIn(
+                        version, recorded,
+                        f"{name} ships a `semantics` entry for {version} and "
+                        f"{page} has no section for it")
 
     def test_the_shipped_version_is_recorded_in_its_own_changelog(self):
         """**The door the test above needs, and it is not the baseline.**

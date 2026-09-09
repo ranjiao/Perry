@@ -50,8 +50,12 @@ class Refused(Exception):
 
 # The `list --json` payload is a published contract with its own version, kept
 # separate from Perry's because the whole point is that it does NOT move when
-# Perry's storage does. Bump the minor for an ADDED key; the major only for a
-# removed or retyped one. Specified in `schema/task-list-contract.md`.
+# Perry's storage does. Bump the minor for an ADDED key; the major for a
+# removed or retyped one — OR for a change that returns different ROWS under an
+# unchanged shape, which is what took this to 2.0 on 2026-09-09. The sibling
+# feed said it first: `perry-events` 1.1 "returns different ROWS … which is
+# precisely the change `1.x` only adds keys does not cover". Specified in
+# `schema/task-list-contract.md`.
 LIST_CONTRACT = "perry-task/list/2.0"
 
 #: How many rows `list` returns when the caller names no bound. DESIGN-016

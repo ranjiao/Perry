@@ -876,9 +876,27 @@ class TestFromAimarksProductionReport(unittest.TestCase):
         # 1.4 → 1.9 reads the entries between, and one skipped is one it cannot
         # learn about.
         major, minor = (int(x) for x in major_minor.split("."))
-        for m in range(minor + 1):
-            v = f"{major}.{m}"
-            self.assertIn(v, headings, f"no changelog entry for {v}")
+        # **Contiguous within every major, not `range(minor+1)` of the current
+        # one.** At 1.19 that expression required twenty headings; the 2.0 bump
+        # silently reduced it to one, leaving nineteen changelog entries
+        # unguarded — a V4 review deleted `### 1.5`, the entry the page itself
+        # calls the reason `semantics` exists, and the suite stayed green.
+        # Written as "no gaps" so it needs no literal and survives the next
+        # major the same way.
+        by_major: dict[int, set[int]] = {}
+        for h in headings:
+            if re.fullmatch(r"\d+\.\d+", h):
+                ma, mi = (int(x) for x in h.split("."))
+                by_major.setdefault(ma, set()).add(mi)
+        self.assertIn(major, by_major, f"no changelog entries for {major}.x")
+        for ma, minors in sorted(by_major.items()):
+            with self.subTest(major=ma):
+                self.assertEqual(
+                    sorted(minors), list(range(max(minors) + 1)),
+                    f"the {ma}.x changelog has a gap — an entry a consumer "
+                    f"pinned to an older minor is sent to and cannot find")
+        self.assertIn(f"{major}.{minor}", headings,
+                      f"the shipped version {major}.{minor} has no entry")
 
     def test_the_semantics_list_is_ordered_oldest_first(self):
         """Its whole use is "everything newer than the minor I tested against",

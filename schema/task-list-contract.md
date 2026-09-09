@@ -576,11 +576,12 @@ comparison performed"* the same way on the same tree.
    this section used to show only the first:
 
    ```python
+   SUPPORTED = {(1, 18), (2, 0)}       # the (major, minor) you read against
    version = payload["contract"].rsplit("/", 1)[1]
    major, minor = (int(x) for x in version.split("."))
-   if major != 1:
+   if major not in {m for m, _ in SUPPORTED}:
        raise SystemExit(f"perry-task list contract {version} is not supported")
-   if minor > TESTED_MINOR:            # the minor you actually read against
+   if (major, minor) > max(SUPPORTED):  # something moved under you
        for change in payload["semantics"]:
            if change["version"] > TESTED_MINOR_STR:
                warn(change["fields"], change["note"])
@@ -707,7 +708,7 @@ when non-empty keeps working unchanged and simply shows it more often.
 
 **Left for whoever next opens this document:** if the PMO judges "a row minted
 after this date always carries one" to be a guarantee consumers should be able
-to branch on, that is a `1.19` with a `semantics` entry, and it is a decision
+to branch on, that is a `2.1` with a `semantics` entry, and it is a decision
 about the contract rather than about this row. It was deliberately not taken
 here.
 

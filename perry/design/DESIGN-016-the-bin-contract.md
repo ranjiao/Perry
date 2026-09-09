@@ -529,7 +529,13 @@ derived, never restated:
   bin/perry list                one line per tool/subcommand, from --describe
   bin/perry describe <tool> [<sub>]   one subcommand's flags, and nothing else
   bin/perry <tool> …            forwards, so one entry point reaches everything
-  bin/README.md § The tools     table generated
+  bin/README.md § The tools     hand-maintained, and it says so — it covers
+                                the thirteen tools with no SURFACE, which no
+                                generator can produce. `perry list` IS the
+                                generated index. Changed 2026-09-09 after a V4
+                                review pointed out that claiming otherwise put
+                                a new false statement in the file whose false
+                                statements D1 was fixing
   <tool> --help § Usage         usage block generated
   tests/test_bin_surface.py     the declaration and the code agree in both
                                  directions; README's fenced examples run
@@ -580,7 +586,8 @@ the store.
 additive: the existing `--json` keeps its shape". That is true of
 `perry-state` and **false of `perry-task list`**: goal 6 asks for a default
 bound, and a bound removes rows from `tasks[]`. No KEY changed, so
-`bin/perry-task § LIST_SEMANTICS`'s own rule made it a minor (1.19) — but a
+`bin/perry-task § LIST_SEMANTICS`'s own rule made it a minor (1.19, and the
+user took it to 2.0 the same day) — but a
 consumer that changes nothing gets fewer rows, and `schema/README.md` records
 that aiMark shells out to exactly the `--all` call the bound bites hardest.
 What shipped: `bound.open_total` and `bound.closed_total` are counted before
@@ -610,7 +617,7 @@ with `tests/test_compact_payload.py`, C1 and C4 in `8b302a61` with
 C5 and D1 in `0f367ff7`. Six tools declare a surface; thirteen do not, and
 `perry list` names them rather than looking complete. `--compact` is 9,198 bytes
 against `--json`'s 258,981 and carries the § 1.7 vocabulary; `perry-task list`
-is bounded at 200 rows under contract 1.19, and six tests that pinned the
+is bounded at 200 rows under contract 2.0, and six tests that pinned the
 contract version as a literal became floors in the same commit. Two
 consequences to carry into D1 and into whatever reviews this:
 

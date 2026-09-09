@@ -46,7 +46,7 @@ has. The twelve prefixed names stay as aliases for one release.
 
 | # | Was | Is |
 |---|---|---|
-| R1 | `add` example missing three required fields | carries `--deliverable`, `--verification`, `--summary` |
+| R1 | `add` example missing three required fields | **NOT FIXED BY THIS COMMIT, and the test said it was.** The three flags were added on continuation lines ending in `\\` — a literal backslash in bash — so the fence was four commands and the first one was the same refused call. A V4 review ran it. Fixed afterwards, and the test now executes the block instead of grepping it |
 | R2 | "no tool here calls an LLM … no dependencies at all" | names `perry-codex-preflight`, `codex exec`, and the `codex` / `git` / `timeout` dependency |
 | R3 | "Four other modes"; one `--strict` rule | nine modes; `--strict` fails on `--reviews` and `--specs` and does nothing on `--verification` (21 warnings, exit 0) |
 | R4 | `risks-*` and `intake-*` only | the ask register, and `--register` as the parameter form |

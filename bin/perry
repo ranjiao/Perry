@@ -63,7 +63,12 @@ def surface_of(path: Path) -> dict | None:
     try:
         if "SURFACE" not in path.read_text(encoding="utf-8"):
             return None
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # A binary or mis-encoded file in `bin/` is not an index entry and is
+        # not a reason to fail the index either. `read_text` raises
+        # `UnicodeDecodeError` — a `ValueError`, which the blanket `except`
+        # this replaced used to absorb, and narrowing it to `OSError` made one
+        # such file kill `perry list` outright (found by a V4 review).
         return None
     try:
         return getattr(load(path), "SURFACE", None)
