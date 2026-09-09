@@ -510,7 +510,7 @@ class TestListIsBounded(unittest.TestCase):
 
     def test_the_default_bound_is_what_the_constant_says(self):
         """The number itself, asserted. Raising `LIST_DEFAULT_LIMIT` to a
-        billion — deleting contract 1.19's whole behavioural change — left the
+        billion — deleting contract 2.0's whole behavioural change — left the
         suite green, because every other case here builds six rows and passes
         at any default above six."""
         import inproc
@@ -557,10 +557,15 @@ class TestListIsBounded(unittest.TestCase):
 
     def test_the_contract_version_moved_with_the_meaning(self):
         """A consumer pinned to 1.18 must be able to see that rows can now be
-        missing. `semantics` is where that is said."""
+        missing — and this one is a MAJOR, so a conforming consumer stops at
+        `major != 1` rather than reading a window as the project. The user
+        took that decision on 2026-09-09; it shipped as 1.19 for a few hours
+        first."""
         payload, _err = self._list()
-        self.assertEqual(payload["contract"], "perry-task/list/1.19")
-        self.assertIn("1.19", [e["version"] for e in payload["semantics"]])
+        self.assertEqual(payload["contract"], "perry-task/list/2.0")
+        self.assertIn("2.0", [e["version"] for e in payload["semantics"]])
+        major = int(payload["contract"].rsplit("/", 1)[1].split(".")[0])
+        self.assertEqual(major, 2, "a row-count change is a major here")
 
 
 if __name__ == "__main__":

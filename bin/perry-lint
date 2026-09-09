@@ -4411,10 +4411,10 @@ def check_md_store_drift(project_root: Path, state_root: Path,
             f"{key} — {rows[key]}. Under ADR-007 `{doc.rel_file}` is rendered "
             f"output and `{rel_store}` is what the field means, so a hand edit "
             f"is drift. `perry-{doc.name} render --write` puts the file back "
-            f"when every stored record still has a line, and REFUSES when "
-            f"one does not (DESIGN-016 A5); "
-            f"in line with the store; `perry-{doc.name} write --from-file` "
-            f"runs the other direction and DISCARDS the stored values."))
+            f"in line with the store when every stored record still has a "
+            f"line, and REFUSES when one does not (DESIGN-016 A5); "
+            f"`perry-{doc.name} write --from-file` runs the other direction "
+            f"and DISCARDS the stored values."))
     if len(rows) > DRIFT_ROWS_SHOWN:
         findings.append(Finding(
             "warn", rel_file, f"{doc.name}-store-drift",

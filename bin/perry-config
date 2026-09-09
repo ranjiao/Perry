@@ -336,8 +336,17 @@ def main(argv: list[str]) -> int:
             return write(path, kept, f"untrack {rest[0]!r}", dry_run=dry_run,
                          as_json=as_json)
 
-        # `track` — the field flags are read by the parser now, against the
-        # same `TRACK_FLAGS` table this branch used to walk by hand.
+        # **The fall-through is a refusal, not `track`.** There was no `else`
+        # here: every subcommand the four branches above did not match landed
+        # in this one, so disabling the `untrack` branch made `untrack alpha`
+        # print `track 'alpha' — … now holds 1 record(s)`, exit 0, and remove
+        # nothing. A V4 review found it by mutation on 2026-09-09. A tool that
+        # reports a write it did not perform is DESIGN-016 § 1.5's own subject.
+        if cmd != "track":
+            raise Refused(
+                f"{cmd!r} reached the track writer, which means this tool "
+                f"declares a subcommand it does not dispatch. Nothing was "
+                f"written.")
         if not rest:
             raise Refused("`track` takes a track name.")
         return write(path, cmd_track(records, rest[0], track_values),

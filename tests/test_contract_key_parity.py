@@ -60,7 +60,7 @@ def recorded() -> dict:
 def _task_contract_name() -> str:
     """`perry-task`'s own `LIST_CONTRACT`, read from the tool.
 
-    The version moves whenever the payload does — 1.19 bounded `tasks[]` — and
+    The version moves whenever the payload does — 2.0 bounded `tasks[]` — and
     this module is about which KEYS are compared, not about which minor is
     shipped. Typing the name made a bump fail seven cases here for a reason
     none of them is about.
@@ -513,7 +513,7 @@ class TestAHeadingMayNameTheCollectionsItServes(unittest.TestCase):
 #: `mutate` is the text to remove from the page — a real declaration on the
 #: real page, not a marker put there for the test.
 #: The task contract's name is READ, not typed. It moves on every minor —
-#: 1.19 bounded `tasks[]` — and a table of literals here turned that bump into
+#: 2.0 bounded `tasks[]` — and a table of literals here turned that bump into
 #: seven errors in a module whose subject is key coverage, not versions.
 TASK_LIST = _task_contract_name()
 

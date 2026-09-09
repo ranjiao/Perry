@@ -22,11 +22,18 @@ true when it was written and had not been true since that script landed.
 
 ## The tools
 
-Start with `bin/perry list` — it prints this table from the tools themselves and
-cannot go stale. `perry list --tools` is the one-line-per-tool version,
-`perry describe <tool> [<subcommand>]` is the detail, and `perry <tool> …` runs
-one. Thirteen tools do not declare a surface yet; `perry list` names them at the
-end rather than leaving them out.
+Start with `bin/perry list`. **That is the generated index** — it reads each
+tool's own `SURFACE` declaration, so it cannot go stale: `perry list --tools`
+is one line per tool, `perry describe <tool> [<subcommand>]` is the detail, and
+`perry <tool> …` runs one.
+
+**The table below is hand-maintained and is not that index.** Six tools declare
+a surface today and thirteen do not, so this table is the only place the other
+thirteen are described at all — and the price is that its cells can drift from
+the tools, which is what DESIGN-016 § 1.6 counted. A first draft of this
+paragraph said the table was printed from the tools; a V4 review pointed out
+that this would have been a new false statement in the file whose false
+statements it was fixing.
 
 | Tool | Reads / Writes | What it is for |
 |---|---|---|
@@ -162,9 +169,9 @@ which is a question for the user, never a fuzzy match. See
 ### Write state through `perry-task` and `perry-decide`, never by hand
 
 ```bash
-"$PERRY_HOME/bin/perry-task" add --title "…" --track T --priority P1 \\
-    --deliverable "the artifact that exists when this is done" \\
-    --verification "the falsifiable check it is graded against" \\
+"$PERRY_HOME/bin/perry-task" add --title "…" --track T --priority P1 \
+    --deliverable "the artifact that exists when this is done" \
+    --verification "the falsifiable check it is graded against" \
     --summary "why the row exists, for a reader who was not in the conversation"
 "$PERRY_HOME/bin/perry-task" start REL-002 --next "…"
 "$PERRY_HOME/bin/perry-task" status REL-002 --status blocked --reason "…"

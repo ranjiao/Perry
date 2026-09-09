@@ -101,16 +101,16 @@
       "unparsed_sketches": [],
       "witness": "tests/fixtures/witness-project"
     },
-    "perry-task/list/1.19": {
+    "perry-task/list/2.0": {
       "collections_the_witness_filled": [
         "conformance.depends_on_unknown",
         "conformance.review_idle"
       ],
       "command": "perry-task list --json",
-      "contract": "perry-task/list/1.19",
-      "documented": 138,
+      "contract": "perry-task/list/2.0",
+      "documented": 140,
       "documented_not_emitted": [],
-      "emitted": 130,
+      "emitted": 132,
       "emitted_not_documented": [],
       "file": "schema/task-list-contract.md",
       "named_no_such_collection": [],

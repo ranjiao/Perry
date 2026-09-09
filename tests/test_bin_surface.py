@@ -21,6 +21,7 @@ import ast
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -113,15 +114,56 @@ class TestDeclaredAndDispatchableAreTheSameSet(unittest.TestCase):
                 self.assertEqual(out.returncode, 2)
 
     def test_every_name_the_source_dispatches_is_declared(self):
-        """The other direction, read off each tool's own command table."""
+        """The other direction, read off each tool's own command table.
+
+        **`perry-tasks` has no table** — it dispatches through a chain of
+        `if cmd == …` in `main` — so its seventeen subcommands were in neither
+        direction of this class until a V4 review deleted `asks-diff` from the
+        declaration, made it unreachable, and watched the suite stay green.
+        Its names are read out of the source instead.
+        """
         for tool, names in (
                 ("perry-task", set(inproc.load("perry-task").COMMANDS)),
                 ("perry-config", set(inproc.load("perry-config").COMMANDS)),
-                ("perry-okr", set(inproc.load("perry-okr").store.COMMANDS))):
+                ("perry-okr", set(inproc.load("perry-okr").store.COMMANDS)),
+                ("perry-tasks", self._dispatched_by_perry_tasks())):
             declared = {s["name"] for s in surface(tool).get("subcommands", ())}
             for name in sorted(names):
                 with self.subTest(tool=tool, sub=name):
                     self.assertIn(name, declared)
+
+    def _dispatched_by_perry_tasks(self) -> set[str]:
+        """Every literal `main` compares `cmd` against, from the source."""
+        text = (BIN / "perry-tasks").read_text(encoding="utf-8")
+        body = text[text.index("def main(argv"):]
+        names = set(re.findall(r'cmd == "([a-z-]+)"', body))
+        for group in re.findall(r"cmd in \(([^)]*)\)", body):
+            names |= set(re.findall(r'"([a-z-]+)"', group))
+        # `build` and `verify` are the fall-through at the end of `main`; they
+        # are compared with `==` too, so nothing special is needed — but assert
+        # the extraction found the shape it expects rather than nothing.
+        self.assertGreaterEqual(len(names), 12,
+                                f"the extraction found {sorted(names)}, which "
+                                f"is not perry-tasks' dispatch")
+        return names
+
+    def test_every_declared_perry_tasks_subcommand_runs_its_own_verb(self):
+        """The reachability check above accepts any handler; this one asserts
+        the subcommand reached ITS OWN. A V4 review disabled `perry-config`'s
+        `untrack` branch, watched it fall through to the `track` writer, and
+        got `track 'alpha' — … now holds 1 record(s)`, exit 0, with the track
+        still there — a command reporting a write it did not perform, which is
+        § 1.5's subject."""
+        p = Project()
+        run("perry-config", "track", "alpha", "--mode", "project",
+            "--root", str(p.root))
+        out = run("perry-config", "untrack", "alpha", "--root", str(p.root))
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("untrack", out.stdout,
+                      "the success line names a verb the caller did not ask "
+                      "for")
+        after = run("perry-config", "show", "--root", str(p.root), "--json")
+        self.assertNotIn("alpha", after.stdout)
 
 
 class TestPerryTaskDeclaresTheFlagsItsHandlersRead(unittest.TestCase):
@@ -231,8 +273,15 @@ class TestRegisterIsAParameter(unittest.TestCase):
                             "--root", str(self.p.root))
                     b = run("perry-tasks", f"{register}-{verb}",
                             "--root", str(self.p.root))
+                    # **`0`, and stderr too.** Comparing only the return code
+                    # and stdout let two DIFFERENT refusals count as the same
+                    # call: with the alias deleted from the declaration, one
+                    # said "the register has no diff" and the other "not a
+                    # subcommand", both exit 2 with empty stdout.
+                    self.assertEqual(a.returncode, 0, a.stderr)
                     self.assertEqual(a.returncode, b.returncode)
                     self.assertEqual(a.stdout, b.stdout)
+                    self.assertEqual(a.stderr, b.stderr)
 
     def test_a_register_that_does_not_exist_names_the_ones_that_do(self):
         out = run("perry-tasks", "build", "--register", "nosuch",
@@ -325,14 +374,44 @@ class TestTheReadmeSaysWhatTheToolsDo(unittest.TestCase):
                 self.assertIn(f"[`{path.name}`]({path.name})", self.README)
 
     def test_the_add_example_is_a_call_that_runs(self):
-        """R1: the example carried `--title --track --priority` and nothing
-        else, and `add` requires three more fields. It was the most prominent
-        write example in the file."""
-        block = self.README[self.README.index("perry-task\" add --title"):]
+        """R1, and it is RUN rather than read.
+
+        The first fix asserted the three required flag strings appeared in the
+        fence, and they did — on continuation lines ending in `\\`, which bash
+        reads as a literal backslash, so the block was four commands and the
+        first one was the same refused call R1 was about. A V4 review caught it
+        by running the block. DESIGN-016 § 5 asks for exactly this: "every
+        fenced example runs against a scratch project and exits as written".
+        """
+        at = self.README.index('perry-task" add --title')
+        block = self.README[self.README.rindex("\n", 0, at) + 1:]
         block = block[:block.index("```")]
+        self.assertNotIn("\\\\", block,
+                         "a doubled backslash is a literal, not a continuation")
         for flag in ("--deliverable", "--verification", "--summary"):
             self.assertIn(flag, block)
-
+        # The first LOGICAL command: lines up to the first that does not end in
+        # a continuation. The rest of the fence acts on ids a fresh project
+        # does not have; R1 is about the call that opens a row.
+        lines, command = block.splitlines(), []
+        for line in lines:
+            command.append(line)
+            if not line.rstrip().endswith("\\"):
+                break
+        # Placeholders are substituted, not asserted: `…` and `T` are the
+        # page's stand-ins for a value and a track name. What is under test is
+        # that the CALL — this flag set, this shape — succeeds.
+        script = "\n".join(command).replace("…", "a real value here")
+        script = script.replace("--track T", "--track main")
+        script = script.replace('"$PERRY_HOME/bin/perry-task"',
+                                f"{shlex.quote(sys.executable)} "
+                                f"{shlex.quote(str(BIN / 'perry-task'))}")
+        p = Project()
+        out = subprocess.run(["bash", "-c", f"{script} --root {p.root}"],
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0,
+                         "the README's `add` example does not run:\n"
+                         + out.stdout + out.stderr)
     def test_the_dependency_claim_matches_the_one_tool_that_has_one(self):
         """R2: "No tool here calls an LLM … no dependencies at all" while
         `perry-codex-preflight` shells out to `codex exec`."""
@@ -348,23 +427,106 @@ class TestTheReadmeSaysWhatTheToolsDo(unittest.TestCase):
             self.assertIn(needed, head)
 
     def test_the_store_census_count_is_the_one_the_linter_prints(self):
-        """R6: `perry-lint --help` said SIX while the census printed seven."""
+        """R6: `perry-lint --help` said SIX while the census printed seven.
+
+        **Counted by running it**, not by grepping the sentence: the number in
+        the help text is checked against the number of census lines a real run
+        emits, so the two cannot drift again in either direction."""
+        out = subprocess.run(
+            [sys.executable, str(BIN / "perry-lint"), "--root",
+             str(PERRY_HOME)], capture_output=True, text=True)
+        printed = len([l for l in out.stdout.splitlines()
+                       if "store:" in l or "store," in l])
+        self.assertGreater(printed, 0, "the census printed nothing")
+        words = {6: "SIX", 7: "SEVEN", 8: "EIGHT"}
         lint = (BIN / "perry-lint").read_text(encoding="utf-8")
-        self.assertNotIn("ALL SIX declared stores", lint)
-        self.assertIn("ALL SEVEN declared stores", lint)
+        self.assertIn(f"ALL {words[printed]} declared stores", lint,
+                      f"the census printed {printed} lines and the help text "
+                      f"says otherwise")
 
     def test_the_exit_code_table_carries_three(self):
-        """R5 of § 1.5: `perry_md_store` returns 3 and the table had 0/1/2."""
+        """R5 of § 1.5: `perry_md_store` returns 3 and the table had 0/1/2.
+
+        The code that produces it is checked too. Reading the README alone
+        would keep passing if the tool stopped returning 3, which is the other
+        half of the same drift."""
         table = self.README[self.README.index("**Exit codes**"):]
         table = table[:table.index("\n---\n")]   # the horizontal rule, not
         #                                          the table's own separator
         self.assertIn("| `3` |", table)
+        store = (BIN / "perry_md_store.py").read_text(encoding="utf-8")
+        self.assertIn("return 3", store,
+                      "the table documents an exit code nothing returns")
 
     def test_the_detect_host_values_are_the_ones_it_prints(self):
+        """Read off the TOOL. Typing the four values here as well as in the
+        README meant a fifth one in the script — which is exactly the drift R5
+        recorded — would have gone unreported; a V4 review added
+        `cursor-cli` and the suite stayed green."""
+        script = (BIN / "perry-detect-host").read_text(encoding="utf-8")
+        prints = set(re.findall(r'echo\s+"([a-z][a-z-]+)"', script))
+        self.assertGreaterEqual(len(prints), 4,
+                                f"the extraction found {sorted(prints)}")
         row = next(l for l in self.README.splitlines()
                    if "perry-detect-host" in l and l.startswith("|"))
-        for value in ("claude-code", "opencode", "codex-cli", "unknown"):
-            self.assertIn(value, row)
+        for value in sorted(prints):
+            with self.subTest(value=value):
+                self.assertIn(value, row,
+                              f"the tool prints {value!r} and the README's "
+                              f"row does not name it")
+
+
+class TestAFlagReachesOnlyItsOwnSubcommands(unittest.TestCase):
+    """Goal 12 — the headline of C1, and until a V4 review it rested on ONE
+    pre-existing assertion about ONE flag (`--unlinked`, TASK-394).
+
+    `--kr` and `--design` were each accepted by a flat 46-flag table and
+    dropped by the handler. What the declaration buys is that this cannot
+    happen quietly: the parser refuses, and the refusal names what the
+    subcommand does take.
+    """
+
+    #: `(tool, subcommand, a flag the tool declares elsewhere)`.
+    ELSEWHERE = (
+        ("perry-task", "start", "--design"),
+        ("perry-task", "start", "--kr"),
+        ("perry-task", "next", "--unlinked"),
+        ("perry-task", "list", "--evidence"),
+        ("perry-tasks", "build", "--write"),
+        ("perry-tasks", "diff", "--from-board"),
+        ("perry-config", "show", "--mode"),
+    )
+
+    def setUp(self):
+        self.p = Project()
+        self.p.run("add", "--title", "a row for the refusals to act on")
+
+    def test_a_declared_flag_on_another_subcommand_is_refused(self):
+        for tool, sub, flag in self.ELSEWHERE:
+            with self.subTest(tool=tool, sub=sub, flag=flag):
+                out = run(tool, sub, flag, "X", "--root", str(self.p.root))
+                self.assertEqual(out.returncode, 2,
+                                 f"{tool} {sub} {flag} was accepted:\n"
+                                 + out.stdout[:200] + out.stderr[:200])
+                self.assertIn("not accepted by", out.stderr)
+                self.assertIn(sub, out.stderr)
+
+    def test_the_refusal_names_what_the_subcommand_does_take(self):
+        out = run("perry-task", "start", "--design", "DESIGN-016",
+                  "--root", str(self.p.root))
+        self.assertIn("--next", out.stderr,
+                      "the refusal did not name the accepted set, so the "
+                      "caller learns what is wrong and not what is right")
+
+    def test_the_control_is_that_the_flag_works_where_it_is_declared(self):
+        """Without this, a tool that refused every flag everywhere would pass
+        the case above."""
+        (self.p.root / "design").mkdir(exist_ok=True)
+        (self.p.root / "design" / "DESIGN-042-a-fixture.md").write_text(
+            "# DESIGN-042: a fixture\n")
+        code, _out = self.p.run("add", "--title", "a row that cites a design",
+                                "--design", "DESIGN-042")
+        self.assertEqual(code, 0)
 
 
 class TestOneNoArgumentBehaviour(unittest.TestCase):
@@ -415,12 +577,29 @@ class TestTheIndexIsDerivedFromTheDeclarations(unittest.TestCase):
                               capture_output=True, text=True)
 
     def test_list_names_every_declared_tool_and_subcommand(self):
+        """**Parsed per tool, not grepped.** Substring-matching the whole
+        listing let a V4 review print every subcommand of every tool under the
+        FIRST tool — the index wrong about who owns what, which is the entire
+        deliverable of C4 — and the test passed."""
         out = self._perry("list")
         self.assertEqual(out.returncode, 0, out.stderr)
+        owned, current = {}, None
+        for line in out.stdout.splitlines():
+            if line.startswith("not yet declaring a surface"):
+                break                      # the undeclared tail, not an entry
+            if line.startswith("perry-"):
+                current = line.split()[0]
+                owned[current] = []
+            elif line.startswith("  ") and current and line.strip():
+                owned[current].append(line.split()[0])
         for tool in DECLARED:
-            self.assertIn(tool, out.stdout)
-            for sub in surface(tool).get("subcommands", ()):
-                self.assertIn(sub["name"], out.stdout)
+            with self.subTest(tool=tool):
+                self.assertIn(tool, owned)
+                self.assertEqual(
+                    owned[tool],
+                    [s["name"] for s in surface(tool).get("subcommands", ())],
+                    "the index attributes these subcommands to the wrong tool "
+                    "or lists them in another order")
 
     def test_the_json_index_carries_the_same_counts(self):
         payload = json.loads(self._perry("list", "--json").stdout)

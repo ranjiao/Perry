@@ -19,7 +19,10 @@ Usage:
 
   --json        full state payload (default)
   --compact     the standup's numbers and the project's vocabulary, as JSON —
-                a strict projection of --json, about 1.5% of its size
+                a strict projection of --json, and the read `SKILL.md` step 3
+                makes. `reference/snapshot.md § Step 3` carries the measured
+                sizes; stating a percentage in two places is how this file
+                came to hold two different ones, neither of them current
   --dashboard   the standup dashboard rows as plain text, pre-computed
   --section     emit one top-level key only (board / phase / okr / design / …)
   --root        project root; default $PERRY_PROJECT, else walk up from cwd
@@ -2558,7 +2561,7 @@ SURFACE = {
         {"name": "--json", "summary": "the full payload (the default)"},
         {"name": "--compact", "summary":
          "the standup's numbers and this project's vocabulary — a strict "
-         "projection of --json, about 3.5% of its size"},
+         "projection of --json"},
         {"name": "--dashboard", "summary":
          "the standup rows as plain text, pre-computed"},
         {"name": "--section", "arg": "name", "summary":

@@ -62,15 +62,32 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
             cur = cur[step]
         return cur
 
+    #: `generated_at` is `datetime.now()` inside each invocation, and this
+    #: class makes two — so a run that straddles a second boundary compared two
+    #: honest stamps and failed. Measured at about 17 ms apart on an empty
+    #: project, which is ~1.7% of runs and worse under eight workers; it fired
+    #: once in six suite runs during a V4 review. Excluded here and asserted
+    #: for its SHAPE below, which is the claim that can be made about a clock.
+    CLOCK = ("generated_at",)
+
     def test_every_declared_field_matches_the_full_payload(self):
         """The projection is applied to the FULL payload here and compared to
         what the tool emitted. Restating the rules in this file would let the
         two drift into agreeing about different things."""
         for key, path, how in STATE.COMPACT:
+            if key in self.CLOCK:
+                continue
             with self.subTest(field=key):
                 self.assertEqual(
                     self._narrow_at(key),
                     STATE.project_value(STATE._at(self.full, path), how))
+
+    def test_the_clock_field_is_a_stamp_of_its_own_run(self):
+        """What is true of `generated_at` across two invocations: both are ISO
+        timestamps of the moment each ran, not the same string."""
+        from datetime import datetime
+        for payload in (self.full, self.narrow):
+            datetime.fromisoformat(payload["generated_at"])
 
     def test_a_scalar_is_carried_verbatim_and_a_list_is_counted(self):
         """The control: the case above passes if `project_value` is the

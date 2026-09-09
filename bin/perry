@@ -63,9 +63,19 @@ def surface_of(path: Path) -> dict | None:
     try:
         if "SURFACE" not in path.read_text(encoding="utf-8"):
             return None
+    except OSError:
+        return None
+    try:
         return getattr(load(path), "SURFACE", None)
-    except Exception:                      # a tool that cannot load is not an
-        return None                        # index entry; `perry-lint` says so
+    except Exception as exc:
+        # **Say so rather than demote it.** A blanket `except` here silently
+        # reclassified a tool whose `SURFACE` fails to import as "not yet
+        # declaring one", so a syntax error in a converted tool would have made
+        # this index quietly smaller and the undeclared list evidence of
+        # nothing. It says what happened and carries on indexing the rest.
+        print(f"perry: {path.name} declares a surface that will not load "
+              f"({type(exc).__name__}: {exc})", file=sys.stderr)
+        return None
 
 
 def cmd_list(argv: list[str]) -> int:
