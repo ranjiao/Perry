@@ -496,6 +496,252 @@ def resolve_project_root(explicit: str | os.PathLike | None = None, *,
     return cur
 
 
+# ── the declared surface ─────────────────────────────────────────────────
+#
+# **One declaration per tool, in the tool, and the parser is driven by it.**
+# DESIGN-016 Decision 5, answered 2026-09-09. There is no `bin/commands.json`
+# and there is no dispatcher holding a second copy of the list: a tool that
+# already keeps a flag table is the only place the fact belongs, and everything
+# else — `--describe --json`, `bin/perry list`, the generated usage block, the
+# README table — reads it from there.
+#
+# The shape, and it is deliberately JSON-native so `--describe` is a dump:
+#
+#     SURFACE = {
+#       "name": "perry-tasks", "kind": "write" | "read" | "cache-only",
+#       "summary": "one line",
+#       "root_resolution": "standard" | "cwd" | "none",
+#       "exit_codes": {"0": "...", "1": "...", "2": "..."},
+#       "flags": [{"name": "--root", "arg": "path", "summary": "...",
+#                  "repeatable": False, "required": False}],
+#       "subcommands": [{"name": "build", "summary": "...",
+#                        "flags": ["--root"], "writes": []}],
+#     }
+#
+# A flag is described ONCE in `flags` and referenced by name from each
+# subcommand that accepts it. That reference list is goal 12: a flag reaching a
+# subcommand that would drop it is refused rather than ignored, which is the
+# defect `--kr` and `--design` shipped twice (DESIGN-016 § 1.4).
+
+#: Flags every tool takes, so nineteen declarations do not each restate them.
+COMMON_FLAGS = (
+    {"name": "--root", "arg": "path", "summary":
+     "the project to act on; else $PERRY_PROJECT, else the walk up from cwd"},
+    {"name": "--help", "summary": "print usage and exit, from any position"},
+    # `--describe --json` is TASK-396's ask, and it is the same table the
+    # parser above reads rather than a second description of it. It answers
+    # about the whole tool, or about one subcommand when one is named.
+    {"name": "--describe", "summary":
+     "print this tool's declared surface as JSON and exit; name a subcommand "
+     "for that subcommand alone"},
+)
+
+
+def surface_flags(surface: dict) -> dict:
+    """`{flag name: its declaration}`, common flags included."""
+    out = {f["name"]: f for f in COMMON_FLAGS}
+    out.update({f["name"]: f for f in surface.get("flags", ())})
+    return out
+
+
+def always_accepted(surface: dict) -> set[str]:
+    """Flags every subcommand of THIS tool takes, plus the common ones.
+
+    `perry-task --json` is the example the shape was found on: it chooses the
+    OUTPUT format in `main` and no handler reads it, so deriving each
+    subcommand's flags from what its handler reads leaves it out of all thirty
+    — and `add --json`, which every caller in the suite passes, becomes a
+    refusal. A flag the tool honours everywhere is declared once, here, rather
+    than repeated thirty times or quietly exempted from the check.
+    """
+    return ({f["name"] for f in COMMON_FLAGS}
+            | set(surface.get("universal_flags", ())))
+
+
+def surface_subcommand(surface: dict, name: str) -> dict | None:
+    return next((s for s in surface.get("subcommands", ())
+                 if s["name"] == name), None)
+
+
+def check_surface(surface: dict) -> list[str]:
+    """Findings, empty when the declaration is internally consistent.
+
+    Held by `tests/test_bin_surface.py` rather than trusted: a subcommand that
+    references a flag nobody declared would parse as "unknown flag" at runtime
+    and read as a typo in the caller's command rather than in this table.
+    """
+    findings: list[str] = []
+    declared = surface_flags(surface)
+    for key in ("name", "kind", "summary", "root_resolution", "subcommands"):
+        if key not in surface:
+            findings.append(f"the declaration has no {key!r}")
+    if surface.get("kind") not in (None, "read", "write", "cache-only"):
+        findings.append(f"kind {surface['kind']!r} is not read/write/cache-only")
+    seen: set[str] = set()
+    for sub in surface.get("subcommands", ()):
+        if sub["name"] in seen:
+            findings.append(f"{sub['name']!r} is declared twice")
+        seen.add(sub["name"])
+        for flag in sub.get("flags", ()):
+            if flag not in declared:
+                findings.append(
+                    f"{sub['name']} accepts {flag}, which no `flags` entry "
+                    f"declares")
+    for flag in surface.get("flags", ()):
+        if flag["name"] in {f["name"] for f in COMMON_FLAGS}:
+            findings.append(f"{flag['name']} is already a common flag")
+    for flag in surface.get("universal_flags", ()):
+        if flag not in declared:
+            findings.append(f"{flag} is universal and no `flags` entry "
+                            f"declares it")
+    return findings
+
+
+def parse_surface(surface: dict, argv: list[str]) -> dict:
+    """Read `argv` against the declaration. Nothing is dispatched until it is.
+
+    Returns `{"help", "sub", "values", "seen", "extra", "error"}`. `error` is a
+    ready-made message and is `None` when the vector is legal.
+
+    Three refusals, and the third is the one that is new (goal 12):
+
+    * a token that starts with `-` and no `flags` entry declares — a typo;
+    * a subcommand no `subcommands` entry declares, with the legal set named;
+    * a DECLARED flag on a subcommand that does not list it. `perry-task add
+      --design` was accepted by a flat 46-flag table and dropped by `cmd_add`,
+      so the row it wrote carried no design edge and nothing said so.
+    """
+    declared = surface_flags(surface)
+    subs = {s["name"]: s for s in surface.get("subcommands", ())}
+    out: dict = {"help": False, "describe": False, "sub": None, "values": {},
+                 "seen": set(), "extra": [], "error": None}
+    i = 0
+    while i < len(argv):
+        token = argv[i]
+        if token == "--":
+            # Everything after `--` is a VALUE, verbatim, however it is spelled
+            # — `perry-config set "Chat language" -- --weird`. It ends the flag
+            # scan for the tokens after it and for nothing else: an undeclared
+            # flag BEFORE the `--` is still the typo it was.
+            out["extra"].extend(argv[i + 1:])
+            break
+        if token in ("-h", "--help"):
+            out["help"] = True
+        elif token == "--describe":
+            out["describe"] = True
+        elif token in declared:
+            out["seen"].add(token)
+            if declared[token].get("arg"):
+                if i + 1 >= len(argv):
+                    out["error"] = f"{token} takes a value"
+                    return out
+                got = out["values"]
+                if declared[token].get("repeatable"):
+                    got.setdefault(token, []).append(argv[i + 1])
+                else:
+                    got[token] = argv[i + 1]
+                i += 1
+        elif token.startswith("-"):
+            out["error"] = f"unknown argument {token!r} (try --help)"
+            return out
+        elif out["sub"] is None and subs:
+            out["sub"] = token
+        else:
+            out["extra"].append(token)
+        i += 1
+    # Both of these answer ABOUT the tool rather than running it, so neither
+    # needs a subcommand and neither may be refused for the lack of one.
+    if out["help"] or out["describe"]:
+        if out["sub"] is not None and out["sub"] not in subs:
+            out["error"] = (f"{out['sub']!r} is not a subcommand. "
+                            f"Expected one of: {', '.join(sorted(subs))}")
+        return out
+    if subs:
+        if out["sub"] is None:
+            out["error"] = f"expected one of: {', '.join(sorted(subs))}"
+            return out
+        if out["sub"] not in subs:
+            out["error"] = (f"{out['sub']!r} is not a subcommand. "
+                            f"Expected one of: {', '.join(sorted(subs))}")
+            return out
+        allowed = set(subs[out["sub"]].get("flags", ()))
+        allowed.update(always_accepted(surface))
+        for flag in sorted(out["seen"] - allowed):
+            out["error"] = (
+                f"{flag} is not accepted by {out['sub']!r}, and {out['sub']!r} "
+                f"would have ignored it. Accepted here: "
+                f"{', '.join(sorted(allowed - {'--help'})) or 'nothing but --root'}")
+            return out
+    return out
+
+
+def describe_surface(surface: dict, sub: str | None = None) -> dict:
+    """The declaration, or one subcommand of it, as JSON.
+
+    This is `TASK-396`'s published write contract and `bin/perry describe`'s
+    only source, arriving as a by-product of the table the parser already
+    reads rather than as a second mechanism.
+    """
+    flags = surface_flags(surface)
+    if sub is None:
+        return {"tool": surface["name"], "kind": surface["kind"],
+                "summary": surface["summary"],
+                "root_resolution": surface.get("root_resolution", "standard"),
+                "exit_codes": surface.get("exit_codes", {}),
+                "flags": [flags[n] for n in sorted(flags)],
+                "subcommands": [
+                    {"name": s["name"], "summary": s.get("summary", ""),
+                     "flags": sorted(set(s.get("flags", ()))
+                                     | always_accepted(surface)),
+                     "writes": list(s.get("writes", ()))}
+                    for s in surface.get("subcommands", ())]}
+    found = surface_subcommand(surface, sub)
+    if found is None:
+        return {"tool": surface["name"], "error":
+                f"{sub!r} is not a subcommand of {surface['name']}",
+                "subcommands": [s["name"] for s in surface.get("subcommands", ())]}
+    names = sorted(set(found.get("flags", ())) | always_accepted(surface))
+    return {"tool": surface["name"], "subcommand": found["name"],
+            "summary": found.get("summary", ""),
+            "writes": list(found.get("writes", ())),
+            "flags": [flags[n] for n in names if n in flags]}
+
+
+def usage_lines(surface: dict, sub: str | None = None) -> str:
+    """The usage block, generated. `<tool> --help § Usage` prints this.
+
+    DESIGN-016 § 1.3: `--help` was a design paper — 10,689 bytes on
+    `perry-task`, with `Usage:` at line 51 — so an agent asking what `done`
+    takes paid ~2.5k tokens and read fifty lines of history first.
+    """
+    flags = surface_flags(surface)
+
+    def spell(name: str) -> str:
+        flag = flags.get(name, {"name": name})
+        return f"{name} <{flag['arg']}>" if flag.get("arg") else name
+
+    lines = [f"Usage: {surface['name']} <subcommand> [flags]"
+             if surface.get("subcommands") else
+             f"Usage: {surface['name']} [flags]"]
+    picked = ([surface_subcommand(surface, sub)] if sub
+              else list(surface.get("subcommands", ())))
+    for item in picked:
+        if item is None:
+            continue
+        names = sorted(set(item.get("flags", ())) | always_accepted(surface)
+                       - {"--help", "--describe"})
+        lines.append(f"  {surface['name']} {item['name']} "
+                     f"{' '.join('[' + spell(n) + ']' for n in names)}")
+        if item.get("summary"):
+            lines.append(f"      {item['summary']}")
+    if not surface.get("subcommands"):
+        for name in sorted(flags):
+            if name == "--help":
+                continue
+            lines.append(f"  {spell(name):<28} {flags[name].get('summary','')}")
+    return "\n".join(lines)
+
+
 def scan_argv(argv: list[str], *, bools: tuple[str, ...] = (),
               values: tuple[str, ...] = ()) -> tuple[list[str], set[str],
                                                      dict[str, str], str | None]:

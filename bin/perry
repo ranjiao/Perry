@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""
+perry — the index of `bin/`, and a way in.
+
+    perry list                     every tool and subcommand, one line each
+    perry describe <tool> [<sub>]  what one tool, or one subcommand, takes
+    perry <tool> [args…]           run it
+
+**This holds no knowledge of its own.** Every line it prints comes from the
+`SURFACE` declaration inside the tool it names — the same table that tool's
+parser reads and its `--describe --json` prints. Adding a subcommand to a tool
+makes it appear here; nothing in this file lists anything.
+
+That is DESIGN-016 Decision 5, and it is why there is no `bin/commands.json`:
+a checked-in copy would be a second statement of a fact the tools already hold,
+and this repository has paid twice for a second reader of one file.
+
+Discovery was the problem it solves: eighteen executables, about seventy-six
+subcommands, and `bin/README.md` — a document measured 2026-09-09 as carrying
+eight statements that were no longer true — as the only index.
+"""
+
+from __future__ import annotations
+
+import importlib.machinery
+import importlib.util
+import json
+import os
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import lib  # noqa: E402
+
+
+def tool_paths() -> list[Path]:
+    """Every executable in `bin/` whose name is a tool name."""
+    return sorted(p for p in HERE.glob("perry-*")
+                  if p.is_file() and not p.name.endswith(".py"))
+
+
+def load(path: Path):
+    """A `bin/` tool as a module. Extensionless, so `import` cannot."""
+    spec = importlib.util.spec_from_loader(
+        f"perry_tool_{path.name.replace('-', '_')}",
+        importlib.machinery.SourceFileLoader(
+            f"perry_tool_{path.name.replace('-', '_')}", str(path)))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def surface_of(path: Path) -> dict | None:
+    """The tool's declaration, or `None` when it has not been converted yet.
+
+    The file is READ before it is loaded: a tool with no `SURFACE` costs a
+    `read_text` here rather than an import, and `perry list` stays fast enough
+    to be the thing an agent runs first.
+    """
+    try:
+        if "SURFACE" not in path.read_text(encoding="utf-8"):
+            return None
+        return getattr(load(path), "SURFACE", None)
+    except Exception:                      # a tool that cannot load is not an
+        return None                        # index entry; `perry-lint` says so
+
+
+def cmd_list(argv: list[str]) -> int:
+    """`--tools` is the one-line-per-tool index; the default carries the
+    subcommands too. Both are the same declarations read the same way — the
+    choice is only how much of it an agent wants to pay for (about 1.2k tokens
+    against about 150)."""
+    declared, undeclared = [], []
+    for path in tool_paths():
+        face = surface_of(path)
+        (declared if face else undeclared).append((path, face))
+    if "--json" in argv:
+        print(json.dumps(
+            {"tools": [lib.describe_surface(f) for _p, f in declared],
+             "undeclared": [p.name for p, _f in undeclared]},
+            ensure_ascii=False, indent=2))
+        return 0
+    for path, face in declared:
+        print(f"{face['name']:<22} {face['kind']:<10} {face['summary']}")
+        if "--tools" in argv:
+            continue
+        for sub in face.get("subcommands", ()):
+            print(f"  {sub['name']:<20} {sub.get('summary','')}")
+    if undeclared:
+        print()
+        print("not yet declaring a surface — `--help` is the only index for "
+              "these:")
+        print("  " + ", ".join(p.name for p, _f in undeclared))
+    return 0
+
+
+def cmd_describe(argv: list[str]) -> int:
+    if not argv:
+        print("perry describe <tool> [<subcommand>]", file=sys.stderr)
+        return 2
+    name = argv[0] if argv[0].startswith("perry-") else f"perry-{argv[0]}"
+    path = HERE / name
+    if not path.exists():
+        print(f"perry: no tool {name!r}. `perry list` names them all.",
+              file=sys.stderr)
+        return 2
+    face = surface_of(path)
+    if face is None:
+        print(f"perry: {name} does not declare a surface yet; "
+              f"`{name} --help` is what it has.", file=sys.stderr)
+        return 2
+    print(json.dumps(lib.describe_surface(face, argv[1] if argv[1:] else None),
+                     ensure_ascii=False, indent=2))
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    verb, rest = argv[0], argv[1:]
+    if verb == "list":
+        return cmd_list(rest)
+    if verb == "describe":
+        return cmd_describe(rest)
+    name = verb if verb.startswith("perry-") else f"perry-{verb}"
+    path = HERE / name
+    if not path.exists():
+        print(f"perry: no tool {name!r}. `perry list` names them all.",
+              file=sys.stderr)
+        return 2
+    # Forwarded in-process rather than re-execed: the tool's `main` is the one
+    # thing every one of them has, and a subprocess would double the cost of
+    # every call made through this entry point.
+    module = load(path)
+    if not hasattr(module, "main"):
+        print(f"perry: {name} has no importable main(); run it directly.",
+              file=sys.stderr)
+        return 2
+    return module.main(rest)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

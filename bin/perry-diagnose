@@ -2678,6 +2678,28 @@ def render_text(d: dict) -> str:
     return "\n".join(L)
 
 
+#: What this tool accepts, declared once (DESIGN-016 C1).
+SURFACE = {
+    "name": "perry-diagnose",
+    "kind": "read",
+    "summary": "judge the folder it is pointed at: is it set up in a way that "
+               "holds up under agent work",
+    # The one tool that does NOT walk up: it answers about the directory it was
+    # given, so falling through to an ancestor would answer about a project
+    # nobody named.
+    "root_resolution": "cwd",
+    "exit_codes": {"0": "diagnosed — findings are the answer, not an error",
+                   "2": "bad invocation"},
+    "flags": [
+        {"name": "--json", "summary": "the payload (the default)"},
+        {"name": "--text", "summary": "the same findings as prose"},
+        {"name": "--max-files", "arg": "n", "summary":
+         "stop scanning after this many files (default 20000)"},
+    ],
+    "subcommands": [],
+}
+
+
 def main(argv: list[str]) -> int:
     # **An undeclared token is refused, and a bad `--max-files` is refused**
     # (DESIGN-016 A2). Both used to be ignored: the loop here had no `else`, so
@@ -2686,19 +2708,23 @@ def main(argv: list[str]) -> int:
     # a cap the caller believes they set. "Always exits 0" is about FINDINGS,
     # which are the answer this tool exists to give; it was never meant to
     # cover being called wrongly.
-    positionals, seen, given, error = lib.scan_argv(
-        argv, bools=("--json", "--text"), values=("--root", "--max-files"))
-    if "--help" in seen:
+    read = lib.parse_surface(SURFACE, argv)
+    if read["help"]:
         print(__doc__.strip())
         return 0
-    if error:
-        print(f"perry-diagnose: {error}", file=sys.stderr)
+    if read["describe"]:
+        print(json.dumps(lib.describe_surface(SURFACE), ensure_ascii=False,
+                         indent=2))
+        return 0
+    if read["error"]:
+        print(f"perry-diagnose: {read['error']}", file=sys.stderr)
         return 2
-    if positionals:
-        print(f"perry-diagnose: {positionals[0]!r} is not a flag, and this "
+    if read["extra"]:
+        print(f"perry-diagnose: {read['extra'][0]!r} is not a flag, and this "
               f"tool takes no positional argument (try --help)",
               file=sys.stderr)
         return 2
+    given, seen = read["values"], read["seen"]
     fmt = "text" if "--text" in seen else "json"
     try:
         max_files = int(given.get("--max-files", 20000))

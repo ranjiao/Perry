@@ -982,31 +982,83 @@ def _first_difference(live: str, rendered: str) -> dict:
             "rendered": (b[n] if n < len(b) else "<past end of render>")[:400]}
 
 
+def surface(doc: Doc) -> dict:
+    """This document's declared surface (DESIGN-016 C1, Decision 5).
+
+    Built per `Doc` because one module serves several tools — `perry-okr` is
+    this file under its own name — so the declaration is a function of the
+    document rather than a constant, and `--describe` answers for the tool the
+    caller actually ran.
+    """
+    return {
+        "name": f"perry-{doc.name}",
+        "kind": "write",
+        "summary": f"`{doc.rel_file}` as a store, and the projection of it",
+        "root_resolution": "standard",
+        "exit_codes": {
+            "0": "read, or written",
+            "1": "refused, or the file and the store differ",
+            "2": "bad invocation, or nothing usable to compare",
+            "3": "the bytes match and the store did not produce them",
+        },
+        "flags": [
+            {"name": "--write", "summary":
+             "put the render on disk instead of on stdout"},
+            {"name": "--from-file", "summary":
+             "confirm the backwards direction: the file replaces the store"},
+            {"name": "--dry-run", "summary":
+             "print what would land and touch nothing"},
+            {"name": "--json", "summary": "a machine-readable payload"},
+        ],
+        "subcommands": [
+            {"name": "build", "summary":
+             f"derive the store from {doc.rel_file} and print it", "flags": []},
+            {"name": "verify", "summary":
+             "field-compare the store on disk with the file", "flags": []},
+            {"name": "write", "summary":
+             f"the one-way import: {doc.rel_file} -> {doc.rel_store}",
+             "flags": ["--from-file", "--dry-run", "--json"],
+             "writes": [doc.rel_store]},
+            {"name": "render", "summary":
+             f"{doc.rel_store} -> {doc.rel_file}; refuses when a record has "
+             f"no line to land in",
+             "flags": ["--write", "--dry-run", "--json"],
+             "writes": [doc.rel_file]},
+            {"name": "diff", "summary":
+             "render and byte-compare with the file on disk", "flags": []},
+        ],
+    }
+
+
 def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     tool = f"perry-{doc.name}"
-    # **The whole vector is read before anything dispatches** (DESIGN-016 A2).
-    # `-h` anywhere prints and exits, so `render --write --help` no longer runs
-    # the render; an undeclared token is refused with exit 2 rather than
-    # ignored, so `--wrte` is a typo again instead of a silent no-op; and
-    # `--root` is read here rather than by three membership tests further down.
-    positionals, seen, given, error = lib.scan_argv(
-        argv, bools=("--write", "--from-file", "--dry-run", "--json"),
-        values=("--root",))
-    if not argv or "--help" in seen:
-        print(USAGE.format(tool=tool, file=doc.rel_file, store=doc.rel_store)
-              .strip())
+    # **The whole vector is read against the declaration before anything
+    # dispatches** (DESIGN-016 A2 and C1). `-h` anywhere prints and exits, so
+    # `render --write --help` no longer runs the render; an undeclared token is
+    # refused rather than ignored, so `--wrte` is a typo again instead of a
+    # silent no-op; a declared flag on a subcommand that does not list it is
+    # refused too; and `--root` is read here rather than by three membership
+    # tests further down.
+    face = surface(doc)
+    read = lib.parse_surface(face, argv)
+    if not argv or read["help"]:
+        if read["sub"]:
+            print(lib.usage_lines(face, read["sub"]))
+        else:
+            print(USAGE.format(tool=tool, file=doc.rel_file,
+                               store=doc.rel_store).strip())
         return 0
-    if error:
-        print(f"{tool}: {error}", file=sys.stderr)
+    if read["describe"]:
+        print(json.dumps(lib.describe_surface(face, read["sub"]),
+                         ensure_ascii=False, indent=2))
+        return 0
+    if read["error"]:
+        print(f"{tool}: {read['error']}", file=sys.stderr)
         return 2
-    cmd = positionals[0] if positionals else None
-    if cmd not in COMMANDS:
-        print(f"{tool}: expected {' / '.join(COMMANDS)}, got {cmd!r}",
-              file=sys.stderr)
-        return 2
-    if positionals[1:]:
-        print(f"{tool}: {positionals[1]!r} is not a flag, and {cmd!r} takes no "
-              f"second argument (try --help)", file=sys.stderr)
+    cmd, seen, given = read["sub"], read["seen"], read["values"]
+    if read["extra"]:
+        print(f"{tool}: {read['extra'][0]!r} is not a flag, and {cmd!r} takes "
+              f"no second argument (try --help)", file=sys.stderr)
         return 2
 
     # `--root` first, `$PERRY_PROJECT` second — the order `bin/README.md § Which

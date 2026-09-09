@@ -7675,6 +7675,14 @@ def cmd_list(args, ctx) -> dict:
     # tool also says so on stderr — `contract 1.19` and `semantics` carry it
     # for the ones that read the payload properly.
     total = len(rows)
+    # **Counted before the bound.** `open` and `closed` count the rows in the
+    # payload — the contract has always said so — but on a truncated call that
+    # makes them counts of a window, and `--all` is exactly the flag that makes
+    # the window bite: on this repository `list --all --json` returned 24 open
+    # of 156, because the surviving 200 rows sort by id and most closed rows
+    # are older. A consumer that renders "open" now has the project's figure
+    # here, whatever the window did.
+    open_total = sum(1 for task in rows if task["open"])
     asked = args.limit is not None
     limit = LIST_DEFAULT_LIMIT
     if asked:
@@ -7689,13 +7697,17 @@ def cmd_list(args, ctx) -> dict:
     truncated = bool(limit) and total > limit
     if truncated:
         rows = rows[:limit]
-        print(f"perry-task: list returned {limit} of {total} row(s) — the "
-              f"default bound. Pass `--limit 0` for every row, `--limit <n>` "
-              f"for a different one, or `--track <name>` to narrow the set.",
-              file=sys.stderr)
+        print(f"perry-task: list returned {limit} of {total} row(s) — "
+              f"{'the default bound' if not asked else 'the --limit you passed'}"
+              f". `open` and `closed` count the returned rows; "
+              f"`bound.open_total` is {open_total}. Pass `--limit 0` for every "
+              f"row, `--limit <n>` for a different one, or `--track <name>` to "
+              f"narrow the set.", file=sys.stderr)
     return {"contract": LIST_CONTRACT,
             "bound": {"limit": limit or None, "default": not asked,
                       "returned": len(rows), "total": total,
+                      "open_total": open_total,
+                      "closed_total": total - open_total,
                       "truncated": truncated,
                       "order": "by id, ascending"},
             "semantics": sorted(
@@ -7792,6 +7804,9 @@ class Args:
 def parse(argv: list[str]) -> Args:
     a = Args()
     a.cmd = None
+    a.help = a.describe = False
+    a.error = None
+    a.extra = []
     a.id = a.title = a.summary = a.track = a.owner = a.priority = None
     a.next = a.parent = a.commitment = a.stage = a.evidence = a.rung = None
     a.root = None
@@ -7818,7 +7833,6 @@ def parse(argv: list[str]) -> Args:
     # none there — there is no value to be blank, so `--kr "   "`'s malformed
     # input (TASK-281 round 2) has no analogue to accept.
     a.unlinked = False
-    i = 0
     flags = {"--title": "title", "--summary": "summary",
              "--track": "track", "--owner": "owner",
              "--priority": "priority", "--next": "next", "--parent": "parent",
@@ -7839,35 +7853,27 @@ def parse(argv: list[str]) -> Args:
              "--signed-on": "signed_on"}
     repeated = {"--measured": "measured", "--restated": "restated",
                 "--checked": "checked", "--not-looked-at": "not_looked_at"}
-    while i < len(argv):
-        t = argv[i]
-        if t in ("-h", "--help"):
-            print(__doc__.strip())
-            sys.exit(0)
-        elif t == "--dry-run":
-            a.dry_run = True
-        elif t == "--json":
-            a.as_json = True
-        elif t == "--all":
-            a.all = True
-        elif t == "--clear":
-            a.clear = True
-        elif t == "--unlinked":
-            a.unlinked = True
-        elif t in repeated:
-            i += 1
-            getattr(a, repeated[t]).append(argv[i] if i < len(argv) else "")
-        elif t in flags:
-            i += 1
-            setattr(a, flags[t], argv[i] if i < len(argv) else None)
-        elif t.startswith("-"):
-            print(f"perry-task: unknown argument {t!r} (try --help)", file=sys.stderr)
-            sys.exit(2)
-        elif a.cmd is None:
-            a.cmd = t
-        elif a.id is None:
-            a.id = t
-        i += 1
+    # **The vector is read against `SURFACE`** (DESIGN-016 C1). The two tables
+    # above stay, because they are the mapping from a flag to the attribute a
+    # handler reads; what they no longer do is decide what is ACCEPTABLE. That
+    # is the declaration's job, per subcommand, which is how `--design` on
+    # `add` stopped being a flag the parser took and `cmd_add` dropped.
+    read = lib.parse_surface(SURFACE, argv)
+    a.help, a.describe, a.error = read["help"], read["describe"], read["error"]
+    a.cmd = read["sub"]
+    a.id = read["extra"][0] if read["extra"] else None
+    a.extra = read["extra"][1:]
+    for flag, attr in flags.items():
+        if flag in read["values"]:
+            setattr(a, attr, read["values"][flag])
+    for flag, attr in repeated.items():
+        if flag in read["values"]:
+            setattr(a, attr, list(read["values"][flag]))
+    a.dry_run = "--dry-run" in read["seen"]
+    a.as_json = "--json" in read["seen"]
+    a.all = "--all" in read["seen"]
+    a.clear = "--clear" in read["seen"]
+    a.unlinked = "--unlinked" in read["seen"]
     return a
 
 
@@ -8104,6 +8110,197 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "signoff-offer": cmd_signoff_offer}
 
 
+#: **What this tool accepts, declared once** (DESIGN-016 C1, Decision 5), per
+#: SUBCOMMAND. The flat 46-flag table `parse` used to consult for all thirty of
+#: them is why `--kr` and `--design` were each accepted and dropped: "this flag
+#: is spelled correctly" and "this subcommand reads it" were two facts with
+#: nothing comparing them (DESIGN-016 § 1.4). Here they are one.
+#:
+#: The per-subcommand lists were derived from the code — which `args.<attr>`
+#: each handler actually reads, `cell_writer`'s closures included — and
+#: `tests/test_bin_surface.py` re-derives them and fails when the two disagree.
+SURFACE = {
+    "name": "perry-task",
+    "kind": "write",
+    "summary": "the one deterministic way board state changes",
+    "root_resolution": "standard",
+    "exit_codes": {"0": "written, or read", "1": "refused, and why is printed",
+                   "2": "bad invocation"},
+    # `--json` picks the OUTPUT shape in `main` and no handler reads it, so it
+    # belongs to every subcommand rather than to thirty of them.
+    "universal_flags": ["--json"],
+    "flags": [
+        {"name": "--actor", "arg": "value"},
+        {"name": "--all"},
+        {"name": "--also", "arg": "value"},
+        {"name": "--answer", "arg": "value"},
+        {"name": "--arrived", "arg": "value"},
+        {"name": "--blocks", "arg": "value"},
+        {"name": "--checked", "arg": "value", "repeatable": True},
+        {"name": "--clear"},
+        {"name": "--commitment", "arg": "value"},
+        {"name": "--deliverable", "arg": "value"},
+        {"name": "--depends", "arg": "value"},
+        {"name": "--design", "arg": "value"},
+        {"name": "--dry-run"},
+        {"name": "--evidence", "arg": "value"},
+        {"name": "--frequency", "arg": "value"},
+        {"name": "--group", "arg": "value"},
+        {"name": "--json"},
+        {"name": "--kr", "arg": "value"},
+        {"name": "--limit", "arg": "value"},
+        {"name": "--measured", "arg": "value", "repeatable": True},
+        {"name": "--needed", "arg": "value"},
+        {"name": "--next", "arg": "value"},
+        {"name": "--not-looked-at", "arg": "value", "repeatable": True},
+        {"name": "--on", "arg": "value"},
+        {"name": "--opened", "arg": "value"},
+        {"name": "--out-of-scope", "arg": "value"},
+        {"name": "--outcome", "arg": "value"},
+        {"name": "--owner", "arg": "value"},
+        {"name": "--parent", "arg": "value"},
+        {"name": "--prefix", "arg": "value"},
+        {"name": "--priority", "arg": "value"},
+        {"name": "--reason", "arg": "value"},
+        {"name": "--restated", "arg": "value", "repeatable": True},
+        {"name": "--role", "arg": "value"},
+        {"name": "--rung", "arg": "value"},
+        {"name": "--signed-on", "arg": "value"},
+        {"name": "--signer", "arg": "value"},
+        {"name": "--since", "arg": "value"},
+        {"name": "--stage", "arg": "value"},
+        {"name": "--status", "arg": "value"},
+        {"name": "--summary", "arg": "value"},
+        {"name": "--title", "arg": "value"},
+        {"name": "--track", "arg": "value"},
+        {"name": "--unlinked"},
+        {"name": "--verification", "arg": "value"},
+    ],
+    "subcommands": [
+        {"name": "add", "summary":
+         "open a row: title, deliverable, verification and summary are required",
+         "flags": ["--actor", "--arrived", "--commitment", "--deliverable", "--depends", "--design", "--dry-run", "--group", "--kr", "--next", "--out-of-scope", "--owner", "--parent", "--prefix", "--priority", "--role", "--rung", "--stage", "--summary", "--title", "--track", "--unlinked", "--verification"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "start", "summary":
+         "not_started -> in_progress, with the next action",
+         "flags": ["--actor", "--dry-run", "--next"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "stage", "summary":
+         "move a row to another stage of its track",
+         "flags": ["--actor", "--dry-run", "--stage"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "track", "summary":
+         "move an existing row onto another declared track, id and cells kept",
+         "flags": ["--actor", "--arrived", "--dry-run", "--reason", "--stage", "--track"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "ask", "summary":
+         "add a question for the user to the User Input Queue",
+         "flags": ["--actor", "--arrived", "--blocks", "--dry-run", "--needed"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "answer", "summary":
+         "record the user's answer to one USER- row",
+         "flags": ["--actor", "--answer", "--dry-run"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "next", "summary":
+         "rewrite the Next action cell, nothing else",
+         "flags": ["--actor", "--dry-run", "--next"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "cadence-add", "summary":
+         "declare a recurring task",
+         "flags": ["--actor", "--dry-run", "--frequency", "--on", "--owner", "--title"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "cadence-done", "summary":
+         "record one occurrence of a recurring task, with evidence",
+         "flags": ["--actor", "--dry-run", "--evidence", "--frequency", "--on"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "risk-add", "summary":
+         "open a row in the risks register",
+         "flags": ["--actor", "--dry-run", "--opened", "--title"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "risk-clear", "summary":
+         "close one risk, with the reason",
+         "flags": ["--actor", "--dry-run", "--reason"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "risk-migrate", "summary":
+         "the `## Top risks` bullets into the table",
+         "flags": ["--actor", "--dry-run"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "done", "summary":
+         "close a row: evidence required, rung recorded, row leaves the board",
+         "flags": ["--actor", "--also", "--checked", "--dry-run", "--evidence", "--json", "--measured", "--not-looked-at", "--restated", "--rung", "--signed-on", "--signer"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "drop", "summary":
+         "close a row as not-to-be-done, with the reason",
+         "flags": ["--actor", "--dry-run", "--reason"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "purge", "summary":
+         "DELETE a terminal record from the store; drop keeps it",
+         "flags": ["--actor", "--dry-run", "--reason"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "intake", "summary":
+         "add a request to the intake queue",
+         "flags": ["--actor", "--arrived", "--dry-run", "--title"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "route", "summary":
+         "turn one intake row into a task on a track",
+         "flags": ["--actor", "--arrived", "--commitment", "--dry-run", "--group", "--owner", "--prefix", "--priority", "--stage", "--track"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "resolve-intake", "summary":
+         "discharge one intake row without turning it into a task",
+         "flags": ["--actor", "--dry-run", "--outcome", "--reason"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "retitle", "summary":
+         "rewrite the Title cell, nothing else",
+         "flags": ["--actor", "--dry-run", "--title"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "summary", "summary":
+         "rewrite the store-only summary, or clear it",
+         "flags": ["--actor", "--clear", "--dry-run", "--summary"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "rung", "summary":
+         "rewrite the Verification cell, nothing else",
+         "flags": ["--actor", "--dry-run", "--rung"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "evidence", "summary":
+         "rewrite the Evidence cell, nothing else",
+         "flags": ["--actor", "--dry-run", "--evidence"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "prioritize", "summary":
+         "move a row between board sections",
+         "flags": ["--actor", "--dry-run", "--group", "--priority", "--reason"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "intake-sweep", "summary":
+         "take discharged intake rows off the board, into the journal",
+         "flags": ["--actor", "--dry-run"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "status", "summary":
+         "set the status, with the reason and the next action",
+         "flags": ["--actor", "--dry-run", "--next", "--on", "--reason", "--status"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "depends", "summary":
+         "replace the set of rows this one waits on",
+         "flags": ["--actor", "--clear", "--dry-run", "--on"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "design-link", "summary":
+         "replace the set of designs this row implements",
+         "flags": ["--actor", "--clear", "--design", "--dry-run"],
+         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+        {"name": "list", "summary":
+         "the read contract: every open row, bounded at 200 by default",
+         "flags": ["--all", "--limit", "--track"],
+         "writes": []},
+        {"name": "events", "summary":
+         "one page of the event log, newest first",
+         "flags": ["--limit", "--since"],
+         "writes": []},
+        {"name": "signoff-offer", "summary":
+         "the V5 sign-off prompt for a row about to close",
+         "flags": ["--measured", "--restated"],
+         "writes": []},
+    ],
+}
+
+
 def project_lock(state_root: Path, timeout: float = 10.0):
     """Serialize the whole read-modify-write, not just the write.
 
@@ -8124,27 +8321,33 @@ def project_lock(state_root: Path, timeout: float = 10.0):
 
 def main(argv: list[str]) -> int:
     args = parse(argv)
+    if args.help:
+        # A named subcommand gets ITS usage, generated from the declaration —
+        # DESIGN-016 goal 8. `--help` alone still prints this file's document
+        # until C2 moves the essay out of it.
+        print(lib.usage_lines(SURFACE, args.cmd) if args.cmd in COMMANDS
+              else __doc__.strip())
+        return 0
+    if args.describe:
+        print(json.dumps(lib.describe_surface(SURFACE, args.cmd),
+                         ensure_ascii=False, indent=2))
+        return 0
+    if args.error:
+        print(f"perry-task: {args.error}", file=sys.stderr)
+        return 2
     if args.cmd not in COMMANDS:
         print(f"perry-task: expected one of {' / '.join(COMMANDS)} "
               f"(try --help)", file=sys.stderr)
         return 2
-    # **`--unlinked` belongs to `add` alone, and elsewhere it is REFUSED rather
-    # than ignored** (TASK-394). `parse` is one flat flag table shared by every
-    # subcommand, so `perry-task start TASK-1 --unlinked` would parse cleanly,
-    # do nothing, and exit 0 — the caller believing they had declared something.
-    # That is the silent discard `--stage` on a `project`-mode track is already
-    # refused for, and it matters more here because the thing discarded is a
-    # write to a canonical store. `--kr` is NOT given the same treatment in this
-    # row: it has been accepted-and-ignored outside `add` since before TASK-279,
-    # so refusing it now would be a behaviour change to a flag this row does not
-    # own. `--unlinked` is new, so nothing can already depend on it being
-    # swallowed, and it starts strict.
-    if getattr(args, "unlinked", False) and args.cmd != "add":
-        print(f"perry-task: --unlinked is only accepted by `add`, and "
-              f"{args.cmd!r} would have ignored it silently. A row that "
-              f"already exists is declared unlinked with `perry-goals link "
-              f"--unlinked <TASK-ID>`. Nothing was written.", file=sys.stderr)
-        return 2
+    # **`--unlinked` belongs to `add` alone** (TASK-394), and the guard that
+    # said so by hand is gone: `SURFACE` lists it under `add` and nowhere else,
+    # so `parse` refuses it on every other subcommand by the same rule that
+    # refuses `--design` on `start` (DESIGN-016 goal 12). What TASK-394 argued
+    # for — refused rather than ignored, because the thing discarded is a write
+    # to a canonical store — is now the tool's general behaviour rather than
+    # one flag's special case. `--kr` moved with it: it had been
+    # accepted-and-ignored outside `add` since before TASK-279, and this is the
+    # change that stops it.
     try:
         schema = load_schema()
         project_root = (Path(args.root).expanduser().resolve() if args.root

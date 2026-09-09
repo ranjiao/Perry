@@ -35,12 +35,27 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import perry_md_store as store  # noqa: E402
 
-if __name__ == "__main__":
-    if sys.argv[1:2] and sys.argv[1] in ("-h", "--help"):
+#: This tool's declared surface, so `bin/perry` and `--describe` reach it the
+#: same way they reach every other tool. `perry_md_store` builds it from the
+#: document, because one module serves several tools (DESIGN-016 C1).
+SURFACE = store.surface(store.OKR)
+
+
+def main(argv: list[str]) -> int:
+    """`perry_md_store.main` under this tool's name, and importable.
+
+    It was `__main__`-only, so nothing could load this file to ask what it
+    accepts — which is what `bin/perry list` and `--describe` do.
+    """
+    if argv[:1] and argv[0] in ("-h", "--help") and len(argv) == 1:
         print(__doc__.strip())
-        sys.exit(0)
+        return 0
     try:
-        sys.exit(store.main(store.OKR, sys.argv[1:]))
+        return store.main(store.OKR, argv)
     except store.Refused as exc:
         print(f"perry-okr: refused — {exc}", file=sys.stderr)
-        sys.exit(1)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

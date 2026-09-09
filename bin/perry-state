@@ -2279,7 +2279,19 @@ COMPACT: tuple[tuple[str, str, object], ...] = (
         ("objectives", "objectives", ("objectives", ("id", "linked", "stretch"))),
         ("scope_triggers", "scope_triggers", "count"),
     ))),
-    # The KR progress the dashboard puts a percentage on.
+    # **The KR progress the dashboard puts a percentage on** —
+    # `reference/snapshot.md` step 4 renders `O1 · <title> … <%>` and
+    # `P-O1 · <title> … <KRs done>/<KRs total>`, and `linkage` is the only
+    # place `current` and `target` are machine-readable. It was left out of the
+    # first `--compact` and step 4 became uncomputable; a V4 review found it.
+    # Narrowed hard: 13,112 bytes whole, 605 as id/title/current/target.
+    ("linkage.phase", "linkage.phase", "value"),
+    ("linkage.objectives", "linkage.objectives",
+     ("objectives_with_progress", ("id", "title", "current", "target",
+                                   "stretch"))),
+    ("linkage.unlinked", "linkage.unlinked", "count"),
+    # A provenance roll-up over the phase's KRs — how many were asserted,
+    # measured, stale. NOT a per-objective percentage; the line above is.
     ("attribution.kr_currents", "attribution.kr_currents", "value"),
     ("board.lines", "board.lines", "value"),
     ("board.cap", "board.cap", "value"),
@@ -2350,6 +2362,12 @@ def project_value(value, how):
         return (None if not isinstance(value, list)
                 else [{k: item.get(k) for k in arg} for item in value
                       if isinstance(item, dict)])
+    if kind == "objectives_with_progress":
+        return (None if not isinstance(value, list) else
+                [{"id": o.get("id"), "title": o.get("title"),
+                  "krs": [{k: kr.get(k) for k in arg}
+                          for kr in (o.get("krs") or [])]}
+                 for o in value if isinstance(o, dict)])
     if kind == "objectives":
         return (None if not isinstance(value, list) else
                 [{"title": o.get("title"),
@@ -2527,32 +2545,49 @@ def resolve_root(explicit: str | None) -> Path:
 
 
 
+#: What this tool accepts, declared once (DESIGN-016 C1). No subcommands: one
+#: read, four ways to narrow it.
+SURFACE = {
+    "name": "perry-state",
+    "kind": "read",
+    "summary": "the single deterministic read of a project's state",
+    "root_resolution": "standard",
+    "exit_codes": {"0": "read (`installed: false` when there is no state)",
+                   "2": "bad invocation, or no such section"},
+    "flags": [
+        {"name": "--json", "summary": "the full payload (the default)"},
+        {"name": "--compact", "summary":
+         "the standup's numbers and this project's vocabulary — a strict "
+         "projection of --json, about 3.5% of its size"},
+        {"name": "--dashboard", "summary":
+         "the standup rows as plain text, pre-computed"},
+        {"name": "--section", "arg": "name", "summary":
+         "one top-level key of the full payload, in full"},
+    ],
+    "subcommands": [],
+}
+
+
 def main(argv: list[str]) -> int:
-    mode = "json"
-    root_arg = None
-    section = None
-    i = 0
-    while i < len(argv):
-        arg = argv[i]
-        if arg in ("-h", "--help"):
-            print(__doc__.strip())
-            return 0
-        elif arg == "--json":
-            mode = "json"
-        elif arg == "--dashboard":
-            mode = "dashboard"
-        elif arg == "--compact":
-            mode = "compact"
-        elif arg == "--root":
-            i += 1
-            root_arg = argv[i] if i < len(argv) else None
-        elif arg == "--section":
-            i += 1
-            section = argv[i] if i < len(argv) else None
-        else:
-            print(f"perry-state: unknown argument {arg!r} (try --help)", file=sys.stderr)
-            return 2
-        i += 1
+    read = lib.parse_surface(SURFACE, argv)
+    if read["help"]:
+        print(__doc__.strip())
+        return 0
+    if read["describe"]:
+        print(json.dumps(lib.describe_surface(SURFACE), ensure_ascii=False,
+                         indent=2))
+        return 0
+    if read["error"]:
+        print(f"perry-state: {read['error']}", file=sys.stderr)
+        return 2
+    if read["extra"]:
+        print(f"perry-state: {read['extra'][0]!r} is not a flag "
+              f"(try --help)", file=sys.stderr)
+        return 2
+    mode = ("dashboard" if "--dashboard" in read["seen"]
+            else "compact" if "--compact" in read["seen"] else "json")
+    section = read["values"].get("--section")
+    root_arg = read["values"].get("--root")
 
     project_root = resolve_root(root_arg)
     # State may live in a subdirectory (`state_root` in `.perry/config.jsonl`)

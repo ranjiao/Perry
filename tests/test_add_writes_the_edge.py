@@ -519,10 +519,14 @@ class TestRouteAndIntakeInheritNeverAsked(Fixture):
              "--arrived", "2026-09-05", "--title", "a request arrived"],
             capture_output=True, text=True, cwd=ROOT)
         proc = subprocess.run(
+            # `--title` and `--summary` are NOT passed: `route` takes the
+            # row's title from the intake request it is promoting and writes no
+            # summary, so both were accepted and dropped until DESIGN-016 goal
+            # 12 made `SURFACE` the list of what each subcommand takes. The
+            # refusal is the tool telling this test what it had been doing.
             [sys.executable, str(TASK), "route", "1", "--root", str(d),
-             "--title", "a routed row", "--owner", "Coding Agent",
-             "--priority", "P1", "--track", "intake",
-             "--summary", "Promotes the intake request into a tracked row."],
+             "--owner", "Coding Agent", "--priority", "P1",
+             "--track", "intake"],
             capture_output=True, text=True, cwd=ROOT)
         # Not skipped on refusal. A skip here would let the fixture drift out
         # of `route`'s preconditions and report nothing about the behaviour

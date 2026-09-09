@@ -398,7 +398,13 @@ class TestUnlinkedBelongsToAddAlone(Fixture):
         proc = self.next_action(d, "--unlinked")
         self.assertNotEqual(proc.returncode, 0,
                             "`next --unlinked` was accepted and ignored")
-        self.assertIn("only accepted by `add`", proc.stdout + proc.stderr)
+        # The wording moved when the bespoke guard became the general rule
+        # (DESIGN-016 goal 12): `SURFACE` lists `--unlinked` under `add` alone
+        # and `parse` refuses it everywhere else. What this test is about —
+        # refused rather than ignored, and the row untouched — is unchanged.
+        message = proc.stdout + proc.stderr
+        self.assertIn("--unlinked is not accepted by", message)
+        self.assertIn("would have ignored it", message)
 
     def test_the_control_the_same_subcommand_works_without_it(self):
         """Without this, the refusal above passes for any broken invocation."""
