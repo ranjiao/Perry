@@ -25,8 +25,14 @@ which is the repository root, beside the directories it maps.
 
 The cost of being right is that the tooling cannot see it yet:
 `perry-state --section architecture` reports `exists: false` while this file
-sits here. §7 OQ-1 carries that, and it is a defect in the schema rather than in
-this file's location.
+sits here. §7's first open question carries that, and it is a defect in the
+schema rather than in this file's location.
+
+An open question is referred to by its SECTION, never by its id. `OQ-` is not
+one of `lib.PERRY_CITATION_FAMILIES` — a closed set, on purpose — so
+`perry-diagnose` reads a prose reference to `OQ-1` as an id that resolves
+nowhere and reports it as dangling. Found by Perry's own check, on this file,
+the day it was written.
 
 Per-module documents live beside the code they describe — `bin/ARCHITECTURE.md`
 is the first, and §2 links each one. They are not the §-overflow files the header

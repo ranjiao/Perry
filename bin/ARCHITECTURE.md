@@ -4,7 +4,7 @@
 > Version: v1
 > Last reviewed: 2026-09-09
 > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
-> Cap: ≤ 300 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
+> Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
 ## §1. Mission & scope
 
@@ -166,8 +166,8 @@ a fifth store gets the verbs without an edit here.
   against `perry-okr`'s 46. The subcommands cover five different objects
   (tasks, risks, intake, asks, cadences); `DESIGN-016 § 1.4` records the option
   of redrawing the tools by object and does not take it.
-- **OQ-B3 — What keeps this file true?** Nothing does yet. See
-  `ARCHITECTURE.md § 7 OQ-2`.
+- **OQ-B3 — What keeps this file true?** Nothing does yet. The project
+  document's §7 asks the same thing about the module contract.
 
 ## §8. Change log
 

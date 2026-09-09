@@ -100,6 +100,7 @@ so a resolver has somewhere to read from.
 | 2 | What a change touching a hard `§6` rule does | Refuse the dispatch / ask the user / warn and proceed | **Ask the user** | 2026-09-09 |
 | 3 | Module document granularity | Per directory / per component, user-confirmed / per file | **One component, one document; §2's list is user-confirmed** | 2026-09-09 |
 | 4 | The `Status: draft \| active` field | Keep, gate on `active` / drop it: existing means in force | **Drop it** | 2026-09-09 |
+| 5 | The module document's line cap | 300 / 600 / the root's 500 covers the set | **600** | 2026-09-09 |
 
 **What decision 1 costs, stated so nobody re-derives it.** The four checks that
 were on the table — every §2 component resolves to a path, every §6 rule
@@ -181,8 +182,12 @@ when it is set, and the project root otherwise.
 
 ## 8. Open questions
 
-- Does a module document need its own cap, or does the root's 500 cover the
-  set? 300 is written into `bin/ARCHITECTURE.md` by assertion, not by decision.
+- ~~Does a module document need its own cap?~~ **Answered 2026-09-09: 600
+  lines** (decision 5). 300 was written into `bin/ARCHITECTURE.md` by assertion
+  and the user judged it too tight for a component that has to describe its own
+  internals. Note the root document's is 500 and a module's is now larger: the
+  root is read whole by every dispatch, a module document only by the agent
+  touching that component, so the budgets are paid by different readers.
 - What does the audit do when it finds drift — open a `USER-` row, write a
   finding under `architecture/audit-history/`, or edit the described sections
   and report? The pack's current answer predates an agent that may write.

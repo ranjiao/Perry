@@ -1229,7 +1229,11 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
         exempt = {m.strip("`/*").split("/")[0]
                   for m in re.findall(r"`([^`]+)`", note)}
         enforced = {"work", "goals", "decide", "modes", "SKILL.md", "AGENTS.md",
-                    "README.md", "README_cn.md", "INSTALL.md"}
+                    "README.md", "README_cn.md", "INSTALL.md",
+                    # The user reads this one directly and no agent re-renders
+                    # it before they do, which is what puts it on the enforced
+                    # side of the carve-out rather than the exempt side.
+                    "ARCHITECTURE.md"}
         uncovered = []
         for p in sorted(PERRY_HOME.iterdir()):
             name = p.name
