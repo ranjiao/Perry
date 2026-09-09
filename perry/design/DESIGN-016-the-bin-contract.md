@@ -572,11 +572,23 @@ the lock, so goal 10 holds for the path that has no board at all.
 
 **The payload.** `perry-state` grows one narrow mode carrying both the standup
 numbers and this project's vocabulary — the declared tracks with their mode and
-legal stages (§ 1.7) — and `perry-task list` grows a bound. Both are additive:
-the existing `--json` keeps its shape, because `schema/task-list-contract.md` is
-a published contract with outside consumers and narrowing it silently would be
-the same class of change ADR-007 refused. The vocabulary is a projection of the
-config read `perry-state` already does, never a second read of the store.
+legal stages (§ 1.7) — and `perry-task list` grows a bound. The vocabulary is a
+projection of the config read `perry-state` already does, never a second read of
+the store.
+
+**Corrected 2026-09-09 after a V4 review.** This paragraph said "both are
+additive: the existing `--json` keeps its shape". That is true of
+`perry-state` and **false of `perry-task list`**: goal 6 asks for a default
+bound, and a bound removes rows from `tasks[]`. No KEY changed, so
+`bin/perry-task § LIST_SEMANTICS`'s own rule made it a minor (1.19) — but a
+consumer that changes nothing gets fewer rows, and `schema/README.md` records
+that aiMark shells out to exactly the `--all` call the bound bites hardest.
+What shipped: `bound.open_total` and `bound.closed_total` are counted before
+the bound so a dashboard can render the project's figures, the three documented
+recipes now pass `--limit 0`, and the changelog and `semantics` entry say so.
+**Whether a row-count change deserves a MAJOR is the user's call and is not
+taken here**; if it does, the same code ships as 2.0 and the consumers are
+told.
 
 ## 6. Implementation plan
 

@@ -11,7 +11,7 @@ purpose is to **not move when Perry's storage does**.
 ## Call it
 
 ```bash
-"$PERRY_HOME/bin/perry-task" list --all --json --root /path/to/project
+"$PERRY_HOME/bin/perry-task" list --all --limit 0 --json --root /path/to/project
 ```
 
 | Flag | Effect |
@@ -119,12 +119,14 @@ from task rows in Markdown.
 
 ```jsonc
 "bound": {
-  "limit":     200,               // what was applied; null when --limit 0
-  "default":   true,              // false when the caller passed --limit
-  "returned":  151,               // rows in tasks[]
-  "total":     404,               // rows the call matched, before the bound
-  "truncated": false,             // returned < total
-  "order":     "by id, ascending" // which rows survive a truncation
+  "limit":        200,            // what was applied; null when --limit 0
+  "default":      true,           // false when the caller passed --limit
+  "returned":     151,            // rows in tasks[]
+  "total":        404,            // rows the call matched, before the bound
+  "open_total":   156,            // open rows the call matched, before the bound
+  "closed_total": 248,            // the rest of `total`
+  "truncated":    false,          // returned < total
+  "order":        "by id, ascending" // which rows survive a truncation
 }
 ```
 
@@ -135,7 +137,12 @@ row came back: on this repository that is 538,134 bytes for a default call and
 1,683,852 for `--all` — about 420k tokens, more than the context window of any
 agent reading it.
 
-Pass `--limit 0` for the old behaviour, explicitly. A consumer that pages
+Pass `--limit 0` for the old behaviour, explicitly — and note that **`--all`
+is the flag that makes the bound bite**. Measured on Perry's own repository:
+`list --all --json` matches 404 rows, returns the first 200 by id, and those
+are mostly CLOSED, so `open` reads 24 against the project's 156.
+`bound.open_total` and `bound.closed_total` are the project's figures, counted
+before the bound, and are what a dashboard should render. A consumer that pages
 should sort on `id` and pass `--track` or a smaller `--limit`; there is no
 cursor here, and the bound is a ceiling rather than a page.
 

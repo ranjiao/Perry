@@ -126,6 +126,73 @@ class TestItCarriesTheVocabulary(unittest.TestCase):
             self.assertNotIn("wip_breaches", track)
 
 
+class TestTheStandupCanActuallyRenderFromIt(unittest.TestCase):
+    """Completeness, named by hand — the other direction from the projection
+    test above, and the one that was missing.
+
+    Every case in this module walks `COMPACT`, so deleting an entry deletes its
+    own assertion: a V4 review dropped `project.packs` from the spec and the
+    whole suite stayed green, and that is the structural reason `linkage` — the
+    only machine-readable KR progress, which `reference/snapshot.md` step 4
+    renders a percentage from — was missing from the first `--compact` and
+    nothing said so. This list is written out, so removing a field from the
+    spec reddens here.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.p = Project()
+        cls.p.run("add", "--title", "a row for the dashboard to count")
+        _full, cls.narrow = payloads(cls.p.root)
+
+    #: `(dotted path, which step of `reference/snapshot.md` reads it)`.
+    NEEDED = (
+        ("project.name", "step 4, the header"),
+        ("project.tracks", "step 3b, one mode file per distinct mode"),
+        ("project.packs", "step 3c, the display glossary"),
+        ("okr.present", "step 4, the OKR line"),
+        ("okr.version", "step 4, the OKR line"),
+        ("okr.objectives", "step 4, one line per objective"),
+        ("linkage.objectives", "step 4, <%> and <KRs done>/<KRs total>"),
+        ("phase", "step 4, the phase line"),
+        ("board.p0", "step 4, open tasks"),
+        ("board.p1", "step 4, open tasks"),
+        ("board.p2", "step 4, open tasks"),
+        ("board.blocked", "step 4, open tasks"),
+        ("user_input_queue", "step 4, the User Input Q line"),
+        ("risks.top", "step 4, the top risk"),
+        ("decisions", "step 4, the last decision"),
+        ("history", "step 4, last weekly and last handoff"),
+        ("installed", "step 3, the first-time-setup branch"),
+        ("recovery", "step 2, the recovery hazard"),
+        ("interrupted", "step 2, the interrupted-run gate"),
+    )
+
+    def _at(self, path: str):
+        cur = self.narrow
+        for step in path.split("."):
+            self.assertIsInstance(cur, dict, f"{path}: {step} is not reachable")
+            self.assertIn(step, cur, f"{path} is missing from --compact")
+            cur = cur[step]
+        return cur
+
+    def test_every_field_the_standup_reads_is_present(self):
+        for path, why in self.NEEDED:
+            with self.subTest(field=path, read_by=why):
+                self._at(path)
+
+    def test_a_kr_carries_a_number_to_render_a_percentage_from(self):
+        """`linkage.objectives[].krs[]` must carry `current` and `target`;
+        `attribution.kr_currents` is a roll-up over the phase and cannot answer
+        per objective."""
+        objectives = self.narrow["linkage"]["objectives"]
+        if not objectives:
+            self.skipTest("the fixture project declares no phase KRs")
+        for kr in objectives[0]["krs"]:
+            self.assertIn("current", kr)
+            self.assertIn("target", kr)
+
+
 class TestItIsSmallerByTheOrderOfMagnitudeThatWasThePoint(unittest.TestCase):
 
     def setUp(self):

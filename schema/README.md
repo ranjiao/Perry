@@ -91,7 +91,7 @@ page states it on its own first line. A test pins this table to carry neither.
 
 | Contract | Command | Spec | Covers |
 |---|---|---|---|
-| `perry-task/list` | `perry-task list --all --json` | `schema/task-list-contract.md` | tasks, open and closed, with timeline |
+| `perry-task/list` | `perry-task list --all --limit 0 --json` | `schema/task-list-contract.md` | tasks, open and closed, with timeline |
 | `perry-decide/list` | `perry-decide list --json` | `schema/decide-list-contract.md` | the set of decisions |
 | `perry-goals/list` | `perry-goals list --json` | `schema/goals-list-contract.md` | objectives, KRs (flat), phase, linkage |
 | `perry-roles/list` | `perry-state --json § roles` | `schema/roles-list-contract.md` | the declared roles and what each is allowed to do |
@@ -215,6 +215,11 @@ fixtures (`tests/fixtures/sample-project/`).
 > paragraph above.** aiMark shells out to `bin/perry-task list --all --json`
 > (`schema/task-list-contract.md`) and takes a Python 3 dependency. The shared
 > artifact for task state is that **payload**, not this schema.
+>
+> **Contract 1.19 (2026-09-09) bounds that call at 200 rows.** Pass
+> `--limit 0` for the whole store, or read `bound.open_total` and
+> `bound.closed_total`, which are counted before the bound. Unbounded, this
+> repository's own `--all` payload is 1,683,852 bytes.
 >
 > The rationale above was correct when it was made and is kept rather than
 > deleted: a general file browser that must not degrade on non-Perry folders

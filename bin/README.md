@@ -137,7 +137,7 @@ which is a question for the user, never a fuzzy match. See
 "$PERRY_HOME/bin/perry-task" start REL-002 --next "…"
 "$PERRY_HOME/bin/perry-task" status REL-002 --status blocked --reason "…"
 "$PERRY_HOME/bin/perry-task" done REL-002 --evidence evidence/… --rung V4
-"$PERRY_HOME/bin/perry-task" list --all --json
+"$PERRY_HOME/bin/perry-task" list --all --limit 0 --json
 ```
 
 Each mutating call replaces `tasks.jsonl` and the journal `## Status changes`

@@ -3667,7 +3667,10 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
             f"{tid} — {detail}. Under ADR-007 decision 2 this file is rendered "
             f"output and `{rel_store}` is what the field means, so a hand edit "
             f"is drift: `perry-tasks render --write` puts the file back in "
-            f"line with the store, which is the fix whenever `perry-task` "
+            f"line with the store WHEN EVERY STORED RECORD STILL HAS A ROW "
+            f"— a row deleted by hand is refused and named, because render "
+            f"fills lines rather than creating them (DESIGN-016 A5). It is "
+            f"the fix whenever `perry-task` "
             f"wrote the value — the ordinary case. `perry-tasks write "
             f"--from-board` runs the other direction and DISCARDS the stored "
             f"value; it is for a board edited before the store existed.",
@@ -3802,7 +3805,10 @@ def check_risk_store_drift(project_root: Path, state_root: Path) -> list["Findin
             f"{rid} — {detail}. Under ADR-007 `## Top risks` is rendered "
             f"output and `{rel_store}` is what the field means, so a hand edit "
             f"is drift. `perry-tasks risks-render --write` puts the section "
-            f"back in line with the store, which is the fix whenever "
+            f"back in line with the store WHEN EVERY STORED RECORD STILL "
+            f"HAS A ROW — a row deleted by hand is refused and named, "
+            f"because render fills lines rather than creating them "
+            f"(DESIGN-016 A5). It is the fix whenever "
             f"`perry-task risk-add` / `risk-clear` wrote the value — the "
             f"ordinary case. `perry-tasks risks-write --from-board` runs the "
             f"other direction and DISCARDS the stored value.", line))
@@ -3944,7 +3950,10 @@ def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Find
             f"line renumbers every row beneath it, so `perry-task "
             f"resolve-intake {n + 1}` no longer addresses what it did. "
             f"`perry-tasks intake-render --write` puts the section back in "
-            f"line with the store; `perry-tasks intake-write --from-board` "
+            f"line with the store when every stored record still has a "
+            f"row, and REFUSES when one does not — a deleted line "
+            f"renumbers the rest, so filling them in place would strand "
+            f"the last record (DESIGN-016 A5); `perry-tasks intake-write --from-board` "
             f"runs the other direction and DISCARDS the stored values."))
     if len(rows) > DRIFT_ROWS_SHOWN:
         findings.append(Finding(
@@ -4067,7 +4076,8 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
             f"an age derived from `Asked`, no stored field claims it, and "
             f"editing it changes nothing the store asserts. "
             f"`perry-tasks asks-render --write` puts the section back in line "
-            f"with the store; `perry-tasks asks-write --from-board` runs the "
+            f"with the store when every stored record still has a row, "
+            f"and REFUSES when one does not (DESIGN-016 A5); `perry-tasks asks-write --from-board` runs the "
             f"other direction and DISCARDS the stored values.", line))
     if len(rows) > DRIFT_ROWS_SHOWN:
         findings.append(Finding(
@@ -4398,6 +4408,8 @@ def check_md_store_drift(project_root: Path, state_root: Path,
             f"{key} — {rows[key]}. Under ADR-007 `{doc.rel_file}` is rendered "
             f"output and `{rel_store}` is what the field means, so a hand edit "
             f"is drift. `perry-{doc.name} render --write` puts the file back "
+            f"when every stored record still has a line, and REFUSES when "
+            f"one does not (DESIGN-016 A5); "
             f"in line with the store; `perry-{doc.name} write --from-file` "
             f"runs the other direction and DISCARDS the stored values."))
     if len(rows) > DRIFT_ROWS_SHOWN:

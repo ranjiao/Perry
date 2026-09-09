@@ -67,19 +67,32 @@ def run(tool: str, *argv: str, env: dict | None = None) -> subprocess.CompletedP
 class TestTheFlagBeatsTheEnvironment(unittest.TestCase):
     """`--root <a>` with `$PERRY_PROJECT=<b>` answers about `<a>`, everywhere."""
 
+    #: Written into every corner of `other` that a tool can print, so a tool
+    #: that answers about the wrong project says so in its own output.
+    MARK = "ONLY-IN-THE-OTHER-PROJECT"
+
     def setUp(self):
         self.named = Project()
         self.named.run("add", "--title", "the project the caller named")
         self.other = Project()
         for _ in range(3):
-            self.other.run("add", "--title", "a row in the other project")
+            self.other.run("add", "--title", f"a row {self.MARK}")
+        run("perry-config", "set", "Chat language", self.MARK,
+            "--root", str(self.other.root))
 
     def _answers_about_the_named_project(self, tool: str, argv: tuple[str, ...],
                                          out: subprocess.CompletedProcess):
+        """**Absence of the other path is not enough** — a V4 review reverted
+        the resolver to environment-first and three of these six subtests still
+        passed, because a tool that prints no path cannot fail that way. Each
+        tool is now asked for a VALUE that differs between the two projects."""
         blob = out.stdout + out.stderr
         self.assertNotIn(str(self.other.root), blob,
                          f"{tool} {' '.join(argv)} reported on the project "
                          f"named by $PERRY_PROJECT, not by --root")
+        self.assertNotIn(self.MARK, blob,
+                         f"{tool} {' '.join(argv)} carried a value that only "
+                         f"exists in the project named by $PERRY_PROJECT")
 
     def test_every_project_scoped_tool_prefers_the_flag(self):
         for tool, argv in READS:
@@ -159,7 +172,11 @@ class TestHelpPrintsAndRunsNothing(unittest.TestCase):
         out = run("perry-tasks", "render", "--root", str(self.p.root),
                   "--write", "--help")
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("perry/tasks.jsonl", out.stdout)
+        # Since C1 a named subcommand gets ITS usage rather than the tool's
+        # whole document — goal 8, and it is generated from the declaration.
+        self.assertIn("perry-tasks render", out.stdout)
+        self.assertNotIn("perry-tasks build", out.stdout,
+                         "the whole tool's usage came back for one subcommand")
         self.assertEqual(board.read_bytes(), before,
                          "`--help` ran the render it was asking about")
 
@@ -230,6 +247,48 @@ class TestARenderThatCannotRestoreRefuses(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertFalse(json.loads(out.stdout)["wrote"])
         self.assertEqual(self.board.read_bytes(), before)
+
+
+class TheOtherStoreFamilyToolRefusesToo(unittest.TestCase):
+    """A5 has TWO implementations and only one was tested.
+
+    `perry-tasks` has `stranded_after_render`; `perry_md_store` — which is
+    `perry-okr` and anything else built on a `Doc` — has its own copy. A V4
+    review deleted the second one outright and the entire suite stayed at its
+    known-red baseline, while `perry-okr render --write` on a copy with 38 KR
+    rows deleted reported success and restored none of them.
+    """
+
+    OKR = ("# OKR\n\n## Objective 1 ship\n\n"
+           "| **KR** | Target | Current |\n|---|---|---|\n"
+           "| KR-1 | 3 | 1 |\n\n"
+           "## Commitments\n\n| ID | Promise | **Due** |\n|---|---|---|\n"
+           "| C-1 | do it | 2026-02-01 |\n"
+           "| C-2 | do the other thing | 2026-03-01 |\n")
+
+    def setUp(self):
+        self.p = Project()
+        self.okr = self.p.root / "OKR.md"
+        self.okr.write_text(self.OKR)
+        self.assertEqual(
+            run("perry-okr", "write", "--root", str(self.p.root),
+                "--from-file").returncode, 0)
+
+    def test_it_refuses_when_a_record_has_no_line_left(self):
+        self.okr.write_text(self.OKR.replace(
+            "| C-2 | do the other thing | 2026-03-01 |\n", ""))
+        shrunk = self.okr.read_bytes()
+        out = run("perry-okr", "render", "--root", str(self.p.root), "--write")
+        self.assertEqual(out.returncode, 1,
+                         "the OKR store's recovery path reported success:\n"
+                         + out.stdout)
+        self.assertIn("no line in it to render into", out.stderr)
+        self.assertEqual(self.okr.read_bytes(), shrunk,
+                         "a refused write still changed the file")
+
+    def test_the_control_is_that_an_intact_file_still_renders(self):
+        out = run("perry-okr", "render", "--root", str(self.p.root), "--write")
+        self.assertEqual(out.returncode, 0, out.stderr)
 
 
 class TestARefusalIsOneLine(unittest.TestCase):
@@ -309,6 +368,69 @@ class TestTheWritersTakeDryRunAndJson(unittest.TestCase):
                       "the store's value did not come back")
 
 
+class TestEveryWriterHonoursDryRun(unittest.TestCase):
+    """Goal 4, asked of each writer rather than of the family.
+
+    `perry-tasks` ACCEPTED `--dry-run` and wrote anyway — TASK-253 filed that
+    on 2026-09-02, and phase A of DESIGN-016 made the flag legal without making
+    it do anything, which is the accepted-and-dropped shape the design exists
+    to remove. Measured 2026-09-09 before the fix: `perry-tasks write
+    --from-board --dry-run` replaced a 404-record store and printed `wrote`.
+    """
+
+    #: `(argv, the file it would have written)`.
+    WRITES = (
+        (("perry-tasks", "write", "--from-board"), "tasks.jsonl"),
+        (("perry-tasks", "risks-write", "--from-board"), "risks.jsonl"),
+        (("perry-tasks", "intake-write", "--from-board"), "intake.jsonl"),
+        (("perry-tasks", "asks-write", "--from-board"), "asks.jsonl"),
+        (("perry-tasks", "render", "--write"), "BOARD.md"),
+        (("perry-tasks", "risks-render", "--write"), "BOARD.md"),
+        (("perry-tasks", "intake-render", "--write"), "BOARD.md"),
+        (("perry-tasks", "asks-render", "--write"), "BOARD.md"),
+    )
+
+    def setUp(self):
+        self.p = Project()
+        self.p.run("add", "--title", "a row so every store has something")
+        for argv, _target in self.WRITES:
+            run(*argv, "--root", str(self.p.root))  # mint the stores
+
+    def test_dry_run_changes_no_bytes_anywhere(self):
+        """A register the fixture board has no section for refuses with exit 2
+        — that is the storeless refusal, not a dry-run failure, and the bytes
+        claim is asked of it all the same. `reached` is the control: if every
+        command in the table refused, the loop would prove nothing."""
+        reached = 0
+        for argv, target in self.WRITES:
+            path = self.p.root / target
+            if not path.exists():
+                continue
+            with self.subTest(command=" ".join(argv[1:])):
+                before = path.read_bytes()
+                out = run(*argv, "--root", str(self.p.root), "--dry-run")
+                self.assertEqual(path.read_bytes(), before,
+                                 f"{' '.join(argv[1:])} --dry-run wrote to "
+                                 f"{target}")
+                if out.returncode == 0:
+                    reached += 1
+        self.assertGreaterEqual(reached, 2,
+                                "every writer refused, so nothing above "
+                                "exercised a dry run that had work to do")
+
+    def test_the_control_is_that_the_same_command_does_write(self):
+        """Without this, a tool that refused everything would pass above."""
+        board = self.p.root / "BOARD.md"
+        self.p.run("status", "TASK-001", "--status", "in_progress")
+        (self.p.root / "tasks.jsonl").write_text(
+            (self.p.root / "tasks.jsonl").read_text().replace(
+                '"in_progress"', '"blocked"'))
+        out = run("perry-tasks", "render", "--write", "--root", str(self.p.root))
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("blocked", board.read_text(),
+                      "the control write did not land")
+
+
 class TestAddWritesTheDesignEdge(unittest.TestCase):
     """DESIGN-016 A4 — `--design` was accepted by the parser and dropped."""
 
@@ -385,6 +507,37 @@ class TestListIsBounded(unittest.TestCase):
         self.assertTrue(payload["bound"]["truncated"])
         self.assertFalse(payload["bound"]["default"])
         self.assertIn("2 of 6", err, "the truncation was silent on stderr")
+
+    def test_the_default_bound_is_what_the_constant_says(self):
+        """The number itself, asserted. Raising `LIST_DEFAULT_LIMIT` to a
+        billion — deleting contract 1.19's whole behavioural change — left the
+        suite green, because every other case here builds six rows and passes
+        at any default above six."""
+        import inproc
+        self.assertEqual(inproc.load("perry-task").LIST_DEFAULT_LIMIT, 200)
+        payload, _err = self._list()
+        self.assertEqual(payload["bound"]["limit"], 200)
+        self.assertTrue(payload["bound"]["default"])
+
+    def test_a_board_over_the_default_is_truncated_without_being_asked(self):
+        """Goal 6 itself: no invocation returns more rows than the declared
+        ceiling unless the caller asked. Driven through the constant rather
+        than by writing 201 rows, which costs ~40 seconds of fixture."""
+        import inproc
+        task = inproc.load("perry-task")
+        was, task.LIST_DEFAULT_LIMIT = task.LIST_DEFAULT_LIMIT, 3
+        try:
+            out = inproc.run("perry-task",
+                             ["list", "--root", str(self.p.root), "--json"])
+            payload = json.loads(out.stdout)
+        finally:
+            task.LIST_DEFAULT_LIMIT = was
+        self.assertEqual(len(payload["tasks"]), 3)
+        self.assertEqual(payload["bound"]["total"], 6)
+        self.assertTrue(payload["bound"]["truncated"])
+        self.assertTrue(payload["bound"]["default"],
+                        "a bound nobody asked for must say it was the default")
+        self.assertIn("3 of 6", out.stderr)
 
     def test_limit_zero_is_every_row(self):
         payload, err = self._list("--limit", "0")
