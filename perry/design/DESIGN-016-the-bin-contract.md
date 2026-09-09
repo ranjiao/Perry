@@ -591,9 +591,13 @@ TASK-406, TASK-407, TASK-408, TASK-409 and TASK-410. A5 is the
 highest-severity item in this document: it is the one place where a Perry
 command reports a write it did not perform.
 
-**Phase A landed 2026-09-09** on `bin-contract-phase-a`, A1 through A6 in one
-commit, with `tests/test_bin_argument_contract.py` (22 tests) asserting each
-claim. Two consequences to carry into D1 and into whatever reviews this:
+**Phases A and B landed 2026-09-09** on `bin-contract-phase-a`: A1-A6 in
+`871b8699` with `tests/test_bin_argument_contract.py`, B1-B2 in `b30d3b74`
+with `tests/test_compact_payload.py` beside it. `--compact` is 9,198 bytes
+against `--json`'s 258,981 and carries the § 1.7 vocabulary; `perry-task list`
+is bounded at 200 rows under contract 1.19, and six tests that pinned the
+contract version as a literal became floors in the same commit. Two
+consequences to carry into D1 and into whatever reviews this:
 
 - **`perry-diagnose` can now exit 2.** `bin/README.md:86` says it "always exits
   `0` — an absent signal is a finding, not an error", which stays true of
