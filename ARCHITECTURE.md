@@ -1,10 +1,15 @@
 # Architecture — Perry
 
-> Owner: user (agents read-only)
+> Written by: agent · Confirmed by: user (§1, §3 Forbidden, §5 versions, §6, §7)
 > Version: v1
 > Last reviewed: 2026-09-09
-> Status: draft
-> Tier 1 hard cap: ≤ 500 lines. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file becomes §-section TOC + 1-paragraph summaries.
+> Hard cap: ≤ 500 lines. It has two readers — the user in one sitting, and every
+> agent that is dispatched against it — and the second one pays for it per turn.
+> Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`.
+
+**This file existing is what makes it binding.** There is no draft state: a
+document that describes the system is the description, and a change that
+contradicts a section stops and asks the user (DESIGN-017 decisions 2 and 4).
 
 <!--
 Perry ships this discipline (`packs/software-ops/architecture.md`) and had never
@@ -225,12 +230,17 @@ flowchart LR
 - **Rationale**: an un-rooted `perry-task` call once discharged real board rows
   on every run for months, invisibly, because the sweep is idempotent.
 
-### NN-6 — `ARCHITECTURE.md` is the user's
+### NN-6 — An agent may describe this file, and may not decide it
 - **Severity**: hard
-- **Rule**: agents read this file and never write it. A change that contradicts
-  a section needs the section edited first, by the user.
-- **Rationale**: it is the one channel where the human controls structure that
-  no longer fits in one head.
+- **Rule**: an agent writes and rewrites the descriptive sections (§2, §4, §5's
+  shapes, §8) freely. It may ADD to §6 and §7, marked `proposed`, and may
+  delete from neither. Changing §1, a `Forbidden` line in §3, a contract
+  version in §5, or a confirmed rule in §6 is a question for the user, asked
+  before the change lands.
+- **Rationale**: the agent doing the typing is what makes this document
+  affordable, and the agent being unable to overrule it is what keeps it from
+  becoming a mirror. A description follows the code and can refuse nothing;
+  this file has to be able to refuse. DESIGN-017 carries the argument.
 
 ## §7. Open questions
 

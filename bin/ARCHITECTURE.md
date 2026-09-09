@@ -1,10 +1,9 @@
 # Architecture — `bin/`
 
-> Owner: user (agents read-only)
+> Written by: agent · Confirmed by: user (§6, §7)
 > Version: v1
 > Last reviewed: 2026-09-09
-> Status: draft
-> Module document. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
+> Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
 > Cap: ≤ 300 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
 ## §1. Mission & scope
