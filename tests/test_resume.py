@@ -439,8 +439,35 @@ class TestStaleRuns(unittest.TestCase):
                 self.assertEqual(r["stale_after_days"], 30)
 
     def test_a_fresh_run_is_not_stale(self):
-        self.assertFalse(any(r["stale"] for r in state(FIXTURE)["interrupted"]),
-                         "fixtures are days old, not months")
+        """The fixture's own dates are NOT used for this.
+
+        They were, and on 2026-09-09 the fixture turned exactly 30 days old and
+        this case went red — because the calendar moved, not because anything
+        broke. A red that means nothing teaches everyone to skim reds, and this
+        is TASK-404's category: a test asserting against a hard-coded date.
+
+        `test_an_aged_run_is_flagged` below already owns its clock, stamping
+        2020 into a copy. This one now does the same in the other direction, so
+        the pair is symmetric and neither depends on when it is run.
+        """
+        import shutil
+        import tempfile
+        from datetime import datetime, timedelta, timezone
+        fresh = (datetime.now(timezone.utc) - timedelta(days=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "p"
+            shutil.copytree(FIXTURE, root)
+            for d in (root / ".perry" / "adoption").glob("*-dossier.md"):
+                d.write_text(re.sub(r'^updated: ".*"$', f'updated: "{fresh}"',
+                                    d.read_text(), flags=re.M))
+            for d in (root / ".perry" / "diagnosis").glob("*.md"):
+                d.write_text(re.sub(r'^updated: ".*"$', f'updated: "{fresh}"',
+                                    d.read_text(), flags=re.M))
+            rows = state(root)["interrupted"]
+            self.assertTrue(rows, "the copy still carries interrupted runs")
+            self.assertFalse(any(r["stale"] for r in rows),
+                             "a run updated two days ago is not stale")
 
     def test_an_aged_run_is_flagged(self):
         import shutil

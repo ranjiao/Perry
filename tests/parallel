@@ -753,7 +753,22 @@ def main() -> int:
         if not mods:
             print(f"no test module matches {args.only}", file=sys.stderr)
             return 2
-    elif args.slow:
+    elif args.slow or args.record:
+        # **`--record` runs the whole tree, always.** `durations.json` is a
+        # statement about every module on disk — `test_durations_provenance`
+        # reads it that way and reddens when it is not — so recording from a
+        # narrowed run writes a file that is wrong about the tree rather than
+        # merely stale. Before this line, `python3 tests/parallel --record`
+        # (line 30 of this file's own usage) rewrote 121 entries as 118 and
+        # deleted the three in `HARNESS_SELF_TESTS`, one of which is the module
+        # that gates the file. So a default run afterwards printed "all green"
+        # over a file this repository's own check refuses.
+        #
+        # Implying the full set rather than refusing: the documented
+        # invocation keeps working and cannot produce a partial file, which is
+        # the outcome either spelling has to reach. `--only` still SKIPS
+        # recording a few lines below, because a caller who named one module
+        # did not ask to re-time the tree.
         mods = all_mods
     else:
         mods = [m for m in all_mods if m not in HARNESS_SELF_TESTS]
