@@ -98,7 +98,7 @@
 | TASK-359 | the store family reads --root and then throws it away | Coding Agent | review | — | evidence/2026-09/DESIGN-016-phase-a-result.md | V4 | TASK-276 | main |  |  |  |  |  |  |
 | TASK-360 | --help runs the command on the three tools that have no argument parser | Coding Agent | review | — | evidence/2026-09/DESIGN-016-phase-a-result.md | V4 | TASK-276 | main |  |  |  |  |  |  |
 | TASK-362 | the standup's one mandated call is 47k tokens, in the directory that measures context cost | Coding Agent | review | blocked on the payload shape is DESIGN-016 Decision 1 and is the user's call | evidence/2026-09/DESIGN-016-phase-b-result.md | V4 | USER-917 | main |  |  |  |  |  |  |
-| TASK-364 | bin/ has no machine-readable index, so every fact about the surface is prose in two places and enforced in none | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
+| TASK-364 | bin/ has no machine-readable index, so every fact about the surface is prose in two places and enforced in none | Coding Agent | review | — | evidence/2026-09/DESIGN-016-phase-c-part1-result.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-367 | perry-task add accepts --design and drops it | Coding Agent | review | — | evidence/2026-09/DESIGN-016-phase-a-result.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-369 | DESIGN-015 stores a field that is derived at read time | Coding Agent | not_started | — | — |  | TASK-276 | main |  |  |  |  |  |  |
 | TASK-370 | The bound check fires on 123 specs, so nobody sees the one that matters | Coding Agent | not_started | — | — |  | TASK-308 | main |  |  |  |  |  |  |
@@ -185,7 +185,7 @@
 | TASK-398 | an advisory a program must act on is a payload field, not a stderr line, and add still writes one under --json | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-403 | four test modules use a regex to judge meaning, which ADR-007 decision 3 already ruled the Python layer never does | Coding Agent | not_started | — | — | V5 |  | main |  |  |  |  |  |  |
 | TASK-404 | 36 test modules assert against live project state, pinning 614 dates and 191 ids that go red when the board moves rather than when code breaks | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
-| TASK-408 | no single command lists the bin/ surface | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
+| TASK-408 | no single command lists the bin/ surface | Coding Agent | review | — | evidence/2026-09/DESIGN-016-phase-c-part1-result.md |  | — | main |  |  |  |  |  |  |
 | TASK-409 | the store family spells one verb four times, once per register | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
