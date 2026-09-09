@@ -586,10 +586,10 @@ Phase C is the leverage; TASK-365 is blocked on Decision 2 (`USER-918`).
 Decision 5 rewrote C1 rather than blocking it: TASK-364's deliverable is no
 longer a manifest file.
 
-A5, A6, C4, C5 and D1 were added 2026-09-09 and are **not yet filed as rows** —
-`BOARD.md` is over its 200-line cap and wants triage before it takes five more.
-A5 is the highest-severity item in this document: it is the one place where a
-Perry command reports a write it did not perform.
+A5, A6, C4, C5 and D1 were added 2026-09-09 and filed the same day as
+TASK-406, TASK-407, TASK-408, TASK-409 and TASK-410. A5 is the
+highest-severity item in this document: it is the one place where a Perry
+command reports a write it did not perform.
 
 **Phase A landed 2026-09-09** on `bin-contract-phase-a`, A1 through A6 in one
 commit, with `tests/test_bin_argument_contract.py` (22 tests) asserting each
@@ -615,16 +615,16 @@ TASK-364 and TASK-367 are startable now.
 | A2 | A real argument parser for the store family: `--help` exits, unknown flags refuse | TASK-360 | Coding Agent |
 | A3 | `--dry-run` and `--json` on the three writers, or the README claim withdrawn | TASK-361 | Coding Agent |
 | A4 | `perry-task add` writes `--design` or refuses it | TASK-367 | Coding Agent |
-| A5 | `render --write` refuses when `rows_not_on_board` is non-empty, and its success line counts rows written, not records read (§ 1.5) | to file | Coding Agent |
-| A6 | `perry-tasks` catches `Refused` across `main`; no path exits through a traceback (§ 1.5) | to file | Coding Agent |
+| A5 | `render --write` refuses when the render leaves a stored record with no line, and its success line counts lines changed, not records read (§ 1.5) | TASK-406 | Coding Agent |
+| A6 | `perry-tasks` catches `Refused` across `main`; no path exits through a traceback (§ 1.5) | TASK-407 | Coding Agent |
 | B1 | A narrow structured read carrying the standup numbers **and this project's vocabulary** — tracks, their modes, the stages legal on each (§ 1.7) — and `SKILL.md` step 3 switched to it | TASK-362 | Coding Agent |
 | B2 | A bound on `perry-task list` | TASK-363 | Coding Agent |
 | C1 | The per-tool `SURFACE` declaration, the parser driven by it, `--describe --json`, and the test that holds declaration and code to each other in both directions. Satisfies TASK-396 | TASK-364 | Coding Agent |
 | C2 | Usage-first `--help`, generated from the declaration | TASK-365 | Coding Agent |
 | C3 | Subcommand-level help and one no-argument behaviour | TASK-366 | Coding Agent |
-| C4 | `bin/perry`: `list`, `describe <tool> [<sub>]`, and forwarding. A thin reader, no logic of its own | to file | Coding Agent |
-| C5 | `--register <name>` on the store family's five verbs, read from `schema § stores`; the twelve prefixed names kept as aliases for one release (§ 1.7) | to file | Coding Agent |
-| D1 | The eight `bin/README.md` statements in § 1.6, plus `perry-lint --help`'s "SIX stores" and the exit-code table's missing `3` | to file | Coding Agent |
+| C4 | `bin/perry`: `list`, `describe <tool> [<sub>]`, and forwarding. A thin reader, no logic of its own | TASK-408 | Coding Agent |
+| C5 | `--register <name>` on the store family's five verbs, read from `schema § stores`; the twelve prefixed names kept as aliases for one release (§ 1.7) | TASK-409 | Coding Agent |
+| D1 | The eight `bin/README.md` statements in § 1.6, plus `perry-lint --help`'s "SIX stores", the exit-code table's missing `3`, and the `perry-diagnose` always-exits-0 sentence phase A moved | TASK-410 | Coding Agent |
 
 ## 7. Risks & mitigations
 
