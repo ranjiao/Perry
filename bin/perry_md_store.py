@@ -1041,13 +1041,18 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     # tests further down.
     face = surface(doc)
     read = lib.parse_surface(face, argv)
-    if not argv or read["help"]:
-        if read["sub"]:
-            print(lib.usage_lines(face, read["sub"]))
-        else:
+    if read["help"]:
+        print(lib.usage_lines(face, read["sub"]))
+        if not read["sub"]:
+            print()
             print(USAGE.format(tool=tool, file=doc.rel_file,
                                store=doc.rel_store).strip())
         return 0
+    if not argv:
+        # One no-argument behaviour: a tool with subcommands cannot act
+        # without one (DESIGN-016 C3).
+        print(lib.usage_lines(face), file=sys.stderr)
+        return 2
     if read["describe"]:
         print(json.dumps(lib.describe_surface(face, read["sub"]),
                          ensure_ascii=False, indent=2))

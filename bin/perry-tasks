@@ -1,76 +1,20 @@
 #!/usr/bin/env python3
-"""`perry/tasks.jsonl` — the task store, and the projection of it.
+"""
+`perry/tasks.jsonl` — the task store, and the projection of it.
 
 **Phase 002, ADR-007's first slice.** This tool derives the store, proves it can
 reproduce `BOARD.md`, and writes it. `bin/perry-task` is what writes it on every
 ordinary command (TASK-089); this one is the migration and inspection surface.
 
-    perry-tasks build   [--root <p>]        derive the store; write nothing
-    perry-tasks verify  [--root <p>]        field-compare the store to the board
-    perry-tasks render  [--root <p>] [--write]   the store → BOARD.md
-    perry-tasks write   [--root <p>] --from-board  the board → the store
-    perry-tasks diff    [--root <p>]        render and byte-compare with the file
+The usage block is generated from this tool's `SURFACE`
+declaration — run `perry-tasks --help`, or `perry-tasks <subcommand>
+--help` for one of them, or `perry-tasks --describe --json` for the
+whole surface as data.
 
-Four of the same verbs reach the **risks register** — ADR-007 again,
-`perry/risks.jsonl` against `BOARD.md § Top risks` (TASK-040):
-
-    perry-tasks risks-build  [--root <p>]   derive the risks store; write nothing
-    perry-tasks risks-render [--root <p>] [--write]   the store → `## Top risks`
-    perry-tasks risks-write  [--root <p>] --from-board  the section → the store
-    perry-tasks risks-diff   [--root <p>]   render and byte-compare with the file
-
-And four more reach the **intake register** — ADR-007 a third time,
-`perry/intake.jsonl` against `BOARD.md § Intake` (TASK-196):
-
-    perry-tasks intake-build  [--root <p>]  derive the intake store; write nothing
-    perry-tasks intake-render [--root <p>] [--write]  the store → `## Intake`
-    perry-tasks intake-write  [--root <p>] --from-board  the section → the store
-    perry-tasks intake-diff   [--root <p>]  render and byte-compare with the file
-
-The intake register has **no id column**, so its store is keyed on `order` —
-the row's position, the same integer `perry-task resolve-intake <n>` takes.
-`bin/perry_store.py § the intake register` carries that decision and its cost.
-
-And four more reach the **ask register** — ADR-007 a fourth time,
-`perry/asks.jsonl` against `BOARD.md § User Input Queue` (TASK-197):
-
-    perry-tasks asks-build  [--root <p>]    derive the ask store; write nothing
-    perry-tasks asks-render [--root <p>] [--write]  the store → the section
-    perry-tasks asks-write  [--root <p>] --from-board  the section → the store
-    perry-tasks asks-diff   [--root <p>]    render and byte-compare with the file
-
-**Five of that register's six columns are stored and `Idle` is not.** `Idle` is
-an AGE — `today − Asked` — and `bin/perry-state § idle_days` already computes
-it at read time; a store that carried it would be wrong the morning after it
-was written, which is why a live project deleted the column outright.
-`bin/perry_store.py § the ask register` carries the per-column verdict.
-
-**`linkage.jsonl` has no verbs here, and that is ADR-019.** It had three —
-DESIGN-015 row B's one-way import from `phase/<NNN>-linkage.md`, and the
-two-directional diff that gated it. The document is deleted; an import needs a
-source and a diff needs a second side, and there is neither. `perry-goals
-link` and `perry-task add --kr` write that store in place, and nothing
-projects it.
-
-`risks-diff` is the gate the migration has to pass **before** a field the
-register could not express is added to it: rendering the derived records back
-over the section reproduces it byte for byte, or the store has already lost
-something. A migration that cannot reproduce what it replaces has not read it.
-
-**Twenty fields are STORED and nine are DERIVED.** That split is the design,
-not an optimisation: `blocked_by`, `blocks`, `startable`, `mode`, `open`,
-`evidence_paths`, `status_text`, `timeline` and `updated` are all computable
-from the twenty plus the event log, and storing any of them would be the
-"a stored value that is derived" defect this repository keeps finding.
-
-The derived nine keep the same payload shape. `status_text` changed meaning at
-`perry-task/list/1.10`: it is now the legacy display alias of typed `status`,
-not raw text recovered from the rendered board.
-
-The record shape and the renderer live in `bin/perry_store.py`, which
-`bin/perry-task` imports too. One implementation, two callers: two renderers of
-one file is the defect that produced `viewer/parsers.py` and `bin/perry-task`
-disagreeing silently, with the arrow reversed.
+**The argument for every refusal below is in
+`bin/README.md § The argument, per tool`**, moved there whole on
+2026-09-09 (DESIGN-016 Decision 2). Nothing was cut; `--help`
+stopped being the place to read it.
 """
 
 from __future__ import annotations
@@ -1529,6 +1473,30 @@ def _perry_lint_module():
     return _sibling_module("perry_lint_mod", "perry-lint", "_LINT_MODULE")
 
 
+def registers() -> dict[str, str]:
+    """`{register name: subcommand prefix}` — DERIVED, not typed.
+
+    A register is a `work`-owned JSONL store anchored at the state root, which
+    is what `schema/state-schema.json § claims` already declares each of them
+    as. `tasks` takes the empty prefix because its verbs are the bare ones.
+
+    **Why this is derived** (DESIGN-016 § 1.7). A project can declare a track
+    by writing a row in `.perry/config.jsonl`; a register needed four new
+    subcommand names in this file. They are the same kind of axis with two
+    encodings, and only one of them could be extended. Reading the list from
+    the schema puts them on one mechanism: a fifth `work` store declared there
+    gets `build / render / write / diff` here without an edit.
+    """
+    out: dict[str, str] = {}
+    for claim in lib.load_schema().get("claims", []):
+        path = str(claim.get("path", ""))
+        if (claim.get("owner") == "work" and claim.get("anchor") == "state"
+                and path.endswith(".jsonl")):
+            name = path[:-len(".jsonl")]
+            out[name] = "" if name == "tasks" else f"{name}-"
+    return out or {"tasks": ""}
+
+
 #: **What this tool accepts, declared once** (DESIGN-016 C1, Decision 5).
 #: `lib.parse_surface` reads the vector against it, `--describe --json` prints
 #: it, and `bin/perry` and the generated usage block are the same table read
@@ -1550,26 +1518,29 @@ SURFACE = {
         {"name": "--dry-run", "summary":
          "print what would land and touch nothing"},
         {"name": "--json", "summary": "a machine-readable payload"},
+        {"name": "--register", "arg": "name", "summary":
+         "which register the verb acts on — the names come from the schema's "
+         "`work`-owned stores; default `tasks`"},
     ],
     "subcommands": [
         {"name": "build", "summary":
          "derive the task store from BOARD.md and print it; write nothing",
-         "flags": []},
+         "flags": ["--register"]},
         {"name": "verify", "summary":
          "field-compare the store on disk with the board",
-         "flags": []},
+         "flags": ["--register"]},
         {"name": "write", "summary":
          "the one-way import: BOARD.md -> tasks.jsonl, for a project with no "
          "store yet",
-         "flags": ["--from-board", "--dry-run", "--json"],
+         "flags": ["--from-board", "--dry-run", "--json", "--register"],
          "writes": ["tasks.jsonl"]},
         {"name": "render", "summary":
          "tasks.jsonl -> BOARD.md; refuses when a record has no line to land in",
-         "flags": ["--write", "--dry-run", "--json"],
+         "flags": ["--write", "--dry-run", "--json", "--register"],
          "writes": ["BOARD.md"]},
         {"name": "diff", "summary":
          "render and byte-compare with the board on disk",
-         "flags": []},
+         "flags": ["--register"]},
         {"name": "risks-build", "summary":
          "derive the risks store from `## Top risks` and print it",
          "flags": []},
@@ -1625,12 +1596,24 @@ def main(argv: list[str], _locked: bool = False) -> int:
     # DECLARED flag on a subcommand that does not list it is refused too,
     # which is the `--dry-run`-accepted-and-ignored shape TASK-253 filed.
     read = lib.parse_surface(SURFACE, argv)
-    if not argv or read["help"]:
-        if read["sub"]:
-            print(lib.usage_lines(SURFACE, read["sub"]))
-        else:
+    if read["help"]:
+        # **Usage first** (DESIGN-016 C2, goal 8). Generated from `SURFACE`, so
+        # it cannot describe a flag the parser does not take.
+        print(lib.usage_lines(SURFACE, read["sub"]))
+        if not read["sub"]:
+            print()
             print(__doc__.strip())
         return 0
+    if not argv:
+        # **One no-argument behaviour, and the declaration decides which**
+        # (DESIGN-016 C3, goal 3). A tool that takes subcommands cannot act
+        # without one, so a bare call is a bad invocation: the usage on stderr
+        # and exit 2. A flag-only tool — `perry-state`, `perry-diagnose` — does
+        # its documented default and exits 0. Bare calls used to answer four
+        # ways: usage and exit 2, the whole help and exit 0, 187KB of JSON, and
+        # a 3.7-second lint (§ 1.3).
+        print(lib.usage_lines(SURFACE), file=sys.stderr)
+        return 2
     if read["describe"]:
         print(json.dumps(lib.describe_surface(SURFACE, read["sub"]),
                          ensure_ascii=False, indent=2))
@@ -1641,6 +1624,31 @@ def main(argv: list[str], _locked: bool = False) -> int:
     cmd = read["sub"]
     seen, given = read["seen"], read["values"]
     flags = frozenset(seen)
+
+    # **`--register` is the verb's argument, and the twelve prefixed names are
+    # aliases for it** (DESIGN-016 C5). `risks-build` and `build --register
+    # risks` are the same call; the prefixes stay for one release so nothing
+    # that already types them breaks. The rewrite happens here, before
+    # dispatch, so every branch below still sees the name it was written for.
+    if "--register" in given:
+        table = registers()
+        name = given["--register"]
+        if name not in table:
+            print(f"perry-tasks: no register {name!r}. Declared: "
+                  f"{', '.join(sorted(table))}. A register is a `work`-owned "
+                  f"store in `schema/state-schema.json § claims`.",
+                  file=sys.stderr)
+            return 2
+        wanted = f"{table[name]}{cmd}"
+        if wanted != cmd:
+            legal = {s["name"] for s in SURFACE["subcommands"]}
+            if wanted not in legal:
+                verbs = sorted(v.removeprefix(table[name]) for v in legal
+                               if table[name] and v.startswith(table[name]))
+                print(f"perry-tasks: the {name!r} register has no {cmd!r} — "
+                      f"it takes {', '.join(verbs)}.", file=sys.stderr)
+                return 2
+            cmd = wanted
     # `--root` first, `$PERRY_PROJECT` second — `bin/README.md § Which
     # project?`'s order, which this line had inverted while two of the commands
     # below write (DESIGN-016 § 1.1, A1).

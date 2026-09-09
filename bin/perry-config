@@ -1,43 +1,20 @@
 #!/usr/bin/env python3
-""".perry/config.jsonl — the project's settings and tracks, read and written.
+"""
+.perry/config.jsonl — the project's settings and tracks, read and written.
 
     perry-config show   [--root <p>] [--json]      what the store declares
     perry-config set    [--root <p>] <Label> <value>   upsert one setting
     perry-config unset  [--root <p>] <Label>       remove one setting
-    perry-config track  [--root <p>] <name> [--mode M] [--spine S]
-                        [--stages S] [--wip W] [--sla S] [--cycle C]
-                        [--default-rung R]         upsert one track
-    perry-config untrack [--root <p>] <name>       remove one track
 
-The store is `.perry/config.jsonl`. It holds the project's `setting` records —
-document language, chat language, repo layout, state root, packs, and the two
-cost budgets — and one `track` record per declared track. Field names are
-declared in `schema/state-schema.json § stores.declared[".perry/config.jsonl"]`
-and are read from there, never restated here.
+The usage block is generated from this tool's `SURFACE`
+declaration — run `perry-config --help`, or `perry-config <subcommand>
+--help` for one of them, or `perry-config --describe --json` for the
+whole surface as data.
 
-**The five subcommands this tool used to have are gone (ADR-019.)** `build`,
-`verify`, `render`, `write --from-file` and `diff` were all about the
-relationship between this store and `.perry/config.md`, a rendered projection
-of it: derive the store from the file, compare them field by field, render the
-file from the store, import the file into the store, render and compare bytes.
-ADR-019 deleted the file. Each of the five lost its subject completely rather
-than becoming narrower — there is no second copy to build from, verify
-against, render to, import from, or diff — so none of them survives, and the
-`Doc`/`plan`/`render` machinery in `bin/perry_md_store.py` that all five were
-built on is no longer reached from here at all.
-
-What replaces them is not a sixth projection command. `SKILL.md § Configuration`
-promised this was "a tier-1 file the user owns and edits directly"; ADR-019
-withdraws that promise explicitly, and the thing it owes in exchange is a way
-to change a setting or a track without hand-editing JSONL. That is `set`,
-`unset`, `track` and `untrack` above, and `show` so a human can read back what
-they wrote.
-
-**Two circularities live here and both are named rather than worked around.**
-`viewer/parsers.py § resolve_state_root` reads this store to decide where every
-other state file lives, and every writer reads it to decide which tracks exist.
-Neither is new — every reader of the config has always had them — and a writer
-of the config meets them at every write.
+**The argument for every refusal below is in
+`bin/README.md § The argument, per tool`**, moved there whole on
+2026-09-09 (DESIGN-016 Decision 2). Nothing was cut; `--help`
+stopped being the place to read it.
 """
 
 from __future__ import annotations
@@ -284,12 +261,16 @@ def main(argv: list[str]) -> int:
     # field — `track main --mode queue`, the only way to declare a track's
     # mode — for one commit, because the stray-flag check had no allowlist.
     read = lib.parse_surface(SURFACE, argv)
-    if not argv or read["help"]:
-        if read["sub"]:
-            print(lib.usage_lines(SURFACE, read["sub"]))
-        else:
+    if read["help"]:
+        print(lib.usage_lines(SURFACE, read["sub"]))
+        if not read["sub"]:
+            print()
             print(__doc__.strip())
         return 0
+    if not argv:
+        # One no-argument behaviour (DESIGN-016 C3).
+        print(lib.usage_lines(SURFACE), file=sys.stderr)
+        return 2
     if read["describe"]:
         print(json.dumps(lib.describe_surface(SURFACE, read["sub"]),
                          ensure_ascii=False, indent=2))

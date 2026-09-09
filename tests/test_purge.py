@@ -571,8 +571,13 @@ class TestItIsDeclaredEverywhereItHasToBe(unittest.TestCase):
         """A subcommand a user cannot discover is one they will hand-edit
         around — and hand-editing the store is the thing this row exists
         against."""
-        usage = re.search(r"^Usage:\n(.*?)\n\n", PT.__doc__ or "", re.M | re.S)
-        self.assertIn("perry-task purge", usage.group(1))
+        # The usage block is GENERATED from `PT.SURFACE` since DESIGN-016 C2,
+        # so being discoverable means being declared — which is also what puts
+        # it in `perry list` and `--describe`.
+        self.assertIn("purge", {s["name"] for s in PT.SURFACE["subcommands"]})
+        out = subprocess.run(["python3", str(TOOL), "--help"],
+                             capture_output=True, text=True).stdout
+        self.assertRegex(out, r"(?m)^\s+purge\s", "purge is not in the usage")
 
     def test_the_events_contract_documents_the_kind(self):
         page = (PERRY_HOME / "schema" / "events-list-contract.md").read_text()

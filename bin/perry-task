@@ -7,168 +7,15 @@ row, status change, journal line and ID was produced by an agent typing markdown
 by hand — so the law that governs state ("never compute a number by reading
 files and eyeballing it") protected the way out and not the way in.
 
-Every mutating call writes four things, and only the first two are canonical:
+The usage block is generated from this tool's `SURFACE`
+declaration — run `perry-task --help`, or `perry-task <subcommand>
+--help` for one of them, or `perry-task --describe --json` for the
+whole surface as data.
 
-  1. the task RECORD, in perry/tasks.jsonl — what the fields mean
-  2. the `## Status changes` line in journal/<YYYY-MM>/<today>.md
-  3. `BOARD.md`, RE-RENDERED from (1)
-  4. one JSON object appended to .perry/events.jsonl
-
-**(1) and (2) are one recoverable transaction.** A durable marker is written
-before either replacement. An ordinary failure rolls both back; a process crash
-between replacements is completed deterministically when the next Perry command
-takes the project lock. Two filesystem renames are not falsely described as one
-atomic operation. See `commit()`.
-
-**(3) and (4) are written after and can each fail alone.** Reported, not
-raised: the canonical state is already correct. A missing event shows the row
-as `unrecorded`; a board that was not re-rendered shows as `store-drift` under
-`perry-lint`, and `perry-tasks render --write` regenerates it. This is the direction
-the loss is allowed to run, never the reverse. See `commit()`.
-
-**It used to be `BOARD.md` in slot (1) and there was no store** (ADR-007,
-TASK-089). The board is rendered output now: a hand edit to it is drift rather
-than an edit, which is the cost ADR-007 decision 2 accepted in the user's own
-words.
-
-What the tool computes rather than accepts — the payload, per DESIGN-004 § 5.2:
-IDs are minted from the canonical store plus every id `purge` has taken out of
-it (`minting_records`; this line said "max(board ∪ journal ∪ events)" and has
-been wrong since ADR-007 made the store canonical), never reused; timestamps are taken at
-call time rather than asserted; `Stage since` / `Arrived` are stamped
-structurally; any column a track's mode requires and the board lacks is created
-in the same edit; rungs are validated against the schema enum before write.
-
-The event log is DERIVED AND DISPOSABLE. Delete .perry/events.jsonl and Perry
-still works — markdown is canonical. What is lost is history resolution and
-drift detection, not truth. That constraint is what keeps this from becoming a
-database with a markdown export.
-
-That claim was false for one thing until `mint_id` learned to read the journal:
-ID uniqueness depended on the log, so deleting it reissued the number of every
-closed task. Anything load-bearing that lives only in this file is a bug in the
-same class — the file is allowed to make Perry *slower to explain itself*, never
-*wrong*.
-
-Usage:
-  perry-task add   --title "…" --deliverable "…" --verification "…"
-                   --summary "…"   REQUIRED. Why the row exists and what is
-                                   true when it is done, in plain language,
-                                   for a reader who was not in the
-                                   conversation. The title is shorthand for
-                                   people who already know; this is the field
-                                   `perry-explain` prints. Refused if it is
-                                   only the title again, has no sentence, or
-                                   is under five words — structure only,
-                                   never a judgement of the prose.
-                   [--rung V1..V6]  fills the Verification COLUMN; --verification
-                                    is the spec's prose and does not
-                   [--role <name>]  required once the project declares any
-                                    `.perry/roles/*.md`; absent otherwise
-                   [--depends "TASK-050, TASK-051"] ids this row waits on
-                   [--out-of-scope "…"] [--kr KR-ID]
-                   [--unlinked]     declare AT CREATION that this row serves no
-                                    KR. Writes an `unlinked` record into
-                                    linkage.jsonl in the same transaction as the
-                                    row. Mutually exclusive with --kr; passing
-                                    both is refused. THE DECLARATION CANNOT BE
-                                    WITHDRAWN by any perry-task command — the
-                                    store is append-only. Omitting both flags is
-                                    still legal and still means never-asked.
-                   [--track T] [--owner O] [--priority P0|P1|P2]
-                   [--group "<board heading>"]   file under a project's own section
-                   [--prefix AIM]                mint into the board's own id family
-                   [--next "…"] [--parent ID] [--commitment ID] [--stage S]
-                   [--arrived YYYY-MM-DD]
-  perry-task start <ID> [--next "…"]
-  perry-task stage <ID> --stage <name>
-  perry-task track <ID> --track T [--stage S] [--arrived YYYY-MM-DD]
-                    [--reason "…"]
-                    move an EXISTING row onto another declared track; keeps its
-                    id, its section and every other cell. A queue destination
-                    stamps `Arrived` and the track's first post-intake `Stage`,
-                    exactly as `route` does. A destination that reads neither
-                    CLEARS them and records what they were.
-  perry-task intake --title "…" [--arrived YYYY-MM-DD]
-  perry-task ask    --needed "…" [--blocks <ID>] [--arrived YYYY-MM-DD]
-  perry-task answer <USER-ID> --answer "…"
-  perry-task cadence-add  --title "…" --frequency <weekly|monthly|quarterly|Nd|…>
-                          [--owner O] [--on YYYY-MM-DD]
-  perry-task cadence-done <CAD-ID> --evidence <path> [--on YYYY-MM-DD]
-                          [--frequency F]
-  perry-task risk-add   --title "…" [--opened YYYY-MM-DD]
-  perry-task risk-clear <RX-ID> --reason "…"
-  perry-task risk-migrate                  `## Top risks` bullets → the table
-  perry-task route <n> --track T [--priority P1] [--stage S] [--owner O]
-                   [--group "<board heading>"]   file under a project's own section
-                   [--prefix AIM]                mint into the board's own id family
-                   [--commitment ID]
-  perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
-  perry-task intake-sweep                  discharged intake rows → journal
-  perry-task drop  <ID> --reason "…"
-  perry-task purge <ID> --reason "…"
-                    DELETE a record from the task store. `drop` records a
-                    decision about the work and leaves the row in
-                    `tasks.jsonl` reading `status: dropped`; this takes the
-                    record OUT. Terminal rows only, never a row any live
-                    reference names, and never the id — the log keeps it, so
-                    it is never reissued. The removed record rides on the
-                    `purge` event verbatim and is reconstructible from it.
-  perry-task status <ID> --status blocked|review|not_started|in_progress
-                    [--on "TASK-050"] [--reason "…"] [--next "…"]
-  perry-task depends <ID> --on "TASK-050, TASK-051" | --clear
-  perry-task design-link <ID> --design "DESIGN-001, DESIGN-004" | --clear
-                    declare which designs this row IMPLEMENTS. Store-only —
-                    no board column — so it survives `done`, which is the
-                    point: `pending hand-off` is a question about finished
-                    work. Refuses a design id with no document. (TASK-139)
-  perry-task next   <ID> --next "…"        rewrite Next action, nothing else
-  perry-task retitle <ID> --title "…"      rewrite Title, nothing else
-  perry-task summary <ID> --summary "…" | --clear
-                                             rewrite or clear Summary only
-  perry-task rung   <ID> --rung V1..V6     rewrite Verification, nothing else
-  perry-task evidence <ID> --evidence "…"  rewrite Evidence, nothing else
-  perry-task prioritize <ID> --priority P0|P1|P2 [--reason "…"]
-                    move an existing row between priority sections; keeps its
-                    id and every cell. --group "<heading>" on a board that
-                    files work under its own headings instead of P0/P1/P2.
-  perry-task done  <ID> --evidence <path> [--rung V1..V6]
-                   at V5, the sign-off is SELECTED rather than composed:
-                   [--measured "<a fact Perry measured>"]      repeatable
-                   [--restated "<a claim Perry only passes on>"] repeatable
-                   [--checked 1,3 | all | none]        what you checked too
-                   [--not-looked-at 2]                 what you did not examine
-                   [--also "<what you checked that Perry did not offer>"]
-                   [--signer "<full name>"] [--signed-on YYYY-MM-DD]
-                   Name and date are filled in; unselected items are recorded
-                   as `accepted on report`, never dropped.
-  perry-task signoff-offer <ID> --measured "…" [--restated "…"] [--json]
-                   read-only. The one selection prompt a V5 close offers,
-                   numbered the way `done --checked` reads it.
-  perry-task list  [--all] [--track T] [--json]
-  perry-task events [--limit N] [--since <cursor>] [--json]
-                  the event log's TAIL, in log order, with a cursor.
-                  --limit N is the newest N events; --since <cursor> pages
-                  BACKWARDS from there into older ones. A separate surface
-                  from `list` because three of that payload's fields are
-                  defined relative to the payload, so paging it would change
-                  their meaning per page.
-
-  --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
-  --dry-run       print what would be written; touch nothing
-  --json          machine-readable result
-  --actor <name>  who is making the change; stamped into every event. Accepted
-                  by every subcommand and defaulted rather than required —
-                  DESIGN-004 § 8 asks whether it should be mandatory, and until
-                  that is answered an unset actor is recorded as unset rather
-                  than guessed.
-
-Exit codes:
-  0  written (or, with --dry-run, would be)
-  1  refused — the reason is printed and nothing was written
-  2  bad invocation / unreadable schema
-
-No LLM, no external dependencies (stdlib only). DESIGN-004.
+**The argument for every refusal below is in
+`bin/README.md § The argument, per tool`**, moved there whole on
+2026-09-09 (DESIGN-016 Decision 2). Nothing was cut; `--help`
+stopped being the place to read it.
 """
 
 from __future__ import annotations
@@ -8322,16 +8169,25 @@ def project_lock(state_root: Path, timeout: float = 10.0):
 def main(argv: list[str]) -> int:
     args = parse(argv)
     if args.help:
-        # A named subcommand gets ITS usage, generated from the declaration —
-        # DESIGN-016 goal 8. `--help` alone still prints this file's document
-        # until C2 moves the essay out of it.
-        print(lib.usage_lines(SURFACE, args.cmd) if args.cmd in COMMANDS
-              else __doc__.strip())
+        # **Usage first, and generated** (DESIGN-016 C2, goal 8). A named
+        # subcommand gets its own block; the whole tool gets all of them, then
+        # the short document. The essay this docstring used to carry is in
+        # `bin/README.md § The argument, per tool`.
+        print(lib.usage_lines(SURFACE, args.cmd if args.cmd in COMMANDS
+                              else None))
+        if args.cmd not in COMMANDS:
+            print()
+            print(__doc__.strip())
         return 0
     if args.describe:
         print(json.dumps(lib.describe_surface(SURFACE, args.cmd),
                          ensure_ascii=False, indent=2))
         return 0
+    if args.cmd is None:
+        # One no-argument behaviour: the usage, on stderr, exit 2 (C3). Before
+        # the parser's own "expected one of", which says less.
+        print(lib.usage_lines(SURFACE), file=sys.stderr)
+        return 2
     if args.error:
         print(f"perry-task: {args.error}", file=sys.stderr)
         return 2

@@ -275,7 +275,7 @@ document the rest of § 1 treats as the contract.
 | R4 | the `perry-tasks` row documents `risks-*` and `intake-*` | `asks-*` is a fourth register with four verbs and appears zero times in the file. (The review's `linkage-*` verbs are not a miss: ADR-019 deleted them, `bin/perry-tasks:1340`) |
 | R5 | `:33` `perry-detect-host` prints `claude-code \| codex-cli \| unknown` | Four values; `opencode` is missing here and present at `:227` in the same file |
 | R6 | (no linkage store) | `perry-lint`'s census prints **seven** store lines; its help text still says "ALL SIX declared stores" (`bin/perry-lint:23`) |
-| R7 | correctly records `perry-conform` / `perry-migrate` as deleted | `reference/glossary.md`, `reference/config.md`, `reference/adoption.md` and `work/reference/review.md` still call them |
+| R7 | ~~correctly records `perry-conform` / `perry-migrate` as deleted~~ | **Withdrawn 2026-09-09 while fixing it.** The four documents name those tools only to say they are DELETED, with the row that deleted them — `reference/config.md:153`, `reference/glossary.md:124`, `reference/adoption.md:437-441`, and a quoted proof line in `work/reference/review.md`. That is history written down, not a live reference; the review's C7 and this row read the grep and not the sentences |
 | R8 | `:23` `perry-config` is five commands over `.perry/config.md` with a `render` that round-trips | ADR-019 deleted `.perry/config.md` on 2026-09-08; the subcommands are now `show set unset track untrack` and nothing is projected |
 
 This is § 4 Decision 2's accepted risk stated as a count rather than a

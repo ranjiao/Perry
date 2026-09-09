@@ -725,15 +725,29 @@ def usage_lines(surface: dict, sub: str | None = None) -> str:
              f"Usage: {surface['name']} [flags]"]
     picked = ([surface_subcommand(surface, sub)] if sub
               else list(surface.get("subcommands", ())))
+    # **The whole tool gets NAMES; one subcommand gets its flags.** Printing
+    # every flag of thirty subcommands is how `perry-task --help` got to 10,690
+    # bytes, and the caller who wanted `done` read all of it (DESIGN-016
+    # § 1.3). `<tool> <sub> --help` is one call and about 300 bytes.
+    whole_tool = sub is None and len(picked) > 1
     for item in picked:
         if item is None:
             continue
         names = sorted(set(item.get("flags", ())) | always_accepted(surface)
                        - {"--help", "--describe"})
+        if whole_tool:
+            lines.append(f"  {item['name']:<16} {item.get('summary', '')}")
+            continue
         lines.append(f"  {surface['name']} {item['name']} "
                      f"{' '.join('[' + spell(n) + ']' for n in names)}")
         if item.get("summary"):
             lines.append(f"      {item['summary']}")
+    if whole_tool:
+        lines.append("")
+        lines.append(f"  {surface['name']} <subcommand> --help   the flags for "
+                     f"one of them")
+        lines.append(f"  {surface['name']} --describe --json     the whole "
+                     f"surface as data")
     if not surface.get("subcommands"):
         for name in sorted(flags):
             if name == "--help":

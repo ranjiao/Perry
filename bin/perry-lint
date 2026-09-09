@@ -20,15 +20,18 @@ exists, a rendered file whose fields disagree with what the store would produce
 `warn`, on the `NS-01` precedent, and SILENT when there is no store, because
 "no store" and "clean" are different answers.
 
-**The census covers ALL SIX declared stores, one verdict line each, on one
+**The census covers ALL SEVEN declared stores, one verdict line each, on one
 run** (TASK-209): `tasks.jsonl`, `risks.jsonl`, `intake.jsonl`, `asks.jsonl`,
-`okr.jsonl` and `.perry/config.jsonl`. It covered two for a while — the last
-two printed nothing at all while `perry-okr diff` and `perry-config diff`
-compared both of them clean on the same tree the same day, so a guarantee that
-claims six files was checked on a third of them. Those two reach the SAME
-comparator through `bin/perry_md_store.py` rather than a third and fourth copy
-of it. An absent store is still an absence line and never a clean verdict; six
-lines is not six clean answers.
+`okr.jsonl`, `linkage.jsonl` and `.perry/config.jsonl`. It said SIX until
+2026-09-09 and printed seven lines — `linkage.jsonl` became the seventh under
+TASK-276 and nothing updated the sentence, which is the drift DESIGN-016 § 1.6
+counted. It covered two for a while — `okr.jsonl` and `.perry/config.jsonl`
+printed nothing at all while `perry-okr diff` and `perry-config diff` compared
+both of them clean on the same tree the same day, so a guarantee that claimed
+six files was checked on a third of them. Those two reach the SAME comparator
+through `bin/perry_md_store.py` rather than a third and fourth copy of it. An
+absent store is still an absence line and never a clean verdict; seven lines is
+not seven clean answers.
 
 On an adopted project the default pass also emits `NS-01` (DESIGN-002 decision
 4) when a directory Perry claims holds files Perry did not write — the same

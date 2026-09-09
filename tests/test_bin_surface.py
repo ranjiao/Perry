@@ -34,6 +34,7 @@ sys.path.insert(0, str(PERRY_HOME / "bin"))
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 
 import inproc  # noqa: E402
+from task_writer_support import Project  # noqa: E402
 import lib  # noqa: E402
 
 BIN = PERRY_HOME / "bin"
@@ -43,6 +44,13 @@ PERRY = BIN / "perry"
 #: undeclared rather than hiding them, and this list is what C1 has converted.
 DECLARED = ("perry-task", "perry-tasks", "perry-okr", "perry-config",
             "perry-state", "perry-diagnose")
+
+
+def run(tool: str, *argv: str) -> subprocess.CompletedProcess:
+    env = dict(os.environ)
+    env.pop("PERRY_PROJECT", None)
+    return subprocess.run([sys.executable, str(BIN / tool), *argv],
+                          capture_output=True, text=True, env=env)
 
 
 def surface(tool: str) -> dict:
@@ -191,6 +199,213 @@ class TestPerryTaskDeclaresTheFlagsItsHandlersRead(unittest.TestCase):
         """The control: if `_reads` returned nothing the case above would pass
         for every subcommand and prove nothing."""
         self.assertIn("title", self._reads(self.funcs["cmd_add"]))
+
+
+class TestRegisterIsAParameter(unittest.TestCase):
+    """DESIGN-016 C5 — `<verb> --register <name>` is the shape; the twelve
+    prefixed names are aliases for one release.
+
+    The register list is DERIVED from `schema/state-schema.json § claims` —
+    the `work`-owned state stores — so a register and a track are read the same
+    way instead of one being data and the other twelve subcommand names
+    (§ 1.7).
+    """
+
+    def setUp(self):
+        self.p = Project()
+        self.p.run("add", "--title", "a row so the store has something")
+        for sub in ("write --from-board", "risks-write --from-board",
+                    "intake-write --from-board", "asks-write --from-board"):
+            run("perry-tasks", *sub.split(), "--root", str(self.p.root))
+
+    def test_the_registers_come_from_the_schema(self):
+        table = inproc.load("perry-tasks").registers()
+        self.assertEqual(set(table), {"tasks", "risks", "intake", "asks"})
+        self.assertEqual(table["tasks"], "", "the bare verbs are the task ones")
+
+    def test_the_parameter_and_the_alias_are_the_same_call(self):
+        for register in ("risks", "intake", "asks"):
+            for verb in ("build", "diff"):
+                with self.subTest(register=register, verb=verb):
+                    a = run("perry-tasks", verb, "--register", register,
+                            "--root", str(self.p.root))
+                    b = run("perry-tasks", f"{register}-{verb}",
+                            "--root", str(self.p.root))
+                    self.assertEqual(a.returncode, b.returncode)
+                    self.assertEqual(a.stdout, b.stdout)
+
+    def test_a_register_that_does_not_exist_names_the_ones_that_do(self):
+        out = run("perry-tasks", "build", "--register", "nosuch",
+                  "--root", str(self.p.root))
+        self.assertEqual(out.returncode, 2)
+        for name in ("tasks", "risks", "intake", "asks"):
+            self.assertIn(name, out.stderr)
+
+    def test_a_verb_the_register_lacks_says_which_it_has(self):
+        """`verify` is the task store's alone: no register has one."""
+        out = run("perry-tasks", "verify", "--register", "risks",
+                  "--root", str(self.p.root))
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("has no 'verify'", out.stderr)
+        self.assertIn("build", out.stderr)
+
+
+class TestHelpIsUsageFirstAndSmall(unittest.TestCase):
+    """DESIGN-016 C2 and goal 8, and § 4 Decision 2's mitigation.
+
+    `perry-task --help` was 10,690 bytes with `Usage:` at line 51. The essays
+    moved into `bin/README.md § The argument, per tool` — moved, not cut — and
+    what `--help` prints is generated from `SURFACE`, so it cannot describe a
+    flag the parser does not take.
+    """
+
+    README = (PERRY_HOME / "bin" / "README.md").read_text(encoding="utf-8")
+    MOVED = ("perry-task", "perry-tasks", "perry-config")
+
+    def test_help_starts_with_usage(self):
+        for tool in DECLARED:
+            with self.subTest(tool=tool):
+                out = run(tool, "--help")
+                self.assertEqual(out.returncode, 0, out.stderr)
+                self.assertTrue(out.stdout.lstrip().startswith("Usage:"),
+                                out.stdout[:120])
+
+    def test_one_subcommand_costs_one_call_and_returns_only_that(self):
+        for tool in DECLARED:
+            subs = surface(tool).get("subcommands", ())
+            if len(subs) < 2:
+                continue
+            with self.subTest(tool=tool):
+                out = run(tool, subs[0]["name"], "--help")
+                self.assertEqual(out.returncode, 0, out.stderr)
+                self.assertIn(subs[0]["name"], out.stdout)
+                self.assertNotRegex(
+                    out.stdout, rf"\b{re.escape(subs[1]['name'])}\b",
+                    "one subcommand's help named another")
+                self.assertLess(len(out.stdout), 1200, out.stdout[:200])
+
+    def test_the_whole_tool_help_is_a_page_not_a_paper(self):
+        for tool in DECLARED:
+            with self.subTest(tool=tool):
+                self.assertLess(len(run(tool, "--help").stdout), 3000)
+
+    def test_the_essays_are_in_the_readme_rather_than_gone(self):
+        """A sentence from each moved docstring, asserted present. The claim
+        Decision 2 was answered on is that the argument MOVED."""
+        for phrase in (
+                "Every mutating call writes four things",
+                "the event log is DERIVED AND DISPOSABLE".lower(),
+                "ADR-007's first slice",
+        ):
+            with self.subTest(phrase=phrase[:40]):
+                self.assertIn(phrase.lower(), self.README.lower())
+
+    def test_every_tool_that_moved_its_essay_has_a_section(self):
+        for tool in self.MOVED:
+            with self.subTest(tool=tool):
+                self.assertIn(f"### `{tool}`", self.README)
+
+
+class TestTheReadmeSaysWhatTheToolsDo(unittest.TestCase):
+    """DESIGN-016 D1 and § 4 Decision 2's mitigation — the check that ships
+    WITH the move, so the README's drift is reported rather than read.
+
+    § 1.6 counted eight statements in `bin/README.md` that were false on
+    2026-09-09, including the file's most prominent write example, which `add`
+    refuses.
+    """
+
+    README = (PERRY_HOME / "bin" / "README.md").read_text(encoding="utf-8")
+
+    def test_every_tool_in_bin_has_a_row(self):
+        for path in sorted(BIN.glob("perry-*")):
+            if path.name.endswith(".py") or not path.is_file():
+                continue
+            with self.subTest(tool=path.name):
+                self.assertIn(f"[`{path.name}`]({path.name})", self.README)
+
+    def test_the_add_example_is_a_call_that_runs(self):
+        """R1: the example carried `--title --track --priority` and nothing
+        else, and `add` requires three more fields. It was the most prominent
+        write example in the file."""
+        block = self.README[self.README.index("perry-task\" add --title"):]
+        block = block[:block.index("```")]
+        for flag in ("--deliverable", "--verification", "--summary"):
+            self.assertIn(flag, block)
+
+    def test_the_dependency_claim_matches_the_one_tool_that_has_one(self):
+        """R2: "No tool here calls an LLM … no dependencies at all" while
+        `perry-codex-preflight` shells out to `codex exec`."""
+        preflight = (BIN / "perry-codex-preflight").read_text(encoding="utf-8")
+        self.assertIn("codex exec", preflight, "the premise changed")
+        self.assertIn("codex exec", self.README)
+        # The old sentence survives as a QUOTATION of what it used to say, so
+        # the check is that it is no longer the claim: the paragraph that
+        # quotes it also says which tool has a dependency and what it needs.
+        head = self.README[:self.README.index("## The tools")]
+        self.assertIn("which was", head, "the correction paragraph is gone")
+        for needed in ("codex", "git", "timeout"):
+            self.assertIn(needed, head)
+
+    def test_the_store_census_count_is_the_one_the_linter_prints(self):
+        """R6: `perry-lint --help` said SIX while the census printed seven."""
+        lint = (BIN / "perry-lint").read_text(encoding="utf-8")
+        self.assertNotIn("ALL SIX declared stores", lint)
+        self.assertIn("ALL SEVEN declared stores", lint)
+
+    def test_the_exit_code_table_carries_three(self):
+        """R5 of § 1.5: `perry_md_store` returns 3 and the table had 0/1/2."""
+        table = self.README[self.README.index("**Exit codes**"):]
+        table = table[:table.index("\n---\n")]   # the horizontal rule, not
+        #                                          the table's own separator
+        self.assertIn("| `3` |", table)
+
+    def test_the_detect_host_values_are_the_ones_it_prints(self):
+        row = next(l for l in self.README.splitlines()
+                   if "perry-detect-host" in l and l.startswith("|"))
+        for value in ("claude-code", "opencode", "codex-cli", "unknown"):
+            self.assertIn(value, row)
+
+
+class TestOneNoArgumentBehaviour(unittest.TestCase):
+    """DESIGN-016 C3 — and the rule comes from the declaration, so it is a rule
+    rather than a habit: a tool that takes subcommands cannot act without one,
+    so a bare call prints its usage on stderr and exits 2; a flag-only tool
+    does its documented default and exits 0.
+
+    Bare calls used to answer four ways — usage and exit 2, the whole help and
+    exit 0, 187KB of JSON, and a 3.7-second lint — so probing a tool by running
+    it had no predictable cost (§ 1.3).
+    """
+
+    def test_a_subcommand_tool_refuses_and_shows_its_usage(self):
+        for tool in DECLARED:
+            if not surface(tool).get("subcommands"):
+                continue
+            with self.subTest(tool=tool):
+                out = run(tool)
+                self.assertEqual(out.returncode, 2, out.stdout[:200])
+                self.assertIn("Usage:", out.stderr)
+                self.assertEqual(out.stdout, "",
+                                 "a bare call wrote to stdout, so a caller "
+                                 "piping it gets half an answer")
+
+    def test_a_flag_only_tool_does_its_default(self):
+        for tool in DECLARED:
+            if surface(tool).get("subcommands"):
+                continue
+            with self.subTest(tool=tool):
+                out = run(tool, "--root", str(PERRY_HOME))
+                self.assertEqual(out.returncode, 0, out.stderr[:200])
+                self.assertTrue(out.stdout.strip())
+
+    def test_the_two_groups_are_both_populated(self):
+        """The control: if every declared tool fell in one group, one of the
+        cases above would be vacuous."""
+        with_subs = [t for t in DECLARED if surface(t).get("subcommands")]
+        without = [t for t in DECLARED if not surface(t).get("subcommands")]
+        self.assertTrue(with_subs)
+        self.assertTrue(without)
 
 
 class TestTheIndexIsDerivedFromTheDeclarations(unittest.TestCase):

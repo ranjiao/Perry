@@ -362,14 +362,22 @@ class TestLaneProceduresCallTheTool(unittest.TestCase):
 
     def test_every_command_the_procedures_quote_actually_runs(self):
         """A migrated procedure naming a subcommand the tool does not have
-        would be the same unbacked-index defect five reviews kept finding."""
-        quoted = set(re.findall(r'perry-task"?\s+(\w+)', self.proc))
-        r = subprocess.run(["python3", str(TOOL), "--help"],
-                           capture_output=True, text=True)
-        for cmd in quoted:
-            self.assertIn(f"perry-task {cmd}", r.stdout,
-                          f"the procedures call `perry-task {cmd}`, which the "
-                          f"tool's own usage does not list")
+        would be the same unbacked-index defect five reviews kept finding.
+
+        **Checked against the DECLARATION, by exact name.** Two things were
+        wrong with the old form: `\w+` stopped at the hyphen, so `risk-add`
+        was read as `risk`, and the check was `assertIn("perry-task risk", …)`
+        — a substring of `perry-task risk-add`, so a procedure quoting a
+        command that does not exist would have passed as long as some real one
+        started with the same letters."""
+        quoted = set(re.findall(r'perry-task"?\s+([a-z][a-z-]*)', self.proc))
+        declared = {s["name"] for s in PT.SURFACE["subcommands"]}
+        unknown = sorted(quoted - declared)
+        self.assertEqual(unknown, [],
+                         f"the procedures call {unknown}, which the tool does "
+                         f"not declare")
+        self.assertGreater(len(quoted), 5, "the extraction found almost "
+                                           "nothing, so it proves nothing")
 
 
 class TestListContract(unittest.TestCase):

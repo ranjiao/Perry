@@ -2710,6 +2710,8 @@ def main(argv: list[str]) -> int:
     # cover being called wrongly.
     read = lib.parse_surface(SURFACE, argv)
     if read["help"]:
+        print(lib.usage_lines(SURFACE))
+        print()
         print(__doc__.strip())
         return 0
     if read["describe"]:

@@ -592,10 +592,10 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
             capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
 
-        usage = re.search(r"^Usage:\n(.*?)\n\n", PT.__doc__ or "", re.M | re.S)
-        self.assertIsNotNone(usage, "the docstring's Usage block moved")
-        documented = set(re.findall(r"^\s*perry-task\s+([a-z-]+)",
-                                    usage.group(1), re.M))
+        # The docstring's hand-written Usage block is gone (DESIGN-016 C2);
+        # the declaration is what the block is generated from, so it is what
+        # "documented" means now — and this comparison is the same one.
+        documented = {s["name"] for s in PT.SURFACE["subcommands"]}
         self.assertEqual(
             documented, set(PT.COMMANDS),
             f"the docstring and COMMANDS disagree — only in docstring: "

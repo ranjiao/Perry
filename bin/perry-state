@@ -2571,6 +2571,9 @@ SURFACE = {
 def main(argv: list[str]) -> int:
     read = lib.parse_surface(SURFACE, argv)
     if read["help"]:
+        # Usage first, generated from `SURFACE` (DESIGN-016 C2).
+        print(lib.usage_lines(SURFACE))
+        print()
         print(__doc__.strip())
         return 0
     if read["describe"]:

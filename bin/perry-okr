@@ -33,6 +33,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lib  # noqa: E402
 import perry_md_store as store  # noqa: E402
 
 #: This tool's declared surface, so `bin/perry` and `--describe` reach it the
@@ -48,6 +49,10 @@ def main(argv: list[str]) -> int:
     accepts — which is what `bin/perry list` and `--describe` do.
     """
     if argv[:1] and argv[0] in ("-h", "--help") and len(argv) == 1:
+        # Usage first, then this file's short note; the store's own usage
+        # block comes from `perry_md_store` (DESIGN-016 C2).
+        print(lib.usage_lines(SURFACE))
+        print()
         print(__doc__.strip())
         return 0
     try:
