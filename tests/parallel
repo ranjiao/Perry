@@ -832,8 +832,16 @@ def main() -> int:
         # What the row added is that the numbers now say what they were taken
         # under, so a reader can decide whether to believe them.
         src_id = write_record(results, args.j)
-        print(f"recorded {len(results)} module times to "
-              f"{DURATIONS.relative_to(ROOT)} under source {src_id!r}")
+        # `relative_to` RAISES on a path outside the tree, and a line that only
+        # says where the file went must not be able to end the run. A test that
+        # redirects `DURATIONS` to a temp file — which is how a `--record` case
+        # avoids rewriting the live stopwatch — hit exactly that.
+        try:
+            where = DURATIONS.relative_to(ROOT)
+        except ValueError:
+            where = DURATIONS
+        print(f"recorded {len(results)} module times to {where} "
+              f"under source {src_id!r}")
 
     print(f"\n{len(results)} modules · {total} tests · {wall:.1f}s "
           f"· {args.j} workers")

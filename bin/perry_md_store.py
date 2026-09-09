@@ -67,6 +67,7 @@ import json
 import os
 import re
 import sys
+from itertools import zip_longest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -983,20 +984,35 @@ def _first_difference(live: str, rendered: str) -> dict:
 
 def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     tool = f"perry-{doc.name}"
-    if not argv or argv[0] in ("-h", "--help"):
+    # **The whole vector is read before anything dispatches** (DESIGN-016 A2).
+    # `-h` anywhere prints and exits, so `render --write --help` no longer runs
+    # the render; an undeclared token is refused with exit 2 rather than
+    # ignored, so `--wrte` is a typo again instead of a silent no-op; and
+    # `--root` is read here rather than by three membership tests further down.
+    positionals, seen, given, error = lib.scan_argv(
+        argv, bools=("--write", "--from-file", "--dry-run", "--json"),
+        values=("--root",))
+    if not argv or "--help" in seen:
         print(USAGE.format(tool=tool, file=doc.rel_file, store=doc.rel_store)
               .strip())
         return 0
-    cmd = argv[0]
+    if error:
+        print(f"{tool}: {error}", file=sys.stderr)
+        return 2
+    cmd = positionals[0] if positionals else None
     if cmd not in COMMANDS:
         print(f"{tool}: expected {' / '.join(COMMANDS)}, got {cmd!r}",
               file=sys.stderr)
         return 2
+    if positionals[1:]:
+        print(f"{tool}: {positionals[1]!r} is not a flag, and {cmd!r} takes no "
+              f"second argument (try --help)", file=sys.stderr)
+        return 2
 
-    root = Path.cwd()
-    if "--root" in argv:
-        root = Path(argv[argv.index("--root") + 1]).expanduser()
-    root = Path(os.environ.get("PERRY_PROJECT") or root).expanduser().resolve()
+    # `--root` first, `$PERRY_PROJECT` second — the order `bin/README.md § Which
+    # project?` publishes. This file had it inverted, and two of the commands
+    # below write (DESIGN-016 § 1.1, A1).
+    root = lib.resolve_project_root(given.get("--root"))
     state_root = P.resolve_state_root(root)
     path = doc.file_path(root, state_root)
     store = doc.store_path(root, state_root)
@@ -1083,12 +1099,62 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
             return 2
         rendered, report = render(doc, text, records)
         if cmd == "render":
-            if "--write" not in argv:
+            if "--write" not in seen:
                 sys.stdout.write(rendered)
                 return 0
-            lib.write_atomic(path, rendered)
-            print(f"{tool}: rendered {path} from {len(records)} stored "
-                  f"record(s)")
+            # **A write that cannot place every record refuses** (DESIGN-016
+            # A5, goal 9). `render` matches a record to the line that already
+            # carries its key and writes the stored cells into it; a record
+            # whose line is gone has nowhere to land, so the file comes back
+            # WITHOUT it and the old success line said the records had been
+            # rendered. That is the documented recovery path reporting a
+            # recovery it did not perform — TASK-395 is the same defect
+            # reached through a drifted id. The report already knows.
+            # **Asked of the render, not of the file it came from.** The
+            # on-disk report says what has drifted; whether the drift survives
+            # this write depends on the renderer, which for a document with a
+            # scaffold can rebuild a section it has records for. Re-rendering
+            # the output answers the only question that matters here: after
+            # this write, is any record still without a line?
+            _again, after = render(doc, rendered, records)
+            stranded = after["records_not_in_the_file"]
+            if stranded:
+                print(f"{tool}: refusing to write {doc.rel_file} — "
+                      f"{len(stranded)} stored record(s) have no line in it to "
+                      f"render into, and `render` fills lines rather than "
+                      f"creating them. Nothing was written.", file=sys.stderr)
+                for key in stranded[:10]:
+                    print(f"    {key}", file=sys.stderr)
+                if len(stranded) > 10:
+                    print(f"    … and {len(stranded) - 10} more",
+                          file=sys.stderr)
+                print(f"\n  `{tool} diff` lists them all. Restoring the lines "
+                      f"themselves is a repair this command cannot do.",
+                      file=sys.stderr)
+                return 1
+            before = (text or "").splitlines()
+            after = rendered.splitlines()
+            changed = sum(1 for a, b in zip_longest(before, after) if a != b)
+            # **The success line counts what happened, not what was read.** It
+            # used to report the record count on every run, so a write and a
+            # no-op printed the same sentence (TASK-253 observed this from the
+            # other side).
+            if "--dry-run" in seen:
+                verb, wrote = "would rewrite", False
+            else:
+                lib.write_atomic(path, rendered)
+                verb, wrote = "rewrote", True
+            if "--json" in seen:
+                print(json.dumps({"file": str(path), "wrote": wrote,
+                                  "dry_run": "--dry-run" in seen,
+                                  "lines_changed": changed,
+                                  "lines_unchanged": len(after) - changed,
+                                  "records": len(records)},
+                                 ensure_ascii=False, indent=2))
+            else:
+                print(f"{tool}: {verb} {path} — {changed} line(s) changed, "
+                      f"{len(after) - changed} unchanged, from {len(records)} "
+                      f"stored record(s)")
             return 0
 
         report["identical"] = rendered == text
@@ -1161,7 +1227,7 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     # that destroyed the thing it was repairing, recommended by Perry's own
     # linter.
     derived = derive(doc, text)
-    if "--from-file" not in argv:
+    if "--from-file" not in seen:
         print(f"{tool}: refusing file-to-store import without `--from-file`. "
               f"`{doc.rel_store}` is authoritative; use `{tool} render "
               f"--write` for store-to-file recovery, or explicitly run "
@@ -1213,8 +1279,27 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
                           "store_findings": bad}, ensure_ascii=False,
                          indent=2), file=sys.stderr)
         return 1
+    if "--dry-run" in seen:
+        # Honest because nothing is estimated: the records are already derived
+        # and every refusal above has been asked. This prints the store that
+        # WOULD be written and touches nothing.
+        held = len(load_store(store)) if store.exists() else 0
+        if "--json" in seen:
+            print(json.dumps({"store": str(store), "wrote": False,
+                              "dry_run": True, "records": len(derived),
+                              "records_on_disk": held},
+                             ensure_ascii=False, indent=2))
+        else:
+            print(f"{tool}: would write {store} ({len(derived)} records, "
+                  f"{held} on disk now). Nothing was written.")
+        return 0
     lib.write_atomic(store, store_text(derived))
-    print(f"{tool}: wrote {store} ({len(derived)} records)")
+    if "--json" in seen:
+        print(json.dumps({"store": str(store), "wrote": True,
+                          "dry_run": False, "records": len(derived)},
+                         ensure_ascii=False, indent=2))
+    else:
+        print(f"{tool}: wrote {store} ({len(derived)} records)")
     return 0
 
 

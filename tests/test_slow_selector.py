@@ -23,6 +23,7 @@ import contextlib
 import io
 import json
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,15 @@ def _select(argv: list[str]) -> tuple[int, list[str]]:
     The selection is what this module is about, so the stub records the names
     `main` hands to `run_module` and returns a canned green result. Nothing is
     executed and nothing is timed.
+
+    **`DURATIONS` is redirected to a temp file, and this is not a precaution.**
+    Two cases below pass `--record`, which reaches `write_record` — and
+    `write_record` writes `P.DURATIONS`, the LIVE `tests/durations.json`. With
+    the stub returning a canned `sec: 0.01`, a plain `bash tests/run` rewrote
+    all 123 real module times as `0.01` and left the tree dirty; step 0's tree
+    guard caught it every run, which is what the guard is for. Measured
+    2026-09-09 on `65780a73`: 123 of 123 entries `0.01`, stamped as
+    `tests/parallel --record -j 8` by a run that passed no such flag.
     """
     asked: list[str] = []
 
@@ -53,15 +63,18 @@ def _select(argv: list[str]) -> tuple[int, list[str]]:
         return {"mod": name, "rc": 0, "ran": 1, "sec": 0.01,
                 "err": "OK\n", "ids": [(f"{name[:-3]}.C.t", "ok")]}
 
-    old_run, old_argv = P.run_module, sys.argv
+    old_run, old_argv, old_durations = P.run_module, sys.argv, P.DURATIONS
     P.run_module = stub
     sys.argv = ["parallel", *argv]
     buf = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            rc = P.main()
-    finally:
-        P.run_module, sys.argv = old_run, old_argv
+    with tempfile.TemporaryDirectory() as td:
+        P.DURATIONS = pathlib.Path(td) / "durations.json"
+        try:
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                rc = P.main()
+        finally:
+            P.run_module, sys.argv = old_run, old_argv
+            P.DURATIONS = old_durations
     return rc, sorted(asked)
 
 

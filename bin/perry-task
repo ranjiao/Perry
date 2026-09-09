@@ -3088,6 +3088,12 @@ def commit(project_root: Path, state_root: Path, board: Board,
             target = dict(projected)
             if event_name == "add":
                 target["summary"] = event.get("summary") or ""
+                # Set only when there is one, so a row opened without
+                # `--design` keeps the shape every other `add` has written —
+                # 97 of 399 records carry the key today. Not projected, so like
+                # `summary` it can only come from the event (A4).
+                if event.get("design_refs"):
+                    target["design_refs"] = list(event["design_refs"])
         else:
             target = dict(old)
             changed = {
@@ -3865,12 +3871,35 @@ def cmd_add(args, ctx) -> dict:
     # `--unlinked` row carries, which is correct and is what puts it in the
     # DENOMINATOR; the store's `unlinked` record is what puts it in the
     # numerator. That is § 5.3's "numerator, half two" exactly.
+    # **`--design` is written here, and used to be accepted and dropped**
+    # (DESIGN-016 § 1.1, A4). The flag table maps it, so `add --design
+    # DESIGN-016` exited 0 and `cmd_add` never read it: every row opened that
+    # way carried `design_refs: []` and had to be relinked afterwards with
+    # `design-link`. Same validation as `design-link` — an id with no document
+    # is a typo the hand-off count would otherwise read as implementation — and
+    # the same field, so the two verbs cannot disagree about what an edge is.
+    design_ids: list[str] = []
+    if args.design:
+        known = known_design_ids(ctx["state_root"])
+        for raw in str(args.design).split(","):
+            did = raw.strip().upper()
+            if not did or did in design_ids:
+                continue
+            if did not in known:
+                raise Refused(
+                    f"{did} has no document under "
+                    f"{Path(ctx['state_root']) / 'design'}. A design edge to a "
+                    f"design that does not exist is a typo the hand-off count "
+                    f"would read as implementation. Nothing was written."
+                    + (f" Known: {', '.join(sorted(known))}." if known else ""))
+            design_ids.append(did)
     event = {"ts": lib.event_stamp(), "event": "add",
              "id": tid, "title": args.title, "track": track["track"], "mode": mode,
              "priority": priority, "actor": args.actor,
              "summary": args.summary or "",
              "depends_on": depends,
              "kr": args.kr or None,
+             "design_refs": design_ids,
              "from": None, "to": "not_started"}
     # Warned, not refused (DESIGN-015 § 5.2 on User Decision 3). The row is
     # still created: refusing would make `--kr` mandatory, which is a decision

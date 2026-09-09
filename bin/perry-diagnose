@@ -2679,29 +2679,38 @@ def render_text(d: dict) -> str:
 
 
 def main(argv: list[str]) -> int:
-    if "--help" in argv or "-h" in argv:
+    # **An undeclared token is refused, and a bad `--max-files` is refused**
+    # (DESIGN-016 A2). Both used to be ignored: the loop here had no `else`, so
+    # `perry-diagnose --root . --nonsense` printed the whole diagnosis and
+    # exited 0, and `--max-files twenty` silently kept the default 20,000 —
+    # a cap the caller believes they set. "Always exits 0" is about FINDINGS,
+    # which are the answer this tool exists to give; it was never meant to
+    # cover being called wrongly.
+    positionals, seen, given, error = lib.scan_argv(
+        argv, bools=("--json", "--text"), values=("--root", "--max-files"))
+    if "--help" in seen:
         print(__doc__.strip())
         return 0
-    root = os.environ.get("PERRY_PROJECT") or os.getcwd()
-    fmt = "json"
-    max_files = 20000
-    i = 0
-    while i < len(argv):
-        a = argv[i]
-        if a == "--root" and i + 1 < len(argv):
-            root = argv[i + 1]
-            i += 1
-        elif a == "--max-files" and i + 1 < len(argv):
-            try:
-                max_files = int(argv[i + 1])
-            except ValueError:
-                pass
-            i += 1
-        elif a == "--json":
-            fmt = "json"
-        elif a == "--text":
-            fmt = "text"
-        i += 1
+    if error:
+        print(f"perry-diagnose: {error}", file=sys.stderr)
+        return 2
+    if positionals:
+        print(f"perry-diagnose: {positionals[0]!r} is not a flag, and this "
+              f"tool takes no positional argument (try --help)",
+              file=sys.stderr)
+        return 2
+    fmt = "text" if "--text" in seen else "json"
+    try:
+        max_files = int(given.get("--max-files", 20000))
+    except ValueError:
+        print(f"perry-diagnose: --max-files takes a whole number, got "
+              f"{given['--max-files']!r}", file=sys.stderr)
+        return 2
+    # `--root`, then `$PERRY_PROJECT`, then the cwd — and NO walk, which is the
+    # one place this tool differs from the rest on purpose: it judges the
+    # directory it is pointed at, so falling through to an ancestor would have
+    # it answer about a project the caller did not name.
+    root = lib.resolve_project_root(given.get("--root"), walk=False)
 
     p = Path(root).expanduser()
     if not p.is_dir():

@@ -222,19 +222,38 @@ def main(argv: list[str]) -> int:
         return 2
 
     rest = list(argv[1:])
-    root = Path.cwd()
+    root_arg = None
     if "--root" in rest:
         i = rest.index("--root")
-        root = Path(rest[i + 1]).expanduser()
+        if i + 1 >= len(rest):
+            print("perry-config: --root takes a path", file=sys.stderr)
+            return 2
+        root_arg = rest[i + 1]
         del rest[i:i + 2]
     as_json = "--json" in rest
     if as_json:
         rest.remove("--json")
-    # `$PERRY_PROJECT` wins over `--root` and over the cwd, taken verbatim —
-    # exactly as `bin/perry-state § resolve_root` and `bin/perry_md_store §
-    # main` take it. Two readers disagreeing about which directory that names
-    # is the defect `viewer/parsers.py § _resolve_project_root` records.
-    root = Path(os.environ.get("PERRY_PROJECT") or root).expanduser().resolve()
+    # **`--root` wins, then `$PERRY_PROJECT`, then the walk.** The comment that
+    # stood here said the opposite and cited `bin/perry-state § resolve_root`
+    # as the precedent — which takes the explicit path FIRST, so the citation
+    # was to a function doing the other thing (DESIGN-016 § 1.1, A1). One
+    # resolver now, in `lib`, and `viewer/parsers § _resolve_project_root` is
+    # still the walk it calls.
+    root = lib.resolve_project_root(root_arg)
+    # A token that looks like a flag and is not one of this tool's two is a
+    # typo, not a value: `show --nonsense` used to print the settings and exit
+    # 0 (DESIGN-016 A2). `set` and `track` take free-form values, so only
+    # leading dashes are judged, and `--` ends the judging for a value that
+    # genuinely starts with one.
+    if "--" in rest:
+        rest = rest[:rest.index("--")] + rest[rest.index("--") + 1:]
+    else:
+        stray = next((t for t in rest if t.startswith("-")), None)
+        if stray is not None:
+            print(f"perry-config: unknown argument {stray!r} (try --help). "
+                  f"A value that begins with a dash goes after `--`.",
+                  file=sys.stderr)
+            return 2
     path = root / ".perry" / "config.jsonl"
     state_root = P.resolve_state_root(root)
 

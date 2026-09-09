@@ -455,6 +455,93 @@ def _parsers():
     return _PARSERS
 
 
+# ── which project, and what the caller actually typed ─────────────────────
+
+
+def resolve_project_root(explicit: str | os.PathLike | None = None, *,
+                         walk: bool = True) -> Path:
+    """The project a tool acts on: `--root`, then `$PERRY_PROJECT`, then the cwd.
+
+    **That order is the published contract and three tools had it inverted.**
+    `bin/README.md § Which project?` states it, ADR-002 is why it exists, and
+    `bin/perry_md_store § main`, `bin/perry-tasks § main` and `bin/perry-config
+    § main` all read the environment AFTER the flag, so `$PERRY_PROJECT` won.
+    Measured 2026-09-04 (DESIGN-016 § 1.1): in an empty directory with
+    `PERRY_PROJECT` pointing at this repository, `perry-tasks build --root
+    <empty>` reported 352 stored records — the other project's — while
+    `perry-task list --root <empty>` on the same invocation correctly reported
+    0. Those three tools include two writers, so the failure was not a wrong
+    read; it was a write landing in a project the caller did not name.
+
+    `walk` is the difference between the tools that judge a project and the one
+    tool that judges a *directory*: `perry-diagnose` stops at the cwd on
+    purpose, so that pointing it at a folder with no state reports "no state
+    here" rather than answering about an ancestor. Every other tool walks up,
+    and the predicate is `viewer/parsers § _resolve_project_root`'s, called
+    rather than copied — `tests/test_project_root.py` exists because that walk
+    had two bodies once.
+    """
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    env = os.environ.get("PERRY_PROJECT")
+    if env:
+        return Path(env).expanduser().resolve()
+    cur = Path.cwd().resolve()
+    if not walk:
+        return cur
+    for d in [cur, *cur.parents]:
+        if (_parsers().configured(d) or (d / "BOARD.md").exists()
+                or (d / "OKR.md").exists()):
+            return d
+    return cur
+
+
+def scan_argv(argv: list[str], *, bools: tuple[str, ...] = (),
+              values: tuple[str, ...] = ()) -> tuple[list[str], set[str],
+                                                     dict[str, str], str | None]:
+    """Split `argv` into positionals, flags seen, flag values, and one error.
+
+    Returns `(positionals, seen, values, error)`. `error` is a ready-made
+    message — the caller prints it and exits 2 — and is `None` when everything
+    in `argv` was declared here.
+
+    **Why this exists rather than a membership test.** `bin/perry_md_store`
+    asked `if "--write" not in argv` and `if "--from-file" not in argv`, which
+    means `--wrte` is not a typo, it is a no-op that exits 0: the render prints,
+    nothing is written, and the caller is told the run succeeded. The whole
+    argument vector is scanned before anything is dispatched, so `-h` in any
+    position prints help without running the command in front of it — which
+    `perry-tasks render --write --help` did (DESIGN-016 § 1.1).
+
+    Scanning is deliberately dumb: a token that starts with `-` and is not
+    declared is the error, everything else is a positional. Per-subcommand flag
+    scoping is DESIGN-016 goal 12 and belongs to the declaration in phase C1,
+    not here — this function is what phase A2 needs and no more.
+    """
+    positionals: list[str] = []
+    seen: set[str] = set()
+    got: dict[str, str] = {}
+    i = 0
+    while i < len(argv):
+        token = argv[i]
+        if token in ("-h", "--help"):
+            seen.add("--help")
+        elif token in bools:
+            seen.add(token)
+        elif token in values:
+            if i + 1 >= len(argv):
+                return positionals, seen, got, f"{token} takes a value"
+            got[token] = argv[i + 1]
+            i += 1
+        elif token.startswith("-"):
+            return (positionals, seen, got,
+                    f"unknown argument {token!r} (try --help)")
+        else:
+            positionals.append(token)
+        i += 1
+    return positionals, seen, got, None
+
+
 def resolve_state_root(project_root: Path) -> Path:
     """Where this project's Perry state files live.
 

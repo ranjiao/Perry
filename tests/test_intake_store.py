@@ -850,20 +850,45 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         self.assertEqual([r["request"] for r in stored], [after[1], after[2]])
         self.assertEqual([r["order"] for r in stored], [0, 1])
 
-    def test_the_shift_is_reported_rather_than_absorbed_by_a_re_render(self):
-        """`intake-render --write` is the fix, and it puts the STORE back —
-        it does not learn the new numbering. Reading it the other way is
-        `intake-write --from-board`, which says so."""
+    def test_the_shift_is_refused_rather_than_half_absorbed(self):
+        """A render that would leave a record with no row REFUSES (DESIGN-016 A5).
+
+        **This test asserted the opposite until 2026-09-09, and it was passing
+        for a reason nobody had looked at.** `## Intake` is keyed on POSITION,
+        so a hand-deleted row shifts every row after it up by one. The render
+        then fills row n from record n: the deleted request's text does come
+        back — into the row that used to hold the NEXT one — and the LAST
+        record has no row left to go into and is dropped from the board. The
+        old assertion, `assertIn("two test modules import", text)`, saw the
+        text return and read that as recovery. Measured on that render: the
+        store held four records, the board came out with three, and the command
+        exited 0 saying it had rendered.
+
+        That state is worse than the drift it claims to repair, because the
+        next honest `intake-write --from-board` would then delete the fourth
+        record from the store — the shrink `USER-906` was answered with an
+        invariant against.
+
+        So the command refuses, names what it could not place, and writes
+        nothing. The repair for a hand-deleted row is to put the row back, or
+        to import deliberately if the BOARD is the one that is right."""
         p = self._imported()
         board = p.root / "BOARD.md"
+        before = board.read_bytes()
         lines = board.read_text().split("\n")
         del lines[next(i for i, l in enumerate(lines)
                        if "two test modules import" in l)]
         board.write_text("\n".join(lines))
+        shrunk = board.read_bytes()
         out = self._tasks(p.root, "intake-render", "--write")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        text = board.read_text()
-        self.assertIn("two test modules import", text)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("no line in it to render into", out.stderr)
+        self.assertEqual(board.read_bytes(), shrunk,
+                         "a refused write still changed the board")
+        self.assertNotEqual(board.read_bytes(), before,
+                            "control: the hand edit is still in place")
+        # The detection layer is untouched: `diff` still reports the drift.
+        self.assertEqual(self._tasks(p.root, "intake-diff").returncode, 1)
 
 
 if __name__ == "__main__":
