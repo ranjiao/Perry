@@ -9,12 +9,24 @@
 <!--
 Perry ships this discipline (`packs/software-ops/architecture.md`) and had never
 applied it to itself: `perry-state --section architecture` reported
-`exists: false` until 2026-09-09. This file closes that gap.
+`exists: false` until 2026-09-09.
 
-Per-module architecture documents live beside the code they describe —
-`bin/ARCHITECTURE.md` is the first. §2 links each one. They are not the §-overflow
-files the header mentions: those split THIS document by section; a module file
-describes one directory's internals and is owned by whoever owns that directory.
+WHERE THIS FILE LIVES, and it is a correction. It was first written to
+`perry/ARCHITECTURE.md`, because `schema/state-schema.json § files[id=architecture]`
+anchors it at the STATE root. The user moved it here on 2026-09-09: `perry/` is
+Perry's runtime state — board, journal, evidence, stores — and an architecture
+document describes CODE. It belongs where someone reading the code will find it,
+which is the repository root, beside the directories it maps.
+
+The cost of being right is that the tooling cannot see it yet:
+`perry-state --section architecture` reports `exists: false` while this file
+sits here. §7 OQ-1 carries that, and it is a defect in the schema rather than in
+this file's location.
+
+Per-module documents live beside the code they describe — `bin/ARCHITECTURE.md`
+is the first, and §2 links each one. They are not the §-overflow files the header
+mentions: those split THIS document by section; a module document describes one
+directory's internals.
 -->
 
 ## §1. Mission & scope
@@ -41,7 +53,7 @@ there is no cross-project registry).
   prints, and the argument contract those calls are made through.
 - **Doesn't own**: what to do next. The `SKILL.md` files decide; these tools
   execute and refuse.
-- **Module document**: [`bin/ARCHITECTURE.md`](../bin/ARCHITECTURE.md)
+- **Module document**: [`bin/ARCHITECTURE.md`](bin/ARCHITECTURE.md)
 
 ### `viewer/parsers.py` — the one reader
 - **Purpose**: parse every state file. 4,861 lines, one implementation.
@@ -222,11 +234,17 @@ flowchart LR
 
 ## §7. Open questions
 
-- **OQ-1 — Where does the root architecture document live?** (`USER-` not yet
-  filed) The schema anchors `ARCHITECTURE.md` at the STATE root, so Perry's own
-  is `perry/ARCHITECTURE.md`; `packs/software-ops/architecture.md` says "at the
-  project root". For a project whose state root is a subdirectory the two are
-  different files. One of the two sentences is wrong.
+- **OQ-1 — The schema anchors this file in the wrong place.** ANSWERED for
+  where it lives, open for the fix. `schema/state-schema.json § files[id=architecture]`
+  and `§ claims` both anchor `ARCHITECTURE.md` at the STATE root;
+  `packs/software-ops/architecture.md` says "at the project root". The user
+  settled the question on 2026-09-09: an architecture document describes code,
+  so it lives at the code root, and `perry/` holds runtime state only. That
+  makes the schema's `anchor: state` the defect — and while it stands,
+  `perry-state --section architecture` reports `exists: false` on a project that
+  has one. Note `.perry/config.jsonl` already separates `pmo_repo_path` from
+  `code_repo_path`, so the resolution rule has somewhere to read from. No row is
+  open for this yet.
 - **OQ-2 — What is the module document's contract?** This file links
   `bin/ARCHITECTURE.md`, and nothing yet declares its shape, its cap, its owner,
   or what happens when it drifts from the code beside it.
