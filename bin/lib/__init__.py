@@ -654,6 +654,23 @@ def parse_surface(surface: dict, argv: list[str]) -> dict:
                 if i + 1 >= len(argv):
                     out["error"] = f"{token} takes a value"
                     return out
+                if token == "--root" and argv[i + 1] == "":
+                    # **An empty `--root` is a bad invocation, not a default.**
+                    # `resolve_project_root` tests truthiness, so `--root ""`
+                    # fell through to `$PERRY_PROJECT` and then to the walk:
+                    # `perry-task add --root "$PROJ" …` with `PROJ` unset
+                    # exited 0 having written into whichever project the cwd
+                    # resolves to, while the one the caller named was
+                    # untouched. That is § 1.1's own defect reached through the
+                    # commonest shell idiom there is, and a V4 round said it
+                    # deserved a rung rather than a note. Refused here rather
+                    # than in the resolver because `lib` deliberately has no
+                    # shared `Refused` (see this module's docstring) and every
+                    # declaring tool already prints `error` and exits 2.
+                    out["error"] = ("--root was given an empty value. If that "
+                                    "came from a shell variable, the variable "
+                                    "is unset")
+                    return out
                 got = out["values"]
                 if declared[token].get("repeatable"):
                     got.setdefault(token, []).append(argv[i + 1])

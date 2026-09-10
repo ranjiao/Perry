@@ -920,25 +920,62 @@ class TestDescribeAnswersForEveryDeclaredTool(unittest.TestCase):
         """
         p = Project()
         p.run("add", "--title", "a row the probes can act on")
+        reached = 0
         for tool, names in self.UNIVERSAL.items():
             decl = surface(tool)
-            subs = [s for s in decl.get("subcommands", ())
-                    if not set(s.get("flags", ())) & set(names)]
-            if not subs:
-                continue
-            sub = subs[0]["name"]
+            # EVERY subcommand that does not declare the flag, not the first
+            # one. The first version took `subs[0]`, so it probed 4 of 57
+            # subcommands and 8 of the 20 (tool, flag) entries in this dict,
+            # and a V4 round counted that before this file did.
             for flag in names:
                 if flag in ("--help", "--describe"):
-                    continue          # they exit before the subcommand runs
-                with self.subTest(tool=tool, sub=sub, flag=flag):
-                    out = run(tool, sub, flag, str(p.root),
-                              "--root", str(p.root))
-                    self.assertNotIn("is not accepted by", out.stderr,
-                                     f"{flag} is on this file's universal list "
-                                     f"and {tool} {sub} refuses it")
-            with self.subTest(tool=tool, sub=sub, flag="--not-a-flag"):
-                out = run(tool, sub, "--not-a-flag", "--root", str(p.root))
-                self.assertEqual(out.returncode, 2, out.stdout[:200])
+                    # `parse_surface` answers these before a subcommand is
+                    # dispatched at all, so they never enter `seen` and there
+                    # is nothing here to probe. They are universal by
+                    # construction, and this says so rather than looking
+                    # tested.
+                    continue
+                subs = [x["name"] for x in decl.get("subcommands", ())
+                        if flag not in set(x.get("flags", ()))]
+                for sub in subs:
+                    with self.subTest(tool=tool, sub=sub, flag=flag):
+                        out = run(tool, sub, flag, "x", "--root", str(p.root))
+                        self.assertNotIn(
+                            "is not accepted by", out.stderr,
+                            f"{flag} is on this file's universal list and "
+                            f"{tool} {sub} refuses it")
+                    reached += 1
+            first = next((x["name"] for x in decl.get("subcommands", ())), None)
+            if first:
+                with self.subTest(tool=tool, sub=first, flag="--not-a-flag"):
+                    out = run(tool, first, "--not-a-flag", "--root", str(p.root))
+                    self.assertEqual(out.returncode, 2, out.stdout[:200])
+        self.assertGreater(reached, 50,
+                           "the probe reached almost nothing, so the list "
+                           "above rests on itself")
+
+    def test_the_universal_list_has_no_entry_no_test_can_read(self):
+        """`perry-state` and `perry-diagnose` declare zero subcommands.
+
+        Their entries in `UNIVERSAL` are unreachable by `expected_flags`, which
+        iterates subcommands, and by the probe above, which needs one to run.
+        A V4 round found them dead. They stay — the payload for a tool with no
+        subcommands still carries these flags — and this is what says so, so
+        the next reader does not take their presence as coverage.
+        """
+        dead = [t for t in self.UNIVERSAL
+                if not surface(t).get("subcommands", ())]
+        self.assertEqual(sorted(dead), ["perry-diagnose", "perry-state"])
+        for tool in dead:
+            with self.subTest(tool=tool):
+                payload = json.loads(subprocess.run(
+                    [sys.executable, str(BIN / tool), "--describe", "--json"],
+                    capture_output=True, text=True).stdout)
+                self.assertEqual(
+                    sorted(f["name"] for f in payload["flags"]),
+                    sorted({f["name"]
+                            for f in surface(tool).get("flags", ())}
+                           | set(self.UNIVERSAL[tool])))
 
     def test_the_single_subcommand_payload_carries_the_same_flags(self):
         """The branch the fix left behind.
@@ -978,13 +1015,46 @@ class TestDescribeAnswersForEveryDeclaredTool(unittest.TestCase):
             decl = surface(tool)
             for sub in decl.get("subcommands", ()):
                 with self.subTest(tool=tool, sub=sub["name"]):
-                    text = lib.usage_lines(decl, sub["name"])
-                    want = [n for n in self.expected_flags(tool, sub)
-                            if n not in ("--help", "--describe")]
-                    for flag in want:
-                        self.assertIn(flag, text,
-                                      f"{tool} {sub['name']} --help omits "
-                                      f"{flag}")
+                    want = {n for n in self.expected_flags(tool, sub)
+                            if n not in ("--help", "--describe")}
+                    self.assertEqual(
+                        self._flags_in(lib.usage_lines(decl, sub["name"])),
+                        want)
+
+    @staticmethod
+    def _flags_in(text: str) -> set[str]:
+        """The flag names a usage line actually offers, parsed out of it.
+
+        **An exact set, because `assertIn` could only see one direction.** The
+        first version of the case above asked whether each declared flag
+        appeared somewhere in the text, so a usage line naming EVERY flag of
+        the whole tool passed for every subcommand. A V4 round made
+        `usage_lines` do exactly that and the full suite stayed green while
+        `perry-task add --help` offered 46 flags instead of the 25 `add`
+        accepts — and the same declaration refuses 21 of those 46 with exit 2.
+        Under-reporting was caught; over-reporting was not, and over-reporting
+        is the one that sends a reader to a refusal.
+        """
+        return set(re.findall(r"\[(--[a-z][a-z-]*)", text))
+
+    def test_a_subcommand_that_declares_help_keeps_it_out_of_its_usage_line(self):
+        """The precedence fix, on a declaration that reaches it.
+
+        `usage_lines` read `set(item["flags"]) | always_accepted(s) - {...}`,
+        which binds as `set(...) | (always_accepted - {...})` and so keeps
+        `--help` whenever a subcommand declares it itself. No shipped
+        subcommand does, so the fix changes nothing today and reverting it
+        reddens nothing — a V4 round said so and was right to. This is the
+        fixture that reaches it, rather than a latent fix nothing holds.
+        """
+        made = {"name": "t", "kind": "read", "summary": "s",
+                "flags": [{"name": "--help"}, {"name": "--describe"},
+                          {"name": "--root", "arg": "path"},
+                          {"name": "--only", "arg": "value"}],
+                "subcommands": [{"name": "go", "summary": "",
+                                 "flags": ["--only", "--help", "--describe"]}]}
+        self.assertEqual(self._flags_in(lib.usage_lines(made, "go")),
+                         {"--only", "--root"})
 
 
 if __name__ == "__main__":

@@ -917,19 +917,76 @@ class TestAFlagWithItsValueMissingIsRefused(unittest.TestCase):
     that gains the flag tomorrow is covered tomorrow.
     """
 
+    #: A subcommand each tool actually accepts, so `--root` is reached instead
+    #: of being masked. **The first version of this sweep probed `<tool>
+    #: --root` bare**, and for a tool that requires a subcommand that returns 2
+    #: from "expected one of …" — the right code for the wrong reason. It
+    #: passed `perry-goals` and `perry-knowledge` while both silently dropped
+    #: the value, and `perry-goals commit … --root` wrote into the cwd's
+    #: project with the named one untouched. A V4 round found it by re-probing
+    #: WITH a subcommand.
+    LEAD = {"perry-goals": ("krs",), "perry-knowledge": ("list",),
+            "perry-decide": ("list",), "perry-task": ("list",),
+            "perry-tasks": ("build",), "perry-okr": ("build",),
+            "perry-config": ("show",)}
+
     def test_no_tool_treats_a_valueless_root_as_no_root(self):
         for name in ROOT_READERS:
             with self.subTest(tool=name):
-                out = run_tool(BIN / name, "--root")
+                lead = self.LEAD.get(name, ())
+                out = run_tool(BIN / name, *lead, "--root")
                 self.assertNotEqual(
                     out.returncode, 0,
-                    f"{name} --root with no value exited 0 — it answered about "
-                    f"some project, and not the one the caller named")
+                    f"{name} {' '.join(lead)} --root with no value exited 0 — "
+                    f"it answered about some project, and not the one the "
+                    f"caller named")
                 self.assertEqual(
                     out.returncode, 2,
                     f"{name} --root with no value should be exit 2, a bad "
                     f"invocation; got {out.returncode}\n"
                     + out.stderr[-300:])
+
+    def test_an_empty_root_is_refused_rather_than_reinterpreted(self):
+        """`--root ""` used to mean no `--root` at all.
+
+        `lib.resolve_project_root` tests truthiness, so an empty value fell
+        through to `$PERRY_PROJECT` and then to the walk up from the cwd:
+        `perry-task add --root "$PROJ" …` with `PROJ` unset exited 0 having
+        written into whichever project the cwd resolves to, while the one the
+        caller named was untouched. § 1.1's own defect, through the commonest
+        shell idiom there is.
+
+        Checked from INSIDE a different project, because that is what makes
+        the old behaviour a wrong answer rather than a crash.
+        """
+        other = Project()
+        other.run("add", "--title", "the project the caller did not name")
+        for tool, lead in (("perry-task", ("list",)),
+                           ("perry-tasks", ("build",)),
+                           ("perry-config", ("show",)),
+                           ("perry-okr", ("build",))):
+            with self.subTest(tool=tool):
+                out = subprocess.run(
+                    [str(BIN / tool), *lead, "--root", ""],
+                    capture_output=True, text=True, cwd=str(other.root),
+                    env={k: v for k, v in os.environ.items()
+                         if k != "PERRY_PROJECT"})
+                self.assertEqual(out.returncode, 2, out.stdout[:200])
+                self.assertIn("empty value", out.stderr)
+
+    def test_the_lead_subcommands_are_ones_the_tools_accept(self):
+        """The control for the vector above.
+
+        A `LEAD` entry naming a subcommand the tool refuses would put the sweep
+        straight back where it was: exit 2 for the wrong reason. Each must be
+        accepted when `--root` carries a value.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, lead in self.LEAD.items():
+                with self.subTest(tool=name):
+                    out = run_tool(BIN / name, *lead, "--root", tmp)
+                    self.assertNotIn("expected one of", out.stderr)
+                    self.assertNotIn("unknown argument", out.stderr)
 
     def test_the_control_is_that_the_flag_works_with_a_value(self):
         """Without this, a tool that refused every invocation would pass."""
@@ -941,6 +998,112 @@ class TestAFlagWithItsValueMissingIsRefused(unittest.TestCase):
                     ok += 1
             self.assertEqual(ok, len(ROOT_READERS),
                              "a tool refuses --root even with a value")
+
+
+class TestAPositionalNoHandlerReadsIsRefused(unittest.TestCase):
+    """Criterion 3, through a positional rather than a flag.
+
+    **Nothing tested this at all**: a V4 round set `a.extra = []` in
+    `bin/perry-task`, disabling the refusal outright, and the full 3,466-test
+    suite came back byte-identical to its baseline.
+
+    The refusal itself was also stopping one position too far to the right,
+    on a claim in its own comment that turned out to be false — that the id is
+    the only positional any of the thirty subcommands takes. Nine never read
+    `args.id`, so the FIRST positional was bound to it and dropped:
+
+        perry-task ask USER-001 --needed "the STAGING password, corrected"
+          → exit 0, USER-001 untouched, a SECOND row USER-002 minted
+
+    Which subcommands read an id is now declared as `takes_id` in `SURFACE`.
+    """
+
+    #: Derived from the tool, not typed: every subcommand whose declaration
+    #: says it reads no id. A tenth added tomorrow is covered tomorrow.
+    @staticmethod
+    def _id_less() -> list[str]:
+        import inproc
+        face = inproc.load("perry-task").SURFACE
+        return [s["name"] for s in face["subcommands"]
+                if s.get("takes_id") is False]
+
+    def setUp(self):
+        self.p = Project()
+        self.p.run("add", "--title", "a row the probes can act on")
+
+    def _bytes(self) -> dict:
+        import hashlib
+        return {f: hashlib.sha256(f.read_bytes()).hexdigest()
+                for f in sorted(self.p.root.rglob("*")) if f.is_file()}
+
+    def test_a_subcommand_that_reads_no_id_refuses_one(self):
+        names = self._id_less()
+        self.assertEqual(len(names), 9, sorted(names))
+        for sub in names:
+            with self.subTest(sub=sub):
+                before = self._bytes()
+                out = run("perry-task", sub, "TASK-001",
+                          "--root", str(self.p.root))
+                self.assertEqual(out.returncode, 2, out.stdout[:200])
+                self.assertIn("takes no argument", out.stderr)
+                self.assertEqual(self._bytes(), before,
+                                 f"{sub} wrote before refusing")
+
+    def test_a_subcommand_that_reads_an_id_refuses_a_second(self):
+        face_subs = {s["name"] for s in __import__("inproc").load(
+            "perry-task").SURFACE["subcommands"]}
+        for sub in sorted(face_subs - set(self._id_less())):
+            with self.subTest(sub=sub):
+                before = self._bytes()
+                out = run("perry-task", sub, "TASK-001", "TASK-002",
+                          "--root", str(self.p.root))
+                self.assertEqual(out.returncode, 2, out.stdout[:200])
+                self.assertIn("takes no second argument", out.stderr)
+                self.assertEqual(self._bytes(), before,
+                                 f"{sub} wrote before refusing")
+
+    def test_the_declaration_matches_what_the_handlers_read(self):
+        """`takes_id` is a claim about code, so it is checked against the code.
+
+        Without this the declaration is just a second place to be wrong, and
+        the parser would refuse a positional a handler genuinely wanted.
+        """
+        import ast
+        import re as _re
+        src = (BIN / "perry-task").read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        funcs = {n.name: n for n in tree.body
+                 if isinstance(n, ast.FunctionDef)}
+
+        def reads_id(node, depth=0, seen=None):
+            seen = seen if seen is not None else set()
+            for n in ast.walk(node):
+                if (isinstance(n, ast.Attribute)
+                        and isinstance(n.value, ast.Name)
+                        and n.value.id == "args" and n.attr == "id"):
+                    return True
+                if isinstance(n, ast.Call) and depth < 3:
+                    nm = (n.func.id if isinstance(n.func, ast.Name)
+                          else n.func.attr if isinstance(n.func, ast.Attribute)
+                          else None)
+                    passes = any(isinstance(x, ast.Name) and x.id == "args"
+                                 for x in n.args) or any(
+                        isinstance(k.value, ast.Name) and k.value.id == "args"
+                        for k in n.keywords)
+                    if nm in funcs and nm not in seen and passes:
+                        seen.add(nm)
+                        if reads_id(funcs[nm], depth + 1, seen):
+                            return True
+            return False
+
+        table = _re.findall(r'"([a-z-]+)": (cmd_[a-z_]+)',
+                            src[src.index("COMMANDS = {"):
+                                src.index("def project_lock")])
+        derived = {name for name, fn in table
+                   if fn in funcs and not reads_id(funcs[fn])}
+        self.assertEqual(derived, set(self._id_less()),
+                         "SURFACE's `takes_id` and what the handlers read "
+                         "have drifted apart")
 
 
 if __name__ == "__main__":

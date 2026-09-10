@@ -552,12 +552,21 @@ def main(argv: list[str]) -> int:
             rev = argv[i]
         elif arg == "--breakdown":
             i += 1
-            if i < len(argv):
-                drill.append(argv[i])
+            if i >= len(argv):
+                print("perry-state-cost: --breakdown takes a value",
+                      file=sys.stderr)
+                return 2
+            drill.append(argv[i])
         elif arg == "--samples":
             i += 1
+            if i >= len(argv):
+                # `else 8` was the `--at` defect again: a missing value
+                # silently answered a DIFFERENT question from the one asked.
+                print("perry-state-cost: --samples takes a value",
+                      file=sys.stderr)
+                return 2
             try:
-                keep = int(argv[i]) if i < len(argv) else 8
+                keep = int(argv[i])
             except ValueError:
                 print(f"perry-state-cost: --samples wants an integer, "
                       f"got {argv[i]!r}", file=sys.stderr)

@@ -7721,28 +7721,14 @@ def parse(argv: list[str]) -> Args:
     read = lib.parse_surface(SURFACE, argv)
     a.help, a.describe, a.error = read["help"], read["describe"], read["error"]
     a.cmd = read["sub"]
-    a.id = read["extra"][0] if read["extra"] else None
-    # **Refused, not stored.** This used to be `a.extra = read["extra"][1:]`
-    # and nothing in this file ever read `a.extra` again — the only other
-    # mention was its initialiser. So a second positional was accepted,
-    # dropped, and the run reported success:
-    #
-    #     perry-task done TASK-001 TASK-002 --evidence … --rung V1
-    #       → exit 0, "wrote TASK-001 (done)", TASK-002 still in_progress
-    #
-    # Four files written, one of the two named rows closed, and a success line.
-    # That is § 1.4's accepted-and-dropped shape reached through a positional
-    # instead of a flag, and criterion 3's own harm sentence: the caller was
-    # told the run succeeded. Found by a V4 round after 342 undeclared-FLAG
-    # probes came back correctly refused on all six tools.
-    #
-    # Safe to refuse outright because every value on every subcommand of this
-    # tool arrives through a flag — `summary`, `retitle` and `depends` all take
-    # theirs as `--summary` / `--title` / `--on` — so the id is the only
-    # positional any of the thirty accepts. `perry-tasks:1657`,
-    # `perry_md_store.py:1064` and `perry-state:2595` already refuse the
-    # identical shape; this is the fourth writer catching up.
-    a.extra = read["extra"][1:]
+    declared = lib.surface_subcommand(SURFACE, a.cmd) if a.cmd else None
+    a.takes_id = True if declared is None else declared.get("takes_id", True)
+    a.id = read["extra"][0] if (read["extra"] and a.takes_id) else None
+    # **Every positional, unsliced.** `refuse_extra_positionals` decides which
+    # of them a handler will actually read; slicing here as well meant the
+    # refusal saw an empty list and never fired — the first version did both
+    # and refused nothing at all.
+    a.extra = list(read["extra"])
     for flag, attr in flags.items():
         if flag in read["values"]:
             setattr(a, attr, read["values"][flag])
@@ -7758,12 +7744,31 @@ def parse(argv: list[str]) -> Args:
 
 
 def refuse_extra_positionals(a) -> int | None:
-    """Exit 2 when a second positional was handed in. `None` when clean."""
-    if not a.extra:
+    """Exit 2 when a positional was handed in that no handler will read.
+
+    **The first version refused `read["extra"][1:]` and justified stopping
+    there with a claim that was false.** It said the id is the only positional
+    any of the thirty subcommands accepts. Nine of them never read `args.id` at
+    all — `add`, `ask`, `cadence-add`, `events`, `intake`, `intake-sweep`,
+    `list`, `risk-add`, `risk-migrate` — so for those the FIRST positional was
+    bound to `a.id` and dropped in silence, one position to the left of the
+    refusal:
+
+        perry-task ask USER-001 --needed "the STAGING password, corrected"
+          → exit 0, USER-001 untouched, a SECOND row USER-002 minted
+
+    Found by a V4 round that checked the claim instead of taking it. Which
+    subcommands read an id is now DECLARED, `takes_id` in `SURFACE`, so the
+    parser refuses from the declaration rather than from a comment;
+    `tests/test_bin_surface` holds that declaration against what each handler
+    actually reads.
+    """
+    unread = a.extra if not a.takes_id else a.extra[1:]
+    if not unread:
         return None
-    print(f"perry-task: {a.extra[0]!r} is not a flag, and {a.cmd!r} takes no "
-          f"second argument (try --help). Nothing was written.",
-          file=sys.stderr)
+    takes = "no argument" if not a.takes_id else "no second argument"
+    print(f"perry-task: {unread[0]!r} is not a flag, and {a.cmd!r} takes "
+          f"{takes} (try --help). Nothing was written.", file=sys.stderr)
     return 2
 
 
@@ -8070,6 +8075,7 @@ SURFACE = {
         {"name": "add", "summary":
          "open a row: title, deliverable, verification and summary are required",
          "flags": ["--actor", "--arrived", "--commitment", "--deliverable", "--depends", "--design", "--dry-run", "--group", "--kr", "--next", "--out-of-scope", "--owner", "--parent", "--prefix", "--priority", "--role", "--rung", "--stage", "--summary", "--title", "--track", "--unlinked", "--verification"],
+         "takes_id": False,
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "start", "summary":
          "not_started -> in_progress, with the next action",
@@ -8086,6 +8092,7 @@ SURFACE = {
         {"name": "ask", "summary":
          "add a question for the user to the User Input Queue",
          "flags": ["--actor", "--arrived", "--blocks", "--dry-run", "--needed"],
+         "takes_id": False,
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "answer", "summary":
          "record the user's answer to one USER- row",
@@ -8098,6 +8105,7 @@ SURFACE = {
         {"name": "cadence-add", "summary":
          "declare a recurring task",
          "flags": ["--actor", "--dry-run", "--frequency", "--on", "--owner", "--title"],
+         "takes_id": False,
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "cadence-done", "summary":
          "record one occurrence of a recurring task, with evidence",
@@ -8106,6 +8114,7 @@ SURFACE = {
         {"name": "risk-add", "summary":
          "open a row in the risks register",
          "flags": ["--actor", "--dry-run", "--opened", "--title"],
+         "takes_id": False,
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "risk-clear", "summary":
          "close one risk, with the reason",
@@ -8114,6 +8123,7 @@ SURFACE = {
         {"name": "risk-migrate", "summary":
          "the `## Top risks` bullets into the table",
          "flags": ["--actor", "--dry-run"],
+         "takes_id": False,
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "done", "summary":
          "close a row: evidence required, rung recorded, row leaves the board",
@@ -8130,6 +8140,7 @@ SURFACE = {
         {"name": "intake", "summary":
          "add a request to the intake queue",
          "flags": ["--actor", "--arrived", "--dry-run", "--title"],
+         "takes_id": False,
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "route", "summary":
          "turn one intake row into a task on a track",
@@ -8162,6 +8173,7 @@ SURFACE = {
         {"name": "intake-sweep", "summary":
          "take discharged intake rows off the board, into the journal",
          "flags": ["--actor", "--dry-run"],
+         "takes_id": False,
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "status", "summary":
          "set the status, with the reason and the next action",
@@ -8178,10 +8190,12 @@ SURFACE = {
         {"name": "list", "summary":
          "the read contract: every open row, bounded at 200 by default",
          "flags": ["--all", "--limit", "--track"],
+         "takes_id": False,
          "writes": []},
         {"name": "events", "summary":
          "one page of the event log, newest first",
          "flags": ["--limit", "--since"],
+         "takes_id": False,
          "writes": []},
         {"name": "signoff-offer", "summary":
          "the V5 sign-off prompt for a row about to close",

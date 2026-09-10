@@ -602,7 +602,19 @@ def parse(argv: list[str]) -> Args:
             a.as_json = True
         elif t in flags:
             i += 1
-            setattr(a, flags[t], argv[i] if i < len(argv) else None)
+            if i >= len(argv):
+                # `argv[i] if i < len(argv) else None` made a valueless flag
+                # indistinguishable from an absent one. For `--root` that is a
+                # WRITE into the wrong project: `perry-knowledge commit … --root`
+                # exited 0 having written into the cwd's project while the one
+                # the caller named was untouched. Found by a V4 round after the
+                # same line had been removed from four other tools and this one
+                # was missed, because the sweep that found those probed
+                # `<tool> --root` with no subcommand, where "expected one of …"
+                # returns 2 for an unrelated reason.
+                print(f"perry-knowledge: {t} takes a value", file=sys.stderr)
+                sys.exit(2)
+            setattr(a, flags[t], argv[i])
         elif a.cmd is None:
             a.cmd = t
         i += 1
