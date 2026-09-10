@@ -681,10 +681,11 @@ TASK-364 and TASK-367 are startable now.
   which is what "store is truth, markdown is projection" would mean for the
   board — or ADR-007's claim is narrower than the README states and should say
   so. A5 makes the current behaviour honest; it does not answer this.
-- Should the tool boundary be redrawn by object rather than by mechanism — one
-  tool per register, holding both its lane verbs and its store verbs (§ 1.4)?
-  Not costed here. It is the option Decision 3 was never asked, and § 1.4's
-  prefix table is the evidence for it.
+- ~~Should the tool boundary be redrawn by object rather than by mechanism — one
+  tool per register, holding both its lane verbs and its store verbs (§ 1.4)?~~
+  **ANSWERED 2026-09-10, YES, and it moves to `DESIGN-018`** (`USER-923`). This
+  document is locked, and a structural pivot needs its own doc rather than an
+  entry here — see § 9.
 - Should an MCP adapter be built once the declaration exists (§ 3)? The answer
   should be taken on measured per-turn tokens, not on preference.
 - Does `--compact`'s vocabulary read belong to `perry-state` or to a tool of its
@@ -702,6 +703,8 @@ TASK-364 and TASK-367 are startable now.
 - 2026-09-09 — a working session with the user on the shape of the surface, folded in whole. **Decision 5 answered**: the declaration lives in each tool, `--describe --json` reads it, `bin/perry` is a thin reader, and `bin/commands.json` is dropped rather than deferred — § 3's dispatcher Non-Goal is withdrawn and an MCP Non-Goal is added with its three costs and the conditions under which it becomes right. **§ 1.4 gained** the register-prefix table (`risk-add` against `risks-build` for the same register), the observation that the tool split is drawn on the mechanism rather than the object, and the flat 46-flag table that is the structural cause of the `--kr` and `--design` drops. **§ 1.7 is new**: the four axes (lane, register, track, mode), which two of them the command surface encodes, the two measured refusals that show the track/mode layer is already enforced, and the boundary between the static shape and the per-project vocabulary. **Goals 12-14, plan rows C4 and C5, three risks, three open questions** follow from those. B1 grew the vocabulary read; C1 stopped being a manifest file and now satisfies TASK-396; Decision 3's note records the redraw-by-object option nobody had put on the table.
 
 - 2026-09-10 — **locked, and the lock is retroactive.** All five User Decisions carry a Chosen value and a date, § 5 / § 6 / § 7 are present, and a locked copy lints with no new finding — so the gate is met. **What it does not mean is that this doc was locked before its implementation, because it was not.** `decide/SKILL.md` puts `locked` BEFORE the work: *"before non-trivial implementation fans out, it produces one locked document"*, and *"once a doc reaches Design locked, design hands off to pmo"*. All fourteen rows were opened, built and reviewed against a `draft`. The cost was paid and is visible in this section's own history: Decision 5 arrived on 2026-09-09, after phases A and B had shipped, and it rewrote C1 from a manifest file into a declaration — work that would not have been done twice against a locked doc. Nothing here is rewritten to hide that; the lock records that the architecture is frozen from today, and § 8's six open questions stay open, because an open question is not a User Decision and does not block a lock (`DESIGN-001` is locked carrying its own).
+
+- 2026-09-10 — **§ 8's boundary question is answered and leaves this document.** `USER-923`: redraw by object, and across all three of § 1.4's pairs rather than the acute one. The user's reason is architectural and not economic — two commands that differ by one character cannot coexist — and the cost is acceptable **because agents do the work**, which is the premise that did not hold when § 1.4 was written and called itself a finding rather than a proposal. The redraw is `DESIGN-018`; nothing in this document is edited for it, because a locked doc records what was decided when it was locked. Two things here become inputs to that one rather than history: § 1.4's prefix table, which is its evidence, and C5, which already made the STORE side register-parameterised and is therefore half of the move already shipped. One reservation is carried across as a constraint rather than an objection: under an object split a destructive maintenance verb sits beside an everyday one — `render --write` beside `add` — and § 1.5 is what that costs when it goes wrong.
 
 ## 10. References
 
