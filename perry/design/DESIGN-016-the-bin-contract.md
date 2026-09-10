@@ -1,7 +1,7 @@
 # DESIGN-016: An agent that trusts `bin/README.md` reads 47k tokens and writes to the wrong project
 
-> Status: draft
-> Date: 2026-09-04 · Locked: —
+> Status: locked
+> Date: 2026-09-04 · Locked: 2026-09-10
 > Author: PMO Agent   · Implementation owner: Coding Agent
 > Linked OKR: —
 > Supersedes: —   · Superseded by: —
@@ -420,6 +420,8 @@ mechanism — which is the point, not the twelve subcommand names it saves.
 
 ## 4. User Decisions
 
+ALL rows must be resolved before this doc can move to `Status: locked`.
+
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
 | 1 | How the standup gets a small structured read | New `--compact` payload (Recommended) / `--fields` selection / keep `--json` and narrow `SKILL.md` to `--section` | New `--compact` payload | 2026-09-08 |
@@ -698,6 +700,8 @@ TASK-364 and TASK-367 are startable now.
 - 2026-09-09 — **a V4 review of phases A and B returned FAIL and is answered** (`0766817a`). Three mutations had come back green — the `perry_md_store` copy of the A5 refusal, the 200-row default, and `--compact`'s completeness — and `--compact` was dropping the `linkage` section the step-4 dashboard renders its percentages from. It also caught a regression this branch had shipped: phase A's stray-flag check refused every `perry-config track --mode`.
 - 2026-09-09 — **phase A implemented** (A1-A6) on `bin-contract-phase-a`. Found while verifying it, and fixed in the same commit: `tests/test_slow_selector § _select` drove `tests/parallel.main()` with `--record` in-process, which writes the LIVE `tests/durations.json` — with the stub's canned `0.01` for all 123 modules, on every full suite run. The tree guard had been reporting it correctly and I misattributed it once before reading the call. Two tests that were passing for the wrong reason were corrected rather than relaxed: a `render --byte-compare` that never byte-compared, and the intake render contract named in § 6.
 - 2026-09-09 — a working session with the user on the shape of the surface, folded in whole. **Decision 5 answered**: the declaration lives in each tool, `--describe --json` reads it, `bin/perry` is a thin reader, and `bin/commands.json` is dropped rather than deferred — § 3's dispatcher Non-Goal is withdrawn and an MCP Non-Goal is added with its three costs and the conditions under which it becomes right. **§ 1.4 gained** the register-prefix table (`risk-add` against `risks-build` for the same register), the observation that the tool split is drawn on the mechanism rather than the object, and the flat 46-flag table that is the structural cause of the `--kr` and `--design` drops. **§ 1.7 is new**: the four axes (lane, register, track, mode), which two of them the command surface encodes, the two measured refusals that show the track/mode layer is already enforced, and the boundary between the static shape and the per-project vocabulary. **Goals 12-14, plan rows C4 and C5, three risks, three open questions** follow from those. B1 grew the vocabulary read; C1 stopped being a manifest file and now satisfies TASK-396; Decision 3's note records the redraw-by-object option nobody had put on the table.
+
+- 2026-09-10 — **locked, and the lock is retroactive.** All five User Decisions carry a Chosen value and a date, § 5 / § 6 / § 7 are present, and a locked copy lints with no new finding — so the gate is met. **What it does not mean is that this doc was locked before its implementation, because it was not.** `decide/SKILL.md` puts `locked` BEFORE the work: *"before non-trivial implementation fans out, it produces one locked document"*, and *"once a doc reaches Design locked, design hands off to pmo"*. All fourteen rows were opened, built and reviewed against a `draft`. The cost was paid and is visible in this section's own history: Decision 5 arrived on 2026-09-09, after phases A and B had shipped, and it rewrote C1 from a manifest file into a declaration — work that would not have been done twice against a locked doc. Nothing here is rewritten to hide that; the lock records that the architecture is frozen from today, and § 8's six open questions stay open, because an open question is not a User Decision and does not block a lock (`DESIGN-001` is locked carrying its own).
 
 ## 10. References
 
