@@ -118,7 +118,8 @@ a finding. What changes is the price of the finding.
 | 1 | `--root` beats `$PERRY_PROJECT` | **FAIL** | a writer that resolves the wrong project writes into it |
 | 2a | `--help` never runs a write | **FAIL** | a gate against a write nobody asked for |
 | 2b | `--help` prints from any position | ROW | worst outcome is exit 2 and a line naming `--help` |
-| 3 | an unknown argument is refused, exit 2 | **FAIL** | `--wrte` used to render, write nothing, and exit 0 — the caller was told the run succeeded |
+| 3a | an unknown argument is refused, exit 2 | **FAIL** | `--wrte` used to render, write nothing, and exit 0 — the caller was told the run succeeded |
+| 3b | the refusal names the legal set | ROW | the offender is named and the exit is 2; a reader who wants the set types `--help`. **Split 2026-09-10 after round 8**, which found the tool inconsistent with the exemplar goal 3 cites — `perry-state --section BOGUS` lists all 22 keys and an unknown *subcommand* names its set, while an unknown *flag* does not. The code should move, not the bar; filed as its own row |
 | 4a | `--dry-run` writes nothing | **FAIL** | same gate as 2a |
 | 4b | every writer accepts `--dry-run` and `--json` | ROW | a missing feature announces itself; § 1.6 says withdraw the claim instead |
 | 5 | `--compact` is a strict projection | **FAIL** | a key result at 43% published as 100%, and the reader cannot tell |
@@ -194,6 +195,7 @@ the criteria above to the fourteen blocks the round must return.
 | TASK-366 | C3 subcommand help | 8 |
 | TASK-408 | C4 `bin/perry` | 14 |
 | TASK-409 | C5 `--register` | 7 (the register is a declared parameter, not a name) |
+| TASK-364 | C1, again | **12** — added 2026-09-10. Round 8 found criterion 12 named in no row of this table, so no verdict block was responsible for it, although rounds 6 and 7 both checked it under TASK-364 |
 | TASK-410 | D1 the README | 11 |
 
 ## Bound
