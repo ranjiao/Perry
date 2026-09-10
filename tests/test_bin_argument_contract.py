@@ -396,39 +396,136 @@ class TestEveryWriterHonoursDryRun(unittest.TestCase):
         for argv, _target in self.WRITES:
             run(*argv, "--root", str(self.p.root))  # mint the stores
 
-    def test_dry_run_changes_no_bytes_anywhere(self):
-        """A register the fixture board has no section for refuses with exit 2
-        — that is the storeless refusal, not a dry-run failure, and the bytes
-        claim is asked of it all the same. `reached` is the control: if every
-        command in the table refused, the loop would prove nothing."""
-        reached = 0
+    #: Which side to disturb so the command has real work to do. A store
+    #: writer is measured by whether it RECREATES a store that is not there; a
+    #: board renderer by whether it carries a changed store into the board.
+    KIND = {"tasks.jsonl": "store", "risks.jsonl": "store",
+            "intake.jsonl": "store", "asks.jsonl": "store",
+            "BOARD.md": "board"}
+
+    def _disturb(self, target: str):
+        """Make the command's output differ from what is on disk.
+
+        `("absent", None)` — the target was removed and a dry run must not put
+        it back. `("bytes", b"...")` — the target must still hold exactly
+        these. `("skip", None)` — this command cannot be exercised on this
+        fixture, and the caller says so rather than passing quietly.
+        """
+        path = self.p.root / target
+        if self.KIND[target] == "store":
+            if not path.exists():
+                return ("skip", None)
+            path.unlink()          # a dry run must not put it back
+            return ("absent", None)
+        store = self.p.root / "tasks.jsonl"
+        if not path.exists() or not store.exists():
+            return ("skip", None)
+        text = store.read_text(encoding="utf-8")
+        if '"not_started"' not in text:
+            return ("skip", None)
+        store.write_text(text.replace('"not_started"', '"blocked"', 1),
+                         encoding="utf-8")
+        return ("bytes", path.read_bytes())
+
+    def test_a_dry_run_writes_nothing_that_the_real_run_would_write(self):
+        """**Each command carries its own control, and the fixture is disturbed
+        first.**
+
+        The previous version minted every store in `setUp` and then compared
+        bytes. That made the non-dry-run twin a byte NO-OP — the store already
+        equalled what `write --from-board` derives — so the comparison could not
+        tell a dry run from a real one. A V4 round disabled the dry-run gate at
+        `bin/perry-tasks:234` and the FULL suite stayed green while
+        `perry-tasks write --from-board --dry-run` rewrote its store and printed
+        `wrote`, which is TASK-253's original defect verbatim. The same
+        mutation at `bin/perry-config:117` rewrote `.perry/config.jsonl` while
+        printing "Nothing was written."
+
+        The old `reached >= 2` guard counted commands that EXITED 0, not
+        commands that would have changed bytes, which is why it did not notice.
+        """
+        exercised = 0
         for argv, target in self.WRITES:
             path = self.p.root / target
-            if not path.exists():
-                continue
             with self.subTest(command=" ".join(argv[1:])):
-                before = path.read_bytes()
-                out = run(*argv, "--root", str(self.p.root), "--dry-run")
-                self.assertEqual(path.read_bytes(), before,
-                                 f"{' '.join(argv[1:])} --dry-run wrote to "
-                                 f"{target}")
-                if out.returncode == 0:
-                    reached += 1
-        self.assertGreaterEqual(reached, 2,
-                                "every writer refused, so nothing above "
-                                "exercised a dry run that had work to do")
+                mode, before = self._disturb(target)
+                if mode == "skip":
+                    continue
+                dry = run(*argv, "--root", str(self.p.root), "--dry-run")
+                if mode == "absent":
+                    self.assertFalse(
+                        path.exists(),
+                        f"{' '.join(argv[1:])} --dry-run created {target}")
+                else:
+                    self.assertEqual(
+                        path.read_bytes(), before,
+                        f"{' '.join(argv[1:])} --dry-run wrote to {target}")
+                if dry.returncode != 0:
+                    continue
+                # The control, per command: the same call without --dry-run
+                # must change what the dry run left alone. Without this the
+                # case above passes for a command that can do nothing at all.
+                out = run(*argv, "--root", str(self.p.root))
+                self.assertEqual(out.returncode, 0, out.stderr[-300:])
+                if mode == "absent":
+                    self.assertTrue(
+                        path.exists(),
+                        f"{' '.join(argv[1:])} did not write {target}, so the "
+                        f"dry-run check above proved nothing")
+                else:
+                    self.assertNotEqual(
+                        path.read_bytes(), before,
+                        f"{' '.join(argv[1:])} changed no bytes, so the "
+                        f"dry-run check above proved nothing")
+                exercised += 1
+        self.assertGreaterEqual(
+            exercised, 2, "no command in the table both refused a dry run and "
+                          "wrote without one")
 
-    def test_the_control_is_that_the_same_command_does_write(self):
-        """Without this, a tool that refused everything would pass above."""
-        board = self.p.root / "BOARD.md"
-        self.p.run("status", "TASK-001", "--status", "in_progress")
-        (self.p.root / "tasks.jsonl").write_text(
-            (self.p.root / "tasks.jsonl").read_text().replace(
-                '"in_progress"', '"blocked"'))
-        out = run("perry-tasks", "render", "--write", "--root", str(self.p.root))
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("blocked", board.read_text(),
-                      "the control write did not land")
+
+class TestPerryConfigHonoursDryRun(unittest.TestCase):
+    """The second half of goal 4a, and it was untested.
+
+    Disabling the gate at `bin/perry-config:117` left the full suite green
+    while all four writing subcommands rewrote `.perry/config.jsonl` and
+    printed "Nothing was written." A tool that writes and says it did not is
+    DESIGN-016 § 1.5's own subject.
+    """
+
+    #: `(argv, what it changes)`. `set`/`unset` move a setting record;
+    #: `track`/`untrack` move a track record. All four write the same store.
+    WRITES = (
+        ("set", "Chat language", "Klingon"),
+        ("unset", "Chat language"),
+        ("track", "a-new-track", "--mode", "project"),
+        ("untrack", "intake"),
+    )
+
+    def setUp(self):
+        import config_store
+        tracks = [config_store.track("main"),
+                  config_store.track("intake", "queue")]
+        self.p = Project(tracks=tracks)
+        config_store.write_config(self.p.root, tracks=tracks,
+                                  settings={"Chat language": "English"})
+        self.store = self.p.root / ".perry" / "config.jsonl"
+
+    def test_each_writing_subcommand_leaves_the_store_alone_on_a_dry_run(self):
+        for argv in self.WRITES:
+            with self.subTest(command=argv[0]):
+                before = self.store.read_bytes()
+                dry = run("perry-config", *argv, "--root", str(self.p.root),
+                          "--dry-run")
+                self.assertEqual(self.store.read_bytes(), before,
+                                 f"perry-config {argv[0]} --dry-run wrote")
+                if dry.returncode != 0:
+                    continue
+                out = run("perry-config", *argv, "--root", str(self.p.root))
+                self.assertEqual(out.returncode, 0, out.stderr[-300:])
+                self.assertNotEqual(
+                    self.store.read_bytes(), before,
+                    f"perry-config {argv[0]} changed no bytes, so the dry-run "
+                    f"check above proved nothing")
 
 
 class TestAddWritesTheDesignEdge(unittest.TestCase):
@@ -793,6 +890,57 @@ class TestOnePrimitiveAnsweredTwice(unittest.TestCase):
             with self.subTest(case=name):
                 self.assertIs(self.a(path), want)
                 self.assertIs(self.b(path), want, "the two spellings diverged")
+
+
+
+class TestAFlagWithItsValueMissingIsRefused(unittest.TestCase):
+    """Criterion 10a: a bad invocation is exit 2, on every tool that takes a
+    value-flag.
+
+    `--root` with nothing after it was **silently dropped** by four tools, and
+    in one of them that is a gate. `bin/perry-lint` read
+    `argv[i] if i < len(argv) else None`, so the flag became no flag and the
+    tool linted the CURRENT DIRECTORY; `bin/README.md § --quiet` says that mode
+    is read by its exit code alone and `§ Lint after every tier-1 write` makes
+    it a gate. A V4 round measured it with a clean cwd and a dirty named
+    project:
+
+        perry-lint --quiet --root <named>   exit 1   (correct)
+        perry-lint --quiet --root           exit 0, no stdout, no stderr
+
+    The gate passed, silently, about a project the caller never named.
+    `perry-explain` and `perry-decide` carried the same line, and the six
+    declaring tools were already correct because `lib.parse_surface` refuses it
+    centrally.
+
+    The population is every executable in `bin/` that names `--root`, so a tool
+    that gains the flag tomorrow is covered tomorrow.
+    """
+
+    def test_no_tool_treats_a_valueless_root_as_no_root(self):
+        for name in ROOT_READERS:
+            with self.subTest(tool=name):
+                out = run_tool(BIN / name, "--root")
+                self.assertNotEqual(
+                    out.returncode, 0,
+                    f"{name} --root with no value exited 0 — it answered about "
+                    f"some project, and not the one the caller named")
+                self.assertEqual(
+                    out.returncode, 2,
+                    f"{name} --root with no value should be exit 2, a bad "
+                    f"invocation; got {out.returncode}\n"
+                    + out.stderr[-300:])
+
+    def test_the_control_is_that_the_flag_works_with_a_value(self):
+        """Without this, a tool that refused every invocation would pass."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ok = 0
+            for name in ROOT_READERS:
+                out = run_tool(BIN / name, "--root", tmp, "--help")
+                if out.returncode == 0:
+                    ok += 1
+            self.assertEqual(ok, len(ROOT_READERS),
+                             "a tool refuses --root even with a value")
 
 
 if __name__ == "__main__":

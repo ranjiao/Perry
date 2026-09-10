@@ -535,10 +535,21 @@ def main(argv: list[str]) -> int:
             with_history = False
         elif arg == "--root":
             i += 1
-            root_arg = argv[i] if i < len(argv) else None
+            if i >= len(argv):
+                # Dropped silently, so the tool measured the cwd instead of the
+                # project the caller named. Found across four tools in one V4
+                # sweep; `bin/perry-lint`'s copy was gating a write.
+                print("perry-state-cost: --root takes a value", file=sys.stderr)
+                return 2
+            root_arg = argv[i]
         elif arg == "--at":
             i += 1
-            rev = argv[i] if i < len(argv) else "HEAD"
+            if i >= len(argv):
+                # `else "HEAD"` was worse than `else None`: it silently
+                # substituted a DIFFERENT revision from the one being asked for.
+                print("perry-state-cost: --at takes a value", file=sys.stderr)
+                return 2
+            rev = argv[i]
         elif arg == "--breakdown":
             i += 1
             if i < len(argv):

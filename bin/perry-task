@@ -7722,6 +7722,26 @@ def parse(argv: list[str]) -> Args:
     a.help, a.describe, a.error = read["help"], read["describe"], read["error"]
     a.cmd = read["sub"]
     a.id = read["extra"][0] if read["extra"] else None
+    # **Refused, not stored.** This used to be `a.extra = read["extra"][1:]`
+    # and nothing in this file ever read `a.extra` again — the only other
+    # mention was its initialiser. So a second positional was accepted,
+    # dropped, and the run reported success:
+    #
+    #     perry-task done TASK-001 TASK-002 --evidence … --rung V1
+    #       → exit 0, "wrote TASK-001 (done)", TASK-002 still in_progress
+    #
+    # Four files written, one of the two named rows closed, and a success line.
+    # That is § 1.4's accepted-and-dropped shape reached through a positional
+    # instead of a flag, and criterion 3's own harm sentence: the caller was
+    # told the run succeeded. Found by a V4 round after 342 undeclared-FLAG
+    # probes came back correctly refused on all six tools.
+    #
+    # Safe to refuse outright because every value on every subcommand of this
+    # tool arrives through a flag — `summary`, `retitle` and `depends` all take
+    # theirs as `--summary` / `--title` / `--on` — so the id is the only
+    # positional any of the thirty accepts. `perry-tasks:1657`,
+    # `perry_md_store.py:1064` and `perry-state:2595` already refuse the
+    # identical shape; this is the fourth writer catching up.
     a.extra = read["extra"][1:]
     for flag, attr in flags.items():
         if flag in read["values"]:
@@ -7735,6 +7755,16 @@ def parse(argv: list[str]) -> Args:
     a.clear = "--clear" in read["seen"]
     a.unlinked = "--unlinked" in read["seen"]
     return a
+
+
+def refuse_extra_positionals(a) -> int | None:
+    """Exit 2 when a second positional was handed in. `None` when clean."""
+    if not a.extra:
+        return None
+    print(f"perry-task: {a.extra[0]!r} is not a flag, and {a.cmd!r} takes no "
+          f"second argument (try --help). Nothing was written.",
+          file=sys.stderr)
+    return 2
 
 
 # The single source of truth for what `perry-task` accepts. Membership check,
@@ -8208,6 +8238,11 @@ def main(argv: list[str]) -> int:
         print(f"perry-task: expected one of {' / '.join(COMMANDS)} "
               f"(try --help)", file=sys.stderr)
         return 2
+    # After the subcommand is known, so the message can name it, and before
+    # anything dispatches, so nothing writes.
+    extra = refuse_extra_positionals(args)
+    if extra is not None:
+        return extra
     # **`--unlinked` belongs to `add` alone** (TASK-394), and the guard that
     # said so by hand is gone: `SURFACE` lists it under `add` and nowhere else,
     # so `parse` refuses it on every other subcommand by the same rule that

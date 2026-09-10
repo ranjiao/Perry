@@ -518,7 +518,19 @@ def parse(argv: list[str]) -> Args:
             a.as_json = True
         elif t in flags:
             i += 1
-            setattr(a, flags[t], argv[i] if i < len(argv) else None)
+            if i >= len(argv):
+                # `argv[i] if i < len(argv) else None` set the attribute to
+                # None, which is indistinguishable from the flag never being
+                # passed — so `perry-decide new slug --title` opened a decision
+                # with no title rather than refusing. A V4 round found the same
+                # line in `bin/perry-lint`, where it was gating.
+                # `sys.exit`, not `return`: this function returns an `Args`,
+                # and returning an int here handed `main` a 2 that it then
+                # treated as a namespace. The `-h` branch above already exits
+                # the same way.
+                print(f"perry-decide: {t} takes a value", file=sys.stderr)
+                sys.exit(2)
+            setattr(a, flags[t], argv[i])
         elif a.cmd is None:
             a.cmd = t
         elif a.id is None:

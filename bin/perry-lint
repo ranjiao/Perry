@@ -5067,7 +5067,19 @@ def main(argv: list[str]) -> int:
             return 0
         elif a == "--root":
             i += 1
-            root_arg = argv[i] if i < len(argv) else None
+            if i >= len(argv):
+                # **Refused, not dropped.** This read `argv[i] if i < len(argv)
+                # else None`, so `--root` with its value missing became no
+                # `--root` at all and the tool linted the CURRENT DIRECTORY.
+                # `bin/README.md § --quiet` says that mode is read by its exit
+                # code alone, and `§ Lint after every tier-1 write` makes this a
+                # gate — so `perry-lint --quiet --root` exited 0 with empty
+                # stdout and empty stderr about a project the caller never
+                # named. Measured by a V4 round with a clean cwd and a dirty
+                # named project: exit 1 with the value, exit 0 without it.
+                print("perry-lint: --root takes a value", file=sys.stderr)
+                return 2
+            root_arg = argv[i]
         elif a == "--templates":
             mode_templates = True
         elif a == "--claims":
@@ -5088,7 +5100,10 @@ def main(argv: list[str]) -> int:
             mode_summaries = True
         elif a == "--state-root":
             i += 1
-            state_root_arg = argv[i] if i < len(argv) else None
+            if i >= len(argv):
+                print("perry-lint: --state-root takes a value", file=sys.stderr)
+                return 2
+            state_root_arg = argv[i]
         elif a == "--json":
             as_json = True
         elif a == "--strict":

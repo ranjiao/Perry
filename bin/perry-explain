@@ -760,7 +760,17 @@ def main(argv: list[str]) -> int:
         if a in ("--help", "-h"):
             print(__doc__.strip())
             return 0
-        if a == "--root" and i + 1 < len(argv):
+        if a == "--root":
+            # The `and i + 1 < len(argv)` this used to carry made a valueless
+            # `--root` fall through to the next branch and then to the
+            # positional arm, so the tool answered about the cwd instead of
+            # refusing. Same shape as `bin/perry-lint`'s, found in the same V4
+            # sweep; this one only reads, so it misreports rather than
+            # misgating, and it is still an answer about a project the caller
+            # did not name.
+            if i + 1 >= len(argv):
+                print("perry-explain: --root takes a value", file=sys.stderr)
+                return 2
             root = Path(argv[i + 1]).expanduser()
             i += 1
         elif a == "--json":
