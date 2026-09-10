@@ -110,6 +110,21 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
                     STATE.project_value(STATE._at(self.full, path), how))
 
     @staticmethod
+    def _walk(payload, dotted):
+        """A dotted-path read this file owns.
+
+        Deliberately not `STATE._at`: the tool walks its source with that, so
+        sharing it makes a defect in the walk invisible to every comparison
+        built on top of it. Same reasoning as `_second_opinion` one level up.
+        """
+        cur = payload
+        for step in dotted.split("."):
+            if not isinstance(cur, dict) or step not in cur:
+                return None
+            cur = cur[step]
+        return None if cur is None else cur
+
+    @staticmethod
     def _second_opinion(value, how):
         """The six projection kinds, written again and deliberately not shared.
 
@@ -156,8 +171,15 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
         if kind == "subdict":
             if not isinstance(value, dict):
                 return None
+            # `_walk`, not `STATE._at`. The tool resolves its source with `_at`
+            # and this file used to resolve its EXPECTATION with the same
+            # function, so a defect inside it moved both sides together —
+            # reversing every list `_at` returns was green on the full suite
+            # while `--compact` listed the phase objectives in the opposite
+            # order to `--json`. A round found that; this is the second walker.
             return {k: TestItIsAProjectionAndNothingElse._second_opinion(
-                STATE._at(value, path), sub) for k, path, sub in arg}
+                TestItIsAProjectionAndNothingElse._walk(value, path), sub)
+                for k, path, sub in arg}
         raise ValueError(f"unknown projection {how!r}")
 
     def test_the_six_kinds_are_checked_against_a_second_opinion(self):
@@ -223,6 +245,84 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
                 self.assertEqual(
                     self._narrow_at(key),
                     self._second_opinion(STATE._at(self.full, source), how))
+
+    def test_every_subdict_child_reads_the_source_its_key_names(self):
+        """The same key-anchoring, one level down, where nothing reached.
+
+        `COMPACT` holds one `subdict` entry — `phase` — whose `arg` carries ten
+        more `(key, path, how)` triples. **Every walk in this file iterates
+        `STATE.COMPACT`, which is top level only**, and the undeclared-key case
+        stops descending the moment a key is declared, which `phase` is. So the
+        ten were declared and compared by nothing.
+
+        A round rotated all ten at once — each key reading its neighbour's
+        field — and the full suite stayed at its known reds while `--compact`
+        reported `phase.number` as the slug, `slug` as the status, `day` as the
+        KR total. `reference/snapshot.md:165` renders
+        `Current phase #<NNN> <slug> · day <N>` from exactly those three.
+        """
+        seen = 0
+        for key, path, how in STATE.COMPACT:
+            if not (isinstance(how, tuple) and how[0] == "subdict"):
+                continue
+            source = self._walk(self.full, path)
+            for inner_key, inner_path, inner_how in how[1]:
+                with self.subTest(field=f"{key}.{inner_key}"):
+                    self.assertEqual(
+                        inner_key, inner_path,
+                        f"{key}.{inner_key} reads {inner_path}; a rename here "
+                        f"needs recording the way RENAMED does one level up")
+                    self.assertEqual(
+                        self._walk(self.narrow, f"{key}.{inner_key}"),
+                        self._second_opinion(
+                            self._walk(source, inner_path), inner_how))
+                seen += 1
+        self.assertGreaterEqual(seen, 10, "the subdict children went unchecked")
+
+    def test_every_declared_field_name_is_one_the_source_carries(self):
+        """The `arg` name tuples, which are a second copy of a source's shape.
+
+        Eleven names can be dropped from those tuples with the full suite
+        green — `wip`, `sla`, `cycle`, `default_rung`, `declared` on
+        `project.tracks`; `linked` and `stretch` at the two `objectives` sites;
+        `checked`, `drift`, `unrecorded` on `board.drift`; and the inner
+        `objectives` arg. A dropped name announces itself to whoever reads the
+        payload, which is why a round graded it ROW rather than FAIL — but
+        nothing pins the list, so it can shrink by accident as easily as on
+        purpose.
+
+        This does not assert WHICH names are declared. It asserts that every
+        one of them is a key the source actually carries, so a name that stops
+        existing fails here instead of quietly narrowing the payload.
+        """
+        def names_of(how):
+            if isinstance(how, tuple) and how[0] in (
+                    "fields", "fields_of_dict", "objectives",
+                    "objectives_with_progress"):
+                return list(how[1])
+            return []
+
+        checked = 0
+        for key, path, how in STATE.COMPACT:
+            source = self._walk(self.full, path)
+            if source is None:
+                continue
+            for name in names_of(how):
+                rows = (source if isinstance(source, list) else [source])
+                # `objectives` name tuples describe the KRs, not the objective.
+                if isinstance(how, tuple) and how[0].startswith("objectives"):
+                    rows = [kr for o in rows if isinstance(o, dict)
+                            for kr in (o.get("krs") or [])]
+                rows = [r for r in rows if isinstance(r, dict)]
+                if not rows:
+                    continue
+                with self.subTest(field=key, name=name):
+                    self.assertTrue(
+                        any(name in r for r in rows),
+                        f"{key} declares {name!r} and no record under {path} "
+                        f"carries it")
+                checked += 1
+        self.assertGreater(checked, 5, "no declared name was reachable")
 
     def test_the_rename_list_is_exactly_the_pairs_that_differ(self):
         """The bound, both ways.
@@ -368,6 +468,27 @@ class TestTheStandupCanActuallyRenderFromIt(unittest.TestCase):
         _full, cls.narrow = payloads(cls.p.root)
 
     #: `(dotted path, which step of `reference/snapshot.md` reads it)`.
+    #: The field names each projection picks out, written here so a shrinking
+    #: `arg` tuple fails instead of quietly narrowing the payload. `NEEDED`
+    #: below does this for the top-level keys; these are the names one level
+    #: in, and a round measured eleven of them droppable with the full suite
+    #: green. Dropping one is visible to whoever reads the payload, which is
+    #: why it was graded a row and not a defect — but nothing pinned the list,
+    #: so it could shrink by accident as easily as on purpose.
+    NAMES = {
+        "project.tracks": ("track", "mode", "stage_list", "stages_declared",
+                           "wip", "sla", "cycle", "default_rung", "declared"),
+        "board.drift": ("checked", "drift", "unrecorded"),
+    }
+
+    def test_each_projection_still_picks_out_the_names_it_is_meant_to(self):
+        by_key = {k: h for k, _p, h in STATE.COMPACT}
+        for key, want in self.NAMES.items():
+            with self.subTest(field=key):
+                how = by_key.get(key)
+                self.assertIsNotNone(how, f"{key} left the declaration")
+                self.assertEqual(tuple(how[1]), want)
+
     NEEDED = (
         ("project.name", "step 4, the header"),
         ("project.tracks", "step 3b, one mode file per distinct mode"),
@@ -680,6 +801,30 @@ class TestTheFullFixtureReachesTheDarkPaths(unittest.TestCase):
                 self.assertEqual(source, path)
                 self.assertEqual(self._at(self.narrow, key),
                                  second(STATE._at(self.full, source), how))
+
+    def test_every_subdict_child_reads_its_own_source_on_real_data(self):
+        """The subdict comparison where `phase` is not `None`.
+
+        The identical case in `TestItIsAProjectionAndNothingElse` runs on a
+        scratch project, where `phase` resolves to nothing and every
+        implementation of a phase agrees. This fixture has one.
+        """
+        P = TestItIsAProjectionAndNothingElse
+        seen = 0
+        for key, path, how in STATE.COMPACT:
+            if not (isinstance(how, tuple) and how[0] == "subdict"):
+                continue
+            source = P._walk(self.full, path)
+            self.assertIsNotNone(source, f"{key} is empty on this fixture")
+            for inner_key, inner_path, inner_how in how[1]:
+                with self.subTest(field=f"{key}.{inner_key}"):
+                    self.assertEqual(inner_key, inner_path)
+                    self.assertEqual(
+                        P._walk(self.narrow, f"{key}.{inner_key}"),
+                        P._second_opinion(
+                            P._walk(source, inner_path), inner_how))
+                seen += 1
+        self.assertGreaterEqual(seen, 10)
 
     def test_a_key_result_carries_the_numbers_the_percentage_is_rendered_from(self):
         """`reference/snapshot.md` step 4 renders `<%>` from these.
