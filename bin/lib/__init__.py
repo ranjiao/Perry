@@ -558,6 +558,25 @@ def always_accepted(surface: dict) -> set[str]:
             | set(surface.get("universal_flags", ())))
 
 
+def subcommand_flags(surface: dict, item: dict) -> list[str]:
+    """Every flag `item` accepts: what it declares, plus what the tool honours
+    everywhere.
+
+    **One builder because there were three, and only one of them was
+    compared.** `describe_surface` spelled this for the whole-tool payload and
+    again for the single-subcommand payload; `usage_lines` spelled it a third
+    time and got the operator precedence wrong. A V4 round emptied the second
+    one and the whole suite stayed green while `perry describe task add`
+    reported that `add` takes 0 flags instead of 27 — which is the branch
+    `bin/README.md` publishes as the way to ask about one subcommand.
+
+    Callers that need to hide `--help` and `--describe` from a usage line
+    subtract them from the RESULT; doing it inside an expression with `|` is
+    how the third spelling went wrong.
+    """
+    return sorted(set(item.get("flags", ())) | always_accepted(surface))
+
+
 def surface_subcommand(surface: dict, name: str) -> dict | None:
     return next((s for s in surface.get("subcommands", ())
                  if s["name"] == name), None)
@@ -691,8 +710,7 @@ def describe_surface(surface: dict, sub: str | None = None) -> dict:
                 "flags": [flags[n] for n in sorted(flags)],
                 "subcommands": [
                     {"name": s["name"], "summary": s.get("summary", ""),
-                     "flags": sorted(set(s.get("flags", ()))
-                                     | always_accepted(surface)),
+                     "flags": subcommand_flags(surface, s),
                      "writes": list(s.get("writes", ()))}
                     for s in surface.get("subcommands", ())]}
     found = surface_subcommand(surface, sub)
@@ -700,7 +718,7 @@ def describe_surface(surface: dict, sub: str | None = None) -> dict:
         return {"tool": surface["name"], "error":
                 f"{sub!r} is not a subcommand of {surface['name']}",
                 "subcommands": [s["name"] for s in surface.get("subcommands", ())]}
-    names = sorted(set(found.get("flags", ())) | always_accepted(surface))
+    names = subcommand_flags(surface, found)
     return {"tool": surface["name"], "subcommand": found["name"],
             "summary": found.get("summary", ""),
             "writes": list(found.get("writes", ())),
@@ -733,8 +751,12 @@ def usage_lines(surface: dict, sub: str | None = None) -> str:
     for item in picked:
         if item is None:
             continue
-        names = sorted(set(item.get("flags", ())) | always_accepted(surface)
-                       - {"--help", "--describe"})
+        # Subtracted from the RESULT. Written as one expression this read
+        # `set(...) | (always_accepted(...) - {...})`, which keeps `--help` and
+        # `--describe` whenever a subcommand declares them itself. Harmless
+        # while none does, and wrong the day one does.
+        names = [n for n in subcommand_flags(surface, item)
+                 if n not in ("--help", "--describe")]
         if whole_tool:
             lines.append(f"  {item['name']:<16} {item.get('summary', '')}")
             continue

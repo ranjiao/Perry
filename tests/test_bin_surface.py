@@ -882,9 +882,109 @@ class TestDescribeAnswersForEveryDeclaredTool(unittest.TestCase):
             decl = surface(tool)
             for sub in decl.get("subcommands", ()):
                 with self.subTest(tool=tool, sub=sub["name"]):
-                    want = sorted(set(sub.get("flags", ()))
-                                  | set(lib.always_accepted(decl)))
-                    self.assertEqual(got[sub["name"]], want)
+                    self.assertEqual(got[sub["name"]],
+                                     self.expected_flags(tool, sub))
+
+    #: The universal flags, WRITTEN HERE rather than read from
+    #: `lib.always_accepted`. A V4 round made that function return one extra
+    #: name; every tool's payload advertised a flag the parser refuses with
+    #: exit 2, and the whole suite stayed green — because the expectation was
+    #: built by calling the function that produced the payload. That is round
+    #: 4's own tautology, in the fix for round 4's tautology.
+    #:
+    #: `--root`, `--help` and `--describe` are `lib.COMMON_FLAGS`; `--json`
+    #: chooses the OUTPUT format in `main` and no handler reads it, so the two
+    #: tools that honour it everywhere declare it once as universal rather than
+    #: thirty times. `test_the_universal_flags_are_the_ones_the_tools_accept`
+    #: below is what keeps this list honest against the running tools.
+    UNIVERSAL = {
+        "perry-task": ("--describe", "--help", "--json", "--root"),
+        "perry-tasks": ("--describe", "--help", "--root"),
+        "perry-okr": ("--describe", "--help", "--root"),
+        "perry-config": ("--describe", "--help", "--json", "--root"),
+        "perry-state": ("--describe", "--help", "--root"),
+        "perry-diagnose": ("--describe", "--help", "--root"),
+    }
+
+    @classmethod
+    def expected_flags(cls, tool: str, sub: dict) -> list[str]:
+        return sorted(set(sub.get("flags", ())) | set(cls.UNIVERSAL[tool]))
+
+    def test_the_universal_flags_are_the_ones_the_tools_accept(self):
+        """The list above, checked against the tools rather than the source.
+
+        Each universal flag must be ACCEPTED on a subcommand that does not
+        declare it — that is what universal means — and a name that is not on
+        the list must be refused there. Without this the list is just a second
+        copy of the declaration and could drift with it.
+        """
+        p = Project()
+        p.run("add", "--title", "a row the probes can act on")
+        for tool, names in self.UNIVERSAL.items():
+            decl = surface(tool)
+            subs = [s for s in decl.get("subcommands", ())
+                    if not set(s.get("flags", ())) & set(names)]
+            if not subs:
+                continue
+            sub = subs[0]["name"]
+            for flag in names:
+                if flag in ("--help", "--describe"):
+                    continue          # they exit before the subcommand runs
+                with self.subTest(tool=tool, sub=sub, flag=flag):
+                    out = run(tool, sub, flag, str(p.root),
+                              "--root", str(p.root))
+                    self.assertNotIn("is not accepted by", out.stderr,
+                                     f"{flag} is on this file's universal list "
+                                     f"and {tool} {sub} refuses it")
+            with self.subTest(tool=tool, sub=sub, flag="--not-a-flag"):
+                out = run(tool, sub, "--not-a-flag", "--root", str(p.root))
+                self.assertEqual(out.returncode, 2, out.stdout[:200])
+
+    def test_the_single_subcommand_payload_carries_the_same_flags(self):
+        """The branch the fix left behind.
+
+        `describe_surface` has two branches and `134afea6` compared one. The
+        other answers `<tool> <sub> --describe --json` and `perry describe
+        <tool> <sub>` — which `bin/README.md` publishes as the way to ask about
+        one subcommand, and which is the answer for all 57 declared
+        subcommands. Emptying its flag list left 3,459 tests green while
+        `perry describe task add` reported 0 flags instead of 27.
+        """
+        for tool in DECLARED:
+            decl = surface(tool)
+            for sub in decl.get("subcommands", ()):
+                with self.subTest(tool=tool, sub=sub["name"]):
+                    out = subprocess.run(
+                        [sys.executable, str(BIN / tool), sub["name"],
+                         "--describe", "--json"],
+                        capture_output=True, text=True)
+                    self.assertEqual(out.returncode, 0, out.stderr)
+                    payload = json.loads(out.stdout)
+                    self.assertEqual(payload["subcommand"], sub["name"])
+                    self.assertEqual(
+                        sorted(f["name"] for f in payload["flags"]),
+                        self.expected_flags(tool, sub))
+
+    def test_the_generated_usage_line_names_the_same_flags(self):
+        """The third spelling of the same set, and it was uncompared too.
+
+        `usage_lines` built the list a third time. Emptying it left the suite
+        green while `perry-task add --help` printed a usage line with no flags
+        at all — a rendered surface telling a reader a subcommand takes
+        nothing. It also had the subtraction inside the union, so a subcommand
+        that declared `--help` itself would have kept it in its own usage line.
+        """
+        for tool in DECLARED:
+            decl = surface(tool)
+            for sub in decl.get("subcommands", ()):
+                with self.subTest(tool=tool, sub=sub["name"]):
+                    text = lib.usage_lines(decl, sub["name"])
+                    want = [n for n in self.expected_flags(tool, sub)
+                            if n not in ("--help", "--describe")]
+                    for flag in want:
+                        self.assertIn(flag, text,
+                                      f"{tool} {sub['name']} --help omits "
+                                      f"{flag}")
 
 
 if __name__ == "__main__":

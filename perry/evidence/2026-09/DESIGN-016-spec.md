@@ -254,13 +254,20 @@ Round 3's own test for the fall-through named `perry-tasks` and exercised
 `perry-config`. **Check that the round-3 fixes are tested by tests that reach
 them**, by mutation, not by reading.
 
-## Two questions the author has not decided
+## Two questions the author has not decided — both now answered
 
-Report on these; do not FAIL a row for them, they are open by the author's
-choice and are recorded here so the round does not spend itself on them.
+Kept rather than deleted, because a round that was told to leave these alone
+should be able to see what became of them.
 
-1. `bin/README.md`'s quick-start block ends with three lines (`start`,
-   `status`, `done`) that cannot run in a fresh project because they need an id
-   the block never captures.
-2. `perry list --json` compares subcommand *counts* with each tool's
-   declaration, not subcommand *names*.
+1. `bin/README.md`'s quick-start block ended with three lines (`start`,
+   `status`, `done`) that could not run in a fresh project because they needed
+   an id the block never captured. **Answered in `134afea6`:** the block now
+   captures the id from `add --json`, which is the honest shape — the id is the
+   tool's answer, not the caller's choice — and `done` was dropped from the
+   block because it needs an evidence path that exists, and a block that
+   invents one teaches a call that refuses.
+2. `perry list --json` compared subcommand *counts* with each tool's
+   declaration, not *names*. **Answered in `134afea6`**, which changed both
+   count comparisons to name comparisons. A round-5 reviewer found this section
+   still asking the question after the fix had closed it, which is the same
+   drift this whole design is about, in the file that governs the design.
