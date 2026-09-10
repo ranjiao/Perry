@@ -187,6 +187,7 @@
 | TASK-428 | three read-only subcommands accept --dry-run and drop it, and perry-config show cannot tell an unreadable config from an absent one | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-429 | SKIP_DIRS narrows the guard's domain and builds the plant set, so a directory can stop being guarded with every test green | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-430 | python3 -m unittest tests.<name> reports a clean pass for a module that never imported, and it has now cost two rounds | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
+| TASK-431 | three tools carry three different lists of what a blank cell looks like, so a track's stages can be named after the blank marker | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 

@@ -324,6 +324,114 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
                 checked += 1
         self.assertGreater(checked, 5, "no declared name was reachable")
 
+    #: **What each field IS, stated a second time.** A `COMPACT` entry is a
+    #: TRIPLE — `(key, path, how)` — and rounds 4 to 7 pinned the rule, the
+    #: data, and the `(key, path)` pairing at both levels. `how` was pinned by
+    #: nothing: every expectation in this file applies the same `how` it is
+    #: meant to be checking, so rewriting one moved both sides together.
+    #:
+    #: A round enumerated it rather than sampling: **45 of the 53 top-level
+    #: entries accepted a rewritten projection kind with the suite green**, and
+    #: the 8 that reddened were each caught by a hand-written case, never by a
+    #: walk. The sharpest was `installed`: as a `count` it publishes `null`,
+    #: `null` is falsy, and `SKILL.md:132` routes every `/perry` on a real
+    #: project into first-time setup on exactly that value.
+    #:
+    #: So this is the same shape as `RENAMED` and `NAMES` one level over —
+    #: a second author saying what the declaration means, so the declaration
+    #: stops being both question and answer.
+    KINDS = {
+        "schema": "value",
+        "generated_at": "value",
+        "installed": "value",
+        "recovery": "value",
+        "interrupted": "count",
+        "project.root": "value",
+        "project.name": "value",
+        "project.tracks": "fields",
+        "project.tracks_source": "value",
+        "project.packs": "value",
+        "project.state_root": "value",
+        "project.language": "value",
+        "okr.present": "value",
+        "okr.version": "value",
+        "okr.objectives": "objectives",
+        "okr.anti_goals": "value",
+        "okr.operating_principles": "value",
+        "phase": "subdict",
+        "linkage.phase": "value",
+        "linkage.objectives": "objectives_with_progress",
+        "linkage.unlinked": "count",
+        "attribution.kr_currents": "value",
+        "board.lines": "value",
+        "board.cap": "value",
+        "board.last_updated": "value",
+        "board.p0": "value",
+        "board.p1": "value",
+        "board.p2": "value",
+        "board.cadence": "value",
+        "board.blocked": "value",
+        "board.open": "value",
+        "board.verification": "value",
+        "board.drift": "fields_of_dict",
+        "board.tasks": "count",
+        "intake": "value",
+        "user_input_queue": "value",
+        "cadence": "value",
+        "risks.top": "value",
+        "risks.count": "value",
+        "risks.cleared": "value",
+        "attribution.linked": "value",
+        "attribution.unlinked": "count",
+        "attribution.declared_unlinked": "count",
+        "decisions": "value",
+        "design.total": "value",
+        "design.locked": "value",
+        "design.by_status": "value",
+        "design.pending_handoff": "count",
+        "history": "value",
+        "operations": "value",
+        "architecture": "value",
+        "roles": "value",
+        "warnings": "value",
+        # the ten `phase` children
+        "phase.number": "value",
+        "phase.slug": "value",
+        "phase.status": "value",
+        "phase.started": "value",
+        "phase.day": "value",
+        "phase.kr_total": "value",
+        "phase.focus_present": "value",
+        "phase.cost_ceiling": "value",
+        "phase.objectives": "objectives",
+        "phase.scope_triggers": "count",
+    }
+
+    def test_every_field_is_projected_by_the_kind_this_file_expects(self):
+        """The third element of the triple, pinned at both levels."""
+        seen = set()
+        for key, _path, how in STATE.COMPACT:
+            with self.subTest(field=key):
+                self.assertIn(key, self.KINDS,
+                              f"{key} is declared and this file does not say "
+                              f"what it is")
+                self.assertEqual(
+                    how if isinstance(how, str) else how[0], self.KINDS[key])
+            seen.add(key)
+            if isinstance(how, tuple) and how[0] == "subdict":
+                for ik, _ip, ih in how[1]:
+                    name = f"{key}.{ik}"
+                    with self.subTest(field=name):
+                        self.assertIn(name, self.KINDS, f"{name} is declared "
+                                      f"and this file does not say what it is")
+                        self.assertEqual(
+                            ih if isinstance(ih, str) else ih[0],
+                            self.KINDS[name])
+                    seen.add(name)
+        self.assertEqual(
+            sorted(set(self.KINDS) - seen), [],
+            "this file names a field the declaration no longer carries")
+
     def test_the_rename_list_is_exactly_the_pairs_that_differ(self):
         """The bound, both ways.
 
@@ -479,15 +587,39 @@ class TestTheStandupCanActuallyRenderFromIt(unittest.TestCase):
         "project.tracks": ("track", "mode", "stage_list", "stages_declared",
                            "wip", "sla", "cycle", "default_rung", "declared"),
         "board.drift": ("checked", "drift", "unrecorded"),
+        "okr.objectives": ("id", "linked", "stretch"),
+        "linkage.objectives": ("id", "title", "current", "target", "stretch"),
+        # the one `subdict` child that carries names of its own
+        "phase.objectives": ("id", "linked", "stretch"),
     }
 
     def test_each_projection_still_picks_out_the_names_it_is_meant_to(self):
-        by_key = {k: h for k, _p, h in STATE.COMPACT}
+        """All FIVE name-carrying sites, not the two this started with.
+
+        A round measured the gap rather than assuming it closed: dropping
+        `linked` from `okr.objectives` and from the inner `phase.objectives`
+        was green across seventeen modules, because this list covered
+        `project.tracks` and `board.drift` and nothing else.
+        """
+        by_key = {}
+        for key, _p, how in STATE.COMPACT:
+            by_key[key] = how
+            if isinstance(how, tuple) and how[0] == "subdict":
+                for ik, _ip, ih in how[1]:
+                    by_key[f"{key}.{ik}"] = ih
         for key, want in self.NAMES.items():
             with self.subTest(field=key):
                 how = by_key.get(key)
                 self.assertIsNotNone(how, f"{key} left the declaration")
                 self.assertEqual(tuple(how[1]), want)
+        # Every site that carries names is named here, so a sixth cannot
+        # appear unpinned the way two of these five did.
+        # `subdict`'s second element is TRIPLES, not names — it is covered by
+        # KINDS and by the subdict walks, not here.
+        carries = {k for k, h in by_key.items()
+                   if isinstance(h, tuple) and h[0] != "subdict"
+                   and len(h) > 1 and isinstance(h[1], tuple)}
+        self.assertEqual(sorted(carries - set(self.NAMES)), [])
 
     NEEDED = (
         ("project.name", "step 4, the header"),
