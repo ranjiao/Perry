@@ -378,22 +378,39 @@ class TestEveryWriterHonoursDryRun(unittest.TestCase):
     --from-board --dry-run` replaced a 404-record store and printed `wrote`.
     """
 
-    #: `(argv, the file it would have written)`.
+    #: `(argv, the file it would have written, the store that feeds it)`.
+    #:
+    #: **The third column is the repair.** `_disturb` used to disturb
+    #: `tasks.jsonl` for every board renderer, and a renderer reads its OWN
+    #: store, so `risks-render`, `intake-render` and `asks-render` had nothing
+    #: to carry and were skipped. `perry-tasks` and `--write` are spelt in
+    #: every row rather than factored out, so this table reads as the vector a
+    #: caller types.
     WRITES = (
-        (("perry-tasks", "write", "--from-board"), "tasks.jsonl"),
-        (("perry-tasks", "risks-write", "--from-board"), "risks.jsonl"),
-        (("perry-tasks", "intake-write", "--from-board"), "intake.jsonl"),
-        (("perry-tasks", "asks-write", "--from-board"), "asks.jsonl"),
-        (("perry-tasks", "render", "--write"), "BOARD.md"),
-        (("perry-tasks", "risks-render", "--write"), "BOARD.md"),
-        (("perry-tasks", "intake-render", "--write"), "BOARD.md"),
-        (("perry-tasks", "asks-render", "--write"), "BOARD.md"),
+        (("perry-tasks", "write", "--from-board"), "tasks.jsonl", "tasks.jsonl"),
+        (("perry-tasks", "risks-write", "--from-board"), "risks.jsonl", "risks.jsonl"),
+        (("perry-tasks", "intake-write", "--from-board"), "intake.jsonl", "intake.jsonl"),
+        (("perry-tasks", "asks-write", "--from-board"), "asks.jsonl", "asks.jsonl"),
+        (("perry-tasks", "render", "--write"), "BOARD.md", "tasks.jsonl"),
+        (("perry-tasks", "risks-render", "--write"), "BOARD.md", "risks.jsonl"),
+        (("perry-tasks", "intake-render", "--write"), "BOARD.md", "intake.jsonl"),
+        (("perry-tasks", "asks-render", "--write"), "BOARD.md", "asks.jsonl"),
     )
 
     def setUp(self):
         self.p = Project()
+        # **One row in each of the four registers.** The fixture used to open
+        # a task and nothing else, so three of the four stores never minted
+        # and five of the eight commands below took the `skip` branch without
+        # reporting it. What hid behind those skips, measured 2026-09-10:
+        # `bin/perry-tasks:516` `flags=flags` → `flags=flags - {"--dry-run"}`
+        # makes `risks-render --write --dry-run` rewrite BOARD.md, and the
+        # FULL suite stayed green.
         self.p.run("add", "--title", "a row so every store has something")
-        for argv, _target in self.WRITES:
+        self.p.run("risk-add", "--title", "a risk so the risks store has one")
+        self.p.run("intake", "--title", "a request so the intake store has one")
+        self.p.run("ask", "--needed", "an answer so the ask store has one")
+        for argv, _target, _source in self.WRITES:
             run(*argv, "--root", str(self.p.root))  # mint the stores
 
     #: Which side to disturb so the command has real work to do. A store
@@ -403,28 +420,44 @@ class TestEveryWriterHonoursDryRun(unittest.TestCase):
             "intake.jsonl": "store", "asks.jsonl": "store",
             "BOARD.md": "board"}
 
-    def _disturb(self, target: str):
+    #: `store → (a cell value in it, what to change that value to)`. Each is a
+    #: rendered, NON-identifying cell: changing an id would make the record
+    #: one the board has no line for, and the renderer would refuse rather
+    #: than carry it — a different behaviour, and not the one under test.
+    CELL = {
+        "tasks.jsonl": ('"not_started"', '"blocked"'),
+        "risks.jsonl": ('"status": "open"', '"status": "mitigated"'),
+        "intake.jsonl": ('"outcome": "—"', '"outcome": "noted"'),
+        "asks.jsonl": ('"blocks": "—"', '"blocks": "TASK-001"'),
+    }
+
+    def _disturb(self, target: str, source: str):
         """Make the command's output differ from what is on disk.
 
         `("absent", None)` — the target was removed and a dry run must not put
         it back. `("bytes", b"...")` — the target must still hold exactly
-        these. `("skip", None)` — this command cannot be exercised on this
-        fixture, and the caller says so rather than passing quietly.
+        these.
+
+        **There is no third answer any more.** This used to return
+        `("skip", None)` for a fixture it could not disturb, and the caller
+        `continue`d past it in silence; the floor of `exercised >= 2` then
+        passed on two of eight commands. Every precondition it used to skip
+        on is now asserted, so a fixture that stops minting a store fails here
+        and names it.
         """
         path = self.p.root / target
+        store = self.p.root / source
+        self.assertTrue(store.exists(),
+                        f"the fixture minted no {source}, so nothing below "
+                        f"exercises {target}")
         if self.KIND[target] == "store":
-            if not path.exists():
-                return ("skip", None)
             path.unlink()          # a dry run must not put it back
             return ("absent", None)
-        store = self.p.root / "tasks.jsonl"
-        if not path.exists() or not store.exists():
-            return ("skip", None)
+        self.assertTrue(path.exists(), f"the fixture wrote no {target}")
+        old, new = self.CELL[source]
         text = store.read_text(encoding="utf-8")
-        if '"not_started"' not in text:
-            return ("skip", None)
-        store.write_text(text.replace('"not_started"', '"blocked"', 1),
-                         encoding="utf-8")
+        self.assertIn(old, text, f"{source} does not carry {old} to change")
+        store.write_text(text.replace(old, new, 1), encoding="utf-8")
         return ("bytes", path.read_bytes())
 
     def test_a_dry_run_writes_nothing_that_the_real_run_would_write(self):
@@ -443,14 +476,20 @@ class TestEveryWriterHonoursDryRun(unittest.TestCase):
 
         The old `reached >= 2` guard counted commands that EXITED 0, not
         commands that would have changed bytes, which is why it did not notice.
+
+        **And then two of the eight carried all of it.** `_disturb` returned
+        `skip` for five commands the fixture could not disturb, the loop
+        `continue`d past them without a word, and a floor of two was enough to
+        stay green. Measured 2026-09-10: `bin/perry-tasks:516` `flags=flags` →
+        `flags=flags - {"--dry-run"}` makes `risks-render --write --dry-run`
+        rewrite BOARD.md, and the full suite stayed green. All eight are
+        exercised now and the floor is the length of the table.
         """
-        exercised = 0
-        for argv, target in self.WRITES:
+        exercised = []
+        for argv, target, source in self.WRITES:
             path = self.p.root / target
             with self.subTest(command=" ".join(argv[1:])):
-                mode, before = self._disturb(target)
-                if mode == "skip":
-                    continue
+                mode, before = self._disturb(target, source)
                 dry = run(*argv, "--root", str(self.p.root), "--dry-run")
                 if mode == "absent":
                     self.assertFalse(
@@ -460,8 +499,7 @@ class TestEveryWriterHonoursDryRun(unittest.TestCase):
                     self.assertEqual(
                         path.read_bytes(), before,
                         f"{' '.join(argv[1:])} --dry-run wrote to {target}")
-                if dry.returncode != 0:
-                    continue
+                self.assertEqual(dry.returncode, 0, dry.stderr[-300:])
                 # The control, per command: the same call without --dry-run
                 # must change what the dry run left alone. Without this the
                 # case above passes for a command that can do nothing at all.
@@ -477,10 +515,11 @@ class TestEveryWriterHonoursDryRun(unittest.TestCase):
                         path.read_bytes(), before,
                         f"{' '.join(argv[1:])} changed no bytes, so the "
                         f"dry-run check above proved nothing")
-                exercised += 1
-        self.assertGreaterEqual(
-            exercised, 2, "no command in the table both refused a dry run and "
-                          "wrote without one")
+                exercised.append(" ".join(argv[1:]))
+        self.assertEqual(
+            len(exercised), len(self.WRITES),
+            "a command in the table did not both refuse a dry run and write "
+            "without one. Exercised: " + ", ".join(exercised))
 
 
 class TestPerryConfigHonoursDryRun(unittest.TestCase):
@@ -766,6 +805,215 @@ class TestHelpPrintsFromAnyPositionOnEveryTool(unittest.TestCase):
                 self.assertNotIn("Traceback (most recent call last)", r.stderr)
 
 
+def shell_tools() -> list[Path]:
+    """The `bin/` executables that are bash, read off their shebang.
+
+    Four of the twenty. `run_tool`'s docstring already knew that and nothing
+    else in the suite did: every `--help` assertion here iterates either the
+    six declaring tools or all twenty in FIRST position, and criterion 2a —
+    `--help` never runs a write — had never been asked of a shell tool at all.
+    """
+    return [p for p in shipped_tools()
+            if p.read_bytes().split(b"\n", 1)[0].strip().endswith(b"bash")]
+
+
+class TestHelpNeverRunsAWriteInTheShellTools(unittest.TestCase):
+    """Criterion 2a — a FAIL-grade gate, on the four tools nobody had probed.
+
+    `bin/perry-dispatch-limit` bound `cmd="${1:-}"` and answered `-h|--help`
+    as one arm of `case "$cmd"`, so help was recognised in argument position 1
+    and NOWHERE else. Measured 2026-09-10:
+
+        perry-dispatch-limit register <TASK-ID> claude-subagent --help
+          → exit 0, "🟢 Slot reserved", and
+            ~/.cache/perry/in-flight/<TASK-ID>-claude-subagent.json on disk,
+            byte-identical to the same call with `--help` removed.
+
+    That is not a cosmetic help defect: the marker holds one of three global
+    dispatch slots for the 4h TTL, so a caller asking what the tool takes
+    consumes a real resource and the next real dispatch is refused.
+
+    Every write these four make lands under `$HOME`, so the assertion is that
+    `$HOME` is byte-identical across the call — which is why
+    `perry-dispatch-limit` no longer mints its cache directory at module
+    scope.
+    """
+
+    #: `tool → the argv that reaches its most side-effecting path`. Hand-
+    #: written because "the vector that would write" is not derivable, and
+    #: held to the derived population by the control below.
+    VECTORS = {
+        "perry-dispatch-limit": ("register", "TASK-999", "claude-subagent"),
+        "perry-codex-preflight": ("--force",),
+        "perry-update-check": ("--force",),
+        "perry-detect-host": (),
+    }
+
+    def setUp(self):
+        self.home = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, self.home,
+                        ignore_errors=True)
+
+    def _home_tree(self) -> dict:
+        import hashlib
+        return {str(p.relative_to(self.home)):
+                (hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file()
+                 else "dir")
+                for p in sorted(self.home.rglob("*"))}
+
+    def test_the_vector_table_covers_every_shell_tool(self):
+        """The control for the sweep: a tool added tomorrow is not skipped."""
+        self.assertEqual(sorted(self.VECTORS), sorted(p.name for p in
+                                                      shell_tools()))
+
+    def test_help_from_any_position_prints_and_leaves_home_alone(self):
+        for tool, vector in sorted(self.VECTORS.items()):
+            for where in ("first", "middle", "last"):
+                if where == "middle" and len(vector) < 2:
+                    continue
+                argv = {"first": ("--help", *vector),
+                        "middle": (*vector[:1], "--help", *vector[1:]),
+                        "last": (*vector, "--help")}[where]
+                with self.subTest(tool=tool, position=where):
+                    before = self._home_tree()
+                    r = run_tool(BIN / tool, *argv,
+                                 env={"HOME": str(self.home)})
+                    self.assertEqual(r.returncode, 0, r.stderr[-400:])
+                    self.assertTrue(r.stdout.strip(), "help printed nothing")
+                    self.assertEqual(
+                        self._home_tree(), before,
+                        f"{tool} {' '.join(argv)} changed something under "
+                        f"$HOME while answering --help")
+
+    def test_the_control_is_that_the_same_call_without_help_does_write(self):
+        """Without this, the sweep above passes for a tool that can do nothing.
+
+        `register` is the one vector in the table whose no-`--help` twin
+        writes on every machine — the other three reach the network, a `codex`
+        binary that may not be installed, or nothing at all — so it is the one
+        that is asserted, by name.
+        """
+        vector = self.VECTORS["perry-dispatch-limit"]
+        r = run_tool(BIN / "perry-dispatch-limit", *vector,
+                     env={"HOME": str(self.home)})
+        self.assertEqual(r.returncode, 0, r.stderr[-400:])
+        marker = (self.home / ".cache" / "perry" / "in-flight"
+                  / "TASK-999-claude-subagent.json")
+        self.assertTrue(marker.exists(),
+                        "`register` wrote no marker, so the `--help` case "
+                        "above proved nothing")
+        released = run_tool(BIN / "perry-dispatch-limit", "release",
+                            "TASK-999", env={"HOME": str(self.home)})
+        self.assertEqual(released.returncode, 0, released.stderr[-400:])
+
+
+class TestAnUndeclaredFlagIsRefusedWithASubcommandInFront(unittest.TestCase):
+    """Criterion 3 over all twenty executables, with a lead each one accepts.
+
+    `TestAnUndeclaredTokenIsRefused` above asks six tools. A V4 round asked
+    all twenty **with a subcommand in front** — the position where a real
+    caller types a flag — and found seven that did not answer 2:
+
+        perry-goals krs --xyzzy            exit 1, "takes no positional …"
+        perry-decide list --xyzzy          exit 0, silent
+        perry-knowledge list --xyzzy       exit 0, silent
+        perry-dispatch-limit list --xyzzy  exit 0, silent
+        perry-explain TASK-001 --xyzzy     exit 0, silent
+        perry list --xyzzy                 exit 0, silent
+        perry-detect-host --xyzzy          exit 0, silent, and it PRINTS AN
+                                           ANSWER
+
+    plus `perry-update-check --xyzzy`, which refused but at exit 1.
+
+    The user-visible form in the writers is worse than a dropped flag:
+    `perry-goals` collects an undeclared token into `a.rest`, which only
+    `krs` and `link` ever read, so
+
+        perry-goals commit --track main --promise "…" --to Finance
+                    --due 2026-12-01 --by-when-notes "before the Q4 board
+                    meeting"
+
+    exited 0 and filed the commitment with an EMPTY `By when note` cell,
+    having swallowed the flag AND its value.
+    """
+
+    #: A subcommand each tool accepts, so the undeclared flag is reached
+    #: rather than masked by "expected one of …" — the same discipline as
+    #: `TestAFlagWithItsValueMissingIsRefused.LEAD`, and held to the derived
+    #: population by `test_the_lead_table_covers_every_shipped_tool`.
+    LEAD = {
+        "perry": ("list",), "perry-churn": (),
+        "perry-codex-preflight": (), "perry-config": ("show",),
+        "perry-context-budget": (), "perry-decide": ("list",),
+        "perry-detect-host": (), "perry-diagnose": (),
+        "perry-dispatch-limit": ("list",), "perry-explain": ("TASK-001",),
+        "perry-goals": ("krs",), "perry-knowledge": ("list",),
+        "perry-lint": (), "perry-okr": ("build",),
+        "perry-restore-check": ("HEAD", "README.md"), "perry-state": (),
+        "perry-state-cost": (), "perry-task": ("list",),
+        "perry-tasks": ("build",), "perry-update-check": (),
+    }
+
+    #: **Reported, not fixed here.** Three read-only tools still take an
+    #: undeclared flag as a positional and drop it. `review.md § 0`'s test
+    #: puts them below the line — none writes, none gates a write, and the
+    #: flag cannot change the answer any of them prints — so they are rows the
+    #: round files rather than work this change buys. They are named here so
+    #: that a FOURTH tool joining them fails the sweep, and so that fixing one
+    #: is a one-line deletion from this set rather than a rediscovery.
+    STILL_DROPS = ("perry", "perry-detect-host", "perry-explain")
+
+    def setUp(self):
+        self.p = Project()
+        self.p.run("add", "--title", "a row the probes can act on")
+        self.home = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, self.home,
+                        ignore_errors=True)
+
+    #: The three that take no project and would read `--root` as a path.
+    NO_ROOT = ("perry", "perry-churn", "perry-codex-preflight",
+               "perry-detect-host", "perry-dispatch-limit",
+               "perry-restore-check", "perry-update-check")
+
+    def _probe(self, name: str):
+        lead = self.LEAD[name]
+        root = () if name in self.NO_ROOT else ("--root", str(self.p.root))
+        return run_tool(BIN / name, *lead, *root, "--xyzzy",
+                        env={"HOME": str(self.home)})
+
+    def test_the_lead_table_covers_every_shipped_tool(self):
+        self.assertEqual(sorted(self.LEAD),
+                         sorted(p.name for p in shipped_tools()))
+
+    def test_every_tool_but_the_named_rows_refuses_with_exit_2(self):
+        for path in shipped_tools():
+            if path.name in self.STILL_DROPS:
+                continue
+            with self.subTest(tool=path.name):
+                out = self._probe(path.name)
+                self.assertEqual(
+                    out.returncode, 2,
+                    f"{path.name} {' '.join(self.LEAD[path.name])} --xyzzy "
+                    f"answered {out.returncode}, not 2\n"
+                    + (out.stdout + out.stderr)[-300:])
+                self.assertIn("--xyzzy", out.stdout + out.stderr,
+                              f"{path.name} refused without naming the token")
+
+    def test_the_row_list_still_describes_what_those_tools_do(self):
+        """The exception list is a claim about three tools, so it is measured.
+
+        When one of them is fixed this goes red and the fix is to delete its
+        name above — which is the opposite of a skip that stays quiet forever.
+        """
+        for name in self.STILL_DROPS:
+            with self.subTest(tool=name):
+                out = self._probe(name)
+                self.assertNotEqual(
+                    out.returncode, 2,
+                    f"{name} now refuses an undeclared flag — take it out of "
+                    f"STILL_DROPS and out of the reported rows")
+
+
 class TestAnUnreadableProjectRootIsRefusedNotCrashed(unittest.TestCase):
     """Goal 10: no tool exits through a traceback. `chmod 000` reached five.
 
@@ -958,13 +1206,23 @@ class TestAFlagWithItsValueMissingIsRefused(unittest.TestCase):
 
         Checked from INSIDE a different project, because that is what makes
         the old behaviour a wrong answer rather than a crash.
+
+        **The population is `ROOT_READERS`, derived, and that is the finding
+        that rewrote this test.** It used to name four tools by hand — twenty
+        lines below a sweep that derives all fourteen — and the refusal it was
+        checking lived in `lib.parse_surface`, which only the six
+        surface-declaring tools call. So four hand-picked declaring tools
+        passed while the eight that parse their own vector did not refuse at
+        all. Measured 2026-09-10, from inside a different project:
+        `perry-goals commit --track main --promise … --root ""` exited 0
+        having written `OKR.md`, `okr.jsonl` and `.perry/events.jsonl` into
+        the cwd's project, with the named one untouched.
         """
         other = Project()
         other.run("add", "--title", "the project the caller did not name")
-        for tool, lead in (("perry-task", ("list",)),
-                           ("perry-tasks", ("build",)),
-                           ("perry-config", ("show",)),
-                           ("perry-okr", ("build",))):
+        self.assertEqual(len(ROOT_READERS), 14, ROOT_READERS)
+        for tool in ROOT_READERS:
+            lead = self.LEAD.get(tool, ())
             with self.subTest(tool=tool):
                 out = subprocess.run(
                     [str(BIN / tool), *lead, "--root", ""],
@@ -972,7 +1230,39 @@ class TestAFlagWithItsValueMissingIsRefused(unittest.TestCase):
                     env={k: v for k, v in os.environ.items()
                          if k != "PERRY_PROJECT"})
                 self.assertEqual(out.returncode, 2, out.stdout[:200])
-                self.assertIn("empty value", out.stderr)
+                # The message, not just the code: five of the fourteen already
+                # exited 2 on this vector for an unrelated reason — a missing
+                # positional, a directory that is not a git repository — which
+                # is the "right code for the wrong reason" this class's own
+                # `LEAD` comment was written about.
+                self.assertIn("empty value", out.stderr,
+                              f"{tool} exited 2 without saying that --root "
+                              f"was empty:\n" + out.stderr[-300:])
+
+    def test_the_one_spelling_of_the_empty_root_rule(self):
+        """Goal 14b, at the size it can actually be held to.
+
+        The refusal above is now asked of fourteen tools that each parse their
+        own argument vector, which is exactly the shape that grows N copies of
+        one rule — `bin/lib`'s own docstring counts six primitives that had
+        fourteen implementations. So the rule is a function, every tool calls
+        it, and the sentence the caller reads exists once.
+        """
+        sys.path.insert(0, str(BIN))
+        import importlib
+        lib = importlib.import_module("lib")
+        self.assertIsNone(lib.empty_root_error("--root", "/tmp"))
+        self.assertIsNone(lib.empty_root_error("--title", ""),
+                          "the rule is about --root, not about every flag")
+        self.assertIn("empty value", lib.empty_root_error("--root", ""))
+        # Nobody spells the sentence themselves. `bin/lib` states it; the
+        # thirteen other files may only name the function.
+        sentence = lib.empty_root_error("--root", "")[:40]
+        spelt_in = sorted(p.name for p in BIN.iterdir()
+                          if p.is_file() and p.suffix != ".md"
+                          and sentence in p.read_text(errors="replace"))
+        self.assertEqual(spelt_in, [], f"{spelt_in} carry a second copy of "
+                                       f"the message `lib` already owns")
 
     def test_the_lead_subcommands_are_ones_the_tools_accept(self):
         """The control for the vector above.
@@ -1038,7 +1328,14 @@ class TestAPositionalNoHandlerReadsIsRefused(unittest.TestCase):
 
     def test_a_subcommand_that_reads_no_id_refuses_one(self):
         names = self._id_less()
-        self.assertEqual(len(names), 9, sorted(names))
+        # A FLOOR, not an equality. `_id_less`'s own docstring says "a tenth
+        # added tomorrow is covered tomorrow", and `assertEqual(…, 9)` said
+        # the opposite: a tenth id-less subcommand turned this red, and the
+        # cheapest way past a red count is to edit the number rather than to
+        # look at the tenth. The floor keeps what the number was actually for
+        # — proof the derivation is not returning an empty set — and lets the
+        # sweep below cover whatever it derives.
+        self.assertGreaterEqual(len(names), 9, sorted(names))
         for sub in names:
             with self.subTest(sub=sub):
                 before = self._bytes()
@@ -1067,6 +1364,16 @@ class TestAPositionalNoHandlerReadsIsRefused(unittest.TestCase):
 
         Without this the declaration is just a second place to be wrong, and
         the parser would refuse a positional a handler genuinely wanted.
+
+        **It covered 26 of the 30, and said nothing about the other four.**
+        `cmd_next`, `cmd_retitle`, `cmd_rung` and `cmd_evidence` are
+        `cell_writer` closures assigned at module scope, not `def`s, so
+        `funcs` does not hold them and `if fn in funcs` dropped all four out
+        of `derived` in silence — which happens to be the same answer as "it
+        reads an id" and so could never have gone red. The closures are found
+        by their own shape now, and the table is asserted to be wholly
+        accounted for, so a fifth handler written in a third shape is a
+        failure rather than a gap.
         """
         import ast
         import re as _re
@@ -1096,9 +1403,32 @@ class TestAPositionalNoHandlerReadsIsRefused(unittest.TestCase):
                             return True
             return False
 
+        #: `cmd_x = cell_writer(…)` — one implementation of "correct this cell
+        #: and nothing else", closed over per column. `cell_writer.run` opens
+        #: with `tid = args.id`, so every closure reads an id by
+        #: construction; that is asserted rather than assumed.
+        closures = {n.targets[0].id for n in tree.body
+                    if isinstance(n, ast.Assign)
+                    and len(n.targets) == 1
+                    and isinstance(n.targets[0], ast.Name)
+                    and isinstance(n.value, ast.Call)
+                    and getattr(n.value.func, "id", None) == "cell_writer"}
+        self.assertTrue(closures, "no `cell_writer` closure was found, so the "
+                                  "four subcommands built that way are "
+                                  "unaccounted for again")
+        self.assertTrue(reads_id(funcs["cell_writer"]),
+                        "`cell_writer` stopped reading `args.id`, so its "
+                        "closures can no longer be assumed to")
+
         table = _re.findall(r'"([a-z-]+)": (cmd_[a-z_]+)',
                             src[src.index("COMMANDS = {"):
                                 src.index("def project_lock")])
+        unaccounted = sorted({fn for _n, fn in table
+                              if fn not in funcs and fn not in closures})
+        self.assertEqual(unaccounted, [],
+                         "these handlers are neither a top-level function nor "
+                         "a `cell_writer` closure, so this check silently says "
+                         "nothing about them")
         derived = {name for name, fn in table
                    if fn in funcs and not reads_id(funcs[fn])}
         self.assertEqual(derived, set(self._id_less()),

@@ -541,6 +541,14 @@ def main(argv: list[str]) -> int:
                 # sweep; `bin/perry-lint`'s copy was gating a write.
                 print("perry-state-cost: --root takes a value", file=sys.stderr)
                 return 2
+            # A value that is present but EMPTY is the same defect one layer
+            # in: the tool measured the cwd's repository and named it as the
+            # caller's. The rule and its sentence live in
+            # `lib.empty_root_error`.
+            bad = lib.empty_root_error(arg, argv[i])
+            if bad is not None:
+                print(f"perry-state-cost: {bad}", file=sys.stderr)
+                return 2
             root_arg = argv[i]
         elif arg == "--at":
             i += 1

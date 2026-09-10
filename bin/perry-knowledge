@@ -614,7 +614,24 @@ def parse(argv: list[str]) -> Args:
                 # returns 2 for an unrelated reason.
                 print(f"perry-knowledge: {t} takes a value", file=sys.stderr)
                 sys.exit(2)
+            # A value that is present but EMPTY is the same defect one layer
+            # in, and `lib.empty_root_error` owns the rule — see its docstring
+            # for the eight tools that had the refusal and the six that did.
+            bad = lib.empty_root_error(t, argv[i])
+            if bad is not None:
+                print(f"perry-knowledge: {bad}", file=sys.stderr)
+                sys.exit(2)
             setattr(a, flags[t], argv[i])
+        elif t.startswith("-"):
+            # **An undeclared flag was taken as a subcommand or dropped.**
+            # `perry-knowledge list --xyzzy` exited 0. The only positional
+            # this tool reads is the subcommand name, which never begins with
+            # `-`, so a token that does is a typo — and this tool writes
+            # knowledge records, where a dropped flag is a record that does
+            # not say what the caller asked it to say (DESIGN-016 § 1.4).
+            print(f"perry-knowledge: unknown argument {t!r} (try --help)",
+                  file=sys.stderr)
+            sys.exit(2)
         elif a.cmd is None:
             a.cmd = t
         i += 1

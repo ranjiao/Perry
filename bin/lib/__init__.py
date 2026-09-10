@@ -458,6 +458,36 @@ def _parsers():
 # ── which project, and what the caller actually typed ─────────────────────
 
 
+def empty_root_error(flag: str, value: str | None) -> str | None:
+    """The refusal `--root ""` earns, or `None` when the value is usable.
+
+    **An empty `--root` is a bad invocation, not a default.**
+    `resolve_project_root` below tests truthiness, so `--root ""` fell through
+    to `$PERRY_PROJECT` and then to the walk up from the cwd: `perry-task add
+    --root "$PROJ" …` with `PROJ` unset exited 0 having written into whichever
+    project the cwd resolves to, while the one the caller named was untouched.
+    That is DESIGN-016 § 1.1's own defect reached through the commonest shell
+    idiom there is.
+
+    **Why this is a function and not a line.** The refusal shipped inside
+    `parse_surface`, which only the six surface-declaring tools call, so it
+    reached six of the fourteen `--root` readers and a V4 round measured the
+    other eight still resolving the cwd's project — `perry-goals commit …
+    --root ""` run from inside a different project wrote `OKR.md`, `okr.jsonl`
+    and `.perry/events.jsonl` there. Fourteen tools parse their own argument
+    vector for reasons `parse_surface`'s docstring gives; what they must not
+    each own is *what counts as empty* and *what the caller is told*. Both
+    live here, and every caller asks rather than answers.
+
+    Callers pass the flag they are holding, so a value loop can ask about
+    every flag it reads without knowing which one this rule is about.
+    """
+    if flag == "--root" and value == "":
+        return ("--root was given an empty value. If that came from a shell "
+                "variable, the variable is unset")
+    return None
+
+
 def resolve_project_root(explicit: str | os.PathLike | None = None, *,
                          walk: bool = True) -> Path:
     """The project a tool acts on: `--root`, then `$PERRY_PROJECT`, then the cwd.
@@ -654,22 +684,16 @@ def parse_surface(surface: dict, argv: list[str]) -> dict:
                 if i + 1 >= len(argv):
                     out["error"] = f"{token} takes a value"
                     return out
-                if token == "--root" and argv[i + 1] == "":
-                    # **An empty `--root` is a bad invocation, not a default.**
-                    # `resolve_project_root` tests truthiness, so `--root ""`
-                    # fell through to `$PERRY_PROJECT` and then to the walk:
-                    # `perry-task add --root "$PROJ" …` with `PROJ` unset
-                    # exited 0 having written into whichever project the cwd
-                    # resolves to, while the one the caller named was
-                    # untouched. That is § 1.1's own defect reached through the
-                    # commonest shell idiom there is, and a V4 round said it
-                    # deserved a rung rather than a note. Refused here rather
-                    # than in the resolver because `lib` deliberately has no
-                    # shared `Refused` (see this module's docstring) and every
-                    # declaring tool already prints `error` and exits 2.
-                    out["error"] = ("--root was given an empty value. If that "
-                                    "came from a shell variable, the variable "
-                                    "is unset")
+                # `empty_root_error` above owns both what counts as empty and
+                # the sentence the caller reads, because the same rule has to
+                # hold in the eight tools that never reach this parser.
+                # Refused here rather than in the resolver because `lib`
+                # deliberately has no shared `Refused` (see this module's
+                # docstring) and every declaring tool already prints `error`
+                # and exits 2.
+                bad = empty_root_error(token, argv[i + 1])
+                if bad is not None:
+                    out["error"] = bad
                     return out
                 got = out["values"]
                 if declared[token].get("repeatable"):

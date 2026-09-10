@@ -5079,6 +5079,14 @@ def main(argv: list[str]) -> int:
                 # named project: exit 1 with the value, exit 0 without it.
                 print("perry-lint: --root takes a value", file=sys.stderr)
                 return 2
+            # A value that is present but EMPTY is the same gate failing the
+            # same way: `--quiet --root ""` exited 0 about the cwd's project
+            # while the named one went unlinted. The rule and its sentence
+            # live in `lib.empty_root_error`.
+            bad = lib.empty_root_error(a, argv[i])
+            if bad is not None:
+                print(f"perry-lint: {bad}", file=sys.stderr)
+                return 2
             root_arg = argv[i]
         elif a == "--templates":
             mode_templates = True

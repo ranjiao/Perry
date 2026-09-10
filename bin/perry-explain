@@ -771,6 +771,14 @@ def main(argv: list[str]) -> int:
             if i + 1 >= len(argv):
                 print("perry-explain: --root takes a value", file=sys.stderr)
                 return 2
+            # A value that is present but EMPTY is the same defect one layer
+            # in — `Path("")` is the cwd, so `--root ""` answered about
+            # whichever project the caller was standing in. The rule and its
+            # sentence live in `lib.empty_root_error`.
+            bad = lib.empty_root_error(a, argv[i + 1])
+            if bad is not None:
+                print(f"perry-explain: {bad}", file=sys.stderr)
+                return 2
             root = Path(argv[i + 1]).expanduser()
             i += 1
         elif a == "--json":

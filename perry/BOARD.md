@@ -184,6 +184,7 @@
 | TASK-418 | live_state_expectations misses the class it exists to catch: taint does not cross setUp, and a comprehension over a tainted iterable is clean | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-419 | review-rounds-exhausted counts a FAIL the criteria file later regraded below the line | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-422 | a crash between the board write and the event append removes a row from both halves of P003-O3-KR2, and no desync detector names it | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
+| TASK-423 | three read-only tools accept an undeclared flag and exit 0; perry-goals krs refuses a positional at exit 1 not 2 | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 

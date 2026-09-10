@@ -56,7 +56,11 @@ LOCK_UNOWNED_TTL=300
 LOCK_HELD=0
 LOCK_TOKEN=""
 TEMP_MARKER=""
-mkdir -p "$CACHE_DIR"
+# The cache directory is minted by `acquire_lock`, which every subcommand that
+# touches a marker calls first — NOT here at module scope. At module scope it
+# ran on `--help` too, so the one call that is documented to do nothing left a
+# directory behind under `$HOME`, and a test asking "did `--help` change
+# anything" could not be written without excusing it.
 
 # ─── Helpers ─────────────────────────────────────────────────
 usage() {
@@ -158,6 +162,7 @@ recover_stale_lock() {
 
 acquire_lock() {
   local wait_started now owner_tmp started_tmp
+  mkdir -p "$CACHE_DIR"
   wait_started=$(date +%s)
   while ! mkdir "$LOCK_DIR" 2>/dev/null; do
     recover_stale_lock
@@ -293,6 +298,42 @@ max_for_executor() {
 }
 
 # ─── Main ────────────────────────────────────────────────────
+#
+# **The whole vector is read before anything is dispatched.** `cmd="${1:-}"`
+# below binds argument 1, and the `-h|--help|""` arm further down is a branch
+# of `case "$cmd"` — so `--help` was recognised in first position and NOWHERE
+# else. Measured 2026-09-10:
+#
+#     perry-dispatch-limit register <TASK-ID> claude-subagent --help
+#       → exit 0, "🟢 Slot reserved", and
+#         ~/.cache/perry/in-flight/<TASK-ID>-claude-subagent.json written —
+#         byte-identical to the same call with `--help` removed, and the slot
+#         it reserved is held for the whole 4h TTL.
+#
+# That is DESIGN-016 criterion 2a: `--help` must never run a write, because
+# the gate it stands in for is "a write nobody asked for". No prior round had
+# probed the four shell tools at all. The shape here is the one
+# `lib.parse_surface` already gives the six declaring tools — scan first,
+# dispatch second — rather than a second parser.
+#
+# Two passes, and the order between them is the rule: help wins over an
+# undeclared flag, because a refusal is still a refusal of the request to be
+# told what this tool takes.
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) usage; exit 0 ;;
+  esac
+done
+# **An undeclared flag is refused rather than dropped.** `list --xyzzy` and
+# `register <TASK> codex --xyzzy` both exited 0 with the token ignored. No
+# argument this tool accepts begins with `-`: `validate_task_id` constrains
+# the ids and the executor names are a closed set of three.
+for arg in "$@"; do
+  case "$arg" in
+    -*) echo "Unknown flag: $arg (try --help)" >&2; exit 2 ;;
+  esac
+done
+
 cmd="${1:-}"
 [ $# -gt 0 ] && shift || true
 
@@ -392,7 +433,10 @@ EOF
     list_markers
     ;;
 
-  -h|--help|"")
+  "")
+    # `-h` and `--help` no longer reach here: the sweep above the `case` takes
+    # them from ANY position, which is the whole of criterion 2a. Bare
+    # invocation still prints the same document and exits 0.
     usage
     ;;
 

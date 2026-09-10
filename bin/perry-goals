@@ -2884,7 +2884,35 @@ def parse(argv: list[str]) -> Args:
                 # returns 2 for an unrelated reason.
                 print(f"perry-goals: {t} takes a value", file=sys.stderr)
                 sys.exit(2)
+            # A value that is present but EMPTY is the same defect one layer
+            # in, and `lib.empty_root_error` owns the rule — see its docstring
+            # for the eight tools that had the refusal and the six that did.
+            # Measured before this line existed: `perry-goals commit --track
+            # main --promise … --root ""`, run from inside a DIFFERENT
+            # project, exited 0 having written `OKR.md`, `okr.jsonl` and
+            # `.perry/events.jsonl` into that project.
+            bad = lib.empty_root_error(t, argv[i])
+            if bad is not None:
+                print(f"perry-goals: {bad}", file=sys.stderr)
+                sys.exit(2)
             setattr(a, flags[t], argv[i])
+        elif t.startswith("-"):
+            # **An undeclared flag fell into `a.rest` and was dropped.**
+            # Only `krs` and `link` read `a.rest`, so every other subcommand
+            # accepted a misspelling in silence: `commit … --by-when-notes
+            # "before the Q4 board meeting"` exited 0 and filed the commitment
+            # with an EMPTY `By when note` cell, having swallowed both the
+            # flag and its value. That is DESIGN-016 § 1.4 — accepted and
+            # silently dropped — in the one lane whose output is a promise
+            # somebody else reads. The positionals below are ids, slugs and
+            # alias names, none of which begins with `-`.
+            #
+            # `--by` above is refused BY NAME before reaching here, and keeps
+            # its own exit 1: it is a flag that existed and was retired, which
+            # is a different thing to say than "this is not a flag".
+            print(f"perry-goals: unknown argument {t!r} (try --help)",
+                  file=sys.stderr)
+            sys.exit(2)
         elif a.cmd is None:
             a.cmd = t
         else:

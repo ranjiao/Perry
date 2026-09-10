@@ -38,7 +38,12 @@ The script is invoked from the Perry skill standup ritual. Manual run:
   bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-update-check" --force
 USAGE
       exit 0 ;;
-    *) echo "Unknown flag: $1 (try --help)" >&2; exit 1 ;;
+    # Exit 2, not 1. `bin/README.md` and DESIGN-016 criterion 10a make 1 "the
+    # thing you asked for was refused, and the reason is printed" and 2 "the
+    # invocation itself is malformed"; callers branch on the difference, and
+    # this tool's own `--strict` documents 1 as "the check failed". A typo in a
+    # flag is not a failed update check.
+    *) echo "Unknown flag: $1 (try --help)" >&2; exit 2 ;;
   esac
 done
 
