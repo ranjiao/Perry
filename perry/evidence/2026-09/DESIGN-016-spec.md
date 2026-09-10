@@ -1,0 +1,160 @@
+# DESIGN-016 — acceptance criteria for the V4 round
+
+Written 2026-09-10 by the author (PMO), **before** the round it governs. It
+covers all fourteen rows of `perry/design/DESIGN-016-the-bin-contract.md § 6`
+as one round, because § 4 of `work/reference/review.md` says independent rows
+go out together and these fourteen share one parser.
+
+**This file did not exist for rounds 1, 2 and 3, and that is the finding that
+produced it.** Three reviews ran against an inferred bar. Each found real
+defects the previous one had approved, which is the non-convergence
+`review.md § 1` predicts, not evidence that the reviewers disagreed. The
+criteria below are written from `DESIGN-016 § 2`'s fourteen numbered goals,
+which were locked before any code landed — so this is a bar being *stated*,
+not a bar being *negotiated* after a result.
+
+- **Under review:** `4ebc0693..HEAD` on `bin-contract-phase-a`, restricted to
+  `bin/`, `schema/`, `reference/snapshot.md` and `tests/`.
+- **Rows:** TASK-359, 360, 361, 362, 363, 364, 365, 366, 367, 406, 407, 408,
+  409, 410.
+- **The design's goals are the authority.** Where this file and
+  `DESIGN-016 § 2` disagree, § 2 wins and the disagreement is a defect in this
+  file worth reporting.
+
+## What must be true when this is done
+
+Each criterion is a claim about behaviour a user can reach. A criterion is met
+only if breaking the code that implements it turns a **named** test red
+(`review.md § 2` rule 2). A criterion whose test stays green is a FAIL against
+that criterion regardless of whether the product code looks correct.
+
+1. **`--root` beats `$PERRY_PROJECT`.** For each of the fourteen files listed
+   under Bound A, invoking it with `--root <dirA>` while `$PERRY_PROJECT` is
+   `<dirB>` reads `<dirA>`.
+2. **`-h` / `--help` prints, exits, and never writes.** On each of the twenty
+   executables in Bound B, from first, middle and last argument position. On a
+   writer, the store's bytes are unchanged after the call.
+3. **An unknown argument is refused with exit 2** on each of the six
+   surface-declaring tools of Bound C, and the message names the legal set.
+4. **Every writer accepts `--dry-run` and `--json`, and `--dry-run` writes
+   nothing.** Bound D lists the writers. `--dry-run` must print what would land
+   and leave the store byte-identical.
+5. **A standup reads its state for under 5,000 tokens.** `perry-state
+   --compact` is a strict projection of `--json`: every key it emits carries the
+   same value as the corresponding key in `--json` from the same process.
+   `SKILL.md` step 3 calls it.
+6. **`perry-task list` is bounded.** No invocation returns more than
+   `LIST_DEFAULT_LIMIT` rows unless the caller asked; the payload says how many
+   rows exist beyond the bound; the contract version in `schema/` matches the
+   version the tool emits.
+7. **One declaration drives the parser.** For each tool in Bound C, the flags
+   the parser accepts and the flags `SURFACE` declares are the same set in both
+   directions — a declared flag that no code reads, and a flag code reads that
+   is not declared, are both defects.
+8. **Subcommand help costs one call and returns only that subcommand.**
+   `--describe <sub>` on each of the fifty-seven declared subcommands in
+   Bound E.
+9. **`render --write` refuses rather than losing a record.** With a stored
+   record that has no line to land in, it exits non-zero and names the record.
+   Its success line counts lines changed, not records read.
+10. **No tool exits through a traceback.** For the twenty executables of
+    Bound B, no invocation in Bound F's enumerated shapes prints a Python
+    traceback; every refusal is one line and exit 1, every bad invocation is
+    exit 2.
+11. **`bin/README.md`'s executable examples run.** Every fenced `bash` block in
+    that file executes against a scratch project and exits 0, or is marked
+    non-executable in a way the test reads.
+12. **A flag is accepted only where it is declared.** For each declared
+    flag/subcommand pair in Bound G, the flag on a non-declaring subcommand is
+    refused with exit 2 rather than silently dropped.
+13. **This project's vocabulary is one small call.** `perry-state --compact`
+    carries tracks, their modes, and the stages legal on each, and those values
+    equal what `.perry/config.jsonl` and `schema/` hold.
+14. **One mechanism answers "what does this tool take".** `perry describe`,
+    the README table and the generated usage blocks all read the same
+    declaration; no second copy of the surface exists that a test does not
+    compare against the first.
+
+## Which row each criterion decides
+
+A verdict block is emitted per row (`review.md § 3`), so this is the map from
+the criteria above to the fourteen blocks the round must return.
+
+| row | phase | criteria that decide it |
+|---|---|---|
+| TASK-359 | A1 `--root` precedence | 1 |
+| TASK-360 | A2 a real parser | 2, 3 |
+| TASK-361 | A3 `--dry-run` / `--json` | 4 |
+| TASK-367 | A4 `add --design` | 4 (the flag is written, not dropped) |
+| TASK-406 | A5 `render --write` refuses | 9 |
+| TASK-407 | A6 no traceback | 10 |
+| TASK-362 | B1 `--compact` | 5, 13 |
+| TASK-363 | B2 the bound | 6 |
+| TASK-364 | C1 the declaration | 7, 14 |
+| TASK-365 | C2 usage-first help | 2, 14 |
+| TASK-366 | C3 subcommand help | 8 |
+| TASK-408 | C4 `bin/perry` | 14 |
+| TASK-409 | C5 `--register` | 7 (the register is a declared parameter, not a name) |
+| TASK-410 | D1 the README | 11 |
+
+## Bound
+
+```
+A  --root readers            grep -ln '"--root"' bin/*            → 14 files on HEAD
+B  executables               find bin -maxdepth 1 -type f -perm +111  → 20 files
+C  surface-declaring tools   grep -ln '^SURFACE' bin/*            → 6 files
+D  writers                   perry-task, perry-tasks, perry-config, perry_md_store.py → 4
+E  declared subcommands      sum over C of len(SURFACE.subcommands) → 57
+                             (perry-config 5, perry-okr 5, perry-task 30,
+                              perry-tasks 17, perry-state 0, perry-diagnose 0)
+F  traceback shapes          no argument; unknown flag; unknown subcommand;
+                             flag on a non-declaring subcommand; missing
+                             required value; unreadable project root; a store
+                             file that is not JSON → 7 shapes per tool
+G  flag/subcommand pairs     the declared pairs in the six SURFACE blocks
+```
+
+**Remainder, out of scope for this round and named so the next one need not
+rediscover it:** the **thirteen** tools that declare no surface, listed by
+`bin/perry list` under "not yet declaring a surface". Criteria 3, 7, 8, 12 and
+14 do not reach them by construction. `DESIGN-016 § 3` rules them out of this
+design; a defect found in one of them is a new row, not a FAIL on these
+fourteen.
+
+A finding that widens any bound above is filed as a new row, never as a
+re-opening of this round (`review.md § 1`).
+
+## Baseline
+
+- **Known red before the branch:** `tests/test_contract_key_parity.py`, two
+  tests, red on `main` at `4ebc0693` as well. Measure it in your own tree.
+- **Green expectation:** 122 modules, 3,440 tests, one module red — the two
+  above.
+- `bash tests/run` takes about 118 seconds wall on 8 workers.
+
+## What rounds 1 to 3 already changed
+
+Listed so the round can weigh where a regression is likeliest, **not** as
+ground it may skip. `review.md § 2` rule 3 applies: do not trust the previous
+round's verdict, including the fixes it accepted.
+
+| round | what it found | where the fix landed |
+|---|---|---|
+| 1 | `perry-config track --mode` regression shipped in phase A | the declaration conversion |
+| 2 | the README `add` example was never executed by its own test | `tests/test_bin_surface.py` |
+| 3 | `perry-tasks` fall-through reaches `verify`; `perry-config unset` reports a write that did not happen; `bin/perry` crashes on a non-UTF-8 file; the contract page taught consumers to reject its own 2.0; four tests that did not test their names | `2ba2c565` |
+
+Round 3's own test for the fall-through named `perry-tasks` and exercised
+`perry-config`. **Check that the round-3 fixes are tested by tests that reach
+them**, by mutation, not by reading.
+
+## Two questions the author has not decided
+
+Report on these; do not FAIL a row for them, they are open by the author's
+choice and are recorded here so the round does not spend itself on them.
+
+1. `bin/README.md`'s quick-start block ends with three lines (`start`,
+   `status`, `done`) that cannot run in a fresh project because they need an id
+   the block never captures.
+2. `perry list --json` compares subcommand *counts* with each tool's
+   declaration, not subcommand *names*.
