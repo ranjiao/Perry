@@ -123,7 +123,6 @@
 | TASK-407 | perry-tasks lets Refused escape as a traceback | Coding Agent | in_progress | dispatch V4 round 5 against perry/evidence/2026-09/DESIGN-016-spec.md, criteria 2, 3 and 10 | evidence/2026-09/DESIGN-016-round4-v4-review.md, evidence/2026-09/DESIGN-016-round6-v4-review.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-411 | the declaration is checked both ways on perry-task alone; the other five tools are unguarded in both directions | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-415 | a computed KR publishes current with no target, so the best-measured row in the register renders as unwritten | Coding Agent | review | V3: both carry mutation evidence and a reproducible run | — |  | — | main |  |  |  |  |  |  |
-| TASK-420 | perry-diagnose reads the whole board line for the word answered, so an ask whose question contains resolved counts as answered | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-421 | an agent ran pkill -f 'tests/run' on a shared machine and killed a sibling's suite; the scratchpad has now collided four times | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## P2

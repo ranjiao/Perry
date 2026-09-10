@@ -332,8 +332,31 @@ DECLARED_TBD = re.compile(
 # LOAD-03 measured "USER rows that have ever existed" while claiming to measure
 # "open questions waiting on you". Sweeping answered rows is `triage`'s job and
 # is optional; being counted as blocked for not doing it is not.
-ANSWERED = re.compile(
-    r"\b(answered|resolved|closed|done|decided|已回答|已解决|已决定)\b", re.I)
+#
+# **The rule itself is `parsers.ask_is_answered` and is CALLED, not spelled
+# here.** TASK-420: this used to be a regex —
+# `\b(answered|resolved|closed|done|decided|已回答|已解决|已决定)\b` — searched
+# against the WHOLE BOARD LINE, so any of those words appearing in the
+# QUESTION marked the row answered. Measured on `USER-924`: its text carries
+# *"round 6, the PAIRING resolved each expectation through the very path it was
+# checking"*, the regex matched `resolved`, and this register reported 0 while
+# one ask was pending and `perry-task` reported 1. It had been wrong the whole
+# time and nothing could see it — the reconciliation test asserts the two
+# registers agree, and `0 == 0` held for weeks because every row in the queue
+# was answered. It went red the first time a pending ask existed.
+#
+# Two defects in one line, and the second is the one that decides the fix.
+# Scanning prose for a verdict is what `ADR-007` decision 3 forbids in as many
+# words — Python does not parse document semantics — and a second spelling of
+# "has this question come back?" is what `parsers.ask_is_answered`'s own
+# docstring recorded as a FIFTH reading of a rule that already had four
+# callers. Widening the regex to admit `pending` and `open` would have made it
+# a sixth. So the Status CELL is read, by the function `bin/perry-state`,
+# `bin/perry-task` and `bin/perry_store.py` already ask.
+#
+#: The queue's `Status` column, in any language the glossary knows — the key
+#: `md_table` below resolves the header cell against.
+STATUS_KEYS = set(P._column_keys("Status"))
 
 
 #: A design doc's `## 4. User Decisions` — the second register, and the one a
@@ -420,6 +443,24 @@ def open_user_asks(root: Path, entries: dict, explain,
     that IS a row of this board's queue is kept by `where` below whatever
     `quoted` says, and an id with a definition point is one `split_dangling`
     never judges and never names here.
+
+    **Whether a row has come back is `parsers.ask_is_answered`'s answer, read
+    off the `Status` CELL** — never a scan of the row's prose. TASK-420; the
+    constant above carries the measurement and the reasoning.
+
+    **What the fallback does, said rather than left implicit.** `elsewhere()`
+    is reached when this project has no `## User Input Queue` table to read —
+    no board, an unreadable one, or a section with no table under it. There is
+    no `Status` cell there to ask about, so the question `ask_is_answered`
+    answers cannot be put, and the fallback DOES NOT ask it: every surviving
+    id counts as open, exactly as it did before this row. That is the same
+    direction the predicate itself takes on an empty cell — an unanswered
+    question is the safe reading, and the opposite one silently shortens the
+    needs-you list. It is also not a second opinion about answeredness: the
+    fallback inventories ids, and the two filters it applies (`only_an_example`
+    and `quoted`) are about whether an id is a row of THIS project at all.
+    A project that wants its answered questions to stop counting gets that by
+    keeping them in a queue table, which is the register this tool measures.
     """
     quoted = quoted or set()
     ids = {e["id"] for e in entries.values()
@@ -460,25 +501,41 @@ def open_user_asks(root: Path, entries: dict, explain,
         return elsewhere(ids)
     rel = str(board.relative_to(root))
 
-    answered: set[str] = set()
-    where: dict[str, str] = {}
-    seen_table = False
+    rows: list[tuple[int, str]] = []
     in_section = False
     for n, line in enumerate(text.split("\n"), 1):
         if line.startswith("## "):
             in_section = bool(re.match(r"##\s+(User Input Queue|用户输入队列)", line))
             continue
-        if not in_section or not line.strip().startswith("|"):
-            continue
-        seen_table = True
+        if in_section and line.strip().startswith("|"):
+            rows.append((n, line))
+    if not rows:
+        return elsewhere(ids)
+
+    # **The `Status` column is resolved BY NAME, through `md_table`.** That is
+    # this file's one reader allowed to fold a header cell
+    # (`tests/test_header_index_is_the_only_fold.py`), and resolving by name is
+    # the rule its own docstring states: a project may omit any column, and a
+    # positional read then attributes one column's value to another. A queue
+    # table with no `Status` column at all yields -1, and every row on it is
+    # open — the same direction `ask_is_answered` takes on an empty cell, for
+    # the same reason: a row with no answer recorded is a question nobody has
+    # come back to, and reading absence as closed is what silently shortens the
+    # needs-you list.
+    header, _ = md_table([line for _, line in rows], {"status": STATUS_KEYS})
+    status_at = header.get("status", -1)
+
+    answered: set[str] = set()
+    where: dict[str, str] = {}
+    for n, line in rows:
         m = re.search(r"\bUSER-\d+\b", line)
         if not m:
             continue
         where.setdefault(m.group(0), f"{rel}:{n}")
-        if ANSWERED.search(line):
+        cells = split_row(line)
+        cell = cells[status_at] if 0 <= status_at < len(cells) else ""
+        if P.ask_is_answered(cell):
             answered.add(m.group(0))
-    if not seen_table:
-        return elsewhere(ids)
     # Once a queue table exists, it is the register. USER rows in evidence,
     # handoffs, or decision logs are history or another register; mixing the
     # fallback inventory into a real table is how two answered fixture rows
