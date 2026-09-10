@@ -126,6 +126,7 @@
 | TASK-405 | four in-process conversion rounds shipped without a single mutation, so nothing shows those tests would still go red | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-407 | perry-tasks lets Refused escape as a traceback | Coding Agent | in_progress | dispatch V4 round 5 against perry/evidence/2026-09/DESIGN-016-spec.md, criteria 2, 3 and 10 | evidence/2026-09/DESIGN-016-phase-a-result.md, evidence/2026-09/DESIGN-016-round4-v4-review.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-411 | the declaration is checked both ways on perry-task alone; the other five tools are unguarded in both directions | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
+| TASK-415 | a computed KR publishes current with no target, so the best-measured row in the register renders as unwritten | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## P2
 
@@ -182,6 +183,7 @@
 | TASK-412 | the contract page's rule-3 snippet compares minors as strings, so a consumer is warned about older changes and blind to newer ones | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-413 | bound.open_total and bound.closed_total are published to dashboards and asserted by nothing | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-414 | test_resume's stale-run test is clock-dependent and red on main, and it is not in any declared baseline | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
+| TASK-416 | a hand-measured zero and a template zero nobody touched are the same payload, and asserted_at empty is the whole signal | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
