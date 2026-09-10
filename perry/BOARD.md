@@ -178,13 +178,14 @@
 | TASK-395 | perry-okr diff reports an id drift that render --write cannot repair, because render matches rows by the id that drifted | Coding Agent | not_started | Found 2026-09-08 while removing a dead no-op in test_md_store.py. perry-okr diff REPORTS an id drift and perry-okr render --write CANNOT REPAIR IT: render matches a row to its store record by id, so a hand-edited id matches nothing and the line is passed through verbatim. Measured by writing the mutation the dead line would have been -- see evidence/2026-09/TASK-395-note.md. | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-398 | an advisory a program must act on is a payload field, not a stderr line, and add still writes one under --json | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-403 | four test modules use a regex to judge meaning, which ADR-007 decision 3 already ruled the Python layer never does | Coding Agent | not_started | — | — | V5 |  | main |  |  |  |  |  |  |
-| TASK-404 | 36 test modules assert against live project state, pinning 614 dates and 191 ids that go red when the board moves rather than when code breaks | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-404 | 36 test modules assert against live project state, pinning 614 dates and 191 ids that go red when the board moves rather than when code breaks | Coding Agent | review | V3 is the rung: the conversion is a reproducible run with mutation evidence, and TASK-418 carries the guard half | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-408 | no single command lists the bin/ surface | Coding Agent | in_progress | dispatch V4 round 5 against perry/evidence/2026-09/DESIGN-016-spec.md, criteria 5, 7, 11, 13 and 14 | evidence/2026-09/DESIGN-016-phase-c-part1-result.md, evidence/2026-09/DESIGN-016-round4-v4-review.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-412 | the contract page's rule-3 snippet compares minors as strings, so a consumer is warned about older changes and blind to newer ones | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-413 | bound.open_total and bound.closed_total are published to dashboards and asserted by nothing | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-414 | test_resume's stale-run test is clock-dependent and red on main, and it is not in any declared baseline | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-416 | a hand-measured zero and a template zero nobody touched are the same payload, and asserted_at empty is the whole signal | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-417 | TASK-361 was closed on a V4 PASS whose test could not have failed for 8 of the 41 writing subcommands | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
+| TASK-418 | live_state_expectations misses the class it exists to catch: taint does not cross setUp, and a comprehension over a tainted iterable is clean | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
