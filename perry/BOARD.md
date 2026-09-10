@@ -184,6 +184,7 @@
 | TASK-413 | bound.open_total and bound.closed_total are published to dashboards and asserted by nothing | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-414 | test_resume's stale-run test is clock-dependent and red on main, and it is not in any declared baseline | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-416 | a hand-measured zero and a template zero nobody touched are the same payload, and asserted_at empty is the whole signal | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
+| TASK-417 | TASK-361 was closed on a V4 PASS whose test could not have failed for 8 of the 41 writing subcommands | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
