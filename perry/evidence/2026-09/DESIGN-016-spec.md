@@ -149,6 +149,24 @@ the author later preferred a different bar is the thing `review.md § 1` calls
 a negotiation with the result. What is recorded here instead is that those four
 were charged at the wrong rung, and the charge was the author's.
 
+**Three of the seven rows round 4 FAILed were never V4 rows.** Measured
+2026-09-10 off the store, not inferred: TASK-365 and TASK-407 carry `V3`,
+TASK-408 carried no rung at all, and only TASK-360, TASK-362 and TASK-364 are
+filed at `V4`. This file's § "Which row each criterion decides" mapped criteria
+onto rows without once reading the rung those rows were filed at, so a round was
+bought at V4 for rows their own authors had put a rung below. `review.md § 0`
+says raising a rung is cheap and reversible, so nothing was wrong with looking —
+what was wrong was FAILING them there, and doing it without recording the
+decision.
+
+**What that produced, and it is the correction:** TASK-365 and TASK-410 are
+closed at V3, on the round-4 review plus the tests it forced, because their
+remaining exposure is ROW-grade and a second round buys nothing. TASK-408 is
+raised to V4 deliberately and recorded here, because criterion 14a is a payload
+a consumer trusts. TASK-407 stays in round 5 at a raised rung for the same
+reason and by the same permission, because criterion 10a is an exit code callers
+branch on.
+
 **The bill, so the next person can weigh it.** Answering the four below-the-line
 FAILs cost 227 new lines in `tests/test_bin_argument_contract.py` — the whole of
 that file's growth — plus 104 of the 112 changed lines of product code, all of
