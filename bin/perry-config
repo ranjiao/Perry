@@ -53,7 +53,11 @@ def read_records(path: Path) -> list[dict]:
     replaced by a blank on the next write. `bin/perry-lint` names the bad
     record; this refuses until somebody has looked at it.
     """
-    if not path.exists():
+    if P.exists_or_unreadable(path) is not True:
+        # `None` is an unsearchable `.perry/`. A writer that cannot read the
+        # store must not rewrite it — the same rule the docstring states for a
+        # record it cannot parse — and returning [] here would let it. The
+        # caller's own guard turns an empty result into a refusal.
         return []
     try:
         on_disk = store.load_store(path)

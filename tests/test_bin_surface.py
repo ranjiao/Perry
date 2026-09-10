@@ -267,6 +267,48 @@ class TestPerryTaskDeclaresTheFlagsItsHandlersRead(unittest.TestCase):
                                  f"them, so the parser refuses what the handler "
                                  f"wants")
 
+    def test_every_flag_it_declares_for_a_subcommand_is_read_by_that_handler(self):
+        """The OTHER direction, and until a V4 round nothing checked it.
+
+        A flag declared for a subcommand whose handler never reads it is
+        accepted, silently dropped, and published by `--describe` as part of
+        that subcommand's contract — the same harm as § 1.4's, arrived at from
+        the opposite side. The reviewer declared `--rung` on `start`, whose
+        `cmd_start` never reads it, and all 3,440 tests stayed green while
+        `perry-task start TASK-001 --rung V4` exited 0 and stored `rung=None`.
+
+        `--kr`'s and `--design`'s guard was a hand-written table of ten
+        `(tool, sub, flag)` rows against a negative space of 1,277 pairs.
+        This derives the answer for all 30 of this tool's subcommands.
+        """
+        face = surface("perry-task")
+        universal = lib.always_accepted(face)
+        table = re.findall(r'"([a-z-]+)": (cmd_[a-z_]+)',
+                           self.src[self.src.index("COMMANDS = {"):
+                                    self.src.index("def project_lock")])
+        for name, fn in table:
+            sub = lib.surface_subcommand(face, name)
+            with self.subTest(sub=name):
+                if fn in self.funcs:
+                    attrs = self._reads(self.funcs[fn])
+                else:
+                    attrs = {self.CELL_WRITERS[fn.removeprefix("cmd_")],
+                             "actor", "dry_run"}
+                read = {self.flag_of[a] for a in attrs if a in self.flag_of}
+                declared = set(sub.get("flags", ())) - universal - {"--root"}
+                unread = sorted(declared - read - self.INDIRECT.get(name, set()))
+                self.assertEqual(
+                    unread, [],
+                    f"{name} declares {unread}, no code under cmd_{name} "
+                    f"reads them, and the parser accepts them anyway")
+
+    #: Flags a handler genuinely honours through a path no AST walk can see —
+    #: a closure, a `**kwargs` hand-off, or a helper reached more than two
+    #: calls deep. **Each entry is a hole in the check above**, so each one
+    #: names the line that does the reading; an entry with no such line is a
+    #: defect being waved through.
+    INDIRECT: dict = {}
+
     def test_the_derivation_finds_something(self):
         """The control: if `_reads` returned nothing the case above would pass
         for every subcommand and prove nothing."""
@@ -417,15 +459,20 @@ class TestTheReadmeSaysWhatTheToolsDo(unittest.TestCase):
             with self.subTest(tool=path.name):
                 self.assertIn(f"[`{path.name}`]({path.name})", self.README)
 
-    def test_the_add_example_is_a_call_that_runs(self):
-        """R1, and it is RUN rather than read.
+    def test_the_add_example_carries_the_flags_add_refuses_without(self):
+        """R1's specific claim. The EXECUTION moved to
+        `test_every_block_is_either_marked_a_synopsis_or_runs`, which runs this
+        block whole rather than its first logical command.
 
-        The first fix asserted the three required flag strings appeared in the
-        fence, and they did — on continuation lines ending in `\\`, which bash
-        reads as a literal backslash, so the block was four commands and the
-        first one was the same refused call R1 was about. A V4 review caught it
-        by running the block. DESIGN-016 § 5 asks for exactly this: "every
-        fenced example runs against a scratch project and exits as written".
+        The first fix asserted these three flag strings appeared in the fence,
+        and they did — on continuation lines ending in `\\`, which bash reads
+        as a literal backslash, so the block was four commands and the first
+        was the same refused call R1 was about. A V4 review caught it by
+        running the block; a second V4 review found the runner stopped at the
+        first line not ending in a continuation, so breaking the block's LAST
+        line stayed green. What survives here is the doubled-backslash check,
+        which is the shape a reader cannot see and a runner would only catch
+        by accident.
         """
         at = self.README.index('perry-task" add --title')
         block = self.README[self.README.rindex("\n", 0, at) + 1:]
@@ -434,28 +481,107 @@ class TestTheReadmeSaysWhatTheToolsDo(unittest.TestCase):
                          "a doubled backslash is a literal, not a continuation")
         for flag in ("--deliverable", "--verification", "--summary"):
             self.assertIn(flag, block)
-        # The first LOGICAL command: lines up to the first that does not end in
-        # a continuation. The rest of the fence acts on ids a fresh project
-        # does not have; R1 is about the call that opens a row.
-        lines, command = block.splitlines(), []
-        for line in lines:
-            command.append(line)
-            if not line.rstrip().endswith("\\"):
-                break
-        # Placeholders are substituted, not asserted: `…` and `T` are the
-        # page's stand-ins for a value and a track name. What is under test is
-        # that the CALL — this flag set, this shape — succeeds.
-        script = "\n".join(command).replace("…", "a real value here")
-        script = script.replace("--track T", "--track main")
-        script = script.replace('"$PERRY_HOME/bin/perry-task"',
-                                f"{shlex.quote(sys.executable)} "
-                                f"{shlex.quote(str(BIN / 'perry-task'))}")
-        p = Project()
-        out = subprocess.run(["bash", "-c", f"{script} --root {p.root}"],
-                             capture_output=True, text=True)
-        self.assertEqual(out.returncode, 0,
-                         "the README's `add` example does not run:\n"
-                         + out.stdout + out.stderr)
+
+    #: The only two reasons a fenced block may go unrun, and each is checked
+    #: rather than believed: `placeholders` requires the block to contain one,
+    #: and `runs the suite, not a project` is the single block that invokes
+    #: `tests/run` itself. A third reason is a new row, not a new string.
+    REASONS = ("placeholders", "runs the suite, not a project")
+    MARKER = "<!-- not-executable: "
+
+    def _blocks(self):
+        """`(fence line number, body, reason or None)` for every ```bash block."""
+        lines = self.README.split("\n")
+        out, i = [], 0
+        while i < len(lines):
+            if lines[i].startswith("```bash"):
+                prev = lines[i - 1].strip() if i else ""
+                reason = (prev[len(self.MARKER):].removesuffix("-->").strip()
+                          if prev.startswith(self.MARKER) else None)
+                j = i + 1
+                while j < len(lines) and lines[j].strip() != "```":
+                    j += 1
+                out.append((i + 1, "\n".join(lines[i + 1:j]), reason))
+                i = j
+            i += 1
+        return out
+
+    def test_every_block_is_either_marked_or_runs(self):
+        """Criterion 11, over ALL ten fenced blocks rather than one line of one.
+
+        A V4 round ran them: one was not valid bash at all — `perry-decide new
+        <slug> --title "…"` makes `bash -n` refuse the whole fence — and two
+        more acted on ids a fresh project does not have. The guard that existed
+        read the first logical command of a single block, so breaking that
+        block's LAST line left the suite green.
+
+        Marked blocks are not skipped silently; the case below holds each
+        marker to a reason it can check.
+        """
+        # **These blocks are real writes, and `PERRY_HOME` has to point at the
+        # live checkout for them to run at all.** So the live state files are
+        # fingerprinted around every block: an example that resolves the wrong
+        # project fails HERE rather than silently opening rows on the board a
+        # human is reading. Writing this guard was not optional — an earlier
+        # draft of this case put four rows on Perry's own board, TASK-411 to
+        # TASK-414, and nothing in the run said so.
+        live = [PERRY_HOME / "perry" / "BOARD.md",
+                PERRY_HOME / "perry" / "tasks.jsonl",
+                PERRY_HOME / ".perry" / "events.jsonl"]
+        before = {f: f.read_bytes() for f in live if f.exists()}
+        for lineno, body, reason in self._blocks():
+            if reason:
+                continue
+            with self.subTest(line=lineno):
+                p = Project()
+                p.run("add", "--title", "a row the examples can act on")
+                out = subprocess.run(
+                    ["bash", "-c", body], capture_output=True, text=True,
+                    env={**os.environ, "PERRY_HOME": str(PERRY_HOME),
+                         "PERRY_PROJECT": str(p.root)}, cwd=str(p.root))
+                self.assertEqual(
+                    out.returncode, 0,
+                    f"bin/README.md:{lineno} does not run and is not marked:\n"
+                    + out.stdout[-400:] + out.stderr[-400:])
+                for f, was in before.items():
+                    self.assertEqual(
+                        f.read_bytes(), was,
+                        f"bin/README.md:{lineno} wrote into the LIVE project "
+                        f"at {f} — it resolved the checkout, not the scratch "
+                        f"project $PERRY_PROJECT names")
+
+    def test_a_marker_cannot_hide_a_broken_example(self):
+        """The marker is a fact about the block, not a way to silence this.
+
+        Without this, the fix for the case above is to mark every block. Each
+        reason is checked against the block it excuses: `placeholders` must
+        find one, and the suite block must actually be the suite.
+        """
+        marked = [(n, b, r) for n, b, r in self._blocks() if r]
+        self.assertGreaterEqual(len(marked), 1, "the marker went unused")
+        for lineno, body, reason in marked:
+            with self.subTest(line=lineno):
+                self.assertIn(reason, self.REASONS,
+                              f"bin/README.md:{lineno} gives a reason this "
+                              f"test does not know how to check")
+                if reason == "placeholders":
+                    self.assertTrue(
+                        any(tok in body for tok in ("<", "\u2026")),
+                        f"bin/README.md:{lineno} claims placeholders and has "
+                        f"none — run it instead")
+                else:
+                    for line in body.splitlines():
+                        self.assertTrue(
+                            not line.strip() or line.startswith("bash tests/run"),
+                            f"bin/README.md:{lineno} is excused as the suite "
+                            f"and carries {line!r}")
+
+    def test_the_blocks_are_counted_so_a_new_one_cannot_arrive_unnoticed(self):
+        """The bound. Ten today: six run, four carry a stated reason."""
+        blocks = self._blocks()
+        self.assertEqual(len(blocks), 10, "a fenced block was added or removed")
+        self.assertEqual(sum(1 for *_, r in blocks if r), 4)
+
     def test_the_dependency_claim_matches_the_one_tool_that_has_one(self):
         """R2: "No tool here calls an LLM … no dependencies at all" while
         `perry-codex-preflight` shells out to `codex exec`."""
@@ -669,9 +795,13 @@ class TestTheIndexIsDerivedFromTheDeclarations(unittest.TestCase):
         by_name = {t["tool"]: t for t in payload["tools"]}
         for tool in DECLARED:
             with self.subTest(tool=tool):
+                # NAMES, not the count. A count agrees with any renaming,
+                # any reordering and any substitution — a V4 reviewer swapped
+                # a subcommand and the assertion held. The count is implied by
+                # the names and is not asserted separately.
                 self.assertEqual(
-                    len(by_name[tool]["subcommands"]),
-                    len(surface(tool).get("subcommands", ())))
+                    [s["name"] for s in by_name[tool]["subcommands"]],
+                    [s["name"] for s in surface(tool).get("subcommands", ())])
 
     def test_describe_reaches_one_subcommand(self):
         payload = json.loads(self._perry("describe", "tasks", "render").stdout)
@@ -723,9 +853,38 @@ class TestDescribeAnswersForEveryDeclaredTool(unittest.TestCase):
                 self.assertEqual(out.returncode, 0, out.stderr)
                 payload = json.loads(out.stdout)
                 self.assertEqual(payload["tool"], tool)
-                self.assertEqual(
-                    len(payload["subcommands"]),
-                    len(surface(tool).get("subcommands", ())))
+                declared = surface(tool).get("subcommands", ())
+                self.assertEqual([s["name"] for s in payload["subcommands"]],
+                                 [s["name"] for s in declared])
+
+    def test_the_published_payload_carries_each_subcommands_flags(self):
+        """`--describe --json` is TASK-396's published write contract, and
+        nothing compared the flags in it.
+
+        A V4 reviewer made `lib.describe_surface` emit an empty flag list for
+        every subcommand of every tool. All 3,440 tests stayed green while
+        `perry describe task` and `perry-task --describe --json` both reported
+        that `add` takes 4 flags instead of 27. The only test that read this
+        payload compared `len(payload["subcommands"])` and the `tool` key.
+
+        A consumer reading a surface that says a flag does not exist is the
+        same harm as a tool that drops it (§ 1.4): the flag is there and the
+        published answer says otherwise.
+        """
+        for tool in DECLARED:
+            out = subprocess.run(
+                [sys.executable, str(BIN / tool), "--describe", "--json"],
+                capture_output=True, text=True)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            payload = json.loads(out.stdout)
+            got = {s["name"]: sorted(s.get("flags", ()))
+                   for s in payload["subcommands"]}
+            decl = surface(tool)
+            for sub in decl.get("subcommands", ()):
+                with self.subTest(tool=tool, sub=sub["name"]):
+                    want = sorted(set(sub.get("flags", ()))
+                                  | set(lib.always_accepted(decl)))
+                    self.assertEqual(got[sub["name"]], want)
 
 
 if __name__ == "__main__":

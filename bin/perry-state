@@ -963,8 +963,14 @@ def read_event_log(project_root: Path) -> dict:
     block to know current state.
     """
     path = project_root / ".perry" / "events.jsonl"
-    out = {"present": path.exists(), "total": 0, "by_event": {}, "last": ""}
-    if not path.exists():
+    # Asked ONCE, and the third answer taken. `present` used to call
+    # `Path.exists()` twice, and on an unsearchable `.perry/` the first call
+    # raised — this block's own docstring says the log is disposable and its
+    # absence changes nothing, which is exactly the answer an unreadable log
+    # deserves too.
+    present = lib.exists_or_unreadable(path) is True
+    out = {"present": present, "total": 0, "by_event": {}, "last": ""}
+    if not present:
         return out
     by: dict[str, int] = {}
     last = ""

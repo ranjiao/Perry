@@ -756,6 +756,24 @@ def usage_lines(surface: dict, sub: str | None = None) -> str:
     return "\n".join(lines)
 
 
+def exists_or_unreadable(path: Path) -> bool | None:
+    """`viewer.parsers.exists_or_unreadable`, reached without importing it here.
+
+    **A deliberate second spelling of a four-line function, and the reason is
+    an import cycle, not an oversight.** `viewer/parsers.py` is imported BY
+    `perry_md_store`, and `lib` is imported by tools before `viewer/` is on
+    the path, so neither can take the other at module scope. The two bodies
+    are held identical by
+    `tests/test_bin_argument_contract § TestOnePrimitiveAnsweredTwice`, which
+    runs both over the same three inputs — present, absent, and a parent that
+    may not be searched.
+    """
+    try:
+        return path.exists()
+    except OSError:
+        return None
+
+
 def scan_argv(argv: list[str], *, bools: tuple[str, ...] = (),
               values: tuple[str, ...] = ()) -> tuple[list[str], set[str],
                                                      dict[str, str], str | None]:
@@ -1691,8 +1709,14 @@ def walk_md(root: Path):
     a clone and a file in a worktree.
     """
     for dirpath, dirnames, filenames in os.walk(root):
+        # A directory this walk may not search cannot be shown to be a nested
+        # checkout, and `Path.exists()` raises rather than saying so. Treat it
+        # as not-a-checkout and let `os.walk` skip it on its own error path —
+        # the alternative is that one unreadable directory anywhere under the
+        # root turns every document scan into a traceback.
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS
-                       and not (Path(dirpath) / d / ".git").exists()]
+                       and exists_or_unreadable(
+                           Path(dirpath) / d / ".git") is not True]
         for fn in filenames:
             if fn.lower().endswith(MD_SUFFIXES):
                 yield Path(dirpath) / fn

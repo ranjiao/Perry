@@ -126,10 +126,17 @@ re-opening of this round (`review.md § 1`).
 
 ## Baseline
 
-- **Known red before the branch:** `tests/test_contract_key_parity.py`, two
-  tests, red on `main` at `4ebc0693` as well. Measure it in your own tree.
-- **Green expectation:** 122 modules, 3,440 tests, one module red — the two
-  above.
+- **Known red before the branch: THREE tests in two modules**, all red on
+  `main` at `4ebc0693` as well. Measure it in your own tree.
+  - `tests/test_contract_key_parity.py`, two tests.
+  - `tests/test_resume.py`, `TestStaleRuns.test_a_fresh_run_is_not_stale`.
+    **This one was missing from the baseline when round 4 was dispatched**, and
+    two of its three reviewers independently re-derived it, one by extracting
+    `4ebc0693` with `git archive` and running it there. An incomplete exhibit
+    is the author's to fix before dispatch (`review.md § 2`), and this is the
+    correction. It is clock-dependent: `stale_run_days: 30` against a fixture
+    stamped two days ago.
+- **Green expectation:** 122 modules, two modules red — the three above.
 - `bash tests/run` takes about 118 seconds wall on 8 workers.
 
 ## What rounds 1 to 3 already changed

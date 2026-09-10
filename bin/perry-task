@@ -1714,7 +1714,10 @@ def events_path(project_root: Path) -> Path:
 
 def read_events(project_root: Path) -> list[dict]:
     p = events_path(project_root)
-    if not p.exists():
+    # `is not True` covers the unsearchable `.perry/` as well as the absent
+    # log: an event history nobody may read is an event history this reader
+    # has none of, and the read side has always tolerated no log at all.
+    if P.exists_or_unreadable(p) is not True:
         return []
     out = []
     for line in p.read_text(errors="replace").split("\n"):
@@ -8227,7 +8230,7 @@ def main(argv: list[str]) -> int:
         # "this project declares no tracks".
         cfg_store = project_root / ".perry" / "config.jsonl"
         config = {"tracks": []}
-        if cfg_store.exists():
+        if P.exists_or_unreadable(cfg_store):
             _ps = perry_state()
             tracks, source = _ps.declared_tracks_detail(project_root)
             # **A writer does not act on a register it could not read**

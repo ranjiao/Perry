@@ -72,8 +72,23 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
 
     def test_every_declared_field_matches_the_full_payload(self):
         """The projection is applied to the FULL payload here and compared to
-        what the tool emitted. Restating the rules in this file would let the
-        two drift into agreeing about different things."""
+        what the tool emitted.
+
+        **This one cannot see a defect INSIDE `project_value`, and that is on
+        purpose now rather than by accident.** It calls the function under
+        test to build its own expectation, so it asserts `f(x) == f(x)`: what
+        it pins is that the tool RAN the projection over the declared fields,
+        not that the projection is right. A V4 reviewer proved the gap by
+        adding 1 to every integer `project_value` returns and watching all
+        3,440 tests stay green while `--compact` reported a board of 239 lines
+        against `--json`'s 238.
+
+        The rule itself is checked by `test_the_six_kinds_are_checked_against_a
+        _second_opinion` below, which reimplements the six kinds by hand. The
+        split is deliberate: the FIELD LIST stays single-sourced from
+        `STATE.COMPACT`, so the two files cannot disagree about which fields
+        exist, while the RULE gets an independent second author.
+        """
         for key, path, how in STATE.COMPACT:
             if key in self.CLOCK:
                 continue
@@ -81,6 +96,72 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
                 self.assertEqual(
                     self._narrow_at(key),
                     STATE.project_value(STATE._at(self.full, path), how))
+
+    @staticmethod
+    def _second_opinion(value, how):
+        """The six projection kinds, written again and deliberately not shared.
+
+        Reimplemented from `DESIGN-016 § 1.7` and the `COMPACT` declaration,
+        not from `bin/perry-state § project_value`. If this ever imports that
+        function, the test below becomes the tautology it exists to replace.
+        """
+        if how == "value":
+            return value
+        if how == "count":
+            if isinstance(value, list):
+                return len(value)
+            if isinstance(value, dict):
+                return len(value)
+            return None
+        kind, arg = how
+        if kind == "fields":
+            if not isinstance(value, list):
+                return None
+            out = []
+            for item in value:
+                if isinstance(item, dict):
+                    out.append({name: item.get(name) for name in arg})
+            return out
+        if kind in ("objectives", "objectives_with_progress"):
+            if not isinstance(value, list):
+                return None
+            out = []
+            for o in value:
+                if not isinstance(o, dict):
+                    continue
+                row = {"title": o.get("title")}
+                if kind == "objectives_with_progress":
+                    row = {"id": o.get("id"), "title": o.get("title")}
+                krs = o.get("krs")
+                row["krs"] = [{name: kr.get(name) for name in arg}
+                              for kr in (krs if krs else [])]
+                out.append(row)
+            return out
+        if kind == "fields_of_dict":
+            if not isinstance(value, dict):
+                return None
+            return {name: value.get(name) for name in arg}
+        if kind == "subdict":
+            if not isinstance(value, dict):
+                return None
+            return {k: TestItIsAProjectionAndNothingElse._second_opinion(
+                STATE._at(value, path), sub) for k, path, sub in arg}
+        raise ValueError(f"unknown projection {how!r}")
+
+    def test_the_six_kinds_are_checked_against_a_second_opinion(self):
+        """Every declared field, projected by a body this file owns.
+
+        The population is `STATE.COMPACT`, and every one of its `how` values
+        must be reachable here — an unknown kind raises rather than passing,
+        so a seventh projection added to the tool fails this until somebody
+        writes it down twice.
+        """
+        for key, path, how in STATE.COMPACT:
+            if key in self.CLOCK:
+                continue
+            with self.subTest(field=key):
+                want = self._second_opinion(STATE._at(self.full, path), how)
+                self.assertEqual(self._narrow_at(key), want)
 
     def test_the_clock_field_is_projected_like_everything_else(self):
         """**One invocation, so the clock is deterministic.**
@@ -273,6 +354,89 @@ class TestAProjectWithNoStateStillAnswers(unittest.TestCase):
             out = inproc.run("perry-state", ["--root", td, "--compact"])
             self.assertEqual(out.returncode, 0, out.stderr)
             self.assertFalse(json.loads(out.stdout)["installed"])
+
+
+class TestEveryProjectionKindIsFedDataThatDistinguishesIt(unittest.TestCase):
+    """The rule itself, on synthetic values, independent of any project.
+
+    **Why this is not redundant with the class above.** That one runs against
+    `Project()` — a scratch project with no phase and no linkage — so three of
+    the declared kinds (`objectives_with_progress`, `objectives`, `subdict`)
+    receive `None` or an empty list and every implementation of them agrees.
+    A V4 reviewer made `objectives_with_progress` put each KR's `target` into
+    its `current` slot, watched the live project report a key result at 100%
+    that is actually at 43%, and watched all 3,440 tests stay green. The
+    projection was not untested; it was tested on data that could not tell.
+
+    So each kind is fed a value built to distinguish it: counts get a list
+    whose length differs from its contents, field-pickers get an extra key
+    that must be dropped, and `current`/`target` are given DIFFERENT numbers,
+    which is the exact discrimination the live board happened not to make in
+    five of its six key results.
+    """
+
+    #: One synthetic input per kind, and what a correct projection returns.
+    #: Written from the declaration, not from `project_value`.
+    CASES = {
+        "value": (7, 7),
+        "count": ([10, 20, 30], 3),
+        ("fields", ("a", "b")): (
+            [{"a": 1, "b": 2, "drop": 3}], [{"a": 1, "b": 2}]),
+        ("fields_of_dict", ("a",)): ({"a": 1, "drop": 2}, {"a": 1}),
+        ("objectives", ("id", "current", "target")): (
+            [{"title": "T", "drop": "x",
+              "krs": [{"id": "K1", "current": 1.0, "target": 9.0,
+                       "drop": "x"}]}],
+            [{"title": "T",
+              "krs": [{"id": "K1", "current": 1.0, "target": 9.0}]}]),
+        ("objectives_with_progress", ("id", "current", "target")): (
+            [{"id": "O1", "title": "T", "drop": "x",
+              "krs": [{"id": "K1", "current": 1.0, "target": 9.0,
+                       "drop": "x"}]}],
+            [{"id": "O1", "title": "T",
+              "krs": [{"id": "K1", "current": 1.0, "target": 9.0}]}]),
+    }
+
+    def test_each_kind_maps_its_input_to_the_declared_output(self):
+        for how, (given, want) in self.CASES.items():
+            with self.subTest(kind=how if isinstance(how, str) else how[0]):
+                self.assertEqual(STATE.project_value(given, how), want)
+                self.assertEqual(
+                    TestItIsAProjectionAndNothingElse._second_opinion(
+                        given, how), want)
+
+    def test_the_nested_kind_carries_its_children(self):
+        how = ("subdict", (("n", "inner.n", "value"),
+                           ("c", "inner.items", "count")))
+        given = {"inner": {"n": 4, "items": ["a", "b"]}}
+        want = {"n": 4, "c": 2}
+        self.assertEqual(STATE.project_value(given, how), want)
+        self.assertEqual(
+            TestItIsAProjectionAndNothingElse._second_opinion(given, how),
+            want)
+
+    def test_every_kind_the_declaration_uses_has_a_case_here(self):
+        """The bound. A seventh projection fails this until it is written twice."""
+        declared = {h if isinstance(h, str) else h[0] for _, _, h in STATE.COMPACT}
+        covered = {h if isinstance(h, str) else h[0] for h in self.CASES}
+        covered.add("subdict")
+        self.assertEqual(declared - covered, set(),
+                         "a projection kind reached the tool and not this file")
+
+    def test_a_wrong_projection_is_visible_here(self):
+        """The anti-vacuity control: the cases can tell right from wrong.
+
+        Each assertion above would pass against an identity function if the
+        inputs and outputs were equal. They are not, and this says so —
+        except for `value`, which IS the identity and is the one kind whose
+        input must equal its output.
+        """
+        for how, (given, want) in self.CASES.items():
+            if how == "value":
+                self.assertEqual(given, want, "`value` is the identity")
+                continue
+            with self.subTest(kind=how if isinstance(how, str) else how[0]):
+                self.assertNotEqual(given, want)
 
 
 if __name__ == "__main__":

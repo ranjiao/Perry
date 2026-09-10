@@ -568,5 +568,232 @@ class TestListIsBounded(unittest.TestCase):
         self.assertEqual(major, 2, "a row-count change is a major here")
 
 
+def shipped_tools() -> list[Path]:
+    """Every executable in `bin/`, discovered rather than listed.
+
+    The same discovery `tests/test_shipped_vocabulary § shipped_tools` uses,
+    and the reason it is here too is the finding that produced the two classes
+    below: every `--help` assertion in this suite iterated the six tools that
+    declare a `SURFACE`, so the other fourteen were untested for the goal that
+    says **every** tool. `perry-restore-check` read `-h` at `argv[0]` alone for
+    exactly that long.
+    """
+    return sorted(p for p in (PERRY_HOME / "bin").iterdir()
+                  if p.is_file() and not p.name.startswith(".")
+                  and p.suffix != ".md" and os.access(p, os.X_OK))
+
+
+def run_tool(path: Path, *argv: str, env: dict | None = None):
+    """Execute `path` directly, honouring its shebang.
+
+    Not `[sys.executable, path]`: four of the twenty are bash, and running
+    those under Python raises `SyntaxError` — which looks exactly like the
+    defect this module is hunting and is not one.
+    """
+    e = dict(os.environ)
+    e.pop("PERRY_PROJECT", None)
+    if env:
+        e.update(env)
+    return subprocess.run([str(path), *argv], capture_output=True,
+                          text=True, env=e, timeout=120)
+
+
+#: The spec's Bound A is 14 FILES carrying `"--root"`; one of them,
+#: `perry_md_store.py`, is a library and not executable, and the executable
+#: that reaches it is `perry-okr`, which names the flag nowhere in its own
+#: text. So the executable population is those 13 plus `perry-okr` — still 14,
+#: and derived rather than typed, so a tool that gains or loses `--root`
+#: changes this set without anyone remembering to.
+ROOT_READERS = tuple(sorted(
+    [p.name for p in (PERRY_HOME / "bin").iterdir()
+     if p.is_file() and os.access(p, os.X_OK) and p.suffix != ".md"
+     and '"--root"' in p.read_text(errors="replace")] + ["perry-okr"]))
+
+
+class TestHelpPrintsFromAnyPositionOnEveryTool(unittest.TestCase):
+    """DESIGN-016 goal 2 says *every tool*, and the suite only ever asked six.
+
+    `DECLARED` is what every other help assertion in this suite iterates, so
+    the fourteen tools outside it were untested for a goal whose subject is
+    all twenty. `perry-restore-check` read `-h` at `argv[0]` alone for exactly
+    that long: `perry-restore-check --root /tmp -h` printed `unknown option
+    -h` and exited 2.
+
+    **The bar here is narrower than the goal's sentence, and deliberately.**
+    Help must win over anything that would RUN — that is § 1.1's actual
+    complaint, `perry-tasks render --write --help` running the render — and it
+    must work from any position among arguments the tool ACCEPTS. It is not
+    asserted over an argument the tool refuses: five tools answer
+    `<tool> <undeclared token> -h` with the refusal rather than the help, and
+    a refusal that names `--help` has run nothing and misled nobody. The six
+    declaring tools resolve that collision the other way because
+    `lib.scan_argv` reads the whole vector first. The inconsistency is real
+    and is TASK-411, not a silent narrowing here.
+    """
+
+    def test_every_shipped_tool_answers_help_in_first_position(self):
+        for tool in shipped_tools():
+            with self.subTest(tool=tool.name):
+                r = run_tool(tool, "--help")
+                self.assertEqual(r.returncode, 0, r.stderr[-400:])
+                self.assertTrue(r.stdout.strip(), "help printed nothing")
+
+    def test_help_wins_after_a_flag_the_tool_accepts(self):
+        # The position that was broken, over the population for which the
+        # leading flag is legal: the fourteen `--root` readers.
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(len(ROOT_READERS), 14, ROOT_READERS)
+            for name in ROOT_READERS:
+                with self.subTest(tool=name):
+                    r = run_tool(BIN / name, "--root", tmp, "-h")
+                    self.assertEqual(r.returncode, 0, r.stderr[-400:])
+                    self.assertTrue(r.stdout.strip(), "help printed nothing")
+
+    def test_help_wins_over_a_subcommand_that_would_run(self):
+        # § 1.1's defect in its own shape: the command in front of `-h` must
+        # not execute. `build` reads and prints; if help loses, stdout carries
+        # the render instead of the usage.
+        with tempfile.TemporaryDirectory() as tmp:
+            for tool, argv in READS:
+                if not argv:
+                    continue
+                with self.subTest(tool=tool):
+                    r = run_tool(BIN / tool, *argv, "--root", tmp, "-h")
+                    self.assertEqual(r.returncode, 0, r.stderr[-400:])
+                    self.assertIn("usage", r.stdout.lower())
+
+    def test_help_is_not_a_traceback_anywhere(self):
+        for tool in shipped_tools():
+            with self.subTest(tool=tool.name):
+                r = run_tool(tool, "--help")
+                self.assertNotIn("Traceback (most recent call last)", r.stderr)
+
+
+class TestAnUnreadableProjectRootIsRefusedNotCrashed(unittest.TestCase):
+    """Goal 10: no tool exits through a traceback. `chmod 000` reached five.
+
+    `Path.exists()` does not return `False` when the parent directory is
+    unsearchable — it calls `os.stat`, which raises `PermissionError`. Two
+    sites asked it outside a `try`: `viewer/parsers § config_store_records`,
+    whose own docstring says it *"never raises from here"*, and
+    `bin/perry-context-budget § _budget_from_store`, whose docstring says it
+    *"must keep working in a directory that is not a Perry project at all"*.
+
+    Both had a correct answer already available — `unreadable` is one of the
+    three reasons `config_store_records` is documented to return.
+
+    The population is the six tools of `READS`, which is every tool that
+    resolves a project root through a declared surface, plus
+    `perry-context-budget` as the independent second site.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(self._restore_and_remove)
+        perry = Path(self.tmp) / ".perry"
+        perry.mkdir()
+        (perry / "config.jsonl").write_text(
+            '{"kind": "setting", "key": "tracks", "value": "main"}\n')
+        os.chmod(perry, 0o000)
+
+    def _restore_and_remove(self):
+        import shutil
+        os.chmod(Path(self.tmp) / ".perry", 0o755)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    #: Every executable, bare — plus the subcommand forms, because the first
+    #: five sites each HID the next one: fixing `perry-config`'s made
+    #: `perry-task list` reach `read_events`, and fixing that one reached
+    #: `bin/perry-state § events_block`. Six sites in four files, found by
+    #: sweeping rather than by grepping `.exists()`, of which `bin/` and
+    #: `viewer/` hold 220 and almost none of them matter.
+    WITH_SUBCOMMAND = READS + (
+        ("perry-task", ("add",)),
+        ("perry-tasks", ("render",)),
+        ("perry-config", ("set",)),
+        ("perry-goals", ("krs",)),
+        ("perry-decide", ("list",)),
+        ("perry-knowledge", ("list",)),
+        ("perry-explain", ("TASK-001",)),
+        ("perry-state", ("--compact",)),
+        ("perry-context-budget", ()),
+    )
+
+    def test_no_tool_exits_through_a_traceback_on_an_unreadable_root(self):
+        for tool, argv in self.WITH_SUBCOMMAND:
+            with self.subTest(tool=" ".join((tool, *argv))):
+                r = run_tool(BIN / tool, *argv, "--root", self.tmp)
+                self.assertNotIn("Traceback (most recent call last)", r.stderr,
+                                 f"{tool} crashed on an unreadable root")
+
+    def test_every_shipped_executable_survives_it_bare(self):
+        # The whole population, so a tool added tomorrow is covered tomorrow.
+        for tool in shipped_tools():
+            with self.subTest(tool=tool.name):
+                r = run_tool(tool, "--root", self.tmp)
+                self.assertNotIn("Traceback (most recent call last)", r.stderr)
+
+    def test_the_resolver_names_the_reason_rather_than_raising(self):
+        # The behavioural half. A crash is the symptom; the fix is that the
+        # documented vocabulary answers, so a caller can tell "no store" from
+        # "a store I may not read" and say which.
+        sys.path.insert(0, str(PERRY_HOME))
+        import importlib
+        parsers = importlib.import_module("viewer.parsers")
+        records, why = parsers.config_store_records(Path(self.tmp))
+        self.assertIsNone(records)
+        self.assertEqual(why, parsers.CONFIG_STORE_UNREADABLE)
+        self.assertIn(why, parsers.CONFIG_STORE_UNUSABLE)
+
+    def test_the_control_is_that_a_readable_store_still_answers(self):
+        os.chmod(Path(self.tmp) / ".perry", 0o755)
+        sys.path.insert(0, str(PERRY_HOME))
+        import importlib
+        parsers = importlib.import_module("viewer.parsers")
+        records, why = parsers.config_store_records(Path(self.tmp))
+        self.assertEqual(why, "")
+        self.assertTrue(records)
+
+
+class TestOnePrimitiveAnsweredTwice(unittest.TestCase):
+    """`exists_or_unreadable` is spelled in two files and must not diverge.
+
+    `viewer/parsers.py` is imported by `perry_md_store`, and `bin/lib` is
+    imported before `viewer/` is on the path, so neither can take the other at
+    module scope. That is a real cycle and not an excuse: this holds the two
+    bodies to the same answer on the three inputs that exist.
+    """
+
+    def setUp(self):
+        sys.path.insert(0, str(PERRY_HOME))
+        sys.path.insert(0, str(BIN))
+        import importlib
+        self.a = importlib.import_module("viewer.parsers").exists_or_unreadable
+        self.b = importlib.import_module("lib").exists_or_unreadable
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(self._clean)
+
+    def _clean(self):
+        import shutil
+        os.chmod(self.tmp / "shut", 0o755)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_the_two_spellings_agree_on_all_three_answers(self):
+        (self.tmp / "there").write_text("x")
+        shut = self.tmp / "shut"
+        shut.mkdir()
+        (shut / "inside").write_text("x")
+        os.chmod(shut, 0o000)
+        cases = {
+            "present": (self.tmp / "there", True),
+            "absent": (self.tmp / "missing", False),
+            "unreadable parent": (shut / "inside", None),
+        }
+        for name, (path, want) in cases.items():
+            with self.subTest(case=name):
+                self.assertIs(self.a(path), want)
+                self.assertIs(self.b(path), want, "the two spellings diverged")
+
+
 if __name__ == "__main__":
     unittest.main()

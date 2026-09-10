@@ -136,8 +136,9 @@ The three worth knowing by hand:
 
 The standup dashboard as plain text, pre-computed — the same rows the agent shows you.
 
+<!-- not-executable: placeholders -->
 ```bash
-"$PERRY_HOME/bin/perry-explain" REL-002
+"$PERRY_HOME/bin/perry-explain" <ID>
 ```
 
 Because Perry mints a lot of IDs and you never agreed to memorize them. `--all`
@@ -169,15 +170,20 @@ which is a question for the user, never a fuzzy match. See
 ### Write state through `perry-task` and `perry-decide`, never by hand
 
 ```bash
-"$PERRY_HOME/bin/perry-task" add --title "…" --track T --priority P1 \
+ID=$("$PERRY_HOME/bin/perry-task" add --title "the row this example opens" --track main --priority P1 \
     --deliverable "the artifact that exists when this is done" \
     --verification "the falsifiable check it is graded against" \
-    --summary "why the row exists, for a reader who was not in the conversation"
-"$PERRY_HOME/bin/perry-task" start REL-002 --next "…"
-"$PERRY_HOME/bin/perry-task" status REL-002 --status blocked --reason "…"
-"$PERRY_HOME/bin/perry-task" done REL-002 --evidence evidence/… --rung V4
-"$PERRY_HOME/bin/perry-task" list --all --limit 0 --json
+    --summary "why the row exists, for a reader who was not in the conversation" \
+    --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+"$PERRY_HOME/bin/perry-task" start "$ID" --next "the next concrete action"
+"$PERRY_HOME/bin/perry-task" status "$ID" --status blocked --reason "waiting on the thing"
+"$PERRY_HOME/bin/perry-task" list --all --limit 0 --json > /dev/null
 ```
+
+`add --json` prints the id it minted, which is why the sequence above captures
+it rather than naming one: **the id is the tool's answer, not the caller's
+choice.** `done` is left out on purpose — it needs an evidence path that
+exists, and a block that invents one would be teaching a call that refuses.
 
 Each mutating call replaces `tasks.jsonl` and the journal `## Status changes`
 line through a durable transaction marker. The two renames are not one atomic
@@ -199,6 +205,7 @@ names that as a case that must refuse. Its reader is tolerant of the field
 spellings real ADRs use (`Sunset` vs `Sunset criteria`, an extra `Deciders` line);
 its writer is strict.
 
+<!-- not-executable: placeholders -->
 ```bash
 "$PERRY_HOME/bin/perry-decide" bootstrap                     # creates decisions/
 "$PERRY_HOME/bin/perry-decide" new <slug> --title "…" --type <T>
@@ -268,6 +275,7 @@ is true of some modes and not others.
 
 ### Before dispatching work
 
+<!-- not-executable: placeholders -->
 ```bash
 bash "$PERRY_HOME/bin/perry-detect-host"                     # claude-code | opencode | codex-cli | unknown
 bash "$PERRY_HOME/bin/perry-codex-preflight"                 # exit 0 = codex is usable
@@ -328,6 +336,7 @@ its track and the linter called it clean. **A new tool composes and reshapes wha
 
 Tests live in [`tests/`](../tests/) and run with:
 
+<!-- not-executable: runs the suite, not a project -->
 ```bash
 bash tests/run                # everything
 bash tests/run --lint         # just the schema drift guard (fast)

@@ -114,7 +114,15 @@ def declared_ceiling(project_root: Path) -> tuple[str | None, str]:
     that is not a Perry project at all.
     """
     store = project_root / ".perry" / "config.jsonl"
-    if store.exists():
+    try:
+        present = store.exists()
+    except OSError:
+        # Unsearchable parent: `Path.exists()` raises instead of answering.
+        # The docstring above says this tool must keep working in a directory
+        # that is not a Perry project, and a directory it may not look inside
+        # is the same answer as one with no store — the defaults stand.
+        present = False
+    if present:
         for raw in store.read_text(errors="replace").split("\n"):
             raw = raw.strip()
             if not raw:

@@ -267,6 +267,34 @@ def status_cleared_date(status_cell: str) -> str:
 #: There is legitimately no store. **This is the adoption path and reading the
 #: markdown here is CORRECT** — it is the register a project that has never run
 #: `perry-config write --from-file` actually has, and P003-O2-KR1 excludes it by
+def exists_or_unreadable(path: Path) -> bool | None:
+    """`path.exists()`, plus the third answer it refuses to give: *cannot tell*.
+
+    `Path.exists()` calls `os.stat`, and `os.stat` RAISES `PermissionError`
+    when a parent directory is unsearchable. So the one-line existence check
+    every tool spells inline is not a total function, and `chmod 000 .perry`
+    turned six sites in four files into a traceback — reached through
+    `perry-config show`, `perry-config set`, `perry-task list`, `perry-task
+    add` and `perry-explain`. Found by sweeping all twenty executables rather
+    than by reading: `bin/` and `viewer/` hold 220 `.exists()` calls and almost
+    none of them matter (DESIGN-016 goal 10, V4 round 4).
+
+    Each of the first five sites HID the next one, which is why the sweep is
+    the enumeration and a grep would not have been.
+
+    `None` is *a store is sitting right there and I may not look at it*, which
+    is a different fact from `False` and callers answer it differently: the
+    resolver reports `unreadable`, a predicate about whether this is a Perry
+    project at all says yes, and a tool that only wants defaults takes no.
+    Making them decide is the point — the bug was never the permission, it was
+    six call sites each assuming the question always has an answer.
+    """
+    try:
+        return path.exists()
+    except OSError:
+        return None
+
+
 #: name. The other two below both occur with `.perry/config.jsonl` present on
 #: disk, which is the condition that KR counts.
 CONFIG_STORE_ABSENT = "absent"
@@ -300,7 +328,13 @@ def config_store_records(project_root: Path) -> tuple[list[dict] | None, str]:
     gets instead is the reason, so it can decide.
     """
     path = Path(project_root) / ".perry" / "config.jsonl"
-    if not path.exists():
+    present = exists_or_unreadable(path)
+    if present is None:
+        # A store nobody may look at is a store that cannot be used, which is
+        # what `unreadable` already means. The docstring above forbids this
+        # function being the thing that crashes, and its own first line was.
+        return None, CONFIG_STORE_UNREADABLE
+    if not present:
         return None, CONFIG_STORE_ABSENT
     try:
         # Imported here, not at module scope: `perry_md_store` imports THIS
@@ -404,7 +438,14 @@ def configured(project_root: Path) -> bool:
     it also accepts — `BOARD.md`, `OKR.md`, `phase/` — because those differ per
     caller and this does not.
     """
-    return (Path(project_root) / ".perry" / "config.jsonl").exists()
+    # `None` — a `.perry/` that is there and may not be searched — answers
+    # YES here. Reporting such a project as unconfigured would make every
+    # caller fall back to its defaults for a project that has real settings,
+    # which is the wrong answer with no way to tell. Saying yes routes the
+    # caller into `config_store_records`, which reports `unreadable` and is
+    # already handled by `CONFIG_STORE_UNUSABLE`.
+    return exists_or_unreadable(
+        Path(project_root) / ".perry" / "config.jsonl") is not False
 
 
 def resolve_state_root(project_root: Path) -> Path:
