@@ -70,6 +70,18 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
     #: for its SHAPE below, which is the claim that can be made about a clock.
     CLOCK = ("generated_at",)
 
+    def test_the_clock_exclusion_holds_exactly_one_name(self):
+        """`CLOCK` is the one place this file may skip a declared field, so it
+        is bounded here rather than trusted.
+
+        A second name added to it drops that field out of BOTH projection
+        walks, silently and with every test still green. A clock is the only
+        thing that can honestly be excluded from a value comparison; anything
+        else added here is a field going untested, and a round found the
+        exclusion mechanism before it found a second name in it.
+        """
+        self.assertEqual(self.CLOCK, ("generated_at",))
+
     def test_every_declared_field_matches_the_full_payload(self):
         """The projection is applied to the FULL payload here and compared to
         what the tool emitted.
@@ -196,12 +208,53 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
         every case above and say nothing."""
         live = [k for k, path, _ in STATE.COMPACT
                 if STATE._at(self.full, path) is not None]
-        self.assertGreater(len(live), len(STATE.COMPACT) // 2,
-                           "most of the spec resolved to nothing")
+        # **A floor, not a half.** `> len(COMPACT) // 2` let up to 22 of the
+        # 53 declared paths start resolving to None — a key renamed in
+        # `build()` — with both walks still agreeing, because both fetch the
+        # source with `STATE._at(self.full, path)` and both would get None.
+        # 48 resolve on this fixture; the 5 that do not are the phase and
+        # linkage paths a scratch project has no data for, and they are named
+        # so a sixth cannot join them quietly.
+        self.assertGreaterEqual(len(live), 48,
+                                "declared paths stopped resolving")
+        dark = {k for k, path, _h in STATE.COMPACT
+                if STATE._at(self.full, path) is None}
+        self.assertEqual(
+            dark, {"phase", "linkage.phase", "linkage.objectives",
+                   "linkage.unlinked", "risks.top"},
+            "a declared path resolved to nothing on a fresh project, and this "
+            "file's synthetic cases are the only evidence for its kind")
 
     def test_it_holds_no_key_the_spec_did_not_declare(self):
-        declared = {k.split(".")[0] for k, _p, _h in STATE.COMPACT}
-        self.assertEqual(set(self.narrow) - declared, set())
+        """Every path, not just the top-level name.
+
+        This compared `k.split(".")[0]`, so a key emitted under `board.`,
+        `project.` or `risks.` that the declaration never names was invisible:
+        the parent was declared, and the parent was all it looked at.
+        """
+        def paths(node, prefix=""):
+            if not isinstance(node, dict):
+                return {prefix}
+            out = set()
+            for k, v in node.items():
+                out |= paths(v, f"{prefix}.{k}" if prefix else k)
+            return out
+
+        declared = {k for k, _p, _h in STATE.COMPACT}
+        # A declared key whose value is itself a dict — `subdict`, or a scalar
+        # that happens to be an object — owns everything under it; the walk
+        # stops there rather than descending into data the spec did not shape.
+        emitted = set()
+        for key in self.narrow:
+            if key in declared:
+                emitted.add(key)
+                continue
+            emitted |= {p for p in paths(self.narrow[key], key)}
+        undeclared = {p for p in emitted
+                      if p not in declared
+                      and not any(p.startswith(d + ".") for d in declared)}
+        self.assertEqual(undeclared, set(),
+                         "--compact emits a key the declaration does not name")
 
 
 class TestItCarriesTheVocabulary(unittest.TestCase):
@@ -377,24 +430,49 @@ class TestEveryProjectionKindIsFedDataThatDistinguishesIt(unittest.TestCase):
 
     #: One synthetic input per kind, and what a correct projection returns.
     #: Written from the declaration, not from `project_value`.
+    #:
+    #: **Every collection here holds MORE THAN ONE element, and that is the
+    #: point.** The first version of this dict gave each kind one objective,
+    #: one key result and two scalar `subdict` children. A V4 round appended
+    #: `[:1]` to the KR comprehension and to the objective comprehension and
+    #: the whole suite stayed green — `--compact` reported ONE key result per
+    #: phase objective where `--json` reported two on
+    #: `tests/fixtures/sample-project` and three on this project, and
+    #: `reference/snapshot.md` step 4 renders `<KRs done>/<KRs total>` from
+    #: exactly that list. A projection tested at cardinality one cannot tell a
+    #: correct implementation from one that keeps only the first of anything,
+    #: which is the same defect the class above was written to fix, one level
+    #: up: the rule had a second author and the data could not tell.
     CASES = {
         "value": (7, 7),
         "count": ([10, 20, 30], 3),
         ("fields", ("a", "b")): (
-            [{"a": 1, "b": 2, "drop": 3}], [{"a": 1, "b": 2}]),
-        ("fields_of_dict", ("a",)): ({"a": 1, "drop": 2}, {"a": 1}),
+            [{"a": 1, "b": 2, "drop": 3}, {"a": 4, "b": 5, "drop": 6}],
+            [{"a": 1, "b": 2}, {"a": 4, "b": 5}]),
+        ("fields_of_dict", ("a", "b")): (
+            {"a": 1, "b": 2, "drop": 3}, {"a": 1, "b": 2}),
         ("objectives", ("id", "current", "target")): (
-            [{"title": "T", "drop": "x",
-              "krs": [{"id": "K1", "current": 1.0, "target": 9.0,
-                       "drop": "x"}]}],
-            [{"title": "T",
-              "krs": [{"id": "K1", "current": 1.0, "target": 9.0}]}]),
+            [{"title": "T1", "drop": "x",
+              "krs": [{"id": "K1", "current": 1.0, "target": 9.0, "drop": "x"},
+                      {"id": "K2", "current": 2.0, "target": 8.0}]},
+             {"title": "T2",
+              "krs": [{"id": "K3", "current": 3.0, "target": 7.0}]}],
+            [{"title": "T1",
+              "krs": [{"id": "K1", "current": 1.0, "target": 9.0},
+                      {"id": "K2", "current": 2.0, "target": 8.0}]},
+             {"title": "T2",
+              "krs": [{"id": "K3", "current": 3.0, "target": 7.0}]}]),
         ("objectives_with_progress", ("id", "current", "target")): (
-            [{"id": "O1", "title": "T", "drop": "x",
-              "krs": [{"id": "K1", "current": 1.0, "target": 9.0,
-                       "drop": "x"}]}],
-            [{"id": "O1", "title": "T",
-              "krs": [{"id": "K1", "current": 1.0, "target": 9.0}]}]),
+            [{"id": "O1", "title": "T1", "drop": "x",
+              "krs": [{"id": "K1", "current": 1.0, "target": 9.0, "drop": "x"},
+                      {"id": "K2", "current": 2.0, "target": 8.0}]},
+             {"id": "O2", "title": "T2",
+              "krs": [{"id": "K3", "current": 3.0, "target": 7.0}]}],
+            [{"id": "O1", "title": "T1",
+              "krs": [{"id": "K1", "current": 1.0, "target": 9.0},
+                      {"id": "K2", "current": 2.0, "target": 8.0}]},
+             {"id": "O2", "title": "T2",
+              "krs": [{"id": "K3", "current": 3.0, "target": 7.0}]}]),
     }
 
     def test_each_kind_maps_its_input_to_the_declared_output(self):
@@ -405,11 +483,48 @@ class TestEveryProjectionKindIsFedDataThatDistinguishesIt(unittest.TestCase):
                     TestItIsAProjectionAndNothingElse._second_opinion(
                         given, how), want)
 
+    def test_no_collection_in_the_cases_has_one_element(self):
+        """The anti-vacuity control for the control.
+
+        Without this, the fix for a cardinality finding is to add a second
+        element once and let the next author drop it back. Every list-shaped
+        input above must hold at least two, and at least one nested list must
+        too, or the cases stop being able to see a projection that keeps only
+        the first of anything.
+        """
+        nested = 0
+        for how, (given, _) in self.CASES.items():
+            if not isinstance(given, list):
+                continue
+            with self.subTest(kind=how if isinstance(how, str) else how[0]):
+                self.assertGreaterEqual(len(given), 2, "one element cannot tell")
+            for item in given:
+                if isinstance(item, dict) and len(item.get("krs", ())) >= 2:
+                    nested += 1
+        self.assertGreaterEqual(
+            nested, 2, "no case nests a collection of two, so a projection "
+                       "that keeps only the first KR would pass")
+
     def test_the_nested_kind_carries_its_children(self):
+        """`subdict`, with a COMPOSITE child.
+
+        Both children used to be scalar kinds, so a `subdict` that stopped
+        projecting its children and carried them verbatim was green: a scalar
+        projected is a scalar carried. The `krs` child below is the whole point
+        — it must come back narrowed, and it cannot if the recursion is gone.
+        """
         how = ("subdict", (("n", "inner.n", "value"),
-                           ("c", "inner.items", "count")))
-        given = {"inner": {"n": 4, "items": ["a", "b"]}}
-        want = {"n": 4, "c": 2}
+                           ("c", "inner.items", "count"),
+                           ("o", "inner.objs",
+                            ("objectives", ("id", "current")))))
+        given = {"inner": {"n": 4, "items": ["a", "b"],
+                           "objs": [{"title": "T", "drop": "x",
+                                     "krs": [{"id": "K1", "current": 1.0,
+                                              "drop": "x"},
+                                             {"id": "K2", "current": 2.0}]}]}}
+        want = {"n": 4, "c": 2,
+                "o": [{"title": "T", "krs": [{"id": "K1", "current": 1.0},
+                                             {"id": "K2", "current": 2.0}]}]}
         self.assertEqual(STATE.project_value(given, how), want)
         self.assertEqual(
             TestItIsAProjectionAndNothingElse._second_opinion(given, how),
