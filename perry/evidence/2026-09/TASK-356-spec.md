@@ -198,6 +198,9 @@ spend itself attributing them:
 2. `tests/test_contract_key_parity.py::TestTheWitnessedKeysRedden::test_the_same_mutation_is_silent_without_the_witness`
    — the same subtest key
 3. `tests/test_diagnose.py::DecisionsAreCountedPerRecordNotPerMention::test_the_queue_register_reconciles_with_the_queue_on_this_repository`
+   **NO LONGER RED.** Fixed by TASK-420 at `96addd32` and green at
+   `daf5f079`; this baseline was measured at `56d072ff`. A round at a
+   later base should expect THREE, not four.
    — `TASK-420`, being fixed in a sibling worktree
 4. `tests/test_resume.py::TestStaleRuns::test_a_fresh_run_is_not_stale`
    — clock-dependent

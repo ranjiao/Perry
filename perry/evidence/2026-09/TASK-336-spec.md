@@ -103,6 +103,8 @@ folding, and the prefix arm with a margin under the threshold.
 no others.
 
 - Named tests: `…::test_a_one_character_title_does_not_swallow_every_summary`
+
+   **CORRECTION, from the round this criterion governed.** The two tests named on this line do NOT redden under `SUMMARY_MIN_WORDS = 0`: both assert that NO finding is raised, and a threshold of zero makes the prefix arm never fire, so they stay green. The mutation is caught — loudly, by `…_does_restate_its_title_is_still_caught` and `…_margin_is_counted_in_tokens_not_characters` in the same class. The criterion holds; only its attribution was wrong. Corrected here rather than in the verdict, because a criterion edited after a result is a negotiation with it and this is a fact about which test fires, not about the bar.
   and `…::TestOnePlaceDefinesWhatASummaryIs::test_the_writer_and_the_linter_agree_over_a_corpus`
 - Mutation that must redden them: `SUMMARY_MIN_WORDS = 5` → `0` at
   `bin/lib/__init__.py:1930`, and `return cjk + rest` → `return rest`.
@@ -190,6 +192,9 @@ spend itself attributing them:
 2. `tests/test_contract_key_parity.py::TestTheWitnessedKeysRedden::test_the_same_mutation_is_silent_without_the_witness`
    — the same subtest key
 3. `tests/test_diagnose.py::DecisionsAreCountedPerRecordNotPerMention::test_the_queue_register_reconciles_with_the_queue_on_this_repository`
+   **NO LONGER RED.** Fixed by TASK-420 at `96addd32` and green at
+   `daf5f079`; this baseline was measured at `56d072ff`. A round at a
+   later base should expect THREE, not four.
    — `TASK-420`, being fixed in a sibling worktree
 4. `tests/test_resume.py::TestStaleRuns::test_a_fresh_run_is_not_stale`
    — clock-dependent
