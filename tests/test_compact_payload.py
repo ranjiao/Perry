@@ -175,6 +175,66 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
                 want = self._second_opinion(STATE._at(self.full, path), how)
                 self.assertEqual(self._narrow_at(key), want)
 
+    #: The five fields whose `--compact` key is NOT its source path, written
+    #: out here rather than read from the declaration. Everything else in
+    #: `COMPACT` is an identity pair, so anchoring on the key is the same
+    #: question as anchoring on the path — until someone repoints one.
+    RENAMED = {
+        "project.tracks": "project.config.tracks",
+        "project.tracks_source": "project.config.tracks_source",
+        "project.packs": "project.config.packs",
+        "project.state_root": "project.config.state_root",
+        "project.language": "project.config.language",
+    }
+
+    def test_every_field_reads_the_source_its_key_names(self):
+        """The third way this criterion was self-checked, and the last one.
+
+        Round 4 found the RULE was verified with the function under test.
+        Round 5 found the DATA could not tell a correct projection from one
+        that keeps only the first of anything. Round 6 found the (key, path)
+        PAIRING: every walk in this file resolved its expectation through the
+        very `path` field it was meant to be checking, so the declaration was
+        both question and answer.
+
+        **46 of the 53 declared pairs could be repointed at another declared
+        path with the full suite still green.** The worst one is the spec's own
+        harm sentence: repointing `linkage.objectives` at `phase.objectives`
+        makes `--compact` report `current: null, target: null` for all three key
+        results of `tests/fixtures/sample-project` while `--json` in the same
+        process reports `current: 1.0, target: 3.0`, and
+        `reference/snapshot.md` step 4 renders the percentage from exactly that
+        list.
+
+        The fix is to anchor BOTH sides on the key — which one field,
+        `generated_at`, already did, and which is why it was one of the seven
+        that reddened. For the five renames, this file writes the mapping down
+        itself, so a sixth rename fails here until someone records it.
+        """
+        for key, path, how in STATE.COMPACT:
+            if key in self.CLOCK:
+                continue
+            with self.subTest(field=key):
+                source = self.RENAMED.get(key, key)
+                self.assertEqual(source, path,
+                                 f"{key} reads {path}, and this file expects "
+                                 f"{source} — one of them is wrong, and a "
+                                 f"rename belongs in RENAMED")
+                self.assertEqual(
+                    self._narrow_at(key),
+                    self._second_opinion(STATE._at(self.full, source), how))
+
+    def test_the_rename_list_is_exactly_the_pairs_that_differ(self):
+        """The bound, both ways.
+
+        An entry here for a field that does not differ would let a repointing
+        hide behind the rename list; a field that differs and is absent would
+        fail the case above with a message that reads like a defect in the
+        tool. Five today.
+        """
+        differ = {k: p for k, p, _h in STATE.COMPACT if k != p}
+        self.assertEqual(differ, self.RENAMED)
+
     def test_the_clock_field_is_projected_like_everything_else(self):
         """**One invocation, so the clock is deterministic.**
 
@@ -348,11 +408,16 @@ class TestTheStandupCanActuallyRenderFromIt(unittest.TestCase):
         `attribution.kr_currents` is a roll-up over the phase and cannot answer
         per objective."""
         objectives = self.narrow["linkage"]["objectives"]
-        if not objectives:
-            self.skipTest("the fixture project declares no phase KRs")
-        for kr in objectives[0]["krs"]:
-            self.assertIn("current", kr)
-            self.assertIn("target", kr)
+        # **No skip.** This used to `skipTest` when the fixture had no phase
+        # KRs, and its only fixture was a scratch `Project()`, which never has
+        # any — so the one case asserting that `current` and `target` reach
+        # `--compact` had NEVER EXECUTED. A V4 round found it skipping.
+        # `TestTheFullFixtureReachesTheDarkPaths` below runs the same claim
+        # against `tests/fixtures/sample-project`, which does declare them.
+        self.assertIn(objectives, ([], None),
+                      "a scratch project grew phase KRs; this case is now the "
+                      "wrong place to assert about them, and the fixture-backed "
+                      "class below is the right one")
 
 
 class TestItIsSmallerByTheOrderOfMagnitudeThatWasThePoint(unittest.TestCase):
@@ -552,6 +617,104 @@ class TestEveryProjectionKindIsFedDataThatDistinguishesIt(unittest.TestCase):
                 continue
             with self.subTest(kind=how if isinstance(how, str) else how[0]):
                 self.assertNotEqual(given, want)
+
+
+
+class TestTheFullFixtureReachesTheDarkPaths(unittest.TestCase):
+    """`--compact` against the one fixture that has a phase.
+
+    **Five of the 53 declared paths resolve to `None` on a scratch
+    `Project()`** — `phase`, `linkage.phase`, `linkage.objectives`,
+    `linkage.unlinked`, `risks.top` — and those five are the only route to
+    three of the six projection kinds. `tests/fixtures/sample-project` reaches
+    all five, is used by fifteen other modules, and until now **no test ran
+    `--compact` against it**. That is why a round could repoint
+    `linkage.objectives` at `phase.objectives` and watch the whole suite stay
+    green while every key result reported `current: null`.
+
+    Read-only: the fixture is shipped state and this module must not write to
+    it. `--json` and `--compact` both only read.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = PERRY_HOME / "tests" / "fixtures" / "sample-project"
+        cls.full = json.loads(inproc.run(
+            "perry-state", ["--root", str(cls.root), "--json"]).stdout)
+        cls.narrow = json.loads(inproc.run(
+            "perry-state", ["--root", str(cls.root), "--compact"]).stdout)
+
+    def _at(self, payload, dotted):
+        cur = payload
+        for step in dotted.split("."):
+            self.assertIsInstance(cur, dict, f"{dotted} is not reachable")
+            self.assertIn(step, cur, f"{dotted} is missing")
+            cur = cur[step]
+        return cur
+
+    DARK = ("phase", "linkage.phase", "linkage.objectives",
+            "linkage.unlinked", "risks.top")
+
+    def test_the_five_paths_a_scratch_project_cannot_reach_are_populated(self):
+        """The control. If the fixture stops declaring a phase, every case
+        below passes vacuously and this is what says so."""
+        for path in self.DARK:
+            with self.subTest(path=path):
+                self.assertIsNotNone(self._at(self.full, path),
+                                     "the fixture stopped populating this")
+        self.assertGreaterEqual(len(self.narrow["linkage"]["objectives"]), 2)
+
+    def test_every_field_reads_the_source_its_key_names_here_too(self):
+        """The key-anchored comparison, on the payload that has the data.
+
+        The identical case in `TestItIsAProjectionAndNothingElse` runs on a
+        scratch project, where five paths are `None` and any two of them agree.
+        """
+        renamed = TestItIsAProjectionAndNothingElse.RENAMED
+        second = TestItIsAProjectionAndNothingElse._second_opinion
+        for key, path, how in STATE.COMPACT:
+            if key in TestItIsAProjectionAndNothingElse.CLOCK:
+                continue
+            with self.subTest(field=key):
+                source = renamed.get(key, key)
+                self.assertEqual(source, path)
+                self.assertEqual(self._at(self.narrow, key),
+                                 second(STATE._at(self.full, source), how))
+
+    def test_a_key_result_carries_the_numbers_the_percentage_is_rendered_from(self):
+        """`reference/snapshot.md` step 4 renders `<%>` from these.
+
+        The case this replaces skipped on its only fixture and had never run.
+        """
+        objectives = self.narrow["linkage"]["objectives"]
+        seen = 0
+        for objective in objectives:
+            for kr in objective["krs"]:
+                with self.subTest(kr=kr["id"]):
+                    self.assertIn("current", kr)
+                    self.assertIn("target", kr)
+                seen += 1
+        self.assertGreaterEqual(seen, 3, "no key result to check")
+
+    def test_the_numbers_are_the_ones_the_full_payload_carries(self):
+        """Value equality, per key result, `--compact` against `--json`.
+
+        Repointing `linkage.objectives` at `phase.objectives` — a path of the
+        same shape whose KRs carry no numbers — made `--compact` report
+        `current: null` for every one of them while `--json` reported `1.0`.
+        This is the case that sees it.
+        """
+        by_id = {}
+        for objective in STATE._at(self.full, "linkage.objectives") or []:
+            for kr in objective.get("krs") or []:
+                by_id[kr.get("id")] = kr
+        self.assertTrue(by_id, "the fixture declares no linkage KRs")
+        for objective in self.narrow["linkage"]["objectives"]:
+            for kr in objective["krs"]:
+                with self.subTest(kr=kr["id"]):
+                    self.assertIn(kr["id"], by_id)
+                    for field in ("current", "target", "title", "stretch"):
+                        self.assertEqual(kr[field], by_id[kr["id"]][field])
 
 
 if __name__ == "__main__":
