@@ -57,21 +57,27 @@ def recorded() -> dict:
     return json.loads(BASELINE.read_text())
 
 
-def _task_contract_name() -> str:
-    """`perry-task`'s own `LIST_CONTRACT`, read from the tool.
+def _tool_contract_name(tool: str) -> str:
+    """A tool's own `LIST_CONTRACT`, read from the tool.
 
     The version moves whenever the payload does — 2.0 bounded `tasks[]` — and
     this module is about which KEYS are compared, not about which minor is
     shipped. Typing the name made a bump fail seven cases here for a reason
     none of them is about.
+
+    **It took a `tool` argument at TASK-415, and that is the same lesson
+    landing a second time.** `perry-task`'s name was read and
+    `perry-goals`'s was typed one constant below it, so `3.0` → `3.1` failed
+    three cases in `WITNESSED` — two of them with a `KeyError` on the old
+    name — for a reason none of them is about, exactly as the paragraph above
+    describes. One reader, every tool.
     """
     import importlib.machinery
     import importlib.util
-    path = pathlib.Path(__file__).resolve().parent.parent / "bin" / "perry-task"
+    path = pathlib.Path(__file__).resolve().parent.parent / "bin" / tool
+    name = f"{tool.replace('-', '_')}_for_parity"
     spec = importlib.util.spec_from_loader(
-        "perry_task_for_parity",
-        importlib.machinery.SourceFileLoader("perry_task_for_parity",
-                                             str(path)))
+        name, importlib.machinery.SourceFileLoader(name, str(path)))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.LIST_CONTRACT
@@ -512,15 +518,19 @@ class TestAHeadingMayNameTheCollectionsItServes(unittest.TestCase):
 #:
 #: `mutate` is the text to remove from the page — a real declaration on the
 #: real page, not a marker put there for the test.
-#: The task contract's name is READ, not typed. It moves on every minor —
-#: 2.0 bounded `tasks[]` — and a table of literals here turned that bump into
-#: seven errors in a module whose subject is key coverage, not versions.
-TASK_LIST = _task_contract_name()
+#: These contract names are READ, not typed. They move on every minor —
+#: `perry-task/list` 2.0 bounded `tasks[]`, `perry-goals/list` 3.1 rounded a
+#: measured `current` — and a table of literals here turned the first of those
+#: bumps into seven errors, and the second into three, in a module whose
+#: subject is key coverage and not versions. `perry-decide/list` is still a
+#: literal below because it has never moved; the day it does, it comes here.
+TASK_LIST = _tool_contract_name("perry-task")
+GOALS_LIST = _tool_contract_name("perry-goals")
 
 WITNESSED = (
     ("perry-decide/list/2.0", "decide-list-contract.md", "expired_sunsets",
      "expired_sunsets[].sunset", ', "sunset": "2026-06-30"'),
-    ("perry-goals/list/3.0", "goals-list-contract.md",
+    (GOALS_LIST, "goals-list-contract.md",
      "krs[].current_staleness.moved_tasks",
      "krs[].current_staleness.moved_tasks[].at",
      ',\n                           "at": "2026-08-21T09:10:00Z"'),

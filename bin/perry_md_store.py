@@ -42,8 +42,12 @@ What each store holds
                        Until it existed an Objective had no record at all: it
                        was a title string denormalised onto `krs[].objective`,
                        which is the defect that design is named after. **No
-                       `id` is minted here** — the field is carried and left
-                       empty, and DESIGN-009 step 3 is what fills it.
+                       `id` is minted by the SCANNER** — `derive` carries the
+                       field and leaves it empty, and `migrate-ids` (step 3,
+                       `mint_objective_ids`) is the only thing that fills it.
+                       That command is the one-off migration DESIGN-009
+                       decision 3 asks for; decision 2 keeps what it writes in
+                       the store, so no `OKR.md` byte moves when it runs.
 
 Everything else — the mission, the operating principles, the rationale
 paragraphs, gimegime-pmo's nine screens of dispatch lessons — is layout. It is
@@ -229,8 +233,19 @@ SETTING_FIELDS = store_record_fields(".perry/config.jsonl", "setting")
 #: `perry_store.record`: a store whose lines reshuffle turns every write into a
 #: whole-file diff.
 STORED: dict[str, tuple[str, ...]] = {
-    "kr": ("kind", "version", "objective", "id", "text", "metric", "stretch",
-           "deadline", "linked", "qualifier", "form", "order"),
+    # `objective_id` sits beside `objective` and does not replace it —
+    # DESIGN-009 decision 4. The title keeps carrying the whole heading string,
+    # because every consumer that renders a KR grouped under a heading reads
+    # it; the id is added alongside so a `1.x` bump stays additive.
+    # It has NO column in `OKR.md` and never will (decision 2, store only), so
+    # nothing scans it and nothing renders it: `derive` fills it with `""` and
+    # `migrate-ids` is the only thing that writes a value. That asymmetry is
+    # deliberate and it is what makes `write --from-file` refuse on a minted
+    # store — `would_discard` compares by field, sees `store="O-4" →
+    # file=""`, and names the value the import would destroy.
+    "kr": ("kind", "version", "objective", "objective_id", "id", "text",
+           "metric", "stretch", "deadline", "linked", "qualifier", "form",
+           "order"),
     # DESIGN-009 § 5.1. `title` and `heading` are two fields on purpose:
     # `heading` is what the markdown line says, byte for byte, and is what the
     # renderer reproduces; `title` is what is left after the ordinal prefix,
@@ -239,10 +254,11 @@ STORED: dict[str, tuple[str, ...]] = {
     # `version` is ON the record because `OKR.md` holds several version blocks
     # side by side and each has its own Objectives — the same reason
     # `okr.jsonl` already carries `KR-O1.1` twice.
-    # `id` is carried and NOT minted (step 1 of that design's plan writes none;
-    # step 3 is the mint). Carrying the empty field rather than adding it later
-    # keeps the field order stable, so the day an id arrives is a changed value
-    # and not a whole-file reshuffle.
+    # `id` is carried and is NOT minted BY THE SCANNER — `derive` still writes
+    # `""` into it, and `migrate-ids` (step 3, `mint_objective_ids` below) is
+    # the only thing that puts a value there. Carrying the empty field from
+    # step 1 rather than adding it at step 3 is why the mint shows up as ten
+    # changed values and not as a whole-file reshuffle.
     "objective": ("kind", "id", "version", "title", "heading", "order"),
     "commitment": ("kind", "id", "track", "promise", "to_whom", "due",
                    "status", "by_when_note", "discharged_by", "order"),
@@ -334,6 +350,209 @@ def record(kind: str, values: dict, order: int) -> dict:
         else:
             out[field] = values.get(field, "")
     return out
+
+
+# ── the Objective id (DESIGN-009 step 3) ──────────────────────────────────
+
+#: DESIGN-009 decision 1's shape: `O-` and a decimal, minted sequentially.
+#:
+#: Spelled ONCE, because the mint reads the highest existing id back through
+#: this same pattern. Two spellings is how "what an id looks like" and "what
+#: counts as one already minted" come apart, and the day they do the mint
+#: starts at 1 again on a store that already holds five.
+OBJECTIVE_ID = re.compile(r"^O-([1-9][0-9]*)$")
+
+
+def _objectives_in_store_order(records: list[dict]) -> list[dict]:
+    """The `objective` records, walked in the order the STORE states.
+
+    Not in the order the lines happen to sit in. `order` is the field this
+    module writes precisely so that a reshuffled file is not a reshuffled
+    store — `plan` reports a store/file order disagreement rather than acting
+    on it — and an id minted from list position would be an id minted from the
+    one thing `order` exists to stop being load-bearing.
+
+    A record with no `order` keeps its list position, after everything graded,
+    rather than sorting as zero.
+    """
+    objectives = [r for r in records if r.get("kind") == "objective"]
+    return [r for _i, r in sorted(
+        enumerate(objectives),
+        key=lambda pair: (pair[1].get("order") is None,
+                          pair[1].get("order") or 0, pair[0]))]
+
+
+def mint_objective_ids(records: list[dict]) -> tuple[list[dict], dict]:
+    """Every Objective an `O-<n>`, and every KR the id of the one above it.
+
+    DESIGN-009 step 3 — decisions 1 to 4, and nothing else. The store goes in,
+    the store comes out; `OKR.md` is not read, not written and not consulted,
+    because decision 2 put the id in the store ONLY.
+
+    **What counts as one Objective, across versions.** `OKR.md` holds several
+    version blocks side by side, so `perry/okr.jsonl` carries TEN `objective`
+    records for what a reader would call five (now six) Objectives. They are
+    grouped by `title` — exact string equality, nothing parsed, nothing
+    inferred — and each group gets ONE id. Three things decide this:
+
+      * § 5.2 says an Objective's id survives "a new `OKR.md` version that
+        repeats it", which is only a property a shared id can have;
+      * § 7 risk 3 says `version` is part of the RECORD and not part of the
+        id, so two records of one Objective are told apart by `version`;
+      * the store already works this way for the kind next door — `O4-KR1` is
+        one id on two `kr` records, discriminated by `version` and `order`.
+
+    The alternative groupings are both refused. Grouping by `heading` keys on
+    the `Objective <N> — ` ordinal, and grouping by nothing — one id per
+    record — hands the Objective this very design is filed under two addresses
+    and splits every link to it, which is § 7 risk 1's blast radius reached by
+    a different road.
+
+    **`title` is exact equality and that is the whole rule.** It is not asked
+    whether two differently-worded titles mean the same Objective; that is a
+    judgement about prose, and this module makes none. A version that renames
+    an Objective therefore mints a second id, and the honest place to see that
+    is the report's `minted` list.
+
+    **The mint is not re-entrant on an id it did not mint.** An `objective`
+    record whose id does not match `OBJECTIVE_ID` is refused by name rather
+    than ignored: "read the highest existing and add one" has no answer when
+    an existing one cannot be read, and quietly minting `O-1` beside a
+    hand-written `O1` is how a store comes to hold two ids for one Objective.
+
+    **Idempotent by construction, not by a re-run check.** Pass one seeds the
+    title→id map from the records that ALREADY carry an id, so a second run
+    finds every group answered and mints nothing. `§ 7 risk 1` asks for
+    exactly this and the test asserts the store's bytes are unchanged, not
+    that a counter says zero.
+
+    Returns the new records — every one rebuilt in `STORED[kind]` order — and
+    a report naming what was minted, what was reused, and every `kr` record
+    the join could not answer for.
+    """
+    for rec in records:
+        kind = rec.get("kind")
+        if kind in STORED:
+            extra = sorted(set(rec) - set(STORED[kind]))
+            if extra:
+                raise Refused(
+                    f"a `{kind}` record carries field(s) {extra} that "
+                    f"`STORED[{kind!r}]` has no slot for. Rewriting it here "
+                    f"would drop them in silence, which is the one thing a "
+                    f"migration must not do")
+
+    objectives = _objectives_in_store_order(records)
+
+    # **A heading with no title has nothing to be grouped BY.**
+    # `objective_title` returns `""` for a heading that is nothing but its
+    # ordinal — `### Objective 1`, or `### 目标 1` — and it does that on
+    # purpose, because a guess would be worse. Two such headings in one file
+    # are two different Objectives that share the empty string, so grouping by
+    # title would hand them ONE id and split nothing visibly: `perry-okr diff`
+    # stays green, `OKR.md` never changes, and the store quietly says the two
+    # are the same Objective. Measured before this guard existed: two records,
+    # headings `Objective 1` and `Objective 2`, came back `['O-1', 'O-1']`.
+    #
+    # The alternative — falling back to `heading` for these — keys them on the
+    # `Objective <N>` ordinal, which is the position-derived handle
+    # `schema/goals-list-contract.md § Not here` refuses and decision 1 calls
+    # the trap. So the refusal names the heading and the fix is the user's:
+    # write what the Objective is, which step 4 will publish as its title
+    # anyway.
+    untitled = [r for r in objectives if not (r.get("title") or "").strip()]
+    if untitled:
+        raise Refused(
+            f"{len(untitled)} objective record(s) carry no title — "
+            f"{', '.join(repr(r.get('heading', '')) for r in untitled[:5])}. "
+            f"This command groups Objectives by title, so two untitled "
+            f"headings would be minted ONE id and every link to either would "
+            f"resolve to both. Give the heading its text in OKR.md and re-run "
+            f"`perry-okr write --from-file` first")
+
+    # Pass one — what is already stated. A group's id comes from the store
+    # before it comes from the counter, which is what makes a second run a
+    # no-op rather than a renumbering.
+    by_title: dict[str, str] = {}
+    highest = 0
+    for rec in objectives:
+        stated = rec.get("id") or ""
+        if not stated:
+            continue
+        m = OBJECTIVE_ID.match(stated)
+        if not m:
+            raise Refused(
+                f"objective {record_key(rec).replace(chr(0), '/')!r} carries "
+                f"id {stated!r}, which is not the `O-<n>` shape DESIGN-009 "
+                f"decision 1 chose. This command mints by reading the highest "
+                f"existing id and adding one, and it cannot read that one")
+        held = by_title.get(rec.get("title", ""))
+        if held is not None and held != stated:
+            raise Refused(
+                f"two objective records share the title "
+                f"{rec.get('title','')!r} and carry different ids "
+                f"({held!r} and {stated!r}). One of them is a link that has "
+                f"already split; this command will not choose between them")
+        by_title[rec.get("title", "")] = stated
+        highest = max(highest, int(m.group(1)))
+
+    # Pass two — the mint, in the store's own order.
+    minted: list[dict] = []
+    reused: list[dict] = []
+    for rec in objectives:
+        if rec.get("id"):
+            continue
+        title = rec.get("title", "")
+        if title in by_title:
+            reused.append({"key": record_key(rec).replace("\x00", "/"),
+                           "id": by_title[title], "title": title})
+            continue
+        highest += 1
+        by_title[title] = f"O-{highest}"
+        minted.append({"key": record_key(rec).replace("\x00", "/"),
+                       "id": by_title[title], "title": title})
+
+    # The join a `kr` record is answered by: the Objective heading it already
+    # names, inside the version block it already sits in. Both fields are on
+    # both records and neither is parsed — `krs[].objective` carries the
+    # heading verbatim, and so does `objective.heading`.
+    by_heading: dict[tuple[str, str], str] = {}
+    for rec in objectives:
+        ident = rec.get("id") or by_title.get(rec.get("title", ""), "")
+        by_heading[(rec.get("version", ""), rec.get("heading", ""))] = ident
+
+    out: list[dict] = []
+    unjoined: list[dict] = []
+    for rec in records:
+        kind = rec.get("kind")
+        values = dict(rec)
+        if kind == "objective" and not values.get("id"):
+            values["id"] = by_title.get(values.get("title", ""), "")
+        elif kind == "kr":
+            found = by_heading.get((values.get("version", ""),
+                                    values.get("objective", "")))
+            if found is None:
+                # Reported, never guessed at. A KR under a heading no
+                # `objective` record carries is the drift `record_key`'s note
+                # describes, and inventing an id for it here would fasten the
+                # KR to whichever Objective happened to sort nearby.
+                unjoined.append({"key": record_key(rec).replace("\x00", "/"),
+                                 "objective": values.get("objective", "")})
+                found = ""
+            values["objective_id"] = found
+        if kind in STORED:
+            out.append(record(kind, values, values.get("order")))
+        else:
+            out.append(values)
+
+    return out, {
+        "objectives": len(objectives),
+        "minted": minted,
+        "reused_by_a_later_version": reused,
+        "krs_answered": sum(1 for r in out
+                            if r.get("kind") == "kr" and r.get("objective_id")),
+        "krs_with_no_objective_record": unjoined,
+        "highest_id": f"O-{highest}" if highest else "",
+    }
 
 
 def validate_records(records: list) -> tuple[list[dict], list[dict]]:
@@ -953,6 +1172,7 @@ USAGE = """\
     {tool} render  [--root <p>] [--write]      the store → {file}
     {tool} write   [--root <p>] --from-file    {file} → the store
     {tool} diff    [--root <p>]                render and byte-compare with the file
+    {tool} migrate-ids [--root <p>]            mint the Objective ids into {store}
 
 `diff` exits 0 only when the bytes match **and** the store is what produced
 them: 1 when they differ, 3 when they match because the renderer copied a line
@@ -970,7 +1190,7 @@ explicit board-import direction, for a project being migrated onto the store.
 Exit codes: 0 read or written · 1 refused, or drifted · 2 bad invocation.
 """
 
-COMMANDS = ("build", "verify", "write", "render", "diff")
+COMMANDS = ("build", "verify", "write", "render", "diff", "migrate-ids")
 
 
 def _first_difference(live: str, rendered: str) -> dict:
@@ -1026,6 +1246,15 @@ def surface(doc: Doc) -> dict:
              "writes": [doc.rel_file]},
             {"name": "diff", "summary":
              "render and byte-compare with the file on disk", "flags": []},
+            # DESIGN-009 decision 3's "explicit one-off migrate command". It
+            # is explicit because it is the only thing that mints, and one-off
+            # because a second run has nothing left to do — not because
+            # anything stops it running twice.
+            {"name": "migrate-ids", "summary":
+             f"mint O-<n> into the objective records of {doc.rel_store} that "
+             f"have none, and fill every KR's objective_id",
+             "flags": ["--dry-run", "--json"],
+             "writes": [doc.rel_store]},
         ],
     }
 
@@ -1092,10 +1321,14 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     # it already exists is an in-place cell updater rather than a projection.
     # `text` stays `None` until the store has been read and validated, and the
     # scaffold is built from the records — never from a file that is not there.
+    # `migrate-ids` is the second such command and for a stronger reason than
+    # `render`'s: decision 2 put the Objective id in the STORE ONLY, so a mint
+    # that opened `OKR.md` at all would be reaching for a file it has nothing
+    # to say to.
     text: str | None = None
     if path.exists():
         text = path.read_text(encoding="utf-8")
-    elif cmd != "render":
+    elif cmd not in ("render", "migrate-ids"):
         print(f"{tool}: no {doc.rel_file} at {path}", file=sys.stderr)
         return 2
 
@@ -1117,7 +1350,7 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     # inverses, which nobody doubted, and proves nothing at all about the
     # store. A planted hand edit passes such a check, because both sides see
     # the edited value.
-    if cmd in ("render", "diff", "verify") and not store.exists():
+    if cmd in ("render", "diff", "verify", "migrate-ids") and not store.exists():
         print(json.dumps({
             "store": str(store), "exists": False,
             "note": f"no store on disk yet — run `{tool} write --from-file` "
@@ -1125,6 +1358,61 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
                     f"from a store built out of that same file proves nothing.",
         }, ensure_ascii=False, indent=2), file=sys.stderr)
         return 2
+
+    if cmd == "migrate-ids":
+        # **The mint reads the store and writes the store.** It never opens
+        # `OKR.md`: the id has no column there (DESIGN-009 decision 2) and no
+        # line of that file changes, which is a property this command gets by
+        # construction rather than by being careful.
+        try:
+            on_disk = load_store(store)
+        except (OSError, ValueError) as exc:
+            print(f"{tool}: {store} cannot be read "
+                  f"({type(exc).__name__}: {exc}); nothing was written",
+                  file=sys.stderr)
+            return 2
+        records, findings = validate_records(on_disk)
+        if findings:
+            # Refusing rather than minting into the records that DID parse:
+            # `validate_records` returns the good subset, and writing that
+            # back would silently delete every line this tool could not read.
+            print(json.dumps({"refused": f"{store} does not validate; "
+                              f"nothing was written",
+                              "store_findings": findings},
+                             ensure_ascii=False, indent=2), file=sys.stderr)
+            return 2
+        minted, report = mint_objective_ids(records)
+        after_text = store_text(minted)
+        before_text = store.read_text(encoding="utf-8")
+        report["store"] = str(store)
+        report["dry_run"] = "--dry-run" in seen
+        # **The idempotence claim is asserted on the BYTES, not on a counter.**
+        # A mint that renumbered a group and reused the numbers elsewhere
+        # would report `minted: []` and still have rewritten the store.
+        report["store_unchanged"] = after_text == before_text
+        wrote = False
+        if not report["dry_run"] and not report["store_unchanged"]:
+            lib.write_atomic(store, after_text)
+            wrote = True
+        report["wrote"] = wrote
+        if "--json" in seen:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        elif report["store_unchanged"]:
+            print(f"{tool}: {store} already carries an id for all "
+                  f"{report['objectives']} objective record(s) and an "
+                  f"objective_id for every KR. Nothing was written.")
+        else:
+            verb = "would mint" if report["dry_run"] else "minted"
+            print(f"{tool}: {verb} {len(report['minted'])} objective id(s) "
+                  f"({', '.join(m['id'] for m in report['minted'])}), reused "
+                  f"{len(report['reused_by_a_later_version'])} on a repeated "
+                  f"version, and answered {report['krs_answered']} KR "
+                  f"record(s)."
+                  + ("" if report["dry_run"] else f" Wrote {store}."))
+            for u in report["krs_with_no_objective_record"][:10]:
+                print(f"    no objective record for {u['key']}",
+                      file=sys.stderr)
+        return 0
 
     if cmd in ("render", "diff", "verify"):
         try:
@@ -1371,10 +1659,11 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
 
 
 __all__ = ["COMMANDS", "DOCS", "FELL_BACK_TO_COPYING",
-           "OBJECTIVE_LABEL", "SETTING_FIELDS", "TRACK_FIELDS",
+           "OBJECTIVE_ID", "OBJECTIVE_LABEL", "SETTING_FIELDS", "TRACK_FIELDS",
            "OKR", "Doc", "Refused", "STORED", "derive",
            "every_line_and_cell_came_from_the_store",
-           "field_map", "load_store", "main", "objective_title",
+           "field_map", "load_store", "main", "mint_objective_ids",
+           "objective_title",
            "okr_objective_heading", "plan", "record", "record_key", "render",
            "scan_okr", "setting_key", "store_record_fields",
            "store_text", "stored_value", "touches", "validate_records",

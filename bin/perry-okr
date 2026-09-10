@@ -8,6 +8,8 @@
     perry-okr diff    [--root <p>]              render and byte-compare
                                                 (exit 3: the bytes match and
                                                  the store did not produce them)
+    perry-okr migrate-ids [--root <p>]          mint the Objective ids into
+                                                okr.jsonl (DESIGN-009 step 3)
 
 The store is `okr.jsonl`, beside `OKR.md` in the state root. It holds what is
 WRITTEN — every KR (from a KR table or from the legacy `- KR1: …` bullet form),

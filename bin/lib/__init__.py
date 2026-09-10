@@ -1163,6 +1163,64 @@ def _corroborates(claimed, store_krs) -> bool:
     return str(claimed).strip() in store_krs
 
 
+#: Decimal places a measured percentage is published to. One, matching
+#: `bin/perry-context-budget § pct` — the only other percentage this tree
+#: publishes rather than prints — so a consumer reading two Perry payloads
+#: does not meet two precisions.
+MEASURED_PERCENT_PLACES = 1
+
+
+def measured_percent(numerator: int, denominator: int) -> float | None:
+    """`numerator / denominator` as a percentage, published to one decimal.
+
+    **The rule, and it is on `schema/goals-list-contract.md` because a
+    consumer has to be able to state it too:** a measured percentage is
+    rounded to one decimal place, and `0.0` and `100.0` are RESERVED for the
+    exact cases — `numerator == 0` and `numerator == denominator`. Nothing
+    strictly between the ends is ever published at an end.
+
+    **Why round at all.** `13 / 38` is `34.21052631578947` in IEEE 754, and
+    that is what `perry-goals list --json` published: seventeen significant
+    figures of a ratio of two small integers, sixteen of which are an
+    artefact of binary floating point rather than anything measured. Every
+    consumer then rounds it differently or not at all, so the same
+    measurement renders as three different numbers on three surfaces and
+    none of them is Perry's answer. Publishing the precision is the only way
+    the answer is one answer.
+
+    **Why the ends are reserved, and why that is not a direction.**
+    `perry-goals/list/2.0` removed `progress` because Perry cannot tell which
+    way a KR runs, so this must not round "toward the unmet end" — there is
+    no such end here to know. What it can tell is EXACTNESS: `1999 / 2000`
+    is `99.95`, which rounds to `100.0` at one decimal and publishes *every
+    row answered* about a phase with a row that was not. `0` and `100` are
+    the two values a consumer may read as a whole fact, so they are the two
+    this function only ever returns from a whole fact. Off the end, the
+    nearest representable non-end value is published instead — `99.9` and
+    `0.1` — which is still a rounding and is the only rounding of the four
+    that cannot be read as a completeness claim it did not measure.
+
+    **The unrounded ratio is never lost.** `numerator` and `denominator` are
+    published beside it in `current_measurement`, exactly and as integers, so
+    a consumer that needs the full ratio divides them itself and one that
+    needs "is it met" compares them — which is the comparison it should have
+    been making anyway, and the one thing this rounding is designed not to be
+    able to answer wrongly.
+
+    `None` for an empty denominator: no population is not `0` measured, and
+    that distinction belongs to the caller's own docstring.
+    """
+    if not denominator:
+        return None
+    value = round(100.0 * numerator / denominator, MEASURED_PERCENT_PLACES)
+    step = 10.0 ** -MEASURED_PERCENT_PLACES
+    if value >= 100.0 and numerator < denominator:
+        return round(100.0 - step, MEASURED_PERCENT_PLACES)
+    if value <= 0.0 and numerator > 0:
+        return step
+    return value
+
+
 def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict:
     """`P003-O3-KR2`, measured: rows that took a KR edge or an `unlinked`
     declaration **in the same action as `add`**, over the rows that were asked.
@@ -1364,7 +1422,7 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
         "kr": "P003-O3-KR2",
         "measured": True,
         "source": "linkage.jsonl + .perry/events.jsonl",
-        "current": (100.0 * numerator / denominator) if denominator else None,
+        "current": measured_percent(numerator, denominator),
         "numerator": numerator,
         "denominator": denominator,
         "population": population,

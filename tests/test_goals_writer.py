@@ -1524,10 +1524,15 @@ class TestTheReadContractDidNotMove(unittest.TestCase):
     also changed what three values under unmoved keys mean, which would
     have been a minor on `2.2`'s reading and is recorded in
     `LIST_SEMANTICS` so a consumer crossing the major is told both.
+    TASK-415 moved it to `3.1` — a minor, on `2.2`'s terms: no key added,
+    removed or retyped, and one value returning something different. A
+    MEASURED `current` is rounded to one decimal place where the raw IEEE 754
+    quotient used to go out, and the same row wrote down the invariant that a
+    measured KR carries a non-null `target`.
     """
 
     def test_the_version_is_unchanged(self):
-        self.assertEqual("perry-goals/list/3.0", G.LIST_CONTRACT)
+        self.assertEqual("perry-goals/list/3.1", G.LIST_CONTRACT)
 
     def test_the_contract_document_agrees(self):
         doc = (ROOT / "schema" / "goals-list-contract.md").read_text()

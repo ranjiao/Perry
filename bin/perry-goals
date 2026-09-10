@@ -520,7 +520,18 @@ class Okr:
 # would have been a minor on its own, on `2.2`'s reading. It is recorded in
 # `LIST_SEMANTICS` under `3.0` so a consumer crossing the major is told both
 # halves rather than only the removal it cannot miss.
-LIST_CONTRACT = "perry-goals/list/3.0"
+#
+# TASK-415 moves it to `3.1`, and adds no key. A MEASURED `current` is
+# published to one decimal place — `34.2` where it was `34.21052631578947` —
+# and the two ends, `0.0` and `100.0`, are reserved for the exact cases.
+# Same key, different number, which is the case `2.2` moved its own minor for;
+# `krs[].current_measurement.numerator` and `.denominator` carry the ratio
+# unrounded beside it, so nothing is lost, only stated. The same row also
+# writes down the invariant a consumer had no way to rely on before — a KR
+# whose `current` is MEASURED carries a non-null `target` — which adds no key
+# either. Rule 2 is untouched in both halves: nothing is removed and nothing
+# is retyped.
+LIST_CONTRACT = "perry-goals/list/3.1"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -575,6 +586,29 @@ LIST_SEMANTICS = [
              "why it is a major; that removal is in the Changelog rather than "
              "here, because a key a consumer can no longer read is not a "
              "meaning it has to re-check."},
+    {"version": "3.1",
+     "fields": ["krs[].current"],
+     "note": "A MEASURED `current` — one whose "
+             "`current_provenance.measured` is `true` — is rounded to ONE "
+             "DECIMAL PLACE. It was the raw IEEE 754 quotient: `13 / 38` "
+             "published as `34.21052631578947`, seventeen significant "
+             "figures of a ratio of two small integers, sixteen of them an "
+             "artefact of binary floating point. Every consumer rounded it "
+             "differently or not at all, so one measurement rendered as "
+             "several different numbers and none of them was Perry's. "
+             "`0.0` and `100.0` are now RESERVED for the exact cases "
+             "(`numerator == 0`, `numerator == denominator`): a ratio "
+             "strictly between the ends is never published at an end, so "
+             "`1999 / 2000` is `99.9` rather than the `100.0` one decimal "
+             "place would otherwise give it, which would claim a phase was "
+             "wholly answered about a row that was not. A consumer that "
+             "needs the exact ratio divides "
+             "`krs[].current_measurement.numerator` by `.denominator`, both "
+             "published unrounded as integers; a consumer that needs to know "
+             "whether the KR is MET compares those two rather than reading "
+             "`current`, which is the comparison the reserved ends exist to "
+             "stop it getting wrong. An ASSERTED `current` is unchanged: it "
+             "is the number the register was given and nothing rounds it."},
 ]
 
 _PERRY_STATE = None

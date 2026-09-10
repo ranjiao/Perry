@@ -1,6 +1,6 @@
 # `perry-goals list --json` — the goals contract
 
-> Contract: **`perry-goals/list/3.0`**
+> Contract: **`perry-goals/list/3.1`**
 > Locked by `tests/test_goals_contract.py`.
 > DESIGN-005 § 6 step 2.
 
@@ -33,7 +33,7 @@ Perry's tests cannot reach.
 
 ```jsonc
 {
-  "contract":     "perry-goals/list/3.0",
+  "contract":     "perry-goals/list/3.1",
   "semantics":    [ /* below */ ],         // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",
@@ -103,15 +103,15 @@ is — a consumer checks before it looks. Same shape as
 | `qualifier` | string | |
 | `linked_to` | string | the overall KR this phase KR rolls up to, or `""` |
 | `stretch` | bool | |
-| `target` | number \| null | from the linkage register only |
-| `current` | number \| null | from the linkage register only. **Asserted by a human, never measured** — see below |
+| `target` | number \| null | from the linkage register only. **Never `null` when `current_provenance.measured` is `true`** — see below |
+| `current` | number \| null | from the linkage register when `current_provenance.measured` is `false`; recomputed by Perry when it is `true`, and then rounded — see below |
 | `due` | string | from the register, else the KR row |
 | `task_ids` | array | task ids attributed to this KR by the register |
 | `current_provenance` | object | who asserted `current` and when |
 | `current_staleness` | object | whether a linked task has moved since |
 | `linked_task_completion` | object | how many linked tasks are closed. **Not progress** |
 
-### `current` is an assertion, and these three blocks say so
+### `current` is an assertion unless it says it was measured, and these three blocks say which
 
 Added in `2.1`. Until then the payload emitted `target` and `current` as bare
 numbers, and both of the readings a consumer could take from Perry's own
@@ -137,8 +137,8 @@ whatever conclusion it likes from the pair. Perry draws none.
 
 | Key | Type | Notes |
 |---|---|---|
-| `current_provenance.state` | string | `asserted` when the register gave a number, `unasserted` when it did not. **An absent `current` is `null` and `unasserted`, never `0`** — that default is what makes a drive-to-zero KR read as met before the work starts |
-| `current_provenance.measured` | bool | **always `false` today.** No tool in Perry re-runs a KR's metric, so nothing it publishes as `current` is a measurement. Emitted rather than implied, so a consumer showing "measured" has an explicit answer to key on |
+| `current_provenance.state` | string | `asserted` when the register gave a number, `unasserted` when it did not, **`measured` when Perry recomputed it on this read** — the third value, undocumented here until `3.1` though the payload has emitted it since DESIGN-015 row F. **An absent `current` is `null` and `unasserted`, never `0`** — that default is what makes a drive-to-zero KR read as met before the work starts. `measured` with `current: null` is a fourth thing again and not a fifth: the metric ran and found no denominator, which is not a number nobody wrote down |
+| `current_provenance.measured` | bool | **`true` when Perry re-ran the KR's metric on this read**, `false` when `current` is whatever the register was given. It read *always `false`* here until `3.1`, and had been wrong since DESIGN-015 row F shipped `bin/lib § COMPUTED_KR_METRICS`: a KR named there is recomputed from its sources on every read and publishes `state: "measured"`. Emitted rather than implied, so a consumer showing "measured" has an explicit answer to key on — and so it has something to gate the two rules below on |
 | `current_provenance.source` | string | `linkage-store`, or `""` when unasserted |
 | `current_provenance.asserted_at` | string | **this KR's own** `asserted_at`, **in UTC, with a `Z`** — when its `current` was arrived at. `""` when the record carries none, which is a real state and not an error: nobody wrote the date down. Unreadable text is `""` too, never a half-interpreted value. It is NOT defaulted to the time of any write |
 | `current_provenance.asserted_scope` | string | `kr` when a date was recorded, `""` when none was. It read `register` until `2.4`, because the date was the register document's one file-level `updated:` stamp and belonged to the whole file; that document is gone (ADR-019) and the field is per KR |
@@ -158,6 +158,74 @@ task's status is taken from the board first and from the last state-moving
 event second. `moved_tasks` reads the event log only, and an event counts as a
 state move when its `to` is a task status — `next`, `evidence` and `rung` also
 carry `from`/`to` and hold prose, a path and a rung.
+
+#### A measured `current` always has a `target` beside it
+
+**`3.1`. If `current_provenance.measured` is `true`, `target` is not `null`.**
+It is a rule about the register rather than about this tool — nothing here
+invents a target — so it is enforced where it can be, by
+`tests/test_measured_krs_declare_a_target.py` over this payload, and a project
+whose register breaks it reddens rather than publishing the pair.
+
+The rule exists because the pair is what a consumer draws from, and the row it
+was written for is the one that had the most to draw. `perry-goals/list/2.0`
+removed `progress` on the ground that only the project knows which direction a
+KR runs, so a consumer draws a bar only when `target` and `current` are both
+numbers — and the strictest thing a consumer can do with that rule is show
+NOTHING for a KR that fails it. Perry's own `P003-O3-KR2` failed it: a KR
+recomputed from two event logs on every read, publishing `current` beside
+`target: null`, so the single most rigorously measured row in the register was
+also the only row that rendered as *nobody wrote down what done would mean*.
+Its target had been written — as the first three words of `metric`, "Target
+100%." — and **prose is the one place a consumer may not read a number from**,
+which is the whole of rule 1 in `schema/README.md § Three of its rules are
+load-bearing`.
+
+An `asserted` or `unasserted` `current` is untouched by this: a register that
+gave a number and no target is a register a human wrote that way, and a KR
+whose target is genuinely prose ("≤ 15% drawdown") carries no `target` by
+design. The rule binds only where Perry itself produced the number, because
+that is the only case where nobody can say the omission was authored.
+
+#### A measured `current` is rounded, and the ends mean something
+
+**`3.1`. A measured `current` is published to ONE DECIMAL PLACE, and `0.0`
+and `100.0` are reserved for the exact cases.** `bin/lib § measured_percent`
+is the one implementation; `MEASURED_PERCENT_PLACES` beside it is the one
+place the digit is written; and
+`tests/test_measured_krs_declare_a_target.py § TheMeasuredPercentIsPublishedToOneDecimal`
+holds both halves of the rule, including the reserved ends and the fact that
+the live payload goes through the helper rather than dividing for itself.
+
+Before `3.1` the raw quotient went out: `13 / 38` published as
+`34.21052631578947`, seventeen significant figures of a ratio of two small
+integers, sixteen of them an artefact of binary floating point rather than
+anything measured. Nothing about the measurement justified any of them, and
+every consumer rounded them differently or not at all, so one measurement
+rendered as several different numbers and none of them was Perry's answer.
+
+**The reserved ends are not a direction.** `2.0` removed `progress` because
+Perry cannot tell which way a KR runs, and this must not smuggle that back
+in — there is no *good* end here to round away from. What Perry can tell is
+EXACTNESS. `1999 / 2000` is `99.95`, which one decimal place rounds to
+`100.0`: a claim that every row was answered, about a phase with a row that
+was not. `0` and `100` are the two values a consumer may read as a whole fact,
+so they are the two values this only ever returns from a whole fact —
+`numerator == 0` and `numerator == denominator`. A ratio strictly between the
+ends is published at the nearest value that is not an end, `0.1` or `99.9`.
+That is still a rounding, and it is the only one of the four that cannot be
+read as a completeness claim Perry did not measure.
+
+**Nothing is lost, and the exact question has an exact answer.**
+`krs[].current_measurement.numerator` and `.denominator` are published beside
+it, unrounded and as integers. A consumer that wants the full ratio divides
+them. A consumer that wants to know whether the KR is **met** compares them —
+which is the comparison it should have been making anyway, and the one the
+reserved ends exist to stop it getting wrong through `current`.
+
+An **asserted** `current` is not rounded and never was. It is the number the
+register was given, and rounding a number a human typed would be this
+contract editing its own source.
 
 **Every timestamp in these three blocks is UTC and says so** (`2.2`,
 TASK-144). They are compared on one clock, and the rule each shape is read by
@@ -316,6 +384,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `3.0` | 2026-09-08 | **breaking: `linkage.updated` removed, and three values' meaning changed. TASK-155 / ADR-019.** The key was the deleted `phase/<NNN>-linkage.md`'s one file-level `updated:` stamp; there is no file left for it to be the stamp of, and keeping it at `""` would be a value a consumer reads as *never updated* when the truth is *that is not a thing any more* — the same mistake `progress` was at `2.0`. And, under three keys that did not move: `current_provenance.source` reads `linkage-store` where it read `linkage-register`; `.asserted_scope` reads `kr` (or `""`) where it read `register`; `.asserted_at` is the KR record's own `asserted_at` field rather than `phase/<NNN>-linkage.md`'s file-level `updated:` stamp, which that ADR deleted along with the document. **The consequence a consumer must handle:** an *asserted* `current` can now carry `asserted_at: ""` and `asserted_scope: ""` — nobody recorded when the number was arrived at — and `current_staleness.evaluated` is then `false`. Before this the date was never empty on an asserted number, because it belonged to the file rather than to the number: that is the defect, and it meant appending one edge to one KR re-dated every asserted `current` in the phase. The value changes alone would have been a minor, on `2.2`'s reading; the REMOVAL is what makes it a major, and rule 2 — `2.x` only adds keys — is why it cannot be anything else. |
 | `2.3` | 2026-08-28 | **additive, TASK-205.** One key added, none removed or retyped: top-level `semantics`, the array documented above. A consumer could read this payload's minor and had nowhere to find out what a minor had changed, so `CONTRACT_TESTED` against `2.2` could never go red — the same gap `perry-task/list` closed at `1.7` and `perry-events/list` at `1.1`. Adding the key changed no value, so the array itself carries no `2.3` entry; it carries `2.2`. |
 | `2.0` | 2026-08-19 | **unchanged by TASK-091.** `OKR.md § Commitments` split `By when` into a typed `Due` and a prose `By when note`, and this payload does not carry that register — so no key here was added, removed or retyped, and `tests/test_contract_invariance.py` is right to see nothing. The columns are documented under *Not here* for consumers that parse the markdown. |
+| `3.1` | 2026-09-10 | **no key added, one value's meaning changed, and one invariant written down. TASK-415.** A **measured** `current` — one whose `current_provenance.measured` is `true` — is now rounded to one decimal place, with `0.0` and `100.0` reserved for the exact cases; `P003-O3-KR2` reads `34.2` where it read `34.21052631578947`. Same key, different number, which is exactly what moved `2.2`, and rule 2 is untouched: nothing removed, nothing retyped. The invariant is that a KR with `measured: true` carries a non-null `target`, held by `tests/test_measured_krs_declare_a_target.py`; it adds no key either, and is recorded here because a consumer cannot rely on a guarantee nobody stated. The page also stopped saying `current_provenance.measured` is *always false* and `current_provenance.state` is only `asserted` or `unasserted` — both had been wrong since DESIGN-015 row F shipped `COMPUTED_KR_METRICS`, and correcting a page to match a payload that already shipped is not itself a version move (the `2.1`/TASK-131 precedent). |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a
 deterministic writer and still has no deterministic *reader* — a consumer that

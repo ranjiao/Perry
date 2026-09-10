@@ -242,6 +242,9 @@
    "sec": 4.9,
    "source": "2026-09-09-085824"
   },
+  "test_measured_krs_declare_a_target.py": {
+   "sec": null
+  },
   "test_missing_defaults.py": {
    "sec": 1.1,
    "source": "2026-09-09-085824"
