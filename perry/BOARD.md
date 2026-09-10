@@ -129,6 +129,7 @@
 | TASK-405 | four in-process conversion rounds shipped without a single mutation, so nothing shows those tests would still go red | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-407 | perry-tasks lets Refused escape as a traceback | Coding Agent | review | — | evidence/2026-09/DESIGN-016-phase-a-result.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-410 | bin/README.md states eight things the tools no longer do | Coding Agent | review | — | evidence/2026-09/DESIGN-016-phase-cd-result.md |  | — | main |  |  |  |  |  |  |
+| TASK-411 | the declaration is checked both ways on perry-task alone; the other five tools are unguarded in both directions | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## P2
 
@@ -187,6 +188,9 @@
 | TASK-404 | 36 test modules assert against live project state, pinning 614 dates and 191 ids that go red when the board moves rather than when code breaks | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-408 | no single command lists the bin/ surface | Coding Agent | review | — | evidence/2026-09/DESIGN-016-phase-c-part1-result.md |  | — | main |  |  |  |  |  |  |
 | TASK-409 | the store family spells one verb four times, once per register | Coding Agent | review | — | evidence/2026-09/DESIGN-016-phase-cd-result.md |  | — | main |  |  |  |  |  |  |
+| TASK-412 | the contract page's rule-3 snippet compares minors as strings, so a consumer is warned about older changes and blind to newer ones | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
+| TASK-413 | bound.open_total and bound.closed_total are published to dashboards and asserted by nothing | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
+| TASK-414 | test_resume's stale-run test is clock-dependent and red on main, and it is not in any declared baseline | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
