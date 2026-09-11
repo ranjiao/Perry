@@ -15,7 +15,7 @@ write happened, not that the file is right — so a file already carrying a
 mutation when the harness started is restored to that mutation and reported OK.
 `TASK-325` found `bin/perry-task` in exactly that state.
 
-This file holds three things:
+This file holds five things:
 
 - `TestCircularity` — the control the spec requires, as executable code rather
   than a paragraph. A baseline snapshotted from an already-corrupted file is
@@ -31,6 +31,12 @@ This file holds three things:
   to shipping a harness is that a harness in the tree can itself be mutated;
   the self-check is the answer, and `test_mutated_helper_refuses` is the
   mutation that proves the check is live.
+- `TestALoneCopyAndTheRootRule` — TASK-426, V4 round 8. The helper reaches
+  `lib.empty_root_error` through an import deferred precisely so a lone copy
+  can run, and that import then **failed on every `--root` in exactly that
+  deployment**: `ModuleNotFoundError`, a traceback, and exit 1 — the code this
+  tool reserves for *a path differs from the ref*. Two lone-copy tests already
+  existed and neither passed `--root`, so nothing saw it.
 - `TestHelperVerdictIsNotJustTheLastPath` — added in round 2, from the round-1
   V4 review § 2. Fifteen tests shipped and **not one passed more than one
   path**, so `ok = all(...)` → `ok = any(...)` came back green and the mutant
@@ -214,6 +220,27 @@ class _HelperCase(unittest.TestCase):
             capture_output=True, text=True,
         )
 
+    def _planted_copy(self, transform=None):
+        """A committed copy of the helper in the throwaway repo.
+
+        It lands in a `bin/` with **no `lib` beside it**, which is the
+        deployment `TestALoneCopyAndTheRootRule` below is about; it lives
+        here rather than on one class because two now run it.
+        """
+        (self.d / "bin").mkdir(exist_ok=True)
+        dest = self.d / "bin" / "perry-restore-check"
+        dest.write_bytes(HELPER.read_bytes())
+        self.git("add", "-A")
+        self.git("commit", "-qm", "helper")
+        if transform is not None:
+            before = dest.read_bytes()
+            after = transform(before)
+            # A mutation whose anchor does not match silently no-ops and then
+            # reports a meaningless OK. Assert the edit landed.
+            assert after != before, "planted mutation did not match anything"
+            dest.write_bytes(after)
+        return dest
+
 
 class TestHelper(_HelperCase):
 
@@ -389,22 +416,6 @@ class TestHelperVerdictIsNotJustTheLastPath(_HelperCase):
 class TestHelperSelfCheck(_HelperCase):
     """A harness that lives in the tree can be mutated. It notices."""
 
-    def _planted_copy(self, transform=None):
-        """A committed copy of the helper in the throwaway repo."""
-        (self.d / "bin").mkdir(exist_ok=True)
-        dest = self.d / "bin" / "perry-restore-check"
-        dest.write_bytes(HELPER.read_bytes())
-        self.git("add", "-A")
-        self.git("commit", "-qm", "helper")
-        if transform is not None:
-            before = dest.read_bytes()
-            after = transform(before)
-            # A mutation whose anchor does not match silently no-ops and then
-            # reports a meaningless OK. Assert the edit landed.
-            assert after != before, "planted mutation did not match anything"
-            dest.write_bytes(after)
-        return dest
-
     def test_clean_helper_answers(self):
         helper = self._planted_copy()
         r = self.run_helper("HEAD", str(self.d / "subject.py"), helper=helper)
@@ -527,6 +538,177 @@ class TestHelperSelfCheck(_HelperCase):
             "is waived; if it does not, this mutation no longer bites and the "
             "sibling test proves less than it claims",
         )
+
+
+class TestALoneCopyAndTheRootRule(_HelperCase):
+    """A copy with no `bin/lib` beside it must never report drift that isn't there.
+
+    TASK-426, from the V4 round 8 measurement. `bin/perry-restore-check`
+    reaches `lib.empty_root_error` through an import deferred to the branch
+    that reads `--root`, and the deferral is deliberate: `_planted_copy` above
+    runs the file as a single copied file with no `bin/lib` beside it, and a
+    module-scope import would kill that copy before it could check itself.
+
+    **The deferred import then failed at exactly the moment it was needed.**
+    In that same lone-copy deployment every `--root` raised
+    `ModuleNotFoundError`, printed a traceback, and exited **1** — the code
+    this tool's own summary reserves for *a path differs from the ref*. So the
+    deployment the code was shaped around got a false report of drift from the
+    tool whose entire purpose is not to give one.
+
+    **Nothing tested it.** Fifteen helper tests shipped, two of them run the
+    lone copy, and neither passed `--root`; the gap is the flag, not the
+    deployment. Every vector round 8 measured is below, and the exit code is
+    asserted by name, because 2 (a bad invocation) and 1 (the file drifted)
+    are not interchangeable here — 1 is a lie about the tree.
+    """
+
+    def _vectors(self):
+        """Every `--root` spelling round 8 measured, plus `--root=<dir>`.
+
+        `--root=<dir>` was measured here rather than by the round: it takes the
+        same `startswith("--root=")` branch as the bare `--root=` and was
+        equally broken, so leaving it out would have left half that branch
+        uncovered.
+        """
+        d, subject = str(self.d), str(self.d / "subject.py")
+        return [
+            ("--root <dir>", ["--root", d, "HEAD", subject]),
+            ('--root ""', ["--root", "", "HEAD", subject]),
+            ("--root=", ["--root=", "HEAD", subject]),
+            ("--root=<dir>", ["--root=" + d, "HEAD", subject]),
+            ("--allow-modified-self --root <dir>",
+             ["--allow-modified-self", "--root", d, "HEAD", subject]),
+        ]
+
+    def test_the_copy_under_test_has_no_lib_beside_it(self):
+        """The precondition, asserted rather than assumed.
+
+        Every test below is about a deployment. If `_planted_copy` ever grew a
+        `bin/lib` next to the helper, the import would succeed and the whole
+        class would pass while proving nothing — the shape of green this file
+        has already been bitten by twice (round-2 V4 review § 3).
+        """
+        helper = self._planted_copy()
+        self.assertFalse(
+            (helper.parent / "lib").exists() or
+            (helper.parent / "lib.py").exists(),
+            "this class tests a copy that cannot import `lib`; something put "
+            "one beside it, so the tests below no longer exercise that case",
+        )
+        self.assertTrue((HELPER.parent / "lib").exists(),
+                        "control: the shipped tool does have bin/lib beside "
+                        "it, so the two deployments really are different")
+
+    def test_exit_one_is_reserved_for_drift_and_a_lone_copy_never_claims_it(self):
+        """The exit code IS the defect. 1 means "a path differs from the ref".
+
+        The subject file is byte-identical to `HEAD:subject.py` — asserted, not
+        assumed — so exit 1 from any of these invocations is the tool reporting
+        a difference that does not exist. That is the failure this file exists
+        to make impossible, and it was reachable from a lone copy through every
+        `--root` spelling there is.
+        """
+        committed = subprocess.run(
+            ["git", "-C", str(self.d), "show", "HEAD:subject.py"],
+            capture_output=True, check=True).stdout
+        self.assertEqual((self.d / "subject.py").read_bytes(), committed,
+                         "precondition: the subject must match its ref, or "
+                         "exit 1 would be the honest answer and this test "
+                         "would prove nothing")
+        helper = self._planted_copy()
+        for name, argv in self._vectors():
+            with self.subTest(vector=name):
+                r = self.run_helper(*argv, helper=helper)
+                self.assertNotEqual(
+                    r.returncode, 1,
+                    f"`{name}` from a lone copy exited 1, which this tool "
+                    f"documents as 'a path differs from the ref', over a file "
+                    f"that matches it exactly:\n" + r.stderr[-400:])
+
+    def test_a_lone_copy_refuses_root_in_one_line_that_names_bin_lib(self):
+        """Refusal, not a traceback — and exit 2, the code for a bad invocation.
+
+        Asserted on the message as well as the code. Five of the fourteen
+        `--root` readers already exited 2 on an empty root for an unrelated
+        reason, which is the "right code for the wrong reason" that
+        `test_bin_argument_contract.py` was rewritten over; a self-check
+        refusal or a missing positional would give 2 here too. The message has
+        to say the copy could not reach `bin/lib`.
+        """
+        helper = self._planted_copy()
+        for name, argv in self._vectors():
+            with self.subTest(vector=name):
+                r = self.run_helper(*argv, helper=helper)
+                self.assertNotIn("Traceback", r.stderr,
+                                 f"`{name}` crashed instead of answering")
+                self.assertEqual(r.returncode, 2,
+                                 f"`{name}` should be a bad invocation in this "
+                                 f"deployment:\n" + r.stderr[-400:])
+                self.assertIn("bin/lib", r.stderr,
+                              f"`{name}` exited 2 without saying why — a "
+                              f"refusal that does not name what it could not "
+                              f"reach is the right code for the wrong reason")
+                self.assertNotIn("REFUSING", r.stderr,
+                                 "control: this copy is committed and clean, "
+                                 "so a self-check refusal here would mean the "
+                                 "exit 2 above came from somewhere else")
+                self.assertEqual(
+                    r.stderr.strip().count("\n"), 0,
+                    "a refusal is one line, not a paragraph:\n" + r.stderr)
+
+    def test_a_decoy_lib_without_the_rule_is_refused_not_crashed(self):
+        """`sys.path.insert(SELF.parent)` can import something that is not ours.
+
+        A copy dropped into a directory that already holds a `lib.py` imports
+        that instead, and `lib.empty_root_error` is then an `AttributeError` —
+        the same traceback and the same exit 1 by a different door. A verifier
+        must not be able to be pushed into reporting drift by what happens to
+        be lying next to it.
+        """
+        helper = self._planted_copy()
+        (helper.parent / "lib.py").write_text("# not the project's lib\n")
+        r = self.run_helper("--root", str(self.d), "HEAD",
+                            str(self.d / "subject.py"), helper=helper)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertNotEqual(r.returncode, 1, r.stderr[-400:])
+        self.assertEqual(r.returncode, 2, r.stderr[-400:])
+
+    def test_the_lone_copy_still_answers_everything_else(self):
+        """Control: the refusal is scoped to `--root`, not to the tool.
+
+        Without this, "refuse always" and "never exit 1" both pass the tests
+        above while destroying the only thing this tool does.
+        """
+        helper = self._planted_copy()
+        subject = str(self.d / "subject.py")
+        ok = self.run_helper("HEAD", subject, helper=helper)
+        self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+        (self.d / "subject.py").write_text("MUTATED")
+        drift = self.run_helper("HEAD", subject, helper=helper)
+        self.assertEqual(drift.returncode, 1,
+                         "the lone copy must still be able to say a path "
+                         "differs; exit 1 is not switched off, it is earned:\n"
+                         + drift.stdout + drift.stderr)
+
+    def test_the_shipped_helper_still_asks_the_rule(self):
+        """Control: the shipped tool is unchanged, and answers from `bin/lib`.
+
+        This is what stops the fix from being "refuse every `--root`
+        everywhere". The shipped tool has `bin/lib` beside it, so an empty root
+        earns the project's own sentence — and a real one is simply honoured.
+        """
+        empty = self.run_helper("--allow-modified-self", "--root", "", "HEAD",
+                                str(self.d / "subject.py"))
+        self.assertEqual(empty.returncode, 2, empty.stdout + empty.stderr)
+        self.assertIn("empty value", empty.stderr,
+                      "the shipped tool must still reach lib.empty_root_error")
+        self.assertNotIn("bin/lib", empty.stderr,
+                         "the shipped tool reached the rule, so it must not be "
+                         "printing the copy's cannot-reach-it refusal")
+        good = self.run_helper("--allow-modified-self", "--root", str(self.d),
+                               "HEAD", str(self.d / "subject.py"))
+        self.assertEqual(good.returncode, 0, good.stdout + good.stderr)
 
 
 if __name__ == "__main__":

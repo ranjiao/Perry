@@ -25,7 +25,11 @@ living outside the working tree where no in-tree mutation can reach it.
     perry-restore-check <ref> <path> [<path> ...]
 
     --root DIR              repository to resolve <path> and <ref> against
-                            (default: the git repo containing the first path)
+                            (default: the git repo containing the first path).
+                            Needs `bin/lib` beside this file: a copy standing
+                            alone refuses --root in one line rather than
+                            answering it from a second copy of the project's
+                            rule. See `_root_refusal`.
     --json                  machine-readable result on stdout
     --allow-modified-self   proceed even though this script's own bytes could
                             not be shown to match the copy committed in its
@@ -172,8 +176,8 @@ USAGE = "usage: perry-restore-check <ref> <path> [<path> ...] " \
         "[--root DIR] [--json] [--allow-modified-self]"
 
 
-def _empty_root_error(flag: str, value: str) -> str | None:
-    """`bin/lib § empty_root_error`, asked at the moment `--root` is read.
+def _root_refusal(flag: str, value: str) -> str | None:
+    """The refusal this `--root` earns, or `None` when the value is usable.
 
     **`--root ""` is a bad invocation, not a default.** `Path("").resolve()`
     is the cwd, so an unset shell variable silently moved every comparison
@@ -181,18 +185,63 @@ def _empty_root_error(flag: str, value: str) -> str | None:
     in — a verifier answering confidently about the wrong tree, which is the
     one thing this file exists not to do.
 
-    Imported HERE rather than at module scope, and this indirection is the
-    whole reason the function exists. `self_check` above and
-    `tests/test_restore_check.py § _planted_copy` both run this file as a
-    single copied file with no `bin/lib` beside it — that is the `git archive`
-    workflow `review-constraints.md` prescribes — and an import at module
-    scope would make such a copy die before it could check itself. Deferring
-    it to this branch means the copy pays only if it is passed `--root`, and
-    the rule still has exactly one spelling for every tool that ships.
+    `bin/lib § empty_root_error` owns what counts as empty and what the caller
+    is told. This file only asks, and imports HERE rather than at module scope
+    because `self_check` above and `tests/test_restore_check.py §
+    _planted_copy` both run this file as a single copied file with no
+    `bin/lib` beside it — an import at module scope would make such a copy die
+    before it could check itself.
+
+    **A copy that cannot reach the rule takes no `--root` at all**, and says
+    so in one line with exit 2. What stood here before claimed the deferral
+    meant "the copy pays only if it is passed `--root`", and was wrong about
+    what the payment was: in that deployment `import lib` raised
+    `ModuleNotFoundError`, printed a traceback, and exited **1** — which the
+    summary at the top of this file defines as *1 when any differs*. A verifier
+    reporting drift that does not exist is the one answer this file is built
+    to make impossible, and it did it in the deployment its own docstring
+    names as the reason for the deferral. TASK-426, V4 round 8, measured on
+    `--root <dir>`, `--root ""`, `--root=` and `--allow-modified-self --root
+    <dir>`; `tests/test_restore_check.py § TestALoneCopyAndTheRootRule` now
+    holds all four, and holds the exit code off 1 by name.
+
+    **Why it refuses rather than falling back to a local copy of the rule.**
+    The fallback is one `if`, and it is the defect this project has paid for
+    most. `empty_root_error` is a function because the rule shipped inside
+    `lib.parse_surface`, reached six of the fourteen tools that read `--root`,
+    and a V4 round measured the other eight — each answering for itself —
+    still resolving the cwd's project. `tests/test_bin_argument_contract.py §
+    test_the_one_spelling_of_the_empty_root_rule` states that as executable
+    policy: no file in `bin/` may carry the sentence `lib` owns. A second
+    spelling inside the *verifier* is the worst place for one, because it can
+    drift from the shipped rule and nothing in the deployment that uses it
+    could tell — a verifier is exactly the tool that must be able to show
+    where its answer came from. Nor may the copy import `lib` out of the tree
+    named by `--root`: that takes the rule from the tree under review, the one
+    source a verifier must not trust.
+
+    Nothing prescribed loses anything. The scratch copy `review-constraints.md
+    § You are a reader` prescribes is a copy of the *project*, so `bin/lib` is
+    beside it; and both `bin/README.md` and `review-constraints.md` send a
+    scratch-copy reader to the **live** repository's helper with `--root
+    <copy>`, which is unaffected. Only a single file copied alone loses
+    `--root`, and it had nothing to lose: `--root` worked there until
+    `daf5f079` put the rule behind an import, and has been a traceback and a
+    false exit 1 ever since.
     """
     sys.path.insert(0, str(SELF.parent))
-    import lib
-    return lib.empty_root_error(flag, value)
+    try:
+        import lib
+        rule = lib.empty_root_error
+    except (ImportError, AttributeError) as exc:
+        return (f"{flag} needs `bin/lib`, which this copy of {SELF.name} "
+                f"cannot reach ({exc}). It asks that module which --root "
+                f"values the project refuses rather than keeping a second "
+                f"copy of the rule, so a copy standing alone takes no --root: "
+                f"run the repository's own helper against this tree with "
+                f"--root <dir>, or drop --root and name paths inside the "
+                f"repository whose ref you want to compare against.")
+    return rule(flag, value)
 
 
 def main(argv: list[str]) -> int:
@@ -224,12 +273,12 @@ def main(argv: list[str]) -> int:
                 print(USAGE, file=sys.stderr)
                 return 2
             root_arg = argv[i]
-            if (bad := _empty_root_error(a, root_arg)) is not None:
+            if (bad := _root_refusal(a, root_arg)) is not None:
                 print(f"perry-restore-check: {bad}", file=sys.stderr)
                 return 2
         elif a.startswith("--root="):
             root_arg = a.split("=", 1)[1]
-            if (bad := _empty_root_error("--root", root_arg)) is not None:
+            if (bad := _root_refusal("--root", root_arg)) is not None:
                 print(f"perry-restore-check: {bad}", file=sys.stderr)
                 return 2
         elif a.startswith("-"):
