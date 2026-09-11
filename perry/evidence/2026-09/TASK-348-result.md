@@ -2379,27 +2379,37 @@ be wrong about.
 Named here rather than filed: **this row may not write the task store.** The
 PMO files them.
 
-1. **Correct `DESIGN-014 § 5.1` category B.** "Condemned in full" is false for
+1. **Record the project-wide four totals in `DESIGN-014`, and restate
+   `TASK-263`'s headline as a two-file result.** `§ 6` step 1 is now finished —
+   24 files, 40,127 lines, 16,566 in the four categories — and `§ 5.1`'s three
+   tables are still whole-file numbers written before any of it. The
+   restatement matters more than the tables: *"OBSOLETE is the largest
+   category"* is true of `perry-task` and `perry-lint` and false of the project
+   (§ 5), while *"OBSOLETE is ~4x AGENT-OWNED"* is true of both and is the
+   finding that should drive the plan. Whoever takes this should carry both
+   sentences, because dropping either one is how the census gets remembered
+   wrongly in the direction it was already remembered wrongly once.
+2. **Correct `DESIGN-014 § 5.1` category B.** "Condemned in full" is false for
    all three files (§ 6). The table should carry the measured OBSOLETE line
    count per file, and the entry for `viewer/parsers.py` should record that
    OBSOLETE is not even its largest category.
-2. **Give the five sole-implementation typed operations a home before Tier B
+3. **Give the five sole-implementation typed operations a home before Tier B
    runs** (§ 6.1): the `.perry/config.jsonl` reader/validator, root resolution,
    the YAML subset, the ADR reader, the linkage store reader. This is the row
    that makes `ADR-011` Tier B safe to schedule.
-3. **File the asks and intake store reads.** TASK-268 covers risks only
+4. **File the asks and intake store reads.** TASK-268 covers risks only
    (§ 11.1).
-4. **File the `## Commitments` deletion.** TASK-236's scope is the KR tables;
+5. **File the `## Commitments` deletion.** TASK-236's scope is the KR tables;
    TASK-042 covered Commitments and is `dropped`, leaving 337 measured lines
    with no row (§ 7.3).
-5. **Delete the conformance family** — 131 lines whose tool is gone (§ 6.3).
-6. **Move `bin/perry-dispatch-limit` from `DESIGN-014` category C to category
+6. **Delete the conformance family** — 131 lines whose tool is gone (§ 6.3).
+7. **Move `bin/perry-dispatch-limit` from `DESIGN-014` category C to category
    A.** 223 of its 297 code lines are TYPED and they are specifically what
    category A is defined by — *"performs a write an agent cannot make safely"*:
    a `mkdir`-based mutex with a wait deadline and stale-owner recovery,
    `kill -0` liveness, mtime-vs-TTL expiry, and temp-file-plus-atomic-rename
    marker writes. It is not prose an agent could carry.
-7. **Answer `DESIGN-014` open question 1 with the measurement.** Category C
+8. **Answer `DESIGN-014` open question 1 with the measurement.** Category C
    lists five tools totalling 2,875 lines as "code standing in for prose". Four
    of the five are measured here and the claim fails for every one:
    `perry-state-cost` 209 TYPED / **0** OBSOLETE / 0 AGENT (it does not import
@@ -2407,15 +2417,16 @@ PMO files them.
    **0** / 0, `perry-knowledge` 196 / 49 / 15, `perry-explain` 182 / 90 / **17**.
    The only genuine category-C core found is `perry-explain § heading_title` —
    **17 lines**, not 2,875.
-8. **Add `bin/perry-churn` to `DESIGN-014`.** It appears in none of the three
+9. **Add `bin/perry-churn` to `DESIGN-014`.** It appears in none of the three
    tables (`grep -n churn` on the design doc returns nothing) and is 745 lines,
    228 TYPED, zero non-typed. It belongs in category A on its own terms.
-9. **Fix the two live defects** — § 11.2 (`perry-goals` wrong root, wrong
+10. **Fix the two live defects** — § 11.2 (`perry-goals` wrong root, wrong
    numbers in a published contract today) and § 11.3 (CON-03 always fires).
    These are the only two entries in § 11 that are wrong *now* rather than
    latent.
-10. **Re-measure `bin/perry-restore-check`.** It grew by 79 lines on `main`
-    after this census was pinned (§ 13).
+11. **Re-measure `bin/perry-restore-check`.** It went 315 → 364 lines on `main`
+    after this census was pinned, so 49 of its lines are unmeasured here
+    (§ 13). It is the only one of the 22 that moved.
 
 ## 13. What this row did not do
 
