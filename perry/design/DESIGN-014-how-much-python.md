@@ -376,6 +376,49 @@ not wait for any of this.
   `/perry diagnose` still have callers. Decision 3 is unaffected as a decision;
   what is unresolved is the ground the objection stands on.
 
+- **2026-09-11 — every line count in `§ 5.1` is stale, and `TASK-348`'s census
+  supersedes them. The conclusions do not move; two of them get sharper.**
+  Appended rather than edited in place, because this document is locked.
+
+  `§ 5.1`'s figures were taken at lock. Re-measured at `583f024f`:
+
+  | file | `§ 5.1` says | measured |
+  |---|---|---|
+  | `viewer/parsers.py` | 4,603 | 4,902 |
+  | `bin/perry-tasks` | 1,500 | 1,928 |
+  | `bin/perry_md_store.py` | 1,155 | 1,675 |
+  | `bin/perry-task` | 7,522 | 8,540 |
+  | `bin/perry-lint` | 4,483 | 5,905 |
+  | `bin/perry-state` | 2,747 | 2,657 |
+  | `bin/perry-diagnose` | 2,691 | 2,818 |
+
+  **Read `perry/evidence/2026-09/TASK-348-result.md` for the current numbers,
+  not this section.** It measures the 22 files `TASK-263` did not, by call
+  site, 27,132 lines at that commit.
+
+  Two of its findings bear directly on `§ 5.1`:
+
+  1. **`§ 5.1` category B's "condemned in full" is false, by about five times.**
+     Of the 8,505 lines in `viewer/parsers.py`, `bin/perry-tasks` and
+     `bin/perry_md_store.py`, **1,775 are OBSOLETE REPRESENTATION — 20.9%**. In
+     `parsers.py` that is not even the largest category; TYPED is, at 870. And
+     those files hold the **only** implementation of the `.perry/config.jsonl`
+     reader and validator and of root resolution, which every tool runs before
+     it can do anything, plus the YAML parser behind `perry-lint`'s spec
+     frontmatter, the ADR reader, and the linkage store reader. `ADR-011`
+     Tier B can delete 1,775 lines inside these files; **it cannot delete the
+     files.**
+  2. **`TASK-263`'s headline was a two-file result, not a project-wide one.**
+     Its `OBSOLETE : AGENT-OWNED` ratio holds and strengthens — 4.19:1 across
+     these 22 files against 3.05:1 there — but *"OBSOLETE is the largest
+     category"* does not survive: project-wide, TYPED is 6,440 against
+     OBSOLETE's 3,546. `perry-task` and `perry-lint` are the two files whose
+     job **is** the board, so measuring only them was close to selecting on the
+     outcome.
+
+  `bin/perry-dispatch-limit`, which `§ 5.1` files under category C, measures
+  223 of 297 lines TYPED with **zero** OBSOLETE.
+
 ## 10. References
 
 - `perry/decisions/ADR-011-the-representation-layer-comes-out.md` — the tier plan this doc extends past

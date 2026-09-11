@@ -380,10 +380,16 @@ def load_glossary(schema: dict) -> None:
     Every check below reads these module-level tables, so calling `check_file`
     without this first silently reports a localized project's own column
     headers as wrong columns. It used to live inline in `main()`, which meant
-    the only way to reach `check_file` correctly was to be `main()`;
-    `bin/perry-conform` needs the same validation on one file, and a second
-    copy of this loop is exactly the two-implementations-of-one-rule defect
-    ADR-004 is about."""
+    the only way to reach `check_file` correctly was to be `main()`.
+
+    **The tool that made it worth extracting is gone.** It was pulled out for
+    `bin/perry-conform`, which needed the same validation on a single file;
+    that tool was deleted with USER-910 and this docstring went on citing it
+    as the reason. The extraction is still right, and the reason is now the
+    four callers inside this file — three `check_file` entry points and
+    `main()` — a second copy of this loop for any of them being the
+    two-implementations-of-one-rule defect ADR-004 is about. There is a fifth
+    site that deliberately does NOT call it, and says why at its own line."""
     SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
     TASK_STATUSES.update((schema.get("enums") or {}).get("task_status") or ())
     for mode, cfg in ((schema.get("work_modes") or {}).get("modes") or {}).items():
@@ -735,8 +741,10 @@ def _track_context(state_file: Path, cell: str) -> dict:
     already asked the register rather than the projection.
 
     The root is walked up from the file being linted rather than passed in, so
-    `check_file`'s signature — which `bin/perry-conform` also calls — does not
-    move, and so there is no second answer to "where does this project start".
+    `check_file`'s signature does not move and there is no second answer to
+    "where does this project start". The caller that made that matter was
+    `bin/perry-conform`, deleted with USER-910; the property is worth keeping
+    for the three in-file callers that remain.
 
     An undeclared track reports `{}`, which every predicate treats as the
     permissive case. A typo in the register must not silently make a column

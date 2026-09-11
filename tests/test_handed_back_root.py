@@ -531,11 +531,17 @@ class TestEveryWriterHandBackCarriesTheRoot(unittest.TestCase):
 #: on the merge. The call itself has not changed through any of this — it is
 #: `check_file`'s `--templates` branch, which has no project root to name.
 #:
-#: Two independent agents hit this on the same day without seeing each other,
-#: which is the argument for re-keying it by something stable: the enclosing
-#: function plus the callee, the way `test_claims` does. That is filed as its
-#: own row, not smuggled in here.
-NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5634)}
+#: **Three times in one day now.** Two independent agents hit it, and then a
+#: five-line docstring correction in `bin/perry-lint` -- TASK-340, fixing a
+#: citation of a tool deleted with USER-910 -- moved the call 5634 -> 5642 and
+#: reddened this module, which has nothing to do with any of it. The call has
+#: not changed once through all three.
+#:
+#: That is the argument for re-keying it by something stable: the enclosing
+#: function plus the callee, the way `test_claims` does. Recorded here rather
+#: than fixed, because re-keying is a change to how this module identifies a
+#: call site and belongs in a round of its own.
+NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5642)}
 
 
 class TestTheFlagReachesTheTemplateThatNamesIt(unittest.TestCase):
