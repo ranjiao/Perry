@@ -846,9 +846,12 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
     #: that re-pinning is a copy of a value you have just read the diff for and
     #: not a script you can run without looking.
     GOVERNED_SHA = {
-        # span 5,271 chars / 86 lines — 4,121 pinned, 1,150 declared free
+        # span 7,572 chars / 126 lines — 6,422 pinned, 1,150 declared free
+        # Re-pinned by TASK-421, which added § `Where the agent puts a scratch
+        # file` and the prompt-construction bullet that carries it. The diff
+        # was read before this digest was pasted.
         "dispatch.md § the tree + § Executor: claude-subagent":
-            "c12161e8db91bd41d52fc68cfee6ced764b5e5a60cc304e3cb87d9053dca2207",
+            "3780eb88a43b3d0aede6306e42f8580cc65998f7cf43a6438e4ccb8f1f2f641c",
         # span 4,269 chars / 26 lines — all pinned, no free block
         "git-boundaries.md § Git Role Boundaries":
             "e89b1321cd55a7a910322b6045e33b6763717c760d753175816f4a53a5dc45af",

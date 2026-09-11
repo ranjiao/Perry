@@ -31,12 +31,25 @@ watching a correct guard report a defect that did not exist.
 ## The repository is live
 
 Other work is in the tree, including uncommitted work you cannot see the
-purpose of.
+purpose of. **And other work is in the process table**, including runs started
+by sessions you cannot enumerate.
 
 - **Never `git checkout`, `git stash`, `git reset`, or `git clean`.** Each one
   can destroy work that is not yours and not recoverable.
+- **Never `pkill`, `killall`, or `kill -9`.** A pattern kill cannot tell your
+  process from someone else's, and you cannot see who else is working. To stop
+  something you started, stop it by its own job or pid — never by a pattern.
 - Reading history is fine: `git log`, `git diff`, `git show`.
 - Do not commit, push, or open a PR. The round's output is a verdict.
+
+The signal bullet is the same argument as the `git checkout` bullet, one layer
+down: both are commands whose blast radius is the machine rather than the thing
+you aimed them at. On 2026-09-10 an agent that saw an unexpected tree name in
+its own output ran `pkill -f 'tests/run'`; a sibling agent's log shows
+`Terminated: 15`, and seven peer sessions were open at the time. **Seeing a
+result you cannot explain is a reason to stop and read, not a reason to
+signal** — the wrong output was a shared-path collision, and killing processes
+could not have fixed it.
 
 ## Do not run the write side against what you are reviewing
 

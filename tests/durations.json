@@ -388,6 +388,7 @@
       "sec": 4.83,
       "source": "2026-09-09-085824"
     },
+    "test_scratch_is_per_agent.py": null,
     "test_semantics_on_every_payload.py": {
       "sec": 4.97,
       "source": "2026-09-09-085824"
