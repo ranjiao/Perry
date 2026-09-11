@@ -530,3 +530,156 @@ correcting, and a fourth blind pair of this kind would be a new row.**
 - The result **corrected the row's own claim** about the suite being at
   baseline for the `perry-config track` / `--wip` case. A round that contradicts
   its own row is a round that measured.
+
+## 5 · Every finding, graded against § 0 — and none of them meets the bar
+
+**I am not filing any of these.** The round was told not to open rows, and this
+project is not opening them by default; below is what I found, what I think it
+is worth, and the decision is the PMO's.
+
+§ 0's bar, applied to each: *does it destroy unrecoverable state, make a tool
+report a wrong answer nobody can detect, or weaken a gate standing between a
+user and either of those?* **Nine findings, and my answer is no to all nine.**
+That is not a soft answer — it is the one the measurements support, and each
+line says what would change it.
+
+| # | row | finding | § 0 | would change my mind |
+|---|---|---|---|---|
+| 1 | 431 | `frozenset({…})` / `set([…])` hide a fourth blank-cell list from the guard; the climb stops at a `Call` | **no** — latent; 0 of 115 call-wrapped literals in the tree are container constructors, and the codebase's own idiom is a bare literal | one such site existing today. I looked; there is none |
+| 2 | 419 | a `checked:`/`not-checked:` continuation line beginning `grade:` is promoted to the field, silently switching off `review-rounds-exhausted` **and** truncating the line it continued | **no** — needs a reviewer to write one specific indented sentence on their own two-FAIL row | a corpus block where it has already happened. There is none: 0 of 112 carry a `grade:` |
+| 3 | 411 | *"None of the fifteen is § 1.4's defect"* is generalised from one probe; with a risks store present, a declared `--write` on a `*-diff` verb exits 0 and silently writes nothing | **no** — § 2's table sends a misstatement to a row, and no `*-diff` verb declares `--write` | `--write` appearing in a `*-diff` declaration |
+| 4 | 431 | the fourth-list guard proves itself by **writing `bin/perry-context-budget` in the live checkout**, while `tests/parallel` runs 8 workers over that one tree and other agents share the machine | **no** — a flakiness and shared-tree risk, not a product answer. I did not reproduce an interference red | an observed red in another module during a parallel run |
+| 5 | 419 | § 3 says in bold that the criterion beside a `grade:` *"is not optional prose"*, and nothing implements it: a bare `grade: ROW` quiets the guard | **no** — the same sentence names the enforcement mechanism (the next reviewer), so it is declared rather than assumed | making it required; it would cost nothing today |
+| 6 | — | `bin/perry-restore-check --root DIR` resolves a relative `<path>` against the **cwd**, not `DIR`, then prints *"The restore did NOT put the file back"* for a file that was restored. Its `--help` says otherwise | **no** — loud, and wrong in the safe direction | it ever answering "restore OK" wrongly. It cannot; it refuses instead |
+| 7 | 411 | **no criteria file exists for the row at all** (`find perry -name '*411*'` returns the result and this review) | not a code defect — `review.md § 1`, a pre-check that should have stopped the dispatch | — |
+| 8 | 431 | `bin/lib/__init__.py:286` carries a six-spelling hardcoded fallback set inside `is_blank_cell` itself, invisible to the sweep for finding 1's reason | **no** — deliberate, commented, correct: the degraded mode for an unreadable schema | it drifting from the schema's list without anything noticing |
+| 9 | 431, 412 | two evidence-file numbers: the result says *"0 of 21"* where the script on `main` enumerates 20; the dropped-pair guard is textual, so a `"—/—"` spelling evades it | **no** — § 0's *"a false statement in something nobody executes"* | — |
+
+**If the PMO files only two, I would file 1 and 4**, both on TASK-431: the
+first because closing it is one `isinstance(cur, ast.Call)` clause and the
+guard is the row's whole forward-looking value, and the second because it is
+the only finding here that can make *somebody else's* run red for no reason,
+on a machine that currently has several.
+
+## 6 · What this round did not check, across all four rows
+
+Beyond each row's own `not-checked:` line below:
+
+- **Nothing was run that writes the Perry task store.** No row was moved; four
+  rows still sit at `review` and need the calls in `review.md § 5`.
+- **I ran `tests/run` whole for the baseline, not `--serial`**, so an
+  order-dependent red would not have surfaced. Per-module control runs before
+  every mutation were single-module and clean.
+- **Every destructive check ran in a `git clone` of this worktree**, not in the
+  tree under review, and not in `/Users/bytedance/proj/Perry`. That clone
+  carries no `.claude/worktrees/`, so I did **not** reproduce the 52-nested-
+  checkout condition that made TASK-431's guard red on `main` — I verified the
+  repair's mechanism (`git ls-files` as the domain, and the loop body being
+  reachable) rather than the original failure.
+- **I did not re-run the full suite after my mutations.** Every mutation ended
+  `perry-restore-check rc=0` against `git show HEAD:<path>`, every planting
+  script re-asserted the bytes, and `git status --porcelain` in the clone is
+  empty. The only file this branch adds is this document.
+- **TASK-412**: I did not exercise the `jsonc` recursion into arrays, the two
+  excused changelog transcripts, or `bin/perry-task`'s payload beyond what the
+  page's snippets touch — all three are already in the result's own
+  `not-checked`, and I did not widen them.
+- **TASK-419**: I did not check `--reviews --strict`'s exit code over a graded
+  corpus, and I did not regrade any of the 62 ungraded FAILs.
+- **TASK-431**: I did not run `perry-lint` against any real board outside
+  `tests/fixtures/`, and I did not diff the three `phase/CURRENT` copies'
+  behaviour.
+- **TASK-411**: I did not run the 1,279 negative-space probes as subprocesses
+  through each tool's own `main`; like the test, I asked `lib.parse_surface`.
+  I also did not audit `perry-state` and `perry-diagnose`, which
+  `is_chain_tool` skips structurally — the result names that gap and nothing
+  holds them there.
+
+=== VERDICT ===
+task: TASK-411
+rung: V4
+result: PASS
+criteria: perry/evidence/2026-09/TASK-411-result.md
+checked: no criteria file exists for this row, so the result's own falsifiable
+         claims were the bar and that is stated in § 4.1. 0 false positives
+         falsified not re-read — 56 of 63 pairs lose their pair when their
+         literal is removed from the chain file, 7 are minted from
+         bin/perry-config:39 and were audited by hand at bin/perry-config:293;
+         149/63/42.3% and 1,279 probes / 0 accepted both re-derived in a
+         clone; the two over-report traps asked directly (perry-tasks diff
+         does not read --write, perry-config show does not read --dry-run);
+         3 mutations all RED, one mine against the reader itself
+         (tests/surface_reads.py:312, branch narrowing disabled) which
+         reddened the blind-pair ceiling at 60 pairs; the blind-pair argument
+         probed on its second kind and found false — see § 4.5
+not-checked: perry-state and perry-diagnose, which is_chain_tool skips
+         structurally and nothing holds; the negative space as subprocesses
+         rather than through lib.parse_surface; whether the 15-pair ceiling is
+         the right number rather than a record; the row's own board status
+=== END VERDICT ===
+
+=== VERDICT ===
+task: TASK-412
+rung: V4
+result: PASS
+criteria: perry/evidence/2026-09/TASK-412-spec.md
+checked: the drive() repair verified at source, not from the claim — both
+         repaired cases exec the page's own fenced block and assert on
+         ns["tested"], a name that exists only inside it; 7 mutations to
+         schema/task-list-contract.md, all RED, 4 of them mine and none in the
+         result's table (>= at :592, a bogus not-executable reason at :830, a
+         wrong declared type at :111, a seventh fenced block at :663);
+         the marker's reason is an enumerated allowlist checked against the
+         block's position; the bounded count of 6 is a real bound; 20 tests
+         green at HEAD before and after every restore, all restores verified
+         with perry-restore-check against git show HEAD
+not-checked: the jsonc shape check's recursion into arrays; the two excused
+         changelog transcripts as faithful records; bin/perry-task audited for
+         behaviour the page does not mention; the forward version space's
+         order independently of (int, int) — all four already named in the
+         result's own § 9 and not widened here
+=== END VERDICT ===
+
+=== VERDICT ===
+task: TASK-419
+rung: V4
+result: PASS
+criteria: perry/evidence/2026-09/TASK-419-spec.md
+checked: the review.md § 3 diff read as a diff — purely additive, no existing
+         sentence edited, VERDICT_KEYS byte-identical, so the page that judges
+         this round did not move the bar it judges by; the corpus re-derived
+         with the linter's own parse_verdicts (112 blocks, 62 FAIL, 0 carrying
+         a grade), so "0 of 62 regradeable" is exact; the M10 equivalent-mutant
+         claim proved in one line and then measured anyway over 19 grade
+         spellings at lengths 1-3, 7,239 cases, 0 differing; 3 mutations all
+         RED, two mine (< limit -> <= limit, the silent threshold raise; and
+         fail_grade returning ROW for an unreadable token); the live finding
+         carries the undeterminable aside
+not-checked: --reviews --strict's exit code over a graded corpus; any regrade
+         of the 62 ungraded FAILs; whether 2 is still the right threshold now
+         that the numerator changed, which the row itself names as a question
+         it creates and does not answer
+=== END VERDICT ===
+
+=== VERDICT ===
+task: TASK-431
+rung: V4
+result: PASS
+criteria: perry/evidence/2026-09/TASK-431-spec.md
+checked: the 3ae5fbfc repair checked by mutation rather than by reading its
+         indentation — the dropped pair planted in a tracked file is RED
+         twice, in an untracked file green, which is the git ls-files re-scope
+         working; 3 mutations on the substantive fixes all RED, incl. mine
+         against the one rule itself (bin/lib/__init__.py:266, _blank_key
+         stops normalising: 28 tests red); the consequence re-derived, 0 of 20
+         spellings read as a declared stage list; SWEEP.read_sites() returns 9
+         sites and all 9 are in EXEMPT with a written reason, keyed by
+         function and not by line; the fourth-list guard driven with 10 shapes
+         — 5 RED, and frozenset({…})/set([…]) GREEN, which is § 3.3
+not-checked: the 52-nested-checkout condition that made the guard red on main,
+         because the clone carries no .claude/worktrees/ — the repair's
+         mechanism was verified, not the original failure; perry-lint against
+         any real board outside tests/fixtures/; whether the three
+         phase/CURRENT copies currently disagree; non-Python readers and
+         runtime-assembled sets, both already in the result's § 10
+=== END VERDICT ===
