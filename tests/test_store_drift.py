@@ -31,7 +31,6 @@ import json
 import pathlib
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -39,6 +38,7 @@ import unittest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "bin"))
 import perry_md_store as M                                      # noqa: E402
 
+import inproc
 from store_fixture import StoreFixture
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -56,17 +56,25 @@ class Fixture(StoreFixture):
         return self.write_store(d)
 
     def lint(self, d: pathlib.Path, *extra) -> tuple[int, dict]:
-        proc = subprocess.run([sys.executable, str(LINT), "--root", str(d),
-                               "--json", *extra],
-                              capture_output=True, text=True, cwd=ROOT)
+        # **In-process** (TASK-368). Measured in this tree before converting:
+        # 110 `perry-lint` calls and 56 `perry-tasks`, 11.1 of this module's
+        # 12.4 seconds are children, and the boundary is 76.9% of a
+        # `perry-lint` call against a FIXTURE — 73.5% of the module. (Against
+        # Perry's own tree the same tool measures 3.6%; the share is a
+        # property of the corpus, not the tool, which is why this number is
+        # per-module.) `perry-lint`'s one root-keyed global, `_TRACK_CONTEXTS`,
+        # is populated only by a typed `Track` cell and no fixture here writes
+        # one — instrumented over a full in-process run of this module: 0 hits.
+        proc = inproc.run("perry-lint",
+                          ["--root", str(d), "--json", *extra], cwd=str(ROOT))
         self.assertTrue(proc.stdout.strip().startswith("{"),
                         f"perry-lint printed no payload: "
                         f"{proc.stdout[-300:]}{proc.stderr[-300:]}")
         return proc.returncode, json.loads(proc.stdout)
 
     def lint_text(self, d: pathlib.Path, *extra) -> tuple[int, str]:
-        proc = subprocess.run([sys.executable, str(LINT), "--root", str(d),
-                               *extra], capture_output=True, text=True, cwd=ROOT)
+        proc = inproc.run("perry-lint", ["--root", str(d), *extra],
+                          cwd=str(ROOT))
         return proc.returncode, proc.stdout
 
     def records(self, d: pathlib.Path) -> list[dict]:
@@ -443,11 +451,7 @@ class TestOneCheckMayNotKillTheLint(StoreFixture):
 
     def payload(self, d):
         import json
-        import subprocess
-        import sys
-        proc = subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-lint"),
-             "--root", str(d), "--json"], capture_output=True, text=True)
+        proc = inproc.run("perry-lint", ["--root", str(d), "--json"])
         self.assertTrue(proc.stdout.strip(),
                         f"the lint produced no payload: {proc.stderr[-200:]}")
         return json.loads(proc.stdout)
@@ -515,9 +519,7 @@ class TestTheMessageIsTrueOfTheFile(unittest.TestCase):
         # A store holding only one row: every other derived task is "missing".
         (d / "perry" / "tasks.jsonl").write_text(
             json.dumps({"id": "TASK-001", "title": "x"}) + "\n")
-        proc = subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-lint"),
-             "--root", str(d), "--json"], capture_output=True, text=True)
+        proc = inproc.run("perry-lint", ["--root", str(d), "--json"])
         for f in json.loads(proc.stdout)["findings"]:
             if "store has no record" in f["message"]:
                 self.assertIsNotNone(
@@ -552,9 +554,7 @@ class TestTheTwoToolsAgreeAboutWhetherAComparisonHappened(Fixture):
         return d
 
     def state(self, d: pathlib.Path) -> dict:
-        proc = subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-state"),
-             "--root", str(d), "--json"], capture_output=True, text=True)
+        proc = inproc.run("perry-state", ["--root", str(d), "--json"])
         self.assertTrue(proc.stdout.strip().startswith("{"),
                         f"perry-state printed no payload: {proc.stderr[-300:]}")
         return json.loads(proc.stdout)
@@ -946,9 +946,7 @@ class TestTheMarkdownCensusReusesTheExistingComparator(MarkdownStore):
     """
 
     def diff(self, d: pathlib.Path, tool: str) -> int:
-        proc = subprocess.run(
-            [sys.executable, str(ROOT / "bin" / tool), "verify",
-             "--root", str(d)], capture_output=True, text=True, cwd=ROOT)
+        proc = inproc.run(tool, ["verify", "--root", str(d)], cwd=str(ROOT))
         return proc.returncode
 
     def test_lint_and_the_tool_agree_on_a_clean_tree(self):

@@ -30,14 +30,13 @@ Run: python3 -m unittest discover -s tests
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
 
 import config_store
+import inproc
 from config_store import track
 
 
@@ -88,10 +87,15 @@ class Base(unittest.TestCase):
         return root
 
     def cli(self, root: Path, *args: str):
-        r = subprocess.run([sys.executable, str(TASK), *args,
-                            "--root", str(root), "--json"],
-                           capture_output=True, text=True)
-        return r
+        # **In-process** (TASK-368). Measured in this tree before converting:
+        # 280 `perry-task` calls, 15.5 of this module's 15.9 seconds are
+        # children, and the boundary is 92.1% of a `perry-task` call against a
+        # fixture — 89.3% of the module. `perry-task`'s module globals
+        # (`_ALIASES`/`_DISPLAY`, `_HEADINGS`, `_PERRY_STATE`) derive from the
+        # schema at `PERRY_HOME` or from a sibling, so none is root-dependent;
+        # every test here builds its own temp root anyway.
+        return inproc.run("perry-task",
+                          [*args, "--root", str(root), "--json"])
 
     def ok(self, root: Path, *args: str) -> dict:
         r = self.cli(root, *args)
@@ -118,8 +122,7 @@ class Base(unittest.TestCase):
         return (root / "perry" / "BOARD.md").read_text(encoding="utf-8")
 
     def state(self, root: Path) -> dict:
-        r = subprocess.run([sys.executable, str(STATE), "--json",
-                            "--root", str(root)], capture_output=True, text=True)
+        r = inproc.run("perry-state", ["--json", "--root", str(root)])
         self.assertEqual(r.returncode, 0, r.stderr)
         return json.loads(r.stdout)
 
@@ -366,9 +369,8 @@ class TestBothDirectionsOfTheFieldQuestion(Base):
         tid, = self.tasks(root)
         self.ok(root, "track", tid, "--track", "intake")
         before = self.board(root)
-        r = subprocess.run([sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
-                            "render", "--write", "--root", str(root)],
-                           capture_output=True, text=True)
+        r = inproc.run("perry-tasks",
+                       ["render", "--write", "--root", str(root)])
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(self.board(root), before)
 
@@ -432,8 +434,11 @@ class TestTheProjectionAgreesAfterAMove(Base):
     file disagreeing with the store has not finished."""
 
     def lint(self, root: Path) -> list[dict]:
-        r = subprocess.run([sys.executable, str(LINT), "--json",
-                            "--root", str(root)], capture_output=True, text=True)
+        # `bin/perry-lint` caches the track register in `_TRACK_CONTEXTS`,
+        # keyed on the root and never cleared — so an in-process lint is only
+        # safe where a root is linted once. Each test here builds a fresh temp
+        # root and lints it once; `tests/inproc.py` has the general warning.
+        r = inproc.run("perry-lint", ["--json", "--root", str(root)])
         return json.loads(r.stdout)["findings"]
 
     def test_perry_lint_reports_no_store_drift_after_a_move(self):

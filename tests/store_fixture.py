@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import pathlib
 import shutil
-import subprocess
-import sys
 import tempfile
 import unittest
 
 import config_store
+import inproc
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -97,10 +96,15 @@ class StoreFixture(unittest.TestCase):
         return root
 
     def write_store(self, root: pathlib.Path) -> pathlib.Path:
-        proc = subprocess.run(
-            [sys.executable, str(TASKS), "write", "--from-board",
-             "--root", str(root)],
-            capture_output=True, text=True, cwd=ROOT)
+        # **In-process** (TASK-368). All four modules that share this helper
+        # were measured before converting it — `test_store_drift` 73.5%,
+        # `test_store_is_canonical` 73.1%, `test_design_handoff` 82.5%,
+        # `test_linkage_store_declared` 65.6% — and the boundary is 97.7% of a
+        # `perry-tasks` call against a fixture. `perry-tasks`' two module
+        # globals are sibling-module handles, neither root-dependent.
+        proc = inproc.run("perry-tasks",
+                          ["write", "--from-board", "--root", str(root)],
+                          cwd=str(ROOT))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         path = root / "perry" / "tasks.jsonl"
         self.assertTrue(path.exists(), "the fixture wrote no store")

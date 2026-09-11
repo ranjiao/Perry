@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -50,6 +49,7 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 sys.path.insert(0, str(PERRY_HOME / "tests"))
 import config_store  # noqa: E402
+import inproc  # noqa: E402
 import perry_store as S  # noqa: E402
 
 TASK = PERRY_HOME / "bin" / "perry-task"
@@ -187,17 +187,21 @@ class Fixture:
         for name in mint:
             self._tasks(f"{name}-write", "--from-board")
 
+    # **In-process** (TASK-368). Measured in this tree before converting: 246
+    # `perry-tasks` calls and 94 `perry-task`, 13.0 of this module's 13.8
+    # seconds are children, and the boundary is 97.7% / 92.1% of one of those
+    # calls against a fixture — 90.2% of the module. Neither tool carries a
+    # root-dependent module global: `perry-tasks`' two (`_TASK_MODULE`,
+    # `_LINT_MODULE`) are sibling-module handles, and `perry-task`'s derive
+    # from the schema at `PERRY_HOME`. Every `Fixture` gets its own
+    # `mkdtemp()`, so no root is visited twice in one process either.
     def _tasks(self, *argv) -> None:
-        r = subprocess.run(["python3", str(TASKS), *argv,
-                            "--root", str(self.root)],
-                           capture_output=True, text=True)
+        r = inproc.run("perry-tasks", [*argv, "--root", str(self.root)])
         if r.returncode:
             raise AssertionError(" ".join(argv) + "\n" + r.stdout + r.stderr)
 
     def run(self, *argv) -> tuple[int, str]:
-        r = subprocess.run(["python3", str(TASK), *argv,
-                            "--root", str(self.root)],
-                           capture_output=True, text=True)
+        r = inproc.run("perry-task", [*argv, "--root", str(self.root)])
         return r.returncode, r.stdout + r.stderr
 
     def raw(self, name: str) -> bytes:
@@ -1028,17 +1032,14 @@ class TestTheOrdinaryWriteReachesItsStore(Base):
     def test_the_lint_prints_a_drift_verdict_rather_than_unchecked(self):
         f = self.fixture(build_board(), mint=())
         f.run("intake", "--title", "a brand new request")
-        r = subprocess.run(["python3", str(LINT), "--root", str(f.root)],
-                           capture_output=True, text=True)
+        r = inproc.run("perry-lint", ["--root", str(f.root)])
         self.assertNotIn("no `intake.jsonl`", r.stdout)
         self.assertIn("intake store: 5 record(s)", r.stdout)
 
     def test_intake_diff_byte_compares_clean_right_after_an_ordinary_write(self):
         f = self.fixture(build_board(), mint=())
         f.run("intake", "--title", "a brand new request")
-        r = subprocess.run(["python3", str(TASKS), "intake-diff",
-                            "--root", str(f.root)],
-                           capture_output=True, text=True)
+        r = inproc.run("perry-tasks", ["intake-diff", "--root", str(f.root)])
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_the_success_line_names_the_register_store_only_when_one_is_written(self):

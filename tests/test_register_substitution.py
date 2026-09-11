@@ -41,10 +41,11 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 import unittest
 from pathlib import Path
+
+import inproc
 
 from test_register_store_invariant import (
     ASK_TABLE, Base, INTAKE_TABLE, LINT, PT, REGISTERS, RISK_TABLE,
@@ -190,8 +191,12 @@ def lint_drift(root: Path, key: str) -> int:
     """`perry-lint`'s drifted count for one register, from the census line."""
     label = {"intake": "intake store:", "asks": "ask store:",
              "risks": "risks store:"}[key]
-    r = subprocess.run(["python3", str(LINT), "--root", str(root)],
-                       capture_output=True, text=True)
+    # **In-process** (TASK-368). This module's `Base` comes from
+    # `test_register_store_invariant`, whose helpers this row already
+    # converted, so leaving these three sites on `subprocess` would be the
+    # half-converted module `TASK-402`'s shared-helper rounds went wrong on.
+    # Measured: 92.8% of the module is children, 87.7% is the boundary.
+    r = inproc.run("perry-lint", ["--root", str(root)])
     for line in r.stdout.split("\n"):
         if label in line:
             return int(line.split("record(s),")[1].strip().split(" ")[0])
@@ -570,10 +575,9 @@ class TestTheLostRecordsAreRecoverable(Base):
 
     def test_the_json_payload_carries_the_report_for_a_caller_with_no_stream(self):
         f, staged = stage(self, "asks", n=2)
-        r = subprocess.run(
-            ["python3", str(PERRY_HOME / "bin" / "perry-task"), "ask",
-             "--needed", "an ordinary new question", "--json",
-             "--root", str(f.root)], capture_output=True, text=True)
+        r = inproc.run("perry-task",
+                       ["ask", "--needed", "an ordinary new question",
+                        "--json", "--root", str(f.root)])
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         payload = json.loads(r.stdout)["register_store"]
         self.assertEqual(len(payload["substituted"]), staged.n)
@@ -588,9 +592,9 @@ class TestTheLostRecordsAreRecoverable(Base):
         for key in REGISTERS:
             with self.subTest(register=key):
                 f, _staged = stage(self, key)
-                r = subprocess.run(
-                    ["python3", str(TASKS), f"{key}-write", "--from-board",
-                     "--root", str(f.root)], capture_output=True, text=True)
+                r = inproc.run("perry-tasks",
+                               [f"{key}-write", "--from-board",
+                                "--root", str(f.root)])
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
