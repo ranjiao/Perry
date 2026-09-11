@@ -245,3 +245,98 @@ tests still cover it, and one was added for the graded case:
 - `test_two_ROW_grade_fails_do_not_exhaust_the_row` — two ROW-grade, silent.
 - `test_an_ungraded_fail_counts_because_undeterminable_is_conservative` — the
   one that matters, because it is the shape all 62 existing FAILs have.
+
+## 5 · Mutations — 15 run, 14 red, 1 provably equivalent
+
+Each mutation is one edit to `bin/perry-lint`, applied against an anchor that
+must appear exactly once or the mutation is refused rather than skipped; the
+module is re-run and the file restored between each.
+
+| # | mutation | result |
+|---|---|---|
+| M1 | count blocks again (`charged = list(fails)`) — **the revert** | 5 red |
+| M2 | every criterion reads as `FAIL` — **the grade lookup** | 7 red |
+| M3 | every criterion reads as `ROW` (the dangerous direction) | 4 red |
+| M4 | silence reads as `ROW` instead of undeterminable | 6 red |
+| M5 | the grade token may be a prefix (`row-grade` → `ROW`) | 2 red |
+| M6 | the grade is case-sensitive | 1 red |
+| M7 | the finding stops saying what it could not determine | 2 red |
+| M8 | the message names every FAIL again, not just the charged | 1 red |
+| M9 | an unreadable grade is no longer reported malformed | 1 red |
+| M10 | `undeterminable` measured over `fails`, not `charged` | **GREEN** |
+| M11 | the `aside` denominator is every FAIL | 2 red |
+| M12 | the denominator is `len(fails)` | 1 red |
+| M13 | the headline count is `len(fails)` again | 2 red |
+| M14 | filed ROW-grade blocks are never named | 1 red |
+
+**Verification 5 asks for two, and asks that they be different tests.** They
+are:
+
+- **The revert (M1)** reddens `test_one_of_each_is_one_failure_the_TASK_360_shape`,
+  `test_two_ROW_grade_fails_do_not_exhaust_the_row`,
+  `test_one_ROW_grade_and_one_ungraded_still_leaves_one_counted`,
+  `test_the_finding_names_the_ROW_grade_fails_it_did_not_count` and
+  `test_the_named_rounds_are_the_charged_ones_only`.
+- **The grade lookup forced to FAIL (M2)** reddens all five of those *plus two
+  the revert does not touch*:
+  `test_fail_grade_returns_None_for_everything_it_cannot_read` and
+  `test_fail_grade_reads_the_first_token_and_ignores_the_criterion`.
+
+### M10 came back green, and it is the one worth reading
+
+`undeterminable = [b for b in charged if fail_grade(b[1]) is None]` swapped for
+the same comprehension over `fails` killed nothing, twice, including after a
+test was added aimed at it.
+
+**It is an equivalent mutant and the proof is one line.** The blocks in `fails`
+but not in `charged` are exactly those whose `fail_grade` is `"ROW"`, and
+`"ROW" is not None`, so no block in that difference can satisfy the filter. The
+two expressions denote the same set for every input. No test can kill it, and
+one written to try would be asserting something untrue.
+
+**But the denominator standing next to it is not equivalent, and nothing was
+holding it.** A row with one filed ROW-grade FAIL and two ungraded ones would
+have read *"2 of the 3 counted"* while only 2 were counted — a finding
+disagreeing with its own headline.
+`test_the_undeterminable_denominator_is_the_counted_rounds` was added for it,
+and M12 and M13 are red because of it.
+
+## 6 · Test baseline, taken in this tree
+
+`python3 tests/parallel`, base `70458893`, extracted clean to scratch so the
+measurement is not taken in a tree that has uncommitted changes:
+
+```
+124 modules · 3576 tests · 3 modules red · 4 tests failed
+```
+
+| red at base | mine? |
+|---|---|
+| `test_contract_key_parity` ×2 | no — declared known |
+| `test_resume.TestStaleRuns.test_a_fresh_run_is_not_stale` | no — declared known |
+| `test_one_header_rule.…test_git_tracks_answers_both_ways` | **no — an artifact of my baseline method.** The scratch tree is a `git archive` extract and is not a git repository, so `git` answers nothing there. Green when the module is re-run alone in this worktree, which is a git repo. Not attributable to `70458893`. |
+
+**`test_diagnose`'s dangling-id test was GREEN at base and stayed green.** The
+dispatch said it may or may not be red; in this tree, on this baseline, it is
+not.
+
+### Two reds I did cause, both found and both fixed
+
+1. **`test_pointers_resolve.TestEveryPointerResolves.test_no_pointer_names_a_section_that_is_not_there`**
+   — my new `review.md § 3` subsection cited `DESIGN-016-spec.md` by bare
+   filename, and `work/reference/` is not where that file lives. Confirmed
+   green at base by checking out the base `review.md` and re-running the
+   module. Fixed by qualifying the path.
+2. **`test_handed_back_root.TestTheFlagReachesTheTemplateThatNamesIt.test_every_call_to_one_of_them_passes_a_real_flag`**
+   — and this one is a finding about the test, not about my change.
+   `NO_ROOT_TO_GIVE` keys its one exemption by **line number**:
+   `("bin/perry-lint", "check_file", 5495)`. Adding lines to `check_reviews`
+   moved that call to 5604, **unchanged**, and the exemption stopped matching.
+   Any edit anywhere above it reddens an unrelated module. Re-stamped to 5604
+   with the reason written at the constant; re-keying it by something stable is
+   filed as its own row rather than smuggled in here.
+
+Both were caught only because the suite was re-run and each red was re-run
+alone before being attributed. **The first full run of this row was
+contaminated** — started before the edits, finished after them — and is used
+for nothing above.
