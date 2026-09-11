@@ -162,9 +162,6 @@ class TestDependsOnStopsInventingDependencies(unittest.TestCase):
                          ["TASK-050", "TASK-051"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 # == TASK-431 ==============================================================
 #
@@ -571,3 +568,6 @@ class TestTheSpellingThatWasDropped(unittest.TestCase):
             [], hits,
             "something in the tree now writes the em-dash pair, so dropping "
             "it from bin/perry-lint is no longer free -- it needs a schema row")
+
+if __name__ == "__main__":
+    unittest.main()
