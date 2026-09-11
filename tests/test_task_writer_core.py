@@ -863,6 +863,133 @@ class TestTheRungIsWritableAndCorrectable(unittest.TestCase):
         self.assertEqual(str(add_out), str(done_out))
 
 
+class TestADeclaredBlankRungIsNotARung(unittest.TestCase):
+    """`done` wrote a verification its own validator refuses.
+
+    **The fifth consumer of a track cell, and the one that read truthiness.**
+    `bin/perry-state § track_from_record` puts the blank marker back on the way
+    out of the store, so a track that DECLARES `main` with an empty `Default
+    rung` arrives at the writer as `—` while a project that declares no track
+    at all arrives as `""`. `cmd_done` chose between the cell and the mode
+    default with a bare `or`, and `—` is truthy, so two projects declaring the
+    same nothing closed their rows as `verification: —` and `verification: V3`.
+
+    The producer's docstring justified the marker by naming its consumers —
+    `parse_wip`, `sla_report`, `lib.due_track_missing_clock`, `stages_of` — and
+    said all of them route the cell through `lib.is_blank_cell`. Four of five
+    did. A hand-written list of consumers is this repository's recurring defect
+    and it failed here in the ordinary way: by being one short.
+
+    `—` is not merely wrong, it is a value this tool refuses from a caller:
+    `done --rung —` exits 1 with "rung '—' is not one of V1/V2/V3/V4/V5/V6".
+    That is what the two tests below pin — not the fix, but the property the
+    fix has to keep: **what the writer stamps, the writer accepts.**
+    """
+
+    SCHEMA = PT.load_schema()
+    #: Every spelling of "this cell says nothing", from `schema § i18n.blank_cell`
+    #: rather than from a list here, because a list here would be the sixth copy
+    #: of the thing that note is about. 17 values across two languages today;
+    #: a language added to the schema arrives in this test without an edit.
+    BLANKS = sorted({v for key, vals in SCHEMA["i18n"]["blank_cell"].items()
+                     if key != "note" and isinstance(vals, list) for v in vals})
+    #: All four, and their four DISTINCT default rungs — V3, V5, V2, V4 — so a
+    #: test cannot pass by a fallback that happens to equal the expected value.
+    MODES = SCHEMA["work_modes"]["modes"]
+
+    def close_a_row(self, mode: str, rung_cell: str) -> str:
+        """Close one row on a track declaring `rung_cell`, and report the rung.
+
+        **The track is named `main` and the row is added without `--track`**,
+        which is not tidiness: `cmd_add` writes `values["track"]` only when the
+        mode is not `project`, so a PROJECT-mode row raised with `--track t` is
+        stored as `track: "main"` and `done` then reads the wrong track's cell
+        entirely. That is a second defect and its own row; naming the track
+        `main` keeps it out of this class, which is about one cell's blank.
+        """
+        p = Project(tracks=[track("main", mode, default_rung=rung_cell)])
+        code, a = p.run("add", "--title", "a row that will be closed")
+        self.assertEqual(code, 0, a)
+        (p.root / "evidence.md").write_text("evidence\n")
+        code, out = p.run("done", a["id"], "--evidence", "evidence.md")
+        self.assertEqual(code, 0, out)
+        stored = [json.loads(l) for l in
+                  (p.root / "tasks.jsonl").read_text().strip().split("\n")]
+        return next(r for r in stored if r["id"] == a["id"])["verification"]
+
+    def test_every_blank_spelling_falls_back_to_the_modes_default(self):
+        """Enumerated, not sampled: 4 modes x 18 cells, the 17 declared blanks
+        plus the empty string."""
+        for mode, spec in self.MODES.items():
+            for cell in ["", *self.BLANKS]:
+                with self.subTest(mode=mode, cell=cell):
+                    self.assertEqual(spec["default_rung"],
+                                     self.close_a_row(mode, cell))
+
+    def test_a_declared_rung_still_beats_the_modes_default(self):
+        """The other half, and it was missing.
+
+        Added after a mutation that made the fallback win unconditionally left
+        the three tests above green: every one of them declares a BLANK rung,
+        so a fix that ignored the cell entirely passed all of them. A track
+        exists to override the mode; a test suite that only checks the
+        override being absent has not checked the override.
+
+        Enumerated over the rung enum rather than one value, minus `V0`, which
+        `check_rung` refuses by name wherever a rung is written.
+        """
+        rungs = [r for r in self.SCHEMA["enums"]["verification_rung"]
+                 if r != "V0"]
+        for mode in self.MODES:
+            for rung in rungs:
+                with self.subTest(mode=mode, rung=rung):
+                    self.assertEqual(rung, self.close_a_row(mode, rung))
+
+    def test_what_done_stamps_is_what_done_would_accept(self):
+        """The general statement, and the one that catches the sixth consumer.
+
+        A rung `done` writes by itself must be one `done` takes from a caller.
+        Checked by feeding the stored value back through `--rung`, which is
+        `check_rung` and not a second copy of the enum.
+        """
+        for mode, spec in self.MODES.items():
+            with self.subTest(mode=mode):
+                stamped = self.close_a_row(mode, "—")
+                p = Project(tracks=[track("main", mode)])
+                code, a = p.run("add", "--title", "another row")
+                self.assertEqual(code, 0, a)
+                (p.root / "evidence.md").write_text("evidence\n")
+                code, out = p.run("done", a["id"], "--evidence", "evidence.md",
+                                  "--rung", stamped)
+                self.assertEqual(code, 0,
+                                 f"`done` stamped {stamped!r} on a {mode} track "
+                                 f"and then refused it from a caller: {out}")
+
+    def test_declaring_the_track_changes_nothing_a_row_carries(self):
+        """Parity, for the one mode that has both shapes.
+
+        `main` in project mode is the implicit track, so a project that
+        declares it with every field blank and a project that declares no
+        tracks at all are the same project said two ways. Every cell of the
+        stored record must agree, not only the rung — that is what makes this
+        catch the next consumer instead of only this one.
+        """
+        def record(tracks):
+            p = Project(tracks=tracks)
+            code, a = p.run("add", "--title", "a row that will be closed")
+            self.assertEqual(code, 0, a)
+            p.run("start", a["id"], "--next", "do the thing")
+            (p.root / "evidence.md").write_text("evidence\n")
+            p.run("done", a["id"], "--evidence", "evidence.md")
+            stored = [json.loads(l) for l in
+                      (p.root / "tasks.jsonl").read_text().strip().split("\n")]
+            got = next(r for r in stored if r["id"] == a["id"])
+            return {k: v for k, v in got.items()
+                    if k not in ("created", "updated", "closed")}
+
+        self.assertEqual(record(None), record([track("main", "project")]))
+
+
 class TestTheDelimiterIsACharacterPeopleWrite(unittest.TestCase):
     """`render_row` joined on `|` and escaped nothing, so a cell whose value
     contained a pipe silently became several cells and shifted every column
