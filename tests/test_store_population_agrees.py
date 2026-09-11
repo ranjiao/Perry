@@ -296,7 +296,16 @@ def state_krs(root: Path) -> dict[str, dict]:
 READERS = {"perry-goals": goals_krs, "perry-state": state_krs}
 
 
-class PopulationCase(unittest.TestCase):
+class PopulationCase:
+    """Shared fixture and assertions. **A mixin, not a `TestCase`.**
+
+    `unittest` collects every `TestCase` subclass in the module, so a base
+    class that both defines tests and IS one runs a silent extra copy of them
+    against whatever `state_rel` the base happens to carry — 11 tests where 10
+    were written, one of them a duplicate nobody chose. Keeping the shared code
+    out of the `TestCase` hierarchy is what stops that.
+    """
+
     state_rel = "perry"
 
     def setUp(self):
@@ -341,7 +350,7 @@ class PopulationCase(unittest.TestCase):
                     f"about {kr_id}")
 
 
-class TestRootsDiffer(PopulationCase):
+class TestRootsDiffer(PopulationCase, unittest.TestCase):
     """Perry's own layout, and the only one where the defect is visible."""
 
     state_rel = "perry"
@@ -383,7 +392,7 @@ class TestRootsDiffer(PopulationCase):
                                  s[kr_id]["linked_task_completion"])
 
 
-class TestRootsCoincide(PopulationCase):
+class TestRootsCoincide(PopulationCase, unittest.TestCase):
     """Most projects. A fix that breaks this trades one wrong answer for another."""
 
     state_rel = "."
