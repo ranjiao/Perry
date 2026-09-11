@@ -287,29 +287,19 @@ def is_blank_cell(value: str) -> bool:
     return text in _BLANK_CELLS
 
 
-def blank_cell_spellings() -> frozenset[str]:
-    """Every spelling `is_blank_cell` answers True to, as declared.
-
-    **For a caller that needs the SET rather than the verdict**, and there is
-    exactly one such shape: a reader whose own vocabulary is deliberately
-    WIDER than blankness — `viewer/parsers.py § _no_date`, where `ongoing` and
-    `as needed` are cadence answers that are not blank — and which therefore
-    cannot simply call `is_blank_cell` and be done. Handing that caller the
-    declared set lets it union rather than re-type, which is the difference
-    between one rule with a documented extension and the second list this row
-    exists to remove.
-
-    It is NOT a licence to re-implement the match. A caller deciding whether
-    ONE value means nothing calls `is_blank_cell`; the keys here are already
-    `_blank_key`-reduced, so testing a raw cell against them directly would
-    silently miss every decorated form (`**—**`, `` `n/a` ``) — which is the
-    bug class this whole row is about.
-    """
-    # Armed through the one reader, and deliberately NOT with `""`: the empty
-    # string short-circuits on line 1 of `is_blank_cell` and never reaches the
-    # schema load, so priming with it would hand back an empty set.
-    is_blank_cell("—")
-    return frozenset(_BLANK_CELLS)
+# TASK-431 added a `blank_cell_spellings()` accessor here and then REMOVED it,
+# which is worth a line because the reasoning generalises. It was meant for a
+# caller whose vocabulary is deliberately wider than blankness —
+# `viewer/parsers.py § parse_due`, where `ongoing` is a schedule answer and not
+# an empty cell — so that the caller could union the declared set rather than
+# re-type it. That caller turned out not to need it: it asks
+# `t.lower() in _APERIODIC or is_blank_cell(t)`, which is the one rule at the
+# point of use and needs no set at all. The accessor shipped with zero callers
+# and a docstring naming one, and a mutation of it came back GREEN because
+# nothing exercised it. Handing out the SET invites a caller to test a raw cell
+# against `_blank_key`-reduced keys and silently miss every decorated form, so
+# the absence is the safer default: ask `is_blank_cell` a question, do not
+# borrow its data.
 
 
 #: `3d`, `2w`, `24h` — the shorthand `.perry/config.md § Tracks` writes. Here

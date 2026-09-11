@@ -476,6 +476,28 @@ class TestTheViewerHalf(unittest.TestCase):
             P.parse_due("\u4e0d\u9002\u7528 \uff08\u89c1 evidence/2026-08/2026-08-03-x.md\uff09"))
         self.assertIsNone(P.parse_due("\u6682\u65e0 (see 2026-08-03)"))
 
+    def test_a_blank_marker_followed_by_a_date_still_yields_none(self):
+        """**Written because a mutation came back GREEN.**
+
+        `test_a_blank_due_cell_yields_no_date_in_any_language` above does not
+        discriminate: a cell holding ONLY a blank marker has no date in it
+        either way, so `parse_due` returns `None` whether the blank test runs
+        or not, and deleting the test entirely left that assertion passing.
+        The same is true of the bracketed-citation case, because `_ANNOTATION`
+        cuts at the opening bracket before any token is examined.
+
+        The input that separates them is a marker followed by a BARE date —
+        `待定 2026-08-03`, the shape a half-filled cell actually takes. Without
+        the blank test the marker token falls through and the scan reports the
+        date as due; with it the read stops at the marker.
+        """
+        for spelling in ALL_BLANK:
+            with self.subTest(spelling):
+                self.assertIsNone(
+                    P.parse_due(spelling + " 2026-08-03"),
+                    "a `Due` cell reading %r before a date reported that date "
+                    "as due" % (spelling,))
+
     def test_a_real_due_date_still_parses(self):
         self.assertIsNotNone(P.parse_due("2026-08-03"))
         self.assertIsNotNone(P.parse_due("2026-W32"))
