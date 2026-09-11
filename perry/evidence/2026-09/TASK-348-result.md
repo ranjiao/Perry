@@ -519,9 +519,13 @@ any of the 20 executables
 inside the function body to validate what it read. `bin/perry-state §
 _validated_config_records` is a wrapper over it and says so in its own
 docstring: *"The implementation moved to `viewer/parsers.py §
-config_store_records` and this is the row-shaped wrapper over it."* Seventeen
-files reference `resolve_state_root`. Deleting either file per Tier B removes
-root resolution and the typed config store from all of them.
+config_store_records` and this is the row-shaped wrapper over it."*
+**Fifteen code files under `bin/` and `viewer/` reference
+`resolve_state_root`** — every executable that resolves a root, plus
+`bin/lib`, `bin/perry_md_store.py` and `parsers.py` itself. (Counted excluding
+`bin/README.md` and `bin/ARCHITECTURE.md`, which mention it in prose; a first
+count of seventeen had included them.) Deleting either file per Tier B removes
+root resolution and the typed config store from all fifteen.
 
 That is the general case; five more specific ones, each verified by grepping
 for the implementation and finding exactly one:
@@ -896,6 +900,11 @@ know both that the audit ran and what it caught.
 Each block is the checker's output, followed by that file's complete region
 list. The tables **are** the region list: harvested back out of this document
 and fed to Appendix A's `check()`, they return these numbers.
+
+The 22 in-scope files come first, in the spec's own order, and sum to 27,132.
+`bin/perry` is last, under § 10.23, with its arithmetic kept out of that total
+for the reason in § 0.
+
 ### `viewer/parsers.py` — 4,902 lines, 151 regions
 
 ```
@@ -2518,8 +2527,31 @@ PMO files them.
 none mine** — `test_contract_key_parity` ×2, `test_resume.TestStaleRuns.
 test_a_fresh_run_is_not_stale`, and `test_diagnose.TestUserLoadFindings.
 test_perry_itself_passes_its_own_id_checks` (TASK-436, the dangling `USER-920`).
-The suite's tree guard reports that nothing under the worktree moved. Re-run
-after: identical, as it must be — this row writes one file under `evidence/`.
+The tree guard reported that nothing under the worktree moved.
+
+Re-run after the work: **the same four, and a `diff` of the two runs' `FAIL:`
+lines is empty** — not "four again", but the same four tests. That is the check
+worth stating, because a count can match while the membership changes.
+
+**The tree guard tripped on the re-runs, and neither cause was this row's
+work.** Run 2 flagged `perry/evidence/2026-09/TASK-348-result.md (changed)`,
+which was me committing edits to this report while the suite was running —
+my error, and the reason there was a run 3. Run 3 flagged
+`perry/evidence/2026-09/TASK-362-round11-v4-review.md (created)`, a file this
+row never touched, from another session's TASK-362 work; it is already gone
+and `git status` is clean. Recorded rather than re-run into silence, because
+"the guard went red and I decided it was fine" is exactly the claim a reviewer
+should not have to take on trust. What is checkable instead:
+
+```
+git diff --stat 7f43a11c HEAD
+ perry/evidence/2026-09/TASK-348-result.md | 2657 +++++++++++++++++++++++++++++
+ 1 file changed, 2657 insertions(+)
+```
+
+**This branch adds one file and changes nothing else** — no code, no test, no
+store, no `.md` but this one. So no test can have changed state because of it,
+and the identical `FAIL:` sets are what that predicts.
 
 ## Appendix A — the coverage assertion
 
