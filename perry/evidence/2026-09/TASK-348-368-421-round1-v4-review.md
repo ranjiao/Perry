@@ -37,6 +37,17 @@ did not name it, so it is recorded here rather than absorbed:
 Every mutation below is judged against this baseline, and any module that was
 red here is re-run **alone** before a result is attributed to it.
 
+**Closing run, after the round, on the same clean tree:** `3 of 126 MODULE(S)
+red · 4 of 3655 TEST(S) failed`, the same four, and the tree guard reports
+`✓ nothing under …/agent-ab29516bf06aa709f moved`. **The red set is unchanged
+and this round wrote nothing into the tree it judged.** Every mutation in this
+document was applied to a `git archive` copy under the scratch path above, never
+to this worktree and never to `/Users/bytedance/proj/Perry`;
+`bin/perry-restore-check main bin/perry-task bin/perry-lint bin/perry-tasks
+bin/perry_store.py work/reference/dispatch.md
+work/reference/review-constraints.md AGENTS.md` passes all eight, and
+`git diff --stat main` is this review document and nothing else.
+
 *(Aside, because it bears on this document's own hygiene: the `test_diagnose`
 red is `['USER-920', 'V4-1', 'V4-2', 'V4-3'] != []`, and `V4-1`…`V4-3` are
 finding labels minted by the `TASK-027` round-4/5 review documents — the exact
