@@ -1,76 +1,20 @@
 #!/usr/bin/env python3
-"""`perry/tasks.jsonl` — the task store, and the projection of it.
+"""
+`perry/tasks.jsonl` — the task store, and the projection of it.
 
 **Phase 002, ADR-007's first slice.** This tool derives the store, proves it can
 reproduce `BOARD.md`, and writes it. `bin/perry-task` is what writes it on every
 ordinary command (TASK-089); this one is the migration and inspection surface.
 
-    perry-tasks build   [--root <p>]        derive the store; write nothing
-    perry-tasks verify  [--root <p>]        field-compare the store to the board
-    perry-tasks render  [--root <p>] [--write]   the store → BOARD.md
-    perry-tasks write   [--root <p>] --from-board  the board → the store
-    perry-tasks diff    [--root <p>]        render and byte-compare with the file
+The usage block is generated from this tool's `SURFACE`
+declaration — run `perry-tasks --help`, or `perry-tasks <subcommand>
+--help` for one of them, or `perry-tasks --describe --json` for the
+whole surface as data.
 
-Four of the same verbs reach the **risks register** — ADR-007 again,
-`perry/risks.jsonl` against `BOARD.md § Top risks` (TASK-040):
-
-    perry-tasks risks-build  [--root <p>]   derive the risks store; write nothing
-    perry-tasks risks-render [--root <p>] [--write]   the store → `## Top risks`
-    perry-tasks risks-write  [--root <p>] --from-board  the section → the store
-    perry-tasks risks-diff   [--root <p>]   render and byte-compare with the file
-
-And four more reach the **intake register** — ADR-007 a third time,
-`perry/intake.jsonl` against `BOARD.md § Intake` (TASK-196):
-
-    perry-tasks intake-build  [--root <p>]  derive the intake store; write nothing
-    perry-tasks intake-render [--root <p>] [--write]  the store → `## Intake`
-    perry-tasks intake-write  [--root <p>] --from-board  the section → the store
-    perry-tasks intake-diff   [--root <p>]  render and byte-compare with the file
-
-The intake register has **no id column**, so its store is keyed on `order` —
-the row's position, the same integer `perry-task resolve-intake <n>` takes.
-`bin/perry_store.py § the intake register` carries that decision and its cost.
-
-And four more reach the **ask register** — ADR-007 a fourth time,
-`perry/asks.jsonl` against `BOARD.md § User Input Queue` (TASK-197):
-
-    perry-tasks asks-build  [--root <p>]    derive the ask store; write nothing
-    perry-tasks asks-render [--root <p>] [--write]  the store → the section
-    perry-tasks asks-write  [--root <p>] --from-board  the section → the store
-    perry-tasks asks-diff   [--root <p>]    render and byte-compare with the file
-
-**Five of that register's six columns are stored and `Idle` is not.** `Idle` is
-an AGE — `today − Asked` — and `bin/perry-state § idle_days` already computes
-it at read time; a store that carried it would be wrong the morning after it
-was written, which is why a live project deleted the column outright.
-`bin/perry_store.py § the ask register` carries the per-column verdict.
-
-**`linkage.jsonl` has no verbs here, and that is ADR-019.** It had three —
-DESIGN-015 row B's one-way import from `phase/<NNN>-linkage.md`, and the
-two-directional diff that gated it. The document is deleted; an import needs a
-source and a diff needs a second side, and there is neither. `perry-goals
-link` and `perry-task add --kr` write that store in place, and nothing
-projects it.
-
-`risks-diff` is the gate the migration has to pass **before** a field the
-register could not express is added to it: rendering the derived records back
-over the section reproduces it byte for byte, or the store has already lost
-something. A migration that cannot reproduce what it replaces has not read it.
-
-**Twenty fields are STORED and nine are DERIVED.** That split is the design,
-not an optimisation: `blocked_by`, `blocks`, `startable`, `mode`, `open`,
-`evidence_paths`, `status_text`, `timeline` and `updated` are all computable
-from the twenty plus the event log, and storing any of them would be the
-"a stored value that is derived" defect this repository keeps finding.
-
-The derived nine keep the same payload shape. `status_text` changed meaning at
-`perry-task/list/1.10`: it is now the legacy display alias of typed `status`,
-not raw text recovered from the rendered board.
-
-The record shape and the renderer live in `bin/perry_store.py`, which
-`bin/perry-task` imports too. One implementation, two callers: two renderers of
-one file is the defect that produced `viewer/parsers.py` and `bin/perry-task`
-disagreeing silently, with the arrow reversed.
+**The argument for every refusal below is in
+`bin/README.md § The argument, per tool`**, moved there whole on
+2026-09-09 (DESIGN-016 Decision 2). Nothing was cut; `--help`
+stopped being the place to read it.
 """
 
 from __future__ import annotations
@@ -79,6 +23,8 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
+from itertools import zip_longest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "viewer"))
@@ -174,6 +120,141 @@ def render(root: Path, records: list[dict]) -> tuple[str, dict]:
     return perry_store.render(board, records, mod)
 
 
+#: The two spellings a render report uses for "the store holds this record and
+#: the file has no line to put it in". `perry_store`'s reports say
+#: `rows_not_on_board`; `perry_md_store`'s say `records_not_in_the_file`. One
+#: reader over both, so a register added later cannot be missed by the check
+#: below just by naming its key the other way.
+STRANDED_KEYS = ("rows_not_on_board", "records_not_in_the_file")
+
+
+def stranded_records(report: dict) -> list[str]:
+    for key in STRANDED_KEYS:
+        if report.get(key):
+            return list(report[key])
+    return []
+
+
+def stranded_after_render(text: str, records: list[dict], planner) -> list[str]:
+    """Which records the TEXT ABOUT TO BE WRITTEN still has no line for.
+
+    **The question is asked of the render, not of the file it came from**, and
+    the difference is a whole register. `perry_store.plan` reports
+    `rows_not_on_board` against the board ON DISK, which is the drift; whether
+    that drift survives the write depends on the renderer. The task rows are
+    filled in place, so a deleted row stays deleted and the record is stranded.
+    `## Intake` is rebuilt from its records, so the same deleted line comes
+    BACK — `tests/test_intake_store § test_the_shift_is_reported_rather_than
+    _absorbed_by_a_re_render` asserts exactly that, and it is right.
+    Refusing on the on-disk report would have broken a register whose recovery
+    works.
+
+    So the render is re-run against its own output. Empty means every record
+    found a line and the write is a real recovery.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        probe = Path(tmp) / "BOARD.md"
+        probe.write_text(text, encoding="utf-8")
+        mod = _task_module()
+        return stranded_records(planner(mod.Board(probe), records, mod))
+
+
+def write_board_or_refuse(root: Path, text: str, records: list[dict], *,
+                          flags: frozenset, planner, section: str = "",
+                          unit: str = "stored record(s)") -> int:
+    """Put the render on disk, or refuse and say what it could not place.
+
+    **This is the recovery path, and it used to report a recovery it had not
+    performed** (DESIGN-016 § 1.5, A5). `render` fills the line that already
+    carries a record's id; it does not create lines. Delete the 151 task rows
+    from a copy of `BOARD.md` and the old code printed `rendered … from 399
+    stored record(s)`, exit 0, having restored none of them — while
+    `perry-tasks diff` correctly listed all 151 under `rows_not_on_board` and
+    `perry-lint` reported `151 row(s) drifted`. The detection layer was right
+    and only the writer lied.
+
+    Two changes. A write that cannot place every record refuses, exit 1, naming
+    what it could not place. And the success line counts lines changed rather
+    than records read, so a write and a no-op no longer print the same sentence
+    (TASK-253 recorded that from the other side).
+    """
+    stranded = stranded_after_render(text, records, planner)
+    where = f"BOARD.md{f' § {section}' if section else ''}"
+    if stranded:
+        print(f"perry-tasks: refusing to write {where} — {len(stranded)} "
+              f"stored record(s) have no line in it to render into, and "
+              f"`render` fills lines rather than creating them. Nothing was "
+              f"written.", file=sys.stderr)
+        for rid in stranded[:10]:
+            print(f"    {rid}", file=sys.stderr)
+        if len(stranded) > 10:
+            print(f"    … and {len(stranded) - 10} more", file=sys.stderr)
+        print(f"\n  `perry-tasks diff` lists them all. Putting the lines back "
+              f"is a repair this command cannot do.", file=sys.stderr)
+        return 1
+    state_root = P.resolve_state_root(root)
+    path = state_root / "BOARD.md"
+    before = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    after = text.splitlines()
+    changed = sum(1 for a, b in zip_longest(before, after) if a != b)
+    if "--dry-run" in flags:
+        verb, wrote = "would rewrite", False
+    else:
+        lib.write_atomic(path, text)
+        verb, wrote = "rewrote", True
+    if "--json" in flags:
+        print(json.dumps({"file": str(path), "section": section or None,
+                          "wrote": wrote, "dry_run": "--dry-run" in flags,
+                          "lines_changed": changed,
+                          "lines_unchanged": len(after) - changed,
+                          "records": len(records)},
+                         ensure_ascii=False, indent=2))
+    else:
+        print(f"perry-tasks: {verb} {path}"
+              f"{f' § {section}' if section else ''} — {changed} line(s) "
+              f"changed, {len(after) - changed} unchanged, from "
+              f"{len(records)} {unit}")
+    return 0
+
+
+def write_store_or_say_what_would_land(dest: Path, records: list[dict], *,
+                                       flags: frozenset, unit: str) -> int:
+    """The store import's last step, with `--dry-run` and `--json` honoured.
+
+    **Both were ACCEPTED and ignored here** — TASK-253 filed exactly that in
+    2026-09-02, and DESIGN-016 A2 made the flag legal without making it do
+    anything, which is the accepted-and-dropped shape the design exists to
+    remove. Measured 2026-09-09 before this function: `perry-tasks write
+    --from-board --dry-run` replaced a 404-record store and printed `wrote`.
+
+    Honest because nothing is estimated: the records are derived and every
+    refusal above has already been asked, so the only thing `--dry-run` skips
+    is the rename.
+    """
+    if "--dry-run" in flags:
+        held = 0
+        if dest.exists():
+            held = len([l for l in dest.read_text(encoding="utf-8").split("\n")
+                        if l.strip()])
+        if "--json" in flags:
+            print(json.dumps({"store": str(dest), "wrote": False,
+                              "dry_run": True, "records": len(records),
+                              "records_on_disk": held}, ensure_ascii=False,
+                             indent=2))
+        else:
+            print(f"perry-tasks: would write {dest} ({len(records)} {unit}, "
+                  f"{held} on disk now). Nothing was written.")
+        return 0
+    lib.write_atomic(dest, perry_store.store_text(records))
+    if "--json" in flags:
+        print(json.dumps({"store": str(dest), "wrote": True, "dry_run": False,
+                          "records": len(records)}, ensure_ascii=False,
+                         indent=2))
+    else:
+        print(f"perry-tasks: wrote {dest} ({len(records)} {unit})")
+    return 0
+
+
 def load_store(root: Path) -> tuple[list[dict], Path]:
     """The store as it is ON DISK — never the one just built.
 
@@ -190,7 +271,8 @@ def load_store(root: Path) -> tuple[list[dict], Path]:
 
 
 def cmd_render(root: Path, byte_compare: bool,
-               write_board: bool = False) -> int:
+               write_board: bool = False,
+               flags: frozenset = frozenset()) -> int:
     try:
         records, store_path = load_store(root)
     except (OSError, ValueError) as exc:
@@ -203,10 +285,10 @@ def cmd_render(root: Path, byte_compare: bool,
     if not records:
         print(json.dumps({
             "store": str(store_path), "exists": store_path.exists(),
-            "note": "no store on disk yet — run `perry-tasks write "
-                    "--from-board` to perform the explicit board import. "
-                    "Rendering the board from a store built out of that same "
-                    "board proves nothing.",
+            "note": f"no store on disk yet — run `perry-tasks write "
+                    f"--from-board{lib.root_flag(root)}` to perform the "
+                    f"explicit board import. Rendering the board from a store "
+                    f"built out of that same board proves nothing.",
         }, ensure_ascii=False, indent=2), file=sys.stderr)
         return 2
     records, findings = perry_store.validate_records(records)
@@ -224,11 +306,9 @@ def cmd_render(root: Path, byte_compare: bool,
             # back in line with the store — which is exactly what
             # `perry-lint § store-drift` needs to recommend, and why it was
             # recommending `write` instead.
-            state_root = P.resolve_state_root(root)
-            lib.write_atomic(state_root / "BOARD.md", text)
-            print(f"perry-tasks: rendered {state_root / 'BOARD.md'} from "
-                  f"{len(records)} stored record(s)")
-            return 0
+            return write_board_or_refuse(
+                root, text, records, flags=flags,
+                planner=lambda b, r, m: perry_store.render(b, r, m)[1])
         sys.stdout.write(text)
         return 0
     live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
@@ -365,7 +445,8 @@ def risk_store_is_declared() -> bool:
 
 
 def cmd_risks_render(root: Path, byte_compare: bool,
-                     write_board: bool = False) -> int:
+                     write_board: bool = False,
+                     flags: frozenset = frozenset()) -> int:
     """Render `## Top risks` from the risks store, or byte-compare the two.
 
     **From the store on disk when there is one, and from the section when
@@ -431,11 +512,10 @@ def cmd_risks_render(root: Path, byte_compare: bool,
     report["store"] = str(store_path)
     if not byte_compare:
         if write_board:
-            state_root = P.resolve_state_root(root)
-            lib.write_atomic(state_root / "BOARD.md", text)
-            print(f"perry-tasks: rendered {state_root / 'BOARD.md'} "
-                  f"§ Top risks from {len(records)} risk record(s)")
-            return 0
+            return write_board_or_refuse(
+                root, text, records, flags=flags, section="Top risks",
+                unit="risk record(s)",
+                planner=lambda b, r, m: perry_store.risk_render(b, r, m)[1])
         sys.stdout.write(text)
         return 0
     live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
@@ -493,21 +573,27 @@ def _would_discard(on_disk: list[dict], derived: list[dict]) -> list[str]:
 #: `risk_records` returns `[]` for a bullet list, rendering it changes nothing,
 #: and `cmp` is therefore clean — so a gate that only compared bytes would
 #: write an empty store over a section holding real risks and report success.
+#: **`{r}` is `lib.root_flag(root)`, and these are `str.format` templates
+#: rather than plain strings because of it (TASK-253).** Two of the three
+#: branches hand the reader a WRITER — `risk-add` creates the section,
+#: `risk-migrate` rewrites it — and a constant at module scope has no root to
+#: name, so the only place the caller's `--root` can be put in is the call
+#: site. `{r}` is the sole field; nothing else in these strings is braced.
 RISK_SECTION_UNIMPORTABLE = {
     "absent": (
         "there is no `## Top risks` section on this board, so there is no "
-        "register to import. `perry-task risk-add` creates the section and "
+        "register to import. `perry-task risk-add{r}` creates the section and "
         "its table."),
     "bullets": (
         "`## Top risks` is still a bullet list. A bullet has no id, no "
         "`Opened` cell and no `Status` cell, so the records this would write "
         "are not a projection of it — they are `[]`, and writing them would "
         "report success over a section holding real risks. "
-        "`perry-task risk-migrate` converts the section (every bullet crosses "
-        "verbatim), after which the rows have ids and this import has "
+        "`perry-task risk-migrate{r}` converts the section (every bullet "
+        "crosses verbatim), after which the rows have ids and this import has "
         "something to read — or, if the only bullet is the "
         "`(no active risks)` placeholder `BOARD_TEMPLATE.md` ships, "
-        "`perry-task risk-add` writes the table on its own and there is "
+        "`perry-task risk-add{r}` writes the table on its own and there is "
         "nothing here to migrate."),
     "foreign": (
         "`## Top risks` holds a table this tool must not treat as the "
@@ -518,7 +604,8 @@ RISK_SECTION_UNIMPORTABLE = {
 }
 
 
-def cmd_risks_write(root: Path, argv: list[str]) -> int:
+def cmd_risks_write(root: Path, argv: list[str],
+                    flags: frozenset = frozenset()) -> int:
     """`BOARD.md § Top risks` → `perry/risks.jsonl`. The ONE-WAY IMPORT.
 
     The model is `perry-tasks write --from-board` one register over and
@@ -579,12 +666,13 @@ def cmd_risks_write(root: Path, argv: list[str]) -> int:
     dest = perry_store.risk_store_path(P.resolve_state_root(root))
 
     if "--from-board" not in argv:
-        print("perry-tasks: refusing section-to-store import without "
-              "`--from-board`. `risks.jsonl` is authoritative once it exists; "
-              "use `perry-tasks risks-render --write` for store-to-section "
-              "recovery, or explicitly run `perry-tasks risks-write "
-              "--from-board` to derive the store from `BOARD.md § Top risks`.",
-              file=sys.stderr)
+        r = lib.root_flag(root)
+        print(f"perry-tasks: refusing section-to-store import without "
+              f"`--from-board`. `risks.jsonl` is authoritative once it exists; "
+              f"use `perry-tasks risks-render --write{r}` for store-to-section "
+              f"recovery, or explicitly run `perry-tasks risks-write "
+              f"--from-board{r}` to derive the store from "
+              f"`BOARD.md § Top risks`.", file=sys.stderr)
         return 1
 
     if not risk_store_is_declared():
@@ -595,7 +683,8 @@ def cmd_risks_write(root: Path, argv: list[str]) -> int:
     shape, _tables = perry_store.risk_section_shape(board, ops)
     if shape != "table":
         print(f"perry-tasks: refusing to write {dest} — "
-              f"{RISK_SECTION_UNIMPORTABLE[shape]}\n\n"
+              f"{RISK_SECTION_UNIMPORTABLE[shape].format(r=lib.root_flag(root))}"
+              f"\n\n"
               f"  Nothing was written.", file=sys.stderr)
         return 1
 
@@ -685,9 +774,8 @@ def cmd_risks_write(root: Path, argv: list[str]) -> int:
 
     # Staged and renamed under the project lock, like every other write to a
     # canonical file.
-    lib.write_atomic(dest, perry_store.store_text(records))
-    print(f"perry-tasks: wrote {dest} ({len(records)} risk record(s))")
-    return 0
+    return write_store_or_say_what_would_land(dest, records, flags=flags,
+                                              unit="risk record(s)")
 
 
 # ── the intake register ───────────────────────────────────────────────────
@@ -748,7 +836,8 @@ def intake_store_is_declared() -> bool:
 
 
 def cmd_intake_render(root: Path, byte_compare: bool,
-                      write_board: bool = False) -> int:
+                      write_board: bool = False,
+                      flags: frozenset = frozenset()) -> int:
     """Render `## Intake` from the intake store, or byte-compare the two.
 
     **From the store on disk when there is one, and from the section when
@@ -794,11 +883,10 @@ def cmd_intake_render(root: Path, byte_compare: bool,
     report["store"] = str(store_path)
     if not byte_compare:
         if write_board:
-            state_root = P.resolve_state_root(root)
-            lib.write_atomic(state_root / "BOARD.md", text)
-            print(f"perry-tasks: rendered {state_root / 'BOARD.md'} "
-                  f"§ Intake from {len(records)} intake record(s)")
-            return 0
+            return write_board_or_refuse(
+                root, text, records, flags=flags, section="Intake",
+                unit="intake record(s)",
+                planner=lambda b, r, m: perry_store.intake_render(b, r, m)[1])
         sys.stdout.write(text)
         return 0
     live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
@@ -869,7 +957,8 @@ INTAKE_SECTION_UNIMPORTABLE = {
 }
 
 
-def cmd_intake_write(root: Path, argv: list[str]) -> int:
+def cmd_intake_write(root: Path, argv: list[str],
+                     flags: frozenset = frozenset()) -> int:
     """`BOARD.md § Intake` → `perry/intake.jsonl`. The ONE-WAY IMPORT.
 
     `cmd_risks_write` carries the argument in full and every word of it holds
@@ -916,12 +1005,13 @@ def cmd_intake_write(root: Path, argv: list[str]) -> int:
     dest = perry_store.intake_store_path(P.resolve_state_root(root))
 
     if "--from-board" not in argv:
-        print("perry-tasks: refusing section-to-store import without "
-              "`--from-board`. `intake.jsonl` is authoritative once it exists; "
-              "use `perry-tasks intake-render --write` for store-to-section "
-              "recovery, or explicitly run `perry-tasks intake-write "
-              "--from-board` to derive the store from `BOARD.md § Intake`.",
-              file=sys.stderr)
+        r = lib.root_flag(root)
+        print(f"perry-tasks: refusing section-to-store import without "
+              f"`--from-board`. `intake.jsonl` is authoritative once it "
+              f"exists; use `perry-tasks intake-render --write{r}` for "
+              f"store-to-section recovery, or explicitly run `perry-tasks "
+              f"intake-write --from-board{r}` to derive the store from "
+              f"`BOARD.md § Intake`.", file=sys.stderr)
         return 1
 
     if not intake_store_is_declared():
@@ -1028,9 +1118,8 @@ def cmd_intake_write(root: Path, argv: list[str]) -> int:
         if len(losses) > 10:
             print(f"    … and {len(losses) - 10} more", file=sys.stderr)
 
-    lib.write_atomic(dest, perry_store.store_text(records))
-    print(f"perry-tasks: wrote {dest} ({len(records)} intake record(s))")
-    return 0
+    return write_store_or_say_what_would_land(dest, records, flags=flags,
+                                              unit="intake record(s)")
 
 
 # ── the ask register ──────────────────────────────────────────────────────
@@ -1093,7 +1182,8 @@ def ask_store_is_declared() -> bool:
 
 
 def cmd_ask_render(root: Path, byte_compare: bool,
-                   write_board: bool = False) -> int:
+                   write_board: bool = False,
+                   flags: frozenset = frozenset()) -> int:
     """Render `## User Input Queue` from the ask store, or byte-compare the two.
 
     **From the store on disk when there is one, and from the section when there
@@ -1138,11 +1228,10 @@ def cmd_ask_render(root: Path, byte_compare: bool,
     report["store"] = str(store_path)
     if not byte_compare:
         if write_board:
-            state_root = P.resolve_state_root(root)
-            lib.write_atomic(state_root / "BOARD.md", text)
-            print(f"perry-tasks: rendered {state_root / 'BOARD.md'} "
-                  f"§ User Input Queue from {len(records)} ask record(s)")
-            return 0
+            return write_board_or_refuse(
+                root, text, records, flags=flags, section="User Input Queue",
+                unit="ask record(s)",
+                planner=lambda b, r, m: perry_store.ask_render(b, r, m)[1])
         sys.stdout.write(text)
         return 0
     live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
@@ -1188,7 +1277,8 @@ ASK_SECTION_UNIMPORTABLE = {
 }
 
 
-def cmd_asks_write(root: Path, argv: list[str]) -> int:
+def cmd_asks_write(root: Path, argv: list[str],
+                   flags: frozenset = frozenset()) -> int:
     """`BOARD.md § User Input Queue` → `perry/asks.jsonl`. The ONE-WAY IMPORT.
 
     `cmd_risks_write` carries the argument in full and every word of it holds
@@ -1230,12 +1320,13 @@ def cmd_asks_write(root: Path, argv: list[str]) -> int:
     dest = perry_store.ask_store_path(P.resolve_state_root(root))
 
     if "--from-board" not in argv:
-        print("perry-tasks: refusing section-to-store import without "
-              "`--from-board`. `asks.jsonl` is authoritative once it exists; "
-              "use `perry-tasks asks-render --write` for store-to-section "
-              "recovery, or explicitly run `perry-tasks asks-write "
-              "--from-board` to derive the store from "
-              "`BOARD.md § User Input Queue`.", file=sys.stderr)
+        r = lib.root_flag(root)
+        print(f"perry-tasks: refusing section-to-store import without "
+              f"`--from-board`. `asks.jsonl` is authoritative once it exists; "
+              f"use `perry-tasks asks-render --write{r}` for store-to-section "
+              f"recovery, or explicitly run `perry-tasks asks-write "
+              f"--from-board{r}` to derive the store from "
+              f"`BOARD.md § User Input Queue`.", file=sys.stderr)
         return 1
 
     if not ask_store_is_declared():
@@ -1329,9 +1420,8 @@ def cmd_asks_write(root: Path, argv: list[str]) -> int:
         if len(losses) > 10:
             print(f"    … and {len(losses) - 10} more", file=sys.stderr)
 
-    lib.write_atomic(dest, perry_store.store_text(records))
-    print(f"perry-tasks: wrote {dest} ({len(records)} ask record(s))")
-    return 0
+    return write_store_or_say_what_would_land(dest, records, flags=flags,
+                                              unit="ask record(s)")
 
 
 # ---------------------------------------------------------------------------
@@ -1393,32 +1483,203 @@ def _perry_lint_module():
     return _sibling_module("perry_lint_mod", "perry-lint", "_LINT_MODULE")
 
 
-def main(argv: list[str], _locked: bool = False) -> int:
-    if not argv or argv[0] in ("-h", "--help"):
-        print(__doc__.strip())
-        return 0
-    cmd = argv[0]
-    root = Path.cwd()
-    if "--root" in argv:
-        root = Path(argv[argv.index("--root") + 1]).expanduser().resolve()
-    root = Path(os.environ.get("PERRY_PROJECT") or root).resolve()
+def registers() -> dict[str, str]:
+    """`{register name: subcommand prefix}` — DERIVED, not typed.
 
-    if cmd not in ("build", "verify", "write", "render", "diff",
-                   "risks-build", "risks-render", "risks-write", "risks-diff",
-                   "intake-build", "intake-render", "intake-write",
-                   "intake-diff",
-                   "asks-build", "asks-render", "asks-write", "asks-diff"):
-        print(f"perry-tasks: expected build / verify / write / render / diff, "
-              f"risks-build / risks-render / risks-write / risks-diff, "
-              f"intake-build / intake-render / intake-write / intake-diff "
-              f"or asks-build / asks-render / asks-write / asks-diff, "
-              f"got {cmd!r}", file=sys.stderr)
+    A register is a `work`-owned JSONL store anchored at the state root, which
+    is what `schema/state-schema.json § claims` already declares each of them
+    as. `tasks` takes the empty prefix because its verbs are the bare ones.
+
+    **Why this is derived** (DESIGN-016 § 1.7). A project can declare a track
+    by writing a row in `.perry/config.jsonl`; a register needed four new
+    subcommand names in this file. They are the same kind of axis with two
+    encodings, and only one of them could be extended. Reading the list from
+    the schema puts them on one mechanism: a fifth `work` store declared there
+    gets `build / render / write / diff` here without an edit.
+    """
+    out: dict[str, str] = {}
+    for claim in lib.load_schema().get("claims", []):
+        path = str(claim.get("path", ""))
+        if (claim.get("owner") == "work" and claim.get("anchor") == "state"
+                and path.endswith(".jsonl")):
+            name = path[:-len(".jsonl")]
+            out[name] = "" if name == "tasks" else f"{name}-"
+    return out or {"tasks": ""}
+
+
+#: **What this tool accepts, declared once** (DESIGN-016 C1, Decision 5).
+#: `lib.parse_surface` reads the vector against it, `--describe --json` prints
+#: it, and `bin/perry` and the generated usage block are the same table read
+#: from somewhere else. A flag reaching a subcommand that does not list it is
+#: REFUSED here rather than dropped there.
+SURFACE = {
+    "name": "perry-tasks",
+    "kind": "write",
+    "summary": "the task store and the three registers beside it, and the "
+               "projection of each",
+    "root_resolution": "standard",
+    "exit_codes": {"0": "read, or written", "1": "refused, or drifted",
+                   "2": "bad invocation, or nothing usable to compare"},
+    "flags": [
+        {"name": "--write", "summary":
+         "put the render on disk instead of on stdout"},
+        {"name": "--from-board", "summary":
+         "confirm the backwards direction: the file replaces the store"},
+        {"name": "--dry-run", "summary":
+         "print what would land and touch nothing"},
+        {"name": "--json", "summary": "a machine-readable payload"},
+        {"name": "--register", "arg": "name", "summary":
+         "which register the verb acts on — the names come from the schema's "
+         "`work`-owned stores; default `tasks`"},
+    ],
+    "subcommands": [
+        {"name": "build", "summary":
+         "derive the task store from BOARD.md and print it; write nothing",
+         "flags": ["--register"]},
+        {"name": "verify", "summary":
+         "field-compare the store on disk with the board",
+         "flags": ["--register"]},
+        {"name": "write", "summary":
+         "the one-way import: BOARD.md -> tasks.jsonl, for a project with no "
+         "store yet",
+         "flags": ["--from-board", "--dry-run", "--json", "--register"],
+         "writes": ["tasks.jsonl"]},
+        {"name": "render", "summary":
+         "tasks.jsonl -> BOARD.md; refuses when a record has no line to land in",
+         "flags": ["--write", "--dry-run", "--json", "--register"],
+         "writes": ["BOARD.md"]},
+        {"name": "diff", "summary":
+         "render and byte-compare with the board on disk",
+         "flags": ["--register"]},
+        {"name": "risks-build", "summary":
+         "derive the risks store from `## Top risks` and print it",
+         "flags": []},
+        {"name": "risks-render", "summary":
+         "the risks store -> `## Top risks`",
+         "flags": ["--write", "--dry-run", "--json"],
+         "writes": ["BOARD.md"]},
+        {"name": "risks-write", "summary":
+         "the one-way import: `## Top risks` -> risks.jsonl",
+         "flags": ["--from-board", "--dry-run", "--json"],
+         "writes": ["risks.jsonl"]},
+        {"name": "risks-diff", "summary":
+         "render `## Top risks` and byte-compare with the board",
+         "flags": []},
+        {"name": "intake-build", "summary":
+         "derive the intake store from `## Intake` and print it",
+         "flags": []},
+        {"name": "intake-render", "summary":
+         "the intake store -> `## Intake`",
+         "flags": ["--write", "--dry-run", "--json"],
+         "writes": ["BOARD.md"]},
+        {"name": "intake-write", "summary":
+         "the one-way import: `## Intake` -> intake.jsonl",
+         "flags": ["--from-board", "--dry-run", "--json"],
+         "writes": ["intake.jsonl"]},
+        {"name": "intake-diff", "summary":
+         "render `## Intake` and byte-compare with the board",
+         "flags": []},
+        {"name": "asks-build", "summary":
+         "derive the asks store from `## User Input Queue` and print it",
+         "flags": []},
+        {"name": "asks-render", "summary":
+         "the asks store -> `## User Input Queue`",
+         "flags": ["--write", "--dry-run", "--json"],
+         "writes": ["BOARD.md"]},
+        {"name": "asks-write", "summary":
+         "the one-way import: `## User Input Queue` -> asks.jsonl",
+         "flags": ["--from-board", "--dry-run", "--json"],
+         "writes": ["asks.jsonl"]},
+        {"name": "asks-diff", "summary":
+         "render `## User Input Queue` and byte-compare with the board",
+         "flags": []},
+    ],
+}
+
+
+def main(argv: list[str], _locked: bool = False) -> int:
+    # **The whole vector is read against SURFACE before anything dispatches**
+    # (DESIGN-016 A2 and C1). `-h` in any position prints and exits, so
+    # `render --write --help` prints help instead of running the render; an
+    # undeclared token is refused with exit 2 rather than ignored, so `--wrte`
+    # is a typo again and not a silent no-op that reports success; and a
+    # DECLARED flag on a subcommand that does not list it is refused too,
+    # which is the `--dry-run`-accepted-and-ignored shape TASK-253 filed.
+    read = lib.parse_surface(SURFACE, argv)
+    if read["help"]:
+        # **Usage first** (DESIGN-016 C2, goal 8). Generated from `SURFACE`, so
+        # it cannot describe a flag the parser does not take.
+        print(lib.usage_lines(SURFACE, read["sub"]))
+        if not read["sub"]:
+            print()
+            print(__doc__.strip())
+        return 0
+    if not argv:
+        # **One no-argument behaviour, and the declaration decides which**
+        # (DESIGN-016 C3, goal 3). A tool that takes subcommands cannot act
+        # without one, so a bare call is a bad invocation: the usage on stderr
+        # and exit 2. A flag-only tool — `perry-state`, `perry-diagnose` — does
+        # its documented default and exits 0. Bare calls used to answer four
+        # ways: usage and exit 2, the whole help and exit 0, 187KB of JSON, and
+        # a 3.7-second lint (§ 1.3).
+        print(lib.usage_lines(SURFACE), file=sys.stderr)
+        return 2
+    if read["describe"]:
+        print(json.dumps(lib.describe_surface(SURFACE, read["sub"]),
+                         ensure_ascii=False, indent=2))
+        return 0
+    if read["error"]:
+        print(f"perry-tasks: {read['error']}", file=sys.stderr)
+        return 2
+    cmd = read["sub"]
+    seen, given = read["seen"], read["values"]
+    flags = frozenset(seen)
+
+    # **`--register` is the verb's argument, and the twelve prefixed names are
+    # aliases for it** (DESIGN-016 C5). `risks-build` and `build --register
+    # risks` are the same call; the prefixes stay for one release so nothing
+    # that already types them breaks. The rewrite happens here, before
+    # dispatch, so every branch below still sees the name it was written for.
+    if "--register" in given:
+        table = registers()
+        name = given["--register"]
+        if name not in table:
+            print(f"perry-tasks: no register {name!r}. Declared: "
+                  f"{', '.join(sorted(table))}. A register is a `work`-owned "
+                  f"store in `schema/state-schema.json § claims`.",
+                  file=sys.stderr)
+            return 2
+        wanted = f"{table[name]}{cmd}"
+        if wanted != cmd:
+            legal = {s["name"] for s in SURFACE["subcommands"]}
+            if wanted not in legal:
+                verbs = sorted(v.removeprefix(table[name]) for v in legal
+                               if table[name] and v.startswith(table[name]))
+                print(f"perry-tasks: the {name!r} register has no {cmd!r} — "
+                      f"it takes {', '.join(verbs)}.", file=sys.stderr)
+                return 2
+            cmd = wanted
+    # `--root` first, `$PERRY_PROJECT` second — `bin/README.md § Which
+    # project?`'s order, which this line had inverted while two of the commands
+    # below write (DESIGN-016 § 1.1, A1).
+    root = lib.resolve_project_root(given.get("--root"))
+
+    if read["extra"]:
+        print(f"perry-tasks: {read['extra'][0]!r} is not a flag, and {cmd!r} "
+              f"takes no second argument (try --help)", file=sys.stderr)
         return 2
 
     # One lock spans source reads, derivation, comparison, and replacement.
     # Taking it only around `os.replace` still lets a concurrent writer make
     # every decision above that point against stale bytes.
     if not _locked:
+        # **The `except` covers the whole locked run, not just the lock**
+        # (DESIGN-016 A6, goal 10). It used to cover only `project_lock`
+        # itself, so a `Refused` raised deeper — `mod.Board` on a root with no
+        # `BOARD.md`, the commonest one — reached the caller as a full Python
+        # traceback and exit 1, while the same condition through `perry-task`
+        # printed one line. `bin/README.md` says exit 1 is "refused, and the
+        # reason is printed"; a traceback is not that.
         state_root = P.resolve_state_root(root)
         try:
             with lib.project_lock(state_root, refused=Refused):
@@ -1426,10 +1687,17 @@ def main(argv: list[str], _locked: bool = False) -> int:
         except Refused as exc:
             print(f"perry-tasks: refused — {exc}", file=sys.stderr)
             return 1
+        except _task_module().Refused as exc:
+            # `perry-task`'s own class, raised by the board reader this tool
+            # loads. The `Refused` above is this file's; a command that reaches
+            # `mod.Board` directly — `render` on a root with no `BOARD.md` —
+            # raises `perry-task`'s, and that is the one that used to escape.
+            print(f"perry-tasks: refused — {exc}", file=sys.stderr)
+            return 1
 
     if cmd in ("risks-render", "risks-diff"):
         return cmd_risks_render(root, byte_compare=cmd == "risks-diff",
-                                write_board="--write" in argv)
+                                write_board="--write" in flags, flags=flags)
 
     if cmd == "risks-build":
         board, ops = risk_board(root)
@@ -1443,11 +1711,11 @@ def main(argv: list[str], _locked: bool = False) -> int:
         return 0
 
     if cmd == "risks-write":
-        return cmd_risks_write(root, argv)
+        return cmd_risks_write(root, argv, flags)
 
     if cmd in ("intake-render", "intake-diff"):
         return cmd_intake_render(root, byte_compare=cmd == "intake-diff",
-                                 write_board="--write" in argv)
+                                 write_board="--write" in flags, flags=flags)
 
     if cmd == "intake-build":
         board, ops = intake_board(root)
@@ -1463,11 +1731,11 @@ def main(argv: list[str], _locked: bool = False) -> int:
         return 0
 
     if cmd == "intake-write":
-        return cmd_intake_write(root, argv)
+        return cmd_intake_write(root, argv, flags)
 
     if cmd in ("asks-render", "asks-diff"):
         return cmd_ask_render(root, byte_compare=cmd == "asks-diff",
-                              write_board="--write" in argv)
+                              write_board="--write" in flags, flags=flags)
 
     if cmd == "asks-build":
         board, ops = ask_board(root)
@@ -1487,13 +1755,13 @@ def main(argv: list[str], _locked: bool = False) -> int:
         return 0
 
     if cmd == "asks-write":
-        return cmd_asks_write(root, argv)
+        return cmd_asks_write(root, argv, flags)
 
     if cmd in ("render", "diff"):
         # **Not `build(root)`.** These two read the store from disk for the
         # reason `verify` spells out below.
         return cmd_render(root, byte_compare=cmd == "diff",
-                          write_board="--write" in argv)
+                          write_board="--write" in flags, flags=flags)
 
     records = build(root)
     if cmd == "build":
@@ -1508,11 +1776,13 @@ def main(argv: list[str], _locked: bool = False) -> int:
         dest = state_root / "tasks.jsonl"
 
         if "--from-board" not in argv:
-            print("perry-tasks: refusing board-to-store import without "
-                  "`--from-board`. `tasks.jsonl` is authoritative; use "
-                  "`perry-tasks render --write` for store-to-board recovery, "
-                  "or explicitly run `perry-tasks write --from-board` to "
-                  "replace the store from BOARD.md.", file=sys.stderr)
+            r = lib.root_flag(root)
+            print(f"perry-tasks: refusing board-to-store import without "
+                  f"`--from-board`. `tasks.jsonl` is authoritative; use "
+                  f"`perry-tasks render --write{r}` for store-to-board "
+                  f"recovery, or explicitly run `perry-tasks write "
+                  f"--from-board{r}` to replace the store from BOARD.md.",
+                  file=sys.stderr)
             return 1
 
         # **This command runs BOARD.md → store, and since TASK-089 that is the
@@ -1566,7 +1836,8 @@ def main(argv: list[str], _locked: bool = False) -> int:
                     print(f"    … and {len(losses) - 10} more", file=sys.stderr)
                 print(f"\n  If the STORE is right — the ordinary case, because "
                       f"`perry-task` writes it — run `perry-tasks render "
-                      f"--write` to bring the board back in line.\n"
+                      f"--write{lib.root_flag(root)}` to bring the board back "
+                      f"in line.\n"
                       f"  If the BOARD is right — someone edited it before the "
                       f"store existed, or adoption is importing one — re-run "
                       f"with --from-board.", file=sys.stderr)
@@ -1576,9 +1847,22 @@ def main(argv: list[str], _locked: bool = False) -> int:
         # a canonical file. `dest.write_text` was a plain truncate-and-write on
         # the ONE file `bin/perry-task` stages so carefully, and it completed
         # while another process held the lock.
-        lib.write_atomic(dest, perry_store.store_text(records))
-        print(f"perry-tasks: wrote {dest} ({len(records)} records)")
-        return 0
+        return write_store_or_say_what_would_land(dest, records, flags=flags,
+                                                  unit="records")
+
+    if cmd != "verify":
+        # **The fall-through is a refusal.** Everything above dispatches on
+        # `cmd ==` or `cmd in (…)`, and what reaches here used to be `verify`
+        # OR anything the chain missed — so deleting `asks-build`'s branch made
+        # `perry-tasks asks-build` answer with the TASK store's verification,
+        # exit 0, while `--describe` still listed the subcommand. A V4 review
+        # found it by mutation; `bin/perry-config § main` had the identical
+        # hole one commit earlier. A declared subcommand that reaches no
+        # handler of its own is a bug in this file, not a caller error.
+        print(f"perry-tasks: {cmd!r} is declared and reaches no handler — "
+              f"that is a defect in this tool, not in your command. Nothing "
+              f"was written.", file=sys.stderr)
+        return 2
 
     # **`verify` reads the store FROM DISK, not the one just built.**
     #
@@ -1597,10 +1881,10 @@ def main(argv: list[str], _locked: bool = False) -> int:
         print(json.dumps({
             "store": str(store_path), "exists": False,
             "records": 0, "board_rows": 0,
-            "note": "no store on disk yet — run `perry-tasks write "
-                    "--from-board` to perform the explicit board import. "
-                    "Verifying a store against the board it was just built "
-                    "from proves nothing.",
+            "note": f"no store on disk yet — run `perry-tasks write "
+                    f"--from-board{lib.root_flag(root)}` to perform the "
+                    f"explicit board import. Verifying a store against the "
+                    f"board it was just built from proves nothing.",
         }, ensure_ascii=False, indent=2))
         return 2
     try:

@@ -38,6 +38,7 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import re
 import json
 import subprocess
 import sys
@@ -231,11 +232,35 @@ class TestTheIdColumnFallbackIsRetired(unittest.TestCase):
 
     def test_the_refusal_names_the_road_rather_than_stopping(self):
         """ADR-004 § 4: a gate that says "not conformant" and stops is a wall.
-        Every refusal this row adds ends in a command the reader can run."""
+
+        **This asserted the two commands by name and they were deleted**
+        (USER-910 removed `perry-migrate` and `perry-conform` with
+        `perry_schema.py` and `test_migrate.py`), so from that day the test
+        held the refusal to naming two tools a reader cannot run — the exact
+        opposite of its own docstring, which says *"a command the reader can
+        run"*. It passed for a year because it checked the spelling and not
+        the property.
+
+        The property is what is asserted now: the refusal names the column, it
+        names where the legal spellings are, and **every command it names
+        exists**. There is no command for this one — a section's header is
+        layout, and `DESIGN-016 § 8` records that the board's layout is not
+        derivable from the store — so "Add the column." is the whole road, and
+        a road is what § 4 asks for, not a shell invocation.
+        """
         msg = self.refusal(without_id_column(CONFORMANT, "Top risks"),
                            "risk-clear", "RX-001", "--reason", "it stopped")
-        self.assertIn("perry-migrate", msg)
-        self.assertIn("perry-conform declare", msg)
+        self.assertIn("Nothing was written", msg)
+        self.assertIn("Add the column", msg, "the refusal names no road")
+        self.assertIn("i18n.columns", msg,
+                      "the refusal does not say where the legal spellings are")
+        tools = {p.name for p in (PERRY_HOME / "bin").iterdir()
+                 if p.is_file() and p.suffix != ".md"}
+        for named in re.findall(r"`(perry-[a-z][a-z-]*)", msg):
+            with self.subTest(tool=named):
+                self.assertIn(named, tools,
+                              f"the refusal tells the reader to run {named} "
+                              f"and bin/ has no such tool")
 
     def test_the_wrong_row_is_not_cleared_by_guessing_column_zero(self):
         """The measured cost of the branch, as the property it violated.

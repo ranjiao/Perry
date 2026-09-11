@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.18`**
+> Contract: **`perry-task/list/2.0`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -11,7 +11,7 @@ purpose is to **not move when Perry's storage does**.
 ## Call it
 
 ```bash
-"$PERRY_HOME/bin/perry-task" list --all --json --root /path/to/project
+"$PERRY_HOME/bin/perry-task" list --all --limit 0 --json --root /path/to/project
 ```
 
 | Flag | Effect |
@@ -19,6 +19,7 @@ purpose is to **not move when Perry's storage does**.
 | `--all` | include closed and dropped tasks from `tasks.jsonl`. **Without it you get open work only.** |
 | `--json` | the payload below. Without it, a human-readable table. |
 | `--track <name>` | restrict to one declared track. |
+| `--limit <n>` | how many rows `tasks[]` may carry. **The default is 200**, and `bound` in the payload always says what was applied. `--limit 0` is every row. |
 | `--root <path>` | the project. Defaults to `$PERRY_PROJECT`, else walks up from the cwd. |
 
 `list` writes nothing. It takes the same lock every write takes, so a read
@@ -96,7 +97,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.18",  // check this before anything else
+  "contract":     "perry-task/list/2.0",   // check this before anything else
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
@@ -106,12 +107,44 @@ from task rows in Markdown.
   "asks":         { /* see below */ },     // `## User Input Queue` — needs-you
   "drift":        { /* see below */ },     // board vs. the record of how it got there
   "tasks":        [ /* see below */ ],
+  "bound":        { /* see below */ },     // how many rows tasks[] may carry, and whether it did
   "open":         3,                       // counts AFTER --track filtering
   "closed":       0,                       // 0 unless you passed --all — see below
   "events":       57,                      // lines in the event log, unfiltered
   "untitled":     ["TASK-004"]             // ids with no title in any record
 }
 ```
+
+### The bound on `tasks[]`
+
+```jsonc
+"bound": {
+  "limit":        200,            // what was applied; null when --limit 0
+  "default":      true,           // false when the caller passed --limit
+  "returned":     151,            // rows in tasks[]
+  "total":        404,            // rows the call matched, before the bound
+  "open_total":   156,            // open rows the call matched, before the bound
+  "closed_total": 248,            // the rest of `total`
+  "truncated":    false,          // returned < total
+  "order":        "by id, ascending" // which rows survive a truncation
+}
+```
+
+**Since contract 2.0, `tasks[]` is bounded.** A call that names no `--limit`
+returns at most 200 rows, `bound.truncated` says whether that changed anything,
+and the tool prints one line on stderr when it did. Until 2.0 every matching
+row came back: on this repository that is 538,134 bytes for a default call and
+1,683,852 for `--all` — about 420k tokens, more than the context window of any
+agent reading it.
+
+Pass `--limit 0` for the old behaviour, explicitly — and note that **`--all`
+is the flag that makes the bound bite**. Measured on Perry's own repository:
+`list --all --json` matches 404 rows, returns the first 200 by id, and those
+are mostly CLOSED, so `open` reads 24 against the project's 156.
+`bound.open_total` and `bound.closed_total` are the project's figures, counted
+before the bound, and are what a dashboard should render. A consumer that pages
+should sort on `id` and pass `--track` or a smaller `--limit`; there is no
+cursor here, and the bound is a ceiling rather than a page.
 
 **`open` and `closed` count the rows in THIS payload, not in the project.**
 `--all` is what puts closed rows in it, so **a default call reports `closed: 0`
@@ -532,19 +565,23 @@ comparison performed"* the same way on the same tree.
 
 1. **Every key above is always present.** An unknown value is `""`, `null` or
    `[]` — never a missing key. You need no `if "owner" in task`.
-2. **A key is never removed or retyped without a major bump.** `1.x` → `1.y` may
-   only *add* keys.
+2. **A key is never removed or retyped without a major bump, and neither are
+   ROWS.** `x.y` → `x.z` may only *add* keys and may not shrink an array a
+   consumer already reads. `2.0` is the first major, and it is one for the
+   second reason rather than the first: no key changed and `tasks[]` got a
+   default ceiling (see the changelog).
 3. **`contract` is the handle — and check BOTH halves.** The major says
    whether you can parse it. The **minor says whether a value still means what
    it meant when you wrote your code**, which is not the same question, and
    this section used to show only the first:
 
    ```python
+   SUPPORTED = {(1, 18), (2, 0)}       # the (major, minor) you read against
    version = payload["contract"].rsplit("/", 1)[1]
    major, minor = (int(x) for x in version.split("."))
-   if major != 1:
+   if major not in {m for m, _ in SUPPORTED}:
        raise SystemExit(f"perry-task list contract {version} is not supported")
-   if minor > TESTED_MINOR:            # the minor you actually read against
+   if (major, minor) > max(SUPPORTED):  # something moved under you
        for change in payload["semantics"]:
            if change["version"] > TESTED_MINOR_STR:
                warn(change["fields"], change["note"])
@@ -600,6 +637,37 @@ change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
+### 2.0 — `tasks[]` is bounded, 2026-09-09 (DESIGN-016 goal 6)
+
+**A call that names no `--limit` now returns at most 200 rows.** `bound` in the
+payload says what was applied, what the call matched before the bound
+(`bound.total`), and whether anything was dropped (`bound.truncated`); the tool
+also prints one line on stderr when it truncates. `--limit 0` returns every row
+and is the explicit spelling of the old behaviour.
+
+**Why a MAJOR when no key changed.** Rule 2 above used to cover keys only, and
+by that letter this was a minor: it shipped as `1.19` for a few hours on
+2026-09-09 and the user took it to `2.0` the same day. The reason is what a
+consumer experiences — one that changes nothing receives fewer rows, and on
+this repository `--all` reported `open: 24` against the project's 156. A minor
+tells a reader "your parsing still works", which is true and beside the point;
+a major stops them at `major != 1` and sends them here. The precedent is on
+this contract's sibling: `perry-events/list/1.1` returned different ROWS with
+no key change, and its own note says that is "precisely the change `1.x` only
+adds keys does not cover".
+
+**Why a read got a ceiling.** Measured on Perry's own repository:
+`perry-task list --json` is 538,134 bytes and `--all --json` is 1,683,852 —
+about 420k tokens. The consumer of this contract is an agent with a context
+window, and a payload that does not fit in one is not a read; it is a failure
+that arrives as a truncated conversation rather than as an error.
+
+**What a consumer must do.** Nothing, if it reads fewer than 200 rows or passes
+`--limit 0`. Otherwise: check `bound.truncated`, and narrow with `--track` or
+raise `--limit`. `open` and `closed` still count the rows in the payload, so on
+a truncated call they count the returned ones — `bound.total` is the unbounded
+figure and is the number to render beside them.
+
 ### Not a version — the two `summary` rules that judged language are gone, 2026-09-03 (TASK-330)
 
 **The contract stays at `perry-task/list/1.18`.** No payload key changed shape and no field appeared or left; what changed is which structure findings the write path and the linter can produce.
@@ -640,7 +708,7 @@ when non-empty keeps working unchanged and simply shows it more often.
 
 **Left for whoever next opens this document:** if the PMO judges "a row minted
 after this date always carries one" to be a guarantee consumers should be able
-to branch on, that is a `1.19` with a `semantics` entry, and it is a decision
+to branch on, that is a `2.1` with a `semantics` entry, and it is a decision
 about the contract rather than about this row. It was deliberately not taken
 here.
 

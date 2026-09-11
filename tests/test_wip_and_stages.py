@@ -261,5 +261,85 @@ class TestCustomTaskGroupsReachTheStateReader(Base):
         self.assertEqual([t.id for t in P.parse_board(board).all_tasks], ["TASK-1"])
 
 
+class TheImplicitTrackIsCheckedAgainstTheSchema(unittest.TestCase):
+    """`DEFAULT_TRACK` is what most projects report, and five of its nine
+    published fields were pinned by nothing.
+
+    `bin/perry-state § DEFAULT_TRACK`'s own comment says *"this dict is the
+    shape most consumers see"* — it is the track every project that declares no
+    register reports, and also every project whose register is momentarily
+    `unreadable` or `invalid`. `--compact` projects nine of its fields, and a
+    V4 round rewrote five of them at once —
+
+        stage_list ["ghost"] · wip "review:99" · sla "99d"
+        cycle "1w" · default_rung "V6"
+
+    — and `bash tests/run` came back at 123 modules, 3,531 tests and exactly
+    its three known reds, while `perry-state --compact` published those values
+    as this project's vocabulary. `stage_list` is criterion 13's own words,
+    *the stages legal on each*; `sla` and `cycle` are worse, because
+    `schema § work_modes` says inventing them *"would put words in the user's
+    mouth"* and a fabricated `"99d"` does exactly that.
+
+    The tests that looked like cover say so in their names —
+    `TestBothTrackShapesCarryTheSameKeys` and
+    `test_a_project_with_no_track_register_carries_the_same_keys`. Keys, not
+    values.
+
+    **This pins against the schema where the schema has an answer, and against
+    the stated rule where it does not.** `track` and `mode` were previously
+    held only by hardcoded `"main"` / `"project"` in three other modules, so a
+    schema change would have left four copies disagreeing with the
+    authoritative one and nothing would have said so.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(PERRY_HOME / "tests"))
+        import inproc
+        cls.DEFAULT = inproc.load("perry-state").DEFAULT_TRACK
+        cls.MODES = SCHEMA["work_modes"]
+
+    def test_the_implicit_track_and_mode_are_the_schemas(self):
+        self.assertEqual(self.DEFAULT["track"], self.MODES["default_track"])
+        self.assertEqual(self.DEFAULT["mode"], self.MODES["default_mode"])
+
+    def test_its_stage_list_is_the_schemas_default_for_its_mode(self):
+        """Not a literal `[]` that happens to match.
+
+        The declared branch reaches the schema through `default_stages_for`;
+        this branch carries a literal. They agree today because `project` mode
+        declares no default stages — and if that changes, the two branches
+        would disagree about the stages legal on the same mode.
+        """
+        declared = self.MODES["modes"][self.DEFAULT["mode"]]["default_stages"]
+        want = [s.strip() for s in declared.replace("→", "->").split("->")
+                if s.strip()]
+        self.assertEqual(self.DEFAULT["stage_list"], want)
+        self.assertFalse(self.DEFAULT["stages_declared"],
+                         "the implicit track declares nothing by definition")
+
+    def test_it_invents_no_control_the_user_did_not_write(self):
+        """`schema § work_modes` forbids inventing these, so `""` is the
+        answer and this is what holds it to `""`."""
+        for field in ("wip", "sla", "cycle", "default_rung", "spine",
+                      "stages"):
+            with self.subTest(field=field):
+                self.assertEqual(
+                    self.DEFAULT[field], "",
+                    f"the implicit track publishes a {field} nobody wrote")
+        self.assertEqual(self.DEFAULT["missing_defaults"], [])
+        self.assertFalse(self.DEFAULT["declared"])
+
+    def test_every_published_field_is_named_here(self):
+        """The bound. A tenth field added to the dict fails until it is
+        pinned, rather than shipping unchecked the way five of nine did."""
+        self.assertEqual(
+            sorted(self.DEFAULT),
+            ["cycle", "declared", "default_rung", "missing_defaults", "mode",
+             "sla", "spine", "stage_list", "stages", "stages_declared",
+             "track", "wip"])
+
+
 if __name__ == "__main__":
     unittest.main()

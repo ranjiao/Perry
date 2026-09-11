@@ -18,6 +18,11 @@ Usage:
   perry-state [--root <project_root>] [--json | --dashboard] [--section <name>]
 
   --json        full state payload (default)
+  --compact     the standup's numbers and the project's vocabulary, as JSON —
+                a strict projection of --json, and the read `SKILL.md` step 3
+                makes. `reference/snapshot.md § Step 3` carries the measured
+                sizes; stating a percentage in two places is how this file
+                came to hold two different ones, neither of them current
   --dashboard   the standup dashboard rows as plain text, pre-computed
   --section     emit one top-level key only (board / phase / okr / design / …)
   --root        project root; default $PERRY_PROJECT, else walk up from cwd
@@ -958,8 +963,14 @@ def read_event_log(project_root: Path) -> dict:
     block to know current state.
     """
     path = project_root / ".perry" / "events.jsonl"
-    out = {"present": path.exists(), "total": 0, "by_event": {}, "last": ""}
-    if not path.exists():
+    # Asked ONCE, and the third answer taken. `present` used to call
+    # `Path.exists()` twice, and on an unsearchable `.perry/` the first call
+    # raised — this block's own docstring says the log is disposable and its
+    # absence changes nothing, which is exactly the answer an unreadable log
+    # deserves too.
+    present = lib.exists_or_unreadable(path) is True
+    out = {"present": present, "total": 0, "by_event": {}, "last": ""}
+    if not present:
         return out
     by: dict[str, int] = {}
     last = ""
@@ -2212,6 +2223,192 @@ def build(root: Path, project_root: Path | None = None) -> dict:
 # ── dashboard text form ───────────────────────────────────────────────────
 
 
+#: The narrow read, declared once. `(compact key, path into the full payload,
+#: how)` — and both `compact()` and `tests/test_compact_payload.py` walk THIS,
+#: so a field cannot be added to one and missed by the other.
+#:
+#: `how` is `"value"` (verbatim), `"count"` (the length of a list), or
+#: `("fields", (...))` (each item of a list, narrowed to those keys).
+#:
+#: **Why this exists.** `SKILL.md` step 3 mandated `perry-state --json`, which
+#: was 186,856 bytes when DESIGN-016 was written and 258,989 four days later —
+#: about 65k tokens, re-read every turn against a bill that is 99.1%
+#: `cache_read`. `board.tasks` alone is 159KB of it. Nothing in the standup
+#: reads a task row; it reads the counts above them.
+#:
+#: **And it carries the project's VOCABULARY** — the declared tracks, their
+#: modes and the stages legal on each (DESIGN-016 § 1.7). That is the read
+#: which precedes every write, and until now it cost `--section project`,
+#: 11,681 bytes, three levels down, while the 1,052-byte `--dashboard` did not
+#: carry it at all.
+COMPACT: tuple[tuple[str, str, object], ...] = (
+    ("schema", "schema", "value"),
+    ("generated_at", "generated_at", "value"),
+    ("installed", "installed", "value"),
+    ("recovery", "recovery", "value"),
+    ("interrupted", "interrupted", "count"),
+    ("project.root", "project.root", "value"),
+    ("project.name", "project.name", "value"),
+    # The vocabulary. `stage_counts` and the breach lists are the DIAGNOSIS of
+    # a track and belong to `--section project`; what a caller needs before
+    # writing a row is what the track IS.
+    ("project.tracks", "project.config.tracks",
+     ("fields", ("track", "mode", "stage_list", "stages_declared", "wip",
+                 "sla", "cycle", "default_rung", "declared"))),
+    ("project.tracks_source", "project.config.tracks_source", "value"),
+    # `SKILL.md` step 3c substitutes each pack's glossary into everything a
+    # human reads, so the standup cannot do its job without this list.
+    ("project.packs", "project.config.packs", "value"),
+    ("project.state_root", "project.config.state_root", "value"),
+    ("project.language", "project.config.language", "value"),
+    ("okr.present", "okr.present", "value"),
+    ("okr.version", "okr.version", "value"),
+    # Titles and KR IDS, not KR prose. `okr.objectives` is 5,499 bytes on this
+    # repository and `phase.objectives` 6,696, almost all of it `text`,
+    # `qualifier` and `metric` — a KR's statement and its measurement, neither
+    # of which the dashboard prints. Step 4 renders the objective title and a
+    # count over its KRs; `perry-explain <ID>` and `--section okr` answer the
+    # rest, which is what they are for.
+    ("okr.objectives", "okr.objectives",
+     ("objectives", ("id", "linked", "stretch"))),
+    ("okr.anti_goals", "okr.anti_goals", "value"),
+    ("okr.operating_principles", "okr.operating_principles", "value"),
+    # One entry, projected as a sub-document, so a project with no phase
+    # still reports `phase: null` rather than a dict of nulls — `dash` and
+    # `SKILL.md` step 4 both branch on that.
+    ("phase", "phase", ("subdict", (
+        ("number", "number", "value"),
+        ("slug", "slug", "value"),
+        ("status", "status", "value"),
+        ("started", "started", "value"),
+        ("day", "day", "value"),
+        ("kr_total", "kr_total", "value"),
+        ("focus_present", "focus_present", "value"),
+        ("cost_ceiling", "cost_ceiling", "value"),
+        ("objectives", "objectives", ("objectives", ("id", "linked", "stretch"))),
+        ("scope_triggers", "scope_triggers", "count"),
+    ))),
+    # **The KR progress the dashboard puts a percentage on** —
+    # `reference/snapshot.md` step 4 renders `O1 · <title> … <%>` and
+    # `P-O1 · <title> … <KRs done>/<KRs total>`, and `linkage` is the only
+    # place `current` and `target` are machine-readable. It was left out of the
+    # first `--compact` and step 4 became uncomputable; a V4 review found it.
+    # Narrowed hard: 13,112 bytes whole, 605 as id/title/current/target.
+    ("linkage.phase", "linkage.phase", "value"),
+    ("linkage.objectives", "linkage.objectives",
+     ("objectives_with_progress", ("id", "title", "current", "target",
+                                   "stretch"))),
+    ("linkage.unlinked", "linkage.unlinked", "count"),
+    # A provenance roll-up over the phase's KRs — how many were asserted,
+    # measured, stale. NOT a per-objective percentage; the line above is.
+    ("attribution.kr_currents", "attribution.kr_currents", "value"),
+    ("board.lines", "board.lines", "value"),
+    ("board.cap", "board.cap", "value"),
+    ("board.last_updated", "board.last_updated", "value"),
+    ("board.p0", "board.p0", "value"),
+    ("board.p1", "board.p1", "value"),
+    ("board.p2", "board.p2", "value"),
+    ("board.cadence", "board.cadence", "value"),
+    ("board.blocked", "board.blocked", "value"),
+    ("board.open", "board.open", "value"),
+    ("board.verification", "board.verification", "value"),
+    ("board.drift", "board.drift", ("fields_of_dict",
+                                    ("checked", "drift", "unrecorded"))),
+    ("board.tasks", "board.tasks", "count"),
+    ("intake", "intake", "value"),
+    ("user_input_queue", "user_input_queue", "value"),
+    ("cadence", "cadence", "value"),
+    ("risks.top", "risks.top", "value"),
+    ("risks.count", "risks.count", "value"),
+    ("risks.cleared", "risks.cleared", "value"),
+    ("attribution.linked", "attribution.linked", "value"),
+    ("attribution.unlinked", "attribution.unlinked", "count"),
+    ("attribution.declared_unlinked", "attribution.declared_unlinked", "count"),
+    ("decisions", "decisions", "value"),
+    ("design.total", "design.total", "value"),
+    ("design.locked", "design.locked", "value"),
+    ("design.by_status", "design.by_status", "value"),
+    ("design.pending_handoff", "design.pending_handoff", "count"),
+    ("history", "history", "value"),
+    ("operations", "operations", "value"),
+    ("architecture", "architecture", "value"),
+    ("roles", "roles", "value"),
+    ("warnings", "warnings", "value"),
+)
+
+
+def _at(payload: dict, path: str):
+    """The value at a dotted path, or None if any step is missing or null."""
+    cur = payload
+    for step in path.split("."):
+        if not isinstance(cur, dict) or step not in cur:
+            return None
+        cur = cur[step]
+    return None if cur is None else cur
+
+
+def _put(target: dict, key: str, value) -> None:
+    if "." not in key:
+        target[key] = value
+        return
+    head, tail = key.split(".", 1)
+    target.setdefault(head, {})
+    _put(target[head], tail, value)
+
+
+def project_value(value, how):
+    """One value, projected. The whole of what `--compact` may do to a field.
+
+    `tests/test_compact_payload.py` calls THIS against the full payload rather
+    than restating the rules, so the two cannot describe different projections.
+    """
+    if how == "value":
+        return value
+    if how == "count":
+        return len(value) if isinstance(value, (list, dict)) else None
+    kind, arg = how
+    if kind == "fields":
+        return (None if not isinstance(value, list)
+                else [{k: item.get(k) for k in arg} for item in value
+                      if isinstance(item, dict)])
+    if kind == "objectives_with_progress":
+        return (None if not isinstance(value, list) else
+                [{"id": o.get("id"), "title": o.get("title"),
+                  "krs": [{k: kr.get(k) for k in arg}
+                          for kr in (o.get("krs") or [])]}
+                 for o in value if isinstance(o, dict)])
+    if kind == "objectives":
+        return (None if not isinstance(value, list) else
+                [{"title": o.get("title"),
+                  "krs": [{k: kr.get(k) for k in arg}
+                          for kr in (o.get("krs") or [])]}
+                 for o in value if isinstance(o, dict)])
+    if kind == "fields_of_dict":
+        return (None if not isinstance(value, dict)
+                else {k: value.get(k) for k in arg})
+    if kind == "subdict":
+        # `None` in, `None` out: a project with no phase reports no phase.
+        if not isinstance(value, dict):
+            return None
+        return {key: project_value(_at(value, path), sub_how)
+                for key, path, sub_how in arg}
+    raise ValueError(f"unknown projection {how!r}")
+
+
+def project_compact(payload: dict, spec=COMPACT) -> dict:
+    """The narrow payload — a PROJECTION of `payload`, never a second read.
+
+    Every value here is taken from the full payload in this process: selected,
+    counted, or narrowed to named keys. Nothing is recomputed and nothing is
+    re-read from disk, which is the one rule that keeps this from becoming a
+    second answer to "what is the state" (DESIGN-016 § 7).
+    """
+    out: dict = {}
+    for key, path, how in spec:
+        _put(out, key, project_value(_at(payload, path), how))
+    return out
+
+
 def dash(payload: dict) -> str:
     if not payload.get("installed"):
         return "🅿  No Perry state in this project — run /perry for first-time setup."
@@ -2357,30 +2554,52 @@ def resolve_root(explicit: str | None) -> Path:
 
 
 
+#: What this tool accepts, declared once (DESIGN-016 C1). No subcommands: one
+#: read, four ways to narrow it.
+SURFACE = {
+    "name": "perry-state",
+    "kind": "read",
+    "summary": "the single deterministic read of a project's state",
+    "root_resolution": "standard",
+    "exit_codes": {"0": "read (`installed: false` when there is no state)",
+                   "2": "bad invocation, or no such section"},
+    "flags": [
+        {"name": "--json", "summary": "the full payload (the default)"},
+        {"name": "--compact", "summary":
+         "the standup's numbers and this project's vocabulary — a strict "
+         "projection of --json"},
+        {"name": "--dashboard", "summary":
+         "the standup rows as plain text, pre-computed"},
+        {"name": "--section", "arg": "name", "summary":
+         "one top-level key of the full payload, in full"},
+    ],
+    "subcommands": [],
+}
+
+
 def main(argv: list[str]) -> int:
-    mode = "json"
-    root_arg = None
-    section = None
-    i = 0
-    while i < len(argv):
-        arg = argv[i]
-        if arg in ("-h", "--help"):
-            print(__doc__.strip())
-            return 0
-        elif arg == "--json":
-            mode = "json"
-        elif arg == "--dashboard":
-            mode = "dashboard"
-        elif arg == "--root":
-            i += 1
-            root_arg = argv[i] if i < len(argv) else None
-        elif arg == "--section":
-            i += 1
-            section = argv[i] if i < len(argv) else None
-        else:
-            print(f"perry-state: unknown argument {arg!r} (try --help)", file=sys.stderr)
-            return 2
-        i += 1
+    read = lib.parse_surface(SURFACE, argv)
+    if read["help"]:
+        # Usage first, generated from `SURFACE` (DESIGN-016 C2).
+        print(lib.usage_lines(SURFACE))
+        print()
+        print(__doc__.strip())
+        return 0
+    if read["describe"]:
+        print(json.dumps(lib.describe_surface(SURFACE), ensure_ascii=False,
+                         indent=2))
+        return 0
+    if read["error"]:
+        print(f"perry-state: {read['error']}", file=sys.stderr)
+        return 2
+    if read["extra"]:
+        print(f"perry-state: {read['extra'][0]!r} is not a flag "
+              f"(try --help)", file=sys.stderr)
+        return 2
+    mode = ("dashboard" if "--dashboard" in read["seen"]
+            else "compact" if "--compact" in read["seen"] else "json")
+    section = read["values"].get("--section")
+    root_arg = read["values"].get("--root")
 
     project_root = resolve_root(root_arg)
     # State may live in a subdirectory (`state_root` in `.perry/config.jsonl`)
@@ -2412,6 +2631,14 @@ def main(argv: list[str]) -> int:
 
     if mode == "dashboard":
         print(dash(payload))
+        return 0
+    if mode == "compact":
+        if section:
+            print("perry-state: --compact and --section answer different "
+                  "questions; pass one (try --help)", file=sys.stderr)
+            return 2
+        print(json.dumps(project_compact(payload), ensure_ascii=False,
+                         indent=2))
         return 0
     if section:
         if section not in payload:

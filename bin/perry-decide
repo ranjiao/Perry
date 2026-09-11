@@ -343,8 +343,9 @@ def cmd_new(args, ctx) -> dict:
     sr = ctx["state_root"]
     if not (sr / "decisions").is_dir() and not args.dry_run:
         raise Refused(
-            f"no {sr / 'decisions'} — run `perry-decide bootstrap` first. "
-            f"Creating it here would hide that a project was never set up")
+            f"no {sr / 'decisions'} — run `perry-decide "
+            f"bootstrap{lib.root_flag(ctx['project_root'])}` first. Creating "
+            f"it here would hide that a project was never set up")
     # **The status this command writes, bound to the schema like every other.**
     # `new` stamps `> Status: <BORN_STATUS>` into the body, and until TASK-235
     # nothing checked that the enum declares it: the refusal came from
@@ -518,7 +519,36 @@ def parse(argv: list[str]) -> Args:
             a.as_json = True
         elif t in flags:
             i += 1
-            setattr(a, flags[t], argv[i] if i < len(argv) else None)
+            if i >= len(argv):
+                # `argv[i] if i < len(argv) else None` set the attribute to
+                # None, which is indistinguishable from the flag never being
+                # passed — so `perry-decide new slug --title` opened a decision
+                # with no title rather than refusing. A V4 round found the same
+                # line in `bin/perry-lint`, where it was gating.
+                # `sys.exit`, not `return`: this function returns an `Args`,
+                # and returning an int here handed `main` a 2 that it then
+                # treated as a namespace. The `-h` branch above already exits
+                # the same way.
+                print(f"perry-decide: {t} takes a value", file=sys.stderr)
+                sys.exit(2)
+            # A value that is present but EMPTY is the same defect one layer
+            # in, and `lib.empty_root_error` owns the rule — see its docstring
+            # for the eight tools that had the refusal and the six that did.
+            bad = lib.empty_root_error(t, argv[i])
+            if bad is not None:
+                print(f"perry-decide: {bad}", file=sys.stderr)
+                sys.exit(2)
+            setattr(a, flags[t], argv[i])
+        elif t.startswith("-"):
+            # **An undeclared flag was taken as a positional and dropped.**
+            # `perry-decide list --xyzzy` exited 0. The three positionals
+            # below are ids and slugs, none of which begins with `-`, so a
+            # token that does is a typo — and this tool writes decision
+            # records, where a dropped flag is a record that does not say
+            # what the caller asked it to say (DESIGN-016 criterion 3).
+            print(f"perry-decide: unknown argument {t!r} (try --help)",
+                  file=sys.stderr)
+            sys.exit(2)
         elif a.cmd is None:
             a.cmd = t
         elif a.id is None:

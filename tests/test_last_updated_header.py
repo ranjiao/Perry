@@ -131,11 +131,18 @@ class TestARenderIsNotAWrite(unittest.TestCase):
                          "a re-render moved a date that records writes")
 
     def test_byte_compare_is_clean_after_a_write(self):
+        """**`render --byte-compare` was not a byte compare.** `perry-tasks`
+        derives that from the subcommand — `diff` compares, `render` renders —
+        and the flag was never declared, so the old spelling here rendered the
+        board to stdout and exited 0 whatever the stamp had done. The
+        assertion this test is named for was not being made. `--wrte` and
+        `--byte-compare` are the same class of typo, and DESIGN-016 A2 made
+        both exit 2 rather than pass silently."""
         p = Project(board=board_with_header())
         p.run("add", "--title", "a task")
         out = subprocess.run(
-            [sys.executable, str(TASKS), "render", "--byte-compare",
-             "--root", str(p.root)], capture_output=True, text=True)
+            [sys.executable, str(TASKS), "diff", "--root", str(p.root)],
+            capture_output=True, text=True)
         self.assertEqual(out.returncode, 0,
                          "the stamp made the render disagree with the file:\n"
                          + out.stdout[-800:] + out.stderr[-800:])

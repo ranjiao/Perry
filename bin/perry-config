@@ -1,43 +1,20 @@
 #!/usr/bin/env python3
-""".perry/config.jsonl — the project's settings and tracks, read and written.
+"""
+.perry/config.jsonl — the project's settings and tracks, read and written.
 
     perry-config show   [--root <p>] [--json]      what the store declares
     perry-config set    [--root <p>] <Label> <value>   upsert one setting
     perry-config unset  [--root <p>] <Label>       remove one setting
-    perry-config track  [--root <p>] <name> [--mode M] [--spine S]
-                        [--stages S] [--wip W] [--sla S] [--cycle C]
-                        [--default-rung R]         upsert one track
-    perry-config untrack [--root <p>] <name>       remove one track
 
-The store is `.perry/config.jsonl`. It holds the project's `setting` records —
-document language, chat language, repo layout, state root, packs, and the two
-cost budgets — and one `track` record per declared track. Field names are
-declared in `schema/state-schema.json § stores.declared[".perry/config.jsonl"]`
-and are read from there, never restated here.
+The usage block is generated from this tool's `SURFACE`
+declaration — run `perry-config --help`, or `perry-config <subcommand>
+--help` for one of them, or `perry-config --describe --json` for the
+whole surface as data.
 
-**The five subcommands this tool used to have are gone (ADR-019.)** `build`,
-`verify`, `render`, `write --from-file` and `diff` were all about the
-relationship between this store and `.perry/config.md`, a rendered projection
-of it: derive the store from the file, compare them field by field, render the
-file from the store, import the file into the store, render and compare bytes.
-ADR-019 deleted the file. Each of the five lost its subject completely rather
-than becoming narrower — there is no second copy to build from, verify
-against, render to, import from, or diff — so none of them survives, and the
-`Doc`/`plan`/`render` machinery in `bin/perry_md_store.py` that all five were
-built on is no longer reached from here at all.
-
-What replaces them is not a sixth projection command. `SKILL.md § Configuration`
-promised this was "a tier-1 file the user owns and edits directly"; ADR-019
-withdraws that promise explicitly, and the thing it owes in exchange is a way
-to change a setting or a track without hand-editing JSONL. That is `set`,
-`unset`, `track` and `untrack` above, and `show` so a human can read back what
-they wrote.
-
-**Two circularities live here and both are named rather than worked around.**
-`viewer/parsers.py § resolve_state_root` reads this store to decide where every
-other state file lives, and every writer reads it to decide which tracks exist.
-Neither is new — every reader of the config has always had them — and a writer
-of the config meets them at every write.
+**The argument for every refusal below is in
+`bin/README.md § The argument, per tool`**, moved there whole on
+2026-09-09 (DESIGN-016 Decision 2). Nothing was cut; `--help`
+stopped being the place to read it.
 """
 
 from __future__ import annotations
@@ -76,7 +53,11 @@ def read_records(path: Path) -> list[dict]:
     replaced by a blank on the next write. `bin/perry-lint` names the bad
     record; this refuses until somebody has looked at it.
     """
-    if not path.exists():
+    if P.exists_or_unreadable(path) is not True:
+        # `None` is an unsearchable `.perry/`. A writer that cannot read the
+        # store must not rewrite it — the same rule the docstring states for a
+        # record it cannot parse — and returning [] here would let it. The
+        # caller's own guard turns an empty result into a refusal.
         return []
     try:
         on_disk = store.load_store(path)
@@ -116,15 +97,37 @@ def renumber(records: list[dict]) -> list[dict]:
     return out
 
 
-def write(path: Path, records: list[dict], what: str) -> int:
+def write(path: Path, records: list[dict], what: str, *,
+          dry_run: bool = False, as_json: bool = False) -> int:
+    """The one write, with `--dry-run` and `--json` honoured on every writer.
+
+    `bin/README.md:74` promises both "on the writers", and this tool had
+    neither: `--dry-run` was refused outright and `--json` was accepted by
+    `set`, `unset`, `track` and `untrack` and read by none of them — the
+    accepted-and-honoured-are-two-facts defect of DESIGN-016 § 1.4, on a
+    writer. Honest because everything above has already happened: the records
+    are built and validated, and the only thing skipped is the rename.
+    """
     records = renumber(records)
     good, bad = store.validate_records(records)
     if bad:
         raise Refused(f"the store this would write is one this tool could not "
                       f"read back: {bad[0]['message']}. Nothing was written.")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lib.write_atomic(path, store.store_text(records))
-    print(f"perry-config: {what} — {path} now holds {len(records)} record(s)")
+    held = len(read_records(path)) if path.exists() else 0
+    if not dry_run:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lib.write_atomic(path, store.store_text(records))
+    if as_json:
+        print(json.dumps({"store": str(path), "what": what,
+                          "wrote": not dry_run, "dry_run": dry_run,
+                          "records": len(records), "records_on_disk": held},
+                         ensure_ascii=False, indent=2))
+    elif dry_run:
+        print(f"perry-config: would {what} — {path} would hold "
+              f"{len(records)} record(s), {held} now. Nothing was written.")
+    else:
+        print(f"perry-config: {what} — {path} now holds {len(records)} "
+              f"record(s)")
     return 0
 
 
@@ -211,30 +214,91 @@ def cmd_track(records: list[dict], name: str, values: dict) -> list[dict]:
     return out
 
 
+#: What this tool accepts, declared once (DESIGN-016 C1). Its subcommands take
+#: free-form POSITIONAL values — a label, a value, a track name — so the
+#: declaration carries the flags and the positionals stay where they are.
+SURFACE = {
+    "name": "perry-config",
+    "kind": "write",
+    "summary": "the project's settings and its track register, in "
+               "`.perry/config.jsonl`",
+    "root_resolution": "standard",
+    "exit_codes": {"0": "read, or written", "1": "refused",
+                   "2": "bad invocation"},
+    "flags": [
+        {"name": "--json", "summary": "a machine-readable payload"},
+        {"name": "--dry-run", "summary":
+         "print what would land and touch nothing"},
+    ] + [
+        # **The track register's fields ARE flags** — `track main --mode queue`
+        # — and they are declared from the same list the writer reads, so the
+        # parser and `cmd_track` cannot disagree about what a track has. A
+        # hand-typed copy here refused `--mode` for one commit on 2026-09-09
+        # and broke the only way to declare a track's mode.
+        {"name": flag, "arg": "value",
+         "summary": f"the track's {field.replace('_', ' ')}"}
+        for flag, field in sorted(TRACK_FLAGS.items())
+    ],
+    "universal_flags": ["--json"],
+    "subcommands": [
+        {"name": "show", "summary": "print the settings and the tracks",
+         "flags": []},
+        {"name": "set", "summary": "set one setting: `set <label> <value>`",
+         "flags": ["--dry-run"], "writes": [".perry/config.jsonl"]},
+        {"name": "unset", "summary": "remove one setting by label",
+         "flags": ["--dry-run"], "writes": [".perry/config.jsonl"]},
+        {"name": "track", "summary":
+         "declare or edit a track: `track <name> [--mode queue] [--wip 6] …`",
+         "flags": ["--dry-run", *sorted(TRACK_FLAGS)],
+         "writes": [".perry/config.jsonl"]},
+        {"name": "untrack", "summary": "remove one declared track",
+         "flags": ["--dry-run"], "writes": [".perry/config.jsonl"]},
+    ],
+}
+
+
 def main(argv: list[str]) -> int:
-    if not argv or argv[0] in ("-h", "--help"):
-        print(__doc__.strip())
+    # **Read against the declaration** (DESIGN-016 A2 and C1): `-h` from any
+    # position, an undeclared token refused, a declared flag on a subcommand
+    # that does not take it refused, and `--` for a value that genuinely
+    # starts with a dash. The hand-rolled version of this refused every track
+    # field — `track main --mode queue`, the only way to declare a track's
+    # mode — for one commit, because the stray-flag check had no allowlist.
+    read = lib.parse_surface(SURFACE, argv)
+    if read["help"]:
+        print(lib.usage_lines(SURFACE, read["sub"]))
+        if not read["sub"]:
+            print()
+            print(__doc__.strip())
         return 0
-    cmd = argv[0]
+    if not argv:
+        # One no-argument behaviour (DESIGN-016 C3).
+        print(lib.usage_lines(SURFACE), file=sys.stderr)
+        return 2
+    if read["describe"]:
+        print(json.dumps(lib.describe_surface(SURFACE, read["sub"]),
+                         ensure_ascii=False, indent=2))
+        return 0
+    if read["error"]:
+        print(f"perry-config: {read['error']}", file=sys.stderr)
+        return 2
+    cmd = read["sub"]
     if cmd not in COMMANDS:
         print(f"perry-config: expected {' / '.join(COMMANDS)}, got {cmd!r}",
               file=sys.stderr)
         return 2
-
-    rest = list(argv[1:])
-    root = Path.cwd()
-    if "--root" in rest:
-        i = rest.index("--root")
-        root = Path(rest[i + 1]).expanduser()
-        del rest[i:i + 2]
-    as_json = "--json" in rest
-    if as_json:
-        rest.remove("--json")
-    # `$PERRY_PROJECT` wins over `--root` and over the cwd, taken verbatim —
-    # exactly as `bin/perry-state § resolve_root` and `bin/perry_md_store §
-    # main` take it. Two readers disagreeing about which directory that names
-    # is the defect `viewer/parsers.py § _resolve_project_root` records.
-    root = Path(os.environ.get("PERRY_PROJECT") or root).expanduser().resolve()
+    rest = list(read["extra"])
+    as_json = "--json" in read["seen"]
+    dry_run = "--dry-run" in read["seen"]
+    track_values = {TRACK_FLAGS[f]: v for f, v in read["values"].items()
+                    if f in TRACK_FLAGS}
+    # **`--root` wins, then `$PERRY_PROJECT`, then the walk.** The comment that
+    # stood here said the opposite and cited `bin/perry-state § resolve_root`
+    # as the precedent — which takes the explicit path FIRST, so the citation
+    # was to a function doing the other thing (DESIGN-016 § 1.1, A1). One
+    # resolver now, in `lib`, and `viewer/parsers § _resolve_project_root` is
+    # still the walk it calls.
+    root = lib.resolve_project_root(read["values"].get("--root"))
     path = root / ".perry" / "config.jsonl"
     state_root = P.resolve_state_root(root)
 
@@ -248,10 +312,29 @@ def main(argv: list[str]) -> int:
             return cmd_show(records, as_json)
         if cmd == "set":
             if len(rest) < 2:
-                raise Refused("`set` takes a label and a value: "
-                              "`perry-config set 'Document language' English`")
+                raise Refused(
+                    f"`set` takes a label and a value: `perry-config set "
+                    f"'Document language' English{lib.root_flag(root)}`")
             return write(path, cmd_set(records, rest[0], " ".join(rest[1:])),
-                         f"set {rest[0]!r}")
+                         f"set {rest[0]!r}", dry_run=dry_run,
+                         as_json=as_json)
+        # Each branch below names its own verb in the line it prints, and the
+        # name comes from `cmd` rather than from a literal: a V4 review routed
+        # `unset` into the `show` branch and got exit 0 with nothing removed,
+        # and the guard added for the fall-through could not see it because the
+        # capture happened above the guard.
+        # Each branch below names its own verb in the line it prints, and the
+        # name comes from `cmd` rather than from a literal: a V4 review routed
+        # `unset` into the `show` branch and got exit 0 with nothing removed,
+        # and the guard added for the fall-through could not see it because the
+        # capture happened above the guard.
+        # Each branch below names its own verb in the line it prints. A V4
+        # review routed `unset` into the `show` branch and got exit 0 with
+        # nothing removed; the guard added for the fall-through could not see
+        # it, because the capture happened above the guard. What catches it is
+        # `tests/test_bin_surface § OWN_OUTPUT`, which asks every declared
+        # subcommand of every declared tool for a string only its own handler
+        # produces.
         if cmd == "unset":
             if len(rest) != 1:
                 raise Refused("`unset` takes one label.")
@@ -261,7 +344,8 @@ def main(argv: list[str]) -> int:
             if len(kept) == len(records):
                 raise Refused(f"{rest[0]!r} is not declared "
                               f"(key {key!r}); nothing was written.")
-            return write(path, kept, f"unset {rest[0]!r}")
+            return write(path, kept, f"unset {rest[0]!r}", dry_run=dry_run,
+                         as_json=as_json)
         if cmd == "untrack":
             if len(rest) != 1:
                 raise Refused("`untrack` takes one track name.")
@@ -271,24 +355,24 @@ def main(argv: list[str]) -> int:
             if len(kept) == len(records):
                 raise Refused(f"track {rest[0]!r} is not declared; nothing was "
                               f"written.")
-            return write(path, kept, f"untrack {rest[0]!r}")
+            return write(path, kept, f"untrack {rest[0]!r}", dry_run=dry_run,
+                         as_json=as_json)
 
-        # `track`
+        # **The fall-through is a refusal, not `track`.** There was no `else`
+        # here: every subcommand the four branches above did not match landed
+        # in this one, so disabling the `untrack` branch made `untrack alpha`
+        # print `track 'alpha' — … now holds 1 record(s)`, exit 0, and remove
+        # nothing. A V4 review found it by mutation on 2026-09-09. A tool that
+        # reports a write it did not perform is DESIGN-016 § 1.5's own subject.
+        if cmd != "track":
+            raise Refused(
+                f"{cmd!r} reached the track writer, which means this tool "
+                f"declares a subcommand it does not dispatch. Nothing was "
+                f"written.")
         if not rest:
             raise Refused("`track` takes a track name.")
-        name, flags = rest[0], rest[1:]
-        values: dict[str, str] = {}
-        while flags:
-            flag = flags.pop(0)
-            if flag not in TRACK_FLAGS:
-                raise Refused(
-                    f"{flag!r} is not a track field. Declared: "
-                    f"{', '.join(sorted(TRACK_FLAGS))}. Nothing was written.")
-            if not flags:
-                raise Refused(f"{flag} takes a value. Nothing was written.")
-            values[TRACK_FLAGS[flag]] = flags.pop(0)
-        return write(path, cmd_track(records, name, values),
-                     f"track {name!r}")
+        return write(path, cmd_track(records, rest[0], track_values),
+                     f"track {rest[0]!r}", dry_run=dry_run, as_json=as_json)
 
 
 if __name__ == "__main__":

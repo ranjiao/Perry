@@ -356,8 +356,12 @@ class TestTheEventIsPartOfTheDeclaredSet(unittest.TestCase):
     def test_it_is_documented_in_the_usage_banner(self):
         """A subcommand a user cannot discover is one they will hand-edit
         around, which is the failure this whole module is about."""
-        doc = TOOL.read_text(encoding="utf-8").split('"""')[1]
-        self.assertIn("perry-task prioritize", doc)
+        # Generated from `PT.SURFACE` since DESIGN-016 C2: declared is
+        # discoverable, and the usage block is where that shows.
+        import inproc
+        self.assertIn("prioritize",
+                      {s["name"] for s
+                       in inproc.load("perry-task").SURFACE["subcommands"]})
 
 
 

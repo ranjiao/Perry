@@ -347,8 +347,13 @@ class TestTheVersionMovedAndSemanticsDidNot(unittest.TestCase):
         self.pay = payload()
 
     def test_the_minor_moved_to_1_17(self):
-        self.assertEqual(self.pay["contract"], "perry-task/list/1.18")
-        self.assertEqual(PT.LIST_CONTRACT, "perry-task/list/1.18")
+        """A floor rather than a pin: this change landed at 1.17 and the
+        shipped contract cannot be older. The tool and its payload must still
+        agree exactly, which is the half that is about this row."""
+        self.assertEqual(self.pay["contract"], PT.LIST_CONTRACT)
+        shipped = tuple(int(n) for n
+                        in PT.LIST_CONTRACT.rsplit("/", 1)[1].split("."))
+        self.assertGreaterEqual(shipped, (1, 17))
 
     def test_1_17_has_no_semantics_entry_and_that_is_deliberate(self):
         """Recorded as a decision, not left as a gap. `semantics` carries only

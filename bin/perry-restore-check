@@ -172,8 +172,37 @@ USAGE = "usage: perry-restore-check <ref> <path> [<path> ...] " \
         "[--root DIR] [--json] [--allow-modified-self]"
 
 
+def _empty_root_error(flag: str, value: str) -> str | None:
+    """`bin/lib § empty_root_error`, asked at the moment `--root` is read.
+
+    **`--root ""` is a bad invocation, not a default.** `Path("").resolve()`
+    is the cwd, so an unset shell variable silently moved every comparison
+    this file makes to whatever repository the caller happened to be standing
+    in — a verifier answering confidently about the wrong tree, which is the
+    one thing this file exists not to do.
+
+    Imported HERE rather than at module scope, and this indirection is the
+    whole reason the function exists. `self_check` above and
+    `tests/test_restore_check.py § _planted_copy` both run this file as a
+    single copied file with no `bin/lib` beside it — that is the `git archive`
+    workflow `review-constraints.md` prescribes — and an import at module
+    scope would make such a copy die before it could check itself. Deferring
+    it to this branch means the copy pays only if it is passed `--root`, and
+    the rule still has exactly one spelling for every tool that ships.
+    """
+    sys.path.insert(0, str(SELF.parent))
+    import lib
+    return lib.empty_root_error(flag, value)
+
+
 def main(argv: list[str]) -> int:
-    if not argv or argv[0] in ("-h", "--help"):
+    # Scanned across the whole of argv, not just its head. DESIGN-016 goal 2
+    # says help prints from ANY argument position on EVERY tool, and this one
+    # read `argv[0]` alone: `perry-restore-check --root /tmp -h` printed
+    # "unknown option -h" and exited 2. It escaped every help test in the
+    # suite because those iterate the six tools that declare a SURFACE, and
+    # this is not one of them.
+    if not argv or any(a in ("-h", "--help") for a in argv):
         print(__doc__.strip())
         return 0
 
@@ -195,8 +224,14 @@ def main(argv: list[str]) -> int:
                 print(USAGE, file=sys.stderr)
                 return 2
             root_arg = argv[i]
+            if (bad := _empty_root_error(a, root_arg)) is not None:
+                print(f"perry-restore-check: {bad}", file=sys.stderr)
+                return 2
         elif a.startswith("--root="):
             root_arg = a.split("=", 1)[1]
+            if (bad := _empty_root_error("--root", root_arg)) is not None:
+                print(f"perry-restore-check: {bad}", file=sys.stderr)
+                return 2
         elif a.startswith("-"):
             print(f"perry-restore-check: unknown option {a}\n{USAGE}",
                   file=sys.stderr)

@@ -1,7 +1,7 @@
 # DESIGN-016: An agent that trusts `bin/README.md` reads 47k tokens and writes to the wrong project
 
-> Status: draft
-> Date: 2026-09-04 · Locked: —
+> Status: locked
+> Date: 2026-09-04 · Locked: 2026-09-10
 > Author: PMO Agent   · Implementation owner: Coding Agent
 > Linked OKR: —
 > Supersedes: —   · Superseded by: —
@@ -182,6 +182,34 @@ Inside `perry-task`, the verbs disagree with each other: noun-verb
 against verb setters (`retitle`, `prioritize`); and two subcommands repeat
 themselves as flags — `track <ID> --track T`, `stage <ID> --stage S`.
 
+**The same four registers are named twice, and the two spellings disagree.**
+`perry-task` holds the lane side of tasks, risks, intake and asks; `perry-tasks`
+holds the store side of the same four. The prefixes do not match:
+
+| register | lane side (`perry-task`) | store side (`perry-tasks`) |
+|---|---|---|
+| tasks | `add` `start` `done` `drop` `status` … | `build` `verify` `write` `render` `diff` |
+| risks | `risk-add` `risk-clear` `risk-migrate` | `risks-build` `risks-render` `risks-write` `risks-diff` |
+| intake | `intake` `resolve-intake` `intake-sweep` | `intake-build` `intake-render` `intake-write` `intake-diff` |
+| asks | `ask` `answer` | `asks-build` `asks-render` `asks-write` `asks-diff` |
+
+Singular against plural for the same register, in two tools that differ by one
+letter, with the verb on the left in one column and on the right in the other.
+
+**The split is drawn on the mechanism, not on the object.** A caller who wants
+to do something to risks must first know whether what they want is a lane write
+or a store maintenance verb — an implementation fact standing where a domain
+noun should be. Decision 3 asked only whether the tool *names* stay; the axis
+they are drawn on was never the question.
+
+**The flag namespace is flat while the command namespace is not.**
+`bin/perry-task:7740` is one flag table — 46 flags plus `--help`, counted
+2026-09-09 — consulted for all 30 subcommands, so "this flag is accepted" and "this subcommand reads it" are two
+independent facts with nothing comparing them. That is not a `--design` bug and
+a `--kr` bug; it is one defect that has now shipped twice (DESIGN-015 § 1, and
+§ 1.1 above), and neither record names the cause. Goal 3 refuses an *unknown*
+argument; nothing refuses a known argument on a subcommand that will drop it.
+
 **This section is a finding, not a proposal.** A rename is a breaking change to
 every call site in the skill and in every project already using it, and § 4
 records it as the user's decision rather than a task.
@@ -247,13 +275,69 @@ document the rest of § 1 treats as the contract.
 | R4 | the `perry-tasks` row documents `risks-*` and `intake-*` | `asks-*` is a fourth register with four verbs and appears zero times in the file. (The review's `linkage-*` verbs are not a miss: ADR-019 deleted them, `bin/perry-tasks:1340`) |
 | R5 | `:33` `perry-detect-host` prints `claude-code \| codex-cli \| unknown` | Four values; `opencode` is missing here and present at `:227` in the same file |
 | R6 | (no linkage store) | `perry-lint`'s census prints **seven** store lines; its help text still says "ALL SIX declared stores" (`bin/perry-lint:23`) |
-| R7 | correctly records `perry-conform` / `perry-migrate` as deleted | `reference/glossary.md`, `reference/config.md`, `reference/adoption.md` and `work/reference/review.md` still call them |
+| R7 | ~~correctly records `perry-conform` / `perry-migrate` as deleted~~ | **Withdrawn 2026-09-09 while fixing it.** The four documents name those tools only to say they are DELETED, with the row that deleted them — `reference/config.md:153`, `reference/glossary.md:124`, `reference/adoption.md:437-441`, and a quoted proof line in `work/reference/review.md`. That is history written down, not a live reference; the review's C7 and this row read the grep and not the sentences |
 | R8 | `:23` `perry-config` is five commands over `.perry/config.md` with a `render` that round-trips | ADR-019 deleted `.perry/config.md` on 2026-09-08; the subcommands are now `show set unset track untrack` and nothing is projected |
 
 This is § 4 Decision 2's accepted risk stated as a count rather than a
 prediction: the README covers 19 of 19 tools, no test reads it, and eight of its
 statements are now false. The mechanical check that ships with the Decision 2
 move catches R2–R8. R1 is the one that needs the examples themselves executed.
+
+### 1.7 Four layers carry the vocabulary, and the command surface encodes each one differently
+
+The state model has four axes, and only two of them appear on the command
+surface at all:
+
+| Axis | Set | Declared in | How the surface encodes it |
+|---|---|---|---|
+| lane | fixed: goals / work / decide | Perry's own `SKILL.md` routing | the tool name (`perry-goals`, `perry-task`, `perry-decide`) |
+| register | fixed: tasks / risks / intake / asks | `schema/state-schema.json § stores`, one board section each | a subcommand name prefix (`risks-build`) |
+| track | **open, per project** | `.perry/config.jsonl`, `kind: track` rows | a flag value (`--track main`) |
+| mode | fixed: project / pipeline / queue / inquiry | `schema/state-schema.json § work_modes` | nowhere |
+
+A track names one mode, and the mode supplies that track's stages, WIP, SLA,
+cycle and default rung. This layer is **built and enforced**, and the refusals
+are the shape § 1.3 asks the rest of the surface to have. Measured 2026-09-09
+on a scratchpad copy:
+
+```
+$ perry-task add --track NOSUCHTRACK …
+perry-task: refused — track 'NOSUCHTRACK' is not declared in `.perry/config.jsonl`.
+Declared: main, intake. Add a track record naming its mode, or name one of those.
+Nothing was written
+$ perry-task add --track main --stage NOSUCHSTAGE …
+perry-task: refused — track 'main' is mode `project`, which has no stages
+(`modes/project.md`); --stage has nowhere to go
+```
+
+Two consequences this design did not carry before today:
+
+**A declaration cannot describe `--track`'s legal values.** Two of the four axes
+are fixed and can be generated and tested; `track` is per-project data that
+changes under the tool's feet. So `--describe --json` (§ 5) has to answer in two
+parts — the **shape** of the surface, static and checkable, and the
+**vocabulary** of this project, read at call time from the config store. A
+single flat answer either goes stale or has to be regenerated per project.
+
+**Asking for the vocabulary is expensive, and it is the read that precedes every
+write.** What an agent needs before writing a row is: which tracks exist, what
+mode each is, which stages are legal there. Today that is three levels down
+inside one payload:
+
+| Call | Bytes | Carries tracks |
+|---|---|---|
+| `perry-state --section project` | 11,681 | yes, under `project.config.tracks` |
+| `perry-state --dashboard` | 1,052 | no |
+
+`--compact` (Decision 1) was scoped as the standup's read. It is also this read,
+and § 6 B1 says so from today.
+
+**And it is the argument for making `register` a parameter.** `track` is data
+read from a store; `register` is four hard-coded name prefixes over stores that
+`schema/state-schema.json` already declares. They are the same kind of axis with
+two different encodings, and only one of them can be extended by a project.
+Taking `--register <name>` from the schema's `stores` list puts both axes on one
+mechanism — which is the point, not the twelve subcommand names it saves.
 
 ## 2. Goals
 
@@ -269,8 +353,10 @@ move catches R2–R8. R1 is the one that needs the examples themselves executed.
    text, and `SKILL.md` step 3 calls that surface.
 6. `perry-task list` has a bound: no invocation can return more than a declared
    number of rows without the caller asking for it.
-7. One machine-readable manifest describes the surface, and the README table and
-   every tool's usage block are derived from it rather than restated beside it.
+7. One machine-readable declaration describes each tool's surface, lives in the
+   tool it describes, and drives that tool's parser. The README table and every
+   usage block are derived from it rather than restated beside it. (Rewritten
+   2026-09-09 by Decision 5; it used to say "one manifest".)
 8. Asking what one subcommand takes costs one call and returns only that
    subcommand.
 9. A write that cannot do what it is documented to do refuses: `render --write`
@@ -281,6 +367,15 @@ move catches R2–R8. R1 is the one that needs the examples themselves executed.
 11. `bin/README.md`'s tool coverage and its executable examples are checked by a
     test, so the eight statements in § 1.6 would have been reported rather than
     read.
+12. A flag is accepted only on the subcommands that declare it. A known flag on
+    a subcommand that would drop it is refused with exit 2, so "accepted" and
+    "honoured" stop being two facts (§ 1.4).
+13. Asking what this project's vocabulary is — tracks, their modes, the stages
+    legal on each — is one call with a small payload, separate from the static
+    shape of the surface (§ 1.7).
+14. One mechanism answers "what does this tool take": the same call serves
+    `perry describe`, the generated README table, the generated usage blocks and
+    `TASK-396`'s published write contract.
 
 ## 3. Non-Goals
 
@@ -289,20 +384,43 @@ move catches R2–R8. R1 is the one that needs the examples themselves executed.
 - **Not changing what any tool computes.** Every payload keeps its fields;
   narrowing means the caller may ask for fewer, never that a field changes
   meaning.
-- **Not adding a `perry` dispatcher binary.** A manifest gives an agent the
-  index without a new entry point to install, and the entry point question is
-  a separate decision with a separate cost. The 2026-09-08 external review
-  disagrees on exactly this point — its A3 argues that with no dispatcher the
-  README is the only discovery path, which is what makes § 1.6 structural rather
-  than a documentation debt, and asks for `bin/perry list` derived from each
-  tool's own parser. That is not a contradiction of the manifest; both derive the
-  index from the same declaration, and the question is whether the index is a
-  file an agent reads or a command it runs. Recorded as § 4 Decision 5 rather
-  than settled here.
+- ~~**Not adding a `perry` dispatcher binary.**~~ **Withdrawn 2026-09-09 by
+  Decision 5.** It was written when the alternative was a hand-maintained
+  manifest file, and the review's A3 was right that a file an agent must be told
+  to read is discovered exactly the way `bin/README.md` is. What Decision 5
+  settles is that neither is a second truth: the declaration lives in each
+  tool's code, and `bin/perry` is a thin reader over it. See § 5.
+
+- **Not a committed `bin/commands.json`.** The manifest as a file in the tree is
+  dropped, not deferred. Once every tool answers `--describe --json` from its
+  own declaration, a checked-in copy has exactly one job left — being readable
+  without executing anything — and that job belongs to one line in `SKILL.md`
+  naming `perry describe`, not to a generated artefact that appears in the diff
+  of every flag change.
+
+- **Not an MCP server, in this design.** It is the right question and the answer
+  is "later, and derived". Three costs make it wrong to do first. (1) **It is
+  billed every turn.** Tool schemas sit in the context the whole session, and
+  § 1.2 measured that 99.1% of this project's token spend is `cache_read` — the
+  accumulated context re-read per turn. Seventy-six subcommands as tool
+  definitions is the most expensive possible shape of the § 1.2 problem; a
+  workable MCP is five to eight coarse tools whose parameters are the very
+  declaration § 5 builds. (2) **Three hosts and a promise.** Perry runs on
+  `claude-code`, `opencode` and `codex-cli` (`reference/host-capabilities.md`),
+  and `bin/README.md:10` promises no install step and no dependencies. A server
+  is a process plus per-host registration, and that promise would have to be
+  rewritten. (3) **Root resolution becomes server state.** § 1.1's P0 is a root
+  precedence bug; a CLI call is stateless and carries `--root` every time, while
+  a long-lived server holds "which project" as state — the same question,
+  promoted to a resident one. After § 5 lands, an MCP adapter is a small
+  derived consumer of the declaration, and the decision to build it should be
+  taken on measured per-turn tokens.
 - **Not touching `viewer/parsers.py`.** Nothing here is a parsing change; a
   second reader of a state file is the defect this repository has shipped twice.
 
 ## 4. User Decisions
+
+ALL rows must be resolved before this doc can move to `Status: locked`.
 
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
@@ -310,7 +428,7 @@ move catches R2–R8. R1 is the one that needs the examples themselves executed.
 | 2 | Where the `--help` essays go | Behind `--verbose` (Recommended) / into `bin/README.md` / stay as they are | Into `bin/README.md` | 2026-09-08 |
 | 3 | Whether the store family keeps its own names | Keep `perry-tasks`/`okr`/`config` / fold into lane tools as `store` subcommands / rename with an explicit suffix | Keep `perry-tasks`/`okr`/`config` | 2026-09-08 |
 | 4 | Whether `perry-task`'s verbs get normalised | Leave as-is (Recommended for now) / normalise with aliases kept / normalise and break | Leave as-is | 2026-09-08 |
-| 5 | How an agent discovers the surface | `bin/commands.json` alone (this design's § 5) / a `bin/perry list` dispatcher derived from each parser (Recommended by the 2026-09-08 review) / both, the manifest generated by the dispatcher | — | — |
+| 5 | How an agent discovers the surface | `bin/commands.json` alone (this design's § 5) / a `bin/perry list` dispatcher derived from each parser (Recommended by the 2026-09-08 review) / the declaration in code, read through one command, no committed manifest | Declaration in code, read through `perry describe`; no committed manifest | 2026-09-09 |
 
 **Answered 2026-09-08. Three things the answers turned on that were not
 true when the questions were written:**
@@ -349,7 +467,12 @@ true when the questions were written:**
   `perry-config`'s projection, so the count is smaller and the shape is the
   same.) That is a subcommand question, not a tool-name question, and Decision 3
   does not answer it; it belongs to the same window as § 6 phase C, where the
-  usage blocks are generated anyway.
+  usage blocks are generated anyway. Recorded 2026-09-09: there was a **third
+  option nobody put on the table**, which is to redraw the split by object
+  rather than by mechanism — one tool per register, each holding both its lane
+  verbs and its store verbs. § 1.4's prefix table is what that option is
+  answering. It is not chosen and not costed here; it is written down so the
+  next person does not think Decision 3 ruled on it.
 
 Decision 4 is deferred rather than settled, and the deferral now has a clock on
 it. `TASK-396` — aiMark's ask for `perry-task <verb> --describe --json` — turns
@@ -358,53 +481,91 @@ a breaking change for a consumer that has started reading it; normalising
 before it ships is free. The order of those two rows is the decision nobody has
 taken yet.
 
-**Decision 5 is new on 2026-09-09 and is unanswered.** § 3 rules a dispatcher
-out; the review's A3 rules the manifest insufficient on its own, because a file
-an agent must be told to read is discovered the same way the README is. The two
-are not exclusive — a dispatcher that lists subcommands by parsing each tool's
-own parser and a manifest that declares them are the same fact in two
-directions, and § 7 already carries the risk of a third place the surface is
-described. Answering it before TASK-364 is cheap; after it, the manifest's
-consumers have to be moved.
+**Decision 5, raised and answered 2026-09-09.** The question was posed as
+"dispatcher or manifest" and both answers were wrong, because neither says where
+the declaration lives. The measured fact that settled it: **eighteen of the nineteen tools
+hand-roll their parsing** — only `perry-context-budget` imports `argparse` —
+while five already keep a `COMMANDS` table, and `perry-task` keeps one flat flag table for thirty
+subcommands (§ 1.4). So a manifest would have been hand-written beside code that
+already holds the same list, and a dispatcher scraping `--help` would have been
+scraping the essays of § 1.3.
+
+What is chosen: the declaration is data **in each tool**, per subcommand;
+the parser is driven by it, so goal 12 comes free; `--describe --json` reads it,
+which is `TASK-396`'s published write contract arriving as a by-product rather
+than as a second mechanism; and `bin/perry` is a thin reader with `list`,
+`describe` and forwarding. Nothing is checked in. § 3's dispatcher Non-Goal is
+withdrawn and the `bin/commands.json` artefact is dropped, both recorded there.
+
+MCP was raised in the same conversation and is answered in § 3: right question,
+wrong order. It becomes a small derived consumer once the declaration exists,
+and the build-or-not decision should be taken on measured per-turn tokens.
 
 Decision 1 gates the payload work. Decisions 3 and 4 gate nothing in § 6 — they
 are recorded so § 1.4 does not have to be re-derived by whoever asks next.
-Decision 5 gates TASK-364.
+Decision 5 rewrites C1 rather than blocking it.
 
 ## 5. Architecture
 
-**One manifest, and everything about the surface is derived from it.**
+**One declaration per tool, in the tool, and everything else is derived from
+it.** Decision 5, 2026-09-09. There is no manifest file.
 
 ```
-bin/commands.json          # the declared surface, hand-maintained, one entry per tool
-  └── tool
-        name, kind: read | write | cache-only
-        summary            one line
-        subcommands[]      name, summary, flags[], writes[]
-        flags[]            name, arg, repeatable, summary
-        exit_codes{}
-        root_resolution: standard | none
+bin/<tool> § SURFACE           the declaration — data in the tool that owns it
+  name, kind: read | write | cache-only
+  summary                      one line
+  root_resolution: standard | none
+  exit_codes{}
+  subcommands[]
+      name, summary
+      flags[]                  name, arg, required, repeatable, summary
+      writes[]                 which files/stores this subcommand may replace
+
+  ▸ the parser is DRIVEN by it — a flag is accepted on a subcommand only if
+    that subcommand declares it (goal 12), and the legal set is named at the
+    point of refusal because the table is right there (goal 3)
 
 derived, never restated:
-  bin/README.md § The tools     table generated from the manifest
-  <tool> --help § Usage         usage block generated from the manifest
-  tests/test_bin_surface.py     every declared tool/subcommand/flag is invocable;
-                                every invocable flag is declared;
-                                every tool has a README section, and
-                                every fenced example runs against a scratch
-                                project and exits as written
+  <tool> --describe --json      the declaration, one subcommand or all
+                                 (this IS TASK-396's published write contract)
+  bin/perry list                one line per tool/subcommand, from --describe
+  bin/perry describe <tool> [<sub>]   one subcommand's flags, and nothing else
+  bin/perry <tool> …            forwards, so one entry point reaches everything
+  bin/README.md § The tools     hand-maintained, and it says so — it covers
+                                the thirteen tools with no SURFACE, which no
+                                generator can produce. `perry list` IS the
+                                generated index. Changed 2026-09-09 after a V4
+                                review pointed out that claiming otherwise put
+                                a new false statement in the file whose false
+                                statements D1 was fixing
+  <tool> --help § Usage         usage block generated
+  tests/test_bin_surface.py     the declaration and the code agree in both
+                                 directions; README's fenced examples run
+                                 against a scratch project and exit as written
 ```
 
-The manifest is what makes goals 3, 7 and 8 one change rather than eighteen: a
-tool that knows its own flag table can name the legal set on an unknown
-argument, print one subcommand's usage, and be checked against the README by a
-test instead of by a reader.
+This is what makes goals 3, 7, 8, 12 and 14 one change rather than eighteen, and
+it is why the manifest file is gone: the tool that already holds the flag table
+is the only place the fact belongs. A checked-in copy would be a second
+statement of it, which is the defect § 7 was already carrying as a risk.
 
-**The parser.** The store family gets the argument handling the lane tools
-already have — `-h`/`--help` handled before dispatch and before any lock is
-taken, `--root` read before the environment, an unknown token refused. This is
-a rewrite of about thirty lines in `bin/perry_md_store.py § main` and
-`bin/perry-tasks § main`, not a new module.
+**Shape and vocabulary are two different answers (§ 1.7).** `--describe` reports
+the *shape*: subcommands, flags, which are required, what a subcommand writes.
+It does not report which tracks exist or which stages are legal — that is
+per-project data in the config store, and a static answer to it is stale the
+moment a project declares a track. The vocabulary read is the `--compact`
+payload's job (B1), computed at call time; `--describe` names the flag and says
+its legal set is a runtime read, never inlines it.
+
+**The parser, in two steps, and the order matters.** Phase A2 brings the store
+family up to what the lane tools already do — `-h`/`--help` handled before
+dispatch and before any lock is taken, `--root` read before the environment, an
+unknown token refused. About thirty lines in `bin/perry_md_store.py § main` and
+`bin/perry-tasks § main`, no new module, no declaration needed. Phase C1 then
+replaces the hand-written tables in **all** the tools with the declaration
+above, which is what buys goal 12 — per-subcommand flag scoping — for the lane
+tools too. A2 is not thrown away by C1: it is the behaviour C1 has to preserve,
+and its tests are what prove C1 did not regress the store family.
 
 **The recovery path.** `render --write` keeps its refill semantics and stops
 claiming more: when the diff report's `rows_not_on_board` is non-empty the write
@@ -417,21 +578,60 @@ not — and it is left to its own row rather than smuggled in here; ADR-007's
 `perry-tasks` also catches `Refused` around the whole of `main`, not only around
 the lock, so goal 10 holds for the path that has no board at all.
 
-**The payload.** `perry-state` grows one narrow mode; `perry-task list` grows a
-bound. Both are additive: the existing `--json` keeps its shape, because
-`schema/task-list-contract.md` is a published contract with outside consumers
-and narrowing it silently would be the same class of change ADR-007 refused.
+**The payload.** `perry-state` grows one narrow mode carrying both the standup
+numbers and this project's vocabulary — the declared tracks with their mode and
+legal stages (§ 1.7) — and `perry-task list` grows a bound. The vocabulary is a
+projection of the config read `perry-state` already does, never a second read of
+the store.
+
+**Corrected 2026-09-09 after a V4 review.** This paragraph said "both are
+additive: the existing `--json` keeps its shape". That is true of
+`perry-state` and **false of `perry-task list`**: goal 6 asks for a default
+bound, and a bound removes rows from `tasks[]`. No KEY changed, so
+`bin/perry-task § LIST_SEMANTICS`'s own rule made it a minor (1.19, and the
+user took it to 2.0 the same day) — but a
+consumer that changes nothing gets fewer rows, and `schema/README.md` records
+that aiMark shells out to exactly the `--all` call the bound bites hardest.
+What shipped: `bound.open_total` and `bound.closed_total` are counted before
+the bound so a dashboard can render the project's figures, the three documented
+recipes now pass `--limit 0`, and the changelog and `semantics` entry say so.
+**Whether a row-count change deserves a MAJOR is the user's call and is not
+taken here**; if it does, the same code ships as 2.0 and the consumers are
+told.
 
 ## 6. Implementation plan
 
 Ordered. Phase A is a correctness fix against the published contract and needs
 no decision. Phase B needs Decision 1 (`USER-917`, which blocks TASK-362).
-Phase C is the leverage; TASK-365 is blocked on Decision 2 (`USER-918`), and
-TASK-364 now also waits on Decision 5.
+Phase C is the leverage; TASK-365 is blocked on Decision 2 (`USER-918`).
+Decision 5 rewrote C1 rather than blocking it: TASK-364's deliverable is no
+longer a manifest file.
 
-A5, A6 and D1 were added 2026-09-09 from the external review and are **not yet
-filed as rows**. A5 is the highest-severity item in this document: it is the one
-place where a Perry command reports a write it did not perform.
+A5, A6, C4, C5 and D1 were added 2026-09-09 and filed the same day as
+TASK-406, TASK-407, TASK-408, TASK-409 and TASK-410. A5 is the
+highest-severity item in this document: it is the one place where a Perry
+command reports a write it did not perform.
+
+**Every phase landed 2026-09-09** on `bin-contract-phase-a`: A1-A6 in
+`871b8699` with `tests/test_bin_argument_contract.py`, B1-B2 in `b30d3b74`
+with `tests/test_compact_payload.py`, C1 and C4 in `8b302a61` with
+`tests/test_bin_surface.py`, a V4 review answered in `0766817a`, and C2, C3,
+C5 and D1 in `0f367ff7`. Six tools declare a surface; thirteen do not, and
+`perry list` names them rather than looking complete. `--compact` is 9,198 bytes
+against `--json`'s 258,981 and carries the § 1.7 vocabulary; `perry-task list`
+is bounded at 200 rows under contract 2.0, and six tests that pinned the
+contract version as a literal became floors in the same commit. Two
+consequences to carry into D1 and into whatever reviews this:
+
+- **`perry-diagnose` can now exit 2.** `bin/README.md:86` says it "always exits
+  `0` — an absent signal is a finding, not an error", which stays true of
+  findings and is now false of a bad invocation. D1 owns the sentence.
+- **`intake-render --write` refuses where it used to write.** A hand-deleted
+  row in a position-keyed register shifts every later row up, so the render put
+  the deleted text back into the NEXT row and dropped the last record off the
+  board — store 4 records, board 3 rows, exit 0. The test that asserted the old
+  behaviour was asserting the text coming back, not the record surviving; it
+  now asserts the refusal (`tests/test_intake_store`).
 
 Dependencies as filed: TASK-360 waits on TASK-359, TASK-361 on TASK-360,
 TASK-363 on TASK-362, TASK-365 on USER-918, TASK-366 on TASK-365. TASK-359,
@@ -443,14 +643,16 @@ TASK-364 and TASK-367 are startable now.
 | A2 | A real argument parser for the store family: `--help` exits, unknown flags refuse | TASK-360 | Coding Agent |
 | A3 | `--dry-run` and `--json` on the three writers, or the README claim withdrawn | TASK-361 | Coding Agent |
 | A4 | `perry-task add` writes `--design` or refuses it | TASK-367 | Coding Agent |
-| A5 | `render --write` refuses when `rows_not_on_board` is non-empty, and its success line counts rows written, not records read (§ 1.5) | to file | Coding Agent |
-| A6 | `perry-tasks` catches `Refused` across `main`; no path exits through a traceback (§ 1.5) | to file | Coding Agent |
-| B1 | A narrow structured read, and `SKILL.md` step 3 switched to it | TASK-362 | Coding Agent |
+| A5 | `render --write` refuses when the render leaves a stored record with no line, and its success line counts lines changed, not records read (§ 1.5) | TASK-406 | Coding Agent |
+| A6 | `perry-tasks` catches `Refused` across `main`; no path exits through a traceback (§ 1.5) | TASK-407 | Coding Agent |
+| B1 | A narrow structured read carrying the standup numbers **and this project's vocabulary** — tracks, their modes, the stages legal on each (§ 1.7) — and `SKILL.md` step 3 switched to it | TASK-362 | Coding Agent |
 | B2 | A bound on `perry-task list` | TASK-363 | Coding Agent |
-| C1 | `bin/commands.json` and the test that holds it to the tools | TASK-364 | Coding Agent |
-| C2 | Usage-first `--help`, generated from the manifest | TASK-365 | Coding Agent |
+| C1 | The per-tool `SURFACE` declaration, the parser driven by it, `--describe --json`, and the test that holds declaration and code to each other in both directions. Satisfies TASK-396 | TASK-364 | Coding Agent |
+| C2 | Usage-first `--help`, generated from the declaration | TASK-365 | Coding Agent |
 | C3 | Subcommand-level help and one no-argument behaviour | TASK-366 | Coding Agent |
-| D1 | The eight `bin/README.md` statements in § 1.6, plus `perry-lint --help`'s "SIX stores" and the exit-code table's missing `3` | to file | Coding Agent |
+| C4 | `bin/perry`: `list`, `describe <tool> [<sub>]`, and forwarding. A thin reader, no logic of its own | TASK-408 | Coding Agent |
+| C5 | `--register <name>` on the store family's five verbs, read from `schema § stores`; the twelve prefixed names kept as aliases for one release (§ 1.7) | TASK-409 | Coding Agent |
+| D1 | The eight `bin/README.md` statements in § 1.6, plus `perry-lint --help`'s "SIX stores", the exit-code table's missing `3`, and the `perry-diagnose` always-exits-0 sentence phase A moved | TASK-410 | Coding Agent |
 
 ## 7. Risks & mitigations
 
@@ -458,7 +660,9 @@ TASK-364 and TASK-367 are startable now.
 |---|---|---|
 | The `--root` fix changes which project a test writes to, and a test that was passing for the wrong reason goes red | `tests/run` step 0, `tests/tree_guard.py` | That red is the finding, not a regression — the tree guard exists for exactly this |
 | A narrow payload becomes a second answer to "what is the state", and the two drift | `perry-lint` census; a test asserting the narrow payload is a strict projection of the full one | Derive the narrow mode from the full payload in-process; never a second computation |
-| The manifest becomes a third place the surface is described, restated rather than derived | A test that fails when a tool has a flag the manifest lacks, or the reverse | Generate the README table and usage blocks from it; do not hand-write either |
+| The declaration becomes a second place the surface is described, restated rather than driving the parser | A test that fails when a tool accepts a flag it does not declare, or declares one it does not accept | Drive the parser FROM the declaration; a flag that is only declared is unreachable and a flag that is only coded cannot be parsed |
+| Goal 12 turns today's silently-accepted flag combinations into exit 2, and some caller in a project already relies on one | `tests/test_bin_surface.py` names every pair it newly refuses; `perry-lint` census over the shipped SKILL.md call sites | It is a breaking change and is taken deliberately: an accepted-and-dropped flag is the defect this design exists to remove (§ 1.4). Ship the refusals with the release note that lists them |
+| `--describe` grows the vocabulary inline "for convenience" and becomes a second, stale answer to which tracks exist | A test asserting `--describe`'s output is byte-identical across two projects with different tracks | The line in § 5: shape is static, vocabulary is a runtime read (§ 1.7) |
 | `--dry-run` on a whole-file renderer is expensive to implement honestly and gets faked as "would render" | Review of the diff at V4 | If it cannot be honest, withdraw the README claim instead (A3 allows either) |
 | A5's refusal leaves a damaged board with no repair path at all, only a better error | The refusal names the ids; `perry-tasks diff` already lists them | A refusal that names what is lost beats a success that loses it silently. The full rebuild is its own row, not a condition of A5 |
 | D1 rewrites the README while phase C is generating parts of it, and the two answers disagree | The § 5 test: a generated table beside a hand-written one fails | Fix in D1 only the statements § 1.6 names; leave the tool table to the generator |
@@ -467,25 +671,40 @@ TASK-364 and TASK-367 are startable now.
 
 - Should `perry-explain` be indexed? An unknown ID costs 17 seconds of full-repo
   scan, and `SKILL.md § An ID never travels alone` puts it on the hot path.
-- Should `perry-lint` gain a manifest pass, so a tool whose flags drift from
-  `bin/commands.json` is a lint error rather than a test failure?
+- Should `perry-lint` gain a surface pass, so a tool whose code and declaration
+  disagree is a lint error rather than a test failure? (`bin/commands.json` is
+  gone; the pass would compare each tool's `SURFACE` with what its parser
+  accepts.)
 - Can `BOARD.md` be rebuilt from `tasks.jsonl` at all? § 1.5 shows it cannot be
   today: the store holds rows, the file holds the section layout, and render
   only refills lines that already exist. Either the layout becomes derivable —
   which is what "store is truth, markdown is projection" would mean for the
   board — or ADR-007's claim is narrower than the README states and should say
   so. A5 makes the current behaviour honest; it does not answer this.
-- Do the store family's five verbs take the register as an argument
-  (`perry-tasks build --register risks`) instead of as a name prefix? It drops
-  17 subcommand names to five, and § 6 phase C is already regenerating the usage
-  blocks, so it is the cheapest window. Decision 3 kept the tool names and did
-  not reach this.
+- ~~Should the tool boundary be redrawn by object rather than by mechanism — one
+  tool per register, holding both its lane verbs and its store verbs (§ 1.4)?~~
+  **ANSWERED 2026-09-10, YES, and it moves to `DESIGN-018`** (`USER-923`). This
+  document is locked, and a structural pivot needs its own doc rather than an
+  entry here — see § 9.
+- Should an MCP adapter be built once the declaration exists (§ 3)? The answer
+  should be taken on measured per-turn tokens, not on preference.
+- Does `--compact`'s vocabulary read belong to `perry-state` or to a tool of its
+  own? B1 assumes `perry-state`, because § 7 already forbids a second
+  computation of the state, and the tracks come from the same config read.
 
 ## 9. Changes (append-only after lock)
 
 - 2026-09-04 — created — audit of the eighteen `bin/` executables, run against `5d19d83`.
 - 2026-09-04 — § 1.1 gained the `perry-task add --design` drop, found while opening this doc's own rows; filed as TASK-367.
 - 2026-09-09 — incorporated an external review of the `bin/` command surface (17 findings, run 2026-09-08 on `9ff844b7`). Every claim used here was re-verified on `02a2b74c` before being written down. New: § 1.5 (`render --write` reports success and restores nothing; the uncaught `Refused`; exit code 3), § 1.6 (eight false statements in `bin/README.md`), goals 9-11, plan rows A5/A6/D1, two risks, and Decision 5 — the review's A3 asks for the dispatcher § 3 rules out. Review findings already covered here and not duplicated: silent unknown flags (§ 1.1, extended with `perry-diagnose`), `--help` essays (§ 1.3, Decision 2), tool naming (§ 1.4, Decision 3), missing `--dry-run` (§ 1.1, TASK-361, TASK-253). Two review claims were stale and are corrected here rather than copied: `perry-tasks` has no `linkage-*` verbs (ADR-019 removed them, `bin/perry-tasks:1340`), and the store family's subcommand count is 17 over four registers, not 30 over five.
+- 2026-09-09 — **phases C and D implemented** (C1-C5, D1). `--help` is usage-first and generated (`perry-task --help` 10,690 bytes to 2,939; one subcommand 313), a bare call has one behaviour decided by the declaration, `--register` replaces the twelve prefixed names with the register list read from `schema § claims`, and `bin/README.md`'s eight false statements are corrected — except R7, which is WITHDRAWN: the four documents it named call `perry-conform` / `perry-migrate` only to say they are deleted, so the row and the review's C7 both read the grep and not the sentences.
+- 2026-09-09 — **a V4 review of phases A and B returned FAIL and is answered** (`0766817a`). Three mutations had come back green — the `perry_md_store` copy of the A5 refusal, the 200-row default, and `--compact`'s completeness — and `--compact` was dropping the `linkage` section the step-4 dashboard renders its percentages from. It also caught a regression this branch had shipped: phase A's stray-flag check refused every `perry-config track --mode`.
+- 2026-09-09 — **phase A implemented** (A1-A6) on `bin-contract-phase-a`. Found while verifying it, and fixed in the same commit: `tests/test_slow_selector § _select` drove `tests/parallel.main()` with `--record` in-process, which writes the LIVE `tests/durations.json` — with the stub's canned `0.01` for all 123 modules, on every full suite run. The tree guard had been reporting it correctly and I misattributed it once before reading the call. Two tests that were passing for the wrong reason were corrected rather than relaxed: a `render --byte-compare` that never byte-compared, and the intake render contract named in § 6.
+- 2026-09-09 — a working session with the user on the shape of the surface, folded in whole. **Decision 5 answered**: the declaration lives in each tool, `--describe --json` reads it, `bin/perry` is a thin reader, and `bin/commands.json` is dropped rather than deferred — § 3's dispatcher Non-Goal is withdrawn and an MCP Non-Goal is added with its three costs and the conditions under which it becomes right. **§ 1.4 gained** the register-prefix table (`risk-add` against `risks-build` for the same register), the observation that the tool split is drawn on the mechanism rather than the object, and the flat 46-flag table that is the structural cause of the `--kr` and `--design` drops. **§ 1.7 is new**: the four axes (lane, register, track, mode), which two of them the command surface encodes, the two measured refusals that show the track/mode layer is already enforced, and the boundary between the static shape and the per-project vocabulary. **Goals 12-14, plan rows C4 and C5, three risks, three open questions** follow from those. B1 grew the vocabulary read; C1 stopped being a manifest file and now satisfies TASK-396; Decision 3's note records the redraw-by-object option nobody had put on the table.
+
+- 2026-09-10 — **locked, and the lock is retroactive.** All five User Decisions carry a Chosen value and a date, § 5 / § 6 / § 7 are present, and a locked copy lints with no new finding — so the gate is met. **What it does not mean is that this doc was locked before its implementation, because it was not.** `decide/SKILL.md` puts `locked` BEFORE the work: *"before non-trivial implementation fans out, it produces one locked document"*, and *"once a doc reaches Design locked, design hands off to pmo"*. All fourteen rows were opened, built and reviewed against a `draft`. The cost was paid and is visible in this section's own history: Decision 5 arrived on 2026-09-09, after phases A and B had shipped, and it rewrote C1 from a manifest file into a declaration — work that would not have been done twice against a locked doc. Nothing here is rewritten to hide that; the lock records that the architecture is frozen from today, and § 8's six open questions stay open, because an open question is not a User Decision and does not block a lock (`DESIGN-001` is locked carrying its own).
+
+- 2026-09-10 — **§ 8's boundary question is answered and leaves this document.** `USER-923`: redraw by object, and across all three of § 1.4's pairs rather than the acute one. The user's reason is architectural and not economic — two commands that differ by one character cannot coexist — and the cost is acceptable **because agents do the work**, which is the premise that did not hold when § 1.4 was written and called itself a finding rather than a proposal. The redraw is `DESIGN-018`; nothing in this document is edited for it, because a locked doc records what was decided when it was locked. Two things here become inputs to that one rather than history: § 1.4's prefix table, which is its evidence, and C5, which already made the STORE side register-parameterised and is therefore half of the move already shipped. One reservation is carried across as a constraint rather than an objection: under an object split a destructive maintenance verb sits beside an everyday one — `render --write` beside `add` — and § 1.5 is what that costs when it goes wrong.
 
 ## 10. References
 
@@ -500,3 +719,7 @@ TASK-364 and TASK-367 are startable now.
 - External review of `bin/`, 2026-09-08, run on `9ff844b7` — 17 findings over 18 executables; source of § 1.5, § 1.6 and Decision 5. Artifact: `https://claude.ai/code/artifact/54e77902-8a1b-42c3-b0ab-0653afdd2840`
 - `TASK-253` — `--dry-run` swallowed by `perry-tasks`, and the first record that `render --write`'s success line does not distinguish a write from a no-op
 - `TASK-395` — `perry-okr diff` reports an id drift `render --write` cannot repair: § 1.5's shape in the OKR store
+- `TASK-396` — the published write contract `perry-task <verb> --describe --json`; C1 delivers it as the declaration's read side rather than as a second mechanism
+- `schema/state-schema.json § work_modes`, `§ stores` — the mode and register axes of § 1.7
+- `.perry/config.jsonl`, `kind: track` rows — the per-project track axis, and the reason a static declaration cannot name `--track`'s legal values
+- `reference/host-capabilities.md` — the three hosts an MCP server would each need registering with (§ 3)

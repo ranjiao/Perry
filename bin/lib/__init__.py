@@ -3,11 +3,12 @@
 `viewer/tables.py` is the precedent and it says why in its own first lines:
 five tools already import `parsers`, so `viewer/` is where Perry's shared code
 actually is, whatever the directory is called. This is the same argument one
-directory over. `tables.py` serves the **readers**; the four functions here
-serve the **tools** — how a Perry tool finds a project's state on disk
+directory over. `tables.py` serves the **readers**; the functions here serve
+the **tools** — how a Perry tool finds a project's state on disk
 (`resolve_state_root`), keeps another tool out of it while it works
-(`project_lock`), writes it without a torn file (`write_atomic`), and learns
-what shape it is supposed to be (`load_schema`).
+(`project_lock`), writes it without a torn file (`write_atomic`), learns what
+shape it is supposed to be (`load_schema`), and names the project in a command
+it hands a reader (`root_flag`).
 
 **The measurement that produced this module, and the argument for it.** Six
 primitives had fourteen-plus implementations across `bin/`, and the count grew
@@ -37,6 +38,7 @@ import sys
 import tempfile
 import time
 import re
+import shlex
 import stat
 from datetime import date as _date
 from datetime import datetime as _datetime
@@ -455,6 +457,462 @@ def _parsers():
     return _PARSERS
 
 
+# ── which project, and what the caller actually typed ─────────────────────
+
+
+def empty_root_error(flag: str, value: str | None) -> str | None:
+    """The refusal `--root ""` earns, or `None` when the value is usable.
+
+    **An empty `--root` is a bad invocation, not a default.**
+    `resolve_project_root` below tests truthiness, so `--root ""` fell through
+    to `$PERRY_PROJECT` and then to the walk up from the cwd: `perry-task add
+    --root "$PROJ" …` with `PROJ` unset exited 0 having written into whichever
+    project the cwd resolves to, while the one the caller named was untouched.
+    That is DESIGN-016 § 1.1's own defect reached through the commonest shell
+    idiom there is.
+
+    **Why this is a function and not a line.** The refusal shipped inside
+    `parse_surface`, which only the six surface-declaring tools call, so it
+    reached six of the fourteen `--root` readers and a V4 round measured the
+    other eight still resolving the cwd's project — `perry-goals commit …
+    --root ""` run from inside a different project wrote `OKR.md`, `okr.jsonl`
+    and `.perry/events.jsonl` there. Fourteen tools parse their own argument
+    vector for reasons `parse_surface`'s docstring gives; what they must not
+    each own is *what counts as empty* and *what the caller is told*. Both
+    live here, and every caller asks rather than answers.
+
+    Callers pass the flag they are holding, so a value loop can ask about
+    every flag it reads without knowing which one this rule is about.
+    """
+    if flag == "--root" and value == "":
+        return ("--root was given an empty value. If that came from a shell "
+                "variable, the variable is unset")
+    return None
+
+
+def resolve_project_root(explicit: str | os.PathLike | None = None, *,
+                         walk: bool = True) -> Path:
+    """The project a tool acts on: `--root`, then `$PERRY_PROJECT`, then the cwd.
+
+    **That order is the published contract and three tools had it inverted.**
+    `bin/README.md § Which project?` states it, ADR-002 is why it exists, and
+    `bin/perry_md_store § main`, `bin/perry-tasks § main` and `bin/perry-config
+    § main` all read the environment AFTER the flag, so `$PERRY_PROJECT` won.
+    Measured 2026-09-04 (DESIGN-016 § 1.1): in an empty directory with
+    `PERRY_PROJECT` pointing at this repository, `perry-tasks build --root
+    <empty>` reported 352 stored records — the other project's — while
+    `perry-task list --root <empty>` on the same invocation correctly reported
+    0. Those three tools include two writers, so the failure was not a wrong
+    read; it was a write landing in a project the caller did not name.
+
+    `walk` is the difference between the tools that judge a project and the one
+    tool that judges a *directory*: `perry-diagnose` stops at the cwd on
+    purpose, so that pointing it at a folder with no state reports "no state
+    here" rather than answering about an ancestor. Every other tool walks up,
+    and the predicate is `viewer/parsers § _resolve_project_root`'s, called
+    rather than copied — `tests/test_project_root.py` exists because that walk
+    had two bodies once.
+    """
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    env = os.environ.get("PERRY_PROJECT")
+    if env:
+        return Path(env).expanduser().resolve()
+    cur = Path.cwd().resolve()
+    if not walk:
+        return cur
+    for d in [cur, *cur.parents]:
+        if (_parsers().configured(d) or (d / "BOARD.md").exists()
+                or (d / "OKR.md").exists()):
+            return d
+    return cur
+
+
+def root_flag(root: str | os.PathLike | None) -> str:
+    """**` --root <root>`, ready to be pasted into the end of a command a
+    message hands the reader.** Empty when there is no root to name.
+
+    TASK-253. Perry prints a command and a reader runs it, and until this
+    existed the printed command almost never carried the project it was talking
+    about. `bin/perry-migrate § _plan_task_store` was the site the row was
+    opened on: it printed `perry-tasks render --write` in a refusal while
+    holding `plan.project_root` two lines above, so the reader who copied it
+    rewrote the `BOARD.md` of whichever project their cwd happened to resolve
+    to. `perry-migrate` was deleted and every other tool kept the shape —
+    seventeen writer hand-backs across `bin/`, eight of them in `perry-lint`,
+    which is the tool a reader runs when something is ALREADY wrong.
+
+    **Quoted, because the round-4 V4 FAIL that `tests/handed_back.py` records
+    was a root spelled correctly and interpolated raw.** `--root /home/ada/My
+    Project` parses as five arguments and exits 1 about a file the reader never
+    named; `shlex.quote` is what `/bin/sh` agrees with. This is the one place
+    that decision is made, so a tool cannot get it wrong locally — which is the
+    same argument `write_atomic` above is here for.
+
+    The leading space is part of the value: callers append it to a command that
+    is already complete, `f"`perry-tasks render --write{lib.root_flag(root)}`"`,
+    so a tool with no root to name prints exactly what it printed before.
+    """
+    return f" --root {shlex.quote(str(root))}" if root else ""
+
+
+# ── the declared surface ─────────────────────────────────────────────────
+#
+# **One declaration per tool, in the tool, and the parser is driven by it.**
+# DESIGN-016 Decision 5, answered 2026-09-09. There is no `bin/commands.json`
+# and there is no dispatcher holding a second copy of the list: a tool that
+# already keeps a flag table is the only place the fact belongs, and everything
+# else — `--describe --json`, `bin/perry list`, the generated usage block, the
+# README table — reads it from there.
+#
+# The shape, and it is deliberately JSON-native so `--describe` is a dump:
+#
+#     SURFACE = {
+#       "name": "perry-tasks", "kind": "write" | "read" | "cache-only",
+#       "summary": "one line",
+#       "root_resolution": "standard" | "cwd" | "none",
+#       "exit_codes": {"0": "...", "1": "...", "2": "..."},
+#       "flags": [{"name": "--root", "arg": "path", "summary": "...",
+#                  "repeatable": False, "required": False}],
+#       "subcommands": [{"name": "build", "summary": "...",
+#                        "flags": ["--root"], "writes": []}],
+#     }
+#
+# A flag is described ONCE in `flags` and referenced by name from each
+# subcommand that accepts it. That reference list is goal 12: a flag reaching a
+# subcommand that would drop it is refused rather than ignored, which is the
+# defect `--kr` and `--design` shipped twice (DESIGN-016 § 1.4).
+
+#: Flags every tool takes, so nineteen declarations do not each restate them.
+COMMON_FLAGS = (
+    {"name": "--root", "arg": "path", "summary":
+     "the project to act on; else $PERRY_PROJECT, else the walk up from cwd"},
+    {"name": "--help", "summary": "print usage and exit, from any position"},
+    # `--describe --json` is TASK-396's ask, and it is the same table the
+    # parser above reads rather than a second description of it. It answers
+    # about the whole tool, or about one subcommand when one is named.
+    {"name": "--describe", "summary":
+     "print this tool's declared surface as JSON and exit; name a subcommand "
+     "for that subcommand alone"},
+)
+
+
+def surface_flags(surface: dict) -> dict:
+    """`{flag name: its declaration}`, common flags included."""
+    out = {f["name"]: f for f in COMMON_FLAGS}
+    out.update({f["name"]: f for f in surface.get("flags", ())})
+    return out
+
+
+def always_accepted(surface: dict) -> set[str]:
+    """Flags every subcommand of THIS tool takes, plus the common ones.
+
+    `perry-task --json` is the example the shape was found on: it chooses the
+    OUTPUT format in `main` and no handler reads it, so deriving each
+    subcommand's flags from what its handler reads leaves it out of all thirty
+    — and `add --json`, which every caller in the suite passes, becomes a
+    refusal. A flag the tool honours everywhere is declared once, here, rather
+    than repeated thirty times or quietly exempted from the check.
+    """
+    return ({f["name"] for f in COMMON_FLAGS}
+            | set(surface.get("universal_flags", ())))
+
+
+def subcommand_flags(surface: dict, item: dict) -> list[str]:
+    """Every flag `item` accepts: what it declares, plus what the tool honours
+    everywhere.
+
+    **One builder because there were three, and only one of them was
+    compared.** `describe_surface` spelled this for the whole-tool payload and
+    again for the single-subcommand payload; `usage_lines` spelled it a third
+    time and got the operator precedence wrong. A V4 round emptied the second
+    one and the whole suite stayed green while `perry describe task add`
+    reported that `add` takes 0 flags instead of 27 — which is the branch
+    `bin/README.md` publishes as the way to ask about one subcommand.
+
+    Callers that need to hide `--help` and `--describe` from a usage line
+    subtract them from the RESULT; doing it inside an expression with `|` is
+    how the third spelling went wrong.
+    """
+    return sorted(set(item.get("flags", ())) | always_accepted(surface))
+
+
+def surface_subcommand(surface: dict, name: str) -> dict | None:
+    return next((s for s in surface.get("subcommands", ())
+                 if s["name"] == name), None)
+
+
+def check_surface(surface: dict) -> list[str]:
+    """Findings, empty when the declaration is internally consistent.
+
+    Held by `tests/test_bin_surface.py` rather than trusted: a subcommand that
+    references a flag nobody declared would parse as "unknown flag" at runtime
+    and read as a typo in the caller's command rather than in this table.
+    """
+    findings: list[str] = []
+    declared = surface_flags(surface)
+    for key in ("name", "kind", "summary", "root_resolution", "subcommands"):
+        if key not in surface:
+            findings.append(f"the declaration has no {key!r}")
+    if surface.get("kind") not in (None, "read", "write", "cache-only"):
+        findings.append(f"kind {surface['kind']!r} is not read/write/cache-only")
+    seen: set[str] = set()
+    for sub in surface.get("subcommands", ()):
+        if sub["name"] in seen:
+            findings.append(f"{sub['name']!r} is declared twice")
+        seen.add(sub["name"])
+        for flag in sub.get("flags", ()):
+            if flag not in declared:
+                findings.append(
+                    f"{sub['name']} accepts {flag}, which no `flags` entry "
+                    f"declares")
+    for flag in surface.get("flags", ()):
+        if flag["name"] in {f["name"] for f in COMMON_FLAGS}:
+            findings.append(f"{flag['name']} is already a common flag")
+    for flag in surface.get("universal_flags", ()):
+        if flag not in declared:
+            findings.append(f"{flag} is universal and no `flags` entry "
+                            f"declares it")
+    return findings
+
+
+def parse_surface(surface: dict, argv: list[str]) -> dict:
+    """Read `argv` against the declaration. Nothing is dispatched until it is.
+
+    Returns `{"help", "sub", "values", "seen", "extra", "error"}`. `error` is a
+    ready-made message and is `None` when the vector is legal.
+
+    Three refusals, and the third is the one that is new (goal 12):
+
+    * a token that starts with `-` and no `flags` entry declares — a typo;
+    * a subcommand no `subcommands` entry declares, with the legal set named;
+    * a DECLARED flag on a subcommand that does not list it. `perry-task add
+      --design` was accepted by a flat 46-flag table and dropped by `cmd_add`,
+      so the row it wrote carried no design edge and nothing said so.
+    """
+    declared = surface_flags(surface)
+    subs = {s["name"]: s for s in surface.get("subcommands", ())}
+    out: dict = {"help": False, "describe": False, "sub": None, "values": {},
+                 "seen": set(), "extra": [], "error": None}
+    i = 0
+    while i < len(argv):
+        token = argv[i]
+        if token == "--":
+            # Everything after `--` is a VALUE, verbatim, however it is spelled
+            # — `perry-config set "Chat language" -- --weird`. It ends the flag
+            # scan for the tokens after it and for nothing else: an undeclared
+            # flag BEFORE the `--` is still the typo it was.
+            out["extra"].extend(argv[i + 1:])
+            break
+        if token in ("-h", "--help"):
+            out["help"] = True
+        elif token == "--describe":
+            out["describe"] = True
+        elif token in declared:
+            out["seen"].add(token)
+            if declared[token].get("arg"):
+                if i + 1 >= len(argv):
+                    out["error"] = f"{token} takes a value"
+                    return out
+                # `empty_root_error` above owns both what counts as empty and
+                # the sentence the caller reads, because the same rule has to
+                # hold in the eight tools that never reach this parser.
+                # Refused here rather than in the resolver because `lib`
+                # deliberately has no shared `Refused` (see this module's
+                # docstring) and every declaring tool already prints `error`
+                # and exits 2.
+                bad = empty_root_error(token, argv[i + 1])
+                if bad is not None:
+                    out["error"] = bad
+                    return out
+                got = out["values"]
+                if declared[token].get("repeatable"):
+                    got.setdefault(token, []).append(argv[i + 1])
+                else:
+                    got[token] = argv[i + 1]
+                i += 1
+        elif token.startswith("-"):
+            out["error"] = f"unknown argument {token!r} (try --help)"
+            return out
+        elif out["sub"] is None and subs:
+            out["sub"] = token
+        else:
+            out["extra"].append(token)
+        i += 1
+    # Both of these answer ABOUT the tool rather than running it, so neither
+    # needs a subcommand and neither may be refused for the lack of one.
+    if out["help"] or out["describe"]:
+        if out["sub"] is not None and out["sub"] not in subs:
+            out["error"] = (f"{out['sub']!r} is not a subcommand. "
+                            f"Expected one of: {', '.join(sorted(subs))}")
+        return out
+    if subs:
+        if out["sub"] is None:
+            out["error"] = f"expected one of: {', '.join(sorted(subs))}"
+            return out
+        if out["sub"] not in subs:
+            out["error"] = (f"{out['sub']!r} is not a subcommand. "
+                            f"Expected one of: {', '.join(sorted(subs))}")
+            return out
+        allowed = set(subs[out["sub"]].get("flags", ()))
+        allowed.update(always_accepted(surface))
+        for flag in sorted(out["seen"] - allowed):
+            out["error"] = (
+                f"{flag} is not accepted by {out['sub']!r}, and {out['sub']!r} "
+                f"would have ignored it. Accepted here: "
+                f"{', '.join(sorted(allowed - {'--help'})) or 'nothing but --root'}")
+            return out
+    return out
+
+
+def describe_surface(surface: dict, sub: str | None = None) -> dict:
+    """The declaration, or one subcommand of it, as JSON.
+
+    This is `TASK-396`'s published write contract and `bin/perry describe`'s
+    only source, arriving as a by-product of the table the parser already
+    reads rather than as a second mechanism.
+    """
+    flags = surface_flags(surface)
+    if sub is None:
+        return {"tool": surface["name"], "kind": surface["kind"],
+                "summary": surface["summary"],
+                "root_resolution": surface.get("root_resolution", "standard"),
+                "exit_codes": surface.get("exit_codes", {}),
+                "flags": [flags[n] for n in sorted(flags)],
+                "subcommands": [
+                    {"name": s["name"], "summary": s.get("summary", ""),
+                     "flags": subcommand_flags(surface, s),
+                     "writes": list(s.get("writes", ()))}
+                    for s in surface.get("subcommands", ())]}
+    found = surface_subcommand(surface, sub)
+    if found is None:
+        return {"tool": surface["name"], "error":
+                f"{sub!r} is not a subcommand of {surface['name']}",
+                "subcommands": [s["name"] for s in surface.get("subcommands", ())]}
+    names = subcommand_flags(surface, found)
+    return {"tool": surface["name"], "subcommand": found["name"],
+            "summary": found.get("summary", ""),
+            "writes": list(found.get("writes", ())),
+            "flags": [flags[n] for n in names if n in flags]}
+
+
+def usage_lines(surface: dict, sub: str | None = None) -> str:
+    """The usage block, generated. `<tool> --help § Usage` prints this.
+
+    DESIGN-016 § 1.3: `--help` was a design paper — 10,689 bytes on
+    `perry-task`, with `Usage:` at line 51 — so an agent asking what `done`
+    takes paid ~2.5k tokens and read fifty lines of history first.
+    """
+    flags = surface_flags(surface)
+
+    def spell(name: str) -> str:
+        flag = flags.get(name, {"name": name})
+        return f"{name} <{flag['arg']}>" if flag.get("arg") else name
+
+    lines = [f"Usage: {surface['name']} <subcommand> [flags]"
+             if surface.get("subcommands") else
+             f"Usage: {surface['name']} [flags]"]
+    picked = ([surface_subcommand(surface, sub)] if sub
+              else list(surface.get("subcommands", ())))
+    # **The whole tool gets NAMES; one subcommand gets its flags.** Printing
+    # every flag of thirty subcommands is how `perry-task --help` got to 10,690
+    # bytes, and the caller who wanted `done` read all of it (DESIGN-016
+    # § 1.3). `<tool> <sub> --help` is one call and about 300 bytes.
+    whole_tool = sub is None and len(picked) > 1
+    for item in picked:
+        if item is None:
+            continue
+        # Subtracted from the RESULT. Written as one expression this read
+        # `set(...) | (always_accepted(...) - {...})`, which keeps `--help` and
+        # `--describe` whenever a subcommand declares them itself. Harmless
+        # while none does, and wrong the day one does.
+        names = [n for n in subcommand_flags(surface, item)
+                 if n not in ("--help", "--describe")]
+        if whole_tool:
+            lines.append(f"  {item['name']:<16} {item.get('summary', '')}")
+            continue
+        lines.append(f"  {surface['name']} {item['name']} "
+                     f"{' '.join('[' + spell(n) + ']' for n in names)}")
+        if item.get("summary"):
+            lines.append(f"      {item['summary']}")
+    if whole_tool:
+        lines.append("")
+        lines.append(f"  {surface['name']} <subcommand> --help   the flags for "
+                     f"one of them")
+        lines.append(f"  {surface['name']} --describe --json     the whole "
+                     f"surface as data")
+    if not surface.get("subcommands"):
+        for name in sorted(flags):
+            if name == "--help":
+                continue
+            lines.append(f"  {spell(name):<28} {flags[name].get('summary','')}")
+    return "\n".join(lines)
+
+
+def exists_or_unreadable(path: Path) -> bool | None:
+    """`viewer.parsers.exists_or_unreadable`, reached without importing it here.
+
+    **A deliberate second spelling of a four-line function, and the reason is
+    an import cycle, not an oversight.** `viewer/parsers.py` is imported BY
+    `perry_md_store`, and `lib` is imported by tools before `viewer/` is on
+    the path, so neither can take the other at module scope. The two bodies
+    are held identical by
+    `tests/test_bin_argument_contract § TestOnePrimitiveAnsweredTwice`, which
+    runs both over the same three inputs — present, absent, and a parent that
+    may not be searched.
+    """
+    try:
+        return path.exists()
+    except OSError:
+        return None
+
+
+def scan_argv(argv: list[str], *, bools: tuple[str, ...] = (),
+              values: tuple[str, ...] = ()) -> tuple[list[str], set[str],
+                                                     dict[str, str], str | None]:
+    """Split `argv` into positionals, flags seen, flag values, and one error.
+
+    Returns `(positionals, seen, values, error)`. `error` is a ready-made
+    message — the caller prints it and exits 2 — and is `None` when everything
+    in `argv` was declared here.
+
+    **Why this exists rather than a membership test.** `bin/perry_md_store`
+    asked `if "--write" not in argv` and `if "--from-file" not in argv`, which
+    means `--wrte` is not a typo, it is a no-op that exits 0: the render prints,
+    nothing is written, and the caller is told the run succeeded. The whole
+    argument vector is scanned before anything is dispatched, so `-h` in any
+    position prints help without running the command in front of it — which
+    `perry-tasks render --write --help` did (DESIGN-016 § 1.1).
+
+    Scanning is deliberately dumb: a token that starts with `-` and is not
+    declared is the error, everything else is a positional. Per-subcommand flag
+    scoping is DESIGN-016 goal 12 and belongs to the declaration in phase C1,
+    not here — this function is what phase A2 needs and no more.
+    """
+    positionals: list[str] = []
+    seen: set[str] = set()
+    got: dict[str, str] = {}
+    i = 0
+    while i < len(argv):
+        token = argv[i]
+        if token in ("-h", "--help"):
+            seen.add("--help")
+        elif token in bools:
+            seen.add(token)
+        elif token in values:
+            if i + 1 >= len(argv):
+                return positionals, seen, got, f"{token} takes a value"
+            got[token] = argv[i + 1]
+            i += 1
+        elif token.startswith("-"):
+            return (positionals, seen, got,
+                    f"unknown argument {token!r} (try --help)")
+        else:
+            positionals.append(token)
+        i += 1
+    return positionals, seen, got, None
+
+
 def resolve_state_root(project_root: Path) -> Path:
     """Where this project's Perry state files live.
 
@@ -759,6 +1217,64 @@ def _corroborates(claimed, store_krs) -> bool:
     return str(claimed).strip() in store_krs
 
 
+#: Decimal places a measured percentage is published to. One, matching
+#: `bin/perry-context-budget § pct` — the only other percentage this tree
+#: publishes rather than prints — so a consumer reading two Perry payloads
+#: does not meet two precisions.
+MEASURED_PERCENT_PLACES = 1
+
+
+def measured_percent(numerator: int, denominator: int) -> float | None:
+    """`numerator / denominator` as a percentage, published to one decimal.
+
+    **The rule, and it is on `schema/goals-list-contract.md` because a
+    consumer has to be able to state it too:** a measured percentage is
+    rounded to one decimal place, and `0.0` and `100.0` are RESERVED for the
+    exact cases — `numerator == 0` and `numerator == denominator`. Nothing
+    strictly between the ends is ever published at an end.
+
+    **Why round at all.** `13 / 38` is `34.21052631578947` in IEEE 754, and
+    that is what `perry-goals list --json` published: seventeen significant
+    figures of a ratio of two small integers, sixteen of which are an
+    artefact of binary floating point rather than anything measured. Every
+    consumer then rounds it differently or not at all, so the same
+    measurement renders as three different numbers on three surfaces and
+    none of them is Perry's answer. Publishing the precision is the only way
+    the answer is one answer.
+
+    **Why the ends are reserved, and why that is not a direction.**
+    `perry-goals/list/2.0` removed `progress` because Perry cannot tell which
+    way a KR runs, so this must not round "toward the unmet end" — there is
+    no such end here to know. What it can tell is EXACTNESS: `1999 / 2000`
+    is `99.95`, which rounds to `100.0` at one decimal and publishes *every
+    row answered* about a phase with a row that was not. `0` and `100` are
+    the two values a consumer may read as a whole fact, so they are the two
+    this function only ever returns from a whole fact. Off the end, the
+    nearest representable non-end value is published instead — `99.9` and
+    `0.1` — which is still a rounding and is the only rounding of the four
+    that cannot be read as a completeness claim it did not measure.
+
+    **The unrounded ratio is never lost.** `numerator` and `denominator` are
+    published beside it in `current_measurement`, exactly and as integers, so
+    a consumer that needs the full ratio divides them itself and one that
+    needs "is it met" compares them — which is the comparison it should have
+    been making anyway, and the one thing this rounding is designed not to be
+    able to answer wrongly.
+
+    `None` for an empty denominator: no population is not `0` measured, and
+    that distinction belongs to the caller's own docstring.
+    """
+    if not denominator:
+        return None
+    value = round(100.0 * numerator / denominator, MEASURED_PERCENT_PLACES)
+    step = 10.0 ** -MEASURED_PERCENT_PLACES
+    if value >= 100.0 and numerator < denominator:
+        return round(100.0 - step, MEASURED_PERCENT_PLACES)
+    if value <= 0.0 and numerator > 0:
+        return step
+    return value
+
+
 def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict:
     """`P003-O3-KR2`, measured: rows that took a KR edge or an `unlinked`
     declaration **in the same action as `add`**, over the rows that were asked.
@@ -960,7 +1476,7 @@ def same_action_linkage(linkage_records, events, *, track: str = "main") -> dict
         "kr": "P003-O3-KR2",
         "measured": True,
         "source": "linkage.jsonl + .perry/events.jsonl",
-        "current": (100.0 * numerator / denominator) if denominator else None,
+        "current": measured_percent(numerator, denominator),
         "numerator": numerator,
         "denominator": denominator,
         "population": population,
@@ -1344,8 +1860,14 @@ def walk_md(root: Path):
     a clone and a file in a worktree.
     """
     for dirpath, dirnames, filenames in os.walk(root):
+        # A directory this walk may not search cannot be shown to be a nested
+        # checkout, and `Path.exists()` raises rather than saying so. Treat it
+        # as not-a-checkout and let `os.walk` skip it on its own error path —
+        # the alternative is that one unreadable directory anywhere under the
+        # root turns every document scan into a traceback.
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS
-                       and not (Path(dirpath) / d / ".git").exists()]
+                       and exists_or_unreadable(
+                           Path(dirpath) / d / ".git") is not True]
         for fn in filenames:
             if fn.lower().endswith(MD_SUFFIXES):
                 yield Path(dirpath) / fn

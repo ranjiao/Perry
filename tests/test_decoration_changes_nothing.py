@@ -106,7 +106,17 @@ class TestDecorationIsInvisible(unittest.TestCase):
     def project(self, bold: bool) -> Path:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        root = Path(tmp.name)
+        # **Resolved.** `tempfile` hands back the unresolved name — on macOS
+        # with no `TMPDIR` that is `/tmp/tmpXXXX` while every tool reports the
+        # resolved `/private/tmp/tmpXXXX`. The scrubber in `run_reader` builds
+        # its pattern from this path, so an unresolved one scrubs nothing, both
+        # payloads keep their real roots, and all three cases fail with a
+        # 600,000-character diff about header decoration. A V4 round hit it on
+        # a pristine tree under `env -i` and initially charged it to its own
+        # mutation. It is green in an ordinary shell only because a second
+        # regex happens to catch `/private/var/folders/`, which is where a
+        # machine WITH `TMPDIR` puts them.
+        root = Path(tmp.name).resolve()
         shutil.copytree(self.snapshot(), root, dirs_exist_ok=True)
         if bold:
             for f in (root / "perry").rglob("*.md"):

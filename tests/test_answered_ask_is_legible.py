@@ -416,10 +416,13 @@ class TestOnThisRepositoryAndNotAFixture(unittest.TestCase):
         in this row. An assertion that encodes a moment rather than the rule
         is the defect this repository has spent the most nights on.
         """
-        self.assertEqual(PT.LIST_CONTRACT, "perry-task/list/1.18")
+        shipped = tuple(int(n) for n
+                        in PT.LIST_CONTRACT.rsplit("/", 1)[1].split("."))
+        self.assertGreaterEqual(shipped, (1, 15),
+                                "this change landed at 1.15")
         self.assertEqual(self.data["contract"], PT.LIST_CONTRACT)
         doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
-        self.assertIn("`perry-task/list/1.18`", doc)
+        self.assertIn(f"`{PT.LIST_CONTRACT}`", doc)
         self.assertIn("### 1.15 —", doc)
         self.assertIn("depends_on_resolved", doc)
         self.assertNotIn("1.15", [e["version"] for e in PT.LIST_SEMANTICS],

@@ -302,7 +302,15 @@ class TestTheContractAnnouncedTheChange(unittest.TestCase):
     DOC = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
 
     def test_the_minor_moved(self):
-        self.assertEqual(PT.LIST_CONTRACT, "perry-task/list/1.18")
+        """Stated as a floor, not as a moment. This change landed at 1.14; the
+        shipped contract cannot be older than that, and whatever it is, the
+        document has to name it. Pinning the head version made every LATER
+        bump fail here — which is the defect
+        `test_answered_ask_is_legible` names in its own docstring, and this
+        file had it too until the 2.0 bump walked into it."""
+        shipped = tuple(int(n) for n
+                        in PT.LIST_CONTRACT.rsplit("/", 1)[1].split("."))
+        self.assertGreaterEqual(shipped, (1, 14))
         self.assertIn(PT.LIST_CONTRACT, self.DOC)
 
     def test_semantics_carries_an_entry_for_it(self):

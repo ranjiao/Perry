@@ -850,6 +850,44 @@ class TestDueIsTypedAndTheNoteIsNot(WriterCase):
                   "--to", "x", "--by", "3d", expect=1)
         self.assertIn("--by is gone", json.loads(r.stdout)["refused"])
 
+    def test_a_misspelling_of_the_note_flag_is_refused_not_swallowed(self):
+        """The flag one letter away from the real one, which is the shape a
+        caller actually produces.
+
+        `parse` had no `startswith("-")` arm, so an undeclared token went into
+        `a.rest` — a list only `krs` and `link` ever read. Measured
+        2026-09-10, before this refusal existed:
+
+            perry-goals commit --track main --promise "…" --to Finance
+                        --due 2026-12-01
+                        --by-when-notes "before the Q4 board meeting"
+              → exit 0, the commitment filed, `By when note` EMPTY, and both
+                the flag and its value gone without a word.
+
+        `--by` above is refused by NAME at exit 1 because it is a flag that
+        existed and was retired; this one never existed, which is a bad
+        invocation and exit 2. The two messages have to differ — a caller who
+        typed a retired flag needs to be told where its meaning went, and a
+        caller who typed a typo needs to be told it is not a flag.
+        """
+        p = self.project()
+        before = p.okr_path.read_bytes()
+        r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
+                     "--due", "3d",
+                     "--by-when-notes", "before the Q4 board meeting",
+                     expect=2)
+        self.assertIn("--by-when-notes", r.stderr)
+        self.assertEqual(p.okr_path.read_bytes(), before,
+                         "a refused invocation still wrote to the register")
+        self.assertEqual([], p.events())
+
+    def test_the_control_is_that_the_real_note_flag_still_lands(self):
+        """A refusal that catches the correct spelling too is not a fix."""
+        p = self.project()
+        p.commit("--track", "ops", "--promise", "a", "--to", "x",
+                 "--due", "3d", "--by-when-note", "before the Q4 board meeting")
+        self.assertIn("before the Q4 board meeting", p.text())
+
     def test_a_queue_track_with_no_sla_in_the_register_is_refused(self):
         """"within the track SLA" pointing at an empty register is a promise
         with no clock at all."""
@@ -1524,10 +1562,15 @@ class TestTheReadContractDidNotMove(unittest.TestCase):
     also changed what three values under unmoved keys mean, which would
     have been a minor on `2.2`'s reading and is recorded in
     `LIST_SEMANTICS` so a consumer crossing the major is told both.
+    TASK-415 moved it to `3.1` — a minor, on `2.2`'s terms: no key added,
+    removed or retyped, and one value returning something different. A
+    MEASURED `current` is rounded to one decimal place where the raw IEEE 754
+    quotient used to go out, and the same row wrote down the invariant that a
+    measured KR carries a non-null `target`.
     """
 
     def test_the_version_is_unchanged(self):
-        self.assertEqual("perry-goals/list/3.0", G.LIST_CONTRACT)
+        self.assertEqual("perry-goals/list/3.1", G.LIST_CONTRACT)
 
     def test_the_contract_document_agrees(self):
         doc = (ROOT / "schema" / "goals-list-contract.md").read_text()

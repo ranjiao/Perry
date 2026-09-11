@@ -362,14 +362,22 @@ class TestLaneProceduresCallTheTool(unittest.TestCase):
 
     def test_every_command_the_procedures_quote_actually_runs(self):
         """A migrated procedure naming a subcommand the tool does not have
-        would be the same unbacked-index defect five reviews kept finding."""
-        quoted = set(re.findall(r'perry-task"?\s+(\w+)', self.proc))
-        r = subprocess.run(["python3", str(TOOL), "--help"],
-                           capture_output=True, text=True)
-        for cmd in quoted:
-            self.assertIn(f"perry-task {cmd}", r.stdout,
-                          f"the procedures call `perry-task {cmd}`, which the "
-                          f"tool's own usage does not list")
+        would be the same unbacked-index defect five reviews kept finding.
+
+        **Checked against the DECLARATION, by exact name.** Two things were
+        wrong with the old form: `\w+` stopped at the hyphen, so `risk-add`
+        was read as `risk`, and the check was `assertIn("perry-task risk", …)`
+        — a substring of `perry-task risk-add`, so a procedure quoting a
+        command that does not exist would have passed as long as some real one
+        started with the same letters."""
+        quoted = set(re.findall(r'perry-task"?\s+([a-z][a-z-]*)', self.proc))
+        declared = {s["name"] for s in PT.SURFACE["subcommands"]}
+        unknown = sorted(quoted - declared)
+        self.assertEqual(unknown, [],
+                         f"the procedures call {unknown}, which the tool does "
+                         f"not declare")
+        self.assertGreater(len(quoted), 5, "the extraction found almost "
+                                           "nothing, so it proves nothing")
 
 
 class TestListContract(unittest.TestCase):
@@ -414,7 +422,10 @@ class TestListContract(unittest.TestCase):
                 "intake", "tasks", "open", "closed", "events", "untitled",
                 # 1.6 — the three blocks that were readable only through
                 # `perry-state --json`, the payload with no version.
-                "risks", "asks", "drift"}
+                "risks", "asks", "drift",
+                # 2.0 — how many rows `tasks[]` may carry, what the call
+                # matched before the bound, and whether the two differ.
+                "bound"}
     RISKS_KEYS = {"items", "open", "cleared", "source"}
     RISK_KEYS = {"id", "title", "severity", "severity_text", "severity_rank",
                  "source", "opened", "age_days", "status", "cleared_on", "meta"}
@@ -502,13 +513,22 @@ class TestListContract(unittest.TestCase):
         _, out = p.run("list", "--all", *extra)
         return out
 
-    def test_the_version_handle_is_present_and_major_1(self):
+    def test_the_version_handle_is_present_and_major_2(self):
+        """**The major moved to 2 on 2026-09-09, by the user's decision.**
+
+        This test used to pin major 1 and say the bump "is intended only for a
+        removed or retyped key". No key was removed or retyped —
+        `perry-task list` grew a default 200-row ceiling, so a consumer that
+        changes nothing receives fewer ROWS, and on this repository `--all`
+        reported `open: 24` against the project's 156. The contract page's rule
+        2 now covers rows as well as keys, and this gate moved with it. It is
+        still a gate: bumping the major again has to come back here."""
         d = self.payload(self.populated())
         self.assertEqual(d["contract"], PT.LIST_CONTRACT)
-        self.assertTrue(d["contract"].startswith("perry-task/list/1."),
-                        f"major bumped to {d['contract']} — every consumer "
-                        f"checking major == 1 now refuses; that is intended "
-                        f"only for a removed or retyped key")
+        self.assertTrue(d["contract"].startswith("perry-task/list/2."),
+                        f"major moved to {d['contract']} — every consumer "
+                        f"checking `major != 2` now refuses, which is a "
+                        f"decision, not a side effect")
 
     def test_every_declared_key_is_present_on_every_task(self):
         """Rule 1 of the contract: an unknown value is "", null or [] — never a
@@ -856,9 +876,27 @@ class TestFromAimarksProductionReport(unittest.TestCase):
         # 1.4 → 1.9 reads the entries between, and one skipped is one it cannot
         # learn about.
         major, minor = (int(x) for x in major_minor.split("."))
-        for m in range(minor + 1):
-            v = f"{major}.{m}"
-            self.assertIn(v, headings, f"no changelog entry for {v}")
+        # **Contiguous within every major, not `range(minor+1)` of the current
+        # one.** At 1.19 that expression required twenty headings; the 2.0 bump
+        # silently reduced it to one, leaving nineteen changelog entries
+        # unguarded — a V4 review deleted `### 1.5`, the entry the page itself
+        # calls the reason `semantics` exists, and the suite stayed green.
+        # Written as "no gaps" so it needs no literal and survives the next
+        # major the same way.
+        by_major: dict[int, set[int]] = {}
+        for h in headings:
+            if re.fullmatch(r"\d+\.\d+", h):
+                ma, mi = (int(x) for x in h.split("."))
+                by_major.setdefault(ma, set()).add(mi)
+        self.assertIn(major, by_major, f"no changelog entries for {major}.x")
+        for ma, minors in sorted(by_major.items()):
+            with self.subTest(major=ma):
+                self.assertEqual(
+                    sorted(minors), list(range(max(minors) + 1)),
+                    f"the {ma}.x changelog has a gap — an entry a consumer "
+                    f"pinned to an older minor is sent to and cannot find")
+        self.assertIn(f"{major}.{minor}", headings,
+                      f"the shipped version {major}.{minor} has no entry")
 
     def test_the_semantics_list_is_ordered_oldest_first(self):
         """Its whole use is "everything newer than the minor I tested against",

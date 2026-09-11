@@ -1203,6 +1203,229 @@ class DecisionsAreCountedPerRecordNotPerMention(unittest.TestCase):
                          {"queue": 1, "design": 1})
 
 
+
+class AnAskIsAnsweredByItsStatusCellAndNotByItsProse(unittest.TestCase):
+    """TASK-420. `bin/perry-diagnose` asked "has this question come back?" with
+    a regex of its own —
+    `\\b(answered|resolved|closed|done|decided|已回答|已解决|已决定)\\b` — searched
+    against the WHOLE BOARD LINE. Any of those words appearing in the QUESTION
+    closed the row.
+
+    Measured on `USER-924`, filed 2026-09-10: its text carries *"round 6, the
+    PAIRING resolved each expectation through the very path it was checking"*,
+    the regex matched `resolved`, and
+    `open_decisions_by_register.queue` reported 0 while one ask was pending —
+    `perry-task` reported 1, and
+    `DecisionsAreCountedPerRecordNotPerMention.test_the_queue_register
+    _reconciles_with_the_queue_on_this_repository` went red.
+
+    **It had been wrong the whole time and nothing could see it.** The
+    reconciliation test asserts the two registers agree, and `0 == 0` held for
+    weeks because every row in the queue was answered. It went red the first
+    time a pending ask existed — a test that finally got an input, not a new
+    break. That is what this class is for: the reconciliation test cannot pin
+    the rule, because it only has an opinion on the days somebody happens to be
+    waiting on an answer. These fixtures hold that input permanently.
+
+    The fix is `parsers.ask_is_answered`, called and not restated — the rule
+    `bin/perry-state`, `bin/perry-task` and `bin/perry_store.py` already ask,
+    reading the `Status` CELL. Widening the regex was the other road, and it is
+    the one `ADR-007` decision 3 forbids in as many words: Python does not
+    parse document semantics. `perry-task ask` writes `pending` and
+    `tests/fixtures/sample-project` writes `open`; the shared predicate already
+    knows both, and teaching a second copy the same words is how there come to
+    be three.
+    """
+
+    def project(self, root: Path) -> Path:
+        (root / ".perry").mkdir(parents=True, exist_ok=True)
+        config_store.write_config(root)
+        return root
+
+    def queue(self, rows: str) -> dict:
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            (root / "BOARD.md").write_text(board_with_queue(rows))
+            return scan(root)["user_load"]
+
+    # ── the defect, as a fixture ─────────────────────────────────────────
+    def test_a_pending_row_whose_question_contains_resolved_is_still_open(self):
+        """`USER-924`'s own sentence, kept verbatim. This is the case the
+        prose scan got wrong, and nothing pinned it before this row: restore
+        the regex and this goes red on the first assertion."""
+        load = self.queue(
+            "| USER-924 | What independent source of truth does the --compact "
+            "projection test have? Round 6, the PAIRING resolved each "
+            "expectation through the very path it was checking, 46 of 53 pairs "
+            "repointable while green. | TASK-362 | 1d | pending |\n")
+        self.assertEqual(load["open_decisions_by_register"]["queue"], 1,
+                         "a word in the QUESTION closed the row — the Status "
+                         "cell says pending")
+        self.assertEqual(
+            [s.split(" — ")[-1] for s in load["open_decision_samples"]],
+            ["USER-924"])
+
+    def test_every_word_of_the_old_regex_is_harmless_in_the_question(self):
+        """Not just `resolved`. The regex carried eight spellings and each one
+        closed a pending row from the question cell; a fix that only taught the
+        scan about `resolved` would leave seven doors open."""
+        for word in ("answered", "resolved", "closed", "done", "decided",
+                     "已回答", "已解决", "已决定"):
+            with self.subTest(word=word):
+                load = self.queue(
+                    f"| USER-001 | Should the migration be {word} this way or "
+                    f"the other? | TASK-005 | 1d | pending |\n")
+                self.assertEqual(
+                    load["open_decisions_by_register"]["queue"], 1,
+                    f"the word {word!r} in the question closed the row")
+
+    def test_a_word_in_the_blocks_cell_does_not_close_the_row(self):
+        """The scan read the whole LINE, so every cell was in range — not only
+        the question. A row blocked on a task whose title says `done` is not an
+        answered row."""
+        load = self.queue(
+            "| USER-001 | Which region is the default | TASK-005 (done-file "
+            "cleanup) | 1d | pending |\n")
+        self.assertEqual(load["open_decisions_by_register"]["queue"], 1)
+
+    # ── both vocabularies, which is why the regex was not widened ────────
+    def test_pending_and_open_both_count_as_waiting(self):
+        """`perry-task ask` writes `pending`; `tests/fixtures/sample-project`
+        writes `open`. One predicate already knows both."""
+        for status in ("pending", "open", "waiting", "—", "-", ""):
+            with self.subTest(status=status):
+                load = self.queue(
+                    f"| USER-001 | Which region is the default | TASK-005 | "
+                    f"1d | {status} |\n")
+                self.assertEqual(
+                    load["open_decisions_by_register"]["queue"], 1,
+                    f"a Status of {status!r} was read as answered")
+
+    def test_an_answered_status_cell_closes_the_row(self):
+        """The converse, and the reconciliation test's own steady state: the
+        fix must not simply stop closing rows."""
+        for status in ("**answered 2026-08-16: 30 days**",
+                       "answered 2026-09-10: option B",
+                       "已回答 2026-09-10：选 B",
+                       "dropped 2026-08-20 — folded into TASK-190",
+                       "withdrawn 2026-08-20"):
+            with self.subTest(status=status):
+                load = self.queue(
+                    f"| USER-001 | Which region is the default | TASK-005 | "
+                    f"1d | {status} |\n")
+                self.assertEqual(
+                    load["open_decisions_by_register"]["queue"], 0,
+                    f"a Status of {status!r} was read as still waiting")
+
+    def test_a_status_that_promises_a_later_resolution_is_still_waiting(self):
+        """One of the four disagreements `parsers.ask_is_answered`'s docstring
+        measured between the two readings, now settled in the cell's favour:
+        `pending — will be resolved by TASK-9` is a question nobody has
+        answered, whatever the sentence after the dash says it expects."""
+        load = self.queue(
+            "| USER-001 | Which region is the default | TASK-005 | 1d | "
+            "pending — will be resolved by TASK-9 |\n")
+        self.assertEqual(load["open_decisions_by_register"]["queue"], 1)
+
+    # ── the column is found by name, and its absence is decided ──────────
+    def test_the_status_column_is_found_wherever_the_project_put_it(self):
+        """Resolved by NAME, never by position — a project may omit or reorder
+        any column, and a positional read then judges one column's value as
+        another's. Perry's own board carries a sixth `Asked` column that
+        `board_with_queue` does not."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            (root / "BOARD.md").write_text(
+                "# Board\n\n## User Input Queue\n\n"
+                "| Status | USER-id | Needed from user | Blocks | Asked |\n"
+                "|---|---|---|---|---|\n"
+                "| pending | USER-001 | Was this resolved? | — | 2026-09-10 |\n"
+                "| answered 2026-09-10: yes | USER-002 | Still open? | — | "
+                "2026-09-10 |\n")
+            load = scan(root)["user_load"]
+        self.assertEqual(load["open_decisions_by_register"]["queue"], 1)
+        self.assertEqual(
+            [s.split(" — ")[-1] for s in load["open_decision_samples"]],
+            ["USER-001"])
+
+    def test_a_queue_table_with_no_status_column_counts_every_row_open(self):
+        """**Decided, not fallen into.** With no `Status` column there is no
+        cell to put the question to, and `ask_is_answered`'s own rule for a
+        cell it cannot read is that an unanswered question is the safe reading.
+        Reading absence as closed is the direction that silently shortens the
+        needs-you list."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            (root / "BOARD.md").write_text(
+                "# Board\n\n## User Input Queue\n\n"
+                "| USER-id | Needed from user | Blocks |\n"
+                "|---|---|---|\n"
+                "| USER-001 | This one was answered on Tuesday | — |\n")
+            load = scan(root)["user_load"]
+        self.assertEqual(load["open_decisions_by_register"]["queue"], 1)
+
+    def test_a_project_with_no_queue_table_keeps_counting_its_ids(self):
+        """**The fallback, stated.** `elsewhere()` is reached when there is no
+        `## User Input Queue` table to read at all. It has no `Status` cell, so
+        it does not ask the question — every surviving id counts as open,
+        exactly as it did before this row. The fallback inventories ids; the
+        two filters it applies are about whether an id is a row of THIS project
+        at all, not about whether it came back."""
+        diagnose = load_bin_module("perry-diagnose")
+        explain = diagnose.load_sibling("perry-explain")
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            write(root, "notes/asks.md",
+                  "# Asks\n\nUSER-001 was answered and resolved on Tuesday.\n")
+            entries = explain.harvest(root)
+            got = diagnose.open_user_asks(root, entries, explain)
+        self.assertEqual([i for i, _ in got], ["USER-001"],
+                         "the fallback grew an opinion about answeredness")
+
+    # ── one rule, one implementation ─────────────────────────────────────
+    def test_the_queue_register_calls_the_shared_predicate(self):
+        """Agreement over a corpus would pass with two copies of the rule in
+        the tree, and a second copy IS the defect. So this asserts identity:
+        the function object the queue register calls is the one
+        `viewer/parsers.py` defines, proved by replacing it and watching the
+        answer change — the shape
+        `AFixtureIsNotTheProjectsState.test_the_queue_register_asks_perry
+        _explains_own_predicate` uses one register over.
+        """
+        diagnose = load_bin_module("perry-diagnose")
+        explain = diagnose.load_sibling("perry-explain")
+        self.assertNotIn("ANSWERED", vars(diagnose),
+                         "perry-diagnose grew its own copy of the rule back")
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            (root / "BOARD.md").write_text(board_with_queue(
+                "| USER-001 | Which region is the default | TASK-005 | 1d | "
+                "pending |\n"))
+            write(root, "notes/a.md", "# A\n\nUSER-001 is the row.\n")
+            entries = explain.harvest(root)
+
+            self.assertEqual([i for i, _ in
+                              diagnose.open_user_asks(root, entries, explain)],
+                             ["USER-001"])
+
+            asked: list[str] = []
+            real = diagnose.P.ask_is_answered
+            try:
+                diagnose.P.ask_is_answered = (
+                    lambda cell: asked.append(cell) or True)
+                flipped = diagnose.open_user_asks(root, entries, explain)
+            finally:
+                diagnose.P.ask_is_answered = real
+
+        self.assertEqual(asked, ["pending"],
+                         "the register never put the row's Status cell — and "
+                         "only that cell — to the shared predicate")
+        self.assertEqual(flipped, [],
+                         "the register answered from something other than "
+                         "parsers.ask_is_answered")
+
+
 class AFixtureIsNotTheProjectsState(unittest.TestCase):
     """TASK-153. `tests/fixtures/sample-project/BOARD.md` keeps a pending
     `USER-014` because a test needs a board with a pending row on it. LOAD-03

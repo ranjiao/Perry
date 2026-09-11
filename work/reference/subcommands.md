@@ -12,7 +12,7 @@ Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve vi
 **Read the intake block first — do not count rows by hand.**
 
 ```
-"$PERRY_HOME/bin/perry-task" list --all --json     # → .intake
+"$PERRY_HOME/bin/perry-task" list --json           # → .intake
 ```
 
 `route <n>` and `resolve-intake <n>` act on a row **position**, and until the
@@ -105,7 +105,7 @@ look.** Eyeballing a file for numbers is the one thing Perry's oldest rule
 forbids, and this procedure was written before there was an alternative:
 
 ```
-"$PERRY_HOME/bin/perry-task" list --all --json
+"$PERRY_HOME/bin/perry-task" list --all --limit 0 --json
 "$PERRY_HOME/bin/perry-state" --json
 ```
 

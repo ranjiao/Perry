@@ -103,6 +103,19 @@ def lint(root: Path) -> str:
 class TestClearedRisksStopCounting(unittest.TestCase):
     """Defect 1: strikethrough is decoration, so a cleared risk never left."""
 
+    #: Deliberately NOT `2026-08-16`. That is the day Perry's own board
+    #: happens to record, and a fixture that borrows it reads as though it
+    #: were checking the real thing — which is how
+    #: `test_the_risk_cleared_on_2026_08_16_no_longer_counts` got its name.
+    #: Every date below is one this file wrote and only this file can move.
+    DATED = (
+        "| ID | Risk | Opened | Status |\n"
+        "|---|---|---|---|\n"
+        "| RX-001 | still a problem | 2026-01-02 | open |\n"
+        "| RX-002 | was a problem | 2026-01-03 | cleared 2026-02-04 — fixed |\n"
+        "| RX-003 | also a problem | 2026-01-05 | open |\n"
+    )
+
     def test_a_cleared_row_is_not_a_live_risk(self):
         board = board_with(
             "| ID | Risk | Opened | Status |\n"
@@ -113,6 +126,39 @@ class TestClearedRisksStopCounting(unittest.TestCase):
         self.assertEqual(len(parsed), 2, "both rows must survive parsing")
         live = [r for r in parsed if not r.resolved]
         self.assertEqual([r.id for r in live], ["RX-001"])
+
+    def test_a_cleared_row_carries_the_date_its_status_cell_states(self):
+        """**Where `test_the_risk_cleared_on_2026_08_16_no_longer_counts`
+        went** (TASK-404).
+
+        That test read the live `perry/BOARD.md` and asserted the count of
+        cleared risks was `1` and the date was `2026-08-16`. Neither is a fact
+        about the reader: clearing a second risk, or clearing the first one a
+        day later, turned it red with no line of code changed — and its NAME
+        had to be edited to match. `TestPerrysOwnBoard` still asks the live
+        board the part that is about this repository; the count and the date
+        are exact here, where the fixture owns them.
+
+        `cleared_on` is the field the whole row exists for — a date a consumer
+        can act on, parsed out of the cell rather than out of decoration —
+        and until this it was the one thing about a cleared row that only the
+        live-board test asserted.
+        """
+        parsed = risks(board_with(self.DATED))
+        self.assertEqual([r.id for r in parsed], ["RX-001", "RX-002", "RX-003"],
+                         "the fixture did not parse; nothing here is checking "
+                         "anything")
+        self.assertEqual([r.id for r in parsed if r.resolved], ["RX-002"])
+        self.assertEqual([r.cleared_on for r in parsed if r.resolved],
+                         ["2026-02-04"])
+
+    def test_an_open_row_carries_no_cleared_date(self):
+        """`status_cleared_date`'s own rule, and the reason a count of cleared
+        rows may not be taken from `cleared_on` being non-empty: an open risk
+        has no cleared date — not today's, and not its `Opened`."""
+        parsed = risks(board_with(self.DATED))
+        self.assertEqual([r.cleared_on for r in parsed if not r.resolved],
+                         ["", ""])
 
     def test_a_struck_through_bullet_is_not_a_live_risk_either(self):
         """The bullet form had the verdict all along — nothing acted on it.
@@ -500,12 +546,35 @@ class TestPerrysOwnBoard(unittest.TestCase):
         self.assertTrue(parsed)
         self.assertTrue(all(r.source == "table" for r in parsed))
 
-    def test_the_risk_cleared_on_2026_08_16_no_longer_counts(self):
+    def test_every_cleared_risk_is_dated_and_no_longer_counts(self):
+        """**Whatever** this board has cleared is dated and out of the live set.
+
+        Renamed from `test_the_risk_cleared_on_2026_08_16_no_longer_counts`,
+        which pinned the count (`1`) and the day (`2026-08-16`) that Perry's
+        board happened to hold and had to be edited every time a risk was
+        cleared — a red that meant the board had moved, not that the reader
+        had broken (TASK-404).
+
+        Quantified over the rows rather than counting them, so it is silent
+        about how many there are; the exact count and the exact date live in
+        `TestClearedRisksStopCounting` above, where the fixture owns both.
+        A board with nothing cleared makes this vacuous, which is why the
+        behaviour is asserted there and not only here.
+        """
         parsed = risks(self.text)
-        cleared = [r for r in parsed if r.resolved]
-        self.assertEqual(len(cleared), 1)
-        self.assertEqual(cleared[0].cleared_on, "2026-08-16")
-        self.assertNotIn(cleared[0].id, [r.id for r in parsed if not r.resolved])
+        live = [r.id for r in parsed if not r.resolved]
+        for r in parsed:
+            if not r.resolved:
+                continue
+            with self.subTest(risk=r.id):
+                self.assertRegex(
+                    r.cleared_on, r"^\d{4}-\d{2}-\d{2}$",
+                    f"{r.id} reads as cleared and carries no date — its "
+                    f"`Status` cell is {r.status!r}")
+                self.assertNotIn(
+                    r.id, live,
+                    f"{r.id} is cleared and is still being reported as a live "
+                    f"risk — TASK-040's defect, back")
 
     def test_no_risk_id_is_a_word_from_the_sentence(self):
         for r in risks(self.text):

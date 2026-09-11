@@ -535,18 +535,46 @@ def main(argv: list[str]) -> int:
             with_history = False
         elif arg == "--root":
             i += 1
-            root_arg = argv[i] if i < len(argv) else None
+            if i >= len(argv):
+                # Dropped silently, so the tool measured the cwd instead of the
+                # project the caller named. Found across four tools in one V4
+                # sweep; `bin/perry-lint`'s copy was gating a write.
+                print("perry-state-cost: --root takes a value", file=sys.stderr)
+                return 2
+            # A value that is present but EMPTY is the same defect one layer
+            # in: the tool measured the cwd's repository and named it as the
+            # caller's. The rule and its sentence live in
+            # `lib.empty_root_error`.
+            bad = lib.empty_root_error(arg, argv[i])
+            if bad is not None:
+                print(f"perry-state-cost: {bad}", file=sys.stderr)
+                return 2
+            root_arg = argv[i]
         elif arg == "--at":
             i += 1
-            rev = argv[i] if i < len(argv) else "HEAD"
+            if i >= len(argv):
+                # `else "HEAD"` was worse than `else None`: it silently
+                # substituted a DIFFERENT revision from the one being asked for.
+                print("perry-state-cost: --at takes a value", file=sys.stderr)
+                return 2
+            rev = argv[i]
         elif arg == "--breakdown":
             i += 1
-            if i < len(argv):
-                drill.append(argv[i])
+            if i >= len(argv):
+                print("perry-state-cost: --breakdown takes a value",
+                      file=sys.stderr)
+                return 2
+            drill.append(argv[i])
         elif arg == "--samples":
             i += 1
+            if i >= len(argv):
+                # `else 8` was the `--at` defect again: a missing value
+                # silently answered a DIFFERENT question from the one asked.
+                print("perry-state-cost: --samples takes a value",
+                      file=sys.stderr)
+                return 2
             try:
-                keep = int(argv[i]) if i < len(argv) else 8
+                keep = int(argv[i])
             except ValueError:
                 print(f"perry-state-cost: --samples wants an integer, "
                       f"got {argv[i]!r}", file=sys.stderr)

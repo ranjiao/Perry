@@ -1519,6 +1519,415 @@ class TestTheByteGateCanFail(unittest.TestCase):
         self.assertNotIn("records_not_in_the_file", M.FELL_BACK_TO_COPYING)
 
 
+class TestTheObjectiveIdIsMinted(unittest.TestCase):
+    """DESIGN-009 § 6 step 3 — TASK-183, the mint and the write-back.
+
+    **Every case starts from a store with the ids REMOVED**, not from the
+    store as shipped. `perry/okr.jsonl` carries `O-1` … `O-6` now, so a case
+    that ran `migrate-ids` against a straight copy would be exercising the
+    no-op branch and calling it a mint. `_unminted` puts the store back to
+    what step 2 left — `id: ""` on all ten Objectives, no `objective_id` on
+    any KR — so the mint has something to do and its output is a claim about
+    the mint rather than about the fixture.
+
+    **The gate this row is third for is `test_the_render_gate_still_holds`.**
+    DESIGN-009 § 7 risk 2 orders step 2 before step 3 because an id minted
+    into a record shape that cannot rebuild `OKR.md` is fastened to the wrong
+    thing. `TestTheByteGateCanFail` proves the shape held BEFORE the mint;
+    that case proves it still holds AFTER one, which is the only version of
+    the question this row can answer.
+    """
+
+    #: The two fields the mint writes, and the only two. A case that asserted
+    #: "the store changed" would pass on a mint that also re-dated something,
+    #: which is the TASK-155 failure mode — one appended edge re-stamped 115
+    #: linkage records through `declared_at`.
+    MINTED_FIELDS = ("id", "objective_id")
+
+    def _unminted(self, project) -> list[dict]:
+        """The store as step 2 left it: no Objective id, no `objective_id`."""
+        records = project.okr_records()
+        for rec in records:
+            if rec.get("kind") == "objective":
+                rec["id"] = ""
+            elif rec.get("kind") == "kr":
+                rec.pop("objective_id", None)
+        project.write_okr_records(records)
+        return records
+
+    def _project(self):
+        p = Project(self).copy_the_real_stores()
+        self._unminted(p)
+        return p
+
+    def _titles_to_ids(self, records: list[dict]) -> dict:
+        return {r["title"]: r["id"] for r in records
+                if r.get("kind") == "objective"}
+
+    def test_the_render_gate_still_holds_after_the_mint(self):
+        """**The reason this step is third.** § 6 step 2's bar, re-asked.
+
+        Not `identical: true` alone — that is satisfied by a file reproducing
+        itself, which is the vacuity TASK-182 measured and fixed. The bar is
+        `every_line_and_cell_came_from_the_store`, and `diff` exits 3 rather
+        than 0 when the bytes match for the wrong reason.
+        """
+        p = self._project()
+        before = p.okr_text()
+        proc = p.okr("migrate-ids")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+        diff = p.okr("diff")
+        self.assertEqual(diff.returncode, 0,
+                         f"the render gate broke on a minted store: "
+                         f"stdout={diff.stdout}\nstderr={diff.stderr}")
+        out = json.loads(diff.stdout)
+        self.assertIs(out["identical"], True)
+        self.assertIs(out["every_line_and_cell_came_from_the_store"], True,
+                      "the store stopped being what produced OKR.md once an "
+                      "id was minted into it")
+        self.assertEqual(out["cells_verbatim"], {})
+        self.assertEqual(out["lines_verbatim"], [])
+        self.assertEqual(out["records_not_in_the_file"], [])
+        self.assertEqual(out["kinds"]["objective"], 10)
+
+        # And the render itself, byte for byte, out of the minted store.
+        rendered = p.okr("render")
+        self.assertEqual(rendered.returncode, 0, rendered.stderr)
+        self.assertEqual(rendered.stdout, before,
+                         "OKR.md is no longer rebuilt byte-for-byte from the "
+                         "store once the ids are in it")
+
+    def test_the_mint_writes_the_store_and_leaves_okr_md_alone(self):
+        """DESIGN-009 decision 2 — **store only**, no column, no anchor.
+
+        The id is invisible to every consumer until step 4 publishes it, and
+        the way that is true is that `OKR.md` does not change. Asserted on the
+        bytes of the file rather than on the absence of a column, because a
+        renderer that grew one would still have no column NAMED `id`.
+        """
+        p = self._project()
+        before = p.okr_text()
+        self.assertEqual(p.okr("migrate-ids").returncode, 0)
+        self.assertEqual(p.okr_text(), before,
+                         "the mint rewrote OKR.md; decision 2 puts the id in "
+                         "the store ONLY")
+        self.assertNotIn("O-1", p.okr_text(),
+                         "a minted id reached OKR.md")
+        # The store, on the other hand, did change — otherwise the assertion
+        # above passes on a command that did nothing at all.
+        self.assertEqual(
+            {r["id"] for r in p.okr_records() if r["kind"] == "objective"},
+            {"O-1", "O-2", "O-3", "O-4", "O-5", "O-6"})
+
+    def test_only_the_two_id_fields_move(self):
+        """The TASK-155 hazard: a store rewrite that re-dates what it touches.
+
+        `okr.jsonl` carries no `declared_at`, so the shape that bit there
+        cannot recur in the same form here — which is exactly why this is
+        asserted per FIELD over every record rather than trusted. A mint that
+        also renumbered `order`, or rewrote a `version` row's `date`, would be
+        the same defect wearing this file's fields.
+        """
+        p = self._project()
+        before = p.okr_records()
+        self.assertEqual(p.okr("migrate-ids").returncode, 0)
+        after = p.okr_records()
+        self.assertEqual(len(before), len(after),
+                         "the mint added or dropped a record")
+        moved: dict[str, int] = {}
+        for was, now in zip(before, after):
+            for field in set(was) | set(now):
+                if was.get(field) != now.get(field):
+                    moved[field] = moved.get(field, 0) + 1
+        self.assertEqual(sorted(moved), sorted(self.MINTED_FIELDS),
+                         f"the mint moved a field it has no business in: "
+                         f"{moved}")
+        self.assertEqual(moved["id"], 10)
+        self.assertEqual(moved["objective_id"], 38)
+
+    def test_running_it_twice_renumbers_nothing_and_duplicates_nothing(self):
+        """§ 7 risk 1 — "the mint runs twice and an Objective gets two ids".
+
+        **Asserted on the store's bytes**, not on the report's counter. A mint
+        that renumbered a group and happened to reuse the same numbers
+        elsewhere would print `minted: []` on the second run and still have
+        rewritten the file; comparing bytes cannot be satisfied that way.
+        """
+        p = self._project()
+        self.assertEqual(p.okr("migrate-ids").returncode, 0)
+        once = (p.root / "perry" / "okr.jsonl").read_text(encoding="utf-8")
+        first = self._titles_to_ids(p.okr_records())
+
+        proc = p.okr("migrate-ids", "--json")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        twice = (p.root / "perry" / "okr.jsonl").read_text(encoding="utf-8")
+        self.assertEqual(twice, once,
+                         "a second migrate-ids rewrote the store — the mint "
+                         "is not idempotent")
+        report = json.loads(proc.stdout)
+        self.assertEqual(report["minted"], [])
+        # **`reused` must be empty too, and mutation is why it is asserted.**
+        # Dropping pass two's "this record already has an id, skip it" guard
+        # leaves the STORE byte-identical — pass one seeded the title→id map,
+        # so every record resolves to the id it already holds — and the run
+        # reports all ten Objectives as freshly reused. A no-op run that says
+        # it did ten things is a report nobody can act on, and it is the only
+        # place that mutation is visible at all.
+        self.assertEqual(report["reused_by_a_later_version"], [],
+                         "a second run reported work on a store it did not "
+                         "change")
+        self.assertIs(report["store_unchanged"], True)
+        self.assertIs(report["wrote"], False)
+        self.assertEqual(self._titles_to_ids(p.okr_records()), first)
+        # No id is held by two Objectives, and no Objective by two ids.
+        ids = [r["id"] for r in p.okr_records() if r["kind"] == "objective"]
+        self.assertEqual(len(set(ids)), len(first),
+                         "an Objective was minted a second id")
+
+    def test_a_later_mint_continues_the_numbering_and_reuses_what_is_there(
+            self):
+        """The half of idempotence a second identical run cannot see.
+
+        **Found by mutation.** Deleting pass one — the loop that seeds the
+        title→id map and `highest` from the ids ALREADY in the store — leaves
+        `test_running_it_twice_…` green, because pass two's own "this record
+        has an id, skip it" guard is what makes a second run over an
+        all-minted store a no-op. Pass one earns its keep on the store that is
+        PARTLY minted, which is the shape every future run has: `## v4` lands,
+        `perry-okr write --from-file` mints its `objective` records with empty
+        ids beside nine that are answered, and this command runs again.
+
+        Without pass one that run restarts at `O-1` — handing the new
+        Objective an id another one already holds — and mints a second address
+        for a title that already has one. Both are § 7 risk 1's blast radius,
+        reached on the run nobody thinks of as "the mint".
+        """
+        p = self._project()
+        self.assertEqual(p.okr("migrate-ids").returncode, 0)
+        first = self._titles_to_ids(p.okr_records())
+        self.assertEqual(len(first), 6, "the fixture moved")
+
+        # A fourth version block: one Objective it repeats, one that is new.
+        records = p.okr_records()
+        repeated = next(r for r in records if r["kind"] == "objective")
+        order = max(r["order"] for r in records
+                    if r["kind"] == "objective" and r["order"] is not None)
+        records += [
+            {"kind": "objective", "id": "", "version": "v4: 2026-10-01",
+             "title": repeated["title"],
+             "heading": f"Objective 1 — {repeated['title']}",
+             "order": order + 1},
+            {"kind": "objective", "id": "", "version": "v4: 2026-10-01",
+             "title": "A goal no earlier version stated",
+             "heading": "Objective 2 — A goal no earlier version stated",
+             "order": order + 2},
+        ]
+        p.write_okr_records(records)
+
+        proc = p.okr("migrate-ids", "--json")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        report = json.loads(proc.stdout)
+        after = {(r["version"], r["title"]): r["id"] for r in p.okr_records()
+                 if r["kind"] == "objective"}
+
+        # 1. Nothing that already had an id moved.
+        for (version, title), ident in after.items():
+            if version != "v4: 2026-10-01":
+                self.assertEqual(ident, first[title],
+                                 f"{title!r} was renumbered by a later mint")
+        # 2. The repeated Objective reuses the id it already has.
+        self.assertEqual(after[("v4: 2026-10-01", repeated["title"])],
+                         first[repeated["title"]],
+                         "a repeated Objective was minted a SECOND id — "
+                         "every link to it has now split")
+        # 3. The new one continues the numbering rather than restarting it.
+        new = after[("v4: 2026-10-01", "A goal no earlier version stated")]
+        self.assertEqual(new, "O-7",
+                         f"the mint gave a new Objective {new!r}; it reads "
+                         f"the highest existing id and adds one")
+        self.assertNotIn(new, set(first.values()),
+                         "a new Objective was minted an id another one holds")
+        self.assertEqual([m["id"] for m in report["minted"]], ["O-7"])
+
+    def test_the_ids_follow_the_stores_own_order_not_the_line_order(self):
+        """Deliverable 3 — "the ids are stable under the store's own ordering".
+
+        `order` is the field this module writes so that a reshuffled FILE is
+        not a reshuffled STORE. So the same records, with the same `order`
+        values, written to disk in a different sequence, must mint the same
+        ids. A mint that walked the list would give the reversed store
+        `O-1` for what the shipped store calls `O-5`.
+        """
+        straight = self._project()
+        self.assertEqual(straight.okr("migrate-ids").returncode, 0)
+        expected = self._titles_to_ids(straight.okr_records())
+
+        shuffled = self._project()
+        records = shuffled.okr_records()
+        objectives = [r for r in records if r["kind"] == "objective"]
+        rest = [r for r in records if r["kind"] != "objective"]
+        # Reversed, and every `order` value carried along untouched — the
+        # store still STATES the same sequence, only the lines moved.
+        shuffled.write_okr_records(list(reversed(objectives)) + rest)
+        self.assertEqual(shuffled.okr("migrate-ids").returncode, 0)
+        self.assertEqual(self._titles_to_ids(shuffled.okr_records()), expected,
+                         "the ids depend on the order the lines happen to sit "
+                         "in, which is the one thing `order` exists to stop "
+                         "being load-bearing")
+
+    def test_one_objective_across_two_versions_is_one_id(self):
+        """§ 5.2 — the id survives "a new `OKR.md` version that repeats it".
+
+        `perry/okr.jsonl` holds TEN `objective` records for six Objectives,
+        because `OKR.md` carries `## v2` and `## v3` side by side. The store
+        already works this way for the kind next door: `O4-KR1` is ONE id on
+        two `kr` records, told apart by `version` — § 7 risk 3's "`version` is
+        part of the record, not part of the id".
+
+        Minting per RECORD would hand "aiMark manages projects through Perry"
+        — the Objective DESIGN-009 is itself filed under — two addresses, and
+        split every link to it. That is risk 1's blast radius reached by a
+        different road, so it is asserted against here rather than left to the
+        count of ids happening to look right.
+        """
+        p = self._project()
+        self.assertEqual(p.okr("migrate-ids").returncode, 0)
+        objectives = [r for r in p.okr_records() if r["kind"] == "objective"]
+        self.assertEqual(len(objectives), 10, "the fixture moved")
+
+        by_title: dict[str, set] = {}
+        for rec in objectives:
+            by_title.setdefault(rec["title"], set()).add(rec["id"])
+        repeated = {t: v for t, v in by_title.items()
+                    if sum(1 for r in objectives if r["title"] == t) > 1}
+        self.assertTrue(repeated,
+                        "no Objective is repeated across versions in this "
+                        "fixture, so this case is measuring nothing")
+        for title, ids in repeated.items():
+            self.assertEqual(len(ids), 1,
+                             f"{title!r} appears in two version blocks and "
+                             f"carries {sorted(ids)} — one Objective, two "
+                             f"addresses")
+        # And two DIFFERENT Objectives never share one.
+        self.assertEqual(len({next(iter(v)) for v in by_title.values()}),
+                         len(by_title),
+                         "two distinct Objective titles were minted the same "
+                         "id — an ordinal-shaped mint, which decision 1 calls "
+                         "the trap")
+
+    def test_every_kr_carries_the_id_of_the_objective_above_it(self):
+        """Decision 4 — `objective` keeps the title and GAINS `objective_id`.
+
+        The join is asserted per record against the `objective` record it
+        names, not against a count: a mint that wrote every KR the same id
+        would satisfy "all 38 answered" and be wrong for 30 of them.
+        """
+        p = self._project()
+        self.assertEqual(p.okr("migrate-ids").returncode, 0)
+        records = p.okr_records()
+        heading_id = {(r["version"], r["heading"]): r["id"]
+                      for r in records if r["kind"] == "objective"}
+        krs = [r for r in records if r["kind"] == "kr"]
+        self.assertEqual(len(krs), 38, "the fixture moved")
+        for kr in krs:
+            with self.subTest(kr["id"], version=kr["version"]):
+                # Decision 4's first half: the title is still there, whole.
+                self.assertTrue(kr["objective"].startswith("Objective "),
+                                "krs[].objective stopped carrying the heading")
+                self.assertEqual(
+                    kr["objective_id"],
+                    heading_id.get((kr["version"], kr["objective"])),
+                    "this KR's objective_id is not the id of the Objective "
+                    "record its own heading names")
+                self.assertTrue(kr["objective_id"],
+                                "a KR was left with no objective_id")
+
+    def test_an_id_this_tool_cannot_read_is_refused_by_name(self):
+        """"Read the highest existing and add one" has no answer otherwise.
+
+        Minting `O-1` beside a hand-written `O1` is how a store comes to hold
+        two ids for one Objective — silently, and in the direction nothing
+        checks. The refusal names the record.
+        """
+        p = self._project()
+        records = p.okr_records()
+        for rec in records:
+            if rec["kind"] == "objective":
+                rec["id"] = "O1"          # the KR-id ordinal, not `O-<n>`
+                break
+        p.write_okr_records(records)
+        before = (p.root / "perry" / "okr.jsonl").read_text(encoding="utf-8")
+
+        proc = p.okr("migrate-ids")
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("O1", proc.stderr)
+        self.assertIn("O-<n>", proc.stderr)
+        self.assertEqual(
+            (p.root / "perry" / "okr.jsonl").read_text(encoding="utf-8"),
+            before, "the store was written despite the refusal")
+
+    def test_two_untitled_headings_are_refused_rather_than_merged(self):
+        """A heading that is only its ordinal has nothing to be grouped BY.
+
+        **Measured before the guard existed.** Two `objective` records with
+        headings `Objective 1` and `Objective 2` — `objective_title` returns
+        `""` for both, deliberately, because a guess would be worse — came
+        back from `mint_objective_ids` as `['O-1', 'O-1']`: two Objectives,
+        one address, and nothing that would show it. `perry-okr diff` stays
+        green either way, because decision 2 keeps the id out of `OKR.md`
+        entirely, so no byte comparison anywhere can catch this.
+
+        Falling back to `heading` for these would key them on the `Objective
+        <N>` ordinal — the position-derived handle `§ Not here` refuses — so
+        the refusal is the answer, and it names the headings.
+        """
+        untitled = [
+            {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+             "title": "", "heading": "Objective 1", "order": 0},
+            {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+             "title": "", "heading": "Objective 2", "order": 1},
+        ]
+        with self.assertRaises(M.Refused) as caught:
+            M.mint_objective_ids(untitled)
+        self.assertIn("Objective 1", str(caught.exception))
+        self.assertIn("Objective 2", str(caught.exception))
+
+        # And through the command line, on a store carrying one: refused,
+        # nothing written.
+        p = self._project()
+        records = p.okr_records()
+        records[0]["title"] = ""
+        p.write_okr_records(records)
+        before = (p.root / "perry" / "okr.jsonl").read_text(encoding="utf-8")
+        proc = p.okr("migrate-ids")
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("no title", proc.stderr)
+        self.assertEqual(
+            (p.root / "perry" / "okr.jsonl").read_text(encoding="utf-8"),
+            before, "the store was written despite the refusal")
+
+    def test_the_shipped_store_carries_an_id_for_every_objective(self):
+        """The migration RAN — on `perry/okr.jsonl` as this repository ships it.
+
+        Every case above builds its own starting point, so all eight would
+        stay green on a repository where `migrate-ids` was written and never
+        invoked. This one reads the file on disk, which is the deliverable.
+        """
+        records = M.load_store(ROOT / "perry" / "okr.jsonl")
+        objectives = [r for r in records if r["kind"] == "objective"]
+        self.assertTrue(objectives, "no objective records to check")
+        for rec in objectives:
+            with self.subTest(rec["heading"], version=rec["version"]):
+                self.assertRegex(rec["id"], r"^O-[1-9][0-9]*$",
+                                 "DESIGN-009 step 3 did not run on this store")
+        for rec in (r for r in records if r["kind"] == "kr"):
+            with self.subTest(rec["id"], version=rec["version"]):
+                self.assertRegex(rec.get("objective_id", ""),
+                                 r"^O-[1-9][0-9]*$",
+                                 "this KR carries no objective_id")
+
+
 class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(
         unittest.TestCase):
     """V4 step 5 — the contract `perry-tasks diff` gives the board.

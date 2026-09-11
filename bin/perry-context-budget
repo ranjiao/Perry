@@ -67,6 +67,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lib  # noqa: E402
+
 #: Fallback when the schema cannot be read. The schema is the one place this
 #: number is declared; this constant exists so a project vendoring the tool
 #: without the schema still gates rather than crashing.
@@ -114,7 +117,15 @@ def declared_ceiling(project_root: Path) -> tuple[str | None, str]:
     that is not a Perry project at all.
     """
     store = project_root / ".perry" / "config.jsonl"
-    if store.exists():
+    try:
+        present = store.exists()
+    except OSError:
+        # Unsearchable parent: `Path.exists()` raises instead of answering.
+        # The docstring above says this tool must keep working in a directory
+        # that is not a Perry project, and a directory it may not look inside
+        # is the same answer as one with no store — the defaults stand.
+        present = False
+    if present:
         for raw in store.read_text(errors="replace").split("\n"):
             raw = raw.strip()
             if not raw:
@@ -351,6 +362,17 @@ def main(argv=None) -> int:
     if args.help:
         print(__doc__.strip())
         return 0
+
+    # **`--root ""` is a bad invocation, not a default.** `args.root or
+    # $PERRY_PROJECT or cwd` below tests truthiness, so an empty value — the
+    # shape an unset shell variable produces — silently moved this gate onto
+    # whichever project the caller was standing in. The rule and its sentence
+    # live in `lib.empty_root_error`, which is where the other thirteen
+    # `--root` readers ask too.
+    bad = lib.empty_root_error("--root", args.root)
+    if bad is not None:
+        print(f"perry-context-budget: {bad}", file=sys.stderr)
+        return 2
 
     perry_home = Path(os.environ.get("PERRY_HOME", Path(__file__).resolve().parent.parent))
     project_root = Path(args.root or os.environ.get("PERRY_PROJECT") or Path.cwd())
