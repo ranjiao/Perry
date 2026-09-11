@@ -10,6 +10,16 @@
 > **No board row was filed by this round.** Findings are below; which of them
 > clear `review.md § 0`'s bar is named in § 0 and left to the PMO.
 
+**Every line number in this document is at `076ae21a`.** While the round ran,
+another session landed `8a8daae3` on `main` (TASK-340), which touches
+`bin/perry-lint`, `tests/test_handed_back_root.py` and — worth knowing for
+TASK-348's reader — `perry/design/DESIGN-014-how-much-python.md`, the design
+that row measures. It shifts `bin/perry-lint` by **+8 lines**: the
+`_JSONL_STORE_LABEL` I mutated is `4687` at my base and `4695` on `main` today.
+Anyone re-running my mutations must check out `076ae21a` or re-anchor, which is
+the same lesson TASK-348's own Bound teaches — a measurement belongs to a
+commit, not to a file name.
+
 ## Baseline, taken in this worktree before any mutation
 
 `bash tests/run` on `076ae21a`, clean tree, exit 1:
