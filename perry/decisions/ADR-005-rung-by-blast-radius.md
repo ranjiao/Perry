@@ -1,10 +1,10 @@
 # ADR-005 — V4 is for what runs on someone else's project
 
-> Status: active
+> Status: superseded
 > Type: Process
 > Date: 2026-08-17
 > Deciders: Ran Jiao
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: ADR-020
 > Sunset: —
 
 ## Context

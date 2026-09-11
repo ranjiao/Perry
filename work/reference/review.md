@@ -74,10 +74,34 @@ It is what the row can do when it is wrong.
   is re-derived by whoever next needs it, and a stale number announces itself in
   a way a latent defect does not.
 
-**Below that line the rung is V3, and that is the default rather than a
-concession**: *a reproducible run — command, inputs, output, re-runnable,
-attested by a script*. **159 of this board's 209 closures are already V3**; V4
-is 40. The bloat is not in the record, it is in what a session reaches for.
+**Below that line the floor is V2, and the gate above it is one question:
+did this row touch a write path or `schema/state-schema.json`?** Set by the
+user on 2026-09-11, superseding `ADR-005`'s table.
+
+- **No** → **V2**: *a structural check — a linter over required sections,
+  schema and format, attested by a script*. Most rows land here.
+- **Yes** → **V3 or above**, and the three questions above choose which:
+  V3 by default (*a reproducible run — command, inputs, output, re-runnable*),
+  V4 when a defect answers yes to one of them, V5 for `.perry/hook.md
+  § High-stakes operations`.
+
+A **write path** is any code that puts bytes on disk that a user would lose:
+the task, config, OKR, linkage, risk, intake and ask store writers, the journal
+and event appenders, and every renderer with a `--write`. Reading code is not a
+write path even when it publishes a number.
+
+**What this costs, measured before it was adopted, because the cost is real
+and lands in one place.** V2 is a *linter* pass, not a suite run. Of the ten
+rows closed on 2026-09-11, nine touched no write path and no schema, so nine
+would be V2 — including `TASK-437`, where `perry-goals` computed every KR's
+progress from **156 of 429** task records and published a plausible number.
+`perry-lint` reported **0 errors** for the whole life of that defect, so V2
+could not have caught it by construction. **A read path that publishes a wrong
+number has no automatic gate under this rule.** That is the trade: the rounds
+are bought back from a category that burned 74 of them on 20 rows, and the
+exposure moves to readers. If a second read-path defect ships and is found by a
+user rather than by us, that is the signal to revisit — one instance is an
+anecdote, a second is a mispriced trade.
 
 **The asymmetry is deliberate and stays.** Raising a rung is cheap and
 reversible; lowering one is neither, because **the round you did not run leaves

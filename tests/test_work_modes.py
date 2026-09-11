@@ -795,8 +795,27 @@ class TestInquiryHasDataForEveryControl(unittest.TestCase):
         idf = next(f for f in k["header_fields"] if f["name"] == "Id")
         self.assertEqual(idf["pattern"], r"SRC-\d+")
 
-    def test_inquiry_default_rung_is_v4(self):
-        self.assertEqual(SCHEMA["work_modes"]["modes"]["inquiry"]["default_rung"], "V4")
+    def test_every_mode_starts_at_the_floor(self):
+        """**Changed 2026-09-11 with the rung rule, and the old name is the
+        point.** This asserted `inquiry` starts at V4, and three sibling modes
+        started at V3, V5 and V2 by the same table — `ADR-005`'s, where the
+        mode was a proxy for how much a defect in it could cost.
+
+        `ADR-020` replaced that proxy with a question a mode cannot answer:
+        did the row touch a write path or `schema/state-schema.json`? A mode
+        default is chosen before any row exists, so it can only be the floor,
+        and `review.md § 0` raises it per row. All four now start at V2.
+
+        Asserted over every declared mode rather than one, because four
+        separate assertions of four different values are how the old table
+        outlived the decision that set it — only `inquiry`'s was ever pinned,
+        so changing `project` from V3 broke nothing and said nothing.
+        """
+        modes = SCHEMA["work_modes"]["modes"]
+        self.assertTrue(modes, "no modes declared")
+        for name, spec in modes.items():
+            with self.subTest(mode=name):
+                self.assertEqual(spec["default_rung"], "V2", name)
 
     def test_inquiry_calendar_stays_advisory(self):
         """A deadline on a question produces a confident answer, not a correct
