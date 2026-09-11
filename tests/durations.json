@@ -429,6 +429,10 @@
       "sec": 10.64,
       "source": "2026-09-09-085824"
     },
+    "test_store_population_agrees.py": {
+      "sec": 1.0,
+      "source": "2026-09-11-task437"
+    },
     "test_stranded_rows.py": {
       "sec": 10.32,
       "source": "2026-09-09-085824"
@@ -514,6 +518,13 @@
       "ref": "38f889e43bbe792270cd5902d0e5d16e28305c1e",
       "taken": "2026-09-09T08:58:24Z",
       "workers": 8
+    },
+    "2026-09-11-task437": {
+      "load1": null,
+      "note": "ONE module, timed alone three times and recorded at the median (1.18/0.97/1.00s). Deliberately not a `tests/parallel --record -j 8` sweep: re-measuring 128 neighbours to land one entry is the substitution TASK-304's bound names, and a figure taken at a different load than the numbers it will be sorted against is worse than a stamped single-module reading. `load1` is null because nothing sampled it, which is a different fact from a load of zero.",
+      "ref": "96fd27b808439b9f8055a694c9fb97ffe0cfba2f",
+      "taken": "2026-09-11T00:00:00Z",
+      "workers": 1
     }
   }
 }
