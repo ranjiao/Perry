@@ -35,6 +35,7 @@ sys.path.insert(0, str(PERRY_HOME / "bin"))
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 
 import inproc  # noqa: E402
+import surface_reads  # noqa: E402
 from task_writer_support import Project  # noqa: E402
 import lib  # noqa: E402
 
@@ -45,6 +46,39 @@ PERRY = BIN / "perry"
 #: undeclared rather than hiding them, and this list is what C1 has converted.
 DECLARED = ("perry-task", "perry-tasks", "perry-okr", "perry-config",
             "perry-state", "perry-diagnose")
+
+
+def _tools_with_a_surface() -> list[str]:
+    """Every executable in `bin/` that declares a `SURFACE`, off the directory.
+
+    `DECLARED` above is the list C1 converted and is asserted against THIS, so
+    a seventh tool that grows a declaration joins the population by existing
+    rather than by somebody remembering to type its name. TASK-411: this
+    repository has been bitten repeatedly by a guard that hard-codes what it
+    should discover.
+    """
+    out = []
+    for path in sorted(BIN.iterdir()):
+        if not path.is_file() or path.suffix in (".md", ".json", ".pyc"):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        # The textual pass first, so this does not import all eighteen tools
+        # to ask six of them a question. A tool whose declaration is BUILT
+        # rather than written out is still caught — `bin/perry-okr` is
+        # `SURFACE = store.surface(store.OKR)` — because what is matched is the
+        # binding and not its right-hand side.
+        if not re.search(r"^SURFACE\s*=", text, re.M):
+            continue
+        try:
+            mod = inproc.load(path.name)
+        except Exception:                                # noqa: BLE001
+            continue
+        if isinstance(getattr(mod, "SURFACE", None), dict):
+            out.append(path.name)
+    return out
 
 
 def run(tool: str, *argv: str) -> subprocess.CompletedProcess:
@@ -59,6 +93,17 @@ def surface(tool: str) -> dict:
 
 
 class TestEveryDeclarationIsWellFormed(unittest.TestCase):
+
+    def test_declared_is_every_tool_that_declares(self):
+        """`DECLARED` is a list, so it can fall behind `bin/`.
+
+        A seventh tool that grows a `SURFACE` and is not typed in above would
+        be checked by nothing in this module — well-formedness, both dispatch
+        directions, the usage block, `--describe`, all of it — and the suite
+        would stay green because every case iterates the list. So the list is
+        held against the directory (TASK-411).
+        """
+        self.assertEqual(sorted(DECLARED), _tools_with_a_surface())
 
     def test_check_surface_finds_nothing(self):
         for tool in DECLARED:
@@ -313,6 +358,272 @@ class TestPerryTaskDeclaresTheFlagsItsHandlersRead(unittest.TestCase):
         """The control: if `_reads` returned nothing the case above would pass
         for every subcommand and prove nothing."""
         self.assertIn("title", self._reads(self.funcs["cmd_add"]))
+
+
+class TestTheChainToolsDeclareTheFlagsTheirBranchesRead(unittest.TestCase):
+    """TASK-411 — the same two directions, for every tool that is NOT
+    `perry-task`.
+
+    `134afea6` closed both on `perry-task` and left the rest, because each
+    dispatches differently: `perry-tasks` and `perry-config` are `if cmd == …`
+    chains in `main`, and `perry-okr` runs `bin/perry_md_store.py`, whose
+    declaration is built by a FUNCTION of the document rather than written as a
+    literal. Measured then: direction B planted on all six declaring tools at
+    once and **3,440 tests stayed green**, while `perry-task start TASK-001
+    --rung V4` exited 0, printed `wrote TASK-001 (start)` and stored
+    `rung=None`; and `--wip` dropped from `perry-config track`'s declared flags
+    while `bin/perry-config` still read it left the suite at baseline.
+
+    **One reader, not four.** `tests/surface_reads.py` derives the answer for
+    all three chain bodies from the one thing they have in common: they read a
+    flag by its literal spelling out of the `lib.parse_surface` result, so
+    "does this subcommand read this flag" is "can that spelling reach code this
+    subcommand runs". Four readers invented at once is how a guard ends up
+    wrong in a way nobody checks, so the shape is held here by its own numbers:
+    the population is derived, the over-report is measured and bounded, and the
+    escape hatch is empty.
+
+    `perry-state` and `perry-diagnose` are not here and are not excluded by
+    name: they declare zero subcommands, so `is_chain_tool` does not select
+    them, and `test_every_declaring_tool_is_read_by_one_of_the_two_readers`
+    says what that leaves.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tools = []
+        for tool in _tools_with_a_surface():
+            mod = inproc.load(tool)
+            if surface_reads.is_chain_tool(tool, BIN, mod):
+                reads, only, path = surface_reads.flags_read(tool, BIN, mod)
+                cls.tools.append((tool, mod, reads, only, path))
+
+    def _pairs(self):
+        """`(tool, subcommand, declared flags, reads, exclusive reads)`.
+
+        Derived from each tool's own declaration — no list of subcommands is
+        written down here, because a guard that hard-codes what it should
+        discover is a guard against the rows that already had the bug.
+
+        The flags every subcommand takes come off all three sets, not just off
+        the declared one. `lib.always_accepted` is the answer to "this flag is
+        honoured in `main`, for everything" — `--root`, `--json` on
+        `perry-config` — and a direction that counted those as read by one
+        subcommand and declared by none would report every subcommand of every
+        tool.
+        """
+        for tool, mod, reads, only, _path in self.tools:
+            face = mod.SURFACE
+            universal = lib.always_accepted(face) | {"--root"}
+            for sub in face["subcommands"]:
+                name = sub["name"]
+                yield (tool, name, set(sub.get("flags", ())) - universal,
+                       set(reads[name]) - universal,
+                       set(only[name]) - universal)
+
+    def test_every_flag_it_declares_for_a_subcommand_is_read_under_that_subcommand(self):
+        """Direction B: a declared flag no branch of this subcommand consults.
+
+        It is accepted, silently dropped, and published by `--describe` as part
+        of that subcommand's contract — DESIGN-016 § 1.4's shape, and the
+        complaint the whole design was opened on. The permissive read set is
+        the right one here: `perry-tasks build --register` is consulted once,
+        in a prologue all seventeen subcommands run, and it is honoured there.
+        """
+        for tool, name, declared, reads, _only in self._pairs():
+            with self.subTest(tool=tool, sub=name):
+                unread = sorted(declared - reads
+                                - self.INDIRECT.get((tool, name), set()))
+                self.assertEqual(
+                    unread, [],
+                    f"{tool} {name} declares {unread}, no code this "
+                    f"subcommand can reach reads them, and the parser accepts "
+                    f"them anyway")
+
+    def test_every_flag_only_this_subcommand_reads_is_declared_by_it(self):
+        """Direction A: the parser refuses a flag the handler wants.
+
+        **Exclusive reads, and that is the whole of the difference.** A flag
+        consulted in code several subcommands share says nothing about which of
+        them wants it — `cmd_risks_render`'s storeless branch tests
+        `write_board` for `risks-render` and `risks-diff` alike, and only the
+        first declares `--write`. Asserting the permissive set would demand
+        fifteen exemptions on an unmutated tree, which is a table of fifteen
+        holes. Asserting the exclusive set asks the question that has an
+        answer: there is code ONLY this subcommand runs, it consults this flag,
+        and the declaration does not carry it.
+        """
+        for tool, name, declared, _reads, only in self._pairs():
+            with self.subTest(tool=tool, sub=name):
+                missing = sorted(only - declared)
+                self.assertEqual(
+                    missing, [],
+                    f"{tool} {name} reads {missing} in code no other "
+                    f"subcommand runs and does not declare them, so the "
+                    f"parser refuses what the handler wants")
+
+    #: Flags a subcommand genuinely honours through a path `surface_reads`
+    #: cannot follow — a `getattr`, a table built at runtime, a helper deeper
+    #: than `MAX_DEPTH`. **Each entry is a hole in direction B**, keyed
+    #: `(tool, subcommand)`, and each one must name the line that does the
+    #: reading; an entry with no such line is a defect being waved through.
+    #: `perry-task`'s equivalent is empty and so is this.
+    INDIRECT: dict = {}
+
+    def test_the_escape_hatch_is_empty(self):
+        """A hatch nobody has to argue for fills up.
+
+        A case that iterated `INDIRECT` and checked the shape of each entry
+        would be a loop over nothing today and would keep passing as entries
+        arrived. This asserts the emptiness instead, so adding the first entry
+        means editing this case and writing down here why the walk cannot see
+        that read — which is the argument the entry needs and the commit
+        message is not the place for.
+        """
+        self.assertEqual(
+            self.INDIRECT, {},
+            "an exemption was added to direction B; say here which line does "
+            "the reading and why `surface_reads` cannot follow it")
+
+    def test_the_derivation_does_not_call_every_declared_flag_read(self):
+        """The control that matters most, and it is a NUMBER.
+
+        A reader that answers "read" for every pair makes direction B vacuous —
+        it would pass with every declaration in the repository doubled. So the
+        census is run here rather than quoted from a review: over the whole
+        `(subcommand, flag)` universe of the chain tools, what fraction does
+        the derivation call read? Measured on `488cf079`: **63 of 149 pairs,
+        42.3%**, against a declaration carrying 48 and a vacuous reader's 149.
+
+        The bound is deliberately loose — this is a wall, not a thermometer.
+        A derivation that drifted to calling three quarters of the universe
+        read has stopped discriminating, whatever else it still passes.
+        """
+        universe = claimed = declared = 0
+        for tool, mod, reads, _only, _path in self.tools:
+            face = mod.SURFACE
+            universal = lib.always_accepted(face) | {"--root"}
+            flags = sorted(set(lib.surface_flags(face)) - universal)
+            self.assertTrue(flags, f"{tool} declares no flags of its own")
+            for sub in face["subcommands"]:
+                decl = set(sub.get("flags", ())) - universal
+                for flag in flags:
+                    universe += 1
+                    claimed += flag in reads[sub["name"]]
+                    declared += flag in decl
+        self.assertGreater(universe, 100,
+                           "the universe collapsed, so the ratio below is "
+                           "about nothing")
+        self.assertLess(claimed / universe, 0.75,
+                        f"the derivation calls {claimed} of {universe} pairs "
+                        f"read; at that rate direction B cannot fail")
+        self.assertGreaterEqual(
+            claimed, declared,
+            f"the derivation finds {claimed} reads against {declared} declared "
+            f"pairs — fewer reads than declarations means direction B is "
+            f"failing above, not that this control is wrong")
+
+    def test_the_pairs_direction_b_cannot_see_are_all_shared_reads(self):
+        """Direction B's blind spot, measured and ratcheted.
+
+        A pair the derivation calls read and the declaration does not carry is
+        a pair direction B could not fail on: adding that flag to that
+        subcommand would pass. **15 such pairs on `488cf079`**, all
+        `perry-tasks` — `--register`, consulted in the prologue all seventeen
+        subcommands run, and `--write` on the three `*-diff` verbs, whose
+        `cmd_*_render` tests `write_board` in its storeless branch before it
+        looks at `byte_compare`.
+
+        **None of the fifteen is § 1.4's defect, and that is checkable rather
+        than asserted.** The blind pairs are exactly the ones where the tool
+        does consult the flag, so declaring one gets it honoured or refused out
+        loud — not accepted and dropped. Probed 2026-09-11: `--register` added
+        to `risks-build`'s declaration, then `perry-tasks risks-build
+        --register intake` → exit 2, `the 'intake' register has no
+        'risks-build' — it takes build, diff, render, write.`
+
+        The count is a ceiling, not a record. A refactor that moved a flag's
+        only reader into shared code would raise it, and the point of the
+        number is that such a move has to be argued for.
+        """
+        blind = []
+        for tool, name, declared, reads, only in self._pairs():
+            for flag in sorted(reads - declared):
+                blind.append((tool, name, flag))
+                self.assertNotIn(
+                    flag, only,
+                    f"{tool} {name} reads {flag} where no other subcommand "
+                    f"goes and does not declare it — direction A is failing "
+                    f"above, not this")
+        self.assertLessEqual(
+            len(blind), 15,
+            f"direction B is now blind on {len(blind)} pairs, up from the 15 "
+            f"measured on 488cf079: {blind}")
+
+    def test_the_derivation_finds_what_the_source_plainly_reads(self):
+        """The other control: `_reads` returning nothing would pass direction B
+        for every subcommand and prove nothing.
+
+        Three reads, one per chain body, each a line anyone can check:
+        `bin/perry-config § main` builds `track_values` from `TRACK_FLAGS`;
+        `bin/perry_md_store § main` tests `"--from-file" not in seen` under
+        `write`; `bin/perry-tasks § main` tests `"--from-board" not in argv`
+        under `write`.
+        """
+        got = {(tool, name): reads
+               for tool, name, _d, reads, _o in self._pairs()}
+        self.assertIn("--mode", got[("perry-config", "track")])
+        self.assertIn("--from-file", got[("perry-okr", "write")])
+        self.assertIn("--from-board", got[("perry-tasks", "write")])
+        self.assertNotIn("--from-board", got[("perry-tasks", "render")],
+                         "every flag came back read for every subcommand, so "
+                         "the narrowing is not narrowing")
+
+    def test_every_declaring_tool_is_read_by_one_of_the_two_readers(self):
+        """Nothing falls between the two shapes unnoticed.
+
+        A tool that declares subcommands is dispatched either from a table of
+        handler functions (`perry-task`, read by the class above) or from an
+        `if cmd == …` chain (read here). A THIRD shape would be covered by
+        neither and nothing would say so — which is how the other five tools
+        came to be unguarded in both directions in the first place.
+        """
+        unread = []
+        for tool in _tools_with_a_surface():
+            mod = inproc.load(tool)
+            if not mod.SURFACE.get("subcommands"):
+                continue        # `perry-state`, `perry-diagnose`: tool-level
+            if surface_reads.is_chain_tool(tool, BIN, mod):
+                continue
+            if surface_reads.is_table_tool(mod):
+                continue
+            unread.append(tool)
+        self.assertEqual(unread, [],
+                         f"{unread} declare subcommands and dispatch by "
+                         f"neither shape, so no reader holds their "
+                         f"declaration to their code")
+
+    def test_both_populations_are_occupied(self):
+        """The control for the case above: if every tool were a chain tool it
+        would pass while saying nothing about the table shape, and vice
+        versa."""
+        chain, table = [], []
+        for tool in _tools_with_a_surface():
+            mod = inproc.load(tool)
+            if not mod.SURFACE.get("subcommands"):
+                continue
+            (chain if surface_reads.is_chain_tool(tool, BIN, mod)
+             else table if surface_reads.is_table_tool(mod) else []).append(tool)
+        self.assertGreaterEqual(len(chain), 3, chain)
+        self.assertGreaterEqual(len(table), 1, table)
+
+    def test_the_chain_is_found_in_the_file_that_holds_it(self):
+        """`perry-okr` declares and dispatches nothing itself — both are
+        `bin/perry_md_store.py`'s, built per document — so a reader that looked
+        only at the named file would find no chain and pass on an empty set."""
+        where = {tool: path.name for tool, _m, _r, _o, path in self.tools}
+        self.assertEqual(where.get("perry-okr"), "perry_md_store.py")
+        self.assertEqual(where.get("perry-tasks"), "perry-tasks")
 
 
 class TestRegisterIsAParameter(unittest.TestCase):
@@ -701,6 +1012,44 @@ class TestAFlagReachesOnlyItsOwnSubcommands(unittest.TestCase):
         self.assertIn("--next", out.stderr,
                       "the refusal did not name the accepted set, so the "
                       "caller learns what is wrong and not what is right")
+
+    def test_the_whole_negative_space_is_refused(self):
+        """`ELSEWHERE` is ten rows against a negative space of 1,279 pairs, so
+        this walks all of them (TASK-411).
+
+        Every declared tool, every subcommand, every flag that subcommand does
+        NOT declare: the parser must refuse it and say so in the sentence the
+        caller reads. Asked of `lib.parse_surface` rather than of eighteen
+        hundred subprocesses — the cases above already prove each tool reaches
+        this parser, and what is unmeasured is the SPACE, not the wiring.
+
+        Measured 2026-09-11 on `488cf079`: 1,279 probes, 1,279 refused, 0
+        accepted.
+        """
+        probes = 0
+        accepted = []
+        for tool in DECLARED:
+            face = surface(tool)
+            universal = lib.always_accepted(face)
+            table = lib.surface_flags(face)
+            for sub in face.get("subcommands", ()):
+                takes = set(sub.get("flags", ())) | universal
+                for flag, spec in sorted(table.items()):
+                    if flag in takes:
+                        continue
+                    probes += 1
+                    read = lib.parse_surface(
+                        face, [sub["name"], flag,
+                               *(["X"] if spec.get("arg") else [])])
+                    if not (read["error"]
+                            and "is not accepted by" in read["error"]):
+                        accepted.append((tool, sub["name"], flag,
+                                         read["error"]))
+        self.assertEqual(accepted, [], "a declared flag reached a subcommand "
+                                       "that does not declare it")
+        self.assertGreater(probes, 1000,
+                           f"only {probes} pairs were probed, so 'the negative "
+                           f"space is clean' is a claim about a fraction of it")
 
     def test_the_control_is_that_the_flag_works_where_it_is_declared(self):
         """Without this, a tool that refused every flag everywhere would pass
