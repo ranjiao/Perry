@@ -33,7 +33,6 @@ import json
 import pathlib
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -44,6 +43,8 @@ TOOL = ROOT / "bin" / "perry-tasks"
 sys.path.insert(0, str(ROOT / "viewer"))
 import parsers as P                                             # noqa: E402
 import tables as T                                              # noqa: E402
+
+import inproc                                                   # noqa: E402
 
 #: The shapes measured on the second real project, in one board. Written by
 #: hand and NOT through `render_row`, because a fixture built by the writer
