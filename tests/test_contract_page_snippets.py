@@ -312,6 +312,31 @@ def snippet():
     return got[0][2]
 
 
+def drive(version, semantics_versions):
+    """Run the page's block on a synthetic payload and return `(namespace,
+    versions warned about)`.
+
+    **Everything below goes through this rather than restating the comparison
+    in the test**, and that is not a stylistic preference — it is the finding of
+    this row's own mutation round. The first draft of these cases recomputed
+    `pair(a) > pair(b)` itself and checked the arithmetic; restoring the string
+    compare at the block's *call site* left every one of them green, because
+    they were testing a copy of the logic and not the page. A test that
+    re-implements the snippet is the same mistake as a page whose snippet
+    nothing runs, one layer in.
+
+    `fields` and `note` carry the version so a warning is identifiable.
+    """
+    payload = {"contract": f"perry-task/list/{version}",
+               "semantics": [{"version": v, "fields": [v], "note": v}
+                             for v in semantics_versions]}
+    warned = []
+    ns = {"payload": payload,
+          "warn": lambda fields, note: warned.append(note)}
+    exec(compile(snippet(), "<task-list-contract.md rule 3>", "exec"), ns)
+    return ns, warned
+
+
 class TestRuleThreeSnippetExecutes(unittest.TestCase):
     """Criterion 3: the block runs against a live payload and exits 0."""
 
@@ -406,7 +431,15 @@ class TestTheVersionSpaceIsEnumerated(unittest.TestCase):
         self.assertGreaterEqual(checked, 400)
 
     def test_the_string_compare_is_wrong_on_this_very_space(self):
-        """Defect 2, counted rather than sampled — and both of its directions.
+        """Defect 2 characterised, counted rather than sampled — both directions.
+
+        **This case is a description of the defect, not the guard against it.**
+        It computes the comparison itself, so it cannot see a regression at the
+        block's call site; restoring the string compare on the page leaves it
+        green. It is kept because it is the only place the *silence* direction
+        is counted, and that direction is the one the row's spec does not name.
+        `test_the_filter_warns_about_exactly_the_entries_newer_than_the_pin` is
+        the guard, and it drives the page.
 
         The spec names the false-positive direction (`"1.5" > "1.18"`). The
         enumeration shows the other one, which is worse: pairs where the string
@@ -429,50 +462,97 @@ class TestTheVersionSpaceIsEnumerated(unittest.TestCase):
         self.assertTrue("1.5" > "1.18", "the reported wrong answer")
         self.assertFalse(self.pair("1.5") > self.pair("1.18"), "and gone")
 
-    def test_the_drift_gate_reports_a_minor_that_does_not_exist_yet(self):
-        """Defect 1, over the forward space. `2.0` shipping is why this was
-        invisible: every version in the Changelog makes the OLD gate look fine.
+    def supported(self):
+        ns, _ = drive("2.0", [])
+        return ns["SUPPORTED"]
 
-        So the space is extended past what exists — five minors beyond the
-        highest in each major, plus the next major — because "the versions that
-        do not exist yet" is the whole population the defect lives in.
+    def space(self):
+        """Every version in the Changelog, plus five minors past the highest in
+        each major and three of the next major.
+
+        The forward half is not decoration. `2.0` is the newest thing that
+        exists, so **every version in the Changelog makes the old gate look
+        fine** — the defect lives entirely in versions that do not exist yet,
+        which is why six minors of readers walked past it.
         """
-        ns = {}
-        exec(compile(snippet(), "<s>", "exec"),
-             {"payload": _live_payload(), "warn": lambda *a: None}, ns)
-        pair, SUPPORTED = ns["pair"], ns["SUPPORTED"]
-
         highest = {}
         for v in self.declared:
-            mj, mn = pair(v)
+            mj, mn = (int(x) for x in v.split("."))
             highest[mj] = max(mn, highest.get(mj, mn))
-        space = [(mj, mn) for mj, top in highest.items()
-                 for mn in range(0, top + 6)]
-        space += [(max(highest) + 1, mn) for mn in range(0, 3)]
+        out = [f"{mj}.{mn}" for mj, top in highest.items()
+               for mn in range(0, top + 6)]
+        out += [f"{max(highest) + 1}.{mn}" for mn in range(0, 3)]
+        return out
 
-        old_wrong = new_wrong = 0
-        for mj, mn in space:
-            if mj not in SUPPORTED:
-                continue
-            drifted = mn > SUPPORTED[mj]                     # the truth
-            old = (mj, mn) > max({(k, v) for k, v in SUPPORTED.items()})
-            new = (mj, mn) > (mj, SUPPORTED[mj])
-            old_wrong += old != drifted
-            new_wrong += new != drifted
-        self.assertGreater(old_wrong, 0, "the old gate must be wrong somewhere "
-                                         "in a space that reaches past 2.0")
-        self.assertEqual(new_wrong, 0,
-                         "the per-major ceiling must be right on every one")
-        # the pair the spec names
-        self.assertFalse((1, 19) > max({(k, v) for k, v in SUPPORTED.items()}),
-                         "the reported wrong answer")
-        self.assertTrue((1, 19) > (1, SUPPORTED[1]), "and gone")
+    def test_the_drift_gate_is_a_ceiling_per_major_over_the_forward_space(self):
+        """Defect 1, by **running the block** on every version in the space.
 
-    def test_the_semantics_list_is_inside_the_space_and_filters_correctly(self):
-        """The filter, over every (payload version, pinned version) pair.
+        `tested` is read out of the block's own namespace, so the ceiling the
+        page computes is compared to the ceiling the page promises. The earlier
+        draft of this case recomputed both and was green against a restored
+        defect — see `drive`.
+        """
+        SUPPORTED = self.supported()
+        checked = 0
+        for version in self.space():
+            mj, mn = (int(x) for x in version.split("."))
+            with self.subTest(version=version):
+                if mj not in SUPPORTED:
+                    with self.assertRaises(SystemExit):
+                        drive(version, [])
+                    continue
+                # one minor newer than this consumer's pin, so the gate has
+                # something to report if and only if it opens
+                probe = f"{mj}.{SUPPORTED[mj] + 1}"
+                ns, warned = drive(version, [probe])
+                self.assertEqual(
+                    ns["tested"], (mj, SUPPORTED[mj]),
+                    "the ceiling must be this major's, not one shared across "
+                    "majors — `(1, 19) > (2, 0)` is False and that made every "
+                    "1.x minor drift unreportable")
+                self.assertEqual(
+                    bool(warned), mn > SUPPORTED[mj],
+                    f"payload {version} against a pin at {mj}.{SUPPORTED[mj]}")
+                checked += 1
+        self.assertGreaterEqual(checked, 24, "the forward space collapsed")
+        # the pair the spec names, now through the page itself
+        self.assertEqual(drive("1.19", [])[0]["tested"], (1, SUPPORTED[1]))
+        self.assertTrue(drive("1.19", ["1.19"])[1] == ["1.19"],
+                        "1.19 against a pin at 1.18 must report drift")
 
-        `semantics[]` is what rule 3 walks; a consumer pinned at any declared
-        version must be warned about exactly the entries newer than its pin.
+    def test_the_filter_warns_about_exactly_the_entries_newer_than_the_pin(self):
+        """Defect 2, by running the block's own filter.
+
+        For each major the page supports, a payload one minor past the pin —
+        so the gate is open — carrying every declared version in `semantics[]`.
+        What comes back through `warn` must be exactly the versions the
+        Changelog's own ordering calls newer than the pin.
+
+        Against the string compare this returns nine versions where one is
+        correct, seven of them **older** than the pin.
+        """
+        SUPPORTED = self.supported()
+        for mj, pin_minor in sorted(SUPPORTED.items()):
+            pin = f"{mj}.{pin_minor}"
+            self.assertIn(pin, self.declared,
+                          "SUPPORTED names a version the Changelog does not")
+            with self.subTest(pin=pin):
+                _, warned = drive(f"{mj}.{pin_minor + 1}", self.declared)
+                want = [v for v in self.declared
+                        if self.rank[v] < self.rank[pin]]
+                self.assertEqual(sorted(warned), sorted(want),
+                                 f"a consumer pinned at {pin} must hear about "
+                                 f"exactly what shipped after {pin}")
+
+    def test_the_live_semantics_versions_are_all_inside_the_space(self):
+        """The premise the two cases above rest on.
+
+        `semantics[]` is the array rule 3 walks. If it ever names a version the
+        Changelog does not, the enumeration is running against a space that
+        does not contain the real inputs, and every case here passes on the
+        wrong population. The filtering itself is checked by
+        `test_the_filter_warns_about_exactly_the_entries_newer_than_the_pin`,
+        which drives the page instead of restating it.
         """
         live = _live_payload()
         entries = [e["version"] for e in live["semantics"]]
@@ -481,15 +561,8 @@ class TestTheVersionSpaceIsEnumerated(unittest.TestCase):
         for v in entries:
             self.assertIn(v, self.declared,
                           f"semantics names {v}, which the Changelog does not")
-        ns = {}
-        exec(compile(snippet(), "<s>", "exec"),
-             {"payload": live, "warn": lambda *a: None}, ns)
-        pair = ns["pair"]
-        for pin in self.declared:
-            want = {e for e in entries if self.rank[e] < self.rank[pin]}
-            got = {e for e in entries if pair(e) > pair(pin)}
-            with self.subTest(pin=pin):
-                self.assertEqual(got, want)
+        # and the payload's own version is in it too
+        self.assertIn(live["contract"].rsplit("/", 1)[1], self.declared)
 
 
 class TestTheRuleOneGateStillBehaves(unittest.TestCase):
