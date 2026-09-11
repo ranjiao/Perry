@@ -176,3 +176,72 @@ and the control, to show the ROW path is not a rubber stamp on either row:
 TASK-360 stops being exhausted when its rounds say what they were charged
 against. TASK-362 does not, and could not, because the grade its rounds would
 honestly write is the one that counts.
+
+## 4 · The whole corpus, before and after
+
+`python3 bin/perry-lint --root . --reviews --json`, the two runs compared key
+by key (`file`, `rule`, `line`, `message`):
+
+```
+blocks    111 -> 111
+findings   29 ->  29
+gone: []
+new : []
+```
+
+**No row's finding changes on the live corpus, and that is the correct and
+intended result.** Every one of the 62 FAIL blocks is ungraded, undeterminable
+counts, so `review-rounds-exhausted` fires on exactly the two rows it fired on
+before — TASK-285 and TASK-362 — with the same evidence files named.
+
+What changed is what the finding SAYS. Both now end:
+
+> … 2 of the 2 counted carry no readable `grade:`, so the criterion they were
+> charged against is undeterminable and they count by default.
+
+That is requirement 3 discharged: the undeterminable outcome is stated, its
+default is the conservative one, and its size is on the finding rather than
+absorbed into it.
+
+**Rows whose finding changes: none. Rows that would change once their rounds
+declare a grade: TASK-360 (measured above), and no other row in the corpus can
+be predicted without re-reading its rounds, which § "Out of scope" forbids.**
+
+### The requirements, one by one
+
+1. **It must not raise the threshold.** `rounds_before_escalation` is not
+   touched; `git diff 70458893 HEAD -- bin/perry-lint` contains no change to
+   it, and `schema § thresholds.review_fail_rounds_before_escalation` is
+   unchanged at 2. The existing precedence tests (env > store > schema) are
+   green.
+2. **It must not make the finding advisory or drop it.** Same `Finding("warn",
+   …, "review-rounds-exhausted", …)`, same rule name, same severity, still
+   under `--reviews`.
+3. **It must not silently reclassify an undeterminable FAIL.** It is counted,
+   the finding says how many and why, and an unreadable `grade:` additionally
+   raises `verdict-malformed`.
+4. **It must not edit an existing verdict block.** `git diff 70458893 HEAD
+   --stat` touches four files: `bin/perry-lint`, `tests/`, `work/reference/
+   review.md`, and this result. **No file under `perry/evidence/` other than
+   this one is modified.** The TASK-360/362 counterfactual was run on copies in
+   scratch.
+
+### The ask still clears it (Verification 4)
+
+`review.md § 6`'s escalation path is untouched: the `asks.jsonl` reader, the
+`answered` skip, the `blocks` id extraction and the `tid in escalated`
+continue are all byte-identical — the diff over `bin/perry-lint` contains no
+change to any line mentioning `escalated`, `asks` or `answered`. Four existing
+tests still cover it, and one was added for the graded case:
+
+- `test_an_open_ask_blocking_the_row_clears_it`
+- `test_an_ANSWERED_ask_does_not_clear_it`
+- `test_an_ask_blocking_a_DIFFERENT_row_does_not_clear_it`
+- `test_an_open_ask_still_clears_a_FAIL_graded_row` *(new)*
+
+### The guard still fires (Verification 3)
+
+- `test_two_FAIL_grade_fails_exhaust_the_row` — two FAIL-grade FAILs, reported.
+- `test_two_ROW_grade_fails_do_not_exhaust_the_row` — two ROW-grade, silent.
+- `test_an_ungraded_fail_counts_because_undeterminable_is_conservative` — the
+  one that matters, because it is the shape all 62 existing FAILs have.
