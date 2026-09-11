@@ -176,6 +176,22 @@ class TestTheDocumentStillCarriesIt(unittest.TestCase):
         span = span[:span.index("### `Executor: opencode-subagent`")]
         self.assertIn("perry-scratch-derivation", span)
 
+    def test_every_executor_that_enumerates_its_prompt_requires_the_block(self):
+        """`claude-subagent` and `codex` each enumerate their own prompt;
+        `opencode-subagent` says "the same complete prompt as `claude-subagent`"
+        and inherits by reference. The two that enumerate must both name it, or
+        a codex dispatch silently ships without the rule.
+        """
+        text = DISPATCH.read_text(encoding="utf-8")
+        for heading, stop in (
+                ("### `Executor: claude-subagent`",
+                 "### `Executor: opencode-subagent`"),
+                ("### `Executor: codex`", "## Architecture preamble")):
+            with self.subTest(executor=heading):
+                span = text[text.index(heading):]
+                span = span[:span.index(stop)]
+                self.assertIn("perry-scratch-derivation", span)
+
     def test_the_snippet_names_no_fixed_directory(self):
         """The mutation this module exists to catch: a snippet edited back to
         a constant path. `test_two_worktrees_derive_two_scratch_roots` already
