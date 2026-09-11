@@ -215,6 +215,45 @@ agent commits, primary checkout merges; push permitted → agent opens a PR and
 the verifying lane merges it. Read the hook once per dispatch; do not re-derive
 the argument.
 
+### Where the agent puts a scratch file
+
+> **A dispatched agent's scratch directory is DERIVED FROM ITS WORKTREE and
+> lives OUTSIDE the repository. It is never a shared directory the agent is
+> asked to namespace inside.**
+
+Every dispatched prompt carries this block verbatim, and the agent re-derives it
+in each command rather than remembering a name:
+
+```sh
+# perry-scratch-derivation — do not edit without re-reading TASK-421
+PERRY_SCRATCH="${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"
+mkdir -p "$PERRY_SCRATCH"
+```
+
+**The agent contributes nothing to the uniqueness, and that is the whole
+mechanism.** The distinguishing component is the worktree directory name, which
+the dispatching tool minted when it honoured `isolation: "worktree"` — the agent
+reads it, it does not choose it. So an agent that writes the dumbest possible
+filename, `$PERRY_SCRATCH/baseline.txt` — the exact name that collided four
+times — still cannot collide with a concurrent agent, because the parent differs
+by construction. **"Pick a unique name" is what failed; this asks for no name at
+all.**
+
+**Outside the repository is the other half, and it is load-bearing.** An in-repo
+scratch directory reddens two tree-walkers that scan by name at any depth:
+`tests/header_rule.py` admits any Python-parseable file it finds as a real
+reader, and `tests/tree_guard.py` reports the tree as moved. A round that put
+copies of Perry source in an in-repo `.scratch/` turned a named test red while
+obeying its brief. `${TMPDIR:-/tmp}` is invisible to both, so the isolation
+costs no test its coverage.
+
+**What this inherits, and what it therefore does not promise.** The scratch
+isolation is exactly as strong as the worktree isolation above it and no
+stronger: an agent dispatched **without** `isolation: "worktree"` resolves
+`--show-toplevel` to the shared checkout, and two such agents get the same
+scratch root. That is not a second hole to close but the same one — which is why
+the flag is mandatory rather than recommended.
+
 **Where the normative part of this section ends.** Everything above this
 paragraph, plus the whole of § `Executor: claude-subagent` below, is pinned
 byte-for-byte by `tests/test_spec_scannability.py::TestTheAgentGetsItsOwnTree`:
@@ -254,6 +293,7 @@ output".
 - Build prompt = **`ARCHITECTURE.md` full text + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + RESULT format including the mandatory `ARCHITECTURE COMPLIANCE` block (see § Architecture compliance RESULT).
 - Async-ness from spec's size hint: `Estimated cycle: small` → `run_in_background: false`; `medium | large` → `run_in_background: true`.
 - **Pass `isolation: "worktree"`. It is not optional** — see § The tree the agent works in, below.
+- **Include the `perry-scratch-derivation` block verbatim** — see § Where the agent puts a scratch file. A prompt that hands out a shared directory and asks the agent to namespace inside it is the defect that section exists to remove; it has been observed five times.
 - Sub-agent shares parent cwd, and that is a fact about the *process*, not a licence for the *tree*: without `isolation`, the agent's `git checkout -b` moves the shared working tree, and every other lane's writes land on its branch. For split-repo projects: instruct sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
 
 ### `Executor: opencode-subagent` (OpenCode only)
