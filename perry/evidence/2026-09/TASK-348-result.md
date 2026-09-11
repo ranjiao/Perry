@@ -2422,15 +2422,21 @@ PMO files them.
 - **It did not measure at `main`'s current head.** Every number belongs to
   **`7f43a11c`**, and the 22 files are byte-identical at `583f024f`, the commit
   the Bound pins. `main` has since moved to `fe0292fb`, four merges ahead.
-  **One file in scope changed there: `bin/perry-restore-check` grew by 79
-  lines** (315 → 394), from work adding `tests/surface_reads.py` and changing
-  `tests/test_bin_surface.py`. So this report's `perry-restore-check` row, and
-  only that row, is stale against `main`: its 87 TYPED / 0 OBSOLETE is the
-  measurement of a 315-line file. The corpus total of 27,132 is correct at the
-  pinned commit and is **not** correct at `fe0292fb`. Keeping the pin was the
-  choice because the Bound requires it and because it is what makes the
-  re-derived total match the spec exactly; the alternative was defensible, but
-  a mixture of the two would not have been.
+  **One file in scope changed there: `bin/perry-restore-check`, from work
+  adding `tests/surface_reads.py` and `tests/test_bin_surface.py`.**
+  Re-derived rather than read off the diffstat, because the two figures differ
+  and the wrong one is the one a diffstat hands you: `git diff --stat` reports
+  `79 ++-`, which is *churn*; `git show fe0292fb:bin/perry-restore-check |
+  wc -l` is **364**, so the file went 315 → 364, a net **+49**. This report's
+  `perry-restore-check` row, and only that row, is therefore stale against
+  `main`: its 87 TYPED / 0 OBSOLETE is the measurement of a 315-line file, and
+  49 lines of it are unmeasured. The corpus total of 27,132 is correct at the
+  pinned commit and is **not** correct at `fe0292fb`, where the same 22 files
+  are 27,181.
+  Keeping the pin was the choice because the Bound requires it (*"pin it in
+  the report's first line and measure nothing else"*) and because it is what
+  makes the re-derived total match the spec exactly. Rebasing was defensible;
+  an unstated mixture of the two would not have been.
 - **It did not read 69% of the corpus line by line.** § 1d says exactly what was
   read, what was delegated, what verification the delegated work got, and what
   the one error the audit found implies about the rest. The four category
