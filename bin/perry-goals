@@ -960,8 +960,17 @@ def kr_rows(snap, events: list | None = None,
                          # stamp until ADR-019, shared by every KR in the
                          # phase — TASK-155.
                          "asserted_at": getattr(k, "asserted_at", "") or ""}
+    # `state_root`, not `project_root` — the same sentence the line below has
+    # carried since TASK-120, and this call did not. TASK-437: it read
+    # `tasks.jsonl` from the PROJECT root, found no file there on any project
+    # whose two roots differ, and `task_status_index` fell back to
+    # `board.all_tasks` without saying so. Measured on Perry's own project at
+    # `076ae21a`: 156 rows against 429 in the store, so every KR's progress
+    # below was computed over 36 percent of the work and returned a plausible
+    # number. It is invisible wherever the two roots coincide, which is most
+    # projects, which is why it survived.
     status_by_id = lib.task_status_index(
-        getattr(snap, "project_root", "."), getattr(snap, "board", None))
+        getattr(snap, "state_root", "."), getattr(snap, "board", None))
     # Raw store records for the one KR whose metric is re-run rather than read.
     # `state_root`, not `project_root`: the store sits beside the register.
     linkage_records = P.load_linkage_store(getattr(snap, "state_root", "."))

@@ -98,5 +98,134 @@ that reaches any — they hand the root to something outside `bin/` and
 `viewer/`, or only to `.exists()` / `str()`. They are listed in § 5 as not
 checked.
 
-*(§ 3 judgement of the 16, § 4 the fix, § 5 what I did not check, still being
-written.)*
+### Round 5, and why round 4 was still wrong
+
+Round 4 flagged 16. Eleven were manufactured by two things:
+
+* **Name collision.** Perry has three `load_store` (`perry_store.py`,
+  `perry_md_store.py`, `perry-tasks`) and two `store_path`
+  (`perry_store.py`, `perry_md_store.Doc`). Resolving a callee by bare name
+  judged `perry_store.load_store(state_root)` against `perry-tasks:load_store`.
+* **Methods.** `Doc.store_path(self, project_root, state_root)` bound by
+  position against `doc.store_path(project_root, state_root)` lands every
+  argument one parameter to the left, so `project_root` gets judged against
+  `self`'s neighbour.
+
+Round 5 resolves the callee by import alias, drops `self` for methods, and
+refuses to flag a name it cannot resolve (counted instead). It also had to
+learn Perry's deferred module accessors — `_parsers()`, `_task_module()`,
+`_store_module()`, `_md_store_module()` — because without them **round 5
+returned ZERO flags including the defect itself**: `task_status_index` reaches
+`tasks.jsonl` only via `_parsers().load_task_store`. A sweep that drops its own
+named site is measuring nothing, and that near-miss is why the accessor table
+is in the script rather than assumed.
+
+## 3. What the sweep returns — enumerated, not sampled
+
+```
+root parameters                                     222
+argument bindings into a classified root parameter  303
+   judged                                           284
+   argument expression unclassifiable                19  (hand-judged, § 3.2)
+FLAGGED: parameter needs one root, argument is the other   1
+```
+
+### 3.1 The one flag
+
+```
+bin/perry-goals:963  kr_rows() -> bin/lib/__init__.py:task_status_index(
+    state_root: needs STATE, evidence ['tasks.jsonl'])
+    arg = getattr(snap, "project_root", ".")
+```
+
+That is the site the spec names, and after § 4's fix the sweep returns **0**.
+
+**So the answer to the Bound's question is: one call site, not a class.** The
+spec said *one call site is a typo; a class of them is a defect in how roots
+are passed.* Derived rather than assumed, it is a typo. What makes the class
+not exist is visible in the shape of the code that survived the sweep: Perry's
+convention is that a function needing both roots **takes both**, explicitly and
+in that order — `store_records(project_root, state_root, ...)`,
+`Doc.store_path(project_root, state_root)`,
+`check_{risk,intake,ask,md}_store_drift(project_root, state_root)`,
+`register_drift(state_root, project_root, okr)`,
+`write_okr_and_store(state_root, project_root, ...)`,
+`scan_tracking(root, state_root, inventory)`. A function that holds two roots
+cannot be handed the wrong one. `kr_rows` is the site that took a `snap` and
+picked an attribute off it instead, which is the one shape where picking wrong
+is a one-word mistake — and the line two above it picks the right one.
+
+### 3.2 The 19 bindings the script would not classify, judged by hand
+
+Every one is listed; none is a defect.
+
+| site | argument | verdict |
+|---|---|---|
+| `lib:resolve_project_root:540`, `parsers:resolve_project_root:548`, `parsers:_resolve_project_root:578`, `perry-lint:main:5641`, `perry-state:resolve_root:2596` | `d` | **correct.** `d` is a candidate directory in the walk up; `configured(d)` / `resolve_state_root(d)` is the probe that asks whether `d` is a project root. Passing a project-root candidate to a project-root parameter. |
+| `perry-knowledge:cmd_propose:384`, `:cmd_promote:486` | `pr` | **correct.** `pr` is assigned from the project root; `declared_roles` reads `.perry/`. |
+| `perry-knowledge:cmd_propose:427`, `:cmd_promote:549` ×2 | `sr` | **correct.** `sr` is the resolved state root; `read_cards` / `patch_index` read `knowledge/`. |
+| `perry-churn:detect_perry:332` | `root` | **correct.** project root, handed to `resolve_state_root`. |
+| `perry-diagnose:diagnose:2600, 2611, 2623` | `root` | **correct.** `diagnose(root)` takes the PROJECT root — it computes `state_root = lib.resolve_state_root(root)` on its first line — and these three want the project root. |
+| `perry-explain:main:855`, `:entries_now:873` | `root` | **correct.** project root; `typed_task_lookup` and `harvest` read `.perry/`. |
+| `perry-lint:_track_context:764` | `root` | **correct.** project root into `configured`. |
+| `perry-lint:check_cross_file:1599` | `perry_dir.parent` | **correct.** the parent of `.perry/` is the project root by `resolve_state_root`'s own rule. |
+| `perry-diagnose:diagnose:2625` | `root` into `scan_user_load` | **not a defect, but see § 6.** |
+
+## 4. The fix
+
+`bin/perry-goals § kr_rows`, one argument, with the sentence the line below it
+has carried since TASK-120 moved up to cover both:
+
+```python
+status_by_id = lib.task_status_index(
+    getattr(snap, "state_root", "."), getattr(snap, "board", None))
+```
+
+## 5. The KR numbers: none moved, and the reason is the finding
+
+`perry-goals list --json --root .` on Perry's own project, before and after:
+**25 KRs, 0 rows changed.** Not one field. That is a real answer and it needed
+explaining, because the index it feeds went from 156 entries to 429.
+
+What the 273 rows reach: `status_by_id` is consulted **only for task ids linked
+to a KR**, and this project links 18. Of those 18, **14 were unresolvable
+before the fix** — every one of them `done` in the store:
+
+```
+TASK-067 095 203 209 215 229 233 247 276 277 278 279 283 394
+```
+
+Six of the eight phase KRs were affected, four of them totally:
+
+```
+P003-O1-KR1  1 of 1 linked ids invisible     P003-O2-KR1  4 of 4 invisible
+P003-O1-KR2  2 of 2 invisible                P003-O2-KR3  1 of 2 invisible
+P003-O1-KR3  1 of 1 invisible                P003-O3-KR2  5 of 8 invisible
+```
+
+And yet `linked_task_completion` read `{total: 4, done: 4, open: 0, unknown: 0}`
+for `P003-O2-KR1` both before and after. **A second source covered for the
+missing one.** `bin/lib § kr_progress_provenance`:
+
+```python
+status = str(status_by_id.get(tid) or "") or last_status.get(tid, "")
+```
+
+`last_status` is built from `.perry/events.jsonl`, which is anchored at the
+project root and so was found. Measured: **all 14 invisible ids are covered by
+the event-log fallback, and all 14 agree with the store.** On this project the
+log carries a state move for **every one of the 429** store ids — 2464 records,
+432 ids, 0 store ids uncovered.
+
+So the honest statement of verification 5 is: **no KR's published progress
+moved, because on this project a redundant second source silently supplied
+every value the primary one lost.** That is not reassurance. It is the reason
+nothing detected the defect for as long as it existed, and it does not
+generalise: the event log covers an id only if a Perry tool moved that id's
+status. A project ADOPTED into Perry has a populated `tasks.jsonl` and no event
+history for rows that were never moved by a tool — there the fallback is empty
+and every linked row reports `unknown`. The class of project that would have
+seen a wrong number is exactly the class that is not Perry itself.
+
+*(§ 6 the second finding, § 7 the comparison, § 8 mutations, § 9 not checked —
+still being written.)*
