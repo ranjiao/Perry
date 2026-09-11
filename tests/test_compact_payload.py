@@ -32,8 +32,10 @@ from pathlib import Path
 PERRY_HOME = Path(os.environ.get("PERRY_HOME")
                   or Path(__file__).resolve().parent.parent)
 sys.path.insert(0, str(PERRY_HOME / "tests"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
 
 import inproc  # noqa: E402
+import lib  # noqa: E402
 from task_writer_support import Project  # noqa: E402
 
 STATE = inproc.load("perry-state")
@@ -547,6 +549,59 @@ class TestItCarriesTheVocabulary(unittest.TestCase):
         self.assertEqual(tracks["intake"]["stage_list"],
                          ["new", "triaged", "done"])
         self.assertTrue(tracks["intake"]["stages_declared"])
+
+    def test_every_cell_equals_the_store_up_to_how_a_blank_is_spelled(self):
+        """Criterion 13's own sentence, which nothing pinned.
+
+        "those values equal what `.perry/config.jsonl` holds" is true only up
+        to one normalisation, and the normalisation is deliberate:
+        `perry_md_store § stored_value` writes a declared blank INTO the store
+        as `""` because the marker is layout, and `perry-state §
+        track_from_record` puts the marker back on the way out so the payload
+        reports the bytes the project wrote. Every other difference is a defect.
+
+        Splitting the two is the whole test. A round that read the criterion
+        literally would fail the payload for spelling a blank `—`; a test that
+        compared nothing would have missed what actually went wrong, which was
+        a CONSUMER treating `—` as a value (`cmd_done`, see
+        `TestADeclaredBlankRungIsNotARung` in `test_task_writer_core.py`).
+        """
+        store = {r["track"]: r for r in
+                 (json.loads(line) for line in
+                  (self.p.root / ".perry" / "config.jsonl").read_text().splitlines())
+                 if r.get("kind") == "track"}
+        fields = ("mode", "spine", "stages", "wip", "sla", "cycle", "default_rung")
+        blanks_seen = 0
+        for shown in self.narrow["project"]["tracks"]:
+            record = store[shown["track"]]
+            for field in fields:
+                if field not in shown:
+                    continue
+                stored, published = str(record.get(field, "")), str(shown[field])
+                if stored == published:
+                    continue
+                where = f"{shown['track']}.{field}"
+                self.assertTrue(
+                    lib.is_blank_cell(stored) and lib.is_blank_cell(published),
+                    f"{where}: the store holds {stored!r} and --compact "
+                    f"publishes {published!r}, and they are not two spellings "
+                    f"of nothing")
+                blanks_seen += 1
+        # Two separate things, because the loop above passes vacuously
+        # without both: the fixture has to CONTAIN a declared blank, and the
+        # payload has to have spelled it differently. Collapsing them into one
+        # count made a payload that stopped putting the marker back fail with
+        # "the fixture has no blank", which is not what went wrong.
+        declared_blanks = sum(1 for record in store.values() for field in fields
+                              if lib.is_blank_cell(str(record.get(field, ""))))
+        self.assertTrue(declared_blanks,
+                        "this fixture declares no blank track cell, so the "
+                        "tolerance above was never exercised")
+        self.assertTrue(blanks_seen,
+                        f"{declared_blanks} track cells are blank in the store "
+                        f"and --compact published every one of them "
+                        f"unchanged: `track_from_record` has stopped putting "
+                        f"the blank marker back, which moves the payload")
 
     def test_the_diagnosis_of_a_track_is_not_in_it(self):
         """`stage_counts` and the breach lists belong to `--section project`;

@@ -4258,8 +4258,18 @@ def cmd_done(args, ctx) -> dict:
     prev = values.get("status", "")
     if not rung:
         track = track_of(ctx["config"], values.get("track", "main"))
-        rung = (track.get("default_rung")
-                or ctx["schema"]["work_modes"]["modes"][track["mode"]]["default_rung"])
+        # **`lib.is_blank_cell`, not truthiness** — this is the fifth consumer
+        # of a track cell and it was the one that did not route through the
+        # rule. `track_from_record` puts the blank marker back on the way out,
+        # so a DECLARED track with an empty `Default rung` arrives here as `—`
+        # and an UNDECLARED one arrives as `""`. Bare `or` reads the first as a
+        # value: two projects declaring the same nothing closed their rows as
+        # `verification: —` and `verification: V3`, and `—` is not a rung any
+        # gate can compare against. The fallback belongs to both.
+        declared_rung = track.get("default_rung", "")
+        rung = (ctx["schema"]["work_modes"]["modes"][track["mode"]]["default_rung"]
+                if lib.is_blank_cell(str(declared_rung or ""))
+                else declared_rung)
     signoff, signoff_block = signoff_from_args(args, ctx, rung)
     line = ctx["board"].remove_row(idx)
     jline = (f"- [{tid}] {prev or '—'} → done · closed · "
