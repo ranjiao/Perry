@@ -576,16 +576,29 @@ comparison performed"* the same way on the same tree.
    this section used to show only the first:
 
    ```python
-   SUPPORTED = {(1, 18), (2, 0)}       # the (major, minor) you read against
+   SUPPORTED = {1: 18, 2: 0}           # major -> the minor you read against
+
+   def pair(v):                        # "1.18" -> (1, 18). Compare versions ONLY
+       major, minor = v.split(".")     # as this pair: as strings "1.5" > "1.18"
+       return int(major), int(minor)   # is True, and as floats 1.10 < 1.9.
+
    version = payload["contract"].rsplit("/", 1)[1]
-   major, minor = (int(x) for x in version.split("."))
-   if major not in {m for m, _ in SUPPORTED}:
+   major, minor = pair(version)
+   if major not in SUPPORTED:
        raise SystemExit(f"perry-task list contract {version} is not supported")
-   if (major, minor) > max(SUPPORTED):  # something moved under you
+   tested = (major, SUPPORTED[major])  # what you read against, in THIS major
+   if (major, minor) > tested:         # something moved under you
        for change in payload["semantics"]:
-           if change["version"] > TESTED_MINOR_STR:
+           if pair(change["version"]) > tested:
                warn(change["fields"], change["note"])
    ```
+
+   `payload` and `warn` are yours: the parsed `--json` output, and however you
+   surface a warning. **The snippet references no other free name**, which
+   `tests/test_contract_page_snippets.py` checks by compiling it — the version
+   this replaced called a `TESTED_MINOR_STR` that this page never defined, so
+   it raised `NameError` rather than comparing anything, and nothing noticed
+   because nothing ran it.
 
    **Do not refuse on a minor.** `1.x` only adds keys, so an old consumer keeps
    working — that guarantee is real and rule 2 is unchanged. What it does not
@@ -596,6 +609,19 @@ comparison performed"* the same way on the same tree.
    which taught a consumer that the minor is noise. A front-end that followed
    it exactly could not see 1.5 — the version whose whole reason for existing
    was that two fields changed meaning under it.
+
+   **Two things it also used to get wrong, both invisible while `2.0` is the
+   newest thing that exists** (TASK-412). `SUPPORTED` was a set of pairs and
+   the drift gate asked `(major, minor) > max(SUPPORTED)` — one ceiling across
+   every major, so `(1, 19) > (2, 0)` is `False` and **no `1.x` minor drift was
+   reportable at all**. It is now a ceiling *per major*, which is what the
+   question "did a value move under me" actually means. And the `semantics`
+   filter compared version **strings**, which is the error the `version` row
+   below warns about, committed on the same page: `"1.5" > "1.18"` warns about
+   a change five minors *older* than the pin, and `"1.12" > "1.9"` is `False`,
+   so a genuinely newer change is dropped in silence. That second direction is
+   the dangerous one — a spurious warning is noise, a missing one is a
+   front-end reading a field that no longer means what it did.
 
 ### `semantics[]` — the entry, key by key
 
@@ -801,6 +827,7 @@ to the KR's own measurement rather than to this contract.
 1.14 made an ask a node in the dependency graph and got the edge right. What it
 left behind is a reader's problem rather than a graph's: on this board,
 
+<!-- not-executable: historical transcript -->
 ```
 $ perry-task list --all --json
 asks: {"items": [], "open": 0}
@@ -977,6 +1004,7 @@ restates the flag once per row has named no finding.
 `startable` read the row's own `status` before the dependency graph it had
 already computed, so a row whose every declared dependency had closed reported
 
+<!-- not-executable: historical transcript -->
 ```
 status=blocked   blocked_by=[]   startable=false
 ```
