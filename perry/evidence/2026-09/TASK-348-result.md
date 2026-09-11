@@ -260,6 +260,52 @@ posture toward any single measured line: reproducible from its line range, and
 worth re-reading before a deletion is made on it. The four category *totals*
 are robust to errors of this size — the corrected region moved 2 lines of
 11,000 — but an individual row is not.
+## 1e. The method, stated per file
+
+`§ 6` of the spec's *What it must not do* requires the method to be stated per
+file, not once for the corpus, because "I did not grep" is a claim that has to
+be checkable against the file it is made about. `R` = read in full; the
+`stmts` column names the constructs whose statement map was used to split them
+rather than round them.
+
+| file | how it was decided | split by statement map |
+|---|---|---|
+| `viewer/parsers.py` | R, by me. AST construct list in file order; the ~230 lines of dataclasses classified by **the source their producers read**, not by their names | `parse_board`, `parse_okr`, `_parse_okr_objectives`, `parse_phase`, `parse_top_risks`, `walk_design`, `_load_ops_counts`, `load_snapshot` |
+| `bin/perry-goals` | R. `okr.jsonl`'s actual contents read first (38 `kr`, 10 `objective`, 3 `version`) so "a store already holds it typed" was a fact rather than an assumption | `Okr`, `write_okr_and_store`, `kr_rows`, `build`, `cmd_link`, `cmd_commit`, `register_drift`, `migrate_commitments`, `main` |
+| `bin/perry-diagnose` | R. Store test applied **before** the flat markdown rule, because this tool scans folders Perry does not own (§ 2) | `open_user_asks`, `scan_docs`, `scan_work_modes`, `scan_tracking`, `scan_concurrency`, `split_dangling`, `evidence_for` |
+| `bin/perry-state` | R, then **the `parsers.py` implementation of every `P.*` call it makes was read** to find where each fact physically comes from. Two conclusions checked by running the tool (`--section risks`, `--section user_input_queue`) | `build`, `reconcile_drift`, `roles_profile`, `parse_config`, `dossier_records` |
+| `bin/lib/__init__.py` | R. Rule applied uniformly: produces/consumes a markdown cell, row, column, table or heading → OBSOLETE, whatever it is called | `task_status_index` (the only one that actually split), checked on `plan`, `same_action_linkage`, `kr_progress_provenance`, `blank_code_spans`, `summary_shape` |
+| `bin/perry-tasks` | R, by me. Every `cmd_*` interleaves a typed store read/write with a board derivation or a byte-compare gate, so all seven were split | all seven `cmd_*`, and `main` by subcommand |
+| `bin/perry_md_store.py` | R, by me. The file is two things wearing one name — the `okr.jsonl`/`config.jsonl` record shape, and the `OKR.md` scanner/renderer | `main`, by subcommand |
+| `bin/perry_store.py` | R. Classified by whether the call site produces or consumes a markdown cell/row/table, or a `.jsonl` record | `risk_record`, and the four `*_plan`/`*_render` pairs checked for internal mixing |
+| `bin/perry-explain` | R. `harvest`'s 100-line loop split at the four branches it actually contains (filename, table row, heading, YAML) plus the mention accumulator | `harvest`, `typed_task_lookup` |
+| `bin/perry-churn` | R, every function. **No markdown parse exists anywhere in the file**, so nothing could be OBSOLETE; it is `git log --numstat`, path classification and calendar arithmetic | — |
+| `bin/perry-knowledge` | R. The card *files are* the record (no store), so reading them is not OBSOLETE; `INDEX.md § Cards by topic` is a render of those files and is | `cmd_promote`, `read_cards` |
+| `bin/perry-decide` | R. Classified against the ADR markdown, which `DESIGN-013 § 5.3` made **canonical** when it deleted `DECISIONS.md` — so no projection is being parsed | `cmd_status`, `cmd_supersede`, `cmd_new` |
+| `bin/perry-state-cost` | R, every function. Each is `git ls-tree`/`rev-list`/`cat-file --batch-check`/`count-objects` output parsed to integers, or schema `claims` matched by path prefix. **Does not import `re`** | — |
+| `viewer/tables.py` | R, every function. Splitting, splicing, widening and rendering a `\| a \| b \|` row is a rendered table → OBSOLETE; the two exceptions are in § 9 | `render_row`, `check_cell` |
+| `bin/perry-context-budget` | R, every function. Transcript records are JSONL with a typed `usage` object; block kinds are a four-value enum; the ceiling comes from flag/env/store/schema | `ceiling`, `main` |
+| `bin/perry-config` | R, **every path traced to the file it opens**. The only document it touches is `.perry/config.jsonl` | `main` |
+| `bin/perry-restore-check` | R. Every fact comes from `git show <ref>:<path>` and `hashlib.md5`; it reads no project state at all | `main` |
+| `bin/perry-okr` | R. 20 code lines: imports, a `SURFACE` built by `store.surface(store.OKR)`, a `--help` branch, one delegation | — |
+| `bin/perry-dispatch-limit` | R line by line (no AST). Every call site asked what it touches: `mkdir` mutex, `kill -0`, mtime-vs-TTL, atomic rename, a charset gate, a closed executor enum | — (sh; heredoc map from Appendix B) |
+| `bin/perry-update-check` | R line by line. Discriminator was **which git surface it reads**: `status --porcelain`, `rev-parse`, `rev-list --count` — machine contracts. `SKILL.md` appears only inside `[ -f ... ]`; the file is never opened | — |
+| `bin/perry-codex-preflight` | R line by line. `command -v`, `sort -V`, a cache mtime vs TTL, an exit code, a sentinel-token test | — |
+| `bin/perry-detect-host` | R line by line. A closed four-token output alphabet reached from env sentinels and `ps -o comm=` globs | — |
+
+**Where a name would have produced the wrong answer**, per the four worked
+examples in § 1 and the ten negative controls in § 9. The two rules applied
+everywhere, and the reason each exists:
+
+- **A function is never rounded to one category.** `perry-goals §
+  mint_commitment_id` is TYPED id minting with one OBSOLETE line in it;
+  `perry-state § reconcile_drift` is a store loop with 20 of its 47 lines
+  reading a second markdown parse.
+- **A name is never the evidence.** `perry_store § duplicate_record_ids` and
+  `§ duplicate_row_ids` differ by four characters and land in opposite
+  categories; `perry-goals § tracks_of` has comments about
+  `.perry/config.md § Tracks` throughout and reads `.perry/config.jsonl`.
+
 ## 2. The four categories as applied
 
 | category | ADR-007 basis | test used at the call site | destination |
