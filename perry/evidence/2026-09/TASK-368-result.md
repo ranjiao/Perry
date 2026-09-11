@@ -116,8 +116,25 @@ win and changed how 47 tests execute. Not converted.
 ### 0. The suite total, and why one number is not enough
 
 Baseline in this worktree at `7f43a11c`, clean tree, 8 workers:
-**124 modules · 3561 tests · 174.5s**. The same run after the conversions:
-**124 modules · 3561 tests · 236.0s**.
+**124 modules · 3561 tests · 174.5s** at load average ~8.
+
+The suite was then run four more times as the machine's load swung between 8
+and 76, because three other sessions were running `tests/parallel` on it
+throughout. Every run reported the same 124 modules and 3561 tests:
+
+| run | tree | load avg | wall |
+|---|---|---|---|
+| baseline | before | ~8 | **174.5s** |
+| straight after-run | after | ~15.5 | 236.0s |
+| alternated pair, arm 1 | before | ~60 | 319.8s |
+| alternated pair, arm 2 | after | ~45 | 144.9s |
+| **final, on the restored tree** | **after** | **~25** | **97.5s** |
+
+**The headline pair is 174.5s → 97.5s**, and it is conservative: the after run
+carried a load average roughly three times the baseline's and still finished in
+56% of the time. The 236.0s run is the same tree as the 97.5s run — the
+difference between them is the machine, not the code, which is the clearest
+statement of why a single wall-clock pair could not have settled this.
 
 **That is not a regression, and quoting the pair on its own would be a lie.**
 Three other `tests/parallel` processes from other sessions were running on this
@@ -188,10 +205,9 @@ more than any of it.
 
 ### 1. The suite's red set is unchanged
 
-Baseline in this worktree at `7f43a11c`, clean tree, 8 workers:
-**124 modules · 3561 tests · 174.5s**, 4 failures. After: **124 modules · 3561
-tests**, 4 failures. The failures are exactly the four known reds and no
-others:
+Every one of the five full runs above reported **124 modules · 3561 tests** and
+**4 failures**, and the failures are exactly the four known reds and no others.
+Checked on the final run, taken on the restored tree:
 
 ```
 test_contract_key_parity.TestAWitnessProjectMakesAnEmptyCollectionObservable.test_without_the_witness_the_four_are_unobservable
