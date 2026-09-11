@@ -524,11 +524,18 @@ class TestEveryWriterHandBackCarriesTheRoot(unittest.TestCase):
 #: `bin/perry-lint --templates` lints the templates Perry itself ships, out of
 #: `PERRY_HOME`; there is no project in that branch to name and the findings
 #: are about this repository rather than about anybody's board.
-# TASK-431 moved this from 5495 to 5525: the entry is keyed by LINE NUMBER, so
-# any edit above it in `bin/perry-lint` silently un-declares the exemption and
-# the call reappears as a finding. The call itself did not change — it is the
-# `--templates` branch, which has no project root to name.
-NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5525)}
+#: **The key is a LINE NUMBER, and both branches that landed today moved it.**
+#: TASK-431 measured 5525 against its tree, TASK-419 measured 5604 against its
+#: own, and on the merged tree neither is right, because each carries the
+#: other's edits above the call as well. The number below was re-derived here,
+#: on the merge. The call itself has not changed through any of this — it is
+#: `check_file`'s `--templates` branch, which has no project root to name.
+#:
+#: Two independent agents hit this on the same day without seeing each other,
+#: which is the argument for re-keying it by something stable: the enclosing
+#: function plus the callee, the way `test_claims` does. That is filed as its
+#: own row, not smuggled in here.
+NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5634)}
 
 
 class TestTheFlagReachesTheTemplateThatNamesIt(unittest.TestCase):

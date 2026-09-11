@@ -51,16 +51,25 @@ task: {task}
 rung: V4
 result: {result}
 criteria: evidence/2026-08/{task}-spec.md
-checked: {checked}
+{grade}checked: {checked}
 not-checked: {not_checked}
 {proof}=== END VERDICT ===
 """
 
 
 def verdict(task, result="PASS", checked="the refusal path on a copy",
-            not_checked="Windows paths", proof="bin/x.py:12 the guard is absent"):
+            not_checked="Windows paths", proof="bin/x.py:12 the guard is absent",
+            grade=None):
+    """A block in `review.md § 3`'s shape.
+
+    `grade` is the optional field § 3 gained on 2026-09-11 (TASK-419): the
+    grade of the criterion this FAIL was charged against. Default `None` means
+    the line is absent, which is what all 111 blocks in this repository's own
+    corpus look like and what every test above this one assumes.
+    """
     return VERDICT.format(
         task=task, result=result, checked=checked, not_checked=not_checked,
+        grade=f"grade: {grade}\n" if grade else "",
         proof=f"proof: {proof}\n" if proof else "")
 
 
@@ -534,6 +543,161 @@ class TestTwoFailsIsADecisionNotAThirdRound(ReviewLintCase):
                    if f["rule"] == "review-rounds-exhausted")
         self.assertIn("Another round", msg)
         self.assertNotRegex(msg, r"Round \d")
+
+
+class TestTheCountIsByCriterionNotByBlock(ReviewLintCase):
+    """Two FAILs are two FAILs — but only if they were the same KIND of FAIL.
+
+    The check above counted verdict BLOCKS. A block is not a unit of failure;
+    the criterion is. Measured on TASK-360, 2026-09-10: its two FAILs were
+    round 4 on criterion 2 — `--help` from a non-first argument position, whose
+    worst outcome is exit 2 and a line naming `--help` — and round 6 on
+    criterion 3, a positional accepted, dropped and reported as success.
+    `DESIGN-016-spec.md § What a criterion may do to a row` grades those **ROW**
+    and **FAIL**. By the bar that now governs the row, it has failed ONCE, and
+    the guard was charging it for a round it never spent.
+
+    **This is not the guard being loosened and these tests exist to hold that
+    line.** It fired correctly on TASK-362, whose two FAILs were criteria 5 and
+    13, both FAIL-grade, and the ask it forced (USER-924) closed a whole
+    category in one round. Only a FAIL that SAYS it was charged against a
+    ROW-grade criterion stops counting. Silence counts. A typo counts. That is
+    `test_an_ungraded_fail_counts_because_undeterminable_is_conservative`, and
+    it is the one that matters, because 62 of the 62 FAIL blocks in this
+    repository's corpus carry no `grade:` at all.
+    """
+
+    def fails(self, *grades, tid="TASK-500", status="in_progress"):
+        self.board([self.row(tid, status)])
+        for n, g in enumerate(grades, 1):
+            self.evidence(f"{tid}-r{n}.md", verdict(tid, "FAIL", grade=g))
+        return tid
+
+    def msg(self):
+        return next(f["message"] for f in self.run_lint()["findings"]
+                    if f["rule"] == "review-rounds-exhausted")
+
+    # ── the three shapes ────────────────────────────────────────────────
+
+    def test_two_FAIL_grade_fails_exhaust_the_row(self):
+        """TASK-362's shape. The guard must still fire, unchanged."""
+        self.fails("FAIL — criterion 5", "FAIL — criterion 13")
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_two_ROW_grade_fails_do_not_exhaust_the_row(self):
+        """Two defects that fail no row are two rows filed, not two rounds
+        spent. `review.md § 0` is the test and nobody was applying it per
+        criterion."""
+        self.fails("ROW — criterion 2b", "ROW — criterion 11")
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_one_of_each_is_one_failure_the_TASK_360_shape(self):
+        """The row the spec was written on: round 4 ROW-grade, round 6
+        FAIL-grade. One FAIL under the limit of two."""
+        self.fails("ROW — criterion 2b", "FAIL — criterion 3")
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    # ── undeterminable is conservative ──────────────────────────────────
+
+    def test_an_ungraded_fail_counts_because_undeterminable_is_conservative(self):
+        """62 of 62 existing FAIL blocks carry no `grade:`. Reading silence as
+        ROW would un-exhaust rows nobody regraded — § 6 loosened by an accident
+        of when § 1 started refusing a round without written criteria."""
+        self.fails(None, None)
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_one_ROW_grade_and_one_ungraded_still_leaves_one_counted(self):
+        self.fails("ROW — criterion 2b", None)
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_an_unreadable_grade_counts_and_is_reported_malformed(self):
+        """`grade: row-grade` is a typo, not a grade. It must not read as ROW
+        by prefix — that would quiet the guard by accident, the one direction
+        this may not move — and the reviewer who wrote it must be told."""
+        self.fails("row-grade", "row-grade")
+        rules = self.rules()
+        self.assertIn("review-rounds-exhausted", rules)
+        self.assertIn("verdict-malformed", rules)
+
+    def test_a_grade_that_is_neither_word_counts(self):
+        self.fails("MAYBE", "PROBABLY")
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    # ── what the finding says ───────────────────────────────────────────
+
+    def test_the_finding_reports_how_many_it_counted_by_default(self):
+        """Requirement 3 of the spec: undeterminable is a STATED outcome. A
+        count that silently absorbs the blocks it could not read is the lossy
+        numerator this row was opened on, one level up."""
+        self.fails(None, None)
+        self.assertIn("undeterminable", self.msg())
+        self.assertIn("2 of the 2 counted", self.msg())
+
+    def test_the_finding_names_the_ROW_grade_fails_it_did_not_count(self):
+        tid = self.fails("ROW — criterion 2b", "FAIL — c3", "FAIL — c7")
+        msg = self.msg()
+        self.assertIn("NOT counted", msg)
+        self.assertIn(f"{tid}-r1.md", msg)       # the ROW-grade one, named
+        self.assertIn("has FAILed 2 V4 rounds", msg)
+
+    def test_the_named_rounds_are_the_charged_ones_only(self):
+        """`where` used to list every FAIL block. A message that cites a round
+        it did not count is a message that cannot be checked against itself."""
+        tid = self.fails("ROW — criterion 2b", "FAIL — c3", "FAIL — c7")
+        head = self.msg().split("Another round")[0]
+        self.assertNotIn(f"{tid}-r1.md", head)
+        self.assertIn(f"{tid}-r2.md", head)
+        self.assertIn(f"{tid}-r3.md", head)
+
+    def test_the_undeterminable_denominator_is_the_counted_rounds(self):
+        """"N of the M counted" — M is what was COUNTED, not what was FAILed.
+
+        Added after a mutation survived: `undeterminable` is measured over
+        `charged`, and swapping that for `fails` is provably equivalent (a
+        ROW-graded block has a readable grade, so it is never undeterminable).
+        The denominator beside it is NOT equivalent, and nothing was holding
+        it — a row with one filed ROW and two ungraded FAILs would have read
+        "2 of the 3 counted" while only 2 were counted.
+        """
+        self.fails("ROW — criterion 2b", None, None)
+        self.assertIn("2 of the 2 counted", self.msg())
+        self.assertIn("has FAILed 2 V4 rounds", self.msg())
+
+    def test_a_fully_graded_row_says_nothing_about_undeterminable(self):
+        self.fails("FAIL — criterion 5", "FAIL — criterion 13")
+        self.assertNotIn("undeterminable", self.msg())
+
+    # ── the out is unchanged ────────────────────────────────────────────
+
+    def test_an_open_ask_still_clears_a_FAIL_graded_row(self):
+        """`review.md § 6`'s escalation is untouched by this row. The finding
+        is cleared by the ask, never by the grade."""
+        tid = self.fails("FAIL — criterion 5", "FAIL — criterion 13")
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": "USER-924", "needed": "pick a principle",
+            "blocks": tid, "answered": False}) + "\n")
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_a_PASS_still_ends_the_question_whatever_the_grades(self):
+        tid = self.fails("FAIL — criterion 5", "FAIL — criterion 13")
+        self.evidence(f"{tid}-r3.md", verdict(tid, "PASS"))
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    # ── the resolver, in-process ────────────────────────────────────────
+
+    def test_fail_grade_reads_the_first_token_and_ignores_the_criterion(self):
+        g = lint_module().fail_grade
+        self.assertEqual(g({"grade": "ROW — criterion 2b, `--help` anywhere"}),
+                         "ROW")
+        self.assertEqual(g({"grade": "FAIL, criterion 3"}), "FAIL")
+        self.assertEqual(g({"grade": "row"}), "ROW")
+
+    def test_fail_grade_returns_None_for_everything_it_cannot_read(self):
+        g = lint_module().fail_grade
+        for raw in ("", "   ", "row-grade", "ROWS", "2b", "— ROW", "PASS"):
+            self.assertIsNone(g({"grade": raw}), raw)
+        self.assertIsNone(g({}))
+
 
 class TestTheRoundLimitIsDeclaredNotHardcoded(ReviewLintCase):
     """Two is a measured default, not a law, and a project may disagree.

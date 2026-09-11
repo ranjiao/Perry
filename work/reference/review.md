@@ -289,6 +289,54 @@ proof: bin/perry-migrate:1204 C.declare sits outside the try added in round 1
 name a file and line is not a FAIL yet — it is a suspicion, and it goes back to
 the reviewer.
 
+### `grade:` — optional, on a FAIL, and only the reviewer can write it
+
+Added 2026-09-11 (TASK-419). § 6 below counts FAILs to decide a row is failing
+on a principle nobody has picked. It counted **blocks**, and a block is not a
+unit of failure — the **criterion** is. A criteria file may grade its criteria
+by consequence, as `perry/evidence/2026-09/DESIGN-016-spec.md` does in its
+§ "What a criterion may do to a row":
+
+- **FAIL** — a defect here answers yes to one of § 0's three questions. It
+  fails the row.
+- **ROW** — real, still checked, still reported; the round files it and moves
+  on.
+
+So a FAIL block may say which of the two it was charged against:
+
+```
+result: FAIL
+grade: ROW — criterion 2b, `--help` from a non-first argument position
+```
+
+Only the first word is read. **The rest of the line is the criterion, and it is
+not optional prose** — a grade with no criterion beside it is a claim with
+nothing to check it against, and the next reviewer is the check.
+
+**What a round now has to write down that it did not before: one line, on a
+FAIL, and only when the reviewer is claiming the defect fails no row.** A PASS
+writes nothing new. A FAIL that really does fail the row writes nothing new —
+silence already means *counted*. The field is only ever needed by the person
+who wants § 6's guard to be quieter about their row, and § 6's finding tells
+them exactly what is missing. That is the whole cost, and it is why the field
+is optional rather than a sixth required key: making it required would put
+`verdict-malformed` on all 111 blocks this repository already has.
+
+**Absent, unreadable, or anything but `ROW` or `FAIL`, the grade is
+undeterminable and § 6 counts it.** § 1 already refuses a round without written
+criteria, so a block that cannot name its criterion is a round that should not
+have run — but the corpus is full of exactly those, written before § 1 said so,
+and reading their silence as `ROW` would un-exhaust rows nobody regraded.
+Undeterminable is a stated outcome, the default is conservative, and the
+finding reports how many it counted that way.
+
+**A grade is not a way out of a FAIL.** The criteria file
+`perry/evidence/2026-09/DESIGN-016-spec.md` says it and it
+binds here: the classification is a claim about consequence, and a round that
+shows the consequence is worse than claimed has refuted it. Grading your own
+FAIL `ROW` to buy a third round is the negotiation with the result that § 1
+forbids, one field further down.
+
 ## 4 · Independent rows go out as one round
 
 Rows with no dependency between them are reviewed **concurrently**, not in
@@ -324,6 +372,10 @@ there after its round returned is the defect this page was written for.
 this section — you may not dispatch another round.** File the ask instead.
 `perry-lint --reviews` reports the row as `review-rounds-exhausted` until an
 open ask in `asks.jsonl` names it in `blocks`.
+
+**What is counted is the criterion, not the block** (§ 3's `grade:`). A FAIL
+charged against a ROW-grade criterion is a row the round filed, and a row that
+was filed is not a round that was spent. A FAIL that does not say counts.
 
 This is the most expensive rule on the page and it was bought with the whole
 board. Measured on Perry's own state: **20 rows entered V4 and 74 rounds were
