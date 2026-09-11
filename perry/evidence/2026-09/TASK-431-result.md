@@ -259,6 +259,70 @@ that check requires. Worth recording because the classes still RAN — the
 suite's runner imports the module rather than executing it — so nothing about
 the test results looked wrong; only `test_claims` could see it.
 
+### 6.1 · Verification 3, and a correction to its premise
+
+The spec asked: *"`perry-lint` reports what it used to skip. The
+suspect-separator guard skipped exactly those cells; show it does not now."*
+
+Measured rather than argued. `bin/perry-lint` from `70458893` (materialised
+into scratch with `git archive`, so both linters run against the *same* temp
+project and only the linter differs) versus the fixed one, over a project
+whose `research` track's `stages` cell holds each declared spelling in turn:
+
+```
+       '—' | same (9 findings)      'N.A.' | same (9 findings)
+       '-' | same (9 findings)       'TBA' | same (9 findings)
+     'n/a' | same (9 findings)         '无' | same (9 findings)
+      'na' | same (9 findings)        '待定' | same (9 findings)
+    'none' | same (9 findings)       '不适用' | same (9 findings)
+     'tbd' | same (9 findings)        '暂无' | same (9 findings)
+       '?' | same (9 findings)    '**—**' | same (9 findings)
+
+0 of 18 spellings changed perry-lint's findings
+```
+
+**The premise does not hold, and it is worth saying so plainly rather than
+producing a number that looks like a pass.** The suspect-separator guard only
+ever fires on a cell that *contains* a suspect character (`/`, `;`, `|`, `·`,
+` and `). Of the 17 declared spellings, the only ones containing one are `n/a`
+and `N/A` — and both were already in `UNDECLARED_CELL`, so both were already
+skipped. Widening that guard's skip set to the full declared list therefore
+changes **no** lint finding: it skips a wider set of cells, none of which it
+was reporting.
+
+So "make lint report it" is not the remedy, and could not have been. The
+bogus stage went unreported because the guard skipped the cell, but the fix is
+that **the bogus stage no longer exists** — `split_stages` returns `[]`, so
+`--compact` has nothing to report and neither does lint. § 5.1 is that
+measurement.
+
+**The widened rule does change `perry-lint`'s output, at a different check.**
+Same two trees, same method, `SLA` on a `pipeline` track (a column the mode
+declares as having no default):
+
+| `SLA` cell | base (`70458893`) | fixed |
+|---|---|---|
+| `""` | 9 findings | 9 findings |
+| `n/a` | 9 findings | 9 findings |
+| `3d` | 8 findings | 8 findings |
+| `无`, `待定`, `不适用`, `暂无`, `N.A.`, `TBA` | **8 findings** | **9 findings** |
+
+The extra finding, verbatim:
+
+```
+track 'research' is mode 'pipeline' and its `SLA` is undeclared.
+pipeline has no default `SLA` (schema work_modes…)
+```
+
+That is the defect, visible in the tool's own output: on a Chinese board an
+`SLA` cell reading `待定` was a **declared value**, the column stopped being
+reported as unset, and the warning that exists to catch exactly that never
+fired. It fires now, and `n/a` (which the English-only list already knew)
+behaves identically before and after — which is the control that says the
+change is the localization gap closing and not a new warning for everyone.
+
+Script: `tests/lintdiff_blank_cell.py`.
+
 ## 7 · The narrowness judgement, which the row asked for by name
 
 The row said `split_stages` "may genuinely want only the marker, for a
