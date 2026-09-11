@@ -228,3 +228,165 @@ not read any of the 18,627 delegated lines in full.** My arithmetic check is
 total and independent; my *judgement* check is a sample. A reader who needs one
 specific region to be right before deleting on it should re-read that region —
 which is precisely what § 1d already tells them.
+
+---
+
+# 2 · TASK-368 — eight test modules onto the in-process seam
+
+Criteria: `perry/evidence/2026-09/TASK-368-spec.md`
+Under review: `perry/evidence/2026-09/TASK-368-result.md`, the four commits
+`5653904f`, `2e67cde6`, `70e4fd75`, `bfc983ea`, merged as `fef35967`.
+
+The spec names the defect this row is most likely to ship, and it names it
+precisely: *"A conversion that makes a test faster and blind … because the
+in-process path shares module globals the subprocess did not."* So the round is
+that question and nothing else.
+
+## 2.1 How the mutations were run
+
+**On a copy, never on the project under review.** `git archive main` into
+`…/scratchpad/…/copy`. The shared checkout at `/Users/bytedance/proj/Perry` was
+not touched at any point, and neither was this worktree's own `bin/`.
+
+The harness (`scratchpad/…/mutate.py`) implements rule 2 literally:
+
+- **anchored by line number**, never `str.replace` on a repeated string — each
+  mutation asserts the expected text is on the line it is about to overwrite,
+  and prints the line it found;
+- **`__pycache__` cleared and 1.3 s slept** before the run and again after the
+  restore, because CPython validates bytecode on mtime-in-whole-seconds plus
+  size (`PYTHONDONTWRITEBYTECODE` is set as well);
+- **a pre-flight that would catch `TASK-325`'s defect**: before mutating, the
+  copy's file is compared to bytes captured with `git show main:<path>` in the
+  live worktree *before the harness existed*. A file already carrying a
+  mutation fails here rather than being "restored" onto the mutation;
+- **the restore verified against those same independent bytes**, never against
+  a snapshot the harness took itself.
+
+Every run below printed `restore verified against git show main:<path> -> True`.
+
+**One correction to my own method, recorded because it is the shape rule 2
+warns about.** `tests/test_track_move.py` carries **no `unittest.main()`** — it
+is the only one of the 129 test modules on `main` that does not — so
+`python3 tests/test_track_move.py` executes nothing and exits **0**. My first
+pass scored it GREEN on a run that never happened. The harness now invokes
+every module the way `tests/run` does, `python3 -m unittest discover -s tests -p
+<module>.py`, and the module is 30 tests. *(The missing `unittest.main()` is
+**not** this row's: `git show 7f43a11c:tests/test_track_move.py` has no
+`__main__` either. It is a standing trap for exactly the check the spec's
+verification 3 asks for, and it is reported in § 0 below.)*
+
+## 2.2 The eight mutations, re-run rather than read
+
+I did not take the report's table. I located each site myself, mutated it, and
+counted. **All eight reproduce, with the report's exact numbers.**
+
+| # | module | my mutation, by file:line | report says | **I measured** |
+|---|---|---|---|---|
+| 1 | `test_track_move` | `bin/perry-task:4462` `arrived = args.arrived or prev_arrived or today` → `arrived = ""` | 5 of 30 | **RED, 5 of 30** |
+| 2 | `test_register_store_invariant` | `bin/perry-task:2382` first statement of `refuse_to_shrink` → `return` | 34 of 46 | **RED, 34 of 46** |
+| 3 | `test_register_substitution` | `bin/perry-task:2213` `lost.append(record)` → `pass` | 23 of 26 | **RED, 23 of 26** |
+| 4 | `test_store_drift` | `bin/perry-lint:3697` (just after `stats["store_present"] = True`) → `return []` | 17 of 46 | **RED, 17 of 46** |
+| 5 | `test_store_is_canonical` | `bin/perry-tasks:309-311` `return write_board_or_refuse(…)` → `return 0` | 1 of 12 | **RED, 1 of 12** |
+| 6 | `test_board_render` | `bin/perry_store.py:395` `escape = desc.get("escape", True)` → `escape = False` | 5 of 14 | **RED, 5 of 14** |
+| 7 | `test_design_handoff` | `bin/perry-task:1899` `rec["design_refs"] = design_refs.get(rec["id"], [])` → `pass` | 1 of 25 | **RED, 1 of 25** |
+| 8 | `test_linkage_store_declared` | `bin/perry-lint:4687` `_JSONL_STORE_LABEL` renamed | 4 of 21 | **RED, 4 of 21** |
+
+Not one green. The eight per-module test totals I observed — 30/46/26/46/12/14/25/21 —
+are also exactly the denominators of the report's `--ids` table, which is an
+independent corroboration of that table's counts (not of the id names).
+
+**My own green mutation, and what it was.** Before finding the site for #7 I
+mutated `bin/perry-task:3000` — `target["design_refs"] = list(event["design_refs"])`
+— and `test_design_handoff` came back **GREEN, 0 of 25**. Applying the report's
+own rule (*"a green mutation is a finding about the mutation until…"*): line
+3000 is in the event-application path, not in `store_records`, which is the
+function the report's mutation names and which lives at 1844–1899. I had
+mutated the wrong site. Mutating the right one reddened. Recorded because it is
+the discipline, not because it is a defect — and because it means **the carry at
+`bin/perry-task:3000` was not exercised by this module**, which is a fact for
+whoever next needs it rather than a finding against this row.
+
+## 2.3 The blindness hazard, enumerated rather than sampled
+
+This is the one place I could push past what the report did. Rule 1 says
+enumerate the category. The report examined **one** global — `bin/perry-lint`'s
+`_TRACK_CONTEXTS` — and instrumented it. I enumerated every module-level mutable
+container in every tool the eight modules drive in-process (`perry-task`,
+`perry-tasks`, `perry-lint`, `perry_store`, `perry-state`, `perry-okr`,
+`perry_md_store`, `parsers`, `lib`), by AST, together with every `lru_cache`:
+
+```
+bin/perry-lint      13 module-level mutable dicts/lists
+viewer/parsers.py    4 lru_cache'd functions
+bin/lib/__init__.py  1 (_BLANK_CELLS)
+everything else      none
+```
+
+Twelve of `perry-lint`'s thirteen are populated by one function, `load_glossary`,
+and **`load_glossary(schema)` is fed only from the installed
+`schema/state-schema.json`** — the same bytes on every call, merged across all
+languages, never from the project root. None of the three lint-converted modules
+supplies a different schema (checked: they read `ROOT / "schema" /
+"state-schema.json"` themselves and override no `PERRY_HOME`). `parsers`' four
+caches key on the schema and on a column name; `lib`'s `_BLANK_CELLS` on the
+schema enum.
+
+So **exactly one is keyed by the root — `_TRACK_CONTEXTS`, at
+`bin/perry-lint:694`, `key = str(root)`, cleared nowhere — which is precisely
+what the report said.** Its sentence *"`bin/perry-lint` has one genuinely
+root-keyed global"* survives an enumeration it did not itself run. The other
+twelve satisfy `tests/inproc.py`'s stated bar (*"either root-independent or reset
+per call"*) on the first limb.
+
+And I re-derived the consultation count rather than accepting it. Instrumenting
+`_track_context` in the copy and running the three lint-converted modules through
+`discover`:
+
+```
+test_store_drift             rc=0  cumulative consultations: 0
+test_store_is_canonical      rc=0  cumulative consultations: 0
+test_linkage_store_declared  rc=0  cumulative consultations: 0
+TOTAL _track_context consultations: 0
+restore verified against git show main:bin/perry-lint -> True
+```
+
+**Zero, independently.** The conversions are not blind through this channel, and
+the uncleared cache remains a latent `bin/` defect that this row was correctly
+forbidden to fix.
+
+## 2.4 The other criteria
+
+| criterion | result |
+|---|---|
+| every converted module green; suite red set unchanged | **met** — all 8 green in my copy; my full-suite baseline carries the 4 known reds and no converted module is among them |
+| **no `bin/` or `viewer/` file changed** | **met, verified per commit.** `git show --stat <sha> -- bin/ viewer/` is empty for all four of `5653904f`, `2e67cde6`, `70e4fd75`, `bfc983ea`. The `bin/perry-restore-check` change visible in the merge range is `1cb6ff93`, TASK-426's, not this row's |
+| no module left half-converted | **met** — 0 raw `subprocess.run/Popen/check_output` remain in any of the 8 modules or in `tests/store_fixture.py` |
+| no module converted without a step-1 number | **met** — 8 converted, all with a boundary share |
+| the 40% gate applied consistently | **met** — lowest converted 46.5%, highest rejected 29.9%; no straddle |
+| rejected modules reported with numbers | **met** — 5, with medians of 3 and the reason |
+| suite total wall-clock, worker count stated | **met** — 8 workers, stated, and the report gives five repeats rather than one |
+| `--ids` set diff empty | **not re-derived by me** — see § 2.5 |
+
+The `test_ns_collision` rejection deserves naming as work rather than as a
+box ticked: 86% subprocess and **29% boundary**, rejected. That is the row
+declining the conversion its own title would have demanded, which is what the
+spec's procedure exists to produce.
+
+## 2.5 What I could not check on TASK-368
+
+- **The `--ids` set diff.** I confirmed every per-module *count* (30/46/26/46/
+  12/14/25/21) independently, and the whole-suite before/after equality is the
+  one number I would have to re-run the pre-conversion suite to reproduce. I
+  did not check that the id *names* are the same set, only that the
+  cardinalities the report publishes are the ones the modules really have.
+- **The timing numbers.** Boundary shares, per-module wall clock and the 174.5s
+  suite total are measurements on the author's machine under a stated load
+  average. I did not re-derive any of them, and a timing figure re-measured here
+  would be a different machine's number, not a check of theirs.
+- **Mutation coverage beyond one test per module.** The spec asks for at least
+  one named mutation per converted module and that is what exists and what I
+  verified. Eight mutations do not establish that the 220 tests in those modules
+  are all still load-bearing; they establish that each module still reddens for
+  the reason it exists.
+- **The five rejected modules' boundary shares.** Taken as reported.
