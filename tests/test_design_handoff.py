@@ -39,7 +39,6 @@ import importlib.util
 import json
 import pathlib
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -47,6 +46,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "viewer"))
 sys.path.insert(0, str(ROOT / "tests"))
+import inproc  # noqa: E402
 import parsers as P  # noqa: E402
 import store_fixture  # noqa: E402
 
@@ -334,10 +334,12 @@ class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
     """
 
     def perry_task(self, root, *argv):
-        proc = subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-task"), *argv,
-             "--root", str(root)],
-            capture_output=True, text=True)
+        # **In-process** (TASK-368). Measured in this tree before converting:
+        # 87.8% of this module is children and the boundary is 82.5% of the
+        # module. It shares `store_fixture.write_store`, which this row
+        # converted, so these two sites go with it — a module left half on
+        # `subprocess` is where TASK-402's shared-helper rounds went wrong.
+        proc = inproc.run("perry-task", [*argv, "--root", str(root)])
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         return proc
 
@@ -363,10 +365,8 @@ class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
         self.perry_task(root, "design-link", "TASK-001",
                         "--design", "DESIGN-009")
 
-        proc = subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-tasks"), "write",
-             "--from-board", "--root", str(root)],
-            capture_output=True, text=True)
+        proc = inproc.run("perry-tasks",
+                          ["write", "--from-board", "--root", str(root)])
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"],
                          "a store rebuild derived the record from the board "

@@ -42,11 +42,10 @@ import importlib.machinery
 import importlib.util
 import pathlib
 import shutil
-import subprocess
-import sys
 import tempfile
 import unittest
 
+import inproc
 from store_fixture import StoreFixture
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -79,9 +78,17 @@ class Fixture(StoreFixture):
 
         `tests/parallel` fails a module contributing zero tests, which is the
         backstop that would have caught this on the next full gate.
+
+        **In-process** (TASK-368). Measured in this tree before converting: 62
+        `perry-lint` calls and 84 `perry-tasks`, 9.4 of this module's 10.9
+        seconds are children, and the boundary is 76.9% / 97.7% of one of
+        those calls against a fixture — 73.1% of the module. `perry-lint`'s
+        one root-keyed global, `_TRACK_CONTEXTS`, was instrumented over a full
+        in-process run of this module and consulted 0 times; the fixtures here
+        write no typed `Track` cell for it to answer about. It keeps the
+        `subprocess.CompletedProcess` shape, so no call site below changes.
         """
-        return subprocess.run([sys.executable, str(tool), *args],
-                              capture_output=True, text=True, cwd=ROOT)
+        return inproc.run(pathlib.Path(tool).name, list(args), cwd=str(ROOT))
 
 
 class TheRemedyDoesNotDestroyWhatItRepairs(Fixture):

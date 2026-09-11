@@ -33,7 +33,6 @@ import json
 import pathlib
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -44,6 +43,8 @@ TOOL = ROOT / "bin" / "perry-tasks"
 sys.path.insert(0, str(ROOT / "viewer"))
 import parsers as P                                             # noqa: E402
 import tables as T                                              # noqa: E402
+
+import inproc                                                   # noqa: E402
 
 #: The shapes measured on the second real project, in one board. Written by
 #: hand and NOT through `render_row`, because a fixture built by the writer
@@ -72,9 +73,15 @@ SECOND_PROJECT_BOARD = """# Board — Fixture
 
 
 def run(*args, root=ROOT):
-    return subprocess.run([sys.executable, str(TOOL), *args,
-                           "--root", str(root)],
-                          capture_output=True, text=True, cwd=ROOT)
+    # **In-process** (TASK-368). Measured in this tree before converting: 158
+    # `perry-tasks` calls, and the boundary is 97.7% of one against a fixture.
+    # The MODULE number is lower because four of its tests render Perry's own
+    # board, which is real work rather than startup — three probes gave 46.5%,
+    # 41.3% and 51.8%, median 46.5%, which clears the 40% gate but is nowhere
+    # near the 97.7% a single call suggests. `perry-tasks`' two module globals
+    # (`_TASK_MODULE`, `_LINT_MODULE`) are sibling-module handles.
+    return inproc.run("perry-tasks", [*args, "--root", str(root)],
+                      cwd=str(ROOT))
 
 
 def store_of(root: pathlib.Path) -> pathlib.Path:
@@ -105,9 +112,7 @@ def a_live_row(root: pathlib.Path) -> str:
     Module-level rather than a method, because two TestCase classes need it and
     a second copy would be the defect this repository spends its time removing.
     """
-    text = subprocess.run(
-        [sys.executable, str(TOOL), "render", "--root", str(root)],
-        capture_output=True, text=True).stdout
+    text = inproc.run("perry-tasks", ["render", "--root", str(root)]).stdout
     for line in text.split("\n"):
         m = re.match(r"\| ([A-Z]+-\d+) ", line)
         if m:
@@ -146,10 +151,14 @@ class TestTheBytesMatch(unittest.TestCase):
         return (p if p.exists() else root / "perry" / "BOARD.md").read_bytes()
 
     def rendered(self, root: pathlib.Path) -> bytes:
-        proc = subprocess.run([sys.executable, str(TOOL), "render",
-                               "--root", str(root)], capture_output=True)
-        self.assertEqual(proc.returncode, 0, proc.stderr.decode()[:500])
-        return proc.stdout
+        # This call site asked for BYTES — `capture_output` without
+        # `text=True` — and `board_bytes` above compares against
+        # `read_bytes()`. `inproc.run` always decodes, so the encode here is
+        # what keeps the comparison a byte comparison rather than quietly
+        # making it a str one. TASK-368.
+        proc = inproc.run("perry-tasks", ["render", "--root", str(root)])
+        self.assertEqual(proc.returncode, 0, proc.stderr[:500])
+        return proc.stdout.encode("utf-8")
 
     def test_perrys_own_board(self):
         """The live file, byte for byte — and with NO verbatim fallback.
@@ -206,9 +215,8 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
     """
 
     def rendered(self, root: pathlib.Path) -> str:
-        return subprocess.run(
-            [sys.executable, str(TOOL), "render", "--root", str(root)],
-            capture_output=True, text=True).stdout
+        return inproc.run("perry-tasks",
+                          ["render", "--root", str(root)]).stdout
 
 
     def row_of(self, root: pathlib.Path, tid: str) -> str:

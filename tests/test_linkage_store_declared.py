@@ -34,10 +34,10 @@ from __future__ import annotations
 
 import json
 import pathlib
-import subprocess
 import sys
 import unittest
 
+import inproc
 from store_fixture import StoreFixture
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -343,15 +343,19 @@ class TestTheCensusCountsIt(StoreFixture):
     """
 
     def census(self, root: pathlib.Path) -> list[str]:
-        proc = subprocess.run([sys.executable, str(LINT), "--root", str(root)],
-                              capture_output=True, text=True, cwd=ROOT)
+        # **In-process** (TASK-368). Measured in this tree before converting:
+        # 85.3% of this module is children and the boundary is 65.6% of the
+        # module. It shares `store_fixture.write_store`, converted by this
+        # row, so its own three sites go with it rather than leaving the
+        # module half-converted. `perry-lint`'s root-keyed `_TRACK_CONTEXTS`
+        # was instrumented over a full in-process run here: 0 consultations.
+        proc = inproc.run("perry-lint", ["--root", str(root)], cwd=str(ROOT))
         return [ln for ln in proc.stdout.splitlines()
                 if ln.strip().startswith("·")]
 
     def payload(self, root: pathlib.Path) -> dict:
-        proc = subprocess.run([sys.executable, str(LINT), "--root", str(root),
-                               "--json"], capture_output=True, text=True,
-                              cwd=ROOT)
+        proc = inproc.run("perry-lint", ["--root", str(root), "--json"],
+                          cwd=str(ROOT))
         self.assertTrue(proc.stdout.strip().startswith("{"),
                         f"perry-lint printed no payload: {proc.stderr}")
         return json.loads(proc.stdout)
@@ -430,8 +434,7 @@ class TestNoRecordsIsNeverClean(StoreFixture):
     """
 
     def line(self, root: pathlib.Path) -> str:
-        proc = subprocess.run([sys.executable, str(LINT), "--root", str(root)],
-                              capture_output=True, text=True, cwd=ROOT)
+        proc = inproc.run("perry-lint", ["--root", str(root)], cwd=str(ROOT))
         lines = [ln for ln in proc.stdout.splitlines()
                  if ln.strip().startswith("·")
                  and (STORE_KEY in ln or "linkage store" in ln)]
