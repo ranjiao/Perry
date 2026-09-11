@@ -151,3 +151,79 @@ Three guards make the sweep hold:
 - a block in a language with no runner and no marker fails, rather than being
   skipped. A silent skip is how the python block spent six minors unexecuted.
 
+## 5 · Mutations
+
+The bar is the changelog guard's at `2ba2c565`: four independent mutations, all
+red. Six here, ten named reddenings. Each is line-anchored (never
+`str.replace` on a string that occurs more than once), applied alone,
+`__pycache__` cleared with **1.2 s** either side of the run, and restored by
+writing back the bytes of `git show HEAD:<path>` — not the bytes the harness
+snapshotted — then re-verified with `bin/perry-restore-check`, which exited `0`
+after every one. Driver:
+`…/scratchpad/task412-abcccc4a/mutate.py`.
+
+| id | target | mutation | named test | result |
+|---|---|---|---|---|
+| **M1** | page `:579`,`:587`,`:589` | defect 1 restored as it shipped — `SUPPORTED` back to a set of pairs, `tested = max(SUPPORTED)` | `test_supported_is_a_ceiling_per_major…` | **RED** `{(1,18),(2,0)} is not an instance of dict` |
+| | | | `test_the_drift_gate_is_a_ceiling_per_major_over_the_forward_space` | **RED** `SystemExit not raised` |
+| **M2** | page `:592` | defect 2 restored — `change["version"] > "%d.%d" % tested` | `test_the_filter_warns_about_exactly_the_entries_newer_than_the_pin` | **RED** `['1.2',…,'1.9','2.0'] != ['2.0']` |
+| **M3** | page `:592` | defect 3 restored — `> TESTED_MINOR_STR` | `test_it_references_no_name_the_page_does_not_supply` | **RED** free name in the set |
+| | | | `test_the_filter_warns_about_exactly_the_entries_newer_than_the_pin` | **RED** `NameError: TESTED_MINOR_STR` |
+| **M4** *(mine)* | page `:589` | keep the mapping, put the ceiling back across all majors — `tested = (major, max(SUPPORTED.values()))` | `test_the_drift_gate_is_a_ceiling_per_major_over_the_forward_space` | **RED** `(2, 18) != (2, 0)` |
+| **M5** *(mine)* | page, appended | a seventh fenced block arrives with no test | `test_the_blocks_are_counted…` | **RED** `7 != 6` |
+| | | | `test_it_runs_on_the_live_payload_and_warns_about_nothing` | **RED** `rule 3's python block` |
+| **M6** *(mine)* | the test module | flip the independent oracle to oldest-first | `test_every_declared_pair_agrees_with_document_order` | **RED** `2.0 vs 1.18 … disagree` |
+
+M4 is the mutation worth reading twice. It keeps every visible property of the
+fix — `SUPPORTED` is still a mapping, `pair()` is still used everywhere — and
+moves the ceiling back across majors in one expression. It is what a later
+author reaching for "one number" would write, and it is caught only because
+`tested` is read out of the block's own namespace.
+
+### The first round came back green, and that was the finding
+
+**The first pass of this battery reddened nothing for M2 and nothing for M4.**
+Restoring the string compare — the defect this row exists for — left both of its
+named tests passing.
+
+The cause was the same in both, and it is this row's own sin one layer in: those
+cases **recomputed `pair(a) > pair(b)` in the test** and checked the arithmetic,
+so a mutation at the block's *call site* was invisible to them. A test that
+re-implements the snippet is worth no more than a page whose snippet nothing
+runs. `commit d6b91201` is the repair: a `drive()` helper that executes the
+page's block on a synthetic payload and hands back its namespace and whatever
+`warn` actually received, with both cases going through it.
+
+One case survives the rewrite unchanged and its docstring now says so plainly:
+`test_the_string_compare_is_wrong_on_this_very_space` **describes** the defect
+and does not guard against it — it stays green under M2 by construction. It is
+kept only because it is the one place the *silence* direction is counted.
+Naming that in the file is the point; an ungrudged green in a mutation table is
+how the next round is taught which cases it may lean on.
+
+A fourth case claimed more than it did:
+`test_the_semantics_list_is_inside_the_space_and_filters_correctly` said
+"filters correctly" and filtered in the test, not on the page. It is now
+`test_the_live_semantics_versions_are_all_inside_the_space`, which is the
+premise the enumeration rests on and the part of it that was ever real.
+
+## 6 · The control — the rule-1 gate did not move
+
+Criterion 5. The major gate is the half of this block a reviewer *did* execute
+and found correct. It is run here as the page ships it, on synthetic payloads,
+so the answer is the block's rather than a restatement of it.
+
+```
+TestTheRuleOneGateStillBehaves ......................... Ran 4 tests  OK
+  test_it_accepts_two_zero                    2.0  -> version == "2.0"
+  test_it_accepts_one_eighteen                1.18 -> version == "1.18"
+  test_it_rejects_three_zero                  3.0  -> SystemExit "… 3.0 … not supported"
+  test_it_still_rejects_on_the_major_and_not_on_a_minor
+                                              1.99 -> accepted, per rule 3's own
+                                                      "do not refuse on a minor"
+```
+
+The last of those is not in the spec's list and is the control's real content:
+the fix widened what the drift gate *reports*, and the risk of that is a snippet
+that starts *refusing* an unseen minor instead. `1.99` passes the gate.
+
