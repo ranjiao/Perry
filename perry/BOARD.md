@@ -188,7 +188,6 @@
 | TASK-430 | python3 -m unittest tests.<name> reports a clean pass for a module that never imported, and it has now cost two rounds | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-431 | three tools carry three different lists of what a blank cell looks like, so a track's stages can be named after the blank marker | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 | TASK-432 | --compact drops missing_defaults from project.tracks[], the one field that separates 'no honest default' from 'this mode has no such control' | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
-| TASK-433 | bin/perry-task hands back perry-migrate and perry-conform declare, both deleted tools | Coding Agent | not_started | — | — |  |  | main |  |  |  |  |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 

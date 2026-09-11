@@ -789,5 +789,97 @@ class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):
                          "it wrote into the directory it was RUN from")
 
 
+class TestEveryToolAMessageNamesStillExists(unittest.TestCase):
+    """A refusal that names a deleted tool is worse than one that names no root.
+
+    `bin/perry-task § Board.find_section_row` ended *"Add the column, or run
+    `perry-migrate` and then `perry-conform declare` for this file"*. USER-910
+    deleted both tools with `perry_schema.py` and `test_migrate.py`. A rootless
+    hand-back at least RUNS — it acts on the wrong project, which is TASK-253's
+    harm. A hand-back naming a tool that does not exist cannot be followed at
+    all, so the reader is left in exactly the state the message was written to
+    get them out of.
+
+    An AST sweep found that one line and no other, which is why this guard is
+    cheap to add now and expensive to add later: it costs nothing today and
+    catches the next tool deletion on the day it happens.
+
+    **The population is derived at both ends.** The tools come from reading
+    `bin/`, and the names come from `command_phrases()`, so deleting a tool
+    reddens this without anyone remembering to update a list.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.phrases = command_phrases()
+        cls.present = {p.name for p in (ROOT / "bin").iterdir()
+                       if p.is_file() and not p.name.startswith(".")
+                       and p.suffix != ".md"}
+
+    def test_the_sweep_found_something_to_check(self):
+        """The control: an empty sweep would make every case below vacuous."""
+        self.assertGreater(len(self.phrases), 50, "the phrase reader went quiet")
+        self.assertIn("perry-task", self.present)
+
+    def test_no_message_names_a_tool_that_is_not_in_bin(self):
+        for row in self.phrases:
+            tool = row["phrase"].split()[0]
+            # An interpolated head — `{tool} render --write` — expands to
+            # whichever register is being served, and those are checked by
+            # their own aliases elsewhere. A literal name is checked here.
+            if "{" in tool:
+                continue
+            with self.subTest(at=f"{row['file']}:{row['line']}", tool=tool):
+                self.assertIn(
+                    tool, self.present,
+                    f"{row['file']}:{row['line']} tells the reader to run "
+                    f"`{row['phrase']}` and bin/ has no {tool}")
+
+    #: A tool named on its own, with no subcommand after it. `command_phrases`
+    #: cannot see these — its pattern requires at least one argument — and the
+    #: hole was found by mutating this very guard: putting back a bare
+    #: `` `perry-migrate` `` left it green, and only the two-word form bit.
+    #:
+    #: Two shapes look like a bare tool and are not, so both are excluded by
+    #: construction rather than by a list: a CONTRACT id (`perry-roles/list/1.1`
+    #: — followed by `/`) and a FILENAME (`.perry-task-transaction.json` —
+    #: preceded by a dot). Measured 2026-09-11: those four were the only
+    #: matches in `bin/`, and with them excluded the sweep is clean.
+    BARE = re.compile(r"(?<![\w.-])(perry-[a-z][a-z-]*)(?![\w-])(?!/)")
+
+    def test_no_message_names_a_tool_on_its_own_that_is_not_in_bin(self):
+        """The half `command_phrases` cannot reach.
+
+        Naming a tool that does not exist is wrong in any grammar — as an
+        instruction it cannot be followed, and as prose it sends a reader
+        looking for something that is not there.
+        """
+        seen = 0
+        for path in sorted((ROOT / "bin").glob("*")):
+            if not path.is_file() or path.suffix == ".md":
+                continue
+            try:
+                tree = ast.parse(path.read_text(errors="replace"))
+            except SyntaxError:
+                continue          # the bash tools, absent by measurement
+            for lineno, text, _n, _v in sweep.string_expressions(tree):
+                for m in self.BARE.finditer(text):
+                    seen += 1
+                    with self.subTest(at=f"{path.name}:{lineno}",
+                                      tool=m.group(1)):
+                        self.assertIn(
+                            m.group(1), self.present,
+                            f"{path.name}:{lineno} names {m.group(1)} and "
+                            f"bin/ has no such tool")
+        self.assertGreater(seen, 20, "the bare-name sweep went quiet")
+
+    def test_the_two_tools_that_caused_this_are_really_gone(self):
+        """If either comes back, the guard above stops being about anything and
+        this says so rather than passing quietly."""
+        for tool in ("perry-migrate", "perry-conform"):
+            with self.subTest(tool=tool):
+                self.assertNotIn(tool, self.present)
+
+
 if __name__ == "__main__":
     unittest.main()

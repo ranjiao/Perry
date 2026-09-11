@@ -1052,6 +1052,23 @@ class Board:
         wrong row is a silent write into somebody's file. The refusal below
         names the column and the road instead, which is the shape ADR-004 § 4
         asks every gate refusal to have.
+
+        **The road used to have a second half and it was removed 2026-09-11.**
+        The refusal said "Add the column, or run `perry-migrate` and then
+        `perry-conform declare` for this file". USER-910 deleted both tools
+        along with `perry_schema.py` and `test_migrate.py`, so the sentence
+        handed a reader two commands that cannot run — worse than TASK-253's
+        rootless hand-backs, because a rootless command at least runs, while
+        this left the reader in the state the message was trying to get them
+        out of.
+
+        **There is no successor to name.** A section's header is LAYOUT, and
+        `DESIGN-016 § 8` records that the board's layout is not derivable from
+        the store — the store holds rows, the file holds the section shape, and
+        `render` only refills lines that already exist. So the honest road is
+        the one this refusal already names: add the column, in one of the
+        spellings the sentence points at. Naming a wrong successor would have
+        been worse than naming a dead one.
         """
         _, header = self.section_table(heading)
         keys = header_keys(header)
@@ -1063,9 +1080,8 @@ class Board:
                 f"`schema/state-schema.json § i18n.columns` declares). Perry "
                 f"resolves every column by name, so there is no row this can "
                 f"be about, and guessing the first cell would clear whichever "
-                f"row happened to sit under it. Nothing was written. Add the "
-                f"column, or run `perry-migrate` and then "
-                f"`perry-conform declare` for this file")
+                f"row happened to sit under it. Nothing was written. Add "
+                f"the column.")
         for i, cells in self.section_rows(heading):
             cell = cells[at] if at < len(cells) else ""
             if cell.replace("*", "").replace("~", "").strip() == row_id:
