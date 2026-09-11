@@ -227,3 +227,95 @@ The last of those is not in the spec's list and is the control's real content:
 the fix widened what the drift gate *reports*, and the risk of that is a snippet
 that starts *refusing* an unseen minor instead. `1.99` passes the gate.
 
+## 7 · Suite
+
+Both runs in this worktree, `bash tests/run`.
+
+| | modules | tests | red |
+|---|---|---|---|
+| baseline, `575f9dee` | 125 | 3589 | `test_contract_key_parity` ×2, `test_resume.TestStaleRuns.test_a_fresh_run_is_not_stale` |
+| after | **126** | **3609** | the same three, and only those |
+
++1 module and +20 tests is exactly this row's new module. Tree guard: *nothing
+under the worktree moved*.
+
+Three of the four reds the dispatch named as known are here. The fourth,
+`test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks`,
+**did not fire in either run in this tree** — stated because a known red that
+turns out to be green is as much a mis-attribution risk as the reverse.
+
+The baseline number came from a run I contaminated: I edited the page while it
+was in flight and the tree guard correctly failed it. The module and test counts
+above are from that run and are sound, but its wall clock is not, and neither is
+any timing in this document — two other agents were running suites on this
+machine throughout, one of them a `tests/run` in the shared checkout. **No
+timing is reported here.**
+
+## 8 · A row to file — the category one level up
+
+Out of scope for this row, and the spec says so. Filing rather than fixing.
+
+The sweep's method was pointed at the sibling pages, read-only:
+
+| page | fenced blocks | executed |
+|---|---|---|
+| `schema/events-list-contract.md` | 2 | none |
+| `schema/goals-list-contract.md` | 2 | none |
+| `schema/decide-list-contract.md` | 2 | none |
+| `schema/knowledge-list-contract.md` | 3 | none |
+| `schema/roles-list-contract.md` | 1 | none |
+
+**11 blocks across five consumer-facing contract pages, none executed by any
+test** — the state `task-list-contract.md` was in this morning.
+
+The version gate itself is *not* duplicated: `SUPPORTED` and
+`rsplit("/", 1)` occur on `task-list-contract.md` and nowhere else under
+`schema/`, so the spec's "unless the sweep shows this page's snippets come from
+one" is answered — they do not.
+
+But one of those blocks is already broken, and in the strongest possible sense:
+
+```
+schema/knowledge-list-contract.md:108  (python)
+    SyntaxError: illegal target for annotation at line 3
+```
+
+The block's third line is `"stale": bool(age is not None and age > stale_days)`,
+a dict entry lifted out of its dict. **It does not compile**, so a consumer
+copying it gets a syntax error rather than a wrong answer — the same shape as
+`TESTED_MINOR_STR`, found the same way, on a page this row was told not to
+touch. Suggested row: *apply `test_contract_page_snippets.py`'s sweep to the
+other five contract pages*, P2, and the generalisation is cheap because the
+block-sweep, the marker convention and the jsonc shape-checker are already
+written and parameterised on a path.
+
+## 9 · What I did not check
+
+- **The oracle is only half independent.** Document order in the Changelog is a
+  genuine outside statement of version order and anchors all 400 declared pairs.
+  The *forward* space — `1.19` and past — has no document to be ordered by, so
+  there the truth is `(int, int)`, the same formula the snippet uses. What the
+  forward cases do establish is behavioural and not circular: the block's own
+  `tested` and its own `warn` calls are observed. But "is `(1,20) > (1,19)`"
+  is not independently corroborated and cannot be from inside this repository.
+- **`bin/perry-task` was read, not audited.** The spec allows changing it only
+  if the page describes something the tool does not do. I found no such gap in
+  what the snippets touch — `contract`, `semantics[]`, `bound` — and the new
+  jsonc cases now compare the page's declared keys and types to a live payload.
+  I did not audit the tool for behaviour the page does *not* mention.
+- **The `jsonc` shape check does not recurse into arrays.** The page illustrates
+  an entry shape from one element and the live array may be empty; entry keys
+  are `test_contract_key_parity.py`'s job, with a witness project for the
+  collections this board leaves empty. So a wrong *entry* type inside
+  `tasks[]` in the page's example would not be caught here.
+- **The two changelog transcripts are excused, not verified.** The marker check
+  proves they are historical and sit under a superseded version; it does not
+  prove they faithfully record what the tool printed in August 2026. Rerunning
+  them is not possible — both describe states that were fixed.
+- **Contract version unmoved, deliberately.** No key was added, removed or
+  retyped and no value is computed differently; the change is to prose and to a
+  snippet. Per the page's own rule 2 and its `purge` precedent, that is not a
+  `1.x` bump. I did not add a "Not a version" changelog entry either — the fix
+  is described in rule 3's own section, where a reader of the snippet will be.
+- **Nothing was run that writes the task store**, so TASK-412's own board row is
+  untouched and still needs moving by whoever lands this.
