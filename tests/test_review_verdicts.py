@@ -649,6 +649,20 @@ class TestTheCountIsByCriterionNotByBlock(ReviewLintCase):
         self.assertIn(f"{tid}-r2.md", head)
         self.assertIn(f"{tid}-r3.md", head)
 
+    def test_the_undeterminable_denominator_is_the_counted_rounds(self):
+        """"N of the M counted" — M is what was COUNTED, not what was FAILed.
+
+        Added after a mutation survived: `undeterminable` is measured over
+        `charged`, and swapping that for `fails` is provably equivalent (a
+        ROW-graded block has a readable grade, so it is never undeterminable).
+        The denominator beside it is NOT equivalent, and nothing was holding
+        it — a row with one filed ROW and two ungraded FAILs would have read
+        "2 of the 3 counted" while only 2 were counted.
+        """
+        self.fails("ROW — criterion 2b", None, None)
+        self.assertIn("2 of the 2 counted", self.msg())
+        self.assertIn("has FAILed 2 V4 rounds", self.msg())
+
     def test_a_fully_graded_row_says_nothing_about_undeterminable(self):
         self.fails("FAIL — criterion 5", "FAIL — criterion 13")
         self.assertNotIn("undeterminable", self.msg())
