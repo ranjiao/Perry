@@ -390,3 +390,293 @@ spec's procedure exists to produce.
   are all still load-bearing; they establish that each module still reddens for
   the reason it exists.
 - **The five rejected modules' boundary shares.** Taken as reported.
+
+---
+
+# 3 · TASK-421 — scratch isolation and the signal prohibition
+
+Criteria: `perry/evidence/2026-09/TASK-421-spec.md`
+Under review: `perry/evidence/2026-09/TASK-421-result.md`, and the shipped fix
+in `work/reference/dispatch.md`, `work/reference/review-constraints.md`,
+`AGENTS.md`, `tests/test_scratch_is_per_agent.py`.
+
+## 3.1 The sweep, re-run independently
+
+The report's central claim is a correction to its own row's premise: **size 8,
+six of the eight name no location, and nothing in the repository ever told an
+agent to namespace inside a shared scratchpad.** I re-ran the sweep at the
+Bound's pinned commit `fe0292fb` with my own term set over every `.md` outside
+`perry/journal/` and `perry/evidence/`, and then over `bin/`, `templates/`,
+`setup/`, `viewer/`, `packs/`, `modes/` and `.claude/`.
+
+**It holds.** My sweep returns every one of the eight sites the report tabulates
+— `AGENTS.md:57`, `review-constraints.md:19`, `:27`, `:89`, `digests.md:52`,
+`dispatch.md:277`, `host-capabilities.md:91-92`, `autopilot.md:227` — each
+spot-checked against the pinned bytes and each saying what the table says it
+says. Everything else my sweep surfaced falls into three buckets, none of them
+an instruction about scratch paths:
+
+- **`namespace` in the `DESIGN-002` sense** — the *host project's* namespace,
+  an unrelated subject (`SKILL.md`, `reference/first-run.md`, six ADRs, five
+  designs). A term overlap, not a site.
+- **prose describing past collisions** — `perry/BOARD.md` rows `TASK-289`,
+  `TASK-372`, `TASK-373`, `TASK-385`, `TASK-391`, `TASK-298`; `ADR-018`;
+  `DESIGN-016`. These *record* the incidents; none instructs.
+- **test fixtures** — two `/tmp/sample` strings under
+  `tests/fixtures/interrupted-adoption/`.
+
+The only non-`.md` hit in the whole tree is `bin/perry-lint:2291`,
+`_CITE_SCRATCH = ("scratchpad", "scratch", "tmp", "/tmp")` — a filter for
+citations that point at scratch paths, not a constructor of one. So the report's
+"there is no code to change" survives an independent search.
+
+**One nuance about the word "corrects".** The report says the sweep *"corrects
+the spec's premise"*. The spec's own *Why* already places the instruction in the
+prompts — *"Every prompt in that session handed out one scratchpad directory"* —
+so the two documents never actually disagree about where the bad advice lived;
+what the Bound asked was whether the repository carried it too, and the answer
+is no. The finding is real and useful, and "corrects" overstates a disagreement
+that is not there. Prose, and `review.md § 0` puts prose out of scope.
+
+## 3.2 The guard, mutated rather than read
+
+The row's own claim is that its fix *does* admit a test, and that it mutated it
+ten times. I re-ran four of them myself, on the `git archive` copy, with the
+same harness discipline as § 2.1 — line-anchored, `__pycache__` cleared and
+settled, pre-flight against the ref's bytes, restore verified against the same
+independent source.
+
+Baseline in the copy: `test_scratch_is_per_agent` — **11 tests, green**.
+
+| my mutation | site | result | caught by |
+|---|---|---|---|
+| the derivation → a fixed shared path (**the exact shape that collided five times**) | `dispatch.md:229` | **RED, 3 of 11** | `test_two_worktrees_derive_two_scratch_roots`, `test_the_same_filename_in_both_is_still_two_files`, `test_the_snippet_names_no_fixed_directory` |
+| the derivation → PID-seeded, not re-derivable | `dispatch.md:229` | **RED, 2 of 11** | `test_the_path_is_stable_across_invocations_in_one_tree`, `test_the_snippet_names_no_fixed_directory` |
+| **scratch moved INSIDE the worktree** | `dispatch.md:229` | **RED, 1 of 11** | `test_the_scratch_root_is_outside_the_repository` |
+| `killall` dropped from the three signal commands | `review-constraints.md:39` | **RED, 1 of 11** | `test_all_three_signal_commands_are_named` |
+
+Every restore printed `verified against <the ref> -> True`.
+
+**The third row is the one that mattered to check**, and it is why I picked it:
+the report says this mutation came back GREEN on its first pass because the
+assertion compared a `/var/folders/…` path against git's realpath
+`/private/var/…` and so matched nothing — a test that asserted nothing while
+passing. **That repair is real.** The mutation reddens now, on exactly the named
+test, in a tree the author never touched.
+
+Verification 3 I checked by reading the shipped file: the new bullet is bullet
+**2 of 4** in `review-constraints.md § The repository is live`, directly after
+the `git checkout` bullet, in the same list, phrased like its neighbours and
+carrying its reason — and `test_it_sits_with_the_other_prohibitions_not_in_a_second_list`
+is what holds it there.
+
+Also confirmed: `tests/test_scratch_is_per_agent` is registered in
+`tests/durations.json`; `AGENTS.md` is back to 60 lines; the
+`perry-scratch-derivation` block appears **three** times in `dispatch.md` — the
+section, the `claude-subagent` prompt bullet, and the `codex` prompt list — so
+the codex gap § 6 names as open is in fact closed by § 7, and the report says so.
+`tests/header_rule.py` walks `root.rglob("*")` from the repo root with
+`NOT_A_READER = ("tests", ".git", "__pycache__", ".perry", ".claude")`, so the
+temp directory is genuinely unreachable by it and the TASK-385 conflict really
+is dissolved rather than suppressed.
+
+## 3.3 Finding — a third collision condition the report does not name
+
+Verification 1 requires: *"If they can still collide, say under what
+conditions."* The report names **two**: a dispatch that omitted
+`isolation: "worktree"`, and two worktrees sharing a basename under different
+parents. There is a **third**, and it is silent.
+
+Run the shipped block with a cwd that is not inside a git repository, and the
+`rev-parse --show-toplevel` call fails, `basename` of the empty result is empty,
+and the derivation degenerates to **one shared directory** with no error:
+
+```
+inside the agent worktree            -> [/var/folders/…/T//perry-scratch/agent-ab29516bf06aa709f]
+inside a git-archive copy (no .git)  -> [/var/folders/…/T//perry-scratch/]
+a plain directory, no repo           -> [/var/folders/…/T//perry-scratch/]
+```
+
+Measured, not reasoned — that is the shipped one-liner from
+`work/reference/dispatch.md:229`, run in three real directories on this machine.
+
+**Why it is reachable rather than theoretical.** `review-constraints.md § You
+are a reader`, lines 18-20, instructs *every reviewer* to *"copy the project to
+a scratch directory and work there"*, and `§ Verify a restore` builds that copy
+with `git archive`, which carries no `.git`. An agent that works "there" and
+re-derives its scratch path from that cwd gets the shared directory back again,
+for exactly the population of agents this row exists to separate. Two of them
+collide precisely as before, and nothing says so: the path looks plausible and
+the block has no failure mode.
+
+**Under `review.md § 0` I believe this one clears the bar**, and I say so rather
+than deciding it. Applying § 0's middle limb in the row's own words: a clobbered
+scratch file *"still parses, a mutation harness reading someone else's baseline
+still prints a result, and the round has no way to tell the result came from
+another agent's file"* — that is a tool reporting a wrong answer to someone with
+no way to detect it. **It is the one finding in this round that I think should
+become a row**, and the repair looks like one line: fail loudly, or fall back to
+a name that cannot be empty. The decision is the PMO's.
+
+**It does not FAIL the row.** The shipped mechanism is correct where a
+dispatched agent actually runs it, its guard discriminates under four
+independent mutations I ran myself, and deliverable 2 — *a private scratch path
+per dispatched agent* — is delivered. What is incomplete is an enumeration
+inside a verification narrative: two conditions named where there are three.
+`§ 0` routes an incomplete statement in an evidence file to a correction with
+its own id, never to a FAIL on this one, and a FAIL here would buy a sentence at
+the price of a round.
+
+## 3.4 An observation about this round's own dispatch
+
+Reported as data, because the row's § 6 says the first real evidence of
+compliance will be the next concurrent dispatch, and this is it.
+
+**This round's own prompt did not carry the `perry-scratch-derivation` block.**
+It said *"Use a scratch path nobody else would pick and say what you used"* —
+which is the ask-the-agent-to-be-careful pattern the row's § 3 argues it
+removed, not the derivation the row shipped. I complied by inventing a name: the
+step the fix exists to delete.
+
+This is not a defect in TASK-421; the row itself predicted it in § 6 (*"Nothing
+here measures compliance"*) and in § 3 (*"the instruction is still text an agent
+can ignore"*). It is the first datapoint on that prediction, and it is negative.
+Whether that is worth a row is the PMO's call; I note only that the mechanism's
+value is bounded by a prompt-construction step that this dispatch did not
+perform. I can see only my own prompt and make no claim about the other two
+rows' dispatches.
+
+## 3.5 What I could not check on TASK-421
+
+- **Six of the ten mutations.** I re-ran four (the fixed path, the PID seed,
+  scratch-inside-the-worktree, and `killall` dropped). I did not re-run M3
+  (sentinel deleted), M5 (blockquote gutted), M6 (prompt bullet removed), M7
+  (prohibition removed), M8 (reason gutted), M10 (rule relocated), or the M11
+  added in § 7. The four I chose include the one the report reports as having
+  been silently green, which is the one whose repair most needed an independent
+  witness.
+- **The historical replay.** The eight worktrees `r4b`/`r4c`, `r5a-c`,
+  `r6a-c`, `fixA`/`fixB` — I did not confirm those directories still exist or
+  that their basenames are distinct. The arithmetic is trivially right *if* the
+  names are what the report says; I checked the derivation, not the roster.
+- **Whether any other agent obeys the block.** Unmeasurable from here, and § 3.4
+  is the only datapoint I have.
+- **Non-POSIX hosts**, and whether the temp directory is per-session on any host
+  but this one. The report already flags both.
+- **The dispatch-log residual** in `reference/host-capabilities.md:91` — I
+  confirmed the report names it and did not test the two-rounds-one-task-id
+  collision it describes.
+
+---
+
+# 4 · Verdicts
+
+`review.md § 0` applied per finding: none of the three rows carries a defect
+that destroys unrecoverable state, and the only one I believe makes a tool
+report an undetectable wrong answer is § 3.3, which is a residual condition in a
+shipped mechanism rather than a broken one. **No board row was filed by this
+round.** The two findings I believe clear § 0's bar for a *new row* are § 1.4
+(the false exclusivity claim, because a row written off it would go looking for
+one call site and find three) and § 3.3 (the silent degeneration outside a
+repository). Both decisions are the PMO's.
+
+```
+=== VERDICT ===
+task: TASK-348
+rung: V4
+result: PASS
+criteria: perry/evidence/2026-09/TASK-348-spec.md
+checked: all 23 published region tables re-harvested from the document and
+         recomputed with my own support extractor against the files at
+         7f43a11c — 0 overlaps, 0 unclaimed code lines, 0 zero-code regions,
+         0 code-column mismatches, every per-file block equal to my
+         recomputation, totals exactly 6,440/167/847/3,546 over 27,132 lines;
+         the 22-file line count re-derived as 27,132; 583f024f and 7f43a11c
+         byte-identical over all 22 paths; 14 delegated regions sampled at a
+         fresh seed (13 correct, 1 disputable at 5 lines); the empirical
+         negative control re-run — perry-state --section risks does report
+         "source": "table" while risks.jsonl holds 4 records; bin/perry-conform
+         absent; the 15 resolve_state_root files counted
+not-checked: the other 725 delegated regions and all 18,627 delegated lines —
+         my arithmetic check is total, my judgement check is a sample; the
+         destinations in § 7 beyond the five I traced; DESIGN-014 § 5.1's own
+         numbers; whether TASK-263's two files were measured correctly
+proof: n/a — PASS. Reported, not failing (§ 0): § 6.1's "the only reader of
+         .perry/config.jsonl … No second implementation exists" is false.
+         bin/perry-config:47-75 read_records calls load_store and
+         validate_records directly, and bin/perry-context-budget:119-140
+         parses the store itself with no validation, its docstring calling the
+         duplication deliberate
+=== END VERDICT ===
+```
+
+```
+=== VERDICT ===
+task: TASK-368
+rung: V4
+result: PASS
+criteria: perry/evidence/2026-09/TASK-368-spec.md
+checked: all 8 mutations re-derived by me on a git-archive copy, anchored by
+         line number, bytecode caches cleared and settled past the second
+         boundary, every restore verified against the ref rather than against
+         my own snapshot — all 8 RED with the report's exact counts (5/30,
+         34/46, 23/26, 17/46, 1/12, 5/14, 1/25, 4/21); the blindness hazard
+         ENUMERATED by AST over all 9 driven tools (13 mutable module globals
+         in perry-lint, 12 fed only from the installed schema, exactly 1 keyed
+         by root, as claimed); _track_context consultations independently
+         re-instrumented to 0 over the 3 lint-converted modules; no bin/ or
+         viewer/ file touched by any of the row's 4 commits (the
+         perry-restore-check change in the merge range is 1cb6ff93,
+         TASK-426's); 0 raw subprocess calls left in the 8 modules or
+         store_fixture; the 40% gate consistent — 46.5% lowest converted,
+         29.9% highest rejected, no straddle
+not-checked: the --ids set MEMBERSHIP — I verified every per-module
+         cardinality independently, not the id names, and did not re-run the
+         pre-conversion suite; every timing figure, including the 174.5s suite
+         total and all boundary shares, which are the author's machine; the 5
+         rejected modules' numbers; mutation coverage beyond the one test per
+         module the spec asks for
+proof: n/a — PASS. Reported, not failing (§ 0): tests/test_track_move.py
+         carries no unittest.main() — alone among 129 test modules — so
+         invoking it directly runs nothing and exits 0. It scored my own first
+         pass a false green. PRE-EXISTING, not this row's: the file at
+         7f43a11c has no __main__ either, and tests/run uses discover, so no
+         gate is weakened
+=== END VERDICT ===
+```
+
+```
+=== VERDICT ===
+task: TASK-421
+rung: V4
+result: PASS
+criteria: perry/evidence/2026-09/TASK-421-spec.md
+checked: the sweep re-run independently at fe0292fb with my own term set over
+         every .md outside journal/ and evidence/ and over bin/ templates/
+         setup/ viewer/ packs/ modes/ .claude/ — all 8 sites reproduced, no
+         ninth, and no instruction anywhere to namespace inside a shared
+         scratchpad, so the row's correction of its own premise holds; the
+         only non-.md hit is bin/perry-lint:2291 _CITE_SCRATCH, a filter and
+         not a constructor; 4 of the 10 mutations re-run by me on a copy, all
+         RED on the named tests, including the scratch-inside-the-worktree one
+         the report reports as silently green before its realpath repair; the
+         signal prohibition confirmed as bullet 2 of 4 beside the git checkout
+         bullet, with its reason; durations.json registration, AGENTS.md at 60
+         lines, the block present 3 times in dispatch.md so the codex gap is
+         closed; header_rule.py walks from the repo root, so the temp
+         directory really is out of its reach
+not-checked: mutations M3, M5, M6, M7, M8, M10 and the M11 of § 7; that the 8
+         historical worktrees still exist with the basenames the replay
+         assumes; compliance by any other agent; non-POSIX hosts and whether
+         the temp directory is per-session elsewhere; the two-rounds-one-task-id
+         collision on the codex dispatch log
+proof: n/a — PASS. Reported, not failing (§ 0), and the finding I believe most
+         clears § 0's bar for a NEW row: work/reference/dispatch.md:229, run
+         with a cwd outside a git repository, yields one shared scratch
+         directory — silently, because basename of the failed rev-parse is
+         empty. Measured in three real directories. Reachable because
+         review-constraints.md:18-20 tells every reviewer to work in a
+         git-archive copy, which carries no .git. Verification 1 names two
+         collision conditions; this is a third
+=== END VERDICT ===
+```
