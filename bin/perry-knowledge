@@ -404,7 +404,10 @@ def cmd_propose(args, ctx) -> dict:
         out.update(extra)
         return out
 
-    if not src or src in L.UNDECLARED_CELL:
+    # TASK-431: was `src in L.UNDECLARED_CELL` — a cross-MODULE read of
+    # `perry-lint`'s hardcoded set, which is why a sweep for blank-spelling
+    # literals in this file found nothing to fix here.
+    if not src or lib.is_blank_cell(src):
         return answer(False, "no-source",
                       "the close wrote no evidence to pre-fill `Source:` from. "
                       "A card promoted here would cite something the agent "
@@ -448,14 +451,14 @@ def cmd_promote(args, ctx) -> dict:
             f"card from a digest")
 
     claim = (args.claim or "").strip()
-    if not claim or claim in L.UNDECLARED_CELL:
+    if not claim or lib.is_blank_cell(claim):
         raise Refused(
             "--claim is required: the title line IS the claim, and one card "
             "carries exactly one. A card without it is a note nobody can "
             "verify or invalidate")
 
     src = (args.source or "").strip()
-    if not src or src in L.UNDECLARED_CELL:
+    if not src or lib.is_blank_cell(src):
         raise Refused(
             "--source is required and is not satisfied by a dash: a card that "
             "cannot say where its claim came from is refused, not written "
@@ -471,7 +474,7 @@ def cmd_promote(args, ctx) -> dict:
             f"wrote, its task id, or a `SRC-n` digest")
 
     trip = (args.invalidated_by or "").strip()
-    if not trip or trip in L.UNDECLARED_CELL:
+    if not trip or lib.is_blank_cell(trip):
         raise Refused(
             "--invalidated-by is required: name the observable condition under "
             "which this stops being true. It is the field people skip and the "
@@ -482,7 +485,7 @@ def cmd_promote(args, ctx) -> dict:
 
     roles = declared_roles(pr)
     owner = (args.owner_role or "").strip()
-    if not owner or owner in L.UNDECLARED_CELL:
+    if not owner or lib.is_blank_cell(owner):
         if not roles:
             owner = "—"          # legal, and only, before roles exist
         elif len(roles) == 1:

@@ -204,8 +204,12 @@ def parse_config(root: Path) -> dict:
         # store. Both mean the project declares no pack, and neither is a
         # reason to go looking for a second register.
         names = ["software-ops"]
+    # TASK-431: was `n != blank_marker() and n != "—"` — the one rule's
+    # WRITING half, and then the same spelling re-typed beside it in case the
+    # writer's half ever answered differently. A `Packs` cell reading `无` or
+    # `none` named a pack, `load_packs` looked for it, and found nothing.
     cfg["packs"] = load_packs(
-        [n for n in names if n and n != blank_marker() and n != "—"])
+        [n for n in names if n and not lib.is_blank_cell(n)])
     return cfg
 
 
@@ -293,14 +297,45 @@ def split_stages(cell: str) -> list[str]:
     list as a stage without comment.
 
     Found by reading the row a drain produced, not by a test.
+
+    **TASK-431: the blank test is `lib.is_blank_cell`, and it is NOT narrower
+    than the others.** This function used to ask `s == "—"`, which is the em
+    dash and nothing else, so a `stages` cell reading `n/a`, `none`, `-` or
+    `无` contained no separator, survived the split, and came back as a
+    one-element list — **a stage named after the blank marker**, with
+    `stages_declared: true` behind it. Measured at `70458893`: 20 of the 21
+    declared and decorated spellings did that; only the one literal this line
+    had been taught behaved.
+
+    The row asked whether this caller wants a NARROWER rule than the rest,
+    and the answer is no, with a reason rather than by default. A narrow rule
+    here would have to be justified by a stage legitimately *named* `none` or
+    `无` — and the test below is on the WHOLE cell before any split, so the
+    only track it could affect is one whose entire pipeline is a single stage
+    spelled exactly like a declared way of saying "nothing here". Such a track
+    has no pipeline to measure, and every mode that reads `stage_list` —
+    queue, pipeline, inquiry — would rather be told the cell is empty and fall
+    back to the mode's declared default than route rows through it.
+
+    **Blankness is tested on the raw cell, before separator normalisation.**
+    Not decoration: `strip`/`replace` would happily rewrite a declared
+    spelling that contained a separator character into one that is no longer
+    declared. No spelling does today — the accepted separators are `->`, `→`,
+    `，`, `,` and `、` — but the order is what keeps that true of a schema
+    someone edits later, and this file's own history is about exactly that.
+
+    Interior elements go through the same rule, for the same reason at one
+    level down: `new -> — -> done` named a stage `—` before this, and a stage
+    the writer cannot address is the single-stage bug in miniature.
     """
+    if lib.is_blank_cell(cell or ""):
+        return []
     s = (cell or "").strip()
     for sep in stage_separators():
         if sep != "->":
             s = s.replace(sep, "->")
-    if not s or s == "—":
-        return []
-    return [p.strip() for p in s.split("->") if p.strip()]
+    return [p.strip() for p in s.split("->")
+            if p.strip() and not lib.is_blank_cell(p)]
 
 
 #: The implicit track every project without a `## Tracks` register reports —
@@ -567,12 +602,22 @@ def no_default_columns(mode: str) -> list[str]:
 
 
 def missing_defaults(col, mode: str) -> list[str]:
-    """The no-default columns this track left blank, in schema order."""
-    blank = {"", "—", "–", "-", "n/a", "tbd", "?"}
+    """The no-default columns this track left blank, in schema order.
+
+    **TASK-431 found this one, and the row did not name it.** The row's own
+    table listed three sites and two of them were `split_stages` and
+    `perry-lint`; this was a FOURTH list, `{"", "—", "–", "-", "n/a", "tbd",
+    "?"}`, 270 lines below `split_stages` in the same file. It carried no
+    Chinese at all, so on a localized board a `Spine` or `WIP` cell reading
+    `待定` was not a missing default — it was a *declared value*, and the
+    column stopped being reported as unset. Lowercasing a hand-typed cell and
+    testing it against seven literals also missed every decorated form the
+    board actually carries: `**—**`, `` `n/a` ``, `" — "`.
+    """
     out = []
     for name in no_default_columns(mode):
         key = name.lower().replace(" ", "_")
-        if (col(key) or "").strip().lower() in blank:
+        if lib.is_blank_cell(col(key) or ""):
             out.append(name)
     return out
 

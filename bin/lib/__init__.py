@@ -287,6 +287,21 @@ def is_blank_cell(value: str) -> bool:
     return text in _BLANK_CELLS
 
 
+# TASK-431 added a `blank_cell_spellings()` accessor here and then REMOVED it,
+# which is worth a line because the reasoning generalises. It was meant for a
+# caller whose vocabulary is deliberately wider than blankness —
+# `viewer/parsers.py § parse_due`, where `ongoing` is a schedule answer and not
+# an empty cell — so that the caller could union the declared set rather than
+# re-type it. That caller turned out not to need it: it asks
+# `t.lower() in _APERIODIC or is_blank_cell(t)`, which is the one rule at the
+# point of use and needs no set at all. The accessor shipped with zero callers
+# and a docstring naming one, and a mutation of it came back GREEN because
+# nothing exercised it. Handing out the SET invites a caller to test a raw cell
+# against `_blank_key`-reduced keys and silently miss every decorated form, so
+# the absence is the safer default: ask `is_blank_cell` a question, do not
+# borrow its data.
+
+
 #: `3d`, `2w`, `24h` — the shorthand `.perry/config.md § Tracks` writes. Here
 #: for the same reason `ISO_DATE_RE` is: `bin/perry-goals` validates `--due`
 #: with it and `bin/perry-lint` now checks the column against it, and a typed

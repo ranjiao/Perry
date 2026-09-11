@@ -347,11 +347,31 @@ DECLARED_ENUMS: dict[str, list[str]] = {}
 #: accepted here in the same edit.
 TRACK_ENUM_FIELDS: dict[str, str] = {}
 
-#: What a user writes in a cell to mean "nothing here". `SKILL.md`'s own
-#: example track row spells an empty cell `—`, so a check that only tested for
-#: the empty string would pass over every register Perry itself taught people
-#: to write. This is the CATEGORY, not the one spelling that bit.
-UNDECLARED_CELL = {"", "—", "–", "-", "n/a", "N/A", "tbd", "TBD", "?", "—/—"}
+# What a user writes in a cell to mean "nothing here" is `lib.is_blank_cell`,
+# which reads `schema § i18n.blank_cell`. There is deliberately NO set here any
+# more.
+#
+# **TASK-431.** This file carried `UNDECLARED_CELL = {"", "—", "–", "-",
+# "n/a", "N/A", "tbd", "TBD", "?", "—/—"}` and nine checks tested against it
+# with `in`. The schema's own note records that this list is why
+# `i18n.blank_cell` was declared in the first place — and the declaration
+# landed while this copy stayed, so for a year the linter answered "does this
+# cell mean nothing" in English only. `无`, `待定`, `不适用`, `暂无`, `na`,
+# `none`, `N.A.`, `TBA` and `？` were all cells this file believed said
+# something. A set-membership test also cannot see decoration, so `**—**` and
+# `` `n/a` `` were values too, on a board Perry's own templates decorate.
+#
+# It is a FUNCTION call at each site rather than a wider set for exactly that
+# reason: a set the callers test with `in` can only ever match spellings
+# literally, and `is_blank_cell` normalises before it matches.
+#
+# **One spelling was dropped and it is not an oversight: `—/—`.** It is not in
+# `schema § i18n.blank_cell`, nothing in this repository writes it, and a
+# whole-tree search finds it on no template, fixture, test or document — only
+# on the line above. Teaching the schema a tenth English spelling to preserve
+# it is precisely the edit this row forbids ("it must not add a spelling to a
+# list"); if a board somewhere really spells an empty WIP cell `—/—`, that is
+# a schema change with its own row, not a literal smuggled back into `bin/`.
 
 
 def load_glossary(schema: dict) -> None:
@@ -1126,7 +1146,7 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict,
                             k = column_index(got, col)
                             val = ("" if k < 0 or k >= len(row)
                                    else row[k].replace("*", "").strip())
-                            if val not in UNDECLARED_CELL \
+                            if not lib.is_blank_cell(val) \
                                     and not PLACEHOLDER.search(val):
                                 continue
                             findings.append(Finding(
@@ -1172,7 +1192,7 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict,
                         if si >= len(row):
                             continue
                         cell = row[si].replace("*", "").strip()
-                        if cell in UNDECLARED_CELL or not cell:
+                        if not cell or lib.is_blank_cell(cell):
                             continue
                         if any(a in cell for a in (seps.get("accepted") or [])):
                             continue
@@ -1552,7 +1572,13 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                     continue
                 if row[si].replace("*", "").strip().startswith("done"):
                     ev = row[ei].strip()
-                    if not ev or ev in {"—", "-", ""}:
+                    # TASK-431: was `ev in {"—", "-", ""}`. A `done` row whose
+                    # Evidence cell read `无` or `待定` was carrying evidence
+                    # as far as this check could tell, so the one warning that
+                    # exists to catch a closure with nothing behind it stayed
+                    # silent on exactly the boards least likely to be read in
+                    # English.
+                    if not ev or lib.is_blank_cell(ev):
                         findings.append(Finding(
                             "warn", "BOARD.md", "done-needs-evidence",
                             f"row {row[0]!r} is done with no evidence path",
@@ -1651,7 +1677,11 @@ def rung_satisfied(rung: str, evidence: str) -> str | None:
     if rung == "V0":
         return ("V0 is 'asserted' — it is the name for what is being refused, "
                 "never a rung a row may carry")
-    if not ev or ev in ("—", "-"):
+    # TASK-431: was `ev in ("—", "-")`. Same cell as `done-needs-evidence`
+    # above, a second and narrower rule for it, one screen apart — so a V3 row
+    # whose evidence read `n/a` was "claimed with no evidence at all" to one
+    # check and adequately evidenced to the other.
+    if not ev or lib.is_blank_cell(ev):
         return f"{rung} claimed with no evidence at all"
     if rung in ("V2", "V3") and not RUNNABLE_RE.search(ev):
         return (f"{rung} means a check something can re-run; the evidence names "
@@ -2131,7 +2161,7 @@ def intake_rows(text: str) -> int:
                 "arrived", "到达", "") == 0:
             continue
         # `Outcome` is the last column and holds a drop reason or a routing.
-        if len(cells) < 3 or cells[-1].strip() in UNDECLARED_CELL:
+        if len(cells) < 3 or lib.is_blank_cell(cells[-1]):
             n += 1
     return n
 
@@ -2939,7 +2969,7 @@ def check_knowledge(state_root: Path, project_root: Path) -> list["Finding"]:
 
         for name in CARD_REQUIRED:
             val = field_value(text, name)
-            if val and val not in UNDECLARED_CELL:
+            if val and not lib.is_blank_cell(val):
                 continue
             # `Owner role` is the one field an em dash legitimately answers,
             # and only until roles exist. Saying so in the finding keeps a
@@ -2967,7 +2997,7 @@ def check_knowledge(state_root: Path, project_root: Path) -> list["Finding"]:
                 f"error waiting to be executed against."))
 
         src = field_value(text, "Source")
-        if src and src not in UNDECLARED_CELL:
+        if src and not lib.is_blank_cell(src):
             if not resolves_somewhere(src, state_root, project_root):
                 findings.append(Finding(
                     "warn", rel, "card-source-dangling",
@@ -2986,7 +3016,7 @@ def check_knowledge(state_root: Path, project_root: Path) -> list["Finding"]:
                     f"{stale_days}d)." + (
                         f" Its tripwire is {trip!r} — check whether that has "
                         f"happened rather than just re-dating it."
-                        if trip and trip not in UNDECLARED_CELL else
+                        if trip and not lib.is_blank_cell(trip) else
                         " It names no tripwire, so age is the only signal "
                         "there is.")))
     return findings
@@ -4262,7 +4292,7 @@ def check_config_store(project_root: Path, state_root: Path) -> list["Finding"]:
         for field, enum_name in TRACK_ENUM_FIELDS.items():
             allowed = DECLARED_ENUMS.get(enum_name) or []
             value = str(rec.get(field) or "").strip()
-            if not allowed or not value or value in UNDECLARED_CELL:
+            if not allowed or not value or lib.is_blank_cell(value):
                 continue
             if value not in allowed:
                 findings.append(Finding(
@@ -4279,7 +4309,7 @@ def check_config_store(project_root: Path, state_root: Path) -> list["Finding"]:
         # Both halves read the SAME schema list, which is what stops the
         # splitter and this check disagreeing about what a separator is.
         cell = str(rec.get("stages") or "").strip()
-        if cell and cell not in UNDECLARED_CELL and seps.get("suspect") \
+        if cell and not lib.is_blank_cell(cell) and seps.get("suspect") \
                 and not any(a in cell for a in (seps.get("accepted") or [])):
             hit = next((c for c in seps["suspect"] if c in cell), None)
             if hit:
@@ -4292,7 +4322,7 @@ def check_config_store(project_root: Path, state_root: Path) -> list["Finding"]:
                     f"{', '.join(repr(a) for a in seps['accepted'])}."))
 
         for col in MODE_NO_DEFAULT.get(mode, []):
-            # `UNDECLARED_CELL` and `PLACEHOLDER` are the SAME two the table
+            # `lib.is_blank_cell` and `PLACEHOLDER` are the SAME two the table
             # check used, so a blank spelled `—` reads undeclared here exactly
             # as it did in the cell. `perry_md_store § stored_value`
             # normalises a declared blank to `""` on the way in, so most of
@@ -4300,7 +4330,7 @@ def check_config_store(project_root: Path, state_root: Path) -> list["Finding"]:
             # hand-written record is not, and this is the file that reports
             # hand-written records.
             value = str(rec.get(col.lower().replace(" ", "_")) or "").strip()
-            if value not in UNDECLARED_CELL and not PLACEHOLDER.search(value):
+            if not lib.is_blank_cell(value) and not PLACEHOLDER.search(value):
                 continue
             findings.append(Finding(
                 "warn", rel_store, "no-default",

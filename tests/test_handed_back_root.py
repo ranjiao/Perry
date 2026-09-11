@@ -524,7 +524,11 @@ class TestEveryWriterHandBackCarriesTheRoot(unittest.TestCase):
 #: `bin/perry-lint --templates` lints the templates Perry itself ships, out of
 #: `PERRY_HOME`; there is no project in that branch to name and the findings
 #: are about this repository rather than about anybody's board.
-NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5495)}
+# TASK-431 moved this from 5495 to 5525: the entry is keyed by LINE NUMBER, so
+# any edit above it in `bin/perry-lint` silently un-declares the exemption and
+# the call reappears as a finding. The call itself did not change — it is the
+# `--templates` branch, which has no project root to name.
+NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5525)}
 
 
 class TestTheFlagReachesTheTemplateThatNamesIt(unittest.TestCase):

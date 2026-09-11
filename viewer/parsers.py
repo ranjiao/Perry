@@ -68,6 +68,35 @@ def _i18n() -> dict:
         return {}
 
 
+def is_blank_cell(value: str) -> bool:
+    """`lib.is_blank_cell` — THE rule, re-exported, never re-implemented.
+
+    **TASK-431.** This file decides "does this cell mean nothing" in two
+    places (`parse_due` and `ask_is_answered`) and both had their own answer.
+    `bin/lib/__init__.py` owns the rule and reads `schema § i18n.blank_cell`
+    for it; the only reason this wrapper exists at all is the import
+    direction. `lib` imports THIS module, so a module-scope `import lib` here
+    would be a cycle — the same reason `_config_store_records` imports
+    `perry_md_store` inside the function rather than at the top.
+
+    **It falls back to the empty test and nothing more**, deliberately. A
+    frontend vendoring `viewer/` without `bin/` gets "only the empty string is
+    blank", which is the pre-i18n behaviour — wrong in the direction of
+    reporting too much, never of silently swallowing a cell. What it must
+    never do is grow a literal list here as a fallback: that is the fourth
+    list, and it is what this row removed.
+    """
+    import sys                                                # noqa: PLC0415
+    _bin = str(Path(__file__).resolve().parent.parent / "bin")
+    if _bin not in sys.path:
+        sys.path.insert(0, _bin)
+    try:
+        import lib                                            # noqa: PLC0415
+    except Exception:                                         # noqa: BLE001
+        return not (value or "").strip()
+    return lib.is_blank_cell(value)
+
+
 @lru_cache(maxsize=256)
 def alias(kind: str, canonical: str) -> tuple[str, ...]:
     """Canonical English name plus every localized spelling declared for it.
@@ -1833,9 +1862,24 @@ _ISO_DATE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _ANNOTATION = re.compile(r"->|→|[(（\[【<;；\n]")
 
 # A leading token that says, in the register's own words, that there is no date
-# here. Not an error and not a guess — the same set `parse_frequency` treats as
-# deliberately aperiodic, plus the em-dash spellings of an empty cell.
-_NO_DATE = _APERIODIC | {"—", "–", "-", "tbd", "无", "none", "待定", "?", "??"}
+# here. Not an error and not a guess.
+#
+# **TASK-431: this is a union, and only one half of it is a list.** The
+# cadence half — `ongoing`, `as needed`, `hourly` — is `_APERIODIC`, and it is
+# genuinely this reader's own vocabulary: those are positive answers about a
+# schedule, not ways of saying the cell is empty, and `is_blank_cell` must not
+# learn them (the row's second "must not", from the other side).
+#
+# The blank half used to be a hardcoded `{"—", "–", "-", "tbd", "无", "none",
+# "待定", "?", "??"}`. It knew two Chinese spellings out of the schema's
+# seven, so a `Due` cell reading `不适用` or `暂无` was not "no date" — it fell
+# through to the digit scan, and the FIRST NUMBER IN THE CELL became the due
+# date. That is the `n/a （见 evidence/2026-08-03-…）` failure this comment
+# block already records, still live for the spellings the list missed.
+#
+# It is now `is_blank_cell` at the point of use, not a set unioned in here,
+# because membership cannot see decoration and the one rule can.
+_NO_DATE = _APERIODIC
 
 
 # ── the intake register: ONE rule, every caller ───────────────────────────
@@ -1876,8 +1920,14 @@ INTAKE_COLUMNS = ["Arrived", "Request", "Outcome"]
 #: here would silently reclassify such a row as discharged and quietly shorten
 #: the queue depth an over-cap board is judged by. Narrowing this set is a
 #: decision about somebody's board, not a tidy-up.
+#
+# TASK-431: `n/a` and `na` left this literal — they are declared blank
+# spellings, and `intake_is_discharged` now asks `is_blank_cell` as well as
+# this set, so they are still unset and so are the fourteen spellings that
+# were never here. `pending` stays: it is an outcome vocabulary word, not a
+# way of writing an empty cell, and nothing else knows it.
 INTAKE_UNSET_OUTCOME = frozenset(
-    {squash(s) for s in (_NO_DATE | {"", "n/a", "na", "pending"})})
+    {squash(s) for s in (_NO_DATE | {"", "pending"})})
 
 
 def is_intake_register_header(header: list[str]) -> bool:
@@ -1905,7 +1955,11 @@ def intake_is_discharged(outcome: str) -> bool:
     only way it can be: is this cell one of the spellings that means "nothing
     recorded yet".
     """
-    return squash(outcome or "") not in INTAKE_UNSET_OUTCOME
+    # TASK-431: the blank test comes FIRST and is the one rule. The set beside
+    # it carries only what blankness does not cover — the cadence words and
+    # `pending`. Before this, `不适用` and `暂无` were discharged outcomes.
+    return (not is_blank_cell(outcome or "")
+            and squash(outcome or "") not in INTAKE_UNSET_OUTCOME)
 
 
 
@@ -1940,7 +1994,10 @@ def parse_due(cell: str) -> date | None:
         t = token.strip("*`_ 　,.，。;；:：、!！").strip()
         if not t:
             continue
-        if t.lower() in _NO_DATE:
+        # TASK-431: `_NO_DATE` is the cadence vocabulary; blankness is the one
+        # rule. Both still mean "stop here" — reading on would find a date in
+        # the citation that follows.
+        if t.lower() in _NO_DATE or is_blank_cell(t):
             # The cell says there is no date. Reading on would find one in the
             # citation that follows and report a ritual that is deliberately
             # aperiodic as overdue.
@@ -2135,8 +2192,18 @@ def ask_is_answered(status_cell: str) -> bool:
     widening it is a decision about somebody's board and belongs to a row that
     says so.
     """
+    # TASK-431. `_ASK_STILL_OPEN` is a PREFIX vocabulary, and its `—`/`-`
+    # members earn their place there: `— not yet` is an open question and is
+    # not a blank cell, so neither this test nor `is_blank_cell` alone is
+    # enough. What the prefix rule could not do is read a WHOLE cell that says
+    # nothing in a language it was never taught — `无`, `待定`, `不适用` are
+    # all truthy and none of them starts with a listed prefix, so each one
+    # counted as ANSWERED. The docstring above says an empty `Status` must
+    # read as open because the other direction silently shortens the
+    # needs-you list; every one of those cells is empty, spelled out.
     s = (status_cell or "").strip().strip("*` ").lower()
-    return bool(s) and not s.startswith(_ASK_STILL_OPEN)
+    return (bool(s) and not is_blank_cell(status_cell or "")
+            and not s.startswith(_ASK_STILL_OPEN))
 
 
 def _parse_user_input(section: str) -> list[UserInput]:
