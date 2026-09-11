@@ -294,8 +294,8 @@ the reviewer.
 Added 2026-09-11 (TASK-419). § 6 below counts FAILs to decide a row is failing
 on a principle nobody has picked. It counted **blocks**, and a block is not a
 unit of failure — the **criterion** is. A criteria file may grade its criteria
-by consequence, as `DESIGN-016-spec.md § "What a criterion may do to a row"`
-does:
+by consequence, as `perry/evidence/2026-09/DESIGN-016-spec.md` does in its
+§ "What a criterion may do to a row":
 
 - **FAIL** — a defect here answers yes to one of § 0's three questions. It
   fails the row.
@@ -330,7 +330,8 @@ and reading their silence as `ROW` would un-exhaust rows nobody regraded.
 Undeterminable is a stated outcome, the default is conservative, and the
 finding reports how many it counted that way.
 
-**A grade is not a way out of a FAIL.** `DESIGN-016-spec.md` says it and it
+**A grade is not a way out of a FAIL.** The criteria file
+`perry/evidence/2026-09/DESIGN-016-spec.md` says it and it
 binds here: the classification is a claim about consequence, and a round that
 shows the consequence is worse than claimed has refuted it. Grading your own
 FAIL `ROW` to buy a third round is the negotiation with the result that § 1
