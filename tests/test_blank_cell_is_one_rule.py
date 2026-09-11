@@ -563,29 +563,47 @@ class TestTheSpellingThatWasDropped(unittest.TestCase):
 
     def test_it_is_not_declared_and_nothing_writes_it(self):
         self.assertFalse(lib.is_blank_cell(self.DROPPED))
-        skip = {".git", "__pycache__", "node_modules"}
+        # **The domain is what git tracks, and that is not a skip list.**
+        # `os.walk` from the repository root descends into
+        # `.claude/worktrees/`, which holds one nested CHECKOUT per dispatched
+        # agent — 52 of them on this machine — each carrying whatever
+        # `bin/perry-lint` looked like at its own commit. Thirty of them still
+        # spell the pair in `UNDECLARED_CELL`, so this test was red on main and
+        # green in the agent worktree that wrote it, purely because the agent's
+        # tree contained no nested trees. An older commit of this file is not
+        # "the tree now writes the pair".
+        #
+        # Adding `.claude` to `skip` would have worked and would have been the
+        # wrong fix: a hand-written skip list is the shape TASK-429 is about,
+        # and the next untracked directory would need remembering. `git
+        # ls-files` is the only authority on what this repository contains, and
+        # the directory is already in `.gitignore`.
+        tracked = subprocess.run(
+            ["git", "-C", str(PERRY_HOME), "ls-files", "-z"],
+            capture_output=True, text=True, check=True).stdout.split("\0")
         hits = []
-        for dirpath, dirs, files in os.walk(PERRY_HOME):
-            dirs[:] = [d for d in dirs if d not in skip]
-            for name in files:
-                path = Path(dirpath) / name
-                rel = str(path.relative_to(PERRY_HOME))
-                if rel.startswith("perry/evidence/") or \
-                        rel.startswith("tests/test_blank_cell"):
-                    continue
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError):
-                    continue
-                # Comment lines are excluded: `bin/perry-lint` names the
-                # dropped spelling in the comment that explains why it was
-                # dropped, and deleting that explanation to make a test pass
-                # is the wrong trade. What must not come back is CODE.
-                code = chr(10).join(
-                    l for l in text.split(chr(10))
-                    if not l.lstrip().startswith(("#", "//")))
-                if self.DROPPED in code:
-                    hits.append(rel)
+        for rel in tracked:
+            if not rel:
+                continue
+            path = PERRY_HOME / rel
+            if not path.is_file():
+                continue
+            if rel.startswith("perry/evidence/") or \
+                    rel.startswith("tests/test_blank_cell"):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            # Comment lines are excluded: `bin/perry-lint` names the dropped
+            # spelling in the comment that explains why it was dropped, and
+            # deleting that explanation to make a test pass is the wrong
+            # trade. What must not come back is CODE.
+            code = chr(10).join(
+                l for l in text.split(chr(10))
+                if not l.lstrip().startswith(("#", "//")))
+            if self.DROPPED in code:
+                hits.append(rel)
         self.assertEqual(
             [], hits,
             "something in the tree now writes the em-dash pair, so dropping "
