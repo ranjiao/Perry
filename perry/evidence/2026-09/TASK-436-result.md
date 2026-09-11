@@ -1,7 +1,10 @@
 # TASK-436 — result
 
-> Status: complete. Written incrementally and committed as each section was
-> measured.
+> Status: part 1 delivered and its cause closed; **the row's closing
+> requirement — that the verdict stop depending on unrelated content — is NOT
+> met.** §11 records a third mechanism, raised by the coordinator and
+> reproduced, that this fix does not close, and it supersedes §4's stability
+> claim. Written incrementally and committed as each section was measured.
 > Binary under test: `bin/perry-diagnose` at `70458893` (unmodified for every
 > number in part 1; §3 onward names before and after explicitly).
 > Scratch: two frozen trees, `git archive 7f43a11c` (RED) and
@@ -192,25 +195,14 @@ Six trees, one binary, after the fix:
 The file that used to decide the verdict no longer moves it in any of the
 three ways it was varied.
 
-Verification 2 asks for three unrelated journal lines of different shapes,
-appended to GREEN's `2026-09-11.md`:
-
-| shape appended | `USER-920` verdict |
-|---|---|
-| a prose bullet mentioning it | unmoved — still reported |
-| **a markdown table with it in the first cell** | unmoved — still reported |
-| a heading `## USER-920 - a heading about it` | **cleared — moved** |
-
-Two of three hold, and the one that holds hardest is the shape that caused
-this row. **The third does not, and it is a real residual**: a heading still
-confers a home, anywhere, including in the journal. It was left in place
-deliberately — a heading that *opens* with an id is the most deliberate "this
-section is about this id" act a document can make, and `## ADR-001 — PMO
-bootstrap` in a decisions file is a genuine definition. Narrowing it needs a
-rule this row did not buy: the schema declares no append-only property for
-`perry/journal/`, so the only rule available today would be a path carve-out,
-which `split_dangling`'s own comment names as the treadmill to avoid. It
-should be its own row.
+**This section originally claimed the instability was gone for appended
+journal lines. That claim was wrong, and §11 replaces it.** It rested on three
+sampled shapes rather than an enumeration of the marks, which is precisely the
+mistake `work/reference/review.md § 2` rule 1 exists to prevent. Of nine
+shapes enumerated in §11, **four** still move the verdict and this fix closes
+only one of them. What §4's tree table above does establish is narrower and
+still true: the *definition-domain* cause is closed, and the file that decided
+the RED/GREEN pair no longer moves the verdict however it is varied.
 
 ## 5 · The check still catches what it is for
 
@@ -341,8 +333,13 @@ decision for the PMO, not something to paper over here.
 
 ## 10 · What I did not check
 
+- **A third path, found after this list was written — see §11.** The verdict
+  still moves when an unrelated line is appended to the journal, by a
+  mechanism this fix does not touch. §11 supersedes §4's stability claim and
+  enumerates nine shapes, four of which move it.
 - **The heading shape (§4).** Known open: a heading anywhere, journal
-  included, still confers a home. Measured, not fixed.
+  included, still confers a home. Measured, not fixed. It is row G of §11's
+  enumeration.
 - **The `report_lines` table-paragraph defect (§7).** Measured (204/241 on
   `BOARD.md`) but not fixed. I implemented a candidate — scoping the mark to
   the individual row — and **reverted it**: it restored the board's visibility
@@ -360,3 +357,151 @@ decision for the PMO, not something to paper over here.
   both out of scope by the spec.
 - **Performance.** `harvest` now does one extra lookback per separator row; I
   did not measure the cost.
+
+## 11 · A third path, and this fix does not close it
+
+Raised by the coordinator after §1–§10 were written, with a case that flips
+the verdict and is **not** a table row. It reproduces, it is a distinct
+mechanism from §1, and the honest headline is: **`dangling` still moves when
+unrelated content is appended to the journal, and the fix in §2 does not stop
+it.**
+
+§1 is unaffected. The coordinator independently confirmed the pair it explains
+— `fe0292fb` RED, `70458893` GREEN, the five spec files the only difference —
+and nothing below contradicts it. There is more than one way to move this
+verdict, and §1 found the one that moved that pair.
+
+### The case
+
+Archive `7f43a11c`, append to `perry/journal/2026-09/2026-09-11.md` the line
+`perry-task summary` wrote when the PMO rewrote TASK-436's cell:
+
+```
+- **Verification**: with USER-920 cited only in journal/2026-09/2026-09-11.md,
+  perry-diagnose --json reports user_load.dangling as [] OR reports it with a
+  remedy the project can actually perform; an...
+```
+
+Against the **fixed** binary, `USER-920` moves out of `dangling`. A control
+settles the cause in one step: the *same sentence* with `perry-diagnose` and
+`user_load.dangling` removed and nothing else changed leaves `USER-920`
+reported. So the deciding property of that line is that it **names a check**.
+
+### The mechanism, from the code
+
+It is the fourth mark's DOCUMENT half, and its scope is the file.
+
+```python
+def document_reports_on_a_check(path: Path) -> bool:
+    return any(names_a_check(line) for line in read_text(path).splitlines())
+```
+
+`names_a_check` matches `perry-diagnose`, any `test_[a-z…]{4,}`, or one of this
+checker's own finding codes. One such line **anywhere** in a file makes the
+whole file a document that reports on a check. `split_dangling` then exempts
+any mention in it, for any id already `on_the_record`:
+
+```python
+live = any(not is_report and not (on_the_record and about_a_check) …)
+```
+
+Instrumented on the two trees, for `USER-920`:
+
+| mention | before | after appending |
+|---|---|---|
+| `perry/BOARD.md:140` | `is_report=True` | unchanged |
+| `perry/journal/…:18` | `doc_about_check=**False**` | `doc_about_check=**True**` |
+| verdict | `live=True` → `dangling` | `live=False` → `dangling_in_reports` |
+
+Line 18 is the genuine live citation — TASK-281's next action, journalled. It
+did not change. What changed is the *file* it sits in, 52 lines away.
+
+**And `on_the_record` is supplied by `BOARD.md:140`,** which is a report line
+only because of the defect in §7: `report_lines` scopes its check-name mark to
+a run of non-blank lines, a markdown table is one unbroken run, and 204 of
+BOARD.md's 241 lines are therefore "reports". So the two halves the code's own
+comment calls load-bearing are both satisfied by accident — the ID half by a
+board row the project cannot see, the DOCUMENT half by one journal line naming
+a tool.
+
+This is the failure that comment predicted, arriving through the document
+half rather than the id half:
+
+> drop the ID half and every document that discusses a check exempts every id
+> in it, including a genuine `Blocked on ZZZ-404 until Friday` four sections
+> down.
+
+### The strongest form
+
+The appended line does not have to mention `USER-920` at all. Appending
+
+```
+- ran perry-diagnose --json again after the sweep; nothing new.
+```
+
+to the same archive also moves `USER-920` out of `dangling` — verified with the
+journal mentioning the id on line 18 and nowhere else. **A line that never
+names the id changes the id's verdict.** That is the spec's original sentence,
+"the verdict moves with unrelated content elsewhere in the journal", reproduced
+literally and surviving this fix.
+
+### Enumeration of the shapes
+
+Nine shapes, each appended alone to the archived RED journal, each mentioning
+`USER-920` except the last, all against the fixed binary:
+
+| # | shape appended | `USER-920` lands in | moved? |
+|---|---|---|---|
+| A | plain prose, no check name | `dangling` | no |
+| B | prose naming `perry-diagnose` | `dangling_in_reports` | **yes** |
+| C | prose naming a `test_…` function | `dangling_in_reports` | **yes** |
+| D | prose naming a finding code (`LOAD-02`) | `dangling_in_reports` | **yes** |
+| E | a `>` blockquote mentioning it | `dangling` | no |
+| F | `## V5 sign-off`, then a mention | `dangling` | no |
+| G | a heading opening with the id | **neither list** | **yes** |
+| H | a table row, id in the first cell | `dangling` | no |
+| I | a check name, id **not** on that line | `dangling_in_reports` | **yes** |
+
+**Four of nine move it, and this fix closes only H** — which is the one that
+decided the RED/GREEN pair, and the reason it was the one found first.
+
+### Which of the three possibilities it is
+
+The coordinator named three. It is the third: a path distinct from both of my
+findings, though the second is a necessary ingredient.
+
+- **Not the `harvest` defect with a wider shape.** `register` and `defined` are
+  unchanged by the appended line (instrumented: `register=False`,
+  `defined=None` before and after). The entry never reaches the definition
+  branch at all.
+- **Not the `report_lines` paragraph scoping on its own.** That defect is
+  *required* — it is what makes `BOARD.md:140` a report and so supplies
+  `on_the_record` — but it is not sufficient: it is equally true in the RED
+  tree, which still reports the id. The appended line is what changes.
+- **A third path**: `document_reports_on_a_check`'s file-level scope, which no
+  part of this row's fix touches.
+
+Row G is the separate residual already recorded in §10 — a heading confers a
+home. It is listed here for completeness of the enumeration, not as a new
+finding.
+
+### What this means for the row's charge
+
+The spec's closing requirement is *"either way the verdict must stop depending
+on unrelated content."* **That requirement is not met**, and it would be wrong
+to let §2–§10 imply otherwise. What is delivered is:
+
+- the mechanism that decided the two states the row was filed on, named from
+  the code and closed (§1, §2);
+- the verdict made stable against every variation of the file that decided
+  them (§4);
+- and two further mechanisms — the file-scoped document mark here, and the
+  table-paragraph mark in §7 — measured, enumerated, and **left open**.
+
+The remedy for this one is a scope question, not a vocabulary question: the
+document half was written to identify a document whose *subject* is a check,
+and a day's journal is a document whose subject is a day. A natural candidate
+is to scope the document half to the record it sits in — the journal entry, the
+section — rather than the file, but that needs the same design round §7 needs,
+and the two interact: fixing §7 alone would remove `on_the_record` here and
+mask this path without closing it. They should be one row, not two.
