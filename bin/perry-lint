@@ -2240,6 +2240,56 @@ def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:
 #: `proof` is required only on a FAIL — a PASS's proof is the `checked:` line.
 VERDICT_KEYS = ("task", "rung", "result", "criteria", "checked", "not-checked")
 
+#: The two grades a criterion may carry, `review.md § 3` / `DESIGN-016-spec.md
+#: § What a criterion may do to a row`. **FAIL** — the defect answers yes to
+#: one of `review.md § 0`'s three questions and fails the row. **ROW** — it is
+#: real, it is still reported, and the round files it and moves on.
+FAIL_GRADES = ("FAIL", "ROW")
+
+#: The grade token at the head of a `grade:` value. A bare word, and the word
+#: must END there — `row-grade` and `ROWS` are typos, not grades, and a typo
+#: that silently read as `ROW` would quiet the guard by accident, which is the
+#: one direction this row may not move.
+_GRADE_TOKEN = re.compile(r"([A-Za-z]+)(?![-\w])")
+
+
+def fail_grade(fields: dict) -> "str | None":
+    """The grade of the criterion a FAIL was charged against, or `None`.
+
+    `review.md § 6` counts FAILs to decide that a row is failing on a principle
+    nobody has picked. It counted verdict BLOCKS, and two FAILs were two FAILs
+    whatever they were about — but `DESIGN-016-spec.md § What a criterion may
+    do to a row` grades each criterion by consequence, and a FAIL charged
+    against a ROW-grade criterion is a filed row, not a failed one. TASK-360's
+    two FAILs were one of each; by the bar that now governs it, it failed once.
+
+    **`None` is undeterminable and the caller must count it.** That is the
+    conservative default and it is deliberate: 62 of the 62 FAIL blocks in this
+    repository's corpus carry no `grade:`, because `review.md § 1` only later
+    began refusing a round without written criteria. Reading silence as `ROW`
+    would retroactively un-exhaust rows nobody regraded, which is `review.md
+    § 6` being loosened by an accident of history.
+
+    Only the FIRST token is the grade. The rest of the line is the criterion
+    reference — `grade: ROW — criterion 2b, --help from a non-first position` —
+    which is for the reader, because a grade with no criterion beside it is a
+    claim with nothing to check it against. The parser does not read it; a
+    round that writes a grade it cannot justify is refuted by the round that
+    shows the consequence is worse, and that refutation is a finding.
+
+    Read only on a `result: FAIL` block. On a PASS it is meaningless and
+    ignored — a PASS ends the row's history and the question with it.
+    """
+    raw = (fields.get("grade") or "").strip()
+    if not raw:
+        return None
+    m = _GRADE_TOKEN.match(raw)
+    if not m:
+        return None
+    tok = m.group(1).upper()
+    return tok if tok in FAIL_GRADES else None
+
+
 _VERDICT_BLOCK = re.compile(
     r"^===\s*VERDICT\s*===\s*$(.*?)^===\s*END VERDICT\s*===\s*$",
     re.M | re.S)
@@ -2540,6 +2590,11 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     - `review-rounds-exhausted` — two FAILs and no PASS, with no open ask
       blocking the row. The third round is where this board stopped
       converging and started re-deriving; see the comment on the check.
+      **Counted by criterion, not by block** (TASK-419): a FAIL whose
+      `grade:` says `ROW` was charged against a criterion whose worst
+      outcome fails no row, so it is filed and not counted. A FAIL with no
+      readable `grade:` is UNDETERMINABLE and counts — the default is the
+      conservative one, and the finding says how many it counted that way.
     - `citation-not-on-branch` — a `criteria:`, `proof:` or `checked:` path
       the branch does not carry. Found four times by a reviewer, at a round
       each, when a regex knew.
@@ -2608,6 +2663,17 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                     "warn", rel, "verdict-malformed",
                     f"result is {result!r}; the only two values are PASS and "
                     f"FAIL", line))
+            # A `grade:` the resolver cannot read counts as undeterminable,
+            # so it is SAFE — but it is silently safe, and a reviewer who
+            # wrote `grade: row-grade` believes they filed a row. Say so.
+            grade_raw = (fields.get("grade") or "").strip()
+            if grade_raw and fail_grade(fields) is None:
+                findings.append(Finding(
+                    "warn", rel, "verdict-malformed",
+                    f"grade is {grade_raw!r}; the only two values are ROW and "
+                    f"FAIL — see work/reference/review.md § 3. Counted as "
+                    f"undeterminable, which still counts toward "
+                    f"`review-rounds-exhausted`", line))
             if result == "FAIL" and not fields.get("proof"):
                 findings.append(Finding(
                     "warn", rel, "fail-without-proof",
@@ -2836,11 +2902,20 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     # rounds after the second are the most expensive thing Perry does and the
     # least likely to converge.
     #
-    # **No new field.** `round` was measured and refused a bearer
+    # **No `round` field.** `round` was measured and refused a bearer
     # (`bin/perry-task.evidence_relations`) because it lived only in some
     # filenames. It does not need one: a round that returned is a verdict
     # block, so the count is the FAILs already on disk. A PASS anywhere ends
     # the row's history and the question with it.
+    #
+    # **One field was added, 2026-09-11, TASK-419: `grade:`.** The count above
+    # is over blocks, and a block is not a unit of failure — the criterion is.
+    # The alternative was resolving the criterion out of the criteria file the
+    # block cites, and it was measured and it cannot work: `DESIGN-016-spec.md
+    # § Which row each criterion decides` maps ROWS to criteria, not ROUNDS to
+    # criteria, so TASK-360's `2, 3` (one ROW-grade, one FAIL-grade) says
+    # nothing about which of its two rounds charged which. `grade:` is optional
+    # and read only on a FAIL; absent, it counts. See `fail_grade`.
     #
     # **An escalation clears it.** The out is the one TASK-095 took — file the
     # ask, name the options, let the user pick a principle. An open ask in
@@ -2882,19 +2957,53 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
         if "PASS" in results:
             continue
         fails = [b for b in blocks if b[1].get("result") == "FAIL"]
-        if len(fails) < limit:
+        # **The numerator is the criterion, not the block.** Two FAILs used to
+        # be two FAILs whatever they were about, and on TASK-360 they were
+        # round 4 on criterion 2 — `--help` from a non-first argument position,
+        # whose worst outcome is exit 2 and a line naming `--help` — and round
+        # 6 on criterion 3, a positional accepted, dropped and reported as
+        # success. `DESIGN-016-spec.md § What a criterion may do to a row`
+        # grades those ROW and FAIL. By the bar that governs the row it failed
+        # ONCE, and the guard was charging it for a round it never spent.
+        #
+        # **This does not loosen § 6 and must not.** The guard fired correctly
+        # on TASK-362, whose FAILs were criteria 5 and 13 — both FAIL-grade —
+        # and the ask it forced (USER-924) closed a whole category in one
+        # round. Only a FAIL that SAYS it was charged against a ROW-grade
+        # criterion stops counting; silence counts, a typo counts, and a
+        # missing criteria file counts. See `fail_grade`.
+        charged = [b for b in fails if fail_grade(b[1]) != "ROW"]
+        filed = [b for b in fails if fail_grade(b[1]) == "ROW"]
+        undeterminable = [b for b in charged if fail_grade(b[1]) is None]
+        if len(charged) < limit:
             continue
-        where = ", ".join(r for r, _, _ in fails)
+        where = ", ".join(r for r, _, _ in charged)
+        # The two qualifications are appended rather than folded in, because
+        # the sentence a reader acts on ("file the ask") must not change shape
+        # depending on how the corpus happens to be annotated.
+        aside = ""
+        if filed:
+            aside += (
+                f" {len(filed)} further FAIL(s) on this row named a ROW-grade "
+                f"criterion and are NOT counted "
+                f"({', '.join(r for r, _, _ in filed)}).")
+        if undeterminable:
+            aside += (
+                f" {len(undeterminable)} of the {len(charged)} counted carry "
+                f"no readable `grade:`, so the criterion they were charged "
+                f"against is undeterminable and they count by default "
+                f"(work/reference/review.md § 3).")
         findings.append(Finding(
             "warn", "BOARD.md", "review-rounds-exhausted",
-            f"{tid} has FAILed {len(fails)} V4 rounds and never PASSed "
+            f"{tid} has FAILed {len(charged)} V4 rounds on row-failing "
+            f"criteria and never PASSed "
             f"({where}); the limit is {limit} (from {limit_from}). Another "
             f"round is not the next step — a row that has failed {limit} "
             f"times is failing on a PRINCIPLE nobody has picked, and each "
             f"further round re-derives it differently. File "
             f"the ask: name the two readings, say which one you recommend and "
             f"why, and let the user choose. An open ask blocking this row "
-            f"clears this finding"))
+            f"clears this finding.{aside}"))
 
     check_reviews.blocks_seen = sum(len(v) for v in seen.values())
     return findings
