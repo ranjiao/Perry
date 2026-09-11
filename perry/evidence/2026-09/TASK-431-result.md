@@ -238,9 +238,10 @@ table, which was the one correct row in it. The projection was not touched
 
 ## 6 · Suite
 
-Baseline in this tree: 3 of 3578 red. After the `bin/` changes: **3 of 3578
-red, the same three**. No test moved in either direction except
-`test_handed_back_root`, below.
+Baseline in this tree: **3 of 3578 red**. Final, on the committed branch:
+**3 of 3605 red — the same three**, and `0. tree guard` reports *nothing under
+… moved*. 27 tests added, all green; nothing else moved in either direction
+except `test_handed_back_root` and `test_claims`, both below.
 
 `tests/test_handed_back_root.py § NO_ROOT_TO_GIVE` is keyed by **line
 number** — `("bin/perry-lint", "check_file", 5495)`. The comments I added
@@ -248,7 +249,15 @@ above that call pushed it to 5525 and the exemption silently stopped
 matching, so the call reappeared as a finding. Updated to 5525, with a note
 in the test saying that any edit above it does this. The call itself is
 unchanged. **This is a latent trap for every future edit to `perry-lint`,
-not something this row introduced**; it is filed in § 8.
+not something this row introduced**; it is filed in § 9.
+
+`tests/test_claims.py § TestNoTestFileEndsEarly` also went red once, and
+correctly: I appended the new classes AFTER
+`if __name__ == "__main__": unittest.main()`, so every one of them was defined
+past the module's entry point. The entry point is now the last statement, as
+that check requires. Worth recording because the classes still RAN — the
+suite's runner imports the module rather than executing it — so nothing about
+the test results looked wrong; only `test_claims` could see it.
 
 ## 7 · The narrowness judgement, which the row asked for by name
 
