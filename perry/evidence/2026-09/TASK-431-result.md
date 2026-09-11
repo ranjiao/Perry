@@ -65,13 +65,11 @@ Running it on `70458893`:
 └──  31 READ occurrences, over 19 distinct (file, function) sites
 ```
 
-## 2 · The sweep returned 19, not 3
+## 2 · The sweep returned 19 candidates, and 9 in category — not 3
 
 **This is the row's answer, and it is not three.** The 19 candidate READ sites,
 adjudicated one at a time. "In category" means: *this decides whether a cell a
 human typed means nothing.*
-
-(table follows in § 3 once each adjudication is written up)
 
 ### 2.1 · The 19, adjudicated
 
@@ -104,9 +102,9 @@ alone, and shipped the defect again in the same file.
 | `bin/perry-diagnose:2698` | `t["confidence"] == "none"` — an enum `perry-diagnose` computes three lines earlier. Nobody types it. |
 | `bin/perry-explain:160` | `text[match.end()] == "-"` — one character inside an ID token, testing whether a slug continues. Not a value. |
 | `bin/perry-task:4031` | `low == "none"` on a **CLI argument** to `--items`, beside `"all"`. A keyword in an argument grammar, not a cell. |
-| `viewer/parsers.py:473 § resolve_state_root` | `raw in {".", "./", "—", "-"}` on the `State root` **path** setting. The set is dominated by `.`/`./`, which are paths and not blank spellings; see § 6. |
+| `viewer/parsers.py:473 § resolve_state_root` | `raw in {".", "./", "—", "-"}` on the `State root` **path** setting. The set is dominated by `.`/`./`, which are paths and not blank spellings; see § 7. |
 | `viewer/parsers.py:1745 § _APERIODIC` | `n/a` in a `Frequency` cell means **aperiodic**, a positive schedule answer, not an absent one. Widening it to the declared set would make `待定` a schedule. |
-| `bin/perry-lint:1281`, `bin/perry-goals:1409`, `viewer/parsers.py:4792` | `slug in {"(none)", "none", "—"}` on the `phase/CURRENT` **pointer file**. Three copies of one rule, and a real finding — but a different category: the set's principal member `(none)` is not a declared blank spelling and the schema does not carry it. See § 6; filed, not fixed here. |
+| `bin/perry-lint:1281`, `bin/perry-goals:1409`, `viewer/parsers.py:4792` | `slug in {"(none)", "none", "—"}` on the `phase/CURRENT` **pointer file**. Three copies of one rule, and a real finding — but a different category: the set's principal member `(none)` is not a declared blank spelling and the schema does not carry it. See § 9; filed, not fixed here. |
 
 ## 3 · The consequence, reproduced first
 
@@ -197,10 +195,13 @@ person does not have to be lucky.
 | 7 | `bin/perry-explain § harvest` | `v != "—"` | `not lib.is_blank_cell(v)` |
 | 10 | `bin/perry-knowledge` ×5 | `in L.UNDECLARED_CELL` | `lib.is_blank_cell(...)` |
 
-One addition to `bin/lib`: `blank_cell_spellings()`, which hands back the
-declared set for the one caller shape that legitimately needs the set rather
-than the verdict (§ 7). It is armed through `is_blank_cell` itself, not by a
-second schema read.
+**`bin/lib/__init__.py` is unchanged apart from a comment.** I did add a
+public `blank_cell_spellings()` accessor partway through, for a caller that
+needs the SET rather than the verdict — and then removed it, because the
+caller I wrote it for did not end up needing it and a mutation of it came back
+green. § 8 mutation 14 is that story. The row's instruction was not to widen
+`is_blank_cell` to fit a caller; it turned out not to need widening or
+extending at all.
 
 **One spelling was dropped: `—/—`**, from `UNDECLARED_CELL`. It is not in
 `schema § i18n.blank_cell`; a whole-tree search (`grep -rn "—/—" .`) finds it
@@ -248,3 +249,169 @@ matching, so the call reappeared as a finding. Updated to 5525, with a note
 in the test saying that any edit above it does this. The call itself is
 unchanged. **This is a latent trap for every future edit to `perry-lint`,
 not something this row introduced**; it is filed in § 8.
+
+## 7 · The narrowness judgement, which the row asked for by name
+
+The row said `split_stages` "may genuinely want only the marker, for a
+reason", and told me to make the narrowness explicit and tested if I concluded
+that.
+
+**I concluded the opposite, and the reason is the shape of the test rather
+than a preference for uniformity.** The blank test in `split_stages` runs on
+the WHOLE CELL, before any split. So the only track it can affect is one whose
+entire pipeline is a single stage spelled exactly like a declared way of
+saying "nothing here" — a track whose `stages` cell reads `none`. That track
+has no pipeline to measure, and every mode that reads `stage_list` (queue,
+pipeline, inquiry) is better served by being told the cell is empty and
+falling back to the mode's declared default than by routing rows through a
+stage nobody can address. A narrow rule here would need a positive reason, and
+the only candidate — "somebody might name a stage `无`" — costs a real
+pipeline nothing and buys a bogus one.
+
+Two narrownesses DID survive, and both run the other way: a caller whose
+vocabulary is deliberately WIDER than blankness. Neither is left as a bare
+list that merely looks like an oversight.
+
+1. **`viewer/parsers.py § _NO_DATE` / `parse_frequency`.** `ongoing`,
+   `as needed`, `hourly` are *positive answers about a schedule*, not ways of
+   writing an empty cell. `is_blank_cell` must never learn them — that would
+   be widening the one rule to fit a caller, the row's second "must not", and
+   it would make `待定` a cadence. So `_NO_DATE` is now `_APERIODIC` alone and
+   `parse_due` asks `t.lower() in _NO_DATE or is_blank_cell(t)`: the list of
+   blank spellings is gone, the cadence vocabulary stays, and
+   `test_the_cadence_vocabulary_is_untouched` holds it there.
+
+2. **`viewer/parsers.py § _ASK_STILL_OPEN`.** This is a **prefix** tuple, not
+   an equality set — `ask_is_answered` calls `s.startswith(_ASK_STILL_OPEN)`.
+   Its `—` and `-` members earn their place: `— not yet` is an open question
+   and is *not* a blank cell, so `is_blank_cell` alone would lose it. The
+   whole-cell blank test is therefore added BESIDE the prefix rule rather than
+   replacing it, and mutation 11b below removes the two prefixes to show the
+   half that is not redundant.
+
+`_ASK_STILL_OPEN` is consequently the one container left in the tree holding
+blank spellings as literals. It is in the sweep's `EXEMPT` list with that
+reason. It is not the defect returning, because no amount of adding declared
+spellings to it would be *correct*: as a prefix, `na` would match a status
+beginning "named…".
+
+## 8 · Mutations
+
+`work/reference/review.md § 2` rule 2. Anchored by matched text with the line
+number recorded, never `str.replace` on an ambiguous string; `__pycache__`
+cleared and 1.2s slept past the whole-second boundary on both the mutate and
+the restore, since CPython validates bytecode on mtime-in-whole-seconds plus
+size; every restore taken from `git show <ref>:<path>` and then verified by
+`bin/perry-restore-check`, never against bytes the harness snapshotted.
+Harness: `tests/mutate_blank_cell.py`.
+
+| # | mutation | verdict | the test that reddened |
+|---|---|---|---|
+| 1 | `perry-lint` suspect-separator guard reads its own set again | RED | `TestTheSweepIsTheGuard.test_no_site_decides_blankness_for_itself` |
+| 2 | `split_stages` back to `== "—"` alone | RED | `test_blankness_is_tested_before_separator_normalisation` |
+| 3 | `split_stages` keeps blank interior elements | RED | `test_a_blank_between_two_real_stages_is_dropped` |
+| 4 | `missing_defaults` back to its own 7-element list | RED | `test_missing_defaults_reads_the_one_rule` |
+| 5 | `parse_config` back to `blank_marker()` + em dash | RED | `test_no_site_decides_blankness_for_itself` |
+| 6 | `done-needs-evidence` back to its own set | RED | `test_no_site_decides_blankness_for_itself` |
+| 7 | `rung_satisfied` back to its own tuple | RED | `test_no_site_decides_blankness_for_itself` |
+| 8 | `perry-explain § harvest` back to the em dash alone | RED | `test_no_site_decides_blankness_for_itself` |
+| 9 | `perry-knowledge` decides a source cell locally again | RED | `test_perry_knowledge_no_longer_reads_it_across_the_boundary` |
+| 10 | `parse_due` drops the blank test | **GREEN → fixed → RED** | `test_a_blank_marker_followed_by_a_date_still_yields_none` |
+| 11 | `ask_is_answered` drops the blank test | RED | `test_a_blank_ask_status_is_still_open` |
+| 11b | `_ASK_STILL_OPEN` loses its em-dash prefixes | RED | `test_a_real_answer_and_a_real_prefix_are_unchanged` |
+| 12 | `intake_is_discharged` drops the blank test | RED | `test_a_blank_intake_outcome_is_not_discharged` |
+| 13 | the viewer's wrapper grows a literal fallback list | RED | `test_the_viewer_does_not_reimplement_the_rule` |
+| 14 | `blank_cell_spellings()` primed with the short-circuiting `""` | **GREEN → code deleted** | — |
+| 15 | a new hardcoded list added to `bin/perry-context-budget` | RED | `test_the_sweep_can_see_a_fourth_list_when_one_is_added` |
+
+Two came back green on the first pass, and both were findings rather than
+noise.
+
+**10 — `parse_due`, and my test was the thing that was wrong.** Deleting the
+blank test left `test_a_blank_due_cell_yields_no_date_in_any_language`
+passing, because a cell containing ONLY a marker has no date in it either way:
+`parse_due` returns `None` for `无` whether it stops at the marker or scans
+past it and finds nothing. The bracketed-citation case does not discriminate
+either — `_ANNOTATION` cuts at the opening bracket before any token is read.
+**The assertion I had written could not fail.** The input that separates the
+two behaviours is a marker followed by a BARE date — `待定 2026-08-03`, which
+is what a half-filled cell actually looks like: without the blank test the
+marker falls through and the scan reports that date as due. That is now
+`test_a_blank_marker_followed_by_a_date_still_yields_none`, over all 23
+spellings, and mutation 10 is red.
+
+**14 — `blank_cell_spellings()`, and the right fix was to delete it.** I had
+added a public accessor to `bin/lib` so that a caller needing the SET rather
+than the verdict could union it. The mutation was green because **nothing
+called it**: the caller I wrote it for ended up asking
+`t.lower() in _APERIODIC or is_blank_cell(t)`, which is the one rule at the
+point of use and needs no set. So it shipped with zero callers and a docstring
+naming one — a false claim in code, and a standing invitation to test a raw
+cell against `_blank_key`-reduced keys and silently miss every decorated form.
+It is gone, and a comment where it stood records why. **Mutation 14 is not
+"fixed", it is voided**, and that is the honest label.
+
+Mutations 7 and 11 initially reported ANCHOR-FAIL rather than a verdict, and
+that is the harness working: 7's anchor `    if not ev or
+lib.is_blank_cell(ev):` is a strict substring of 6's twenty-space-indented
+line, so the guard counted 2 occurrences and refused rather than mutating the
+wrong one — precisely the `str.replace` trap rule 2 names. Re-anchored, both
+are red.
+
+## 9 · Rows this turned up and did not fix
+
+1. **The `phase/CURRENT` sentinel has three implementations.**
+   `bin/perry-lint § check_cross_file`, `bin/perry-goals § current_phase` and
+   `viewer/parsers.py § load_snapshot` each carry their own
+   `slug in {"(none)", "none", "—"}`. Same defect shape as this row, different
+   category: `(none)` is the set's principal member and the schema does not
+   declare it, so `is_blank_cell` cannot take this over without a schema
+   change. Needs its own row and its own declaration. `perry-goals §
+   current_phase` documents itself as "deliberately the same rule" as
+   `parsers.load_snapshot` — stated in prose, implemented twice, which is this
+   repository's signature defect.
+
+2. **The WRITE direction is unswept.** 167 of the remaining literal
+   occurrences produce a blank marker rather than test for one, and roughly
+   forty are `x or "—"` display defaults that hardcode the em dash instead of
+   calling `lib.blank_marker()`. `blank_marker()` exists precisely so the
+   spelling handed back cannot become one `is_blank_cell` would not
+   recognise, and these bypass it. I classified them but did not measure the
+   consequence; I am not asserting there is one.
+
+3. **`tests/test_handed_back_root.py § NO_ROOT_TO_GIVE` is keyed by line
+   number.** Three comment lines added above the call it names silently
+   un-declared the exemption. Any edit to `bin/perry-lint` above line 5525
+   does this again. It should be keyed by `(file, function)` the way this
+   row's own guard is.
+
+4. **`—/—` is undeclared.** Dropped from `perry-lint` with a search showing
+   nothing in the tree writes it. If any real board spells an empty cell that
+   way, it is a `schema § i18n.blank_cell` row, not a literal in `bin/`.
+
+## 10 · What I did not check
+
+Rule 4 of `review.md § 2`. These are where I would look first next.
+
+1. **Non-Python readers.** The sweep parses Python. If a blank-cell decision
+   is made in a template expression, in `packs/`, or in whatever JavaScript
+   the frontend carries, this row did not look and the guard does not cover
+   it.
+2. **Runtime-built sets.** The sweep sees literals and the names they bind.
+   A set read from a file, built by string arithmetic, or assembled at
+   runtime is invisible to it. None exists in the tree today; I checked that
+   by reading the 9 remaining sites, not by a mechanism.
+3. **`perry-lint` against a real board.** Nine checks now call more cells
+   blank. On the two shipped fixtures the lint output is byte-identical, but
+   a real Chinese board with `待定` in a no-default column will now get
+   `no-default` warnings it did not get before. That is the intended
+   correction — I have not run it against any board outside `tests/fixtures/`.
+4. **Whether the three `phase/CURRENT` copies currently disagree.** I
+   established that they are three copies. I did not diff their behaviour.
+5. **Ordering.** I ran `tests/run` whole, not `--serial`, so a red that only
+   appears under a particular module order would not have surfaced. The reds
+   I saw are the three I was told to expect.
+6. **`viewer/tables.py`.** It is imported by both `bin/lib` and
+   `viewer/parsers.py` and would be the natural home for a shared rule. The
+   sweep found no blank-cell literal in it, so I did not open the question of
+   whether the rule belongs there rather than in `bin/lib`.
