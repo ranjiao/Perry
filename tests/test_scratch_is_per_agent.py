@@ -142,8 +142,15 @@ class TestTwoAgentsGetTwoPaths(unittest.TestCase):
             scratch.mkdir()
             tree = a_worktree(p, "agent-dddd4444")
             got = pathlib.Path(run_in(tree, str(scratch)))
+            # `.resolve()` on BOTH sides, and it is the whole test. macOS hands
+            # `tempfile` a `/var/...` path while git answers `--show-toplevel`
+            # with its `/private/var/...` realpath, so a raw `startswith`
+            # compares two spellings of one directory and never matches. The
+            # first version of this test did exactly that and stayed GREEN
+            # while the derivation was mutated to `<toplevel>/.scratch` — it
+            # asserted nothing. Found by mutation, not by review.
             self.assertFalse(
-                str(got).startswith(str(tree) + "/"),
+                str(got.resolve()).startswith(str(tree.resolve()) + "/"),
                 f"scratch root {got} is inside the worktree; the tree-walking "
                 f"tests will count whatever lands in it")
 
@@ -175,6 +182,50 @@ class TestTheDocumentStillCarriesIt(unittest.TestCase):
         fails on that; this states the reason in the failure message.
         """
         self.assertIn("--show-toplevel", derivation())
+
+
+class TestTheSignalProhibitionIsWrittenDown(unittest.TestCase):
+    """TASK-421's other half, pinned here because it is the same incident.
+
+    The escalation from a clobbered scratch file to `pkill -f 'tests/run'` is
+    why this row has two fixes, and a prohibition nothing checks is the
+    constraint list's own stated failure mode: *"a constraint list retyped per
+    round is a constraint list that loses an entry per round."* It has no
+    behaviour to exercise, so what is pinned is that the rule is present, names
+    all three commands, and still carries its reason — the shape TASK-256
+    established for this file.
+    """
+
+    CONSTRAINTS = ROOT / "work" / "reference" / "review-constraints.md"
+
+    def section(self) -> str:
+        text = self.CONSTRAINTS.read_text(encoding="utf-8")
+        a = text.index("## The repository is live")
+        return text[a:text.index("\n## ", a + 4)]
+
+    def test_all_three_signal_commands_are_named(self):
+        got = self.section()
+        for cmd in ("`pkill`", "`killall`", "`kill -9`"):
+            with self.subTest(cmd=cmd):
+                self.assertIn(cmd, got)
+
+    def test_the_rule_states_its_reason(self):
+        """A rule with no reason attached gets reverted by the next author —
+        this file says so about its own restore rule, and it is true here too.
+        """
+        got = self.section()
+        self.assertIn("cannot tell your", got)
+        self.assertIn("who else is working", got)
+
+    def test_it_sits_with_the_other_prohibitions_not_in_a_second_list(self):
+        """The `Bound` asked for one place. If a later edit moves the signal
+        rule out of the bullet list the `git checkout` rule lives in, this
+        fails rather than letting a second list appear elsewhere.
+        """
+        got = self.section()
+        self.assertLess(got.index("Never `git checkout`"),
+                        got.index("Never `pkill`"))
+        self.assertIn("- **Never `pkill`", got)
 
 
 if __name__ == "__main__":
