@@ -1,6 +1,6 @@
 # TASK-437 — result
 
-> Status: in progress. Written incrementally and committed as it goes.
+> Status: complete.
 > Executor: claude-subagent, in an isolated worktree.
 > Scratch: `/private/tmp/claude-501/-Users-bytedance-proj-Perry/b59246e8-0d9c-4c63-9ac3-03f73fedf40b/scratchpad/task437-rootsweep-a6f12/`
 
@@ -227,5 +227,197 @@ history for rows that were never moved by a tool — there the fallback is empty
 and every linked row reports `unknown`. The class of project that would have
 seen a wrong number is exactly the class that is not Perry itself.
 
-*(§ 6 the second finding, § 7 the comparison, § 8 mutations, § 9 not checked —
-still being written.)*
+## 6. Two things the sweep turned up that are not this row's fix
+
+Neither is filed. Both are recorded here for the PMO to decide on; § 10 says
+which I think meets `review.md § 0`'s bar.
+
+### 6.1 `perry-diagnose § open_user_asks` finds the board by glob, not by resolver
+
+`diagnose(root)` computes `state_root = lib.resolve_state_root(root)` on its
+first line and hands it to `scan_tracking`, `scan_namespace` and
+`scan_work_modes`. `scan_user_load` does not get it, and the function under it
+locates the board this way (`bin/perry-diagnose:486`):
+
+```python
+board = root / "BOARD.md"
+if not board.exists():
+    for alt in sorted(root.glob("*/BOARD.md")):
+        if explain.is_illustrative(str(alt.relative_to(root))):
+            continue
+        board = alt
+        break
+```
+
+It is not a wrong answer today and it is not the `kr_rows` defect: the glob is
+deliberate, commented, and on Perry's own project it finds `perry/BOARD.md`. But
+it answers "where is this project's board" with a **one-level glob plus a
+sort-order tie-break plus an `is_illustrative` filter**, where the same file
+already holds the resolved state root. It reaches the wrong board on a project
+whose state root is two levels down, and the one it picks among siblings depends
+on sort order. This is `perry-diagnose`'s own territory — the tool deliberately
+diagnoses projects that are not adopted at all, so it cannot simply assume a
+state root — which is why I have left it alone rather than "fixed" it inside a
+row about `perry-goals`. It is also adjacent to TASK-436's live work in
+`test_diagnose`, which is a second reason not to touch it from here.
+
+### 6.2 `resolve_state_root` discards a declared state root under a symlinked project root
+
+Found by my own test fixture failing to be what it claimed. `resolve_state_root`
+refuses a state root that escapes the project:
+
+```python
+root = (project_root / raw).resolve()
+if project_root not in root.parents and root != project_root:
+    return project_root
+```
+
+`.resolve()` is applied to the candidate and **not** to `project_root`. When the
+project root contains a symlink — `/var` → `/private/var` on macOS, which is
+where `tempfile.mkdtemp` puts everything, and `/tmp` likewise — the candidate's
+parents are `/private/var/...` while `project_root` is still `/var/...`, the
+containment test fails, and **the declared state root is discarded in silence**.
+Measured on my fixture: `declared_state_root` returned `"perry"` and
+`resolve_state_root` returned the project root.
+
+The consequence on a real project is the failure `resolve_state_root`'s own
+docstring already describes for a different cause: *"`perry-state --json` then
+reports 'No Perry state found — run /perry for first-time setup' on a fully
+populated project."* A user whose checkout sits under a symlinked path gets
+exactly that. The one-line fix would be to resolve both sides before comparing;
+I have not made it, because it is a change to the resolver every read in Perry
+goes through and it belongs to a row with its own bound, not to a `--root`
+argument in `perry-goals`.
+
+## 7. The comparison, and where I put it
+
+`tests/test_store_population_agrees.py`, 10 tests. The argument for its shape:
+
+**Two sides that share no code.** The test reads `tasks.jsonl` itself —
+`json.loads` per line, six lines, at `expected_population` — and imports neither
+`lib` nor `viewer/parsers.py`. The other side is what each tool publishes in its
+own JSON contract. The store on disk is the honest source the spec asked for,
+and the only way both sides are wrong together is for the file itself to be
+wrong, in which case both are right about it. It does not re-implement
+`task_status_index` and it does not call it.
+
+**It compares TOOLS, not functions.** `task_status_index` was never wrong; it
+was handed the wrong directory by a caller, and callers live in tools. A unit
+test on the function could not have caught this at any strength.
+
+**One comparison covering every reader, not the two alive today.**
+`TestTheCensusIsComplete` greps `bin/` for callers of `task_status_index` and
+asserts that set equals the set of tools this module exercises. A third reader
+added later reddens this test until somebody enters it. That is my answer to the
+spec's subjective question *whether one comparison can cover every tool that
+reads the task store*: not by itself, but a comparison plus a census that fails
+when the census goes stale does.
+
+**Two fixtures.** `state_root: perry` (Perry's own, roots differ) and
+`state_root: ""` (roots coincide, most projects, verification 2). The fixture
+that matters has three properties, each a property of a real project: the roots
+differ; the store carries four terminal rows that are not on `BOARD.md`, because
+a closed row leaves the board by design; and `.perry/events.jsonl` is **empty**.
+
+## 8. Mutations
+
+Six, and two of them are the ones worth reading.
+
+| # | what was mutated | result |
+|---|---|---|
+| **M1** | the fixed site: `kr_rows` back to `project_root` | **RED** — 3 named tests, all `perry-goals`, all on `P001-O1-KR2`, all in `TestRootsDiffer`. `TestRootsCoincide` stays green, which is verification 2 in mutation form. |
+| **M2** | **a second site**: `perry-state § build`, `task_status_index(root, board)` → `perry_root` | **RED** — 3 tests, symmetric, all `perry-state`, same KR. |
+| M3 | drop `.resolve()` from the fixture's project root | **RED** — `test_the_fixture_has_the_roots_it_claims` ×3 |
+| M4 | remove `perry-state` from `READERS` | **RED** — the census test |
+| M5 | make the honest side read `tasks.jsonl` from the project root | **RED** ×6 |
+| M6 | give the fixture an event log covering every id | GREEN, **by design — see below** |
+
+### M2 is the one the spec asked for, and its answer is better than expected
+
+The spec says: *swap it at a different site your sweep found and say whether
+anything reddens — if nothing does, the guard covers one site and the report
+must say so.* Something does. The guard covers the class, and the reason is the
+census: `perry-state` is in `READERS` because it calls `task_status_index`, so
+it is exercised against the same store file by the same assertions.
+
+**And the whole rest of the suite does not catch M2.** I ran the full
+`bash tests/run` with M2 applied: `7 of 3666` failed — the four known reds plus
+exactly the three tests in my new module. So before this row, `perry-state`'s
+root was as unguarded against this swap as `perry-goals`' was; it was simply
+correct. That is the strongest thing I can say for the comparison existing.
+
+### M6 is green on purpose, and it is the proof of § 5
+
+M6 reintroduces the defect (M1) **and** gives the fixture an event log covering
+every id. The result is **GREEN**: the wrong root costs nothing observable when
+a second source can supply every value the first one lost. That is Perry's own
+project exactly, it is why `list --json` showed no change in § 5, and it is why
+the fixture's empty `events.jsonl` is load-bearing rather than incidental. A
+fixture with an event log would have been a test that passes whether or not the
+bug is present.
+
+### The fixture was wrong twice before it was right, and both are recorded
+
+This is the spec's *"must not add a test that computes its expectation the way
+the code does"* showing up as its cousin — a test that passes for a reason that
+is not the one claimed.
+
+1. **`mkdtemp` and the symlink** (§ 6.2). `TestRootsDiffer` built a project whose
+   roots COINCIDED and whose state files sat where no tool looked. Every
+   assertion passed. **M1 still reddened it** — for a reason that had nothing to
+   do with the defect. The premise is now asserted, from the tool's own
+   published `project.root`, by `test_the_fixture_has_the_roots_it_claims`.
+2. **The board did not parse.** The first draft headed the column `Task` instead
+   of `Title` and filed store rows under `priority` rather than `group`, so
+   `board.all_tasks` was empty and a wrong-root read returned an index of size
+   **zero**. A tool returning nothing is caught by any check at all; the defect
+   being reproduced returns a *plausible subset*. With the board parsing, a
+   project-root read yields 3 of 7 — the 156-of-429 shape in miniature.
+
+Both are in the module's own comments, at the lines they bit.
+
+## 9. What I did not check
+
+* **87 root parameters carry no path evidence** and no forward that reaches
+  any. They hand a root to something outside `bin/` and `viewer/`, or only to
+  `.exists()` / `str()` / `relative_to`. The sweep classifies them UNKNOWN and I
+  did not judge them individually.
+* **87 callee bindings could not be resolved** to a definition — 43 of them
+  `relative_to`, 20 `Path`, 9 `str`, and a dozen in ones and twos. The sweep
+  counts them rather than guessing; a name it cannot resolve is never flagged,
+  which is the right bias but it is a coverage hole.
+* **`tests/` was not swept.** The Bound says `bin/` and `viewer/`, and a test
+  passing the wrong root fails loudly rather than lying quietly, but it is
+  unswept.
+* **Only `task_status_index`'s readers are compared.** The same two-root shape
+  exists for `linkage.jsonl`, `okr.jsonl`, `risks.jsonl`, `intake.jsonl` and
+  `asks.jsonl`; the census is for the task store alone. The module generalises
+  by adding a census per store, and I did not do it.
+* **`perry-goals krs --json`** is a second read-only surface on the same data
+  and is not in `READERS`; the census greps for `task_status_index` callers by
+  FILE, and `perry-goals` is in the table once.
+* **Neither § 6 finding was fixed or reproduced beyond what is written there.**
+  6.2 was reproduced on my own fixture; 6.1 is read from the source and not
+  demonstrated on a two-level state root.
+* **Performance.** Not measured. The fix changes which directory is read, not
+  how much.
+
+## 10. For the PMO — what I think meets `review.md § 0`'s bar
+
+No row is filed; this is a recommendation and the decision is yours.
+
+* **§ 6.2, the symlinked project root, I think does.** It is the second
+  question — a tool giving a wrong answer to someone with no way to detect it —
+  and the wrong answer is the worst one Perry has: *"No Perry state found"* on a
+  fully populated project. It is one line, it is in the resolver every read goes
+  through, and `/tmp` and `/var` being symlinks on macOS means it is reachable
+  by anyone who checks out a project under one.
+* **§ 6.1, `open_user_asks`' glob, I think does not** — not as its own row. It
+  is a heuristic that is correct on the layouts it has met, in a tool whose job
+  includes projects with no resolvable state root at all. It belongs as a note
+  on whatever row next opens `perry-diagnose`'s user-load scan — which is
+  TASK-436's neighbourhood right now.
+* **The 87 unknown root parameters** are not a finding, they are the unswept
+  remainder of this one. If the project wants the sweep closed rather than
+  bounded, that is a row; the script is in the scratch path at the top of this
+  file and runs in about two seconds.
