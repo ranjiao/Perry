@@ -227,6 +227,35 @@ history for rows that were never moved by a tool — there the fallback is empty
 and every linked row reports `unknown`. The class of project that would have
 seen a wrong number is exactly the class that is not Perry itself.
 
+### 5.1 Verification 1, closed on Perry's own project
+
+`perry-goals list --json` and `perry-state --json`, both at `--root .`, against
+`perry/tasks.jsonl` read by a third script that imports neither:
+
+```
+KRs where perry-goals == perry-state == the store file : 6 of 6
+linked task ids resolvable from the store              : 18 of 18   (was 4 of 18)
+```
+
+So the two tools report the same task population, and it is the store's. Before
+the fix `perry-goals` could resolve 4 of those 18 from the index and got the
+other 14 from the event log; now all 18 come from the store, which is the
+canonical side.
+
+### 5.2 Final suite
+
+```
+✗ 4 of 3665 TEST(S) failed        (baseline: 4 of 3655)
+  the same four, and no others. +10 tests, +1 module: mine.
+  tree guard: nothing under the worktree moved.
+```
+
+`test_contract_page_snippets.py` is still unrecorded in `tests/durations.json`;
+that is another branch's module, it was unrecorded at my baseline, and it only
+reddens under `bash tests/run --slow` because `test_durations_provenance.py` is
+one of three `HARNESS_SELF_TESTS` a default run leaves out. Worth knowing: it
+means a default `tests/run` is **not** what tells you this file has drifted.
+
 ## 6. Two things the sweep turned up that are not this row's fix
 
 Neither is filed. Both are recorded here for the PMO to decide on; § 10 says
