@@ -389,3 +389,144 @@ into a copy. The sweep is parameterised on `PERRY_HOME`, so the test can
   line number** — the row was bitten by `test_handed_back_root`'s line-keyed
   exemption and did not reproduce that mistake in its own guard. That is the
   detail that most persuaded me the round understood what it had found.
+
+## 4 · TASK-411 — no criteria file, and what could still be checked
+
+### 4.1 · § 1, stated first because it bounds everything below
+
+**There is no `TASK-411-spec.md`.** `find perry -name '*411*'` returns the
+result and this review, and nothing else. `review.md § 1` refuses a round
+without written criteria for a stated reason — *"a fresh reviewer with no
+written criteria invents its own bar"* — and the result itself records the
+adjacent gap: it was written by the PMO from a transcript, after the row moved
+to review, because the agent produced tests and no document.
+
+I cannot repair this from inside the round: criteria written after the fact are
+*"a negotiation with the result"*, and I am not the author. So I did the only
+thing left that is honest — **I judged against the result document's own
+falsifiable claims, treating them as the bar, and I am saying so here rather
+than presenting an inferred bar as a criteria file.** The verdict block's
+`criteria:` names the result for that reason, and its `not-checked:` says it.
+That this row got a V4 with no criteria is a § 1 pre-check finding for the PMO,
+not a defect in the code.
+
+### 4.2 · The three headline numbers, re-derived in the clone
+
+| claim | re-derived | agrees |
+|---|---|---|
+| 149 pairs in the universe, 63 called read, **42.3%** | 149 / 63 / 42.3% | yes |
+| the 15 blind pairs are `--register` on twelve prefixed verbs + `--write` on three `*-diff` verbs | exactly those 15, enumerated from the derived table | yes |
+| the negative space: **1,279 probes, 1,279 refused, 0 accepted** | 1,279 probes, 0 accepted, over `perry-config`, `perry-okr`, `perry-task`, `perry-tasks` | yes |
+
+### 4.3 · "0 false positives", falsified rather than re-read
+
+The result says the 63 were *"audited against source"*. A human audit is not
+something a second human audit checks, so I built an independent falsifier
+(`…/scratchpad/v4quad-411-412-419-431/fp_probe.py`). A claimed read means the
+flag's spelling can reach code the subcommand runs, so a **necessary**
+condition is that the spelling is in the chain file at all: for each claimed
+`(tool, flag)` group, the chain file is copied with that flag's literal
+replaced everywhere by a spelling nothing uses, the reader is re-run, and the
+pair must be gone.
+
+```
+claimed (tool, flag) groups: 17
+  probed by literal removal: 10   -> pairs surviving their own literal's removal: 0
+  no literal to remove:       7
+```
+
+**My first run reported seven false positives and my probe was what was
+wrong.** The seven are `perry-config track`'s `--cycle --default-rung --mode
+--sla --spine --stages --wip`, and `bin/perry-config:39` mints them:
+`TRACK_FLAGS = {f"--{f.replace('_','-')}": f …}`. They are never spelled as
+literals anywhere, so there is nothing to remove and the probe says nothing
+about them. They are separated out above rather than counted. Audited by hand
+instead: `bin/perry-config:293` `track_values = {TRACK_FLAGS[f]: v for f, v in
+read["values"].items() if f in TRACK_FLAGS}` sits in `cmd_track` and nowhere
+else — a true read, and exclusively `track`'s.
+
+**So: 56 of the 63 falsified by mechanism, 7 audited by hand, 0 false
+positives.** I agree with the number.
+
+The two documented over-report traps were asked directly rather than assumed
+(`…/traps.py`), because they are where a lazier reader would be wrong:
+
+```
+perry-tasks  diff   --write   in reads? False     <- lazy argument binding holds
+perry-config show   --dry-run in reads? False     <- the prologue does not leak
+```
+
+### 4.4 · Mutations — three, all red, one mine
+
+| # | target | mutation | result |
+|---|---|---|---|
+| a | `bin/perry-config:245` | `show` declares `--dry-run`, which no branch of `show` reads | **RED** direction B: `['--dry-run'] != []` |
+| b | `bin/perry_md_store.py:1246` | `render` drops `--write` from its declaration while still reading it | **RED** direction A: `['--write'] != []`, *and* the blind-pair case names it as direction A's failure rather than its own |
+| **c** *(mine)* | `tests/surface_reads.py:312` | **the reader itself**: `body_active = active if sel is None else (active & sel)` → `body_active = active`, so branch narrowing stops narrowing | **RED** ×2 — `test_the_derivation_finds_what_the_source_plainly_reads` (*"every flag came back read for every subcommand"*) and the ratchet: *"direction B is now blind on 60 pairs, up from the 15 measured"* |
+
+Mutation **c** is the one I cared about, because a guard whose *derivation*
+can rot into a vacuous "yes" makes direction B pass forever while measuring
+nothing, and that is the shape DESIGN-016 was opened on. It is held from two
+independent sides: a positive/negative pair of literal assertions, and the
+blind-pair ceiling. The ceiling is the better of the two — it noticed 60
+without being told what 60 would look like.
+
+### 4.5 · Finding — the blind-pair argument is a generalisation from one probe
+
+`tests/test_bin_surface.py:537`, in the docstring that carries the whole
+argument for the 15-pair hole:
+
+> "**None of the fifteen is § 1.4's defect, and that is checkable rather than
+> asserted.** The blind pairs are exactly the ones where the tool does consult
+> the flag, so declaring one gets it honoured or refused out loud — not
+> accepted and dropped. Probed 2026-09-11: `--register` added to
+> `risks-build`'s declaration …"
+
+One probe, on one of the two kinds, and the conclusion is stated over all
+fifteen. **I probed the other kind and it does not hold.** The same docstring
+already names the mechanism two lines above — `--write` on the `*-diff` verbs
+is read *"in its storeless branch before it looks at `byte_compare`"* — and the
+storeless branch is one of two paths.
+
+Measured, on a throwaway project copy with a valid one-row `risks.jsonl`
+(`…/blind15.py`, `…/blind15b.py`, `…/blind15c.py`; `bin/perry-tasks` restored
+from `git show HEAD:` and verified after every run):
+
+| state | `perry-tasks risks-diff --write`, with `--write` declared |
+|---|---|
+| **no risks store** | rc 2, a JSON refusal on stderr naming the store and why. **Honoured loudly** — the claim holds |
+| **valid risks store present** | **rc 0, stdout byte-identical to `risks-diff` without the flag, no file on disk changed.** Accepted and silently dropped |
+
+`bin/perry-tasks:513` is the line: `if not byte_compare:` guards the only
+remaining `write_board` read, and `byte_compare` is `cmd == "risks-diff"`, so
+for a `*-diff` verb with a store present the flag is consulted by nothing.
+
+**What this does and does not mean.** No user can hit it today: `--write` is
+not declared on any `*-diff` verb, and the parser's refusal is unusually good —
+`"--write is not accepted by 'risks-diff', and 'risks-diff' would have ignored
+it."` What is wrong is the *justification* for the guard's declared hole: three
+of the fifteen blind pairs are pairs where adding the declaration would produce
+exactly the accepted-and-silently-dropped defect the whole design exists to
+end, and the guard would stay green.
+
+§ 2's table sends this to a row rather than a FAIL — *"a comment … misstates
+something → file a row, never a FAIL on this one"* — and the guard's executable
+part is honest: it measures the blind spot, caps it at 15, and my vacuity
+mutation proved the cap bites. The remainder is measured and listed, which
+`§ 1`'s TASK-050 precedent says discharges. **The sentence is what needs
+correcting, and a fourth blind pair of this kind would be a new row.**
+
+### 4.6 · What held
+
+- 59 tests in `test_bin_surface.py`, green at `HEAD` before and after every
+  mutation and after every restore.
+- `INDIRECT` is empty and `test_the_escape_hatch_is_empty` asserts the
+  emptiness rather than looping over it — the right shape, because a loop over
+  an empty dict passes as entries arrive.
+- The negative-space census has an anti-vacuity control beside it
+  (`test_the_control_is_that_the_flag_works_where_it_is_declared`) and a floor
+  on the probe count, so "0 accepted" cannot be bought by refusing everything
+  or by probing three pairs.
+- The result **corrected the row's own claim** about the suite being at
+  baseline for the `perry-config track` / `--wip` case. A round that contradicts
+  its own row is a round that measured.
