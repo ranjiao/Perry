@@ -158,6 +158,33 @@ Spot-checks of the other verification criteria, all met:
   17 files match, minus `bin/README.md` and `bin/ARCHITECTURE.md`, which the
   report itself already says it excluded and why.
 
+## 1.3b The two headline answers, re-derived
+
+The spec makes these the reason the row is P0, so they were recomputed from the
+two censuses' own totals rather than read.
+
+**Question 1 — does `TASK-263`'s ratio hold outward?** Every figure checks:
+base 5,566 and 11,000, composed 16,566 over 40,127 physical lines;
+OBSOLETE:AGENT of **3.05** in `TASK-263`, **4.19** across the 22, **3.68**
+composed. So *"the ratio holds and strengthens"* is right. And *"OBSOLETE is the
+largest category"* does **not** survive going outward: TYPED is 6,440 against
+OBSOLETE's 3,546, a factor of **1.82** — the report says 1.8 — and TYPED is the
+largest of the four both in the 22 and in all 24 files composed. The report's
+own subsidiary claims check too: the top five files carry **2,861 of 3,546**
+obsolete lines (81%), and exactly **ten** files carry none, totalling **4,021**
+lines.
+
+**Question 2 — is "condemned in full" true?** 1,775 obsolete lines in 8,505 —
+**20.9%** of lines, **45.5%** of the three files' own four-category base of
+3,901. "Condemned in full" therefore overstates by **4.79×**, which is the
+report's *"about 5x"*. And in `viewer/parsers.py`, the largest single entry in
+`DESIGN-014 § 5.1` category B, the largest category really is **TYPED (870)**,
+not OBSOLETE (771).
+
+Both answers are arithmetically sound on the census I verified in § 1.2. Their
+*force* rests on the category boundary, which is judgement and which § 1.3
+sampled rather than re-derived.
+
 ## 1.4 Finding — § 6.1's exclusivity claim is false, in the sub-claim the spec asked for
 
 This is the one thing I found that the row had not already absorbed.
