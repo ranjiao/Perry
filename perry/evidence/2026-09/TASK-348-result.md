@@ -533,7 +533,18 @@ for the implementation and finding exactly one:
 1. **The only `.perry/config.jsonl` reader and validator** —
    `parsers § config_store_records` / `config_store_settings` (37 TYPED lines)
    plus `perry_md_store § validate_records` / `load_store` / `STORED` /
-   `record_key` (about 110 TYPED lines). No second implementation exists.
+   `record_key` (about 110 TYPED lines). ~~No second implementation exists.~~
+
+   **CORRECTED 2026-09-11 by the V4 round on this row** — see
+   `TASK-348-368-421-round1-v4-review.md`. That last sentence is false and was
+   verified false by the PMO before this note was written. Two more sites read
+   `.perry/config.jsonl` directly: `bin/perry-config § read_records`, which
+   validates, and `bin/perry-context-budget`, which does **not** and whose own
+   docstring calls the duplication deliberate so the tool keeps working outside
+   a Perry project. Someone acting on the original sentence would hunt one call
+   site and find three. **The Tier B conclusion is unchanged** — the typed
+   config reader and validator still live inside a condemned file and still have
+   to go somewhere before it is deleted — but the count is three, not one.
 2. **The only root-resolution pair** — `parsers § resolve_state_root` /
    `resolve_project_root` / `configured` / `exists_or_unreadable`. Called before
    any tool can report anything, which is why the code sits at the bottom of
