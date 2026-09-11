@@ -251,3 +251,6 @@
 {"kind": "unlinked", "task": "TASK-405", "phase": "003-storage-code", "declared_at": "2026-09-08T11:45:15Z", "actor": "pmo", "via": "add"}
 {"kind": "unlinked", "task": "TASK-434", "phase": "003-storage-code", "declared_at": "2026-09-11T04:52:16Z", "actor": "PMO", "via": "add"}
 {"kind": "unlinked", "task": "TASK-435", "phase": "003-storage-code", "declared_at": "2026-09-11T05:05:40Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-436", "phase": "003-storage-code", "declared_at": "2026-09-11T05:16:51Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-437", "phase": "003-storage-code", "declared_at": "2026-09-11T07:10:27Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "unlinked", "task": "TASK-438", "phase": "003-storage-code", "declared_at": "2026-09-11T07:10:27Z", "actor": "PMO Agent", "via": "add"}
