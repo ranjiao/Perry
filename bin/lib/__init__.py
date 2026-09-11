@@ -3,11 +3,12 @@
 `viewer/tables.py` is the precedent and it says why in its own first lines:
 five tools already import `parsers`, so `viewer/` is where Perry's shared code
 actually is, whatever the directory is called. This is the same argument one
-directory over. `tables.py` serves the **readers**; the four functions here
-serve the **tools** — how a Perry tool finds a project's state on disk
+directory over. `tables.py` serves the **readers**; the functions here serve
+the **tools** — how a Perry tool finds a project's state on disk
 (`resolve_state_root`), keeps another tool out of it while it works
-(`project_lock`), writes it without a torn file (`write_atomic`), and learns
-what shape it is supposed to be (`load_schema`).
+(`project_lock`), writes it without a torn file (`write_atomic`), learns what
+shape it is supposed to be (`load_schema`), and names the project in a command
+it hands a reader (`root_flag`).
 
 **The measurement that produced this module, and the argument for it.** Six
 primitives had fourteen-plus implementations across `bin/`, and the count grew
@@ -37,6 +38,7 @@ import sys
 import tempfile
 import time
 import re
+import shlex
 import stat
 from datetime import date as _date
 from datetime import datetime as _datetime
@@ -524,6 +526,34 @@ def resolve_project_root(explicit: str | os.PathLike | None = None, *,
                 or (d / "OKR.md").exists()):
             return d
     return cur
+
+
+def root_flag(root: str | os.PathLike | None) -> str:
+    """**` --root <root>`, ready to be pasted into the end of a command a
+    message hands the reader.** Empty when there is no root to name.
+
+    TASK-253. Perry prints a command and a reader runs it, and until this
+    existed the printed command almost never carried the project it was talking
+    about. `bin/perry-migrate § _plan_task_store` was the site the row was
+    opened on: it printed `perry-tasks render --write` in a refusal while
+    holding `plan.project_root` two lines above, so the reader who copied it
+    rewrote the `BOARD.md` of whichever project their cwd happened to resolve
+    to. `perry-migrate` was deleted and every other tool kept the shape —
+    seventeen writer hand-backs across `bin/`, eight of them in `perry-lint`,
+    which is the tool a reader runs when something is ALREADY wrong.
+
+    **Quoted, because the round-4 V4 FAIL that `tests/handed_back.py` records
+    was a root spelled correctly and interpolated raw.** `--root /home/ada/My
+    Project` parses as five arguments and exits 1 about a file the reader never
+    named; `shlex.quote` is what `/bin/sh` agrees with. This is the one place
+    that decision is made, so a tool cannot get it wrong locally — which is the
+    same argument `write_atomic` above is here for.
+
+    The leading space is part of the value: callers append it to a command that
+    is already complete, `f"`perry-tasks render --write{lib.root_flag(root)}`"`,
+    so a tool with no root to name prints exactly what it printed before.
+    """
+    return f" --root {shlex.quote(str(root))}" if root else ""
 
 
 # ── the declared surface ─────────────────────────────────────────────────

@@ -382,7 +382,8 @@ def _objectives_in_store_order(records: list[dict]) -> list[dict]:
                           pair[1].get("order") or 0, pair[0]))]
 
 
-def mint_objective_ids(records: list[dict]) -> tuple[list[dict], dict]:
+def mint_objective_ids(records: list[dict], *,
+                       root_flag: str = "") -> tuple[list[dict], dict]:
     """Every Objective an `O-<n>`, and every KR the id of the one above it.
 
     DESIGN-009 step 3 — decisions 1 to 4, and nothing else. The store goes in,
@@ -467,7 +468,7 @@ def mint_objective_ids(records: list[dict]) -> tuple[list[dict], dict]:
             f"This command groups Objectives by title, so two untitled "
             f"headings would be minted ONE id and every link to either would "
             f"resolve to both. Give the heading its text in OKR.md and re-run "
-            f"`perry-okr write --from-file` first")
+            f"`perry-okr write --from-file{root_flag}` first")
 
     # Pass one — what is already stated. A group's id comes from the store
     # before it comes from the counter, which is what makes a second run a
@@ -1353,9 +1354,10 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     if cmd in ("render", "diff", "verify", "migrate-ids") and not store.exists():
         print(json.dumps({
             "store": str(store), "exists": False,
-            "note": f"no store on disk yet — run `{tool} write --from-file` "
-                    f"to perform the explicit import. Rendering {doc.rel_file} "
-                    f"from a store built out of that same file proves nothing.",
+            "note": f"no store on disk yet — run `{tool} write "
+                    f"--from-file{lib.root_flag(root)}` to perform the "
+                    f"explicit import. Rendering {doc.rel_file} from a store "
+                    f"built out of that same file proves nothing.",
         }, ensure_ascii=False, indent=2), file=sys.stderr)
         return 2
 
@@ -1381,7 +1383,8 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
                               "store_findings": findings},
                              ensure_ascii=False, indent=2), file=sys.stderr)
             return 2
-        minted, report = mint_objective_ids(records)
+        minted, report = mint_objective_ids(
+            records, root_flag=lib.root_flag(root))
         after_text = store_text(minted)
         before_text = store.read_text(encoding="utf-8")
         report["store"] = str(store)
@@ -1573,10 +1576,11 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     # linter.
     derived = derive(doc, text)
     if "--from-file" not in seen:
+        r = lib.root_flag(root)
         print(f"{tool}: refusing file-to-store import without `--from-file`. "
               f"`{doc.rel_store}` is authoritative; use `{tool} render "
-              f"--write` for store-to-file recovery, or explicitly run "
-              f"`{tool} write --from-file` to replace the store from "
+              f"--write{r}` for store-to-file recovery, or explicitly run "
+              f"`{tool} write --from-file{r}` to replace the store from "
               f"{doc.rel_file}.", file=sys.stderr)
         return 1
     if store.exists():
@@ -1607,7 +1611,8 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
             if len(losses) > 10:
                 print(f"    … and {len(losses) - 10} more", file=sys.stderr)
             print(f"\n  If the STORE is right — the ordinary case — run "
-                  f"`{tool} render --write` to bring the file back in line.\n"
+                  f"`{tool} render --write{lib.root_flag(root)}` to bring the "
+                  f"file back in line.\n"
                   f"  If the FILE is right — someone edited it and means it — "
                   f"move {doc.rel_store} aside and re-run.", file=sys.stderr)
             return 1

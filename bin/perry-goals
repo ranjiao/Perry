@@ -817,7 +817,8 @@ def write_okr_and_store(state_root: Path, project_root: Path, okr,
               f"The store keeps them — a row deleted from a rendered file does "
               f"not delete what it means (ADR-007 decision 2), and their ids "
               f"are never reused. `perry-okr verify` names them; `perry-okr "
-              f"render --write` cannot bring a deleted row back, so restoring "
+              f"render --write{lib.root_flag(project_root)}` cannot bring a "
+              f"deleted row back, so restoring "
               f"one is a hand edit or a new `commit`.", file=sys.stderr)
     write_atomic(state_root, okr.path, text)
     # The store is written second and unconditionally, under the same project
@@ -2278,7 +2279,8 @@ def register_drift(state_root: Path, project_root: Path, okr) -> dict:
     return out
 
 
-def check_register_drift(drift: dict, accept: bool, quiet: bool = False) -> None:
+def check_register_drift(drift: dict, accept: bool, quiet: bool = False,
+                        root_flag: str = "") -> None:
     """Refuse a write decided against a cell `okr.jsonl` does not carry.
 
     `--accept-hand-edit` is the documented way past it and keeps the meaning it
@@ -2308,11 +2310,11 @@ def check_register_drift(drift: dict, accept: bool, quiet: bool = False) -> None
         f"(ADR-007 decision 2) — someone edited the row by hand:\n    "
         + "\n    ".join(shown[:5])
         + (f"\n    … and {len(shown) - 5} more" if len(shown) > 5 else "")
-        + "\n\n  This write reads those cells to decide what to do, so it "
-          "will not run against a value the store does not carry. Re-run with "
-          "`--accept-hand-edit` to take `OKR.md`'s values as the truth and "
-          "record them, or `perry-okr render --write` to put the file back in "
-          "line with the store. Nothing was written")
+        + f"\n\n  This write reads those cells to decide what to do, so it "
+          f"will not run against a value the store does not carry. Re-run "
+          f"with `--accept-hand-edit` to take `OKR.md`'s values as the truth "
+          f"and record them, or `perry-okr render --write{root_flag}` to put "
+          f"the file back in line with the store. Nothing was written")
 
 
 def check_hand_edit(events: list[dict], row: dict, accept: bool) -> str:
@@ -2375,7 +2377,8 @@ def cmd_commit(args, ctx) -> dict:
     # write does not get to act on it. `--dry-run` is gated too — a plan
     # computed against a drifted file is a plan for a file nobody has.
     drift = register_drift(sr, ctx["project_root"], okr)
-    check_register_drift(drift, args.accept_hand_edit, quiet=args.as_json)
+    check_register_drift(drift, args.accept_hand_edit, quiet=args.as_json,
+                         root_flag=lib.root_flag(ctx["project_root"]))
     ending = args.close or args.miss
     if args.close and args.miss:
         raise Refused("--close and --miss end a commitment two different ways; "
@@ -2466,11 +2469,12 @@ def cmd_commit(args, ctx) -> dict:
                 + (f"the table still has a `{LEGACY_DUE_COLUMN}` column"
                    if legacy_due_at(header) >= 0 else
                    f"{len(stale)} row(s) hold prose in `Due` — {stale[:4]}")
-                + ". `Due` is typed and `By when note` is prose, and this tool "
-                  "will not write into a table that still mixes them. Run "
-                  "`perry-goals commit --migrate` first: it moves each cell "
-                  "into the field its value belongs to and drops nothing. "
-                  "Nothing was written")
+                + f". `Due` is typed and `By when note` is prose, and this "
+                  f"tool will not write into a table that still mixes them. "
+                  f"Run `perry-goals commit "
+                  f"--migrate{lib.root_flag(ctx['project_root'])}` first: it "
+                  f"moves each cell into the field its value belongs to and "
+                  f"drops nothing. Nothing was written")
     rows = read_commitments(okr)
     required, optional = commitment_columns()
     widened = []

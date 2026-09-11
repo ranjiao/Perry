@@ -343,8 +343,9 @@ def cmd_new(args, ctx) -> dict:
     sr = ctx["state_root"]
     if not (sr / "decisions").is_dir() and not args.dry_run:
         raise Refused(
-            f"no {sr / 'decisions'} — run `perry-decide bootstrap` first. "
-            f"Creating it here would hide that a project was never set up")
+            f"no {sr / 'decisions'} — run `perry-decide "
+            f"bootstrap{lib.root_flag(ctx['project_root'])}` first. Creating "
+            f"it here would hide that a project was never set up")
     # **The status this command writes, bound to the schema like every other.**
     # `new` stamps `> Status: <BORN_STATUS>` into the body, and until TASK-235
     # nothing checked that the enum declares it: the refusal came from

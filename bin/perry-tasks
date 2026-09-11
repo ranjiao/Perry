@@ -285,10 +285,10 @@ def cmd_render(root: Path, byte_compare: bool,
     if not records:
         print(json.dumps({
             "store": str(store_path), "exists": store_path.exists(),
-            "note": "no store on disk yet — run `perry-tasks write "
-                    "--from-board` to perform the explicit board import. "
-                    "Rendering the board from a store built out of that same "
-                    "board proves nothing.",
+            "note": f"no store on disk yet — run `perry-tasks write "
+                    f"--from-board{lib.root_flag(root)}` to perform the "
+                    f"explicit board import. Rendering the board from a store "
+                    f"built out of that same board proves nothing.",
         }, ensure_ascii=False, indent=2), file=sys.stderr)
         return 2
     records, findings = perry_store.validate_records(records)
@@ -573,21 +573,27 @@ def _would_discard(on_disk: list[dict], derived: list[dict]) -> list[str]:
 #: `risk_records` returns `[]` for a bullet list, rendering it changes nothing,
 #: and `cmp` is therefore clean — so a gate that only compared bytes would
 #: write an empty store over a section holding real risks and report success.
+#: **`{r}` is `lib.root_flag(root)`, and these are `str.format` templates
+#: rather than plain strings because of it (TASK-253).** Two of the three
+#: branches hand the reader a WRITER — `risk-add` creates the section,
+#: `risk-migrate` rewrites it — and a constant at module scope has no root to
+#: name, so the only place the caller's `--root` can be put in is the call
+#: site. `{r}` is the sole field; nothing else in these strings is braced.
 RISK_SECTION_UNIMPORTABLE = {
     "absent": (
         "there is no `## Top risks` section on this board, so there is no "
-        "register to import. `perry-task risk-add` creates the section and "
+        "register to import. `perry-task risk-add{r}` creates the section and "
         "its table."),
     "bullets": (
         "`## Top risks` is still a bullet list. A bullet has no id, no "
         "`Opened` cell and no `Status` cell, so the records this would write "
         "are not a projection of it — they are `[]`, and writing them would "
         "report success over a section holding real risks. "
-        "`perry-task risk-migrate` converts the section (every bullet crosses "
-        "verbatim), after which the rows have ids and this import has "
+        "`perry-task risk-migrate{r}` converts the section (every bullet "
+        "crosses verbatim), after which the rows have ids and this import has "
         "something to read — or, if the only bullet is the "
         "`(no active risks)` placeholder `BOARD_TEMPLATE.md` ships, "
-        "`perry-task risk-add` writes the table on its own and there is "
+        "`perry-task risk-add{r}` writes the table on its own and there is "
         "nothing here to migrate."),
     "foreign": (
         "`## Top risks` holds a table this tool must not treat as the "
@@ -660,12 +666,13 @@ def cmd_risks_write(root: Path, argv: list[str],
     dest = perry_store.risk_store_path(P.resolve_state_root(root))
 
     if "--from-board" not in argv:
-        print("perry-tasks: refusing section-to-store import without "
-              "`--from-board`. `risks.jsonl` is authoritative once it exists; "
-              "use `perry-tasks risks-render --write` for store-to-section "
-              "recovery, or explicitly run `perry-tasks risks-write "
-              "--from-board` to derive the store from `BOARD.md § Top risks`.",
-              file=sys.stderr)
+        r = lib.root_flag(root)
+        print(f"perry-tasks: refusing section-to-store import without "
+              f"`--from-board`. `risks.jsonl` is authoritative once it exists; "
+              f"use `perry-tasks risks-render --write{r}` for store-to-section "
+              f"recovery, or explicitly run `perry-tasks risks-write "
+              f"--from-board{r}` to derive the store from "
+              f"`BOARD.md § Top risks`.", file=sys.stderr)
         return 1
 
     if not risk_store_is_declared():
@@ -676,7 +683,8 @@ def cmd_risks_write(root: Path, argv: list[str],
     shape, _tables = perry_store.risk_section_shape(board, ops)
     if shape != "table":
         print(f"perry-tasks: refusing to write {dest} — "
-              f"{RISK_SECTION_UNIMPORTABLE[shape]}\n\n"
+              f"{RISK_SECTION_UNIMPORTABLE[shape].format(r=lib.root_flag(root))}"
+              f"\n\n"
               f"  Nothing was written.", file=sys.stderr)
         return 1
 
@@ -997,12 +1005,13 @@ def cmd_intake_write(root: Path, argv: list[str],
     dest = perry_store.intake_store_path(P.resolve_state_root(root))
 
     if "--from-board" not in argv:
-        print("perry-tasks: refusing section-to-store import without "
-              "`--from-board`. `intake.jsonl` is authoritative once it exists; "
-              "use `perry-tasks intake-render --write` for store-to-section "
-              "recovery, or explicitly run `perry-tasks intake-write "
-              "--from-board` to derive the store from `BOARD.md § Intake`.",
-              file=sys.stderr)
+        r = lib.root_flag(root)
+        print(f"perry-tasks: refusing section-to-store import without "
+              f"`--from-board`. `intake.jsonl` is authoritative once it "
+              f"exists; use `perry-tasks intake-render --write{r}` for "
+              f"store-to-section recovery, or explicitly run `perry-tasks "
+              f"intake-write --from-board{r}` to derive the store from "
+              f"`BOARD.md § Intake`.", file=sys.stderr)
         return 1
 
     if not intake_store_is_declared():
@@ -1311,12 +1320,13 @@ def cmd_asks_write(root: Path, argv: list[str],
     dest = perry_store.ask_store_path(P.resolve_state_root(root))
 
     if "--from-board" not in argv:
-        print("perry-tasks: refusing section-to-store import without "
-              "`--from-board`. `asks.jsonl` is authoritative once it exists; "
-              "use `perry-tasks asks-render --write` for store-to-section "
-              "recovery, or explicitly run `perry-tasks asks-write "
-              "--from-board` to derive the store from "
-              "`BOARD.md § User Input Queue`.", file=sys.stderr)
+        r = lib.root_flag(root)
+        print(f"perry-tasks: refusing section-to-store import without "
+              f"`--from-board`. `asks.jsonl` is authoritative once it exists; "
+              f"use `perry-tasks asks-render --write{r}` for store-to-section "
+              f"recovery, or explicitly run `perry-tasks asks-write "
+              f"--from-board{r}` to derive the store from "
+              f"`BOARD.md § User Input Queue`.", file=sys.stderr)
         return 1
 
     if not ask_store_is_declared():
@@ -1766,11 +1776,13 @@ def main(argv: list[str], _locked: bool = False) -> int:
         dest = state_root / "tasks.jsonl"
 
         if "--from-board" not in argv:
-            print("perry-tasks: refusing board-to-store import without "
-                  "`--from-board`. `tasks.jsonl` is authoritative; use "
-                  "`perry-tasks render --write` for store-to-board recovery, "
-                  "or explicitly run `perry-tasks write --from-board` to "
-                  "replace the store from BOARD.md.", file=sys.stderr)
+            r = lib.root_flag(root)
+            print(f"perry-tasks: refusing board-to-store import without "
+                  f"`--from-board`. `tasks.jsonl` is authoritative; use "
+                  f"`perry-tasks render --write{r}` for store-to-board "
+                  f"recovery, or explicitly run `perry-tasks write "
+                  f"--from-board{r}` to replace the store from BOARD.md.",
+                  file=sys.stderr)
             return 1
 
         # **This command runs BOARD.md → store, and since TASK-089 that is the
@@ -1824,7 +1836,8 @@ def main(argv: list[str], _locked: bool = False) -> int:
                     print(f"    … and {len(losses) - 10} more", file=sys.stderr)
                 print(f"\n  If the STORE is right — the ordinary case, because "
                       f"`perry-task` writes it — run `perry-tasks render "
-                      f"--write` to bring the board back in line.\n"
+                      f"--write{lib.root_flag(root)}` to bring the board back "
+                      f"in line.\n"
                       f"  If the BOARD is right — someone edited it before the "
                       f"store existed, or adoption is importing one — re-run "
                       f"with --from-board.", file=sys.stderr)
@@ -1868,10 +1881,10 @@ def main(argv: list[str], _locked: bool = False) -> int:
         print(json.dumps({
             "store": str(store_path), "exists": False,
             "records": 0, "board_rows": 0,
-            "note": "no store on disk yet — run `perry-tasks write "
-                    "--from-board` to perform the explicit board import. "
-                    "Verifying a store against the board it was just built "
-                    "from proves nothing.",
+            "note": f"no store on disk yet — run `perry-tasks write "
+                    f"--from-board{lib.root_flag(root)}` to perform the "
+                    f"explicit board import. Verifying a store against the "
+                    f"board it was just built from proves nothing.",
         }, ensure_ascii=False, indent=2))
         return 2
     try:

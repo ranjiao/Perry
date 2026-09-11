@@ -312,8 +312,9 @@ def main(argv: list[str]) -> int:
             return cmd_show(records, as_json)
         if cmd == "set":
             if len(rest) < 2:
-                raise Refused("`set` takes a label and a value: "
-                              "`perry-config set 'Document language' English`")
+                raise Refused(
+                    f"`set` takes a label and a value: `perry-config set "
+                    f"'Document language' English{lib.root_flag(root)}`")
             return write(path, cmd_set(records, rest[0], " ".join(rest[1:])),
                          f"set {rest[0]!r}", dry_run=dry_run,
                          as_json=as_json)

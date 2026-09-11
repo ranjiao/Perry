@@ -1936,13 +1936,14 @@ def refuse_store_drift(project_root: Path, state_root: Path, board: Board,
         tid not in baseline_by_id and rec.get("status") not in ("done", "dropped")
         for tid, rec in stored_by_id.items())
     if differs:
+        _r = lib.root_flag(project_root)
         raise Refused(
             f"{path} differs from the records derived from BOARD.md. Until "
             f"TASK-090 the writer still reads the board to construct a write, "
             f"so proceeding would discard a valid store edit. Run `perry-tasks "
-            f"render --write` to render the authoritative store to BOARD.md, "
-            f"then retry. `perry-tasks write --from-board` is the explicit "
-            f"destructive board-to-store direction.")
+            f"render --write{_r}` to render the authoritative store to "
+            f"BOARD.md, then retry. `perry-tasks write --from-board{_r}` is "
+            f"the explicit destructive board-to-store direction.")
 
 
 def parsed_status(cell: str, statuses) -> str:
@@ -2198,7 +2199,8 @@ def substituted_away(key: str, current: list[dict],
 
 
 def substitution_report(key: str, path: Path, lost: list[dict],
-                        declared: int, dry_run: bool = False) -> str | None:
+                        declared: int, dry_run: bool = False,
+                        root_flag: str = "") -> str | None:
     """The loud line, or `None` when every lost record was declared removed.
 
     **Reported, never refused, and the choice is forced rather than
@@ -2253,7 +2255,7 @@ def substitution_report(key: str, path: Path, lost: list[dict],
         f"records are in the `substituted` field of this write's event in "
         f"`.perry/events.jsonl`. To put them back, restore the rows on "
         f"`## {REGISTER_SPEC[key][0]}` and re-run "
-        f"`perry-tasks {key}-write --from-board`. That is the same "
+        f"`perry-tasks {key}-write --from-board{root_flag}`. That is the same "
         f"board-to-store direction `refuse_to_shrink` names, and it is gated.")
 
 
@@ -2313,7 +2315,8 @@ def declared_removal(event: dict) -> int:
 
 
 def refuse_to_shrink(store: str, path: Path, event: dict,
-                     before: int, after: int, why: str = "") -> None:
+                     before: int, after: int, why: str = "",
+                     root_flag: str = "") -> None:
     """**The invariant: an ordinary write may never SHRINK a canonical store,
     and an explicit removal may shrink it by exactly what it removes.**
 
@@ -2371,9 +2374,10 @@ def refuse_to_shrink(store: str, path: Path, event: dict,
     verb = "" if store == "tasks" else f"{store}-"
     forward = (
         f"If the board is right and the store is stale, the explicit "
-        f"board-to-store direction is `perry-tasks {verb}write --from-board`; "
-        f"if the store is right, `perry-tasks {verb}render --write` puts the "
-        f"records back on the board.")
+        f"board-to-store direction is `perry-tasks {verb}write "
+        f"--from-board{root_flag}`; if the store is right, `perry-tasks "
+        f"{verb}render --write{root_flag}` puts the records back on the "
+        f"board.")
     if name in SHRINK_ALLOWANCE:
         # An explicit removal, over its own declaration. The message says the
         # two numbers rather than "refused": the caller asked to remove n and
@@ -2529,8 +2533,9 @@ def carry_forward_is_addressable(key: str, derived: list[dict],
     return True
 
 
-def register_change(state_root: Path, board: Board,
-                    event: dict) -> tuple[Path, str, str, int, list[dict]] | None:
+def register_change(state_root: Path, board: Board, event: dict,
+                    root_flag: str = "") -> tuple[
+                        Path, str, str, int, list[dict]] | None:
     """`(path, text, key, count, lost)` for the register this event touched, or None.
 
     Derived from the board AS MUTATED, merging the stored record for each
@@ -2600,7 +2605,8 @@ def register_change(state_root: Path, board: Board,
                      len(derived),
                      why=("`## %s` is currently `%s`, not a table this store "
                           "can read. " % (_section, shape))
-                     if shape != "table" else "")
+                     if shape != "table" else "",
+                     root_flag=root_flag)
     if shape != "table":
         # The invariant has already passed, so the store is empty or absent:
         # there is nothing to lose and nothing to derive. Minting an empty
@@ -2963,8 +2969,9 @@ def commit(project_root: Path, state_root: Path, board: Board,
         if projected is None:
             raise Refused(
                 f"{subject} could not be rendered into the task projection. "
-                "Nothing was written; repair the projection layout or run "
-                "`perry-tasks render --write` before retrying.")
+                f"Nothing was written; repair the projection layout or run "
+                f"`perry-tasks render --write{lib.root_flag(project_root)}` "
+                f"before retrying.")
         if old is None:
             target = dict(projected)
             if event_name == "add":
@@ -3068,7 +3075,8 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # function the three registers call, not a second copy of the rule
     # (TASK-203, USER-906).
     refuse_to_shrink("tasks", perry_store.store_path(state_root),
-                     event, len(current), len(records))
+                     event, len(current), len(records),
+                     root_flag=lib.root_flag(project_root))
     stamp_last_updated(board)
     unstorable = unstorable_status_rows(conformance)
     board_text, projection = perry_store.render(board, records, _ops())
@@ -3076,7 +3084,8 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # Before the plan, so `--dry-run` previews it, and before anything is
     # staged, so a register the board cannot produce a readable store for
     # refuses the whole write rather than half of it (TASK-203).
-    register = register_change(state_root, board, event)
+    register = register_change(state_root, board, event,
+                               lib.root_flag(project_root))
     # Beside the register and for the same two reasons: `--dry-run` must
     # preview the edge rather than a cheaper approximation of the write, and a
     # store this tool cannot read must refuse the whole write before anything
@@ -3091,7 +3100,8 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # between a warning and a way back.
     lost = register[4] if register else []
     warning = (substitution_report(register[2], register[0], lost,
-                                   declared_removal(event), dry_run)
+                                   declared_removal(event), dry_run,
+                                   root_flag=lib.root_flag(project_root))
                if lost else None)
     # Only when the report fires. `intake-sweep` does not carry its swept rows
     # forward either, and they are accounted for by the command itself, which
@@ -3233,9 +3243,10 @@ def commit(project_root: Path, state_root: Path, board: Board,
         plan["board_rendered"] = False
         print(f"perry-task: warning — {spath.name} and the journal were "
               f"written, but {board.path.name} could not be re-rendered "
-              f"({exc}). The state is correct and `perry-tasks render --write` "
-              f"regenerates the file; `perry-lint` reports it as `store-drift` "
-              f"until then.", file=sys.stderr)
+              f"({exc}). The state is correct and `perry-tasks render "
+              f"--write{lib.root_flag(project_root)}` regenerates the file; "
+              f"`perry-lint` reports it as `store-drift` until then.",
+              file=sys.stderr)
 
     plan["event_written"] = True
     ev = events_path(project_root)
@@ -3595,7 +3606,8 @@ def cmd_add(args, ctx) -> dict:
         raise Refused(
             f"--kr {args.kr!r} is blank. It is not a way to say this row "
             f"serves no KR — omit `--kr` for that, which files the row and "
-            f"warns, or use `perry-goals link --unlinked` to declare it "
+            f"warns, or use `perry-goals link "
+            f"--unlinked{lib.root_flag(ctx['project_root'])}` to declare it "
             f"outright. Passing the flag with nothing in it would stamp a "
             f"`kr` on the row's `add` event that no linkage edge backs. "
             f"Nothing was written")
@@ -3797,12 +3809,14 @@ def cmd_add(args, ctx) -> dict:
     # which is the § 5.2 behaviour this row must not change, and the third
     # state is the only thing that got quieter.
     if not args.kr and not args.unlinked:
+        _r = lib.root_flag(ctx["project_root"])
         print(f"perry-task: warning — {tid} was created without `--kr`, so no "
               f"KR edge was recorded and the row reads as never-asked. It is "
-              f"NOT declared unlinked: `perry-goals link {tid} <KR-ID>` "
-              f"attributes it, `perry-goals link --unlinked {tid}` declares "
-              f"outright that it serves no KR, and `perry-task add --unlinked` "
-              f"declares it at creation on a row not yet filed.",
+              f"NOT declared unlinked: `perry-goals link {tid} <KR-ID>{_r}` "
+              f"attributes it, `perry-goals link --unlinked {tid}{_r}` "
+              f"declares outright that it serves no KR, and `perry-task add "
+              f"--unlinked{_r}` declares it at creation on a row not yet "
+              f"filed.",
               file=sys.stderr)
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run, definition=definition,
@@ -4748,7 +4762,8 @@ def repair_off_board_cell(args, ctx, field: str, event: str, why: str,
         raise Refused(
             f"{args.id} is {status or 'unset'} and is not a row on the board. "
             f"An open row missing from the projection is a rendering failure, "
-            f"not finished work: run `perry-tasks render --write` and retry.")
+            f"not finished work: run `perry-tasks render "
+            f"--write{lib.root_flag(ctx['project_root'])}` and retry.")
     store_field = _BOARD_TO_STORE[field]
     previous = record.get(store_field) or ""
     if previous.strip() == value.strip():
@@ -5100,7 +5115,9 @@ def live_references(ctx, tid: str) -> list[str]:
         rid = rec.get("id") or "?"
         if tid in (rec.get("depends_on") or []):
             out.append(f"{rid}.depends_on — the edge would point at an id "
-                       f"nothing resolves (`perry-task depends {rid}` rewrites it)")
+                       f"nothing resolves (`perry-task depends "
+                       f"{rid}{lib.root_flag(ctx['project_root'])}` "
+                       f"rewrites it)")
         for field in ("parent", "commitment"):
             if (rec.get(field) or "").strip() == tid:
                 out.append(f"{rid}.{field}")
@@ -5300,7 +5317,8 @@ def cmd_purge(args, ctx) -> dict:
             f"{tid} is {status} in the store and still has a line on "
             f"{ctx['board'].path.name}. The projection is stale, and removing "
             f"the record under it would leave a row rendering from nothing: "
-            f"run `perry-tasks render --write` and retry")
+            f"run `perry-tasks render "
+            f"--write{lib.root_flag(ctx['project_root'])}` and retry")
     refs = live_references(ctx, tid)
     if refs:
         more = (f" (and {len(refs) - 1} more: {', '.join(refs[1:4])})"
@@ -5846,7 +5864,7 @@ def ensure_risk_table(board: Board, events: list[dict],
     return migrated
 
 
-def require_migrated(board: Board) -> None:
+def require_migrated(board: Board, root_flag: str = "") -> None:
     """Refuse to write a risk row into a section that has not migrated.
 
     **Consent, not disclosure.** `risk-add` used to convert the whole section
@@ -5879,7 +5897,8 @@ def require_migrated(board: Board) -> None:
         f"`## Top risks` is still a bullet list: {len(bullets)} risk(s) would "
         f"have to be rewritten as table rows before a row can be added, and "
         f"this tool does not rewrite a section you wrote without being asked. "
-        f"Nothing was written. Run `perry-task risk-migrate` to convert them "
+        f"Nothing was written. Run `perry-task risk-migrate{root_flag}` to "
+        f"convert them "
         f"(every bullet crosses verbatim; `risk-migrate --dry-run --json` "
         f"shows exactly what it would write), then run this again")
 
@@ -5907,10 +5926,12 @@ def cmd_risk_migrate(args, ctx) -> dict:
     acts on a section rather than on a row.
     """
     board = ctx["board"]
+    _r = lib.root_flag(ctx["project_root"])
     if not board.has_section("Top risks"):
         raise Refused(
-            "BOARD.md has no `## Top risks` section, so there is nothing to "
-            "migrate. `perry-task risk-add` creates the section and its table")
+            f"BOARD.md has no `## Top risks` section, so there is nothing to "
+            f"migrate. `perry-task risk-add{_r}` creates the section and its "
+            f"table")
     shape, tables = risk_section_shape(board)
     if shape == "foreign":
         refuse_foreign_risk_table(tables)
@@ -5919,12 +5940,13 @@ def cmd_risk_migrate(args, ctx) -> dict:
         raise Refused(
             f"`## Top risks` is already a table ({rows} row(s)) — nothing to "
             f"migrate, and this command will not touch a row that has an id. "
-            f"`perry-task risk-add` adds one; `risk-clear` retires one")
+            f"`perry-task risk-add{_r}` adds one; `risk-clear` retires one")
     if not risk_bullets(board):
         raise Refused(
-            "`## Top risks` holds no risk bullets to migrate — only prose, or "
-            "the `(no active risks)` placeholder. `perry-task risk-add` writes "
-            "the table on its own when there is nothing of yours to convert")
+            f"`## Top risks` holds no risk bullets to migrate — only prose, "
+            f"or the `(no active risks)` placeholder. `perry-task "
+            f"risk-add{_r}` writes the table on its own when there is nothing "
+            f"of yours to convert")
 
     migrated = ensure_risk_table(board, ctx["events"], ctx["state_root"])
     ids = [m["id"] for m in migrated]
@@ -5966,7 +5988,7 @@ def cmd_risk_add(args, ctx) -> dict:
     # of its event — the conversion has its own subcommand, its own journal
     # line and its own event, and a `migrated: []` on every risk-add was a
     # field that only ever described something another command does.
-    require_migrated(ctx["board"])
+    require_migrated(ctx["board"], lib.root_flag(ctx["project_root"]))
     ensure_risk_table(ctx["board"], ctx["events"], sr)
     rid = mint_risk_id(ctx["board"], ctx["events"], sr)
     opened = args.opened or f"{date.today():%Y-%m-%d}"
@@ -5998,10 +6020,11 @@ def cmd_risk_clear(args, ctx) -> dict:
     except Refused as exc:
         if "has no table" in str(exc):
             raise Refused(
-                "`## Top risks` is still a bullet list, so nothing in it has an "
-                "id to clear. `perry-task risk-migrate` converts the section "
-                "(every bullet crosses verbatim), after which the rows have "
-                "ids") from None
+                f"`## Top risks` is still a bullet list, so nothing in it has "
+                f"an id to clear. `perry-task "
+                f"risk-migrate{lib.root_flag(ctx['project_root'])}` converts "
+                f"the section (every bullet crosses verbatim), after which "
+                f"the rows have ids") from None
         raise
     keys = header_keys(header)
     values = dict(zip(keys, cells))
@@ -6126,7 +6149,9 @@ def cmd_route(args, ctx) -> dict:
     try:
         n = int(args.id or "0")
     except ValueError:
-        raise Refused("route takes the intake row number: perry-task route 1 --track ops")
+        raise Refused(f"route takes the intake row number: perry-task "
+                      f"route 1 --track ops"
+                      f"{lib.root_flag(ctx['project_root'])}")
     if not 1 <= n <= len(rows):
         raise Refused(f"intake row {n} does not exist (there are {len(rows)})")
     idx, cells = rows[n - 1]
@@ -6255,8 +6280,9 @@ def cmd_prioritize(args, ctx) -> dict:
     """
     tid = args.id
     if not tid:
-        raise Refused("prioritize takes a task id: "
-                      "perry-task prioritize TASK-001 --priority P1")
+        raise Refused(f"prioritize takes a task id: perry-task prioritize "
+                      f"TASK-001 --priority P1"
+                      f"{lib.root_flag(ctx['project_root'])}")
     if not (args.priority or args.group):
         raise Refused(
             f"{tid}: name where it goes — --priority P0|P1|P2, or --group "
@@ -8473,8 +8499,9 @@ def main(argv: list[str]) -> int:
         tail = " + ".join(written) + " + journal"
         for name, ok, why in (
                 ("BOARD.md", result.get("board_rendered", True),
-                  "BOARD.md not re-rendered — `perry-tasks render --write` regenerates "
-                 "it, and `perry-lint` reports `store-drift` until then"),
+                 f"BOARD.md not re-rendered — `perry-tasks render "
+                 f"--write{lib.root_flag(project_root)}` regenerates it, and "
+                 f"`perry-lint` reports `store-drift` until then"),
                 ("event", result.get("event_written", True),
                  "event log unwritable — this row will show as `unrecorded` "
                  "until it is fixed")):

@@ -798,7 +798,13 @@ def _track_context(state_file: Path, cell: str) -> dict:
     return _TRACK_CONTEXTS[key].get(name, {})
 
 
-def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool) -> list[Finding]:
+def check_file(path: Path, rel: str, spec: dict, enums: dict,
+               is_template: bool, root_flag: str = "") -> list[Finding]:
+    """`root_flag` is `lib.root_flag(project_root)` — see TASK-253. This
+    function is handed a file and no project, and one of its findings hands the
+    reader `perry-goals commit --migrate`, which WRITES. The template pass at
+    the bottom of `main` passes nothing, because a lint of Perry's own shipped
+    templates is not about a project and has no root to name."""
     if spec.get("format") == "yaml-frontmatter":
         return check_frontmatter(path, rel, spec, enums, is_template)
 
@@ -1081,7 +1087,8 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                                 f"is accepted, so a reader cannot compare or "
                                 f"sort it. Prose about a deadline belongs in "
                                 f"`By when note`, which is never validated: "
-                                f"`perry-goals commit --migrate` moves it."
+                                f"`perry-goals commit --migrate{root_flag}` "
+                                f"moves it."
                                 f"{context}"))
 
                 # A column the row's own mode has no honest default for, left
@@ -3568,14 +3575,17 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
                         f"`tasks.jsonl` is not readable as JSONL "
                         f"({type(exc).__name__}: {exc}) — there is nothing to "
                         f"compare the file against. `perry-tasks write "
-                        f"--from-board` re-derives it — which is safe here "
+                        f"--from-board{lib.root_flag(project_root)}` "
+                        f"re-derives it — which is safe here "
                         f"only because nothing readable is being discarded")]
     if not all(isinstance(r, dict) for r in on_disk):
         return [Finding("warn", rel_store, "store-unreadable",
-                        "`tasks.jsonl` holds something other than one JSON "
-                        "OBJECT per line — a whole-file array and a bare "
-                        "scalar both parse and neither is a record; "
-                        "`perry-tasks write --from-board` re-derives it")]
+                        f"`tasks.jsonl` holds something other than one JSON "
+                        f"OBJECT per line — a whole-file array and a bare "
+                        f"scalar both parse and neither is a record; "
+                        f"`perry-tasks write "
+                        f"--from-board{lib.root_flag(project_root)}` "
+                        f"re-derives it")]
     check_store_drift.stats["records"] = len(on_disk)
 
     board_path = state_root / "BOARD.md"
@@ -3664,18 +3674,20 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
     # is how many there are" are different claims.
     if check_store_drift.stats["comparison_performed"]:
         check_store_drift.stats["drifted"] = len(rows)
+    _r = lib.root_flag(project_root)
     for tid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
         findings.append(Finding(
             "warn", rel_board, "store-drift",
             f"{tid} — {detail}. Under ADR-007 decision 2 this file is rendered "
             f"output and `{rel_store}` is what the field means, so a hand edit "
-            f"is drift: `perry-tasks render --write` puts the file back in "
-            f"line with the store WHEN EVERY STORED RECORD STILL HAS A ROW "
+            f"is drift: `perry-tasks render --write{_r}` puts the file back "
+            f"in line with the store WHEN EVERY STORED RECORD STILL HAS A ROW "
             f"— a row deleted by hand is refused and named, because render "
             f"fills lines rather than creating them (DESIGN-016 A5). It is "
             f"the fix whenever `perry-task` "
             f"wrote the value — the ordinary case. `perry-tasks write "
-            f"--from-board` runs the other direction and DISCARDS the stored "
+            f"--from-board{_r}` runs the other direction and DISCARDS the "
+            f"stored "
             f"value; it is for a board edited before the store existed.",
             line))
     if len(rows) > DRIFT_ROWS_SHOWN:
@@ -3684,7 +3696,8 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
             f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) disagree with "
             f"`{rel_store}` — at this scale the store is stale rather than the "
             f"file hand-edited, and `perry-tasks verify` caps at ten too."))
-    findings.extend(_order_drift(stored, projected_live, rel_board, rel_store))
+    findings.extend(_order_drift(stored, projected_live, rel_board,
+                                 rel_store, _r))
     return findings
 
 
@@ -3802,19 +3815,21 @@ def check_risk_store_drift(project_root: Path, state_root: Path) -> list["Findin
                           "renders no row for it", None))
 
     check_risk_store_drift.stats["drifted"] = len(rows)
+    _r = lib.root_flag(project_root)
     for rid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
         findings.append(Finding(
             "warn", rel_board, "risk-store-drift",
             f"{rid} — {detail}. Under ADR-007 `## Top risks` is rendered "
             f"output and `{rel_store}` is what the field means, so a hand edit "
-            f"is drift. `perry-tasks risks-render --write` puts the section "
-            f"back in line with the store WHEN EVERY STORED RECORD STILL "
+            f"is drift. `perry-tasks risks-render --write{_r}` puts the "
+            f"section back in line with the store WHEN EVERY STORED RECORD "
+            f"STILL "
             f"HAS A ROW — a row deleted by hand is refused and named, "
             f"because render fills lines rather than creating them "
             f"(DESIGN-016 A5). It is the fix whenever "
             f"`perry-task risk-add` / `risk-clear` wrote the value — the "
-            f"ordinary case. `perry-tasks risks-write --from-board` runs the "
-            f"other direction and DISCARDS the stored value.", line))
+            f"ordinary case. `perry-tasks risks-write --from-board{_r}` "
+            f"runs the other direction and DISCARDS the stored value.", line))
     if len(rows) > DRIFT_ROWS_SHOWN:
         findings.append(Finding(
             "warn", rel_board, "risk-store-drift",
@@ -3944,6 +3959,7 @@ def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Find
                         "`## Intake` renders no row for it"))
 
     check_intake_store_drift.stats["drifted"] = len(rows)
+    _r = lib.root_flag(project_root)
     for n, detail in sorted(rows)[:DRIFT_ROWS_SHOWN]:
         findings.append(Finding(
             "warn", rel_board, "intake-store-drift",
@@ -3952,12 +3968,13 @@ def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Find
             f"is drift. **The row number is the key**: an inserted or deleted "
             f"line renumbers every row beneath it, so `perry-task "
             f"resolve-intake {n + 1}` no longer addresses what it did. "
-            f"`perry-tasks intake-render --write` puts the section back in "
-            f"line with the store when every stored record still has a "
+            f"`perry-tasks intake-render --write{_r}` puts the section back "
+            f"in line with the store when every stored record still has a "
             f"row, and REFUSES when one does not — a deleted line "
             f"renumbers the rest, so filling them in place would strand "
-            f"the last record (DESIGN-016 A5); `perry-tasks intake-write --from-board` "
-            f"runs the other direction and DISCARDS the stored values."))
+            f"the last record (DESIGN-016 A5); `perry-tasks intake-write "
+            f"--from-board{_r}` runs the other direction and DISCARDS the "
+            f"stored values."))
     if len(rows) > DRIFT_ROWS_SHOWN:
         findings.append(Finding(
             "warn", rel_board, "intake-store-drift",
@@ -4070,6 +4087,7 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
                           "`## User Input Queue` renders no row for it", None))
 
     check_ask_store_drift.stats["drifted"] = len(rows)
+    _r = lib.root_flag(project_root)
     for aid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
         findings.append(Finding(
             "warn", rel_board, "ask-store-drift",
@@ -4078,10 +4096,11 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
             f"hand edit is drift. **`Idle` is not in this comparison**: it is "
             f"an age derived from `Asked`, no stored field claims it, and "
             f"editing it changes nothing the store asserts. "
-            f"`perry-tasks asks-render --write` puts the section back in line "
-            f"with the store when every stored record still has a row, "
-            f"and REFUSES when one does not (DESIGN-016 A5); `perry-tasks asks-write --from-board` runs the "
-            f"other direction and DISCARDS the stored values.", line))
+            f"`perry-tasks asks-render --write{_r}` puts the section back in "
+            f"line with the store when every stored record still has a row, "
+            f"and REFUSES when one does not (DESIGN-016 A5); `perry-tasks "
+            f"asks-write --from-board{_r}` runs the other direction and "
+            f"DISCARDS the stored values.", line))
     if len(rows) > DRIFT_ROWS_SHOWN:
         findings.append(Finding(
             "warn", rel_board, "ask-store-drift",
@@ -4444,7 +4463,7 @@ def check_md_store_drift(project_root: Path, state_root: Path,
 
 
 def _order_drift(stored: dict, live: dict, rel_board: str,
-                 rel_store: str) -> list["Finding"]:
+                 rel_store: str, root_flag: str = "") -> list["Finding"]:
     """`order` compared ONCE PER SECTION, and never per row.
 
     **`order` is a fact about a sequence, not about a row**, and comparing it
@@ -4484,8 +4503,9 @@ def _order_drift(stored: dict, live: dict, rel_board: str,
             f"the file than in `{rel_store}`: file {' → '.join(on_file[:6])}, "
             f"store {' → '.join(in_store[:6])}. Row order is recorded, not "
             f"re-derived (ADR-007, TASK-089), so a row moved by hand is drift "
-            f"like any other cell: `perry-task prioritize` moves a row, and "
-            f"`perry-tasks render --write` puts the file back in line when "
+            f"like any other cell: `perry-task prioritize{root_flag}` moves "
+            f"a row, and `perry-tasks render --write{root_flag}` puts the file "
+            f"back in line when "
             f"every stored record still has a row, and REFUSES when one does "
             f"not (DESIGN-016 A5)."))
     return out
@@ -5513,7 +5533,9 @@ def main(argv: list[str]) -> int:
                     rel = path.relative_to(project_root).as_posix()
                 except ValueError:
                     rel = path.as_posix()
-                findings.extend(check_file(path, rel, spec, enums, is_template=False))
+                findings.extend(check_file(path, rel, spec, enums,
+                                           is_template=False,
+                                           root_flag=lib.root_flag(project_root)))
         if adopted:
             findings.extend(check_cross_file(root, enums, project_root))
             # DESIGN-002 decision #4: the collision the state root cannot cover
