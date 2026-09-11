@@ -392,3 +392,89 @@ adding a line; the file is back at 60 and the test is green.
   per-user `/var/folders/…` path. If some host exports a per-session `TMPDIR`,
   the derivation is *more* isolated than claimed, not less — but I did not
   verify the claim in the safe direction for other hosts.
+
+## 7 · Two things that happened after the report was first written
+
+### The codex gap, closed rather than only named
+
+§ 6 originally recorded, as a limitation, that `§ Executor: codex` enumerates
+its own prompt contents and did not name the scratch block — so a codex dispatch
+would ship without it. That section is **outside** the region pinned by
+`TestTheAgentGetsItsOwnTree` (the span ends at `### Executor: opencode-subagent`),
+so closing it cost no re-pin. It now requires the block, with the reason stated:
+a codex session reads no startup page, so `AGENTS.md` does not reach it and the
+prompt is the only carrier.
+
+`test_every_executor_that_enumerates_its_prompt_requires_the_block` now checks
+both executors that enumerate. `opencode-subagent` is deliberately not checked —
+it says *"build the same complete prompt as `claude-subagent`"* and inherits by
+reference, so asserting on it would pin a sentence that is not there.
+
+This matters for the fifth collision's verdict. With `AGENTS.md` and both
+enumerated prompts carrying the rule, the three ways an agent can arrive —
+dispatched as a subagent, dispatched to codex, or a session working on its own —
+all now carry it. Before this edit, one of the three did not.
+
+### I collided with my own test run, in the row about collisions
+
+While a full `tests/run` was in flight I edited `work/reference/dispatch.md` and
+`tests/test_scratch_is_per_agent.py` to close the codex gap. `tests/tree_guard.py`
+step 0 asserts the tree the suite started in is the tree it ends in, and it
+walks the whole worktree — `perry/evidence/` and `work/` included; its
+`IGNORE_DIRS` is only `.git`, `__pycache__`, `.claude`, `.gstack`. So that run
+was measuring a tree that changed underneath it, and **its result is not
+evidence of anything**. I discarded it and re-ran on a quiet tree rather than
+report a number I could not stand behind.
+
+The guard caught it and named every file, which is what a working detector looks
+like:
+
+```
+0. tree guard — the tree the suite started in is the tree it ends in
+tests/tree_guard.py: THE SUITE WROTE INTO THE TREE IT RAN IN — the checkout is
+not what it was when the run started
+  M perry/evidence/2026-09/TASK-421-result.md   (changed)
+  M tests/test_scratch_is_per_agent.py   (changed)
+  M work/reference/dispatch.md   (changed)
+```
+
+Note what it did **not** do: it reported the writes as a failure of the suite
+and suggested the usual cause (a Perry write-side tool invoked without
+`--root`). The real cause was a human-shaped one it cannot see — an agent
+editing files by hand while its own suite ran. The guard still did its job,
+because it reports the *condition* rather than guessing the *cause*, and the
+condition was true.
+
+Worth writing down because of what it is not. It is **not** the collision this
+row is about: it was one agent against its own run, inside its own worktree, and
+no other agent's work was at risk. But the mechanism is the same one — *a
+long-running reader and a concurrent writer sharing a path* — and it shows the
+shape survives the fix, because the fix separates **agents** from each other and
+does nothing about an agent racing itself. The discipline that covers this one is
+different and older: do not write the tree while the suite is reading it. I knew
+that and did it anyway, which is the honest version of why "tell the agent to be
+careful" keeps failing.
+
+### M11, and the final suite
+
+Closing the codex gap added a claim, so it was mutated too. **Eleven mutations,
+eleven red.**
+
+| # | Mutation | Verdict | Test that caught it |
+|---|---|---|---|
+| M11 | the block removed from `§ Executor: codex`'s prompt list | RED | `test_every_executor_that_enumerates_its_prompt_requires_the_block` |
+
+**Final `tests/run`, on a quiet tree, everything committed:**
+
+```
+2 of 125 MODULE(S) red
+3 of 3589 TEST(S) failed
+0. tree guard — nothing under <this worktree> moved
+```
+
+Against the baseline of `2 of 124` / `3 of 3578` at `70458893`: **the same three
+failures, by name** (`test_contract_key_parity` ×2, `test_resume.TestStaleRuns`
+×1), `+1` module and `+11` tests, all mine. Both pre-existing reds were re-run
+**alone** to confirm they reproduce outside the parallel runner rather than
+being attributed to it or to the two concurrent agents — they do, identically.
+No regression.
