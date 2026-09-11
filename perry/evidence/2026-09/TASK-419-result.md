@@ -72,3 +72,107 @@ forbids twice).
 
 **The criterion charged is a per-block fact and only the block can carry it.**
 That is the finding this section exists to record, and it decides the shape.
+
+## 2 · The shape chosen, and what a round now has to write
+
+**`grade:` — one optional key on a FAIL block**, read only there, whose first
+word is `ROW` or `FAIL` and whose remainder is the criterion reference.
+
+```
+result: FAIL
+grade: ROW — criterion 2b, `--help` from a non-first argument position
+```
+
+`review.md § 3` gains a subsection declaring it (committed here, argued there,
+not slipped in) and `§ 6` gains one sentence saying the count is by criterion.
+
+### What a round now has to write down that it did not before
+
+**One line, on a FAIL, and only when the reviewer is claiming the defect fails
+no row.** A PASS writes nothing new. A FAIL that really does fail the row
+writes nothing new, because silence already means *counted*.
+
+That asymmetry is the argument for the cost being worth paying: **the field is
+only ever needed by the person who wants the guard to be quieter about their
+row**, and the finding tells them exactly what is missing and where. Nobody
+pays for a field they do not need, and the direction the field can move the
+guard is the direction someone is already arguing for in the open.
+
+It is optional rather than a sixth required key for a measured reason: making
+it required would put `verdict-malformed` on all **111** existing blocks,
+including all 46 PASSes, which is how a check teaches people to ignore it.
+
+### The default for the undeterminable, and its size
+
+| `grade:` | counter |
+|---|---|
+| `ROW` (any case) | **not counted** — the round filed a row, it did not spend a round |
+| `FAIL` (any case) | counted |
+| absent | **counted** — undeterminable |
+| unreadable (`row-grade`, `ROWS`, `2b`, `PASS`) | **counted** — undeterminable, *and* reported `verdict-malformed` |
+
+**62 of 62 existing FAILs fall in the "absent" bucket** — the whole corpus. The
+finding now states it rather than absorbing it:
+
+> … 2 of the 2 counted carry no readable `grade:`, so the criterion they were
+> charged against is undeterminable and they count by default
+> (work/reference/review.md § 3).
+
+A typo is safe but *silently* safe, so `verdict-malformed` gained one line for
+it. `_GRADE_TOKEN` is `([A-Za-z]+)(?![-\w])`: `row-grade` must not read as
+`ROW` by prefix, because that would quiet the guard by accident — the one
+direction this row may not move.
+
+## 3 · TASK-360 and TASK-362, before and after
+
+### First, a correction to the spec's Verification item 1
+
+The spec says *"360 stops being exhausted; 362 stays exhausted"* against the
+live corpus. **Neither half is runnable there, and one was not runnable at the
+spec's own bound commit.** Re-derived in this tree, not taken from the spec:
+
+- **TASK-360 is `done`.** Not just today on `70458893` — it is `done` in
+  `git show fe0292fb:perry/tasks.jsonl`, the spec's own Bound commit. The check
+  skips it at `tid not in live`, which the comment above the loop calls out by
+  name ("history is not a worklist"). It was never exhausted at `fe0292fb` and
+  the fix cannot make it stop being so.
+- **TASK-362 PASSed its round 11** on criteria 13 and 5. That PASS lives on
+  the unmerged branch `task-362-round11-review` (`512df26d`), not on `main`, so
+  in this tree the row is still `in_progress` with no PASS block and the guard
+  still reports it. **The moment that branch merges, `"PASS" in results` ends
+  the row's history and the finding goes silent for a reason that has nothing
+  to do with this row.** "TASK-362 stays exhausted" is therefore an assertion
+  with a fuse in it, and it must not be pinned as a test against the live
+  corpus.
+
+So the assertion was replaced, with the reason, by one that does not decay:
+
+> **Both rows are reproduced from their REAL verdict blocks in a scratch
+> project with the row made live, and TASK-362's is shown to be immune to the
+> regrade** — graded honestly, it stays exhausted, because both its FAILs were
+> charged against FAIL-grade criteria. The fix does not reach it.
+
+That is the property the spec actually wants (the guard is right; the
+numerator is lossy), it is checkable today, and it survives the round-11 merge
+and the row's eventual close.
+
+### The measurement
+
+Blocks copied verbatim out of `perry/evidence/2026-09/DESIGN-016-round4-v4-review.md`
+and `-round6-` into a scratch project; nothing in the corpus was edited. Grades
+were added **on the copy** as the counterfactual "what the counter would say if
+the round had written its grade".
+
+| row | blocks | before (block count) | after, ungraded | after, grades written |
+|---|---|---|---|---|
+| **TASK-360** | round 4 (criterion 2 → ROW), round 6 (criterion 3 → FAIL) | EXHAUSTED | EXHAUSTED | **silent** |
+| **TASK-362** | round 4 (criteria 5, 13 → FAIL), round 6 (criterion 5 → FAIL) | EXHAUSTED | EXHAUSTED | **EXHAUSTED** |
+
+and the control, to show the ROW path is not a rubber stamp on either row:
+
+| TASK-362, counterfactual: both graded `ROW` | silent |
+|---|---|
+
+TASK-360 stops being exhausted when its rounds say what they were charged
+against. TASK-362 does not, and could not, because the grade its rounds would
+honestly write is the one that counts.
