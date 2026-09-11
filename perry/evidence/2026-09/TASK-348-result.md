@@ -184,15 +184,38 @@ not fixed.
 
 The region tables in § 10 are not a rendering of a separate working list —
 **they are the list**. A reader can harvest all 1,018 regions from the published
-tables, feed them to the `check()` function in Appendix A (or Appendix B for
-the four shell files), and get § 4's numbers back. That was run as the last
-step, over every file:
+tables with a ten-line regex, feed them to the `check()` function in Appendix A
+(or Appendix B for the four shell files), and get § 4's numbers back. That was
+run as the last step, parsing this document's own markdown. Its output, in
+full, for the six largest files and the four shell ones:
 
 ```
-22 files | 1018 regions harvested | gaps 0 | overlaps 0
-         | zero-code regions 0 | unescaped pipes 0
-         | total 27,132 (the 22 files are 27,132)   CLOSES
+files with tables: 23
+malformed table rows: 0
+viewer/parsers.py          151 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total 4,902 (file is 4,902) CLOSES
+bin/perry-goals            136 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total 3,138 (file is 3,138) CLOSES
+bin/perry-diagnose          82 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total 2,818 (file is 2,818) CLOSES
+bin/perry-state            133 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total 2,657 (file is 2,657) CLOSES
+bin/lib/__init__.py         46 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total 2,154 (file is 2,154) CLOSES
+bin/perry-tasks             85 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total 1,928 (file is 1,928) CLOSES
+bin/perry-dispatch-limit    28 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total   448 (file is   448) CLOSES
+bin/perry-update-check      15 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total   192 (file is   192) CLOSES
+bin/perry-codex-preflight   12 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total   150 (file is   150) CLOSES
+bin/perry-detect-host        8 regions harvested FROM THE DOCUMENT | code-column mismatches 0 | total   101 (file is   101) CLOSES
+...
+TOTAL regions harvested from the published tables: 1026
+files failing: 0
 ```
+
+(1,026 = the 22 files' 1,018 plus `bin/perry`'s 8.)
+
+**Four properties are asserted, not asserted-about.** No two regions overlap;
+no code line is unclaimed; no region is empty of code; and **each row's
+published `code` column equals what the checker independently computes for that
+row's span** — which is the check that would catch a row silently dropped or
+mangled by the markdown. `malformed table rows: 0` is the direct test for
+`TASK-263`'s Fault 2: any row that did not parse as a five-cell table row would
+be printed there.
 
 Four properties are asserted, not asserted-about: no two regions overlap, no
 code line is unclaimed, no region is empty of code, and each file's totals
