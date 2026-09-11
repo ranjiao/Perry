@@ -459,7 +459,12 @@ def harvest(root: Path, read=None) -> dict:
                             if k >= len(cells):
                                 continue
                             v = strip_md(cells[k])
-                            if v and v != "—":
+                            # TASK-431: was `v != "—"`. `strip_md` has already
+                            # removed the decoration, so this saw the raw
+                            # spelling — and took `无`, `n/a` or `tbd` as a
+                            # decision's status, publishing the blank marker
+                            # itself as the answer to "what was decided".
+                            if v and not lib.is_blank_cell(v):
                                 e["status"] = v
                                 break
             else:

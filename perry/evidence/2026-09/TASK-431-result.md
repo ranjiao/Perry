@@ -146,3 +146,105 @@ back. Script: `tests/repro_blank_stages.py`.
 Every one of the six round 8 named is there, and so are the eleven it did not
 try. The single spelling that behaves is the bare em dash — the one literal
 `split_stages` was taught.
+
+## 4 · A tenth reader the sweep did not find, and why
+
+The sweep enumerates **literals**. It found `UNDECLARED_CELL`'s definition at
+`bin/perry-lint:354` correctly, and resolved the nine readers *in that module*
+by following the name. It did not find these:
+
+```
+bin/perry-knowledge:407  if not src   or src   in L.UNDECLARED_CELL:
+bin/perry-knowledge:454  if not claim or claim in L.UNDECLARED_CELL:
+bin/perry-knowledge:461  if not src   or src   in L.UNDECLARED_CELL:
+bin/perry-knowledge:477  if not trip  or trip  in L.UNDECLARED_CELL:
+bin/perry-knowledge:488  if not owner or owner in L.UNDECLARED_CELL:
+```
+
+`bin/perry-knowledge` loads `bin/perry-lint` through a `SourceFileLoader` at
+its line 148, binds it as `L`, and reads the set across the module boundary.
+There is **no blank-cell literal anywhere in `perry-knowledge`**, so a sweep
+for literals is structurally blind to it. So were the three lists the schema
+note names — this is a sixth consumer nobody had counted.
+
+**It was the test suite that found it, not me.** `test_knowledge_promotion`
+went red in 28 tests with `AttributeError: module 'perry_lint' has no
+attribute 'UNDECLARED_CELL'` the moment I deleted the set. Had I done the
+softer thing and widened `UNDECLARED_CELL` in place instead of removing it,
+those five readers would have kept working, I would never have looked at
+`perry-knowledge`, and the report would have said "nine readers, all fixed".
+**Deleting the name rather than editing its contents is what made the
+remaining readers announce themselves**, and that is the transferable part.
+
+What this costs the guard, stated precisely: the guard in § 5 detects
+**containers**, not readers. That is sufficient going forward — a
+cross-module reader cannot exist unless someone first defines a container, and
+the container is caught at its definition site. The blind spot was in my
+enumeration of *sites to edit*, not in the guard's ability to detect a fourth
+list. The sweep now reports cross-module attribute reads as well, so the next
+person does not have to be lucky.
+
+## 5 · Before and after, per site
+
+| # | site | before | after |
+|---|---|---|---|
+| 1 | `bin/perry-lint § UNDECLARED_CELL` | a module set of 10; `in` at 9 sites in-module + 5 in `perry-knowledge` | **name deleted**; 14 sites call `lib.is_blank_cell` |
+| 2 | `bin/perry-state § split_stages` | `if not s or s == "—"` | `lib.is_blank_cell(cell)` on the raw cell **before** separator normalisation, and per element after |
+| 3 | `bin/perry-state § missing_defaults` | `{"", "—", "–", "-", "n/a", "tbd", "?"}` | `lib.is_blank_cell(col(key) or "")` |
+| 4 | `bin/perry-state § parse_config` | `n != blank_marker() and n != "—"` | `not lib.is_blank_cell(n)` |
+| 5 | `bin/perry-lint § check_cross_file` (done-needs-evidence) | `ev in {"—", "-", ""}` | `not ev or lib.is_blank_cell(ev)` |
+| 6 | `bin/perry-lint § rung_satisfied` | `ev in ("—", "-")` | `not ev or lib.is_blank_cell(ev)` |
+| 7 | `bin/perry-explain § harvest` | `v != "—"` | `not lib.is_blank_cell(v)` |
+| 10 | `bin/perry-knowledge` ×5 | `in L.UNDECLARED_CELL` | `lib.is_blank_cell(...)` |
+
+One addition to `bin/lib`: `blank_cell_spellings()`, which hands back the
+declared set for the one caller shape that legitimately needs the set rather
+than the verdict (§ 7). It is armed through `is_blank_cell` itself, not by a
+second schema read.
+
+**One spelling was dropped: `—/—`**, from `UNDECLARED_CELL`. It is not in
+`schema § i18n.blank_cell`; a whole-tree search (`grep -rn "—/—" .`) finds it
+on exactly one line — its own definition. No template, fixture, test or
+document writes it. Preserving it would have meant adding a spelling to a
+list, which the row forbids in its first "must not".
+
+### 5.1 · The consequence, gone
+
+Same script, same fixture, after the change:
+
+```
+ stages cell | stage_list                                          | stages_declared
+         '-' | ['brief','draft','review','approved','published']   | False
+       'n/a' | ['brief','draft','review','approved','published']   | False
+         '无' | ['brief','draft','review','approved','published']   | False
+     '**—**' | ['brief','draft','review','approved','published']   | False
+        ... all 21 identical ...
+
+0 of 21 blank spellings were read as a DECLARED stage list (stages_declared=True)
+0 of those are a single stage named after the blank marker
+```
+
+Before: **20 of 21** had `stages_declared: true`, 20 of those a single stage
+named after the marker. After: **0 of 21**.
+
+Note what "gone" means, because the spec's word is "empty" and the payload is
+not: `split_stages` now returns `[]`, and `--compact` then does what it
+already did for the one spelling that worked — falls back to the *pipeline
+mode's declared default* stages and reports `stages_declared: false`. The
+after-state for all 21 is byte-identical to the bare `—` row of the before
+table, which was the one correct row in it. The projection was not touched
+(the row's third "must not").
+
+## 6 · Suite
+
+Baseline in this tree: 3 of 3578 red. After the `bin/` changes: **3 of 3578
+red, the same three**. No test moved in either direction except
+`test_handed_back_root`, below.
+
+`tests/test_handed_back_root.py § NO_ROOT_TO_GIVE` is keyed by **line
+number** — `("bin/perry-lint", "check_file", 5495)`. The comments I added
+above that call pushed it to 5525 and the exemption silently stopped
+matching, so the call reappeared as a finding. Updated to 5525, with a note
+in the test saying that any edit above it does this. The call itself is
+unchanged. **This is a latent trap for every future edit to `perry-lint`,
+not something this row introduced**; it is filed in § 8.

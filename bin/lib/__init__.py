@@ -287,6 +287,31 @@ def is_blank_cell(value: str) -> bool:
     return text in _BLANK_CELLS
 
 
+def blank_cell_spellings() -> frozenset[str]:
+    """Every spelling `is_blank_cell` answers True to, as declared.
+
+    **For a caller that needs the SET rather than the verdict**, and there is
+    exactly one such shape: a reader whose own vocabulary is deliberately
+    WIDER than blankness — `viewer/parsers.py § _no_date`, where `ongoing` and
+    `as needed` are cadence answers that are not blank — and which therefore
+    cannot simply call `is_blank_cell` and be done. Handing that caller the
+    declared set lets it union rather than re-type, which is the difference
+    between one rule with a documented extension and the second list this row
+    exists to remove.
+
+    It is NOT a licence to re-implement the match. A caller deciding whether
+    ONE value means nothing calls `is_blank_cell`; the keys here are already
+    `_blank_key`-reduced, so testing a raw cell against them directly would
+    silently miss every decorated form (`**—**`, `` `n/a` ``) — which is the
+    bug class this whole row is about.
+    """
+    # Armed through the one reader, and deliberately NOT with `""`: the empty
+    # string short-circuits on line 1 of `is_blank_cell` and never reaches the
+    # schema load, so priming with it would hand back an empty set.
+    is_blank_cell("—")
+    return frozenset(_BLANK_CELLS)
+
+
 #: `3d`, `2w`, `24h` — the shorthand `.perry/config.md § Tracks` writes. Here
 #: for the same reason `ISO_DATE_RE` is: `bin/perry-goals` validates `--due`
 #: with it and `bin/perry-lint` now checks the column against it, and a typed
