@@ -340,3 +340,72 @@ Both were caught only because the suite was re-run and each red was re-run
 alone before being attributed. **The first full run of this row was
 contaminated** — started before the edits, finished after them — and is used
 for nothing above.
+
+### After the change
+
+`python3 tests/parallel` in this worktree at `4f85b1a3`:
+
+```
+124 modules · 3594 tests · 2 modules red · 3 tests failed
+```
+
+and those three are exactly `test_contract_key_parity` ×2 and
+`test_resume.TestStaleRuns.test_a_fresh_run_is_not_stale` — the declared known
+reds, and nothing else. 18 tests added, all green.
+
+## 7 · What I did not check
+
+Named, because a bound that is not written is a bound that gets re-discovered
+at a round's price.
+
+- **I did not re-review TASK-360 or TASK-362** — `§ Out of scope` forbids it.
+  The grades used in § 3's counterfactual are read off
+  `DESIGN-016-spec.md § "What a criterion may do to a row"` and the criteria
+  its own `checked:` lines name; I did not independently re-judge whether
+  criterion 2b really deserves ROW.
+- **I did not grade the other 60 existing FAILs.** Doing so would mean reading
+  62 rounds' prose and deciding what each was charged against, which is a
+  judgement the round that ran it should have recorded and I am not the author
+  of any of them. They stay undeterminable and counted. The only row I can say
+  changes once graded is TASK-360.
+- **I did not make `grade:` reachable from any writer.** `perry-task` gains no
+  flag and no template emits the field; a reviewer types it. Whether the
+  review prompt in `review.md § 2` should tell the agent to write it is a real
+  question and I did not answer it — the field is inert until somebody does,
+  which is why the corpus is unchanged.
+- **A `grade:` on a `result: PASS` block is silently ignored**, not reported.
+  A PASS ends the row's history anyway, so it cannot affect the count; but a
+  reviewer who wrote one has misunderstood something and is not told.
+- **I did not check `--reviews --strict`'s exit code** against a corpus with
+  graded blocks, only the default advisory run.
+- **Other readers of verdict blocks: I did sweep, and there are none.**
+  `grep -rn "parse_verdicts" bin viewer modes work` returns callers only inside
+  `bin/perry-lint`, and `grep -rln "END VERDICT" bin viewer modes` returns
+  `bin/perry-lint` alone. So no second parser drifts from this one. What I did
+  NOT check is `tests/fixtures/` and the `packs/` trees for a third copy of the
+  block's shape.
+- **The `test_one_header_rule` red in my base measurement is explained, not
+  eliminated** — I attributed it to the non-git scratch tree by re-running the
+  module alone in this worktree. I did not prove the module is green at
+  `70458893` *inside a git repository*, because doing that would need a second
+  checkout of the base and this tree is the only one I may write.
+- **`review.md § 6`'s rule and the threshold are untouched**, as required —
+  so I did not measure whether 2 is still the right number now that the
+  numerator has changed. That is a real question this row creates and does not
+  answer: counting fewer FAILs with the same limit is, in effect, a small
+  loosening in aggregate, and whether the measured "20 rows, 74 rounds" that
+  bought the limit would have been the same under a per-criterion count is
+  unknown. It is a row, not a finding.
+
+## 8 · Verdict on my own work
+
+The deliverable was "a count that reflects the bar the row is actually held to,
+and a `review-rounds-exhausted` finding that is true." What landed:
+
+- The count is by criterion, and the criterion is a per-block fact the block
+  now carries.
+- The finding is true in the strong sense the spec asked for: it no longer
+  reports a number it cannot justify, because when it cannot justify one it
+  says so and counts anyway.
+- **The guard did not get quieter.** Not on one row, on the whole corpus: 111
+  blocks in, 29 findings out, before and after, identical.
