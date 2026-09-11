@@ -132,8 +132,8 @@ later (`review.md § 2` rule 1).
 | 2 | `:98` jsonc | comments stripped, parsed, every key and declared type compared to a live payload, recursively |
 | 3 | `:120` jsonc | same, wrapped as a fragment |
 | 4 | `:578` python | compiled and run on the live payload and on synthetic ones; free names checked; enumerated over the version space |
-| 5 | `:830` | `<!-- not-executable: historical transcript -->` |
-| 6 | `:1006` | `<!-- not-executable: historical transcript -->` |
+| 5 | `:831` | `<!-- not-executable: historical transcript -->` |
+| 6 | `:1008` | `<!-- not-executable: historical transcript -->` |
 
 The marker is `bin/README.md`'s, and it is held to the bar
 `tests/test_bin_surface.py` holds that file to — **the reason is checked against
