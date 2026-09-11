@@ -187,6 +187,24 @@ PROPOSAL_SECTION = re.compile(
 TITLE_COLS = ("title", "name", "decision", "question", "ask", "summary",
               "recurring task", "work", "change")
 
+#: A table whose FIRST column is named this is a register: its rows declare
+#: that the ids in that column exist. `id` and `user-id` are Perry's own two
+#: board tables; `adr`, `task` and `design` are the spellings other projects
+#: reach for. The `endswith("id")` arm is what reaches `user-id` without a
+#: second list to keep in sync.
+#:
+#: **`#` is deliberately NOT here, and it is the whole point of TASK-436.** A
+#: review's mutation table is headed `| # | site | revert | named test(s) |`
+#: and its rows open with `MX-1`, `R11-7`, `V4-2` — demonstration ids invented
+#: to show a check going red. Those rows describe a probe; they do not declare
+#: that the project owns an id. See `register` in `harvest`.
+ID_COLS = ("id", "adr", "task", "design")
+
+
+def is_id_column(name: str) -> bool:
+    n = (name or "").strip()
+    return n in ID_COLS or n.endswith("id")
+
 
 def strip_md(s: str) -> str:
     s = MD_LINK.sub(r"\1", s)
@@ -342,6 +360,7 @@ def harvest(root: Path, read=None) -> dict:
         return entries.setdefault(i, {
             "id": i, "title": None, "kind": None, "status": None,
             "defined": None, "mentions": [], "in_tracking_doc": False,
+            "register": False,
         })
 
     for path in sorted(walk_md(root)):
@@ -360,6 +379,7 @@ def harvest(root: Path, read=None) -> dict:
             e = ent(fname_ids[0])
             if not e["defined"]:
                 e["defined"] = f"{rel}:1"
+                e["register"] = True
                 e["kind"] = e["kind"] or "document"
                 for ln in lines[:40]:
                     h = HEADING.match(ln)
@@ -373,6 +393,13 @@ def harvest(root: Path, read=None) -> dict:
                         break
 
         header_cells: list[str] = []
+        # Is the table currently being read a REGISTER — a table whose first
+        # column declares ids — or a table that merely tabulates them? Set
+        # when the separator row is reached, because the header is the row
+        # BEFORE the separator and that is the only structural way to know
+        # which row was the header. Reset by the same non-row line that ends
+        # the table, so a register's header cannot leak into the next table.
+        row_is_register = False
         yaml_pending: str | None = None
         # A design doc's Implementation plan names the tasks PMO will open
         # AFTER lock and hand-off. Until then they correctly do not exist, so
@@ -435,11 +462,20 @@ def harvest(root: Path, read=None) -> dict:
                     header_cells = low
                     continue
                 if set("".join(cells)) <= set("-: "):
+                    # The separator. The line before it was this table's
+                    # header, whatever its column names — which is how a
+                    # register with a first column the word list above does
+                    # not know (`user-id`) is still recognised as one.
+                    prev = lines[n - 2] if n >= 2 else ""
+                    hdr = header_index(split_row(prev)) \
+                        if TABLE_ROW.match(prev) else []
+                    row_is_register = bool(hdr) and is_id_column(hdr[0])
                     continue
                 first_ids = find_ids(cells[0]) if cells else []
                 if first_ids:
                     e = ent(first_ids[0])
                     e["defined"] = e["defined"] or f"{rel}:{n}"
+                    e["register"] = e["register"] or row_is_register
                     e["kind"] = e["kind"] or "row"
                     if not e["title"] and len(cells) > 1:
                         idx = 1
@@ -468,6 +504,7 @@ def harvest(root: Path, read=None) -> dict:
                 # table in the same file and `chosen`/`status` resolves against
                 # columns that table never had.
                 header_cells = []
+                row_is_register = False
 
             # ── headings: ## ADR-001 — PMO bootstrap
             #
@@ -482,6 +519,7 @@ def harvest(root: Path, read=None) -> dict:
             if subject:
                 e = ent(subject)
                 e["defined"] = e["defined"] or f"{rel}:{n}"
+                e["register"] = True
                 e["kind"] = e["kind"] or "section"
                 if not e["title"]:
                     # The subject's own id and nothing else's: an id the
@@ -495,6 +533,7 @@ def harvest(root: Path, read=None) -> dict:
                 yaml_pending = ym.group(1)
                 e = ent(yaml_pending)
                 e["defined"] = e["defined"] or f"{rel}:{n}"
+                e["register"] = True
                 e["kind"] = e["kind"] or "linkage entry"
             elif yaml_pending:
                 tm = YAML_TITLE.match(raw)
@@ -510,7 +549,16 @@ def harvest(root: Path, read=None) -> dict:
                 loc = f"{rel}:{n}"
                 if not illustrative and not proposing:
                     e["in_tracking_doc"] = True
-                if loc != e["defined"] and len(e["mentions"]) < 40:
+                # A register's defining row is a home, not a reference, so it
+                # is not a mention. A row that was *demoted* — tabulated in a
+                # review rather than declared in a register — is a reference
+                # like any other, and must be handed to the marks that judge
+                # references. Without this the demoted line is invisible to
+                # `split_dangling`: it is not a home and not a mention, so a
+                # mutation table's `| R11-7 | … | test_x went red |` could
+                # neither define the id nor be recognised as the report it is.
+                own_home = loc == e["defined"] and e["register"]
+                if not own_home and len(e["mentions"]) < 40:
                     e["mentions"].append(loc)
 
     harvest_linkage_store(root, ent)
@@ -564,6 +612,9 @@ def harvest_linkage_store(root: Path, ent) -> None:
             e["kind"] = e["kind"] or "linkage entry"
             e["title"] = e["title"] or (str(rec.get("title") or "") or None)
             e["in_tracking_doc"] = True
+            # A typed store record is the most declarative home an id can
+            # have; it is a register by construction.
+            e["register"] = True
 
 
 def label(e: dict) -> str:

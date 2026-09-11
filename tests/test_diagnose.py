@@ -564,6 +564,65 @@ class TestUserLoadFindings(unittest.TestCase):
         for rel in ("BOARD.md", "docs/plan.md", "phase/002-release.md"):
             self.assertFalse(mod.is_illustrative(rel), f"{rel} wrongly excluded")
 
+    # ── TASK-436: a table that TABULATES an id does not DEFINE it ──────────
+    #
+    # The row this came from: `perry-diagnose` reported `USER-920` dangling at
+    # one commit and clean at the next, same code, same missing id. The
+    # deciding difference was one line of the row's OWN spec — a refutation
+    # table whose first cell quoted the id — because `harvest` read the first
+    # id in the first cell of any markdown table row as that id's definition
+    # point. So writing about a dangling id cured it, and a guard a report can
+    # switch off is not a guard.
+
+    def _planted(self, root, register_table: str):
+        """A project citing `ZZZ-404` from a live board cell, plus one table
+        elsewhere that carries the id in its first cell."""
+        write(root, "AGENTS.md", "# Rules\n- Test with `pytest`.\n")
+        write(root, "BOARD.md",
+              "# Board\n\n"
+              "| ID | Title | Status | Next action |\n"
+              "|---|---|---|---|\n"
+              "| TASK-001 | Ship it | doing | Blocked on ZZZ-404 until Friday |\n")
+        write(root, "notes/round3-review.md", register_table)
+        return scan(root)
+
+    def test_a_review_table_that_tabulates_an_id_leaves_it_dangling(self):
+        """Verification 3 — an id referenced and never defined is reported,
+        and tabulating it in a review does not define it away. This is the
+        mutation target for `split_dangling`'s `register` test: put `defined`
+        back in its place and this goes red."""
+        with tempfile.TemporaryDirectory() as td:
+            p = self._planted(Path(td),
+                              "# Round 3\n\n"
+                              "| candidate | probe | result |\n"
+                              "|---|---|---|\n"
+                              "| `ZZZ-404` mention | delete it, re-run | still clear |\n")
+        self.assertIn("ZZZ-404", p["user_load"]["dangling"])
+
+    def test_a_register_table_still_defines_its_rows(self):
+        """The other half, and the one that keeps the fix honest: a table
+        whose first column NAMES an id column is a register, and its rows are
+        homes. Without this the fix would simply report everything."""
+        with tempfile.TemporaryDirectory() as td:
+            p = self._planted(Path(td),
+                              "# Register\n\n"
+                              "| ID | Title |\n"
+                              "|---|---|\n"
+                              "| ZZZ-404 | The thing it blocks on |\n")
+        self.assertNotIn("ZZZ-404", p["user_load"]["dangling"])
+
+    def test_a_user_id_column_is_a_register_column(self):
+        """Perry's own decision queue is headed `| User-ID | …`, and it is a
+        register. The `endswith("id")` arm of `is_id_column` is what reaches
+        it; drop that arm and 27 board rows stop being homes."""
+        with tempfile.TemporaryDirectory() as td:
+            p = self._planted(Path(td),
+                              "# Queue\n\n"
+                              "| User-ID | Needed from user | Status |\n"
+                              "|---|---|---|\n"
+                              "| ZZZ-404 | A decision | open |\n")
+        self.assertNotIn("ZZZ-404", p["user_load"]["dangling"])
+
     def test_perry_itself_passes_its_own_id_checks(self):
         """The skill that reports this must not commit it."""
         p = scan(PERRY_HOME)

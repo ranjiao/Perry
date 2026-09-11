@@ -876,7 +876,16 @@ def split_dangling(root: Path, entries: dict, explain) -> tuple[list, list]:
         return cache[rel]
 
     for e in entries.values():
-        if e["defined"] or not e.get("in_tracking_doc"):
+        # **`register`, not `defined`, and TASK-436 is why.** `defined` is the
+        # glossary's question — "where is this id described?" — and a table in
+        # a review that tabulates an id answers it, which is what
+        # `perry-explain` should keep doing. This check asks a narrower
+        # question: does the id have a HOME, a row in a register that declares
+        # it exists? Reading `defined` here meant that writing *about* a
+        # dangling id cured it: TASK-436's own spec put `USER-920` in the first
+        # cell of its refutation table and the finding went silent, same code,
+        # same missing id. A guard a report can switch off is not a guard.
+        if e.get("register") or not e.get("in_tracking_doc"):
             continue
         # Pass 1 — `(this document reports on a check, this line is a report)`
         # for every mention the rule is allowed to read.
