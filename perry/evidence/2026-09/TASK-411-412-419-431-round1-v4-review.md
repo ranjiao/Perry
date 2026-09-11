@@ -246,3 +246,146 @@ not one anybody will produce often.
 Both go in § 5 as reports. Neither fails the row: the row's deliverable — the
 counter reads the criterion, silence counts, and the finding says how many it
 could not determine — is intact under every mutation I could aim at it.
+
+## 3 · TASK-431 — the repair, and where the fourth-list guard stops
+
+### 3.1 · The repair at `3ae5fbfc` is sound, and I checked the failure it had
+
+The first attempt left the loop body after a `continue`, unreachable, and the
+test passed in 0.018 s checking nothing. **That is the failure mode I checked
+for first, and by mutation rather than by reading the indentation.** The
+repaired `test_it_is_not_declared_and_nothing_writes_it` was driven with the
+dropped pair planted three ways, each alone, each removed afterwards, all in
+the clone:
+
+| plant | guard |
+|---|---|
+| a **tracked** file, real characters (`INSTALL.md:3`, via the line-anchored harness) | **RED** — `[] != ['INSTALL.md']` |
+| a **tracked** file, real characters (`bin/lib/__init__.py`, appended) | **RED** — `[] != ['bin/lib/__init__.py']` |
+| an **untracked** file under `bin/`, real characters | green — *this is the re-scope working as intended* |
+| a **tracked** `.py` file spelling the pair as `"—/—"` | green — **not one of the three mutations the repair commit names** |
+
+The loop body is reachable and the guard bites. The `git ls-files` domain is
+the right call and I agree with the reasoning in the commit message: a
+hand-written skip list would have needed the next untracked directory
+remembered.
+
+The `\u`-escape row is a real gap and a very small one. The guard is a textual
+`in` over file contents, so a Python file that writes the pair with escapes is
+invisible. `—/—` is undeclared, `grep` finds nothing in the tree that writes
+it in any spelling, and the escaped form is not something anybody writes by
+accident. Named here so the next round does not have to find it.
+
+### 3.2 · The substantive fixes — three mutations, all red, all mine to run
+
+| # | site | mutation | result |
+|---|---|---|---|
+| c | `bin/perry-state:331` | `split_stages` back to `if not cell or cell == "—"` | **RED** ×2 — `test_blankness_is_tested_before_separator_normalisation` *and* `test_no_site_decides_blankness_for_itself`, which reports the reborn site by name: `{('bin/perry-state','split_stages',('—',)): 1}` |
+| d | `bin/perry-state:620` | `missing_defaults` back to its own 7-element literal | **RED**, 17 failures; the sweep names it: `('bin/perry-state','missing_defaults',('-','n/a','tbd','–','—'))` |
+| **e** *(mine)* | `bin/lib/__init__.py:266` | `_blank_key` stops normalising the typed cell, so decorated forms (`~n/a~`, `**—**`) stop reducing | **RED**, 28 failures, incl. `test_a_blank_marker_followed_by_a_date_still_yields_none` — *"a `Due` cell reading `~n/a~` before a date reported that date as due"* |
+
+Mutation **e** is the one I added because it attacks the *one rule* rather
+than a caller, and it is the shape that would make every one of the nine
+converted sites quietly wrong at once. Twenty-eight tests across the viewer and
+the `bin/` halves caught it.
+
+The reported consequence is gone, re-derived here rather than read:
+`tests/repro_blank_stages.py` in the clone prints
+`0 of 20 blank spellings were read as a DECLARED stage list`, and
+`stages_declared` is `False` for every one. (The result's prose says *"0 of
+21"*; the script on `main` enumerates 20. An off-by-one in an evidence file,
+§ 0's "false statement in something nobody executes" — noted, not a FAIL.)
+
+### 3.3 · Finding — the fourth-list guard has a shape-shaped hole
+
+**This is the one mutation in the whole round that came back green where I
+did not expect it**, and § 2 rule 2 says a green mutation is a finding either
+way.
+
+Ten shapes of "a fourth hardcoded blank-cell list", each appended alone to a
+tracked file under `bin/`, restored from `git show HEAD:<path>` and verified
+(`…/scratchpad/v4quad-411-412-419-431/plant_list.py`):
+
+| shape | guard |
+|---|---|
+| `cell in {"", "—", "n/a", "tbd"}` inline | **RED** |
+| `_B = {...}` at module level, read elsewhere | **RED** |
+| `_B = ("", "—", "n/a", "tbd")` tuple, read elsewhere | **RED** |
+| `_B = {"": 1, "—": 1, …}`, read as dict keys | **RED** |
+| `cell == "" or cell == "—" or cell == "n/a"` — no container at all | **RED** |
+| `cell in frozenset({"", "—", "n/a", "tbd"})` | **GREEN** |
+| `_B = frozenset({...})` at module level, read elsewhere | **GREEN** |
+| `_B = set([...])` at module level, read elsewhere | **GREEN** |
+| `cell.startswith(("—", "n/a", "tbd"))` | green — prefix, a category the row exempts by argument |
+| built at runtime with `.add()` | green — **declared** in the result's § 10.2 |
+
+The mechanism: the sweep classifies a literal by climbing the parent chain to
+an `ast.Compare`, and **a `Call` node ends the climb**. So `frozenset({…})`
+and `set([…])` — the two most ordinary ways to spell an immutable module-level
+constant — hide the identical set from a guard whose docstring says *"a list is
+a literal"*. That sentence is what the exemption for the residual rests on, and
+these are literals.
+
+I checked whether this is a *missed site* or a *latent hole*, because those are
+different findings. **Latent.** An AST sweep for blank-cell literals whose
+climb reaches a `Call` first returns 115 occurrences in `bin/` + `viewer/`
+today and **0 of them are wrapped in a container constructor** — they are
+`.replace`, `.split`, `.join`, `.startswith`, f-strings and `print`, i.e. the
+WRITE direction the row already classified. The codebase's own idiom for a set
+is a bare literal, which the guard catches. Script:
+`…/scratchpad/v4quad-411-412-419-431/call_wrapped.py`.
+
+**Why this is reported and does not fail the row.** It does not corrupt state,
+no tool answers wrongly today, and the gate is strictly stronger than the
+nothing that stood there before. § 1 of `review.md` is also explicit that *"the
+guard cannot be evaded"* is not a bounded criterion and that a further evasion
+shape is a new row rather than this one — and the spec's Verification 5 asked
+for exactly one thing, *"add a new hardcoded list somewhere in `bin/` and show
+the sweep test find it"*, which is discharged. The honest statement is: **the
+guard bites on every shape this codebase actually writes, and misses two it
+does not.** Closing it is one `isinstance(cur, ast.Call)` → keep climbing when
+the callee is `set`/`frozenset`/`tuple`/`list`/`dict`.
+
+One consequence worth naming, because it is the hole already concealing
+something: `bin/lib/__init__.py:286` carries
+`_BLANK_CELLS.update(_blank_key(v) for v in {"—", "-", "–", "n/a", "none",
+"无"})` — a **six-spelling hardcoded list inside the one rule itself**, the
+degraded-mode default for an unreadable schema. It is commented, deliberate,
+and correct. It is also invisible to the sweep for exactly the reason above,
+so the row's "every container is now accounted for" was measured by an
+instrument that cannot see it.
+
+### 3.4 · Finding — the guard writes the live checkout, on a machine running 8 workers
+
+`tests/test_blank_cell_is_one_rule.py:266
+test_the_sweep_can_see_a_fourth_list_when_one_is_added` proves the guard bites
+by writing `MY_OWN_BLANKS = {…}` into **`bin/perry-context-budget` in the tree
+the suite is running in**, running the sweep, and restoring in a `finally`.
+
+`review-constraints.md § You are a reader` has a paragraph about precisely
+this, learned the hard way: *"for the seconds it exists, the shared checkout
+has a file that makes that guard legitimately red, and anything else running
+the suite — the author's own gate, another reviewer — sees a failure that is
+real, reproducible-looking, and about nothing."* That page addresses reviewers;
+this is a test. But `tests/parallel` runs **8 workers over one tree**, step 3 of
+`tests/run` compiles every script under `bin/` and asks it for `--help`, and
+TASK-411's own new `tests/surface_reads.py` parses every file in `bin/` —
+including `bin/perry-context-budget`. There is a window in which another worker
+reads a planted file. The `finally` also does not run if the process is killed,
+and this machine has other agents on it.
+
+I did **not** reproduce an interference failure; I am reporting the window, not
+a red I saw. The fix is the one the row already used everywhere else: plant
+into a copy. The sweep is parameterised on `PERRY_HOME`, so the test can
+`git archive` or copy `bin/` to a temp dir and point the sweep at it.
+
+### 3.5 · What held
+
+- 40 tests in the module, green before and after every mutation.
+- `SWEEP.read_sites()` returns 9 sites on `main`, and all 9 are in `EXEMPT`
+  with a written reason. `test_the_exemptions_are_all_still_real` guards the
+  other direction, which is the part most allowlists omit.
+- The `EXEMPT` allowlist is keyed by `(file, function, spellings)` and **not by
+  line number** — the row was bitten by `test_handed_back_root`'s line-keyed
+  exemption and did not reproduce that mistake in its own guard. That is the
+  detail that most persuaded me the round understood what it had found.
