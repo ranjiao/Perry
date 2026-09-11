@@ -118,4 +118,131 @@ so by § 0 it fails no row. It is out of scope for all four rows here; I hit it
 because `review-constraints.md` recommends exactly this invocation to a
 reviewer working from a copy. Reported, not filed (see § 5).
 
-*(sections follow as they are measured)*
+## 2 · TASK-419 — the counter, and the page it changed under me
+
+### 2.1 · The page that governs this round, read as a diff
+
+`git diff b5b7d023^1 b5b7d023 -- work/reference/review.md` is **purely
+additive**: one new `### grade:` subsection inside § 3 and one paragraph in
+§ 6. No existing sentence is edited, no required key is added or removed, and
+`VERDICT_KEYS` in `bin/perry-lint` is byte-identical — so every verdict block
+already on disk, and the four at the end of this document, are shaped exactly
+as they were before the row landed. **The row changed the page that judges me
+and did not move the bar it judges me by.** That is the honest way to do it,
+and it is what the spec demanded ("changing § 3 is part of this row and must be
+argued, not slipped in").
+
+### 2.2 · The corpus census, re-derived rather than read
+
+Independently, with the linter's own `parse_verdicts` over every `*.md` under
+`perry/evidence/`, in the clone at `076ae21a`:
+
+```
+blocks 112 · PASS 47 · FAIL 62 · neither 3 · carrying a `grade:` 0
+```
+
+The result claims 111 / 46 / 62 / 3 at its base `70458893`; the extra block is
+one PASS that landed between its base and `main`, and **the two numbers this
+row rests on — 62 FAILs and 0 regradeable — are exactly right.** The "0 of 62"
+is not an estimate: no block in the corpus carries the key at all.
+
+`--reviews --json` on the live corpus today reports `review-rounds-exhausted`
+on **one** row, and its message carries the aside the row promised:
+
+> … 2 of the 2 counted carry no readable `grade:`, so the criterion they were
+> charged against is undeterminable and they count by default
+> (work/reference/review.md § 3).
+
+The row it fires on is not the one the result names as its second, and that is
+the result's own prediction coming true rather than a discrepancy: § 3 of the
+result says TASK-362's finding "has a fuse in it" and goes silent the moment
+its round-11 PASS merges. It has merged. **A round that predicted its own
+measurement would decay, said so, and refused to pin a test to it is the
+behaviour this page wants**, and it is why nothing here is red.
+
+### 2.3 · The "provably equivalent mutant" — the claim is true
+
+M10 swaps
+
+```python
+undeterminable = [b for b in charged if fail_grade(b[1]) is None]
+#                          ^^^^^^^                      for  ^^^^^
+undeterminable = [b for b in fails   if fail_grade(b[1]) is None]
+```
+
+**Proof, checked rather than accepted.** `charged = [b for b in fails if
+fail_grade(b[1]) != "ROW"]`, so `fails \ charged` is exactly the blocks whose
+`fail_grade` is the string `"ROW"`; `"ROW" is None` is false, so no block in
+that difference can pass the filter. `fail_grade` is pure — it reads one key
+and matches one regex — so the two comprehensions denote the same list, in the
+same order, for every input.
+
+Then measured anyway, because a proof about code is a claim about the code you
+think is there. 19 grade spellings (`None`, `""`, `ROW`, `row`, `rOw`, `ROW.`,
+`ROW,x`, `**ROW**`, `ROWS`, `row-grade`, `2b`, `PASS`, `FAILS`, `FAIL`,
+`fail - c3`, `ROW - criterion 2b`, `  ROW  `, `Row - x`, `ROW—c`), every
+combination at lengths 1–3, **7,239 cases, 0 differing.** Script:
+`…/scratchpad/v4quad-411-412-419-431/m10.py`.
+
+**The claim stands, and declaring it beat writing a test for it.** § 2 rule 2
+says a green mutation is a finding either way; this is the third answer, and
+the row is right that a test written to kill M10 would be asserting something
+untrue. What makes it defensible is the part next to it: the row found that the
+*denominator* standing beside the equivalent expression was **not** equivalent
+and had nothing holding it, and added a test. A round that had stopped at "M10
+is equivalent" would have missed that.
+
+### 2.4 · Mutations — three, all red, two of them mine
+
+| # | line | mutation | result |
+|---|---|---|---|
+| a | `perry-lint:3005` | the revert — `charged = list(fails)`, count blocks again | **RED**, 6 tests, incl. `test_two_ROW_grade_fails_do_not_exhaust_the_row` and `test_the_undeterminable_denominator_is_the_counted_rounds` |
+| **b** *(mine)* | `perry-lint:3008` | `if len(charged) < limit` → `<= limit` — the threshold silently raised from 2 to 3, which is the row's first "must not" | **RED**, 8 failures + 7 errors, incl. `test_two_fails_and_no_pass_is_reported` and all three ask-clearing cases |
+| **c** *(mine)* | `perry-lint:2320` | `fail_grade` returns `"ROW"` instead of `None` for a token it cannot read — an unreadable grade quiets the guard, the one direction the row may not move | **RED** `test_a_grade_that_is_neither_word_counts`, `test_fail_grade_returns_None_for_everything_it_cannot_read` |
+
+Mutation **b** is the one I most expected to survive, because the threshold is
+read from three places and a boundary shift is the classic silent one. It did
+not survive; the row's existing cases pin the boundary.
+
+### 2.5 · Two ways the guard can be turned off, both real, neither fatal
+
+Probed directly through `parse_verdicts` + `fail_grade`
+(`…/scratchpad/v4quad-411-412-419-431/grade_probe.py`):
+
+**(i) A bare `grade: ROW`, with no criterion beside it, is accepted and
+counts as filed.** § 3 says in bold: *"The rest of the line is the criterion,
+and it is not optional prose — a grade with no criterion beside it is a claim
+with nothing to check it against."* Nothing implements that sentence. This is
+the repository's signature defect — a rule stated in prose that nothing
+implements — landing in the same commit that names it. **It is mitigated by
+being declared**: the same sentence assigns the check to "the next reviewer",
+so the enforcement mechanism is stated rather than assumed. Reported, not
+fatal; a one-line `if not the rest of the line: verdict-malformed` would close
+it, and would cost nobody anything, since the corpus has zero graded blocks.
+
+**(ii) A continuation line that begins `grade:` is silently promoted to the
+`grade` field, and eats the rest of the line it was continuing.** Given
+
+```
+not-checked: whether the round should have written a
+    grade: ROW would have been my instinct but I did not decide
+```
+
+`parse_verdicts` returns `grade='ROW would have been my instinct…'`,
+`fail_grade` reads `ROW`, the block stops counting toward
+`review-rounds-exhausted`, **and `not-checked` is truncated to "whether the
+round should have written a"**. No `verdict-malformed` fires, because `ROW` is
+perfectly readable.
+
+The promotion itself is `parse_verdicts`' pre-existing behaviour — it applies
+to every key and predates this row by a long way — and the row did not touch
+it. What this row changed is the *consequence*: before TASK-419, an accidental
+key promotion corrupted a field a human reads; after it, one can silently
+switch off a gate. The trigger is a reviewer writing an indented sentence that
+starts with the word `grade` and a colon, inside their own verdict block, on a
+row that already has two FAILs. That is an input a user can produce, and it is
+not one anybody will produce often.
+
+Both go in § 5 as reports. Neither fails the row: the row's deliverable — the
+counter reads the criterion, silence counts, and the finding says how many it
+could not determine — is intact under every mutation I could aim at it.
