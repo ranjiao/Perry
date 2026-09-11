@@ -524,7 +524,14 @@ class TestEveryWriterHandBackCarriesTheRoot(unittest.TestCase):
 #: `bin/perry-lint --templates` lints the templates Perry itself ships, out of
 #: `PERRY_HOME`; there is no project in that branch to name and the findings
 #: are about this repository rather than about anybody's board.
-NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5495)}
+#:
+#: **The key is a LINE NUMBER, so any edit above it reddens this module.** It
+#: did on 2026-09-11: TASK-419 added 109 lines to `check_reviews`, the call
+#: moved 5495 → 5604 unchanged, and this test failed on a row that never
+#: touched it. The entry is re-stamped here because that is what it declares;
+#: re-keying it by something stable (the enclosing function plus the callee,
+#: as `test_claims` does) is a separate row, filed, not smuggled in here.
+NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5604)}
 
 
 class TestTheFlagReachesTheTemplateThatNamesIt(unittest.TestCase):
