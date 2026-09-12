@@ -68,6 +68,15 @@ Usage:
       already stale. DESIGN-013 § 5.1 — a fact with a schema lives in exactly
       one store.
 
+  perry-goals krs --level overall [--json] [--version <v>|all]
+      The OKR's own key results, printed from `okr.jsonl`. READ-ONLY, and the
+      only surface for them: TASK-236 removed the KR tables from `OKR.md` for
+      the same reason TASK-157 removed the phase one, after `perry-okr diff`
+      proved the store reproduced all 38 rows byte for byte. Defaults to the
+      CURRENT version block; `--version all` prints every one, and
+      `--version "v2: 2026-08-17"` prints that one. The `### Objective N`
+      headings stay in `OKR.md` — they are what these rows hang from.
+
   perry-goals commit --track <t> --promise <text> --to <whom> --due <when>
                      [--by-when-note <prose>]
   perry-goals commit --id <Id> [--due <when>] [--by-when-note <prose>]
@@ -779,8 +788,15 @@ def write_okr_and_store(state_root: Path, project_root: Path, okr,
     have = {md_store.record_key(r) for r in derived}
     kept = [r for r in prior if md_store.record_key(r) not in have]
     final = derived + kept
+    # **Kept and NOT reported, for a `store_only_kinds` record.** Every `kr`
+    # record is in `kept` on every commit now, because TASK-236 took those
+    # rows out of `OKR.md` for good — so reporting them as rows the file "no
+    # longer renders" would print a 38-line warning after every single write
+    # and teach the reader to scroll past the one case that matters. They stay
+    # in `final` either way: what a store holds is not what a document shows.
     out["records_the_file_no_longer_renders"] = sorted(
-        md_store.record_key(r).replace("\x00", "/") for r in kept)
+        md_store.record_key(r).replace("\x00", "/") for r in kept
+        if r.get("kind") not in md_store.OKR.store_only_kinds)
     out["store_records"] = len(final)
 
     _valid, malformed_now = md_store.validate_records(final)
@@ -2825,6 +2841,168 @@ def render_krs(result: dict) -> str:
     return "\n".join(out)
 
 
+# ── `krs --level overall` — the OKR's key results, printed from `okr.jsonl` ──
+
+
+#: The columns of the KR table `OKR.md` used to carry, in the order it carried
+#: them. Derived from `md_store.KR_COLUMNS` rather than retyped, so the render
+#: and the scanner that used to read those rows cannot disagree about either
+#: the spelling of a header or the field behind it — the "one cell model"
+#: rule ADR-007 exists to keep (`bin/perry-okr § the record shape`).
+OVERALL_KR_COLUMNS = ("Id", "KR", "Metric / Target", "Stretch?", "Deadline")
+OVERALL_KR_FIELDS = ("id", "text", "metric", "stretch", "deadline")
+
+
+def overall_kr_model(state_root, project_root, want_version: str | None):
+    """`okr.jsonl` → versions → objectives → KRs, in stored order.
+
+    **Reads the store and nothing else.** `OKR.md` no longer carries these
+    rows (TASK-236), so there is no second place to disagree with and no
+    markdown to fall back to — the fallback is what `DESIGN-013 § 5.1` calls a
+    fact with two homes. A project whose `okr.jsonl` is absent is REFUSED by
+    the caller rather than printed as an empty table, because an empty
+    register and a project that never had one read the same.
+    """
+    store = md_store.OKR.store_path(project_root, state_root)
+    if not store.exists():
+        raise Refused(
+            f"no `{md_store.OKR.rel_store}` beside `{md_store.OKR.rel_file}` "
+            f"— the overall key results live in that store and there is none "
+            f"here. `perry-okr write --from-file"
+            f"{lib.root_flag(project_root)}` builds one from an `OKR.md` that "
+            f"still carries KR tables. Nothing was printed")
+    try:
+        good, malformed = md_store.validate_records(md_store.load_store(store))
+    except (OSError, ValueError) as exc:
+        raise Refused(
+            f"`{md_store.OKR.rel_store}` does not read as JSONL "
+            f"({type(exc).__name__}: {exc}). A half-read store would print a "
+            f"KR table missing whichever rows it dropped, which is the one "
+            f"thing this command must never do")
+    if malformed:
+        # **Refused, not filtered.** Dropping the bad records and printing the
+        # rest is how a reader publishes a short table that looks complete —
+        # TASK-437's shape, one register over.
+        who = "; ".join(sorted(
+            f"{m.get('key') or 'line ' + str(m.get('line'))} — "
+            f"{m.get('message', 'unreadable')}" for m in malformed))
+        raise Refused(
+            f"{len(malformed)} record(s) in `{md_store.OKR.rel_store}` are "
+            f"badly typed and this command will not print a table with them "
+            f"silently missing ({who}). `perry-lint` names them too; nothing "
+            f"was printed")
+
+    objectives = [r for r in good if r.get("kind") == "objective"]
+    krs = [r for r in good if r.get("kind") == "kr"]
+
+    #: Version blocks in the order the store holds them; the LAST is current,
+    #: the same way `## v<N>` blocks run oldest-first down `OKR.md`.
+    order: list[str] = []
+    for r in objectives + krs:
+        if r.get("version") and r["version"] not in order:
+            order.append(r["version"])
+    if want_version and want_version not in ("all", "current"):
+        if want_version not in order:
+            raise Refused(
+                f"`--version {want_version}` is not a version this store "
+                f"holds. It has {len(order)}: {', '.join(order)}. Nothing "
+                f"was printed")
+        wanted = [want_version]
+    elif want_version == "all":
+        wanted = list(order)
+    else:
+        wanted = order[-1:]
+
+    out = []
+    for version in wanted:
+        objs = []
+        for obj in [o for o in objectives if o.get("version") == version]:
+            rows = [k for k in krs
+                    if k.get("version") == version
+                    and k.get("objective_id") == obj.get("id")]
+            objs.append({
+                "id": obj.get("id", ""), "heading": obj.get("heading", ""),
+                "title": obj.get("title", ""),
+                "krs": [{f: (k.get(f) or "") for f in OVERALL_KR_FIELDS}
+                        for k in rows],
+            })
+        out.append({"version": version, "objectives": objs})
+    return out, order
+
+
+def cmd_overall_krs(args, ctx) -> dict:
+    """`krs --level overall` — every KR of the OKR, from `okr.jsonl`.
+
+    Read-only by construction, like its phase-level twin: no write path, no
+    event, no `--write`, and no project lock (see `main`).
+
+    **This is the surface `OKR.md`'s KR tables used to be**, and TASK-236
+    deleted those on the strength of `perry-okr diff` proving the store
+    reproduced them byte for byte first. `ADR-019` is the rule: structured
+    state lives in the store, and a document holds what has no schema. The
+    `### Objective N` headings stay in the markdown because they are what
+    these rows hang from — see the Bound of that row's spec.
+    """
+    if args.rest:
+        raise Refused(f"`krs` takes no positional arguments and no `--write`; "
+                      f"got {' '.join(args.rest)!r}. It is a READ — `OKR.md` "
+                      f"has no KR table for it to write into, which is the "
+                      f"whole of TASK-236. Nothing was printed")
+    versions, known = overall_kr_model(
+        ctx["state_root"], ctx["project_root"], getattr(args, "version", None))
+    return {
+        "register": md_store.OKR.rel_store,
+        "level": "overall",
+        "versions": versions,
+        "known_versions": known,
+        "counts": {
+            "versions": len(versions),
+            "objectives": sum(len(v["objectives"]) for v in versions),
+            "krs": sum(len(o["krs"])
+                       for v in versions for o in v["objectives"]),
+        },
+    }
+
+
+def render_overall_krs(result: dict) -> str:
+    """The payload → the tables `OKR.md` used to carry.
+
+    Rendered through `tables.render_row`, the one row renderer in this
+    repository, so a cell holding a `|` reads back as itself and a cell
+    holding a line break is REFUSED rather than written as a row that
+    swallows the rest of the table.
+
+    **Every cell is printed whole.** `list --level overall` truncates KR text
+    to a fixed column width, which is a legitimate thing for a dashboard to do
+    and the wrong thing for the surface that replaced the document: the KR
+    text on this project runs to 341 characters and the argument is in the
+    words. Nothing here is elided.
+    """
+    columns = list(OVERALL_KR_COLUMNS)
+    out = [f"# OKR — key results",
+           f"> Declared in `{result['register']}`. This is a render, not a "
+           f"file: the store is the only place these values live.",
+           f"> Versions in this store: "
+           f"{', '.join(result['known_versions']) or '—'}."]
+    for block in result["versions"]:
+        out += ["", f"## {block['version']}"]
+        for obj in block["objectives"]:
+            out += ["", f"### {obj['heading'] or obj['title']}", ""]
+            if not obj["krs"]:
+                out.append("_no key results declared under this objective_")
+                continue
+            out.append(render_row(columns))
+            out.append(render_separator(len(columns)))
+            for kr in obj["krs"]:
+                out.append(render_row(
+                    [kr[f] or "—" for f in OVERALL_KR_FIELDS]))
+    counts = result["counts"]
+    out += ["", f"{counts['krs']} key result(s) under "
+                f"{counts['objectives']} objective(s) across "
+                f"{counts['versions']} version block(s)."]
+    return "\n".join(out)
+
+
 COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link,
             "krs": cmd_krs}
 
@@ -2835,7 +3013,7 @@ class Args:
 
 def parse(argv: list[str]) -> Args:
     a = Args()
-    a.cmd = a.root = a.level = a.phase = None
+    a.cmd = a.root = a.level = a.phase = a.version = None
     a.id = a.track = a.promise = a.to = a.due = a.by_when_note = None
     a.close = a.miss = a.reason = a.discharged_by = None
     a.actor = "agent"
@@ -2849,7 +3027,7 @@ def parse(argv: list[str]) -> Args:
     a.alias = a.unlinked = a.project = False
     a.rest = []
     flags = {"--root": "root", "--level": "level", "--id": "id",
-             "--phase": "phase",
+             "--phase": "phase", "--version": "version",
              "--track": "track", "--promise": "promise", "--to": "to",
              "--due": "due", "--by-when-note": "by_when_note",
              "--close": "close", "--miss": "miss",
@@ -2983,8 +3161,16 @@ def main(argv: list[str]) -> int:
             # the project lock to print a table and would REFUSE to print one
             # on a project whose `OKR.md` is out of shape — a read that cannot
             # answer while the file it does not touch is malformed.
-            result = cmd_krs(args, {"project_root": project_root,
-                                    "state_root": state_root})
+            #
+            # **Two registers, one verb, chosen by `--level`** — the same axis
+            # `list` already takes, rather than a second spelling of "key
+            # result" in the same tool. `phase` (the default) is the phase's
+            # register in `linkage.jsonl`; `overall` is the OKR's own, in
+            # `okr.jsonl`, which is the surface `OKR.md`'s KR tables became
+            # when TASK-236 deleted them.
+            ctx = {"project_root": project_root, "state_root": state_root}
+            result = (cmd_overall_krs(args, ctx) if args.level == "overall"
+                      else cmd_krs(args, ctx))
         else:
             # **The file this command writes is not always `OKR.md`**: `link`
             # writes the phase's linkage register instead. The ADR-004 gate
@@ -3036,7 +3222,8 @@ def main(argv: list[str]) -> int:
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.cmd == "krs":
-        print(render_krs(result))
+        print(render_overall_krs(result) if result.get("level") == "overall"
+              else render_krs(result))
     elif args.cmd == "commit" and result.get("migrated"):
         m = result["migrated"]
         verb = "would split" if args.dry_run else "split"

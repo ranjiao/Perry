@@ -244,6 +244,10 @@
       "sec": 17.61,
       "source": "2026-09-09-085824"
     },
+    "test_okr_krs_render.py": {
+      "sec": 0.15,
+      "source": "2026-09-12-task236"
+    },
     "test_okr_store_is_the_source.py": {
       "sec": 5.89,
       "source": "2026-09-09-085824"
@@ -524,6 +528,13 @@
       "note": "ONE module, timed alone three times and recorded at the median (1.18/0.97/1.00s). Deliberately not a `tests/parallel --record -j 8` sweep: re-measuring 128 neighbours to land one entry is the substitution TASK-304's bound names, and a figure taken at a different load than the numbers it will be sorted against is worse than a stamped single-module reading. `load1` is null because nothing sampled it, which is a different fact from a load of zero.",
       "ref": "96fd27b808439b9f8055a694c9fb97ffe0cfba2f",
       "taken": "2026-09-11T00:00:00Z",
+      "workers": 1
+    },
+    "2026-09-12-task236": {
+      "load1": null,
+      "note": "ONE module, timed alone three times and recorded at the median (0.18/0.15/0.14s), on the same terms as the 2026-09-11-task437 entry above and for the same reason: re-measuring 129 neighbours to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it, which is a different fact from a load of zero.",
+      "ref": "a9e582a8407474afb7b9964a1ad0657cbc18bb59",
+      "taken": "2026-09-12T00:00:00Z",
       "workers": 1
     }
   }

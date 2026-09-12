@@ -735,13 +735,25 @@ class TestAMutatedStoreMovesTheFile(unittest.TestCase):
     derived against the store it was meant to be testing.
     """
 
-    def test_an_okr_kr_field(self):
+    def test_an_okr_table_field(self):
+        """**Was `test_an_okr_kr_field` until TASK-236.** It mutated the
+        `deadline` of a `kind: kr` record derived from `perry/OKR.md`; that
+        file no longer projects `kr` at all, so `derive` returns none and the
+        `next(...)` raised `StopIteration` rather than failing an assertion.
+
+        The claim is about the TABLE path — `row_descriptor`, a cell inside a
+        `| … |` row — and the `## Versioning log` is still one, so the claim
+        survives with a different row under it. The KR half of this property
+        is now `tests/test_okr_krs_render.py`, which has to carry it because
+        no projection compares those records any more.
+        """
         path = ROOT / "perry" / "OKR.md"
         text = path.read_text()
         records = M.derive(M.OKR, text)
-        target = next(r for r in records if r["kind"] == "kr" and r["deadline"])
-        before = target["deadline"]
-        target["deadline"] = "2099-01-01"
+        target = next(r for r in records
+                      if r["kind"] == "version" and r["date"])
+        before = target["date"]
+        target["date"] = "2099-01-01"
 
         rendered, report = M.render(M.OKR, text, records)
         self.assertNotEqual(rendered, text, "the store moved and the render "
@@ -751,7 +763,8 @@ class TestAMutatedStoreMovesTheFile(unittest.TestCase):
         self.assertEqual(len(drift), 1, drift)
         self.assertEqual(drift[0]["store"], "2099-01-01")
         self.assertEqual(drift[0]["file"], before)
-        self.assertIn(target["id"], drift[0]["key"])
+        # A `version` record keys on its label, not on an `id` field.
+        self.assertIn(target["version"], drift[0]["key"])
 
     def test_a_slot_on_the_bullet_path(self):
         """**MOVED from `- State root:` in `.perry/config.md` by ADR-019.**
@@ -908,9 +921,14 @@ class TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave(
         self.assertEqual(commit.returncode, 0, commit.stderr)
 
         okr = p.root / "perry" / "OKR.md"
-        self.assertIn("3 of 3 modes live", okr.read_text())
-        okr.write_text(okr.read_text().replace("3 of 3 modes live",
-                                               "SEVEN of 3 modes live"))
+        # **A `## Versioning log` cell, not a KR cell — TASK-236.** The drift
+        # planted here used to be `| 3 of 3 modes live |`, `O1-KR1`'s metric.
+        # `OKR.md` no longer projects `kind: kr`, so that cell is not in the
+        # file and `render --write` would have had nothing to repair. The
+        # claim is unchanged: a table cell edited by hand is reported, and the
+        # repair restores the stored value without leaving whitespace behind.
+        self.assertIn("First OKR.", okr.read_text())
+        okr.write_text(okr.read_text().replace("First OKR.", "SECOND OKR."))
         self.assertEqual(p.okr("diff").returncode, 1,
                          "the planted drift was not reported at all")
         self.assertEqual(p.okr("render", "--write").returncode, 0)
@@ -920,8 +938,8 @@ class TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave(
                          (0, "", ""))
         # And the repair actually restored the stored value, so the clean
         # `--check` is not the cleanliness of a file nothing happened to.
-        self.assertIn("3 of 3 modes live", okr.read_text())
-        self.assertNotIn("SEVEN of 3 modes live", okr.read_text())
+        self.assertIn("First OKR.", okr.read_text())
+        self.assertNotIn("SECOND OKR.", okr.read_text())
 
 
 #: TASK-147's corpus, written here rather than borrowed from a live document.
@@ -1312,9 +1330,12 @@ class TestTheCommandLine(unittest.TestCase):
         # That asymmetry is `TASK-395`.
         #
         # So this test covers drift in a cell whose row still resolves, which
-        # is what the remaining replace does.
+        # is what the remaining replace does. **The cell is a `## Versioning
+        # log` one since TASK-236** — it was `3 of 3 modes live`, `O1-KR1`'s
+        # metric, and `OKR.md` no longer projects `kind: kr`, so that row
+        # resolves to nothing and the repair had nothing to put back.
         (p.root / "perry" / "OKR.md").write_text(
-            before.replace("3 of 3 modes live", "SEVEN of 3 modes live"))
+            before.replace("First OKR.", "SEVENTH OKR."))
         self.assertEqual(p.okr("diff").returncode, 1)
         self.assertEqual(p.okr("render", "--write").returncode, 0)
         self.assertEqual(p.okr_text(), before)
@@ -1447,18 +1468,24 @@ class TestTheByteGateCanFail(unittest.TestCase):
         register `DESIGN-009 § 7` risk 2 actually names — stayed `{}` through
         that subtraction, so a gate written only against the spec's numbers
         would still not implement the design's sentence. Blanking one non-key
-        field of one KR record leaves the row matched and its `Metric / Target`
-        cell copied through: `identical: true`, `cells_verbatim` non-empty. On
-        `main` at `5e88be8` this exited 0.
+        field of one record leaves the row matched and its cell copied
+        through: `identical: true`, `cells_verbatim` non-empty. On `main` at
+        `5e88be8` this exited 0.
+
+        **The blanked field moved from a KR's `metric` to a `## Versioning
+        log` row's `what` — TASK-236.** The case needs a record whose row is
+        still IN the file, and `OKR.md` no longer projects `kind: kr`; with
+        one of those the row matched nothing and `cells_verbatim` stayed `{}`,
+        which would have made this pass for the wrong reason.
         """
         p = Project(self).copy_the_real_stores()
         records = p.okr_records()
         for rec in records:
-            if rec.get("kind") == "kr" and rec.get("metric"):
-                rec["metric"] = ""
+            if rec.get("kind") == "version" and rec.get("what"):
+                rec["what"] = ""
                 break
         else:                                       # pragma: no cover
-            self.fail("no KR record carries a `metric` to forget")
+            self.fail("no version record carries a `what` to forget")
         p.write_okr_records(records)
 
         proc = p.okr("diff")
@@ -1486,8 +1513,11 @@ class TestTheByteGateCanFail(unittest.TestCase):
         p = Project(self).copy_the_real_stores()
         path = p.root / "perry" / "OKR.md"
         before = path.read_text()
-        path.write_text(before.replace("| 3 of 3 modes live |",
-                                       "| 3 of 3 modes live, honest |", 1))
+        # A `## Versioning log` cell — TASK-236 took the KR cell this
+        # decorated out of `OKR.md`, and a cell that is not there cannot wear
+        # anything.
+        path.write_text(before.replace("| v1 | 2026-08-17 |",
+                                       "| v1 | 2026-08-17 (ish) |", 1))
         self.assertNotEqual(path.read_text(), before,
                             "the fixture cell moved; this case edits a cell "
                             "that must exist to be decorated")
@@ -1495,8 +1525,7 @@ class TestTheByteGateCanFail(unittest.TestCase):
         proc = p.okr("diff")
         out = json.loads(proc.stdout)
         self.assertIs(out["identical"], True)
-        self.assertEqual(out["cells_wearing_decoration"],
-                         {"Metric / Target": 1})
+        self.assertEqual(out["cells_wearing_decoration"], {"Date": 1})
         self.assertIs(out["every_line_and_cell_came_from_the_store"], False)
         self.assertEqual(proc.returncode, 3, proc.stdout)
 
@@ -1947,9 +1976,13 @@ class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(
         self.p.okr("write", "--from-file")
 
     def test_an_okr_hand_edit(self):
+        # **A `## Versioning log` cell — TASK-236.** This planted its edit on
+        # `O1-KR1`'s `Metric / Target` until `OKR.md` stopped projecting
+        # `kind: kr`. All three claims are about a projected TABLE cell and
+        # the Versioning log is still one, so only the cell moved.
         path = self.p.root / "perry" / "OKR.md"
         path.write_text(path.read_text().replace(
-            "| 3 of 3 modes live |", "| two of three, honestly |", 1))
+            "| v1 | 2026-08-17 |", "| v1 | 1999-01-01 |", 1))
 
         diff = self.p.okr("diff")
         self.assertEqual(diff.returncode, 1)
@@ -1957,19 +1990,17 @@ class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(
         self.assertFalse(report["identical"])
         drift = report["cells_the_store_and_the_file_disagree_on"]
         self.assertEqual(len(drift), 1, drift)
-        self.assertEqual(drift[0]["column"], "Metric / Target")
-        self.assertEqual(drift[0]["file"], "two of three, honestly")
-        # ADR-017 step 2 renamed the overall KR grammar; this fixture copies
-        # this project's own `perry/OKR.md`, so the key moved with it.
-        self.assertIn("O1-KR1", drift[0]["key"])
+        self.assertEqual(drift[0]["column"], "Date")
+        self.assertEqual(drift[0]["file"], "1999-01-01")
+        self.assertIn("v1", drift[0]["key"])
 
         write = self.p.okr("write", "--from-file")
         self.assertEqual(write.returncode, 1)
         self.assertIn("refusing to overwrite", write.stderr)
-        self.assertIn("two of three, honestly", write.stderr)
+        self.assertIn("1999-01-01", write.stderr)
 
-        self.assertIn("two of three, honestly |", path.read_text())
-        self.assertIn("3 of 3 modes live",
+        self.assertIn("| v1 | 1999-01-01 |", path.read_text())
+        self.assertIn("2026-08-17",
                       (self.p.root / "perry" / "okr.jsonl").read_text())
 
     def test_an_appended_hand_edit_is_counted_rather_than_hidden(self):
@@ -1986,22 +2017,24 @@ class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(
         one worth reading.
         """
         path = self.p.root / "perry" / "OKR.md"
+        # The appended words go on a `## Versioning log` cell for the reason
+        # given in `test_an_okr_hand_edit` above — TASK-236 took the KR cell
+        # this used out of the file.
         path.write_text(path.read_text().replace(
-            "| 3 of 3 modes live |", "| 3 of 3 modes live, honest |", 1))
+            "| v1 | 2026-08-17 |", "| v1 | 2026-08-17 (ish) |", 1))
 
         diff = json.loads(self.p.okr("diff").stdout)
         self.assertTrue(diff["identical"])
-        self.assertEqual(diff["cells_wearing_decoration"],
-                         {"Metric / Target": 1})
+        self.assertEqual(diff["cells_wearing_decoration"], {"Date": 1})
 
         verify = self.p.okr("verify")
         self.assertEqual(verify.returncode, 1, verify.stdout)
         self.assertEqual(json.loads(verify.stdout)["cells_wearing_decoration"],
-                         {"Metric / Target": 1})
+                         {"Date": 1})
 
         write = self.p.okr("write", "--from-file")
         self.assertEqual(write.returncode, 1)
-        self.assertIn("3 of 3 modes live, honest", write.stderr)
+        self.assertIn("2026-08-17 (ish)", write.stderr)
 
     # `test_a_config_hand_edit` stood here and ADR-019 deleted it. It planted
     # `- Repo layout: split` over `single` in `.perry/config.md` and asserted
@@ -2019,18 +2052,26 @@ class TestAHandEditIsReportedAndNeitherHonouredNorOverwritten(
         byte comparison distinguishes it from a shorter document.
 
         **MOVED from a deleted `- Chat language:` setting to a deleted KR table
-        row by ADR-019.** The claim is `records_not_in_the_file`'s and it is
-        the store's, not the file's: a record the renderer has nowhere to put.
+        row by ADR-019, and from there to a `## Versioning log` row by
+        TASK-236.** The claim is `records_not_in_the_file`'s and it is the
+        store's, not the file's: a record the renderer has nowhere to put.
+
+        **This is also the control for `Doc.store_only_kinds`.** That field
+        exempts `kind: kr` from this exact register, because those records are
+        meant to have no line. If the exemption were written as "skip whatever
+        is missing" rather than "skip these kinds", this case would go green
+        with the row deleted — so the row deleted here is deliberately one of
+        the kinds `OKR.md` still projects.
         """
         path = self.p.root / "perry" / "OKR.md"
         row = next(l for l in path.read_text().split("\n")
-                   if l.startswith("| O1-KR1 "))
+                   if l.startswith("| v1 | 2026-08-17 |"))
         path.write_text("\n".join(
             l for l in path.read_text().split("\n") if l != row))
         report = json.loads(self.p.okr("diff").stdout)
         orphaned = report["records_not_in_the_file"]
         self.assertEqual(len(orphaned), 1, orphaned)
-        self.assertTrue(orphaned[0].endswith("/O1-KR1"), orphaned[0])
+        self.assertTrue(orphaned[0].endswith("/v1"), orphaned[0])
 
 
 class TestTheReadContractsDoNotMove(unittest.TestCase):
@@ -2039,8 +2080,38 @@ class TestTheReadContractsDoNotMove(unittest.TestCase):
     This row changes where the bytes come from, not what any reader is told.
     """
 
+    #: A pre-TASK-236 `OKR.md` — one that still carries its KR tables.
+    #:
+    #: **Why this is written here instead of copied from `perry/OKR.md`.**
+    #: The case below is about the MIGRATION: a project arrives with KRs in
+    #: markdown, `perry-okr write --from-file` mints the store, and no
+    #: reader's payload may move across that. This repository's own `OKR.md`
+    #: finished that migration and then had its tables deleted, so copying it
+    #: gives a project with no KRs on either side of the mint — `a == b` for
+    #: the reason that both are empty, which is the vacuity the
+    #: `assertGreater` below exists to refuse. An adopted project whose
+    #: `OKR.md` still looks like this is exactly who the migration is for.
+    MIGRATION_OKR = """\
+# OKR — a project that has not migrated yet
+
+## Mission
+
+Arrive with key results in markdown.
+
+## v1: 2026-01-01
+
+### Objective 1 — the objective the KRs hang from
+
+| Id | KR | Metric / Target | Stretch? | Deadline |
+|----|----|------------------|----------|----------|
+| O1-KR1 | the first key result | 1 of 1 | no | 2026-12-31 |
+| O1-KR2 | the second key result | 2 of 2 | yes | 2026-11-30 |
+"""
+
     def test_perry_goals_list_is_identical_before_and_after_the_store_exists(self):
         p = Project(self)
+        (p.root / "perry" / "OKR.md").write_text(self.MIGRATION_OKR,
+                                                 encoding="utf-8")
         before = run("perry-goals", "list", "--json", root=p.root)
         self.assertEqual(before.returncode, 0, before.stderr)
         self.assertEqual(p.okr("write", "--from-file").returncode, 0)
@@ -2054,29 +2125,55 @@ class TestTheReadContractsDoNotMove(unittest.TestCase):
         self.assertEqual(a, b, "minting the store moved the read contract")
         self.assertGreater(len(a["krs"]), 0)
 
-    def test_the_store_holds_every_kr_the_shipped_reader_reads(self):
-        """Two readers of one file, compared rather than trusted.
+    def test_the_shipped_reader_gets_every_kr_from_the_store(self):
+        """**Was `test_the_store_holds_every_kr_the_shipped_reader_reads`.**
 
-        `viewer/parsers.py` reads the CURRENT version block only; the store
-        holds every version. So the assertion is containment in that
-        direction — and a KR the shipped reader sees that the store does not
-        hold would be a row silently dropped on the way into the store.
+        It compared two readers of one file — `viewer/parsers.py`'s markdown
+        arm against `perry_md_store.derive` — and TASK-236 removed the second
+        copy those two were reading. With no KR tables in `perry/OKR.md` both
+        sides return the empty set and the old assertion passed for the reason
+        it was written to refuse, which is why it asserted `read` was non-empty
+        and why that line is what went red.
+
+        What is left is the claim that still has content: the reader a
+        consumer actually runs — `parse_okr(text, krs=load_okr_store(root))`,
+        which is what `load_snapshot` calls — sees exactly the KRs the store
+        holds for the current version block.
         """
+        # `load_okr_store` takes the STATE root, which is `perry/` here.
         text = (ROOT / "perry" / "OKR.md").read_text()
-        okr = P.parse_okr(text)
+        stored = P.load_okr_store(P.resolve_state_root(ROOT))
+        self.assertIsNotNone(stored, "this repository ships an `okr.jsonl`; "
+                                     "without it the reader falls back to the "
+                                     "markdown arm and this asserts nothing")
+        okr = P.parse_okr(text, krs=stored)
         read = {k.id for o in okr.objectives for k in o.krs}
-        # `okr.version` is the `## v<N>: <date>` heading text, which is exactly
-        # what the store files each KR under — so the two are asking about the
-        # same block and set equality is the right assertion. (The objective
-        # title is NOT comparable: the parser cleans `Objective 1 — …` down to
-        # the title, and the store keys on the heading as authored.)
-        held = {r["id"] for r in M.derive(M.OKR, text)
+        held = {r["id"] for r in stored
                 if r["kind"] == "kr" and r["version"] == okr.version}
-        self.assertTrue(read, "the fixture parsed to no KRs at all")
+        self.assertTrue(read, "the reader saw no KRs at all — with a store "
+                              "present that is the surface being empty, not "
+                              "the file being short")
         self.assertEqual(
             read, held,
             "the shipped reader and the store disagree about which KRs the "
             "current version block holds")
+
+    def test_the_markdown_arm_now_finds_no_krs_in_the_shipped_okr(self):
+        """The other half of the change, asserted rather than assumed.
+
+        `_parse_krs` is still live — `parse_phase` calls it unconditionally for
+        adopted projects whose phase documents carry KR tables — so this is not
+        a claim that the function is dead. It is a claim about THIS file: a KR
+        table reappearing in `perry/OKR.md` would give the store a second copy
+        again, which is the whole thing ADR-019 removed, and it would show up
+        here before it showed up as drift.
+        """
+        text = (ROOT / "perry" / "OKR.md").read_text()
+        okr = P.parse_okr(text)
+        self.assertEqual({k.id for o in okr.objectives for k in o.krs}, set())
+        self.assertTrue(okr.objectives,
+                        "the objective headings must still parse — they are "
+                        "what the stored KRs attach to")
 
 
 class TestTheColumnSetsComeFromTheSchema(unittest.TestCase):

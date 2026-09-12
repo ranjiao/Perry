@@ -460,11 +460,24 @@ class TestTheLinkedOverallKrCameWithIt(Fixture):
             capture_output=True, text=True, cwd=ROOT).stdout)["krs"]}
         # A scored phase keeps the edge it had when that overall OKR version
         # was current. Revising v2 to v3 may retire a KR; it must not erase the
-        # historical attribution. OKR.md is versioned and retains those
-        # declarations, while `perry-goals list` intentionally returns only
-        # the current version.
+        # historical attribution, and `perry-goals list` intentionally returns
+        # only the current version.
+        #
+        # **Two sources, unioned — TASK-236.** Until that row the retired KRs
+        # were recovered by scanning `OKR.md`'s KR table rows, and it alone was
+        # enough. `OKR.md` no longer projects `kind: kr`, so on THIS project
+        # the scan now returns the empty set and `O3-KR4` — retired between v2
+        # and v3 — stopped resolving, which is what went red. The store holds
+        # every version, so it is the source here; the markdown scan is KEPT
+        # beside it because an adopted project's `OKR.md` still carries those
+        # rows and is still where its history lives.
         historical = set(HISTORICAL_OVERALL_KR_ROW.findall(
             (ROOT / "perry" / "OKR.md").read_text()))
+        sys.path.insert(0, str(ROOT / "viewer"))
+        import parsers as _P0
+        stored = _P0.load_okr_store(_P0.resolve_state_root(ROOT)) or []
+        historical |= {r["id"] for r in stored
+                       if r.get("kind") == "kr" and r.get("id")}
         overall = current | historical
         self.assertTrue(overall, "this project declares no overall KRs at "
                                  "all, so the assertion below is vacuous")
