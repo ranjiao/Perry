@@ -2665,21 +2665,7 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     # docstring refuses. It also keeps `--reviews --strict` able to gate a
     # dispatch: a backlog nobody can clear is a gate that is red forever, which
     # is a gate people delete.
-    closed_rows: set[str] = set()
-    _log = project_root / ".perry" / "events.jsonl"
-    if _log.exists():
-        for raw in _log.read_text(errors="replace").split("\n"):
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                ev = json.loads(raw)
-            except (ValueError, TypeError):
-                continue
-            if ev.get("event") in ("done", "drop"):
-                tid = str(ev.get("task") or ev.get("id") or "")
-                if tid:
-                    closed_rows.add(tid)
+    closed_rows = closed_task_ids(project_root)
 
     edir = state_root / "evidence"
     for md in sorted(edir.rglob("*.md")) if edir.exists() else []:
@@ -3300,6 +3286,50 @@ def check_provenance(state_root: Path) -> list["Finding"]:
 SPEC_FILE_RE = re.compile(r"-spec\.md$")
 
 
+def closed_task_ids(project_root: Path | None) -> set[str]:
+    """Every task id the event log records as `done` or `dropped`.
+
+    **One derivation, two consumers** (TASK-370). `check_reviews` computed this
+    inline and `check_specs` did not compute it at all, so one pre-dispatch
+    check was scoped to rows that can still be dispatched and its twin was not.
+    Measured 2026-09-12: `spec-unbounded` named **123** specs, of which **3**
+    belonged to an open row and **120** to a closed one. A signal-to-noise of
+    3:120 is what `TASK-370` was opened for — its author dispatched `TASK-276`
+    past a true positive because the finding was one of 123 and the output
+    names ten.
+
+    `check_reviews`'s own note already argued the rule and is quoted rather
+    than restated: *"A closed row's criteria cannot be re-bounded and its
+    exhibit cannot be re-filed … a backlog nobody can clear is a gate that is
+    red forever, which is a gate people delete."* That was true of the
+    verdict-side check and equally true of the spec-side one; only one of them
+    acted on it.
+
+    The log is the authority rather than `tasks.jsonl` because `purge` removes
+    a record and the log keeps the event — a purged row is closed, and a check
+    that read the store would start reporting its spec again.
+    """
+    out: set[str] = set()
+    if project_root is None:
+        return out
+    log = project_root / ".perry" / "events.jsonl"
+    if not log.exists():
+        return out
+    for raw in log.read_text(errors="replace").split("\n"):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            ev = json.loads(raw)
+        except (ValueError, TypeError):
+            continue
+        if ev.get("event") in ("done", "drop"):
+            tid = str(ev.get("task") or ev.get("id") or "")
+            if tid:
+                out.add(tid)
+    return out
+
+
 def check_specs(state_root: Path, project_root: Path | None = None,
                 cap: int | None = None) -> list["Finding"]:
     """Every spec a dispatching agent must read actually offers it something.
@@ -3429,8 +3459,28 @@ def check_specs(state_root: Path, project_root: Path | None = None,
     # records — this check would keep reporting on a heading `dispatch.md` had
     # stopped asking for.
     labels = " or ".join(f"`## {lbl}`" for lbl in P.SPEC_SCOPE_SECTIONS)
+    # **Both findings in this function are scoped to rows that can still be
+    # dispatched** (TASK-370), which is the rule `check_reviews` had and this
+    # function did not. Measured 2026-09-12, before the scoping:
+    #
+    #     spec-scope-unscannable   named 46    open  0   closed 45
+    #     spec-unbounded           named 123   open  3   closed 120
+    #
+    # The scope half was reporting **nothing anyone could act on** — not one
+    # of its 46 belonged to a row a round could still be dispatched against.
+    # The row was filed about the bound half; the scope half is the same
+    # defect in the same loop and is fixed with it rather than left for a
+    # second row, which is the judgement stated here because it is a widening.
+    _closed_specs = closed_task_ids(project_root)
+
+    def _is_closed(md) -> bool:
+        tid = re.search(r"TASK-\d+", md.name)
+        return bool(tid and tid.group(0) in _closed_specs)
+
     unscannable: list[str] = []
     for md in specs:
+        if _is_closed(md):
+            continue
         if P.spec_scope_sections(md.read_text(errors="replace")):
             continue
         unscannable.append(_rel(md, project_root))
@@ -3473,8 +3523,22 @@ def check_specs(state_root: Path, project_root: Path | None = None,
     # `_BOUND_RE` is the same matcher the verdict-side check uses — one answer
     # to "what counts as a bound", for the reason `labels` above reads
     # `P.SPEC_SCOPE_SECTIONS` rather than restating it.
+    #
+    # **SCOPED TO ROWS THAT CAN STILL BE DISPATCHED** (TASK-370), which is the
+    # rule `check_reviews` already applied to its own two pre-check findings
+    # and this one did not. Measured 2026-09-12 before the scoping: 123 specs
+    # named, **3** of them an open row's and **120** a closed row's. The row
+    # was opened because its author dispatched `TASK-276` past a true positive
+    # — the finding was one of 123 and the output names ten, so the one that
+    # mattered was invisible. `reference/diagnose.md` calls that a wall of red,
+    # and a check whose true positive is invisible has the effect of no check.
+    #
+    # A closed row's spec cannot be re-bounded and no round will ever be
+    # dispatched against it, so naming it is a backlog nobody can clear.
     unbounded: list[str] = []
     for md in specs:
+        if _is_closed(md):
+            continue
         if not _BOUND_RE.search(strip_comments(md.read_text(errors="replace"))):
             unbounded.append(_rel(md, project_root))
     for rel in (unbounded[:cap] if cap is not None else unbounded):

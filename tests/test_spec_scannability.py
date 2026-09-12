@@ -1488,5 +1488,110 @@ class TestBothHalvesOfTheBoundRuleSurvive(unittest.TestCase):
                 f"round has been dispatched")
 
 
+class TestBothPreDispatchChecksAreScopedToRowsThatCanStillBeDispatched(
+        unittest.TestCase):
+    """**TASK-370.** A check whose true positive is invisible is no check.
+
+    `check_reviews` scoped its two pre-check findings to OPEN rows and wrote
+    down why: *"A closed row's criteria cannot be re-bounded and its exhibit
+    cannot be re-filed … a backlog nobody can clear is a gate that is red
+    forever, which is a gate people delete."* `check_specs` did not, and the
+    result was measured on 2026-09-12:
+
+        spec-scope-unscannable   named 46    open  0   closed 45
+        spec-unbounded           named 123   open  3   closed 120
+
+    The row was filed because its author dispatched `TASK-276` past a true
+    positive: the finding was one of 123 and the output names ten. The scope
+    half was worse — **not one of its 46 was actionable**.
+
+    Both are fixed here through ONE predicate, because two copies of "is this
+    row closed" is the defect this repository keeps finding. `closed_task_ids`
+    is the shared derivation and reads the EVENT LOG rather than `tasks.jsonl`,
+    because `purge` removes a record and keeps the event.
+    """
+
+    UNBOUND = ("# TASK-00N — spec\n\n## Files in scope\n\n- `bin/x`\n\n"
+               "## Deliverable\n\n1. a thing\n")
+    NO_SCOPE = "# TASK-00N — spec\n\n## Why\n\nbecause.\n\n## Bound\n\nls bin/\n"
+
+    def project(self, specs: dict, closed: tuple[str, ...] = ()) -> Path:
+        root = Path(tempfile.mkdtemp())
+        config_store.write_config(root)
+        (root / ".perry" / "hook.md").write_text(HOOK)
+        (root / "evidence" / "2026-09").mkdir(parents=True)
+        for name, text in specs.items():
+            (root / "evidence" / "2026-09" / name).write_text(text)
+        (root / ".perry" / "events.jsonl").write_text(
+            "".join(json.dumps({"event": "done", "id": t, "to": "done"}) + "\n"
+                    for t in closed))
+        return root
+
+    def rules_for(self, root: Path) -> list[tuple[str, str]]:
+        r = subprocess.run(
+            [sys.executable, str(LINT), "--root", str(root), "--specs",
+             "--json"], capture_output=True, text=True)
+        out = json.loads(r.stdout)
+        return [(f["rule"], f["file"]) for f in out["findings"]]
+
+    def test_an_open_rows_unbounded_spec_is_reported(self):
+        """The control. Without it every assertion below is consistent with a
+        check that reports nothing at all."""
+        root = self.project({"TASK-001-spec.md": self.UNBOUND})
+        self.assertIn(
+            ("spec-unbounded", "evidence/2026-09/TASK-001-spec.md"),
+            self.rules_for(root))
+
+    def test_a_closed_rows_unbounded_spec_is_not(self):
+        root = self.project({"TASK-001-spec.md": self.UNBOUND},
+                            closed=("TASK-001",))
+        self.assertEqual(
+            [], [r for r in self.rules_for(root) if r[0] == "spec-unbounded"])
+
+    def test_an_open_rows_scopeless_spec_is_reported(self):
+        root = self.project({"TASK-002-spec.md": self.NO_SCOPE})
+        self.assertIn(
+            ("spec-scope-unscannable", "evidence/2026-09/TASK-002-spec.md"),
+            self.rules_for(root))
+
+    def test_a_closed_rows_scopeless_spec_is_not(self):
+        """The half the row did not name. 0 of its 46 were actionable, so it
+        was pure noise, and it is the same loop."""
+        root = self.project({"TASK-002-spec.md": self.NO_SCOPE},
+                            closed=("TASK-002",))
+        self.assertEqual(
+            [], [r for r in self.rules_for(root)
+                 if r[0] == "spec-scope-unscannable"])
+
+    def test_a_dropped_row_counts_as_closed(self):
+        """`drop` closes a row as surely as `done`, and a round is never
+        dispatched against either."""
+        root = self.project({"TASK-001-spec.md": self.UNBOUND})
+        (root / ".perry" / "events.jsonl").write_text(
+            json.dumps({"event": "drop", "id": "TASK-001", "to": "dropped"})
+            + "\n")
+        self.assertEqual(
+            [], [r for r in self.rules_for(root) if r[0] == "spec-unbounded"])
+
+    def test_a_spec_with_no_task_id_is_never_filtered(self):
+        """A design spec carries no `TASK-` id, so it cannot be a closed row
+        and must keep reporting. `DESIGN-016-spec.md` is the live instance."""
+        root = self.project({"DESIGN-016-spec.md": self.UNBOUND},
+                            closed=("TASK-001", "TASK-002"))
+        self.assertIn(
+            ("spec-unbounded", "evidence/2026-09/DESIGN-016-spec.md"),
+            self.rules_for(root))
+
+    def test_the_two_checks_share_one_closed_set(self):
+        """Two derivations of "is this row closed" would drift, which is the
+        defect class this fix belongs to. One project, one event log, both
+        findings silenced by it."""
+        root = self.project(
+            {"TASK-001-spec.md": self.UNBOUND, "TASK-002-spec.md": self.NO_SCOPE},
+            closed=("TASK-001", "TASK-002"))
+        self.assertEqual([], [r for r in self.rules_for(root)
+                              if r[0].startswith("spec-")])
+
+
 if __name__ == "__main__":
     unittest.main()

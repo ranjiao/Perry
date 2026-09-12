@@ -557,7 +557,13 @@ class TestEveryWriterHandBackCarriesTheRoot(unittest.TestCase):
 #: template. Same class as `TASK-404` and as `TASK-431`'s "keyed by function
 #: not line": a test that reddens when the file moves rather than when the
 #: code breaks. Re-keying it on the enclosing function is a row of its own.
-NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5714)}
+#:
+#: **It bit a SECOND time the same day**, 5714 -> 5778, when TASK-370 scoped
+#: two findings in `check_specs`. Two unrelated rows, both red on a coordinate
+#: rather than on a behaviour, inside one session. The pin is re-dated again
+#: and the recurrence is recorded here rather than filed, per this board's
+#: standing rule; what it costs is one full suite run per occurrence.
+NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5778)}
 
 
 class TestTheFlagReachesTheTemplateThatNamesIt(unittest.TestCase):
