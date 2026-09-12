@@ -187,12 +187,41 @@ restate it. It governs every executor, not only the native subagents.
   and `origin` are in `.perry/hook.md § High-stakes operations`, which is the
   default list bootstrap writes, the agent commits and stops there
   (`git-boundaries.md`).
-- **State the worktree's branch point in the prompt.** A worktree branches from
-  wherever the tool cuts it, which is not necessarily where the work being
-  reviewed lives. On 2026-09-02 four agents were cut from a `main` that
-  contained none of the specs they were told to read. Worktrees share the object
-  database, so `git show <branch>:<path>` reaches anything committed — say so,
-  or inline the spec.
+- **Pin the base SHA in the prompt, and make the agent ASSERT it.** A worktree
+  branches from wherever the tool cuts it, which is not necessarily where the
+  work being reviewed lives. Stating the branch point is half the rule and the
+  half that does not work on its own: it tells the agent what to expect and
+  leaves it to notice.
+
+  **The brief carries three things and the agent does three things.** The brief
+  names the base SHA, says main's tip, and says what to do when they differ.
+  The agent runs `git log --oneline -1` and
+  `git merge-base --is-ancestor <base> HEAD`, **fast-forwards its own branch
+  only** when it is behind on a strict ancestor with a clean tree, and
+  **reports what it found either way** — including when the base was correct,
+  because "I checked and it was fine" and "I did not check" are different
+  answers and only one of them is evidence.
+
+  **Measured three times, and the record accumulates rather than being
+  replaced.** On 2026-09-02 four agents were cut from a `main` that contained
+  none of the specs they were told to read. On 2026-09-07 three agents were
+  handed a base 496
+  commits stale; all three noticed at their own cost and invented **three
+  different** recovery protocols, and one reviewer could not check out at all
+  and rebuilt the tree from `git archive` (`TASK-381`). On 2026-09-12 it
+  happened **five more times**, two of them trees that did not contain the code
+  the agent was sent to review — and it cost **nothing**, because every brief
+  pinned the base and every agent asserted it. The difference between those two
+  days is this bullet.
+
+  **What this does not fix.** The worktree is cut by the harness, outside this
+  repository; the recurring stale base was already 102 commits behind at one
+  session's start, and the branches sitting on it have no worktree attached, so
+  it is neither a pool nor a tip. Perry has no code on that path. This is a
+  mitigation that has been measured to work, not a repair.
+
+  Worktrees share the object database, so `git show <branch>:<path>` reaches
+  anything committed — say so, or inline the spec.
 - The primary checkout merges with `git merge --no-ff <branch>` once the row's
   verification allows it, keeping the row's work one identifiable commit, then
   removes the worktree and deletes the branch.
