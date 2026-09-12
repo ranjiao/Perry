@@ -1,8 +1,12 @@
 # `Next action` has two writers and one guard
 
 > Found live by the PMO on 2026-09-12 while moving `TASK-236` to `review`.
-> Recorded, not filed: this board's standing rule is that a finding goes in the
-> evidence rather than opening a row. Nothing here is fixed.
+>
+> **FILED as `TASK-440` on 2026-09-12**, after it happened a third time and a
+> proper measurement across every writer showed the note below understated it:
+> the cell has **four** writers and **two** guards, not two and one. The title
+> of this file is kept as it was written, wrong count and all, because the
+> correction is the point. Spec: `evidence/2026-09/TASK-440-spec.md`.
 
 ## The reproduction, in two commands and one string
 
@@ -65,3 +69,29 @@ Not "add `validate` to `cmd_status`" — that is a second enforcement point and
 the same defect one layer on. The rule belongs where the field is written, so
 that any future writer of `next_action` inherits it. Sizing that is a row's
 work, and this note does not do it.
+
+
+## Measured properly on 2026-09-12, after the third instance
+
+Driving the real binary with a 1,050-byte `--next` through every subcommand in
+`SURFACE` that accepts one:
+
+| subcommand | 1,050 bytes |
+|---|---|
+| `perry-task add` | **REFUSED** |
+| `perry-task next` | **REFUSED** |
+| `perry-task start` | **ACCEPTED** |
+| `perry-task status` | **ACCEPTED** |
+
+So this note's own framing — *"two writers and one guard"* — was itself one
+writer and one guard short. `cmd_add` carries the rule too, at
+`bin/perry-task:3641`, and four lines above it sits the comment that states the
+principle and the wrong count together:
+
+> Same limit as `cmd_next`, **at the other site that writes this cell**. A
+> refusal that only one of two writers performs is a refusal a caller routes
+> around without meaning to.
+
+**Two comments, each asserting a writer count that was wrong when written**:
+that one, and `:4913`'s *"`status` is the only other writer of that cell"*.
+Correcting both is part of `TASK-440`.
