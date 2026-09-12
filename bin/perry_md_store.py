@@ -926,14 +926,39 @@ class Doc:
 
     Both halves still reach `bin/perry_store.py` for the cell model rather than
     carrying one, which was the point of ADR-007.
+
+    **`store_only_kinds` — a kind the store holds and the document does not
+    show.** Without it, "this fact moved into the store for good" and "somebody
+    deleted a row by hand" are the same observation: both land in
+    `plan § records_not_in_the_file`, and every reader downstream —
+    `verify`'s exit code, `perry-lint § check_md_store_drift`, and
+    `render --write`'s refusal — treats them alike. TASK-236 moved `OKR.md`'s
+    38 KR rows into `okr.jsonl` under ADR-019, and with no way to say so the
+    projection would have reported 38 drifted rows for ever, which is a gate
+    that has stopped meaning anything rather than a gate that passes.
+
+    **What this deliberately gives up, stated because it is a real loss.** A
+    kind listed here is no longer compared in EITHER direction: the byte gate
+    cannot see a record that goes missing from the store, because there is no
+    line left for it to fail to fill. `perry-okr diff` on this repository
+    today reports `kinds: {objective, version}` and says nothing about the
+    KRs. Whatever guards those records has to be a test against the surface
+    that renders them — `tests/test_okr_krs_render.py` — and not this file.
+    That is ADR-019's own trade: drift becomes impossible rather than
+    detected, and the cost is that the detector goes with it.
     """
 
-    def __init__(self, name, rel_file, rel_store, scan, under_state_root):
+    def __init__(self, name, rel_file, rel_store, scan, under_state_root,
+                 store_only_kinds=()):
         self.name = name
         self.rel_file = rel_file
         self.rel_store = rel_store
         self.scan = scan
         self.under_state_root = under_state_root
+        #: Kinds this store holds that the document DELIBERATELY does not
+        #: project. See the class note below on why this is a declaration
+        #: rather than a silence.
+        self.store_only_kinds = frozenset(store_only_kinds)
 
     def base(self, project_root: Path, state_root: Path) -> Path:
         return state_root if self.under_state_root else project_root
@@ -945,7 +970,13 @@ class Doc:
         return self.base(project_root, state_root) / self.rel_store
 
 
-OKR = Doc("okr", "OKR.md", "okr.jsonl", scan_okr, under_state_root=True)
+#: `kr` is store-only from TASK-236: `OKR.md` keeps the `### Objective N`
+#: headings and the `## v<N>` blocks, and `perry-goals krs --level overall`
+#: is where the key results are read. The deletion was allowed only because
+#: `perry-okr diff` proved, on the file as it stood, that the store rebuilt
+#: all 38 rows byte for byte first — DESIGN-009 § 6 step 2.
+OKR = Doc("okr", "OKR.md", "okr.jsonl", scan_okr, under_state_root=True,
+          store_only_kinds=("kr",))
 DOCS = {"okr": OKR}
 
 
@@ -1034,8 +1065,14 @@ def plan(doc: Doc, text: str, records: list[dict]) -> dict:
         report["lines_from_store"] += 1
         report["kinds"][site["kind"]] = report["kinds"].get(site["kind"], 0) + 1
 
+    # A `store_only_kinds` record has no line by DESIGN, so it is not a hole
+    # in the projection and must not be reported as one — see `Doc`. Every
+    # other unseen record still lands here, which is what keeps a hand-deleted
+    # `objective` or `version` row visible to `verify` and `perry-lint`.
     report["records_not_in_the_file"] = sorted(
-        k.replace("\x00", "/") for k in by_key if k not in seen)
+        k.replace("\x00", "/") for k in by_key
+        if k not in seen
+        and by_key[k].get("kind") not in doc.store_only_kinds)
 
     # `order` is a claim until something can be shown to disagree with it, and
     # a record written before the field existed is not a disagreement — the

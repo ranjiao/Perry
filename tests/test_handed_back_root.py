@@ -173,7 +173,13 @@ MENTIONS = {
 #: changes it, and the failure names the site. Measured on `220f73d3`, where 63
 #: of these 65 carried no root; the two that did are `bin/perry_md_store §
 #: USAGE`, which has always spelled `[--root <p>]` in its own help block.
-PASTEABLE_WRITER_PHRASES = 65
+#:
+#: **66 from TASK-236**: `bin/perry-goals § overall_kr_model` refuses `krs
+#: --level overall` on a project with no `okr.jsonl` and hands back
+#: `perry-okr write --from-file` as the way to mint one. It was written
+#: without a root and this guard is what caught it, which is the eighteenth
+#: case the note above predicted.
+PASTEABLE_WRITER_PHRASES = 66
 
 
 def _load(path: Path):

@@ -828,19 +828,34 @@ class MarkdownStore(Fixture):
 
 class TestAHandEditToEitherMarkdownStoreIsDrift(MarkdownStore):
     """The MUTATION half of V4: a census that cannot be shown to fail for a
-    store is not covering it. One real cell per file, edited by hand."""
+    store is not covering it. One real cell per file, edited by hand.
+
+    **The edited cell moved from a KR row to a `## Versioning log` row on
+    2026-09-12 (TASK-236), and the reason matters.** These cases used to edit
+    `| 3 of 3 modes live |`, a cell of `O1-KR1`'s KR table row. That row is
+    gone: `OKR.md` no longer projects `kind: kr` at all, so the edit had
+    nothing to land on and `edit_a_cell`'s own assertion caught it — which is
+    the fixture guard working, not a test to delete.
+
+    What is asserted is unchanged: a hand edit to a cell `OKR.md` still
+    projects is drift, named, in both the payload and the human census. The
+    Versioning log is that cell now. **It is deliberately NOT retired the way
+    the `.perry/config.md` cases below were** — those went because ADR-019
+    deleted their file and the drift became impossible; here the file and the
+    projection both survive, and only the KR half of it left.
+    """
 
     def test_an_edited_okr_cell_is_reported(self):
         d = self.project()
-        self.edit_a_cell(d, "perry/OKR.md", "| 3 of 3 modes live |",
-                         "| 2 of 3 modes live |")
+        self.edit_a_cell(d, "perry/OKR.md", "| v1 | 2026-08-17 |",
+                         "| v1 | 2026-08-18 |")
         code, payload = self.lint(d)
         rows = self.rows(payload, "okr")
         self.assertEqual(len(rows), 1, rows)
         self.assertEqual(payload["okr_store_drift"]["drifted"], 1)
         self.assertEqual(rows[0]["file"], "perry/OKR.md")
-        self.assertIn("2 of 3 modes live", rows[0]["message"])
-        self.assertIn("3 of 3 modes live", rows[0]["message"])
+        self.assertIn("2026-08-18", rows[0]["message"])
+        self.assertIn("2026-08-17", rows[0]["message"])
         # The route out, in the store's own tool rather than in the abstract.
         self.assertIn("perry-okr render --write", rows[0]["message"])
         self.assertEqual(code, 0, "drift is warn, never error")
@@ -867,8 +882,8 @@ class TestAHandEditToEitherMarkdownStoreIsDrift(MarkdownStore):
         _, before = self.lint_text(d)
         self.assertIn("· OKR store:", before)
         self.assertIn("0 row(s) drifted", before)
-        self.edit_a_cell(d, "perry/OKR.md", "| 3 of 3 modes live |",
-                         "| 2 of 3 modes live |")
+        self.edit_a_cell(d, "perry/OKR.md", "| v1 | 2026-08-17 |",
+                         "| v1 | 2026-08-18 |")
         _, after = self.lint_text(d)
         self.assertIn("1 row(s) drifted", after)
         self.assertIn("[okr-store-drift]", after)
@@ -961,8 +976,8 @@ class TestTheMarkdownCensusReusesTheExistingComparator(MarkdownStore):
 
     def test_lint_and_the_tool_agree_on_an_edited_tree(self):
         d = self.project()
-        self.edit_a_cell(d, "perry/OKR.md", "| 3 of 3 modes live |",
-                         "| 2 of 3 modes live |")
+        self.edit_a_cell(d, "perry/OKR.md", "| v1 | 2026-08-17 |",
+                         "| v1 | 2026-08-18 |")
         _, payload = self.lint(d)
         self.assertEqual(payload["okr_store_drift"]["drifted"], 1)
         self.assertEqual(self.diff(d, "perry-okr"), 1,

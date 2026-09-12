@@ -13,13 +13,13 @@
     },
     {
       "module": "tests/test_md_store.py",
-      "lineno": 752,
-      "test": "TestAMutatedStoreMovesTheFile.test_an_okr_kr_field",
+      "lineno": 764,
+      "test": "TestAMutatedStoreMovesTheFile.test_an_okr_table_field",
       "assertion": "assertEqual",
       "actual": "drift[0]['store']",
       "expected": "'2099-01-01'",
       "verdict": "false positive",
-      "why": "`2099-01-01` is the value this test wrote into the store four lines earlier. It is the test's own input coming back, not a fact about the project, and it moves when the test moves."
+      "why": "`2099-01-01` is the value this test wrote into the store eight lines earlier. It is the test's own input coming back, not a fact about the project, and it moves when the test moves. (Renamed from `test_an_okr_kr_field` and re-pointed from a `kind: kr` record to a `kind: version` one by TASK-236, which took the KR tables out of `OKR.md`; the verdict is unchanged because the reasoning never depended on which record was mutated.)"
     }
   ]
 }
