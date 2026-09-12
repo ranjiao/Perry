@@ -81,6 +81,7 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P
 import lib  # noqa: E402
+from tables import line_break_at  # noqa: E402
 
 
 class Refused(Exception):
@@ -329,7 +330,20 @@ def cmd_new(args, ctx) -> dict:
     for _flag, _value in (("--title", args.title),
                           ("--type", getattr(args, "type", None)),
                           ("--slug", getattr(args, "slug", None))):
-        if isinstance(_value, str) and len(_value.splitlines()) > 1:
+        # **`line_break_at`, not a third spelling of it** (TASK-327). This
+        # read `len(_value.splitlines()) > 1`, which is the check
+        # `viewer/tables.py § line_break_at` exists because it was wrong:
+        # `splitlines()` returns ONE element for a value whose only break is
+        # trailing, so `"Title\n"` and `"Title\r"` passed here and are caught
+        # by the canonical rule. Measured 2026-09-12 — the gap is LATENT, not
+        # live: all three of these fields are stripped downstream before they
+        # reach the frontmatter, so no corruption is reachable through it
+        # today. What makes it worth closing anyway is that it is the THIRD
+        # spelling of one rule in this repository, and the two earlier ones
+        # cost a review round each: `render_row` and `check_cell` disagreed on
+        # eleven boundaries, and the pipe half of this very paragraph was
+        # fixed two rounds before the line-break half was not.
+        if isinstance(_value, str) and line_break_at([_value]) is not None:
             raise Refused(
                 f"{_flag} was given {_value[:60]!r}, which contains a line "
                 f"break. It becomes a frontmatter field, and a blank line ends "

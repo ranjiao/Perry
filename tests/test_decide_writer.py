@@ -502,5 +502,85 @@ class TestNothingWritesAnIndex(unittest.TestCase):
         self.assert_only_adr_bodies(p, "bootstrap")
 
 
+class TestOneLineBreakRule(unittest.TestCase):
+    """**TASK-327.** `perry-decide` carried a THIRD spelling of the one rule.
+
+    It read `len(_value.splitlines()) > 1`, which is precisely the check
+    `viewer/tables.py § line_break_at` exists because it was wrong:
+    `splitlines()` returns ONE element for a value whose only break is
+    trailing, so `"Title\n"` and `"Title\r"` walked past it. The comment above
+    the guard already recorded that the PIPE half of the same paragraph was
+    fixed two rounds earlier and the line-break half was not.
+
+    **The measurement was wrong twice before it was right, and that is why
+    these tests drive the binary through `subprocess` with the value passed
+    exactly.** Probing from a shell with `--title "$(printf 'X\n')"` measures
+    nothing: `$(...)` strips trailing newlines, so every such probe passes a
+    CLEAN value and the gap looks closed. The first reading off that probe was
+    "latent, not live"; passed exactly, the gap is live.
+
+    **What it actually costs is smaller than the refusal claims**, and that is
+    recorded rather than quietly inherited. The message says *"a blank line
+    ends that block — the fields after it would be lost"*. Measured: a title
+    with a trailing newline produces TWO blank lines between the H1 and the
+    frontmatter, and `perry-decide list` still reads `type`, `date` and
+    `status` off it. The blank lands BEFORE the block, not inside it. So the
+    reason to close the gap is one rule with three spellings, not data loss.
+    """
+
+    SHAPES = {
+        "a trailing newline": "Title\n",
+        "a trailing carriage return": "Title\r",
+        "an internal newline": "A\nB",
+        "a U+2028 line separator": "A\u2028B",
+    }
+
+    def test_every_break_shape_is_refused_in_the_title(self):
+        for label, value in self.SHAPES.items():
+            with self.subTest(shape=label):
+                rc, out = Project().ready().run(
+                    "new", "--title", value, "--type", "Process", "--dry-run")
+                self.assertEqual(rc, 1, f"{label} was accepted: {out}")
+                self.assertIn("line break", json.dumps(out))
+
+    def test_the_other_two_fields_are_guarded_too(self):
+        """`--type` and `--slug` reach the same frontmatter and were guarded by
+        the same weak spelling."""
+        for flag, extra in (("--type", ["--title", "X"]),
+                            ("--slug", ["--title", "X", "--type", "Process"])):
+            with self.subTest(flag=flag):
+                rc, out = Project().ready().run(
+                    "new", *extra, flag, "value\n", "--dry-run")
+                self.assertEqual(rc, 1, f"{flag} accepted a break: {out}")
+
+    def test_a_clean_title_still_writes(self):
+        """**Anti-vacuity.** A guard that refused everything would pass every
+        assertion above and make the command useless."""
+        rc, out = Project().ready().run(
+            "new", "--title", "A clean one", "--type", "Process", "--dry-run")
+        self.assertEqual(rc, 0, out)
+
+    def test_the_guard_is_the_canonical_rule_and_not_a_copy_of_it(self):
+        """The point of the row. A fourth spelling that happened to agree on
+        these four shapes would pass every test above; this one fails unless
+        `perry-decide` reaches for `line_break_at` itself."""
+        guards = [l.strip() for l in TOOL.read_text().splitlines()
+                  if "isinstance(_value, str)" in l
+                  and not l.strip().startswith("#")]
+        self.assertEqual(
+            len(guards), 1,
+            f"expected one guard line over the three frontmatter flags, "
+            f"found {len(guards)}: {guards}")
+        # **The COMMENT above this guard quotes the old spelling on purpose**,
+        # so a naive `assertNotIn` over the whole file fails on the
+        # explanation rather than on the code. This looks at the line that
+        # runs. Measured the hard way: the first version of this test did the
+        # naive thing and went red against its own docstring.
+        self.assertIn("line_break_at", guards[0],
+                      "the guard no longer routes through the one rule")
+        self.assertNotIn("splitlines", guards[0],
+                         "the weak spelling is back on the guard line")
+
+
 if __name__ == "__main__":
     unittest.main()
