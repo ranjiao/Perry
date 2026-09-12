@@ -3618,14 +3618,100 @@ def cmd_add(args, ctx) -> dict:
             f"retraction Perry has is the one `perry-goals link <TASK-ID> "
             f"<KR-ID>` performs as the store half of taking an edge. Nothing "
             f"was written")
+    # **The remedy this message names was rewritten by TASK-439, and the
+    # rewrite is the point.** It used to read *"omit `--kr` for that, which
+    # files the row and warns"* — advice that, after the refusal below, is
+    # advice to do the thing that now refuses. A refusal whose remedy itself
+    # refuses is worse than no remedy, so the two messages are reconciled in
+    # one change rather than left to a follow-up.
+    #
+    # It now names `--unlinked`, the flag on THIS command, rather than
+    # `perry-goals link --unlinked`. TASK-281 round 3's correction: `link` is
+    # the after-the-fact path, and at `add` time the faster remedy is the one
+    # TASK-394 shipped here, which also lands in the same transaction and so
+    # is the only one the KR counts.
+    #
+    # **And this refusal keeps its place after TASK-439 — it is not redundant
+    # with the one below, it is load-bearing BECAUSE of it.** Both refuse, so
+    # a reader comparing exit codes sees one rule; the difference is the
+    # sentence, and the sentence is the whole value. Round 3's hazard is
+    # `--kr "$KR"` with `KR` unset, which arrives here as `--kr ""`. Told
+    # "you gave no answer, pass one of these two", that caller plausibly
+    # reaches for `--unlinked` and writes a PERMANENT, un-withdrawable "serves
+    # no KR" record for a row that does serve one — because a shell variable
+    # was empty. Told "the value you passed is empty, check what you
+    # expanded", they fix the variable. Collapsing the two would therefore
+    # convert a typo into a wrong store record, and the cost of the collapse
+    # went UP with the refusal below, not down.
     if args.kr is not None and not str(args.kr).strip():
         raise Refused(
             f"--kr {args.kr!r} is blank. It is not a way to say this row "
-            f"serves no KR — omit `--kr` for that, which files the row and "
-            f"warns, or use `perry-goals link "
-            f"--unlinked{lib.root_flag(ctx['project_root'])}` to declare it "
-            f"outright. Passing the flag with nothing in it would stamp a "
-            f"`kr` on the row's `add` event that no linkage edge backs. "
+            f"serves no KR — pass `--unlinked` for that, which declares it "
+            f"outright in this same `add`. If you meant to name a key "
+            f"result, the value you passed is empty: check the variable you "
+            f"expanded, because `--kr \"$KR\"` with `KR` unset arrives here "
+            f"looking exactly like this. Passing the flag with nothing in it "
+            f"would stamp a `kr` on the row's `add` event that no linkage "
+            f"edge backs. Nothing was written")
+    # **Neither flag: REFUSED, wherever the question has an answer — TASK-439.**
+    #
+    # `phase/003-storage-code.md § Definition of Done` item 5 asks that every
+    # `main`-track row opened after the gate lands carry an edge or a
+    # declaration. That gate was never built: what existed was the QUESTION —
+    # a stderr warning, and then the row. `P003-O3-KR2` measured what a
+    # warning buys: **19 of 59 rows, 32.2%**, and 94.8% of every main-track
+    # `add` this project has ever run took this branch.
+    #
+    # **Refused, not warned, for the reason § 5.2's warning was always going
+    # to lose:** the row is filed by the time the caller reads stderr, the id
+    # is minted, the event carries `kr: null`, and `never_answered` has it
+    # forever — a later `perry-goals link` writes `via: "link"`, which the KR
+    # excludes by design. The only moment the mistake is cheap is before the
+    # write, and this is that moment: nothing is minted yet.
+    #
+    # **Gated on the register EXISTING, and that condition is argued, not
+    # defaulted.** § *What it must not do* item 4 requires `add` to keep
+    # working on a project with no linkage register. Check what the two
+    # answers are worth there: `--unlinked` is REFUSED outright by
+    # `linkage_add_change` on a store-less project — it has no event field and
+    # no second home, so accepting it would store nothing anywhere — and
+    # `--kr` on a fresh project can only name a KR that does not exist,
+    # because `plan-phase` is what writes the register and it has not run.
+    # So an unconditional refusal would leave a guessed `--kr` as the only
+    # way to file ANY row on a fresh project, and `reference/okr-linkage.md`
+    # forbids exactly that guess. The gate therefore fires where the question
+    # is answerable and stays a warning where it is not — which is the same
+    # rule `linkage_add_change` already applies to `--unlinked`, read from
+    # the other end.
+    #
+    # **Why this does not make `--unlinked` the easy default.** The message
+    # names `--kr` first and names `--unlinked`'s irreversibility in the same
+    # breath, but the real answer is structural, not rhetorical: the two flags
+    # cost the caller the same one flag, so there is no effort gradient to
+    # exploit; the KR counts both as answered, so there is no scoreboard
+    # gradient either; `--unlinked` is refused on a store-less project, so it
+    # is not a universal escape hatch; and `bin/perry-lint
+    # § linkage-unlinked-exists` files every declaration at `warn`, so a row
+    # that takes it stays visible instead of going quiet. A caller who reaches
+    # for `--unlinked` to silence this refusal buys a permanent record and a
+    # standing lint warning, which is strictly worse for them than spending
+    # the minute to look the KR up.
+    if (args.kr is None and not getattr(args, "unlinked", False)
+            and (ctx["state_root"] / P.LINKAGE_STORE).exists()):
+        raise Refused(
+            f"neither --kr nor --unlinked was passed. This project has a "
+            f"`{P.LINKAGE_STORE}`, so the KR question has an answer and `add` "
+            f"will not file a row that leaves it blank — omitting both used "
+            f"to file the row behind a warning, and no longer does. Pass "
+            f"exactly one. `--kr <KR-ID>` attributes this row to that key "
+            f"result and is the answer to reach for first: resolve the id "
+            f"through `{P.LINKAGE_STORE}` rather than guessing it, which "
+            f"`reference/okr-linkage.md` forbids. `--unlinked` is the other "
+            f"answer and says this row serves NO key result at all — it "
+            f"writes a record that CANNOT BE WITHDRAWN by any `perry-task` "
+            f"command and that `perry-lint` reports for as long as it "
+            f"stands, so it is a declaration to mean, not a way to make this "
+            f"refusal go away on a row whose KR you have not looked up yet. "
             f"Nothing was written")
     # Normalised ONCE, here, so the event, the journal's definition block and
     # `linkage_add_change`'s store record cannot disagree about the value.
@@ -3810,29 +3896,36 @@ def cmd_add(args, ctx) -> dict:
              "kr": args.kr or None,
              "design_refs": design_ids,
              "from": None, "to": "not_started"}
-    # Warned, not refused (DESIGN-015 § 5.2 on User Decision 3). The row is
-    # still created: refusing would make `--kr` mandatory, which is a decision
-    # the design did not take, and writing a `never_asked` record would store
-    # a fact that is derived from absence and would then need DELETING the
-    # moment an answer arrived.
+    # **This warning now has exactly ONE reachable caller: the project with no
+    # linkage register — TASK-439.** With a register, omitting both flags is
+    # refused above and never arrives here. § 5.2's "record and warn" survives
+    # only where the refusal deliberately does not fire, which is the one
+    # place the question has no answer to give.
     #
     # **`and not args.unlinked` — TASK-394, and it is not a relaxation.** This
     # warning's entire content is "the row reads as never-asked". After
     # `--unlinked` that sentence is FALSE of a declared row: the store holds an
     # `unlinked` record for it, `same_action_linkage` counts it in the
     # numerator, and it is not in `never_answered`. Printing it anyway would
-    # tell the caller their declaration did not land. Silence still warns,
-    # which is the § 5.2 behaviour this row must not change, and the third
-    # state is the only thing that got quieter.
+    # tell the caller their declaration did not land.
+    #
+    # **Its remedies were rewritten for the same reason the blank-`--kr`
+    # message was.** It used to offer `perry-goals link --unlinked` and
+    # `perry-task add --unlinked` — and BOTH of those refuse on a store-less
+    # project, which is now the only project that can reach this line. Every
+    # remedy it named was a remedy that refuses. The honest one is the only
+    # thing that creates a register: plan the phase.
     if not args.kr and not args.unlinked:
         _r = lib.root_flag(ctx["project_root"])
-        print(f"perry-task: warning — {tid} was created without `--kr`, so no "
-              f"KR edge was recorded and the row reads as never-asked. It is "
-              f"NOT declared unlinked: `perry-goals link {tid} <KR-ID>{_r}` "
-              f"attributes it, `perry-goals link --unlinked {tid}{_r}` "
-              f"declares outright that it serves no KR, and `perry-task add "
-              f"--unlinked{_r}` declares it at creation on a row not yet "
-              f"filed.",
+        print(f"perry-task: warning — {tid} was created without `--kr`, and "
+              f"this project has no `{P.LINKAGE_STORE}`, so there is no key "
+              f"result to name and nowhere to record a declaration. The row "
+              f"reads as never-asked. `/perry goals plan-phase` writes the "
+              f"register when a phase opens; after that, `perry-goals link "
+              f"{tid} <KR-ID>{_r}` attributes this row and `perry-goals link "
+              f"--unlinked {tid}{_r}` declares that it serves none. From "
+              f"then on, `add` requires one of those two answers at "
+              f"creation.",
               file=sys.stderr)
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run, definition=definition,
@@ -8125,7 +8218,7 @@ SURFACE = {
     ],
     "subcommands": [
         {"name": "add", "summary":
-         "open a row: title, deliverable, verification and summary are required",
+         "open a row: title, deliverable, verification, summary, and --kr or --unlinked where a register exists",
          "flags": ["--actor", "--arrived", "--commitment", "--deliverable", "--depends", "--design", "--dry-run", "--group", "--kr", "--next", "--out-of-scope", "--owner", "--parent", "--prefix", "--priority", "--role", "--rung", "--stage", "--summary", "--title", "--track", "--unlinked", "--verification"],
          "takes_id": False,
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},

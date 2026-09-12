@@ -361,7 +361,12 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
              "--root", str(self.root), "--title", "probe",
              "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
              "--deliverable", "d", "--verification", "v",
-             "--track", "intake", "--dry-run", "--json"],
+             # `--unlinked` since TASK-439: `add` refuses a row answering the
+             # KR question neither way, and the refusal fires before the track
+             # is resolved — so without it this test would read a refusal about
+             # linkage and report it as the projection beating the register.
+             # Honest for a throwaway probe row, which serves no key result.
+             "--track", "intake", "--unlinked", "--dry-run", "--json"],
             capture_output=True, text=True)
         payload = json.loads(r.stdout)
         self.assertNotIn("refused", payload,

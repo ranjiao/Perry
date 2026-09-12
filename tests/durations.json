@@ -4,6 +4,10 @@
       "sec": 11.27,
       "source": "2026-09-09-085824"
     },
+    "test_add_refuses_without_an_answer.py": {
+      "sec": 3.3,
+      "source": "2026-09-12-task439"
+    },
     "test_add_writes_the_edge.py": {
       "sec": 9.17,
       "source": "2026-09-09-085824"
@@ -538,6 +542,13 @@
       "note": "ONE module, timed alone three times and recorded at the median (0.18/0.15/0.14s), on the same terms as the 2026-09-11-task437 entry above and for the same reason: re-measuring 129 neighbours to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it, which is a different fact from a load of zero.",
       "ref": "a9e582a8407474afb7b9964a1ad0657cbc18bb59",
       "taken": "2026-09-12T00:00:00Z",
+      "workers": 1
+    },
+    "2026-09-12-task439": {
+      "load1": null,
+      "note": "ONE module, timed alone three times and recorded at the median (5.99/3.30/2.64) rather than from a `--record` sweep, which would have re-timed all 132 under a different load.",
+      "ref": "f3df62193eebfa139219b60e2cd983836f74cada",
+      "taken": "2026-09-12T15:20:00Z",
       "workers": 1
     }
   }

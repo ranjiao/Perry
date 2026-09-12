@@ -915,9 +915,17 @@ class TheUnlinkedAtAddPathHasAWriter(unittest.TestCase):
     def test_the_fixture_can_actually_file_a_row(self):
         """The control both tests above still need. If `_fixture_project`
         stopped producing a usable project, the acceptance test would fail for
-        the wrong reason and the rejection test would pass for it."""
+        the wrong reason and the rejection test would pass for it.
+
+        **Carries `--unlinked` since TASK-439**, and the control is stronger
+        for it, not weaker: `add` now refuses a row that answers the KR
+        question neither way, so a bare `add` here would exit non-zero on a
+        perfectly good fixture and this control would report the fixture
+        broken when it is not — the precise false negative it exists to rule
+        out.
+        """
         d = _fixture_project(self)
-        self.assertEqual(_add(d, "a control row").returncode, 0)
+        self.assertEqual(_add(d, "a control row", "--unlinked").returncode, 0)
 
     def test_the_second_numerator_path_counts_a_produced_record(self):
         """No longer labelled as resting on a record Perry cannot produce,
@@ -973,11 +981,15 @@ class ABlankKrIsRefusedBeforeItReachesTheEvent(unittest.TestCase):
     belongs at the write.
 
     **Refused rather than warned**, and the axis is the flag's PRESENCE.
-    Omitting `--kr` still files the row and still warns — this does NOT make
-    `--kr` mandatory, which is a decision `DESIGN-015 § 5.2` did not take —
-    and `test_omitting_the_flag_still_files_the_row_and_warns` is the guard
-    on that, because a refusal that also broke the no-flag path would have
-    quietly made the flag required.
+
+    **TASK-439 took the decision `DESIGN-015 § 5.2` declined**, and this
+    paragraph used to record the opposite. Omitting `--kr` no longer files the
+    row: on a project with a linkage register, a row answering the KR question
+    neither way is refused. What has NOT happened is `--kr` becoming
+    mandatory — `--unlinked` answers the same question, and
+    `test_kr_is_still_not_mandatory_because_unlinked_answers_too` is where the
+    guard that used to live on the no-flag path now lives. A refusal that made
+    `--kr` itself required would fail it.
     """
 
     def setUp(self):
@@ -1010,12 +1022,31 @@ class ABlankKrIsRefusedBeforeItReachesTheEvent(unittest.TestCase):
         after = self.events.read_text() if self.events.exists() else ""
         self.assertEqual(after, self.before)
 
-    def test_omitting_the_flag_still_files_the_row_and_warns(self):
-        """§ 5.2's "record and warn", untouched. This is the assertion that
-        stops the refusal above from silently making `--kr` mandatory."""
+    def test_omitting_the_flag_is_refused(self):
+        """§ 5.2's "record and warn", as TASK-439 narrowed it.
+
+        This assertion used to read `returncode == 0` and check for the
+        warning. It is inverted rather than deleted because the inversion IS
+        the row: the gate `phase/003-storage-code.md § Definition of Done`
+        item 5 asks for was never built, and what stood in its place was this
+        warning — which `P003-O3-KR2` measured at 19 of 59 rows.
+        """
         r = _add(self.d, "a row with no kr at all")
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("neither --kr nor --unlinked", r.stdout + r.stderr)
+
+    def test_kr_is_still_not_mandatory_because_unlinked_answers_too(self):
+        """The guard the test above used to carry, repointed at the flag that
+        now carries it.
+
+        The hazard it was written against is unchanged: a refusal that made
+        `--kr` itself required would force a guessed attribution on every row
+        with no obvious key result, which `reference/okr-linkage.md` forbids.
+        What stops that is not the no-flag path but `--unlinked`, and this is
+        the assertion that it is genuinely accepted.
+        """
+        r = _add(self.d, "a row that serves no kr", "--unlinked")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("without `--kr`", r.stdout + r.stderr)
 
     def test_a_padded_kr_is_stripped_rather_than_refused(self):
         """Only the EMPTY case is a refusal. A padded but real id is a value,

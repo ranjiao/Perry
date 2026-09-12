@@ -429,7 +429,18 @@ Usage:
                    [--role <name>]  required once the project declares any
                                     `.perry/roles/*.md`; absent otherwise
                    [--depends "TASK-050, TASK-051"] ids this row waits on
-                   [--out-of-scope "…"] [--kr KR-ID]
+                   [--out-of-scope "…"]
+                   --kr KR-ID | --unlinked   ONE of these is REQUIRED once the
+                                   project has a linkage register. `--kr`
+                                   attributes the row to that key result;
+                                   `--unlinked` declares that it serves none,
+                                   writes a record no `perry-task` command can
+                                   withdraw, and is reported by `perry-lint`
+                                   for as long as it stands. Passing neither
+                                   is refused (TASK-439). On a project with no
+                                   register there is no KR to name and nowhere
+                                   to store a declaration, so `add` still
+                                   files the row and warns.
                    [--unlinked]     declare AT CREATION that this row serves no
                                     KR. Writes an `unlinked` record into
                                     linkage.jsonl in the same transaction as the

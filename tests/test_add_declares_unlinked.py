@@ -248,33 +248,64 @@ class TestTheOneSequence(Fixture):
 
 
 class TestSilenceIsStillNeverAsked(Fixture):
-    """§ 5.2 unchanged: omitting both flags stays legal, warns, and does not
-    count. The declaration is a THIRD state, not a replacement for silence."""
+    """§ 5.2's silence, as TASK-439 left it: refused where it can be answered.
 
-    def test_a_row_with_neither_flag_is_never_answered_and_warns(self):
+    This class used to assert that omitting both flags stays legal, warns, and
+    lands in the DENOMINATOR — § 5.2's "record and warn", and TASK-394's
+    control that `--unlinked` had not quietly redefined omission. **TASK-439
+    is the row that changed it.** On a project with a linkage register,
+    omission is now REFUSED, so a silent row reaches neither numerator nor
+    denominator, because there is no row.
+
+    Both halves are kept rather than one deleted, because both are still true
+    of some project:
+
+    * WITH a register — silence is refused, and `P003-O3-KR2` does not move at
+      all, not even its denominator;
+    * with NO register — § 5.2 survives unchanged, that being the one project
+      where the question has no answer to give (`--unlinked` is refused
+      without a store; `--kr` could only name a key result that does not yet
+      exist).
+
+    TASK-394's original point — a declaration is a THIRD state, not a
+    replacement for silence — is still driven: by the declaration classes
+    above, and by `tests/test_add_refuses_without_an_answer.py
+    § TestTheRefusalDoesNotSilentlyDeclare`, which asserts the refusal does not
+    convert omission into a declaration behind the caller's back.
+    """
+
+    def test_a_row_with_neither_flag_is_refused(self):
         d = self.project()
         before = self.measurement(d)
         proc = self.add(d, "a silent row")
-        tid = self.new_id(proc)
+        self.assertNotEqual(proc.returncode, 0,
+                            f"silence was accepted:\n{proc.stdout}")
         after = self.measurement(d)
+        self.assertEqual(after["numerator"], before["numerator"])
+        self.assertEqual(after["denominator"], before["denominator"],
+                         "a refused row reached the DENOMINATOR — the refusal "
+                         "must fire before the `add` event is written")
 
+    def test_with_no_register_silence_still_files_and_warns(self):
+        """§ 5.2 where it survives, driven rather than asserted in prose."""
+        d = self.project(with_store=False)
+        proc = self.add(d, "a silent row")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        tid = self.new_id(proc)
         self.assertIn("never-asked", proc.stderr,
                       "silence stopped warning — § 5.2's `record and warn`")
+        after = self.measurement(d)
         self.assertIn(tid, after["never_answered"])
         self.assertNotIn(tid, after["declared_unlinked_at_add"])
-        self.assertEqual(after["numerator"], before["numerator"],
-                         "a row nobody asked about moved the numerator")
-        self.assertEqual(after["denominator"], before["denominator"] + 1,
-                         "silence must still land in the DENOMINATOR")
 
     def test_silence_writes_no_linkage_record_at_all(self):
         d = self.project()
         before = len(self.records(d))
-        tid = self.new_id(self.add(d, "a silent row"))
+        self.add(d, "a silent row")
         self.assertEqual(len(self.records(d)), before,
                          "`add` with no flags wrote a linkage record — "
-                         "never-asked is derived from ABSENCE (§ 5.2)")
-        self.assertFalse(self.has_declaration(d, tid))
+                         "never-asked is derived from ABSENCE (§ 5.2), and "
+                         "since TASK-439 the row is not even created")
 
     def test_rows_already_filed_are_not_retroactively_declared(self):
         """Spec's must-not #2, and it is why the KR does not jump on landing.
@@ -577,12 +608,19 @@ sys.exit(mod.main(["add", "--title", TITLE, "--root", ROOT,
 
         Derived rather than assumed: an assertion about the wrong id passes for
         free, which is the shape that makes a crash test decorative.
+
+        **Carries `--unlinked` since TASK-439.** `add` now refuses a row that
+        answers the KR question neither way, and the refusal fires before
+        `mint_id` — so a `--dry-run` that passes neither flag never reaches the
+        id this helper exists to read. It mirrors the flag the crashing run
+        itself passes, keeping the probe and the run under test one command
+        line apart.
         """
         proc = subprocess.run(
             [sys.executable, str(TASK), "add", "--title", "probe",
              "--root", str(d), "--deliverable", "d", "--verification", "v",
              "--summary", "Reads back the id the next add will mint.",
-             "--dry-run", "--json"],
+             "--unlinked", "--dry-run", "--json"],
             capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return json.loads(proc.stdout)["id"]
