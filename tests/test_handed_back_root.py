@@ -179,7 +179,27 @@ MENTIONS = {
 #: `perry-okr write --from-file` as the way to mint one. It was written
 #: without a root and this guard is what caught it, which is the eighteenth
 #: case the note above predicted.
-PASTEABLE_WRITER_PHRASES = 66
+#:
+#: **64 from TASK-439, and it went DOWN, which this guard is equally there to
+#: notice.** Two hand-backs were deliberately withdrawn, both for the same
+#: reason: they handed back a command that, after that row, REFUSES.
+#:
+#:   * `bin/perry-task § cmd_add`'s blank-`--kr` refusal offered `perry-goals
+#:     link --unlinked` as the remedy. TASK-281 round 3's correction was that
+#:     `link` is the after-the-fact path; the message now names `--unlinked`,
+#:     the flag on `add` itself, which is not a second command and so is not a
+#:     hand-back at all.
+#:   * `cmd_add`'s never-asked warning offered `perry-task add --unlinked`.
+#:     That warning now fires ONLY on a project with no linkage register, and
+#:     `--unlinked` is refused there — every remedy it named was a remedy that
+#:     refuses. It now names `/perry goals plan-phase`, which is a lane
+#:     command rather than a paste-able `bin/` writer.
+#:
+#: The guard's own note says a drop should be checked against the reader
+#: breaking rather than assumed benign. It was: both phrases are absent from
+#: the text by inspection, and the 64 that remain are the 66 minus exactly
+#: these two.
+PASTEABLE_WRITER_PHRASES = 64
 
 
 def _load(path: Path):

@@ -331,10 +331,27 @@ class TestTheOneSequence(Fixture):
 
 
 class TestWithoutAKr(Fixture):
-    """§ 5.2: the row is still created, `kr` is null, and it warns."""
+    """§ 5.2: the row is still created, `kr` is null, and it warns.
+
+    **Repointed at the STORE-LESS project by TASK-439, and the narrowing
+    is the point.** § 5.2's "record and warn" used to be what `add` did
+    on every project when the KR question went unanswered. It is now what
+    `add` does on the one project where that question has no answer to
+    give: `--unlinked` is refused without a register (`linkage_add_change`
+    — no event field, no second home) and `--kr` could only name a key
+    result that does not exist, so requiring an answer there would force
+    the guess `reference/okr-linkage.md` forbids. Everywhere else,
+    omitting both is REFUSED
+    (`tests/test_add_refuses_without_an_answer.py`).
+
+    Every assertion below is unchanged and still load-bearing — `kr` null
+    rather than a missing key, no record of any kind, no `never_asked`
+    kind, and the row reading as never-asked rather than declared. Only
+    the project they are driven against moved.
+    """
 
     def test_the_row_is_created_and_not_refused(self):
-        d = self.project()
+        d = self.project(with_store=False)
         proc = self.add(d, "an unattributed row")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         tid = self.new_id(proc)
@@ -343,7 +360,7 @@ class TestWithoutAKr(Fixture):
         self.assertIn(tid, [r["id"] for r in rows])
 
     def test_the_event_carries_kr_null_not_a_missing_key(self):
-        d = self.project()
+        d = self.project(with_store=False)
         tid = self.new_id(self.add(d, "an unattributed row"))
         add = [e for e in self.events(d)
                if e.get("event") == "add" and e.get("id") == tid][0]
@@ -355,7 +372,7 @@ class TestWithoutAKr(Fixture):
         self.assertIsNone(add["kr"])
 
     def test_it_warns_on_stderr(self):
-        d = self.project()
+        d = self.project(with_store=False)
         proc = self.add(d, "an unattributed row")
         self.assertIn("without `--kr`", proc.stderr)
         # The warning must not tell the reader the row was DECLARED unlinked:
@@ -365,7 +382,7 @@ class TestWithoutAKr(Fixture):
         self.assertIn("never-asked", proc.stderr)
 
     def test_no_record_of_any_kind_is_written(self):
-        d = self.project()
+        d = self.project(with_store=False)
         before = self.records(d)
         tid = self.new_id(self.add(d, "an unattributed row"))
         after = self.records(d)
@@ -391,14 +408,14 @@ class TestWithoutAKr(Fixture):
         )["stores"]["declared"]["linkage.jsonl"]["records"])
         self.assertNotIn("never_asked", declared)
         self.assertNotIn("never-asked", declared)
-        d = self.project()
+        d = self.project(with_store=False)
         self.add(d, "an unattributed row")
         kinds = {r.get("kind") for r in self.records(d)}
         self.assertTrue(kinds <= declared,
                         f"a kind the schema does not declare: {kinds}")
 
     def test_the_row_reports_never_asked_and_not_declared_unlinked(self):
-        d = self.project()
+        d = self.project(with_store=False)
         tid = self.new_id(self.add(d, "an unattributed row"))
         att = self.attribution(d)
         self.assertIn(tid, [u["id"] for u in att["unlinked"]])
@@ -596,12 +613,19 @@ sys.exit(mod.main(argv))
 
         Derived rather than assumed: an assertion about the wrong id passes
         for free, which is the shape that makes a crash test decorative.
+
+        **Carries `--kr` since TASK-439**, which is not decoration: `add` now
+        refuses a row answering the KR question neither way, and a `--dry-run`
+        is refused at the same place a real run is — the refusal fires before
+        `mint_id`, so it never reaches the id this helper exists to read. It
+        names the same KR the crashing run names, so the probe and the run
+        under test are the same command line minus the crash.
         """
         proc = subprocess.run(
             [sys.executable, str(TASK), "add", "--title", "probe",
              "--root", str(d), "--deliverable", "d", "--verification", "v",
              "--summary", "Reads back the id the next add will mint.",
-             "--dry-run", "--json"],
+             "--kr", self.STORE_KR, "--dry-run", "--json"],
             capture_output=True, text=True, cwd=ROOT)
         return json.loads(proc.stdout)["id"]
 
