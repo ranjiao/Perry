@@ -1500,7 +1500,9 @@
             "Deadline"
           ],
           "id_column": "Id",
-          "id_pattern": "^(?:KR-O\\d+\\.\\d+|O\\d+-KR\\d+)$"
+          "id_pattern": "^(?:KR-O\\d+\\.\\d+|O\\d+-KR\\d+)$",
+          "optional": true,
+          "optional_note": "TASK-236: the KR rows left OKR.md for okr.jsonl, and `perry-goals krs` renders them. The section is still declared here because the COLUMNS are the contract a render must produce; what is optional is a table under the heading IN THE FILE. Authorised by the user 2026-09-12 as a one-key change. Not the same optionality as Commitments below: that one is skipped because its SECTION may be absent, while here the section is present and deliberately carries no table."
         },
         {
           "under": "^Commitments\\b|^承诺",
