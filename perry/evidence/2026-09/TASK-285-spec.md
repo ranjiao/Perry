@@ -181,6 +181,45 @@ Remainder:   THREE zones, not one. Round 4's Bound said "exactly one free
                 membership in `set(span.splitlines())`; all three are now red,
                 as are the review's CLINE1-3, E2 and E3.
 
+             4. CLOSED IN ROUND 7, and it was opened by round 5's own fix.
+                `set(src[a:b].splitlines())` keys a line by CONTENT, and
+                `src[a:b]` includes the declared-free rationale block of
+                zone 1 — which `USER-914` makes legal, unpinned and green to
+                edit. So the free zone was a LINE-INJECTION ORACLE: write the
+                retraction once inside it, and the identical line is a legal
+                member of the span's line set anywhere else in the same file,
+                for no re-pin and no test change. The round-5 reviewer
+                isolated it: the retraction alone RED, the retraction plus the
+                free-block copy GREEN, on the guard class and on the whole
+                3,256-test suite. Round 7 gates on POSITION instead —
+                `spans.append((path, lo, hi))` over line numbers and
+                `lo <= n < hi` — because a line number cannot be injected.
+                Re-measured on the unmodified tree, 13 green; X2 the oracle
+                RED; X2b the retraction alone RED; REMEDY, an innocent mention
+                inside the free block, GREEN. Negative control run in the same
+                session: reverting the two mechanism lines to round 5's
+                content-keyed form takes X2 back to GREEN and leaves X2b RED,
+                so the positional gate is what closes the oracle and nothing
+                else in the round is doing that work.
+
+             5. OPEN, DECLARED, NOT CLOSED. The vocabulary is matched with
+                `re.search(r"worktree|isolation", line, re.I)` over
+                `self.seen(path)`, and `seen` strips HTML comments and nothing
+                else — no emphasis, no entities, no Unicode normalisation. A
+                retraction spelled with a homoglyph or an HTML entity is
+                outside the check's reach. This is the round-5 review's `X3`
+                class, and the finding is recorded here rather than fixed,
+                because normalising before matching widens the vocabulary
+                question rather than settling it.
+
+             6. OPEN, DECLARED, LATENT ONLY. The sweep is
+                `refdir.glob("*.md")`, not `rglob`, so a keyword-bearing line
+                in a SUBDIRECTORY of `work/reference/` is unseen. Harmless
+                today and measured: `work/reference/` is flat, 15 files, no
+                subdirectories. It becomes live the day someone adds one,
+                which makes it a latent defect rather than a live one. The
+                round-5 review's `X6`.
+
 Over-fires:  deliberately, and the cost is bounded. The zone-2/3 check cannot
              tell a retraction from an innocent passing mention and must not
              try — a denylist over English has lost this argument twice. So an

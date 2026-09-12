@@ -901,7 +901,8 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         invisible"*. This closes that for the rule's own subject matter.
 
         Every visible line anywhere under `work/reference/` that says
-        `worktree` or `isolation` must be **one of the span's lines**. Measured
+        `worktree` or `isolation` must **sit inside a governed span's line
+        range**, in the file that span belongs to. Measured
         on this commit: those two words occur in exactly three files and 20
         lines (`dispatch.md` 11, `git-boundaries.md` 7, `delegate.md` 2), every
         one of them inside a span. So a new paragraph about worktrees — in a
@@ -909,12 +910,14 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         that does not exist yet — reddens here rather than sitting unseen
         beside a pin.
 
-        **"One of the span's lines", not "a substring of the span".** Round 4
-        shipped this as `line in span` and was failed for it: that is a
-        substring test, and it let the same retraction through on a line break.
-        See the comment at the `spans.append` above for the three mutations
-        that proved it. The sentence in this docstring is the property; the
-        line-set membership is what delivers it.
+        **Where the line is, not what the line says.** Round 4 shipped
+        `line in span`, a substring test, and was failed for it. Round 5
+        shipped line-set membership and was failed too, because the span's
+        text includes the declared-free rationale block, making that block a
+        line-injection oracle: one legal copy inside it licensed the identical
+        sentence anywhere else in the file. See the comment at the
+        `spans.append` above for both defeats. A line NUMBER cannot be
+        injected, which is why the gate is positional.
 
         This is a **containment** check over the rule's own vocabulary, not a
         denylist over hedges: it does not ask what a sentence means, only where
@@ -939,25 +942,39 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
             src = self.seen(path)
             a = src.index(spec["span"][0])
             b = src.index(spec["span"][1], a)
-            # **The span's LINES, not its text.** `line in span` is a
-            # SUBSTRING test, and every short line is a substring of a longer
-            # one. That is the round-4 defeat: a retraction written outside
-            # every span, using the word, passed whenever one deliberate line
-            # break left the keyword-bearing line short enough to be a
-            # substring of a span. `worktree`, `own git worktree` and
-            # `isolation` are each substrings of this very span, so all three
-            # went green with the row's headline rule retracted four lines
-            # above `## The tree the agent works in` and the whole 3,253-test
-            # suite green. Membership in the span's set of lines is the
-            # property the docstring below always claimed.
-            spans.append((path, set(src[a:b].splitlines())))
+            # **The span's LINE NUMBERS, not its text and not its lines.**
+            # Two defeats, one category, and the second is why this is
+            # positional rather than content-keyed.
+            #
+            # Round 4 shipped `line in span` — a SUBSTRING test, where every
+            # short line is a substring of a longer one. `worktree`, `own git
+            # worktree` and `isolation` are each substrings of this very span,
+            # so a retraction four lines above `## The tree the agent works
+            # in` went green with the whole suite.
+            #
+            # Round 5 shipped `line in set(span.splitlines())` and was failed
+            # for it too, because `src[a:b]` INCLUDES the declared-free
+            # rationale block. `USER-914` makes an edit in that block legal,
+            # unpinned and green — so the free zone was a LINE-INJECTION
+            # ORACLE: write the retraction once inside it, and the identical
+            # line becomes a legal member of the span's line set everywhere
+            # else in the same file, for no re-pin and no test change. The
+            # round-5 reviewer isolated it exactly: the retraction alone is
+            # RED, the retraction plus the free-block copy is GREEN.
+            #
+            # A line number cannot be injected. Gating on WHERE the line is
+            # keeps the free block free — an innocent mention inside it is
+            # still green, which the `Over-fires:` remedy below depends on —
+            # while a copy of it anywhere else stays red.
+            spans.append((path, src[:a].count("\n") + 1,
+                          src[:b].count("\n") + 1))
         refdir = self.DISPATCH.parent
         for path in sorted(refdir.glob("*.md")):
             src = self.seen(path)
             for n, line in enumerate(src.splitlines(), 1):
                 if not re.search(r"worktree|isolation", line, re.I):
                     continue
-                inside = any(p == path and line in lines for p, lines in spans)
+                inside = any(p == path and lo <= n < hi for p, lo, hi in spans)
                 with self.subTest(where=f"{path.name}:{n}"):
                     self.assertTrue(
                         inside,
