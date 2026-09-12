@@ -2364,5 +2364,123 @@ class TestTheWriterWritesTheStore(unittest.TestCase):
         self.assertEqual(run("perry-okr", "diff", root=d).returncode, 0)
 
 
+class TestTheJoinFieldsAreRequiredNotMerelyPermitted(unittest.TestCase):
+    """**USER-927 answer B.** `STORED` is a whitelist, not a contract.
+
+    `validate_records` iterates `rec.items()` and type-checks only what is
+    PRESENT, so a record MISSING a field passed silently. `TASK-236` FAILed V4
+    twice on exactly that: a `kr` whose `version` was absent is placed by no
+    objective — the render's join is `objective_id == obj["id"]` inside a loop
+    over the objectives of that version — and the survivors' count was printed
+    as fact. Measured on the live store before this: **37 of 38 rows at exit
+    0**, while `perry-okr diff` reported `identical: true` AND
+    `every_line_and_cell_came_from_the_store: true` and `perry-lint` reported
+    `0 errors`.
+
+    **Why the rule lives here.** `bin/perry-goals § overall_kr_model` calls
+    this function BEFORE rendering and refuses on any malformed record, and so
+    do `perry-okr build/verify/render/diff` and `perry-lint`'s OKR census. One
+    rule at the boundary every reader already crosses. The alternative — fixing
+    the residual in the render alone — was measured and declined: it leaves
+    every other consumer with the same blind spot.
+
+    **Scoped to the join, both sides.** `kr` needs what places it, `objective`
+    needs what it is placed by. Requiring more would redden records that are
+    legitimately sparse — all 38 live `kr` records carry `linked` and
+    `qualifier` as empty strings and always have, which
+    `test_the_live_store_still_validates` is the control for.
+    """
+
+    def kr(self, **over):
+        rec = {"kind": "kr", "version": "v1: 2026-01-01",
+               "objective": "Objective 1 — x", "objective_id": "O-1",
+               "id": "O1-KR1", "text": "t", "metric": "m", "stretch": "",
+               "deadline": "", "linked": "", "qualifier": "", "form": "",
+               "order": 1}
+        rec.update(over)
+        return {k: v for k, v in rec.items() if v is not ...}
+
+    def objective(self, **over):
+        rec = {"kind": "objective", "version": "v1: 2026-01-01", "id": "O-1",
+               "heading": "Objective 1 — x", "title": "x", "order": 1}
+        rec.update(over)
+        return {k: v for k, v in rec.items() if v is not ...}
+
+    def findings_for(self, rec):
+        good, findings = M.validate_records([rec])
+        return good, "; ".join(f["message"] for f in findings)
+
+    # ── the control, without which nothing below proves anything ─────────
+    def test_a_complete_record_validates(self):
+        good, msg = self.findings_for(self.kr())
+        self.assertEqual(len(good), 1, msg)
+
+    def test_the_live_store_still_validates(self):
+        """The rule must not redden the store it ships with. All 38 `kr`
+        records carry `linked` and `qualifier` empty; requiring those would
+        have been the over-reach this test exists to catch."""
+        store = ROOT / "perry" / "okr.jsonl"
+        if not store.exists():
+            self.skipTest("no okr.jsonl in this checkout")
+        good, findings = M.validate_records(M.load_store(store))
+        self.assertEqual(findings, [], f"the shipped store no longer validates")
+        self.assertTrue(good)
+
+    # ── the two fields that place a KR ───────────────────────────────────
+    def test_a_kr_with_no_version_is_malformed(self):
+        """The input `TASK-236` round 2 let through."""
+        good, msg = self.findings_for(self.kr(version=...))
+        self.assertEqual(good, [])
+        self.assertIn("`version` is required", msg)
+        self.assertIn("absent", msg)
+
+    def test_a_kr_with_a_blank_version_is_malformed(self):
+        good, msg = self.findings_for(self.kr(version="   "))
+        self.assertEqual(good, [])
+        self.assertIn("blank", msg)
+
+    def test_a_blank_objective_id_is_NOT_required_here(self):
+        """**The first draft required it and reddened 24 tests.**
+        `DESIGN-009` step 1 has `derive` write `objective_id: ""` and step 3's
+        `migrate-ids` is the only thing that fills it, so requiring it would
+        condemn every store between the two steps. The orphaned and blank
+        cases are caught by the RESIDUAL in `bin/perry-goals §
+        overall_kr_model` instead, which runs after the join and knows which
+        objectives exist — the half this validator cannot decide."""
+        good, msg = self.findings_for(self.kr(objective_id=""))
+        self.assertEqual(len(good), 1, msg)
+
+    def test_an_objective_with_a_blank_id_is_NOT_required_here(self):
+        """Same story, same design step, same reason."""
+        good, msg = self.findings_for(self.objective(id=""))
+        self.assertEqual(len(good), 1, msg)
+
+    def test_an_objective_with_no_version_is_malformed(self):
+        good, msg = self.findings_for(self.objective(version=...))
+        self.assertEqual(good, [])
+        self.assertIn("`version` is required", msg)
+
+    # ── what must NOT be required ────────────────────────────────────────
+    def test_a_sparse_but_legitimate_kr_still_validates(self):
+        """`linked` and `qualifier` are empty on all 38 shipped records. A
+        rule that required every declared field would redden the store on the
+        commit that added it."""
+        good, msg = self.findings_for(self.kr(linked="", qualifier=""))
+        self.assertEqual(len(good), 1, msg)
+
+    def test_a_version_record_is_not_subject_to_the_rule(self):
+        """`REQUIRED` is keyed by kind and a `version` record is not part of
+        the join. Requiring fields of a kind the rule was never about is the
+        over-reach direction."""
+        good, msg = self.findings_for(
+            {"kind": "version", "version": "v1: 2026-01-01", "order": 1})
+        self.assertEqual(len(good), 1, msg)
+
+    def test_the_message_says_which_field_and_which_kind(self):
+        """A finding a reader cannot act on is the defect this replaces."""
+        _good, msg = self.findings_for(self.kr(version=...))
+        self.assertIn("`kr` record", msg)
+
+
 if __name__ == "__main__":
     unittest.main()

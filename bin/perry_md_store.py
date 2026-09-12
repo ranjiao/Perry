@@ -556,6 +556,52 @@ def mint_objective_ids(records: list[dict], *,
     }
 
 
+#: Fields a record of each kind must CARRY, not merely may carry.
+#:
+#: **`STORED` is a whitelist, not a contract** (USER-927, answer B). Its tuples
+#: say which field names are permitted; `validate_records` iterates
+#: `rec.items()` and type-checks only what is PRESENT, so a record missing a
+#: field entirely passed silently. That is how `TASK-236` FAILed V4 twice: a
+#: `kr` whose `version` was absent was placed by no objective — the join is
+#: `objective_id == obj["id"]` inside a loop over objectives of that version —
+#: and the render printed the survivors' count as fact. Measured on the live
+#: store: 37 of 38 rows at exit 0 while `perry-okr diff` reported
+#: `identical: true` AND `every_line_and_cell_came_from_the_store: true` and
+#: `perry-lint` reported 0 errors.
+#:
+#: **Why here and not in the render.** `bin/perry-goals § overall_kr_model`
+#: calls `validate_records` BEFORE it renders and refuses on any malformed
+#: record, and so do `perry-okr build/verify/render/diff` and `perry-lint`'s
+#: OKR census. One rule at the boundary every reader already crosses, rather
+#: than one guard per reader — the alternative considered and declined was
+#: fixing the residual in the render alone, which leaves every other consumer
+#: with the same blind spot.
+#:
+#: **`version` ALONE, and the first draft was wrong.** It also required
+#: `objective_id` on a `kr` and `id` on an `objective`, and `tests/test_md_store`
+#: reddened 24 tests on the first run. Both are **legitimately blank by
+#: design**: `DESIGN-009` step 1 has `derive` write `id: ""` and `objective_id:
+#: ""`, and step 3's `migrate-ids` is the only thing that ever puts a value
+#: there — `test_no_id_is_minted_in_this_row` asserts that emptiness on
+#: purpose. Requiring them would have condemned every store between step 1 and
+#: step 3, which is the over-reach direction, caught in one suite run.
+#:
+#: `version` carries no such story: every record has always had one, because
+#: `OKR.md` holds several version blocks side by side and a record that names
+#: no block belongs to nothing.
+#:
+#: **The other half of the join is guarded elsewhere and deliberately so.** An
+#: orphaned or blank `objective_id` is caught by the RESIDUAL in
+#: `bin/perry-goals § overall_kr_model`, which refuses when a record is placed
+#: by no objective. That check can see what this one may not, because it runs
+#: after the join and knows which objectives exist. Two layers, each holding
+#: the half it can actually decide.
+REQUIRED = {
+    "kr": ("version",),
+    "objective": ("version",),
+}
+
+
 def validate_records(records: list) -> tuple[list[dict], list[dict]]:
     """Valid records, and structured findings for the malformed ones.
 
@@ -578,6 +624,12 @@ def validate_records(records: list) -> tuple[list[dict], list[dict]]:
                              f"{'/'.join(sorted(STORED))}"})
             continue
         bad = []
+        for field in REQUIRED.get(kind, ()):
+            value = rec.get(field)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                bad.append(f"`{field}` is required for a `{kind}` record and "
+                           f"is "
+                           + ("absent" if field not in rec else "blank"))
         for field, value in rec.items():
             if field not in STORED[kind]:
                 continue
