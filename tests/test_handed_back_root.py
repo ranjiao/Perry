@@ -541,7 +541,17 @@ class TestEveryWriterHandBackCarriesTheRoot(unittest.TestCase):
 #: function plus the callee, the way `test_claims` does. Recorded here rather
 #: than fixed, because re-keying is a change to how this module identifies a
 #: call site and belongs in a round of its own.
-NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5642)}
+#: **Keyed by LINE NUMBER, and that is a known cost** (noted by TASK-379,
+#: 2026-09-12). The declaration is about one call site — `check_file` on a
+#: TEMPLATE, where there is no project root to name — but the key is its
+#: coordinate, so it stops matching whenever anything ABOVE it in
+#: `bin/perry-lint` grows or shrinks. It moved 5642 -> 5714 when TASK-379
+#: added three findings to `check_reviews`, ~70 lines higher up, and this
+#: module went red for a change that touched neither the call nor the
+#: template. Same class as `TASK-404` and as `TASK-431`'s "keyed by function
+#: not line": a test that reddens when the file moves rather than when the
+#: code breaks. Re-keying it on the enclosing function is a row of its own.
+NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5714)}
 
 
 class TestTheFlagReachesTheTemplateThatNamesIt(unittest.TestCase):

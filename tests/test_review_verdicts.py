@@ -1122,6 +1122,127 @@ class TestStrictCanStopADispatch(ExhibitCase):
             capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(proc.returncode, 0)
 
+class TestTheWaitingRoomBelowV4(ReviewLintCase):
+    """A row at `review` below V4, and the rung that chooses what it owes.
+
+    **TASK-379.** `review-with-no-verdict` guards V4 and returns early on every
+    other rung, so a row sitting at `review` carrying V3, V2 or no rung at all
+    was invisible — and `review` is where this board's rows go to be forgotten.
+
+    **The row's own brief was wrong and this class is where the correction is
+    pinned.** It asked for "a row at review with no verdict document". A
+    verdict block is a V4 artifact (`review.md § 3`). Measured 2026-09-12, three
+    of the eight rows at `review` carried no verdict block and two of the three
+    were V3 rows whose rung never asked for one — both with a complete result
+    document on disk. Applied as filed, the check would have reported them on
+    the day it shipped, which is how a guard becomes noise and then becomes
+    deleted. `test_a_v3_row_with_a_result_document_is_silent` is that control.
+
+    The evidence directory is read INDEPENDENTLY of the row's own `Evidence`
+    cell. `TASK-253` sat here with an em-dash in the cell AND no file of any
+    kind; a check that trusted the cell would have had one honest side and one
+    side copied from the thing it is checking.
+    """
+
+    def events_to_review(self, tid="TASK-001", ts="2026-08-19T10:00:00"):
+        (self.dir / ".perry" / "events.jsonl").write_text(
+            json.dumps({"event": "status", "task": tid, "field": "status",
+                        "to": "review", "ts": ts}) + "\n")
+
+    def test_a_v3_row_with_no_document_is_reported(self):
+        self.board([self.row("TASK-001", "review", rung="V3")])
+        self.events_to_review()
+        self.assertIn("review-with-no-run", self.rules())
+
+    def test_a_v3_row_with_a_result_document_is_silent(self):
+        """**The control that keeps this check from being noise.** A V3 row
+        whose run is written down has exactly what its rung asks for."""
+        self.board([self.row("TASK-001", "review", rung="V3")])
+        self.evidence("TASK-001-result.md", "# TASK-001 — result\n\nran it\n")
+        self.events_to_review()
+        self.assertNotIn("review-with-no-run", self.rules())
+
+    def test_the_document_is_found_by_id_not_by_the_evidence_cell(self):
+        """The cell is the row's own claim about itself. A file filed under the
+        id is the independent side, and it is the one this check reads."""
+        self.board([self.row("TASK-001", "review", rung="V3",
+                             ev="evidence/2026-08/nowhere.md")])
+        self.events_to_review()
+        self.assertIn("review-with-no-run", self.rules())
+
+    def test_a_file_named_for_another_row_does_not_satisfy_it(self):
+        """`TASK-0010-result.md` is not `TASK-001`'s, and a prefix match with
+        no separator would have said it was."""
+        self.board([self.row("TASK-001", "review", rung="V3")])
+        self.evidence("TASK-0010-result.md", "# not this row\n")
+        self.events_to_review()
+        self.assertIn("review-with-no-run", self.rules())
+
+    def test_a_row_with_no_rung_at_all_is_reported(self):
+        """Found live: `TASK-285` reached `review` with an empty rung, and both
+        halves of this check walked past it — the V4 guard because the rung is
+        not V4, and the V3 guard because it is not V3. An empty rung is not a
+        small omission: `review.md § 0` makes the rung the thing that decides
+        what the round owes, so there is no shape to the round at all."""
+        self.board([self.row("TASK-001", "review", rung="")])
+        self.events_to_review()
+        self.assertIn("review-with-no-rung", self.rules())
+
+    def test_a_v2_row_is_told_it_has_nothing_to_wait_for(self):
+        """`ADR-020` made V2 the floor and `review.md § 0` calls its artifact a
+        linter pass attested by a script. A linter pass is runnable now, by
+        whoever reads the finding — so `review` is the wrong column rather than
+        a missing document, and it gets its own shape rather than being folded
+        into the two above."""
+        self.board([self.row("TASK-001", "review", rung="V2")])
+        self.events_to_review()
+        self.assertIn("review-at-v2-has-nothing-to-wait-for", self.rules())
+
+    def test_v4_is_left_to_the_check_that_owns_it(self):
+        """Naming a row twice is how a worklist stops being read.
+
+        **This test cannot fail on the line it appears to guard, and saying so
+        is the point.** Deleting the `if rung == "V4": continue` in
+        `check_reviews` leaves it GREEN — an equivalent mutant, because the
+        three branches below it each test the rung explicitly, so a V4 row
+        falls past all of them and fires nothing either way. The `continue`
+        is documentation and a guard against a future `else:` branch, not the
+        thing that produces this behaviour. Recorded rather than deleted: a
+        test whose mutation comes back green is this project's most-found
+        defect, and one that says why is better than one that is quietly
+        wrong."""
+        self.board([self.row("TASK-001", "review", rung="V4")])
+        self.events_to_review()
+        rules = self.rules()
+        self.assertIn("review-with-no-verdict", rules)
+        self.assertNotIn("review-with-no-run", rules)
+        self.assertNotIn("review-with-no-rung", rules)
+
+    def test_a_row_not_at_review_is_silent_at_every_rung(self):
+        for rung in ("", "V2", "V3"):
+            with self.subTest(rung=rung or "(none)"):
+                self.board([self.row("TASK-001", "not_started", rung=rung)])
+                self.events_to_review()
+                rules = self.rules()
+                self.assertNotIn("review-with-no-run", rules)
+                self.assertNotIn("review-with-no-rung", rules)
+                self.assertNotIn("review-at-v2-has-nothing-to-wait-for", rules)
+
+    def test_the_age_is_carried_at_every_rung(self):
+        """The V4 finding reports the age and does not judge it; the three
+        below it must not quietly drop that, or the reader loses the one fact
+        that separates a round sent an hour ago from a row forgotten a week
+        ago."""
+        for rung, rule in (("", "review-with-no-rung"),
+                           ("V2", "review-at-v2-has-nothing-to-wait-for"),
+                           ("V3", "review-with-no-run")):
+            with self.subTest(rung=rung or "(none)"):
+                self.board([self.row("TASK-001", "review", rung=rung)])
+                self.events_to_review()
+                msg = next(f["message"] for f in self.run_lint()["findings"]
+                           if f["rule"] == rule)
+                self.assertRegex(msg, r"\d+ day\(s\) ago")
+
 
 if __name__ == "__main__":
     unittest.main()

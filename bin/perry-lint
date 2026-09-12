@@ -2924,6 +2924,78 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
             f"round is in flight, or one was never sent — `review` is not a "
             f"resting place, and only you can tell those apart"))
 
+    # **The waiting room below V4** (TASK-379). The check above guards V4 and
+    # returns early on every other rung, so a row at `review` carrying V3, V2
+    # or NO RUNG AT ALL was invisible — and `review` is where this board's
+    # rows go to be forgotten.
+    #
+    # **The rung chooses the artifact.** This is the correction the row's own
+    # brief needed: it asked for "a row at review with no verdict document",
+    # and a verdict block is a V4 artifact (`review.md § 3`). Measured
+    # 2026-09-12, three of the eight rows at `review` carried no verdict block
+    # and two of those three were V3 rows whose rung never asked for one —
+    # `TASK-183` and `TASK-415`, both with a complete result document on disk.
+    # Reporting those would have made this check noise on the day it shipped.
+    #
+    # The evidence directory is read INDEPENDENTLY of the row's own `evidence`
+    # cell, on purpose. `TASK-253` sat here with `evidence: —` AND no file of
+    # any kind; a check that trusted the cell would have had one honest side
+    # and one side copied from the thing it was checking.
+    _edir = state_root / "evidence"
+    def _has_doc(tid: str) -> bool:
+        """Any evidence file filed under this row's id, by the naming rule."""
+        if not _edir.exists():
+            return False
+        return any(md.name.startswith(tid + "-")
+                   for md in _edir.rglob("*.md"))
+
+    for tid, status in live.items():
+        if status != "review":
+            continue
+        rung = (rungs.get(tid) or "").upper()
+        if rung == "V4":
+            continue                       # the check above owns V4
+        age = _days_at_review.get(tid)
+        how_long = (f"{age} day(s) ago" if age is not None
+                    else "at an unknown time — no event records the move")
+        if not rung:
+            # **A row at `review` with no rung cannot be reviewed at all.**
+            # `review.md § 1` refuses a dispatch without written criteria, and
+            # § 0 makes the rung the thing that chooses what the round owes —
+            # so an empty rung is not a small omission, it is the round having
+            # no shape. Found live: `TASK-285` reached `review` this way.
+            findings.append(Finding(
+                "warn", "BOARD.md", "review-with-no-rung",
+                f"{tid} is at `review` carrying NO verification rung. It "
+                f"moved there {how_long}. The rung is what decides whether "
+                f"this row owes a verdict block, a reproducible run or a "
+                f"linter pass (`review.md § 0`), so until one is set nothing "
+                f"can say what would finish it and no round can be "
+                f"dispatched (`review.md § 1`)"))
+        elif rung == "V3" and not _has_doc(tid):
+            findings.append(Finding(
+                "warn", "BOARD.md", "review-with-no-run",
+                f"{tid} is at `review` at V3 and no evidence document is "
+                f"filed under its id. It moved there {how_long}. V3 is *a "
+                f"reproducible run — command, inputs, output, re-runnable*, "
+                f"and a run nobody wrote down is a claim about confidence"))
+        elif rung == "V2":
+            # **V2's artifact is not a document, so a V2 row does not wait.**
+            # `ADR-020` (2026-09-11) made V2 the floor and `review.md § 0`
+            # calls it "a structural check — a linter over required sections,
+            # schema and format, attested by a script". A linter pass is
+            # runnable now, by whoever is reading this line. There is nothing
+            # to wait FOR, which makes `review` the wrong column rather than a
+            # missing artifact — reported as its own shape rather than folded
+            # into the two above.
+            findings.append(Finding(
+                "warn", "BOARD.md", "review-at-v2-has-nothing-to-wait-for",
+                f"{tid} is at `review` at V2. It moved there {how_long}. V2 "
+                f"is a linter pass attested by a script (`ADR-020`, "
+                f"`review.md § 0`), not a document someone else produces — "
+                f"there is no round in flight to wait for. Run the pass and "
+                f"close it, or raise the rung if that is not enough"))
+
     # **Two FAILs is a decision, not a third round.** Measured on this board:
     # 20 rows entered V4, 74 rounds were burned, and 10 rows needed three or
     # more. TASK-050 and TASK-249 each reached round 11; TASK-095 FAILed five
