@@ -1029,5 +1029,172 @@ class ABlankKrIsRefusedBeforeItReachesTheEvent(unittest.TestCase):
         self.assertEqual(adds[-1]["kr"], "P003-O1-KR1")
 
 
+
+class EveryPublisherOfAComputedKrAgrees(unittest.TestCase):
+    """**Four publishers, and the fourth printed a falsehood** (TASK-382).
+
+    `BothReadersPublishTheOneNumber` above checks two. There are four, and the
+    two it did not check were both wrong on the same tree, at the same moment:
+
+    - `perry-goals krs --json` built its rows straight off the register record
+      and published `current: null` for the only KR in that register whose
+      number is measured.
+    - `perry-goals list`'s TERMINAL renderer folded every non-`unasserted`
+      provenance state into the word `asserted`, printed `31.0/100.0 asserted`
+      for a measured KR, and then printed a blanket footer — *"no `current`
+      here is a measurement — every one is asserted by an author"* — two lines
+      underneath it. The same command, the same invocation, one flag apart,
+      disagreeing with itself.
+
+    **Why both were missed is one miss, not two.** `TASK-281` verified that
+    nothing else read the asserted value by enumerating readers of `metric`.
+    The field whose provenance it changed is `current`. So this class
+    enumerates publishers of the FIELD, and quantifies over
+    `lib.COMPUTED_KR_METRICS` rather than over one id, which is what makes it
+    catch the fifth publisher and the second computed KR.
+
+    Shape and agreement, never a pinned value: the live number moves the moment
+    a row is filed with `--kr`, and a guard that pinned it would be red for the
+    project working.
+    """
+
+    @staticmethod
+    def _json(argv: list[str]) -> dict:
+        r = subprocess.run(["python3", *argv], capture_output=True, text=True,
+                           cwd=str(PERRY_HOME))
+        if r.returncode != 0:
+            raise AssertionError(
+                f"{argv} exited {r.returncode}: {r.stderr[-800:]}")
+        return json.loads(r.stdout)
+
+    @staticmethod
+    def _text(argv: list[str]) -> str:
+        r = subprocess.run(["python3", *argv], capture_output=True, text=True,
+                           cwd=str(PERRY_HOME))
+        if r.returncode != 0:
+            raise AssertionError(
+                f"{argv} exited {r.returncode}: {r.stderr[-800:]}")
+        return r.stdout
+
+    def computed_ids(self) -> list[str]:
+        """The ids this class quantifies over, and the anti-vacuity check.
+
+        An empty `COMPUTED_KR_METRICS` would make every assertion below pass
+        over nothing. That is the shape of a guard that cannot fail on the
+        thing it names, so it is an assertion rather than a comment."""
+        ids = sorted(lib.COMPUTED_KR_METRICS)
+        self.assertTrue(
+            ids, "lib.COMPUTED_KR_METRICS is empty, so every assertion in "
+                 "this class quantifies over nothing and passes vacuously")
+        return ids
+
+    # ── the four publishers, each as one lookup ──────────────────────────
+
+    def from_state(self, kr_id: str):
+        payload = self._json([str(STATE), "--root", str(PERRY_HOME),
+                              "--section", "linkage"])
+        for o in (payload.get("linkage") or {}).get("objectives", []):
+            for k in o.get("krs", []):
+                if k["id"] == kr_id:
+                    return k
+        return None
+
+    def from_goals_list(self, kr_id: str):
+        payload = self._json([str(GOALS), "list", "--root", str(PERRY_HOME),
+                              "--json"])
+        for k in payload.get("krs", []):
+            if k["id"] == kr_id:
+                return k
+        return None
+
+    def from_goals_krs(self, kr_id: str):
+        """`krs` at both levels: a computed KR may be filed under the phase
+        register or under the overall one, and a lookup that knew only one
+        would report `None` as agreement."""
+        for level in ("phase", "overall"):
+            argv = [str(GOALS), "krs", "--root", str(PERRY_HOME), "--json"]
+            if level == "overall":
+                argv += ["--level", "overall", "--version", "all"]
+            payload = self._json(argv)
+            for o in payload.get("objectives", []):
+                for k in o.get("krs", []):
+                    if k["id"] == kr_id:
+                        return k
+        return None
+
+    # ── the assertions ───────────────────────────────────────────────────
+
+    def test_every_computed_kr_is_published_by_at_least_one_reader(self):
+        """Anti-vacuity, one level down. A computed KR that no publisher
+        carries would make the agreement tests below compare nothing."""
+        for kr_id in self.computed_ids():
+            with self.subTest(kr=kr_id):
+                found = [name for name, row in (
+                    ("perry-state", self.from_state(kr_id)),
+                    ("perry-goals list", self.from_goals_list(kr_id)),
+                    ("perry-goals krs", self.from_goals_krs(kr_id)))
+                    if row is not None]
+                self.assertTrue(
+                    found, f"{kr_id} is in COMPUTED_KR_METRICS and no reader "
+                           f"publishes it, so nothing below compares anything")
+
+    def test_the_three_json_publishers_agree_on_the_number(self):
+        for kr_id in self.computed_ids():
+            with self.subTest(kr=kr_id):
+                rows = {"perry-state": self.from_state(kr_id),
+                        "perry-goals list --json": self.from_goals_list(kr_id),
+                        "perry-goals krs --json": self.from_goals_krs(kr_id)}
+                values = {name: row["current"]
+                          for name, row in rows.items() if row is not None}
+                self.assertEqual(
+                    len(set(values.values())), 1,
+                    f"{kr_id}'s publishers disagree: {values}. A number with "
+                    f"one source must not have three answers")
+
+    def test_the_terminal_renderer_says_measured_and_not_asserted(self):
+        """The row's sharpest site. `perry-goals list --json` said `measured`
+        while `perry-goals list` said `asserted` for the same row, and a reader
+        on a terminal has no way to see the JSON."""
+        out = self._text([str(GOALS), "list", "--root", str(PERRY_HOME)])
+        for kr_id in self.computed_ids():
+            row = self.from_goals_list(kr_id)
+            if row is None or row["current_provenance"]["state"] != "measured":
+                continue
+            with self.subTest(kr=kr_id):
+                line = next((l for l in out.splitlines() if kr_id in l), None)
+                self.assertIsNotNone(
+                    line, f"{kr_id} is measured and the terminal render does "
+                          f"not carry it at all")
+                self.assertIn(
+                    "measured", line,
+                    f"the terminal prints {kr_id} without saying the number "
+                    f"was measured: {line.strip()!r}")
+                self.assertNotIn(
+                    "asserted", line,
+                    f"the terminal calls a MEASURED number asserted: "
+                    f"{line.strip()!r}")
+
+    def test_the_footer_does_not_deny_the_row_above_it(self):
+        """The footer used to assert a universal that `COMPUTED_KR_METRICS`
+        makes false, printed two lines under the row it was false about. It is
+        now derived from the payload; this is the assertion that keeps it
+        derived."""
+        out = self._text([str(GOALS), "list", "--root", str(PERRY_HOME)])
+        measured = [kr_id for kr_id in self.computed_ids()
+                    if (self.from_goals_list(kr_id) or {})
+                    .get("current_provenance", {}).get("state") == "measured"]
+        if not measured:
+            self.skipTest("no measured KR on this project's register today")
+        self.assertNotIn(
+            "no `current` here is a measurement", out,
+            f"the footer denies that any number is measured while "
+            f"{', '.join(measured)} is")
+        for kr_id in measured:
+            self.assertIn(
+                kr_id, out,
+                f"the footer claims some number is measured without naming "
+                f"which; {kr_id} must appear")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

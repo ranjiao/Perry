@@ -2799,13 +2799,36 @@ def cmd_krs(args, ctx) -> dict:
                       f"{number}. `plan-phase` writes them when the phase "
                       f"opens; nothing was printed, because an empty table "
                       f"and a phase with no register read the same")
+    # **The measured KRs are spliced here too** (TASK-382). `k.current` is the
+    # register record's typed number, and for a KR in `lib.COMPUTED_KR_METRICS`
+    # the register holds none at all — the metric is RE-RUN from
+    # `linkage.jsonl` and `.perry/events.jsonl` on every read.
+    # `bin/perry-state` and `perry-goals list` both splice it through
+    # `lib.kr_progress_provenance`; this command read the register straight and
+    # published `null` for the only KR in the register that is actually
+    # measured. Same helper as the other two, deliberately: a second
+    # implementation is how three publishers of one number come to disagree,
+    # which is the whole of this row.
+    linkage_records = P.load_linkage_store(ctx["state_root"])
+    events = read_events(ctx["project_root"])
+
+    def _current(k):
+        computed = lib.computed_kr_current(
+            k.id, linkage_records=linkage_records, events=events)
+        if computed is None:
+            return k.current
+        # `"current"`, the same key `lib § kr_progress_provenance` reads off
+        # the same mapping (`out["current"] = computed.get("current")`), so the
+        # three publishers cannot drift by spelling a key differently.
+        return computed.get("current")
+
     objectives = []
     for obj in model.objectives:
         objectives.append({
             "id": obj.id, "title": obj.title,
             "krs": [{"id": k.id, "text": k.title,
                      "metric": P.kr_metric_cell(k), "linked": k.linked,
-                     "target": k.target, "current": k.current,
+                     "target": k.target, "current": _current(k),
                      "stretch": bool(k.stretch), "tasks": list(k.tasks or [])}
                     for k in obj.krs],
         })
@@ -3283,7 +3306,20 @@ def main(argv: list[str]) -> int:
             # the tally beside it is a count of TASKS — the two are printed
             # apart, in different units, so neither can be read as the other.
             t = k["linked_task_completion"]
-            note = "" if k["current_provenance"]["state"] == "unasserted" else (
+            # **`measured` is a third answer and it was missing** (TASK-382).
+            # This branch folded every non-`unasserted` state into the word
+            # `asserted`, so `P003-O3-KR2` — the one KR in this register whose
+            # metric `bin/lib § computed_kr_current` RE-RUNS on every read —
+            # printed as `31.0/100.0 asserted` while the same command's
+            # `--json` reported `current_provenance.state: measured` for the
+            # same row. One command, one invocation, one flag apart, two
+            # answers. Staleness is not consulted for a measured number: a
+            # measurement re-derived on this read cannot be stale, and asking
+            # `current_staleness` about it would print `STALE` for a number
+            # computed a millisecond ago.
+            state = k["current_provenance"]["state"]
+            note = "" if state == "unasserted" else (
+                "measured" if state == "measured" else
                 "asserted" if not k["current_staleness"]["stale"] else "STALE")
             edge = (f"  {t['done'] + t['dropped']}/{t['total']} tasks closed"
                     if t["total"] else "")
@@ -3292,8 +3328,22 @@ def main(argv: list[str]) -> int:
         c = result["conformance"]
         print(f"\n  {result['counts']['krs']} KR(s) · "
               f"{len(c['krs_without_numbers'])} with no target/current pair")
-        print("  no `current` here is a measurement — every one is asserted by "
-              "an author; the task counts are not progress")
+        # **The footer stated a universal that `COMPUTED_KR_METRICS` makes
+        # false** (TASK-382), and it stated it two lines under the row it was
+        # false about. It is now computed from the payload it is describing
+        # rather than asserted about it: a claim that quantifies over the rows
+        # has to be derived from the rows, or it goes on being true only until
+        # someone adds the first exception.
+        measured = [k["id"] for k in result["krs"]
+                    if k["current_provenance"]["state"] == "measured"]
+        if measured:
+            print(f"  {len(measured)} `current` here "
+                  f"{'is' if len(measured) == 1 else 'are'} measured, re-run "
+                  f"on this read ({', '.join(measured)}); the rest are "
+                  f"asserted by an author. The task counts are not progress")
+        else:
+            print("  no `current` here is a measurement — every one is "
+                  "asserted by an author; the task counts are not progress")
         if c["krs_with_stale_current"]:
             print(f"  ⚠ {len(c['krs_with_stale_current'])} KR(s) whose linked "
                   f"tasks moved since the number was asserted: "
