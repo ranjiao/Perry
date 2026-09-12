@@ -75,19 +75,46 @@ Decide and argue in the report: once omission refuses, is the separate
 blank-`--kr` refusal still earning its place, or does it collapse into the new
 one? Do not delete it silently either way.
 
-## THE SEQUENCING CONSTRAINT, and it is not negotiable
+## The sequencing constraint, now LIFTED
 
-**`bin/perry-task`'s `add` path is under review right now.** `TASK-281` round 3
-was dispatched 2026-09-12 and one of the three questions it was asked to press
-is, verbatim: *whether refusing a blank `--kr` is right, when omission is the
-supported way to say a row serves no KR*. That is this row's core question,
-being judged by a fresh reviewer, on code `TASK-281` round 2 merged into this
-same file (`26bcec72`, 50 lines into `bin/perry-task`).
+`bin/perry-task`'s `add` path was under review when this spec was written.
+**`TASK-281` round 3 PASSed on 2026-09-12**, so the file is free and this row
+is dispatchable. The constraint is kept in the record rather than deleted,
+because the round it waited for is the round that answers its central
+question — see the section below.
 
-**Do not start until round 3 reports.** Editing a file mid-review is the hazard
-that blocked `TASK-383` for a week and that the PMO invoked on 2026-09-12 to
-keep `bin/perry-state` untouched during this same round. Read round 3's answer
-first; it may change what this row should do.
+## What `TASK-281` round 3 settled, and it lands squarely on this row
+
+Round 3 PASSed on 2026-09-12 and was asked to press this row's core question.
+Its answer is on the record and this row starts from it rather than re-deriving
+it.
+
+**The blank `--kr` refusal is right, and the trap runs the OTHER way.**
+Refusing `--kr ""` makes it mean *nothing* — no row, no event, no record —
+rather than a competing third meaning. Blank-means-omission is the actual
+hazard: `--kr "$KR"` with `KR` unset would silently file a never-answered row
+behind a stderr warning. Verified end to end by nine probes driving the real
+binary. **So do not collapse the blank refusal into the new one on the ground
+that it is redundant.** The § *The semantic change* question above still has to
+be argued, but this is the evidence it must be argued against.
+
+**One correction the round handed this row.** The blank-`--kr` refusal points
+the caller at `perry-goals link --unlinked`, not at `perry-task add
+--unlinked`, which `TASK-394` shipped afterwards and which is the faster
+remedy at creation time. Fix that in the same change.
+
+**One exposure this row enlarges, and it must be named in the report.**
+Round 3's first finding: `bin/lib/__init__.py:1438` reads `unlinked_at_add`
+only *inside* the event loop, so a **half-landed** `unlinked`-at-add is dropped
+from the KR's population and named by **no diagnostic** — where its edge twin
+at `:1484-1486` is named by `store_edge_without_event`. It went live when
+`TASK-394` shipped the writer. This row makes `--unlinked` the ONLY way to say
+"serves no KR", so traffic through that path goes up and so does the blind
+spot's exposure. It is `TASK-281`'s finding to fix, not this row's; what this
+row owes is to say in its report how much bigger it made it.
+
+**`bin/lib/__init__.py` is out of scope** for the same reason it was during
+round 3: a fix there belongs to the row that found it.
 
 ## Files in scope
 
