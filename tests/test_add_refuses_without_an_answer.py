@@ -73,6 +73,8 @@ sys.path.insert(0, str(ROOT / "bin"))
 import test_add_writes_the_edge as M  # noqa: E402
 import lib  # noqa: E402
 
+PERRY_HOME = ROOT
+
 
 class Base(M.Fixture):
     """`M.Fixture` plus the two readings this row's assertions need."""
@@ -306,6 +308,150 @@ class TestTheContradictionIsUntouched(Base):
         proc = self.add(d, "a contradictory row", self.STORE_KR, "--unlinked")
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("contradictory", proc.stderr)
+
+
+class TestTheStandingDeclarationHasAReader(Base):
+    """Round 1's FAIL-1, pinned so the sentence cannot re-break silently.
+
+    The refusal tells a caller that reaching for `--unlinked` buys a permanent
+    record that stays VISIBLE. That is the only non-neutral friction in the
+    whole `§ What it must not do` item 1 argument: the two flags cost the same
+    one flag, and `P003-O3-KR2` counts both as answered, so if the declaration
+    were reported by nothing, `--unlinked` WOULD be the easy default and the
+    refusal would be pushing callers toward the lossy answer.
+
+    Round 1 measured the sentence and it was false as written. It named
+    `perry-lint`, and `perry-lint § linkage-unlinked-exists`
+    (`bin/perry-lint:1518`) files its `warn` only for a declared id that is
+    NOT a record in `tasks.jsonl` — a typo, or a purged row. A healthy
+    declaration hits that check's `continue` and is reported by nothing there.
+
+    What the finding did NOT touch is the substance: `perry-state --section
+    attribution` reports `declared_unlinked` straight from the store, for as
+    long as the record stands. So the fix is the tool name, and these tests
+    hold the corrected claim to the same standard that caught the first one —
+    they DRIVE both readers rather than reading the sentence.
+
+    The anti-vacuity control is `test_a_linked_row_is_not_declared`: the same
+    fixture, the same command, one flag different, and the count does not
+    move. Without it a green here would also be green against a build that
+    declared every row.
+    """
+
+    def test_the_message_no_longer_names_perry_lint(self):
+        """The exact false clause, as a string, so it cannot come back."""
+        d = self.project()
+        proc = self.add(d, "a row with no answer")
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertNotIn("perry-lint", proc.stderr)
+
+    def test_the_message_names_the_reader_that_does_report_it(self):
+        d = self.project()
+        proc = self.add(d, "a row with no answer")
+        self.assertIn("perry-state --section attribution", proc.stderr)
+        self.assertIn("declared_unlinked", proc.stderr)
+
+    def test_the_named_reader_actually_reports_the_declaration(self):
+        """The claim, driven. This is the test that would have caught it."""
+        d = self.project()
+        before = self.attribution(d)["declared_unlinked"] or []
+        proc = self.add(d, "a row serving no KR", None, "--unlinked")
+        tid = self.new_id(proc)
+        after = self.attribution(d)["declared_unlinked"] or []
+        self.assertIn(tid, after,
+                      "the refusal promises `perry-state --section "
+                      "attribution` reports a standing declaration, and it "
+                      "does not name the row that just declared")
+        self.assertEqual(len(after), len(before) + 1)
+
+    def test_a_linked_row_is_not_declared(self):
+        """Anti-vacuity: one flag different, and the count must not move."""
+        d = self.project()
+        before = self.attribution(d)["declared_unlinked"] or []
+        proc = self.add(d, "a row with a KR", self.STORE_KR)
+        tid = self.new_id(proc)
+        after = self.attribution(d)["declared_unlinked"] or []
+        self.assertNotIn(tid, after)
+        self.assertEqual(len(after), len(before))
+
+    def test_the_lane_page_names_the_same_reader_as_the_refusal(self):
+        """The category, not the next instance (review.md § 2 rule 1).
+
+        Round 1 found the false clause in TWO product surfaces: the refusal a
+        caller reads, and `work/reference/subcommands.md § add-task`, which is
+        the page an agent reads IN ORDER TO open a row. Fixing only the first
+        leaves the scripted instruction saying the false thing, which is the
+        defect shape this project keeps re-finding — one rule with several
+        enforcement points, corrected at one of them.
+        """
+        page = (PERRY_HOME / "work" / "reference" / "subcommands.md").read_text()
+        bullet = [ln for ln in page.split("\n")
+                  if "--unlinked` is a declaration to mean" in ln]
+        self.assertEqual(len(bullet), 1,
+                         "the add-task KR bullet moved; re-anchor this test "
+                         "rather than deleting it")
+        self.assertIn("declared_unlinked", bullet[0])
+        self.assertIn("perry-state --section attribution", bullet[0])
+
+    def test_the_declaration_stands_across_a_second_read(self):
+        """`for as long as it stands` — not a one-shot line on the add run."""
+        d = self.project()
+        tid = self.new_id(self.add(d, "a row serving no KR", None,
+                                   "--unlinked"))
+        self.assertIn(tid, self.attribution(d)["declared_unlinked"] or [])
+        self.assertIn(tid, self.attribution(d)["declared_unlinked"] or [])
+
+
+class TestTheRefusalIsDeliberatelyTrackIndependent(Base):
+    """Round 1's ROW-2, decided here rather than left to a green mutation.
+
+    The reviewer measured that the refusal fires on the `intake` track too,
+    where `P003-O3-KR2` counts nothing — `lib.same_action_linkage` skips every
+    event whose track is not `main` (`bin/lib/__init__.py:1419`) — and that
+    narrowing it to `main` changed nothing any test could see (`MUT-B`, green).
+    An unpinned scope in either direction is the finding, so this class pins
+    it, and the direction it pins is the one already shipped.
+
+    **Why track-independent is the right answer and not merely the shipped
+    one.** The refusal serves `phase/003 § Definition of Done` item 5, but the
+    thing it protects is older and wider than one phase's KR: a row filed with
+    no answer to the KR question is un-withdrawable from `never_answered`,
+    because a later `perry-goals link` writes `via: "link"`. That is a property
+    of the STORE, not of the track — an intake row promoted to `main` later
+    carries its blank answer with it, and nothing on the promotion path goes
+    back and asks. Scoping the gate to `main` would mean the only rows exempt
+    from the question are the ones most likely to change track.
+
+    The cost is real and named rather than hidden: on a non-main track the
+    refusal buys today's metric nothing, so a caller there spends the minute
+    for a future reader rather than for a number.
+    """
+
+    INTAKE = ("--track", "intake", "--stage", "new", "--arrived", "2026-09-13")
+
+    def test_a_non_main_track_is_refused_too(self):
+        d = self.project()
+        proc = self.add(d, "an intake row with no answer", None, *self.INTAKE)
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("neither --kr nor --unlinked", proc.stderr)
+
+    def test_the_control_exits_zero_on_the_same_track(self):
+        """Anti-vacuity: the track itself is not what refuses."""
+        proc = self.add(self.project(), "an intake row that answers",
+                        None, "--unlinked", *self.INTAKE)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_the_metric_is_unmoved_either_way_which_is_the_cost(self):
+        """The reviewer's measurement, kept as a test rather than as prose."""
+        d = self.project()
+        before = self.linkage(d)
+        self.add(d, "an intake row that answers", None, "--unlinked",
+                 *self.INTAKE)
+        after = self.linkage(d)
+        self.assertEqual(after["denominator"], before["denominator"],
+                         "an intake row entered `P003-O3-KR2`'s population — "
+                         "if that is now true, this row's cost argument "
+                         "changed and the scope decision needs re-taking")
 
 
 if __name__ == "__main__":

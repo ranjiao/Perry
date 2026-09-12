@@ -3690,12 +3690,29 @@ def cmd_add(args, ctx) -> dict:
     # cost the caller the same one flag, so there is no effort gradient to
     # exploit; the KR counts both as answered, so there is no scoreboard
     # gradient either; `--unlinked` is refused on a store-less project, so it
-    # is not a universal escape hatch; and `bin/perry-lint
-    # § linkage-unlinked-exists` files every declaration at `warn`, so a row
+    # is not a universal escape hatch; and `perry-state --section attribution`
+    # counts every standing declaration under `declared_unlinked`, so a row
     # that takes it stays visible instead of going quiet. A caller who reaches
     # for `--unlinked` to silence this refusal buys a permanent record and a
-    # standing lint warning, which is strictly worse for them than spending
-    # the minute to look the KR up.
+    # permanent line in the standup's attribution count, which is strictly
+    # worse for them than spending the minute to look the KR up.
+    #
+    # **The reader named here was WRONG for one round and the correction is
+    # the point.** Round 1's V4 charged FAIL-1 on this sentence: it said
+    # `perry-lint` reports the declaration, and `perry-lint
+    # § linkage-unlinked-exists` (`bin/perry-lint:1518`) files a `warn` ONLY
+    # for a declared id that is NOT a record in `tasks.jsonl` — a typo or a
+    # purged row. A healthy declaration hits its `continue` and `perry-lint`
+    # says nothing. The claim's SUBSTANCE survived the finding and only its
+    # tool name did not: `perry-state --section attribution` reports
+    # `declared_unlinked` straight from the store, permanently, which is the
+    # standing visibility this argument needs. Measured on a copy of this
+    # project: an `add --unlinked` takes `declared_unlinked` 116 → 117 and
+    # leaves `linked` alone, an `add --kr` takes `linked` 2 → 3 and leaves
+    # `declared_unlinked` alone, and `perry-lint` prints zero lines
+    # mentioning `unlinked` for either. `TestTheStandingDeclarationHasAReader`
+    # pins both halves, so the next edit to this sentence cannot re-break it
+    # silently.
     if (args.kr is None and not getattr(args, "unlinked", False)
             and (ctx["state_root"] / P.LINKAGE_STORE).exists()):
         raise Refused(
@@ -3709,10 +3726,10 @@ def cmd_add(args, ctx) -> dict:
             f"`reference/okr-linkage.md` forbids. `--unlinked` is the other "
             f"answer and says this row serves NO key result at all — it "
             f"writes a record that CANNOT BE WITHDRAWN by any `perry-task` "
-            f"command and that `perry-lint` reports for as long as it "
-            f"stands, so it is a declaration to mean, not a way to make this "
-            f"refusal go away on a row whose KR you have not looked up yet. "
-            f"Nothing was written")
+            f"command and that `perry-state --section attribution` counts "
+            f"under `declared_unlinked` for as long as it stands, so it is a "
+            f"declaration to mean, not a way to make this refusal go away on "
+            f"a row whose KR you have not looked up yet. Nothing was written")
     # Normalised ONCE, here, so the event, the journal's definition block and
     # `linkage_add_change`'s store record cannot disagree about the value.
     # `linkage_add_change` strips its copy; if this one were left unstripped
