@@ -58,7 +58,7 @@ has to know which way the cursor walked.
 |---|---|---|
 | `seq` | int | position in the log. Stable **until rotation**, which is what `rotated` is for |
 | `ts` | string | ISO-8601, **seconds**, and **since 1.2 it carries its UTC offset** — `2026-08-28T02:15:22+08:00`. Lines written before 1.2 carry no zone and are read as the reading machine's local time; see § Changelog 1.2. Ties are real and are not duplicates |
-| `event` | string | which kind of event this is. **The twenty-six kinds are § The event kinds**, below — ten of them do not describe a task at all |
+| `event` | string | which kind of event this is. **The twenty-seven kinds are § The event kinds**, below — ten of them do not describe a task at all |
 | `task` | string | the id this event is about — **not always a `TASK-` id, and on four kinds `""`.** § The event kinds says which, and what a consumer indexing on this key has to do about it |
 | `title_then` | string | **the title as written when the event was appended.** A retitled task's earlier events still carry the old name — correct for a history view, wrong the moment you render it as the row's *current* name. `perry-task/list § title` has that one |
 | `field` | string | which cell `from`/`to` describe — `status` on seven events, `section`, `stage`, `track`, `title`, `summary`, `next_action`, `verification`, `evidence`, `depends_on` or `design_refs` on the rest of the task kinds, and **`""` on the ten kinds that are not about a task** |
@@ -240,18 +240,34 @@ of those kinds has been emittable since long before 1.0; three of them (`ask`,
 already ships is not a bump, so the version does not move — the same reading
 `schema/task-list-contract.md`'s two *"Not a version"* notes took.
 
-Eleven of the twenty-six — `stage`, `track`, `route`, `summary` and the seven
-register-writing kinds — are documented and **not yet exercised on this
+**Five of the twenty-seven** — `cadence-add`, `cadence-done`, `risk-add`,
+`risk-migrate` and `track` — are documented and **not yet exercised on this
 project's log**, which is also not a defect: this page describes what the tool
-can emit, not what one project happened to do. The fourteen that are live carry
-749 events between them.
+can emit, not what one project happened to do.
+
+**These five are the one figure on this page that belongs to a PROJECT rather
+than to the tool**, so it goes stale by someone running a command rather than
+by anyone editing anything. It was *"eleven of the twenty-six … the fourteen
+that are live"* until 2026-09-12 — two numbers that did not sum to the total
+beside them — and `TASK-267`'s sibling defect is why it is now stated as a
+list rather than only as a count. The count of kinds itself is checked:
+`tests/test_events_feed.py § TestTheProseCountsTheKindsItLists` derives it from
+the table below and reddens if this sentence and that table disagree.
+
+**Four kinds appear in this project's own log and are NOT on this page**, and
+that is deliberate rather than an omission: `link-edge`, `link-unlinked`,
+`migration` and `migration-correction` were written between 2026-08-28 and
+2026-09-03 by writers that no longer exist. This page documents what the
+writer **can emit**, so a kind no tool emits any more has no row here. A
+consumer reading a real log must expect kinds this page does not carry, for
+the same reason it must expect the log to outlive a tool.
 
 **The list is no longer hand-kept, and that is the actual change.** It went
 stale by eleven names because nothing compared it to the writer;
 `tests/test_events_feed.py § TestTheDocumentedKindsAreTheWriters` now derives
 the emittable set from `bin/perry-task` — the `TASK_EVENTS` / `SECTION_EVENTS`
 registers **and** every literal `"event"` at a commit site — and fails if the
-two sets differ in either direction. A twenty-seventh kind added to the writer
+two sets differ in either direction. A twenty-eighth kind added to the writer
 reddens it on the commit that adds it.
 
 **`tests/contract_key_parity.py` cannot see this class of drift.** KR-O2.4 was
@@ -262,8 +278,8 @@ written rather than delegated to the instrument that already existed. The two
 tables are also deliberately shaped so that check does **not** read them —
 their first cell is `` `kind` · `perry-task <subcommand>` ``, not a bare
 backticked identifier, because a first cell of nothing but backticked
-identifiers is how that parser recognises a key table, and twenty-six event
-names declared as payload keys would be twenty-six paths the payload does not
+identifiers is how that parser recognises a key table, and twenty-seven event
+names declared as payload keys would be twenty-seven paths the payload does not
 carry.
 
 ### 1.1 — 2026-08-21 (TASK-168)

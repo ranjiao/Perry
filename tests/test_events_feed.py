@@ -483,5 +483,59 @@ class TestTheDocumentedKindsAreTheWriters(unittest.TestCase):
             leaked, set(),
             f"§ The event kinds is being read as a key table: {sorted(leaked)}")
 
+class TestTheProseCountsTheKindsItLists(unittest.TestCase):
+    """**TASK-354.** The page said *"the twenty-six kinds"* in four places and
+    the table listed twenty-seven.
+
+    `TestTheDocumentedKindsAreTheWriters` above compares the TABLE to the
+    writer and is green throughout, which is exactly the shape of the defect:
+    the rot was in a sentence beside the table, and nothing read the sentence.
+    `TASK-139` added the twenty-seventh kind and the number was not updated
+    because the suite stayed green.
+
+    **It is a READ contract, so the number is a promise to a consumer**, not
+    prose. This derives it from the table and reddens if the two disagree.
+    """
+
+    WORDS = {
+        20: "twenty", 21: "twenty-one", 22: "twenty-two",
+        23: "twenty-three", 24: "twenty-four", 25: "twenty-five",
+        26: "twenty-six", 27: "twenty-seven", 28: "twenty-eight",
+        29: "twenty-nine", 30: "thirty",
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = (ROOT / "schema" / "events-list-contract.md").read_text()
+        cls.kinds = {m.group(1) for m in
+                     re.finditer(r"^\|\s*`([a-z-]+)`\s*·", cls.text, re.M)}
+
+    def test_the_table_is_not_empty(self):
+        """Anti-vacuity. A regex that matched nothing would make every
+        assertion below pass over an empty set, which is the failure this
+        project has caught six times."""
+        self.assertGreater(len(self.kinds), 10, sorted(self.kinds))
+
+    def test_every_spelled_count_matches_the_table(self):
+        """Every number-word in the page that is used as a count of KINDS."""
+        n = len(self.kinds)
+        wrong = [w for k, w in self.WORDS.items()
+                 if k != n and re.search(rf"\b{w} (?:kinds|event\b)", self.text)]
+        self.assertEqual(
+            [], wrong,
+            f"the table lists {n} kinds ({self.WORDS.get(n, n)}) and the prose "
+            f"still says {wrong}. This is a READ contract: the number is a "
+            f"promise to a consumer, and nothing but this test reads it")
+
+    def test_the_headline_sentence_carries_the_right_word(self):
+        """The one a consumer meets first, pinned by itself so a FAIL names
+        it rather than naming a list."""
+        word = self.WORDS[len(self.kinds)]
+        self.assertIn(
+            f"**The {word} kinds are", self.text,
+            f"the table lists {len(self.kinds)} kinds, so the `event` row of "
+            f"§ The keys must say '{word}'")
+
+
 if __name__ == "__main__":
     unittest.main()

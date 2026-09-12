@@ -47,7 +47,7 @@ TASKS = ROOT / "bin" / "perry-tasks"
 
 
 class Fixture(StoreFixture):
-    """A minimal project containing only the task store and its projection."""
+    """A minimal project containing only the tasks store and its projection."""
 
     def project(self, **kwargs) -> pathlib.Path:
         return super().project(**kwargs)
@@ -654,7 +654,7 @@ class TestTheTwoToolsAgreeAboutWhetherAComparisonHappened(Fixture):
 #: `test_every_declared_store_has_a_line` rather than quietly reading five of
 #: seven — which is the failure TASK-209 was opened for, at six.
 CENSUS_LINES = {
-    "tasks.jsonl": ("· store:", "no `tasks.jsonl`"),
+    "tasks.jsonl": ("· tasks store:", "no `tasks.jsonl`"),
     "risks.jsonl": ("· risks store:", "no `risks.jsonl`"),
     "intake.jsonl": ("· intake store:", "no `intake.jsonl`"),
     "asks.jsonl": ("· ask store:", "no `asks.jsonl`"),
@@ -752,6 +752,65 @@ class TestTheCensusCoversEveryDeclaredStore(Fixture):
         _, text = self.lint_text(d)
         self.assertEqual(len(self.census_lines(text)), len(declared_stores()),
                          self.census_lines(text))
+
+    def test_every_census_line_names_the_store_it_is_about(self):
+        """**TASK-267.** Six of the seven named their register — risks,
+        intake, ask, OKR, config, linkage — and the tasks store alone said
+        `store:` and `drift against the store`. It is the line a reader is
+        most likely to be looking at, and it was the one that did not say what
+        it was about.
+
+        The assertion is over EVERY entry rather than a re-check of the one
+        that was wrong: a bare `store` label is what this catches, in whichever
+        row of `CENSUS_LINES` someone next writes one. The absence marker is
+        excluded because it names the FILE (`no \`tasks.jsonl\``), which is
+        already unambiguous.
+        """
+        for path, (verdict, _absence) in CENSUS_LINES.items():
+            with self.subTest(store=path):
+                label = verdict.removeprefix("·").strip().removesuffix(":")
+                self.assertNotEqual(
+                    label, "store",
+                    f"{path}'s census line says {verdict!r}, which does not "
+                    f"name the register it is about; every other line does")
+                self.assertTrue(
+                    label.endswith(" store"),
+                    f"{path}'s census label is {label!r}; the convention is "
+                    f"'<register> store' and a line that breaks it reads as a "
+                    f"different kind of verdict")
+
+    def test_no_two_stores_share_a_census_label(self):
+        """A label that names its register is only useful if it names ONE.
+        Renaming the tasks store to a label another store already held would
+        satisfy the test above and make the census unreadable."""
+        labels = [v for v, _ in CENSUS_LINES.values()]
+        self.assertEqual(len(set(labels)), len(labels), sorted(labels))
+
+    def test_no_census_label_contains_another(self):
+        """**Distinctness is not enough, and this cost a suite run to learn.**
+
+        `TASK-267` first renamed the tasks store to `· task store:`. That is
+        DISTINCT from `· ask store:` and passes the test above — and
+        `"ask store:" in "task store:"` is **True**, so
+        `tests/test_register_substitution.py § lint_drift`, which finds a
+        register's census line by substring, matched the TASK line when asked
+        for the ASK one and parsed `but` as an integer. One rename, one
+        unrelated module red, and the guard written to prevent exactly this
+        did not see it.
+
+        The label is `tasks store` now, which also matches its own file name.
+        Containment, not equality, is the property a substring consumer needs.
+        """
+        labels = [v.removeprefix("·").strip() for v, _ in CENSUS_LINES.values()]
+        for a in labels:
+            for b in labels:
+                if a is b:
+                    continue
+                with self.subTest(label=a, contains=b):
+                    self.assertNotIn(
+                        b, a,
+                        f"census label {a!r} CONTAINS {b!r}, so a consumer "
+                        f"matching by substring gets the wrong store's line")
 
     def test_the_json_carries_one_block_per_store(self):
         d = self.project()

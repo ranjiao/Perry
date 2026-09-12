@@ -1326,7 +1326,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     # below, which also keeps the document scan for a project that has not
     # migrated.
 
-    # linkage: every TASK the graph names must exist in the task store.
+    # linkage: every TASK the graph names must exist in the tasks store.
     #
     # **`None` is "this project has not been adopted", not "no tasks"** —
     # `viewer/parsers.py § load_task_store` states that contract and this is
@@ -5910,11 +5910,18 @@ def main(argv: list[str]) -> int:
         # look deliberate. A V4 round caught it. Two different answers must not
         # look the same, which is the same rule `perry-tasks verify` follows
         # when it returns rc 2 rather than 0 with no store.
+        # **`task store`, not `store`** (TASK-267). This was the only one of
+        # the seven census lines that did not name its own register: the other
+        # six say risks / intake / ask / OKR / config / linkage store, and
+        # this one said `store:` and `drift against the store`. It is also the
+        # line a reader is most likely to be looking at. The wording is keyed
+        # in `tests/test_store_drift.py § CENSUS_LINES`, which is what makes
+        # renaming it a two-file edit rather than a silent one.
         _st = getattr(check_store_drift, "stats", None)
         if _st and not mode_templates:
             if not _st["store_present"]:
-                print("  · no `tasks.jsonl` — drift against the store is "
-                      "unchecked, not clean")
+                print("  · no `tasks.jsonl` — drift against the tasks store "
+                      "is unchecked, not clean")
             elif not _st["log_present"]:
                 # Named rather than folded into "comparison incomplete": the
                 # user can DO something about a missing log, and a reason is
@@ -5923,16 +5930,16 @@ def main(argv: list[str]) -> int:
                 # rendered columns in the board-to-store direction and needs
                 # no log, which is why it reports 0 mismatches on the same
                 # tree this check reported 175 drifted rows on.
-                print(f"  · store: {_st['records']} record(s), but no "
+                print(f"  · tasks store: {_st['records']} record(s), but no "
                       f"`.perry/events.jsonl` — the board-to-store derivation "
                       f"reads the log, so drift is unchecked, not clean; "
                       f"`perry-tasks verify` compares the rendered columns "
                       f"without it")
             elif not _st["comparison_performed"]:
-                print(f"  · store: {_st['records']} valid record(s), "
+                print(f"  · tasks store: {_st['records']} valid record(s), "
                       "comparison incomplete — drift is unchecked, not clean")
             else:
-                print(f"  · store: {_st['records']} record(s), "
+                print(f"  · tasks store: {_st['records']} record(s), "
                       f"{_st['drifted']} row(s) drifted")
         # Printed on its own line rather than folded into the one above: "no
         # risks store" and "a clean risks store" are different answers, and so
