@@ -193,6 +193,14 @@ import subprocess
 import sys
 import time
 
+# `python3 tests/parallel` puts tests/ at sys.path[0], so this resolves. The
+# runner already invokes `discover` and so cannot itself produce a load
+# failure from the sibling-import cause — it imports the classifier to NAME
+# the shape when a module fails to load for any of the other reasons, rather
+# than printing a traceback and a `Ran 1` that the reader has to decode.
+# TASK-430.
+import module_run
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DURATIONS = ROOT / "tests" / "durations.json"
 #: Bumped when the shape of `tests/durations.json` changes. 1 is TASK-304's
@@ -602,6 +610,15 @@ def failure_block(r: dict) -> str:
     bad = failing_ids(r)
     claimed = unittest_bad_count(r["err"])
     out = []
+    # **Before any count is printed, say whether the module ran at all.**
+    # TASK-430. A module that failed to import reports `Ran 1 test` — the
+    # loader's `_FailedTest` placeholder — and every line below this one would
+    # then describe that placeholder as though it were the module's test set.
+    # The counts stay (they are true of what unittest did); what this adds is
+    # the sentence saying they are not true of the module.
+    load_verdict = module_run.load_failure_verdict(r["mod"], r["err"])
+    if load_verdict is not None:
+        out.append(f"\n\033[31m✗ {load_verdict}\033[0m")
     if claimed is None:
         out.append(f"\n\033[31m✗ {r['mod']}\033[0m — exited {r['rc']} "
                    f"without a unittest verdict line, so how many tests failed "
