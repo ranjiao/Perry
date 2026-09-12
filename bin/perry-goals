@@ -2937,12 +2937,14 @@ def overall_kr_model(state_root, project_root, want_version: str | None):
         wanted = order[-1:]
 
     out = []
+    placed: set[int] = set()
     for version in wanted:
         objs = []
         for obj in [o for o in objectives if o.get("version") == version]:
             rows = [k for k in krs
                     if k.get("version") == version
                     and k.get("objective_id") == obj.get("id")]
+            placed.update(id(k) for k in rows)
             objs.append({
                 "id": obj.get("id", ""), "heading": obj.get("heading", ""),
                 "title": obj.get("title", ""),
@@ -2950,6 +2952,46 @@ def overall_kr_model(state_root, project_root, want_version: str | None):
                         for k in rows],
             })
         out.append({"version": version, "objectives": objs})
+
+    # **THE RESIDUAL, and it is the whole of TASK-236's V4 FAIL.**
+    #
+    # The join above is `objective_id == obj["id"]` inside a loop over
+    # OBJECTIVES, so a `kr` record that matches no objective is emitted
+    # nowhere — and the renderer below then prints the survivors' count as
+    # fact. Measured on this project: orphan ONE kr's `objective_id` and
+    # `krs --level overall` renders 37 of 38 at exit 0 while `perry-okr diff`
+    # reports `identical: true` AND
+    # `every_line_and_cell_came_from_the_store: true`, and `perry-lint`
+    # reports 0 errors with `OKR store: 0 row(s) drifted`. Five
+    # user-producible corruptions do it: `objective_id` orphaned, blanked or
+    # removed; an unknown `version`; a blank `id`.
+    #
+    # **Refusing is the sibling's rule, not a new one.** `cmd_krs` forty lines
+    # up already says it about a half-read graph: *"would print a KR table
+    # missing whichever rows it dropped, which is the one thing this command
+    # must never do."* The same sentence is true here and this is where it
+    # becomes code.
+    #
+    # Scoped to the WANTED versions, deliberately: with `--version v2` the v3
+    # records are not orphans, they are out of scope, and reporting them would
+    # be a refusal that fires on every correct store.
+    stranded = [k for k in krs
+                if k.get("version") in wanted and id(k) not in placed]
+    if stranded:
+        def _name(k):
+            return (str(k.get("id") or "").strip()
+                    or f"<no id, version {k.get('version') or '?'}>")
+        raise Refused(
+            f"{len(stranded)} key result(s) in the store belong to no "
+            f"objective and would be dropped from this render: "
+            f"{', '.join(sorted(_name(k) for k in stranded))}. Each names an "
+            f"`objective_id` that no objective record in its version carries, "
+            f"so a table printed here would be missing them and the count "
+            f"beneath it would report the survivors as the whole. Nothing was "
+            f"printed. The store is where this is fixed: give each one an "
+            f"`objective_id` that exists, or give the objective a record. "
+            f"`perry-okr diff` cannot see this — a record with no line to land "
+            f"in is invisible to a byte comparison")
     return out, order
 
 

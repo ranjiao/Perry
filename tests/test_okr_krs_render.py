@@ -380,6 +380,93 @@ class TestTheSurfaceRefusesRatherThanPrintingAShortTable(Fixture):
         self.assertEqual(res.returncode, 1)
 
 
+class TestAKrThatBelongsToNoObjectiveIsRefused(Fixture):
+    """**TASK-236's V4 FAIL, round 2.**
+
+    `overall_kr_model` joins by iterating OBJECTIVES and selecting the `kr`
+    records whose `objective_id` matches. A record matching none was emitted
+    nowhere, and the renderer then printed the survivors' count as fact.
+
+    Measured on the live project before the fix: orphan ONE `kr`'s
+    `objective_id` and `krs --level overall` rendered **37 of 38 at exit 0**,
+    while `perry-okr diff` reported `identical: true` AND
+    `every_line_and_cell_came_from_the_store: true` and `perry-lint` reported
+    0 errors with `OKR store: 0 row(s) drifted`. **Every gate stayed green
+    while a key result disappeared from the only surface that carries it.**
+
+    The refusal is the sibling's rule rather than a new one: `cmd_krs` already
+    says of a half-read graph that it *"would print a KR table missing
+    whichever rows it dropped, which is the one thing this command must never
+    do."*
+
+    Five shapes, because the review found five and a test that covers the one
+    that bit is a test that will be re-opened by the second one.
+    """
+
+    def orphaned(self, **edits):
+        records = [dict(r) for r in STORE]
+        for r in records:
+            if r.get("kind") == "kr" and r["id"] == "O2-KR1":
+                r.update(edits)
+                for k in edits:
+                    if edits[k] is None:
+                        r.pop(k, None)
+        return records
+
+    def refusal(self, records) -> str:
+        res = self.render(self.project(store=records), "--version", "all")
+        self.assertEqual(
+            res.returncode, 1,
+            f"rendered instead of refusing:\n{res.stdout[:400]}")
+        return json.loads(res.stdout)["refused"]
+
+    def test_an_unknown_objective_id_is_refused(self):
+        self.assertIn("O2-KR1", self.refusal(
+            self.orphaned(objective_id="O-NOPE")))
+
+    def test_a_blank_objective_id_is_refused(self):
+        self.assertIn("O2-KR1", self.refusal(self.orphaned(objective_id="")))
+
+    def test_a_missing_objective_id_is_refused(self):
+        self.assertIn("O2-KR1", self.refusal(self.orphaned(objective_id=None)))
+
+    def test_an_unknown_version_is_refused(self):
+        """A `kr` filed under a version block that has no objectives is
+        stranded the same way, by a different key."""
+        self.assertIn("O2-KR1", self.refusal(
+            self.orphaned(version="v9: nope")))
+
+    def test_a_stranded_record_with_no_id_is_still_named(self):
+        """The refusal must say WHICH records, and a blank id is exactly the
+        record a reader cannot find by searching for its name. It gets a
+        placeholder rather than an empty gap in the list."""
+        msg = self.refusal(self.orphaned(id="", objective_id="O-NOPE"))
+        self.assertIn("no id", msg)
+
+    def test_the_refusal_names_how_many(self):
+        records = [dict(r) for r in STORE]
+        n = 0
+        for r in records:
+            if r.get("kind") == "kr" and n < 2:
+                r["objective_id"] = "O-NOPE"
+                n += 1
+        self.assertIn("2 key result(s)", self.refusal(records))
+
+    def test_a_healthy_store_still_renders(self):
+        """**Anti-vacuity.** A refusal that fires on every store would pass
+        every assertion above and make the command useless."""
+        payload = self.payload(self.project(), "--version", "all")
+        self.assertTrue(flatten(payload))
+
+    def test_a_narrowed_version_does_not_strand_the_other_block(self):
+        """`--version` picks a subset, and the records of the OTHER versions
+        are out of scope rather than orphaned. A residual check that did not
+        scope itself to the wanted versions would refuse every correct store
+        the moment it carried two version blocks."""
+        payload = self.payload(self.project(), "--version", "current")
+        self.assertTrue(flatten(payload))
+
+
 class TestTheShippedOkr(unittest.TestCase):
     """The live repository — a PROPERTY, never a count.
 
