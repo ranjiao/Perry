@@ -254,3 +254,4 @@
 {"kind": "unlinked", "task": "TASK-436", "phase": "003-storage-code", "declared_at": "2026-09-11T05:16:51Z", "actor": "PMO Agent", "via": "add"}
 {"kind": "unlinked", "task": "TASK-437", "phase": "003-storage-code", "declared_at": "2026-09-11T07:10:27Z", "actor": "PMO Agent", "via": "add"}
 {"kind": "unlinked", "task": "TASK-438", "phase": "003-storage-code", "declared_at": "2026-09-11T07:10:27Z", "actor": "PMO Agent", "via": "add"}
+{"kind": "edge", "task": "TASK-439", "kr": "P003-O3-KR2", "declared_at": "2026-09-12T14:42:57Z", "actor": "agent", "via": "add"}
