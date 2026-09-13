@@ -85,11 +85,41 @@ changes which keys are observable, which is a **contract change**, not a bug
 fix — so it is not mine to make inside a round. Probe reverted and verified
 sha256-identical to `git show HEAD:viewer/parsers.py`.
 
-**One correction to round 3's review**, so the next round does not chase it.
-The reviewer reported `perry-goals list` printing "18 of 19 at rc=0" on the
-damaged store. It does not: that reader's output is **byte-identical** to the
-clean one. The observable defect is that two readers disagree about whether
-the store is usable, not that one silently drops a row.
+**RETRACTED 2026-09-13 — the correction below was WRONG and round 3's
+reviewer was right.** It is left in place, struck, because it was published in
+a commit message, this file and a board cell, and a retraction that deletes the
+claim leaves the next reader unable to tell which version they were told.
+
+> ~~One correction to round 3's review, so the next round does not chase it.
+> The reviewer reported `perry-goals list` printing "18 of 19 at rc=0" on the
+> damaged store. It does not: that reader's output is byte-identical to the
+> clean one.~~
+
+**What I actually did.** The store holds 19 `kr` records in `v2: 2026-08-17`
+and 19 in `v3: 2026-09-01`; the render shows **v3**. My probe dropped
+`version` from the first `kr` record it found, which was in **v2** — a record
+outside the rendered block. The reader was unaffected because the damage was
+not in what it renders.
+
+**Re-measured against a `v3` record:**
+
+| | clean | damaged |
+|---|---|---|
+| `perry-goals list --level overall` | 2365 bytes | 2256 bytes |
+| footer | `19 KR(s)` | **`18 KR(s)`** |
+| exit code | 0 | **0** |
+| `perry-goals krs` on the same store | 0 | **1** |
+
+Round 3's "18 of 19 at rc=0" reproduces exactly. `list` silently drops the row
+and prints the survivors' count as fact while `krs` refuses — which is round
+1's charged defect, alive in the reader that does not validate.
+
+**This is a measurement artefact of the kind this project keeps finding**, and
+the worst version of it: I damaged the wrong record, concluded a reader was
+unaffected, and published that as a correction to a reviewer who was right.
+The rule it cost: on a multi-version store, a probe must damage a record in
+the version under render, and the probe should be checked by confirming the
+damage is visible to SOMETHING before concluding it is visible to nothing.
 
 ## 4. Tests — `TestABlankJoinKeyIsNotAWildcard`, seven
 
