@@ -3684,35 +3684,55 @@ def cmd_add(args, ctx) -> dict:
     # rule `linkage_add_change` already applies to `--unlinked`, read from
     # the other end.
     #
-    # **Why this does not make `--unlinked` the easy default.** The message
-    # names `--kr` first and names `--unlinked`'s irreversibility in the same
-    # breath, but the real answer is structural, not rhetorical: the two flags
+    # **Why this does not make `--unlinked` the easy default.** The two flags
     # cost the caller the same one flag, so there is no effort gradient to
     # exploit; the KR counts both as answered, so there is no scoreboard
-    # gradient either; `--unlinked` is refused on a store-less project, so it
-    # is not a universal escape hatch; and `perry-state --section attribution`
-    # counts every standing declaration under `declared_unlinked`, so a row
-    # that takes it stays visible instead of going quiet. A caller who reaches
-    # for `--unlinked` to silence this refusal buys a permanent record and a
-    # permanent line in the standup's attribution count, which is strictly
-    # worse for them than spending the minute to look the KR up.
+    # gradient either; `--unlinked` is refused where the register declares no
+    # key result, so it is not a universal escape hatch; and the record it
+    # writes CANNOT BE WITHDRAWN by any `perry-task` command. A caller who
+    # reaches for it to silence this refusal buys a permanent statement about
+    # a row whose KR they have not looked up.
     #
-    # **The reader named here was WRONG for one round and the correction is
-    # the point.** Round 1's V4 charged FAIL-1 on this sentence: it said
-    # `perry-lint` reports the declaration, and `perry-lint
-    # § linkage-unlinked-exists` (`bin/perry-lint:1518`) files a `warn` ONLY
-    # for a declared id that is NOT a record in `tasks.jsonl` — a typo or a
-    # purged row. A healthy declaration hits its `continue` and `perry-lint`
-    # says nothing. The claim's SUBSTANCE survived the finding and only its
-    # tool name did not: `perry-state --section attribution` reports
-    # `declared_unlinked` straight from the store, permanently, which is the
-    # standing visibility this argument needs. Measured on a copy of this
-    # project: an `add --unlinked` takes `declared_unlinked` 116 → 117 and
-    # leaves `linked` alone, an `add --kr` takes `linked` 2 → 3 and leaves
-    # `declared_unlinked` alone, and `perry-lint` prints zero lines
-    # mentioning `unlinked` for either. `TestTheStandingDeclarationHasAReader`
-    # pins both halves, so the next edit to this sentence cannot re-break it
-    # silently.
+    # **THE ARGUMENT USED TO HAVE A FIFTH ITEM AND IT WAS FALSE TWICE.**
+    # `USER-928` answer C deleted it. The sentence claimed a standing
+    # declaration stays VISIBLE, and both V4 rounds charged it:
+    #
+    #   * round 1 — it named `perry-lint`, and `linkage-unlinked-exists`
+    #     (`bin/perry-lint:1518`) warns ONLY on a declared id that is not a
+    #     record in `tasks.jsonl`. A healthy declaration hits its `continue`.
+    #   * round 2 — the correction named `perry-state --section attribution`,
+    #     which reads through `parsers.linkage_records_for_phase`. Measured on
+    #     this project: **143 standing declarations, 116 reported.**
+    #
+    # **TWO DOORS, and saying so is not pedantry — a test of mine passed for
+    # the wrong reason until I separated them.** The 27 declarations from
+    # phases 001 and 002 are dropped by the `unlinked` phase check
+    # (`viewer/parsers.py:4137`). The 116 from 003 go when another phase
+    # opens, and by whichever door comes first: while the new phase has no
+    # register the whole slice returns `None` outright (`:4143`, no `kr`
+    # record), and once it has one the phase check takes over. Either way the
+    # records are untouched on disk.
+    #
+    # `test_the_named_reader_is_phase_scoped` now builds phase 004 a register
+    # so it exercises the CHECK rather than the `None`. Before that it moved
+    # `phase/CURRENT` to an empty phase, and mutating the phase check left it
+    # GREEN — the guard against re-adding this claim did not guard it.
+    #
+    # So NEITHER reader reports a healthy standing declaration from a past
+    # phase, and there was no third. The user was offered widening the reader
+    # (B) and declined it — `declared_unlinked` stays phase-scoped, which is
+    # now a recorded property rather than a defect awaiting a fix.
+    #
+    # **What C costs, said plainly rather than papered over.** Round 1's
+    # reviewer called standing visibility the only non-neutral item in this
+    # argument. The friction is now irreversibility alone — one item instead
+    # of two — but it is TRUE, and a false friction is not friction. It is a
+    # sentence that reads as one until somebody measures it, which two
+    # reviewers now have.
+    #
+    # `TestTheRefusalMakesNoVisibilityClaim` holds the deletion AND the
+    # measurement behind it, so the claim cannot come back without the reader
+    # being widened first.
     #
     # **THE GATE KEYS OFF THE PHASE, NOT OFF THE FILE** (USER-928 answer A,
     # after round 2's FAIL-2). It used to fire on `linkage.jsonl` merely
@@ -3753,10 +3773,9 @@ def cmd_add(args, ctx) -> dict:
             f"`reference/okr-linkage.md` forbids. `--unlinked` is the other "
             f"answer and says this row serves NO key result at all — it "
             f"writes a record that CANNOT BE WITHDRAWN by any `perry-task` "
-            f"command and that `perry-state --section attribution` counts "
-            f"under `declared_unlinked` for as long as it stands, so it is a "
-            f"declaration to mean, not a way to make this refusal go away on "
-            f"a row whose KR you have not looked up yet. Nothing was written")
+            f"command, so it is a declaration to mean, not a way to make this "
+            f"refusal go away on a row whose KR you have not looked up yet. "
+            f"Nothing was written")
     # Normalised ONCE, here, so the event, the journal's definition block and
     # `linkage_add_change`'s store record cannot disagree about the value.
     # `linkage_add_change` strips its copy; if this one were left unstripped

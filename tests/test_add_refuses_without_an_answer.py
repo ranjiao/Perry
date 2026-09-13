@@ -310,79 +310,108 @@ class TestTheContradictionIsUntouched(Base):
         self.assertIn("contradictory", proc.stderr)
 
 
-class TestTheStandingDeclarationHasAReader(Base):
-    """Round 1's FAIL-1, pinned so the sentence cannot re-break silently.
+class TestTheRefusalMakesNoVisibilityClaim(Base):
+    """`USER-928` answer C: the claim is gone, and the measurement stays.
 
-    The refusal tells a caller that reaching for `--unlinked` buys a permanent
-    record that stays VISIBLE. That is the only non-neutral friction in the
-    whole `§ What it must not do` item 1 argument: the two flags cost the same
-    one flag, and `P003-O3-KR2` counts both as answered, so if the declaration
-    were reported by nothing, `--unlinked` WOULD be the easy default and the
-    refusal would be pushing callers toward the lossy answer.
+    **The same sentence FAILed two V4 rounds.** It told a caller that reaching
+    for `--unlinked` buys a record that stays VISIBLE, which was the only
+    non-neutral item in `§ What it must not do` item 1's argument that the
+    refusal does not make `--unlinked` the easy default.
 
-    Round 1 measured the sentence and it was false as written. It named
-    `perry-lint`, and `perry-lint § linkage-unlinked-exists`
-    (`bin/perry-lint:1518`) files its `warn` only for a declared id that is
-    NOT a record in `tasks.jsonl` — a typo, or a purged row. A healthy
-    declaration hits that check's `continue` and is reported by nothing there.
+    * Round 1 charged it for naming `perry-lint`. `linkage-unlinked-exists`
+      warns ONLY on a declared id that is not a record in `tasks.jsonl` — a
+      typo, or a purged row. A healthy declaration hits its `continue`.
+    * Round 2 charged the correction, which named
+      `perry-state --section attribution`. That reader goes through
+      `parsers.linkage_records_for_phase` and keeps a record only while its
+      `phase` matches `phase/CURRENT`.
 
-    What the finding did NOT touch is the substance: `perry-state --section
-    attribution` reports `declared_unlinked` straight from the store, for as
-    long as the record stands. So the fix is the tool name, and these tests
-    hold the corrected claim to the same standard that caught the first one —
-    they DRIVE both readers rather than reading the sentence.
+    The user was offered widening the reader (B) and chose to delete the claim
+    (C). So `declared_unlinked` stays phase-scoped, and that is now a recorded
+    property rather than a defect awaiting a fix.
 
-    The anti-vacuity control is `test_a_linked_row_is_not_declared`: the same
-    fixture, the same command, one flag different, and the count does not
-    move. Without it a green here would also be green against a build that
-    declared every row.
+    **These tests hold the deletion AND the reason**, which is the part that
+    matters: `test_the_named_reader_is_phase_scoped` is what stops the claim
+    being re-added in good faith by someone who checks it on a fresh board and
+    sees it work. It fails the day the reader is widened, and that failure is
+    the signal that C can be revisited.
     """
 
-    def test_the_message_no_longer_names_perry_lint(self):
-        """The exact false clause, as a string, so it cannot come back."""
+    def test_the_message_claims_no_standing_visibility(self):
         d = self.project()
         proc = self.add(d, "a row with no answer")
         self.assertNotEqual(proc.returncode, 0, proc.stdout)
-        self.assertNotIn("perry-lint", proc.stderr)
+        for gone in ("perry-lint", "perry-state", "declared_unlinked",
+                     "as long as it stands"):
+            self.assertNotIn(gone, proc.stderr,
+                             f"the visibility claim is back, via {gone!r}. "
+                             f"Two V4 rounds measured it false; re-adding it "
+                             f"needs the reader widened first (USER-928 B)")
 
-    def test_the_message_names_the_reader_that_does_report_it(self):
+    def test_the_friction_it_keeps_is_the_true_one(self):
+        """C leaves one item, and it must actually be stated."""
         d = self.project()
         proc = self.add(d, "a row with no answer")
-        self.assertIn("perry-state --section attribution", proc.stderr)
-        self.assertIn("declared_unlinked", proc.stderr)
+        self.assertIn("CANNOT BE WITHDRAWN", proc.stderr)
 
-    def test_the_named_reader_actually_reports_the_declaration(self):
-        """The claim, driven. This is the test that would have caught it."""
+    def test_the_named_reader_is_phase_scoped(self):
+        """**Why the claim is gone, as a measurement rather than a memory.**
+
+        A declaration written under the current phase is reported; the same
+        record, on disk and unchanged, reports nowhere once a DIFFERENT phase
+        is current and has a register of its own. This is the test that
+        refuses to let the sentence come back.
+
+        **The first draft of this test passed for the wrong reason.** It moved
+        `phase/CURRENT` to a phase with no records at all, and
+        `linkage_records_for_phase` returns `None` outright when its slice
+        holds no `kr` record — so the declaration vanished through a
+        different door and mutating the phase filter left the test GREEN.
+        That green is what found this. Phase 004 now gets a register, so the
+        slice is real and the only thing that can drop the record is the
+        `unlinked` phase check the class docstring names.
+        """
         d = self.project()
-        before = self.attribution(d)["declared_unlinked"] or []
-        proc = self.add(d, "a row serving no KR", None, "--unlinked")
-        tid = self.new_id(proc)
-        after = self.attribution(d)["declared_unlinked"] or []
-        self.assertIn(tid, after,
-                      "the refusal promises `perry-state --section "
-                      "attribution` reports a standing declaration, and it "
-                      "does not name the row that just declared")
-        self.assertEqual(len(after), len(before) + 1)
+        tid = self.new_id(self.add(d, "a row serving no KR", None,
+                                   "--unlinked"))
+        self.assertIn(tid, self.attribution(d)["declared_unlinked"] or [],
+                      "the declaration is not reported even under its own "
+                      "phase — the reader changed shape and every claim in "
+                      "this class needs re-deriving")
 
-    def test_a_linked_row_is_not_declared(self):
-        """Anti-vacuity: one flag different, and the count must not move."""
-        d = self.project()
-        before = self.attribution(d)["declared_unlinked"] or []
-        proc = self.add(d, "a row with a KR", self.STORE_KR)
-        tid = self.new_id(proc)
-        after = self.attribution(d)["declared_unlinked"] or []
-        self.assertNotIn(tid, after)
-        self.assertEqual(len(after), len(before))
+        lines = (d / "linkage.jsonl").read_text().rstrip("\n").split("\n")
+        lines += [json.dumps({"kind": "objective", "phase": "004-next",
+                              "id": "O1", "title": "an objective"}),
+                  json.dumps({"kind": "kr", "phase": "004-next",
+                              "objective": "O1", "id": "P004-O1-KR1",
+                              "title": "a key result", "target": 1,
+                              "current": 0, "stretch": False})]
+        (d / "linkage.jsonl").write_text("\n".join(lines) + "\n")
+        (d / "phase" / "CURRENT").write_text("004-next\n")
 
-    def test_the_lane_page_names_the_same_reader_as_the_refusal(self):
+        self.assertIsNotNone(
+            self.attribution(d)["declared_unlinked"],
+            "phase 004's slice came back empty, so this test is measuring "
+            "the no-register path again rather than the phase filter")
+        self.assertNotIn(tid, self.attribution(d)["declared_unlinked"] or [],
+                         "the reader is no longer phase-scoped. If that is "
+                         "deliberate — USER-928 option B — the refusal MAY "
+                         "claim standing visibility again, and this class is "
+                         "the thing to revisit")
+
+        record = [r for r in self.records(d)
+                  if r.get("kind") == "unlinked" and r.get("task") == tid]
+        self.assertEqual(1, len(record),
+                         "the record did not survive the phase change on "
+                         "disk, so the invisibility is not a reader scope")
+
+    def test_the_lane_page_makes_no_visibility_claim_either(self):
         """The category, not the next instance (review.md § 2 rule 1).
 
-        Round 1 found the false clause in TWO product surfaces: the refusal a
-        caller reads, and `work/reference/subcommands.md § add-task`, which is
-        the page an agent reads IN ORDER TO open a row. Fixing only the first
-        leaves the scripted instruction saying the false thing, which is the
-        defect shape this project keeps re-finding — one rule with several
-        enforcement points, corrected at one of them.
+        Round 1 found the claim in two product surfaces: the refusal, and the
+        `add-task` bullet in `work/reference/subcommands.md`, which is the
+        page an agent reads IN ORDER to open a row. Deleting it from one is
+        how a rule with several enforcement points stays half-true.
         """
         page = (PERRY_HOME / "work" / "reference" / "subcommands.md").read_text()
         bullet = [ln for ln in page.split("\n")
@@ -390,16 +419,8 @@ class TestTheStandingDeclarationHasAReader(Base):
         self.assertEqual(len(bullet), 1,
                          "the add-task KR bullet moved; re-anchor this test "
                          "rather than deleting it")
-        self.assertIn("declared_unlinked", bullet[0])
-        self.assertIn("perry-state --section attribution", bullet[0])
-
-    def test_the_declaration_stands_across_a_second_read(self):
-        """`for as long as it stands` — not a one-shot line on the add run."""
-        d = self.project()
-        tid = self.new_id(self.add(d, "a row serving no KR", None,
-                                   "--unlinked"))
-        self.assertIn(tid, self.attribution(d)["declared_unlinked"] or [])
-        self.assertIn(tid, self.attribution(d)["declared_unlinked"] or [])
+        self.assertIn("cannot be withdrawn", bullet[0].lower())
+        self.assertNotIn("for as long as it stands", bullet[0])
 
 
 class TestTheRefusalIsDeliberatelyTrackIndependent(Base):
