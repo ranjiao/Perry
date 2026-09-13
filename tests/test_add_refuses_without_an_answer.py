@@ -454,5 +454,101 @@ class TestTheRefusalIsDeliberatelyTrackIndependent(Base):
                          "changed and the scope decision needs re-taking")
 
 
+class TestTheGateKeysOffThePhaseNotTheFile(Base):
+    """USER-928 answer A, closing round 2's FAIL-2.
+
+    **The gate used to demand an answer the register could not supply.** It
+    fired on `linkage.jsonl` merely EXISTING, while `--unlinked` needs more
+    than that: `linkage_add_change` refuses a declaration when the store
+    declares no key result for the current phase, because such a record has no
+    phase to be made against.
+
+    In that window — `phase/CURRENT` cleared, which
+    `goals/reference/phases.md § score-phase` step 7 PRESCRIBES until the next
+    `plan-phase` — the reviewer measured, and the PMO reproduced:
+
+        add (neither flag)      refused — "pass exactly one"
+        add --unlinked          REFUSED — "no key result for the current phase"
+        add --kr P004-O9-KR9    written, exit 0, empty stderr
+
+    The accepted one wrote an edge to a key result no record declares and
+    `perry-lint` said nothing about it. **The only way past a gate whose own
+    message says "resolve the id through `linkage.jsonl` rather than guessing
+    it" was the guess `reference/okr-linkage.md` forbids.** Before this row all
+    five such states filed with a warning, so the gate was strictly worse than
+    what it replaced.
+
+    The gate now asks `_current_store_phase` — the same predicate the writer
+    asks — so the two cannot disagree about whether the register can answer.
+
+    **What this does NOT fix, deliberately.** A fabricated `--kr` is still
+    accepted in the gap. That is id validation, not this gate, and A removes
+    the *forcing* rather than the acceptance: the caller is no longer pushed
+    into the guess. `test_a_fabricated_kr_is_still_accepted_in_the_gap` pins
+    that boundary rather than leaving a reader to assume it was closed.
+    """
+
+    def gap(self):
+        """A project whose store has no records for the current phase."""
+        d = self.project(store_edges={}, store_unlinked=[])
+        (d / "phase" / "CURRENT").write_text("")
+        return d
+
+    def test_the_gap_files_the_row_instead_of_refusing(self):
+        proc = self.add(self.gap(), "a row opened between phases")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_the_gap_still_warns(self):
+        proc = self.add(self.gap(), "a row opened between phases")
+        self.assertIn("warning", proc.stderr.lower())
+
+    def test_the_warning_does_not_claim_the_store_is_missing(self):
+        """The store is right there; saying otherwise is false about a file
+        the caller can see. Two ways to reach that line, two true sentences."""
+        proc = self.add(self.gap(), "a row opened between phases")
+        self.assertNotIn("this project has no", proc.stderr)
+        self.assertIn("no key result for the current phase", proc.stderr)
+
+    def test_a_store_less_project_still_says_the_store_is_missing(self):
+        """The control for the sentence above: the other branch is untouched."""
+        proc = self.add(self.project(with_store=False), "a row, no register")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("this project has no", proc.stderr)
+
+    def test_the_honest_answer_is_not_refused_while_the_row_is_filed(self):
+        """**The asymmetry that made this a FAIL, asserted directly.**
+
+        A gate is only legitimate if at least one answer it names can be given.
+        In the gap `--unlinked` is refused by the writer, so the gate must not
+        be the thing that demands it.
+        """
+        d = self.gap()
+        declared = self.add(d, "an honest declaration", None, "--unlinked")
+        self.assertNotEqual(declared.returncode, 0,
+                            "the writer stopped refusing a declaration with "
+                            "no phase — if that changed, this whole gap and "
+                            "the gate's stand-down need re-deriving")
+        self.assertEqual(self.add(d, "a row").returncode, 0,
+                         "the writer refuses the honest answer AND the gate "
+                         "still demands one — that is the FAIL, restored")
+
+    def test_a_fabricated_kr_is_still_accepted_in_the_gap(self):
+        """The bound. A removes the FORCING, not the acceptance.
+
+        Written as a test so the limit is a measured fact rather than a
+        sentence in a result document nobody re-runs. If id validation lands
+        later this goes red, and that is the correct signal.
+        """
+        proc = self.add(self.gap(), "a row naming a KR nobody declares",
+                        "P004-O9-KR9")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_the_gate_still_refuses_where_the_register_answers(self):
+        """Anti-vacuity: the same command, a register with records, refused."""
+        proc = self.add(self.project(), "a row with no answer")
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("neither --kr nor --unlinked", proc.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

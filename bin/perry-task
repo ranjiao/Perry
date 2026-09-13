@@ -3713,8 +3713,35 @@ def cmd_add(args, ctx) -> dict:
     # mentioning `unlinked` for either. `TestTheStandingDeclarationHasAReader`
     # pins both halves, so the next edit to this sentence cannot re-break it
     # silently.
+    #
+    # **THE GATE KEYS OFF THE PHASE, NOT OFF THE FILE** (USER-928 answer A,
+    # after round 2's FAIL-2). It used to fire on `linkage.jsonl` merely
+    # EXISTING, and `--unlinked` needs more than that: `linkage_add_change`
+    # refuses a declaration when the store declares no key result for the
+    # current phase, because such a record has no phase to be made against.
+    #
+    # So in the window where the store exists and the current phase has no
+    # records, the gate demanded an answer that the register could not supply
+    # and the writer would refuse. Measured on `fc6df1d6` with `phase/CURRENT`
+    # cleared — the state `goals/reference/phases.md § score-phase` step 7
+    # PRESCRIBES, "until the next `plan-phase`":
+    #
+    #     add (neither flag)      refused — "pass exactly one"
+    #     add --unlinked          REFUSED — "no key result for the current phase"
+    #     add --kr P004-O9-KR9    written, exit 0, empty stderr
+    #
+    # The accepted one wrote an edge to a key result no record declares and
+    # `perry-lint` said nothing. So the only way past a gate whose own message
+    # says *"resolve the id through `linkage.jsonl` rather than guessing it"*
+    # was the guess `reference/okr-linkage.md` forbids. A gate that can only be
+    # satisfied by the thing it forbids is worse than the warning it replaced,
+    # which is what all five such states did before this row.
+    #
+    # `_current_store_phase` is the SAME predicate the writer uses, read from
+    # the store's own `kr` records. One question, asked once, so the gate and
+    # the writer cannot disagree about whether the register can answer.
     if (args.kr is None and not getattr(args, "unlinked", False)
-            and (ctx["state_root"] / P.LINKAGE_STORE).exists()):
+            and _current_store_phase(ctx["state_root"])):
         raise Refused(
             f"neither --kr nor --unlinked was passed. This project has a "
             f"`{P.LINKAGE_STORE}`, so the KR question has an answer and `add` "
@@ -3934,15 +3961,29 @@ def cmd_add(args, ctx) -> dict:
     # thing that creates a register: plan the phase.
     if not args.kr and not args.unlinked:
         _r = lib.root_flag(ctx["project_root"])
+        # **Two ways to reach this line, and they are not the same project.**
+        # Before USER-928's answer A there was one — no store at all — and the
+        # message said so. A now also lets through a project whose store EXISTS
+        # but declares no key result for the current phase, which is the
+        # between-phases window `phases.md § score-phase` step 7 prescribes.
+        # Telling that caller "this project has no linkage.jsonl" would be
+        # false about a file they can see, so the two cases say what is
+        # actually true of each.
+        why = ("this project has no `" + P.LINKAGE_STORE + "`, so there is "
+               "no key result to name and nowhere to record a declaration"
+               if not (ctx["state_root"] / P.LINKAGE_STORE).exists() else
+               "`" + P.LINKAGE_STORE + "` declares no key result for the "
+               "current phase, so there is nothing to name and an `unlinked` "
+               "declaration would have no phase to be made against — the "
+               "window `goals/reference/phases.md § score-phase` step 7 "
+               "opens, until the next `plan-phase`")
         print(f"perry-task: warning — {tid} was created without `--kr`, and "
-              f"this project has no `{P.LINKAGE_STORE}`, so there is no key "
-              f"result to name and nowhere to record a declaration. The row "
-              f"reads as never-asked. `/perry goals plan-phase` writes the "
-              f"register when a phase opens; after that, `perry-goals link "
-              f"{tid} <KR-ID>{_r}` attributes this row and `perry-goals link "
-              f"--unlinked {tid}{_r}` declares that it serves none. From "
-              f"then on, `add` requires one of those two answers at "
-              f"creation.",
+              f"{why}. The row reads as never-asked. `/perry goals "
+              f"plan-phase` writes the register when a phase opens; after "
+              f"that, `perry-goals link {tid} <KR-ID>{_r}` attributes this "
+              f"row and `perry-goals link --unlinked {tid}{_r}` declares that "
+              f"it serves none. From then on, `add` requires one of those two "
+              f"answers at creation.",
               file=sys.stderr)
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run, definition=definition,
