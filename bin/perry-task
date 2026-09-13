@@ -7919,7 +7919,7 @@ def perry_state():
 #: project which Perry has never been pointed at. `perry-decide` removed its
 #: own gate first, for a different reason, and named the hole rather than
 #: faking it; this is the same move with the measurement attached.
-READ_ONLY_COMMANDS = {"list", "events", "signoff-offer"}
+READ_ONLY_COMMANDS = {"list", "events", "asks", "signoff-offer"}
 TASK_ROW_COMMANDS = {"start", "stage", "track", "done", "drop", "purge",
                      "status", "depends", "next", "retitle", "summary",
                      "rung", "evidence", "prioritize"}
@@ -8139,6 +8139,89 @@ SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
                             "cadence-add", "cadence-done",
                             "risk-add", "risk-clear", "risk-migrate"})
 
+#: The contract `perry-task asks --json` publishes. See
+#: `schema/asks-list-contract.md`.
+ASKS_CONTRACT = "perry-asks/list/1.0"
+
+#: An id inside the free-text `Blocks` cell — matched, not validated.
+#:
+#: **Two id families, composed, KR forms first.** `perry-lint § check_reviews`
+#: reads this cell with `\b[A-Z]+-\d+\b`, which is right for what it needs
+#: (task rows) and cannot see a key result: `P003-O2-KR3` has digits in its
+#: first segment and no hyphen before `KR3`. An ask blocks key results too —
+#: `USER-929` blocks `P003-O2-KR3` — and a reverse lookup that dropped them
+#: would answer "nothing waits on this ask" about the KR it was filed for.
+#: Measured: the first version of this pattern returned `["TASK-100"]` for
+#: `TASK-100, P003-O2-KR3`, and `test_blocks_ids_are_the_ids_in_the_cell`
+#: caught it. The KR shapes are the phase form `_KR_OBJECTIVE_RE` matches and
+#: the overall form `_RE_KR_ID`'s first branch matches; alternation order is
+#: what stops `P003-O2-KR3` being read as nothing.
+_BLOCKS_ID = re.compile(r"\b(?:P\d{3}-O\d+-KR\d+|O\d+-KR\d+|[A-Z]+-\d+)\b")
+
+
+def cmd_asks(args, ctx) -> dict:
+    """`perry-task asks` — the User Input Queue as a query, answered asks included.
+
+    **Asked for by aiMark, and shaped by the refusal that came before it.**
+    `list --json § asks.items` is the *needs-you* list and leaves answered asks
+    out by design: its contract row says "the unanswered asks", `open` is
+    pinned to `len(items)`, and a dashboard once said "2 items waiting on you"
+    about two questions answered that day. Widening it would break a documented
+    identity every consumer of `list` reads. An answered ask and its answer
+    were therefore in NO published payload — the only route was reading
+    `asks.jsonl` and parsing the answer out of `status` by hand.
+
+    So this is a second surface, the move `events` made one register over, and
+    it cannot disagree with `list` about which asks are open: the default
+    population is built from the same snapshot, filtered by the same
+    `parsers.ask_is_answered`, carrying the same eight keys. `--all` adds the
+    answered asks; every entry gains `answered`, `answered_on`, `answer` and
+    `blocks_ids`.
+    """
+    ps = perry_state()
+    try:
+        snap = P.load_snapshot(ctx["state_root"])
+    except Exception as e:  # noqa: BLE001 — reported, not swallowed
+        # `list` returns empty sections when this fails, because the sections
+        # are an addition to `tasks[]`. Here they are the whole answer, and an
+        # empty list would say "nothing was ever asked" about a register that
+        # could not be read.
+        raise Refused(f"the User Input Queue could not be read ({e}). Nothing "
+                      f"is reported rather than an empty list, which would say "
+                      f"nothing was ever asked. `perry-lint"
+                      f"{lib.root_flag(ctx['project_root'])}` says why") from None
+    rows = []
+    for u in snap.board.user_input_queue:
+        status = u.status or ""
+        on, text = P.ask_answer(status)
+        blocks = u.blocks or ""
+        rows.append({
+            "id": u.id or "",
+            "needed": u.needed_from_user or "",
+            "blocks": blocks,
+            "blocks_ids": _BLOCKS_ID.findall(blocks),
+            "asked": getattr(u, "asked", "") or "",
+            "idle": u.idle or "",
+            "idle_days": (lambda d: d if d >= 0 else None)(ps.idle_days(u)),
+            "status": status,
+            "priority": u.priority or "",
+            "answered": P.ask_is_answered(status),
+            "answered_on": on,
+            "answer": text,
+        })
+    shown = rows if args.all else [r for r in rows if not r["answered"]]
+    return {
+        "contract": ASKS_CONTRACT,
+        "semantics": [],
+        "project_root": ctx["project_root"].as_posix(),
+        "all": bool(args.all),
+        "asks": shown,
+        "count": len(shown),
+        "open": sum(1 for r in rows if not r["answered"]),
+        "answered": sum(1 for r in rows if r["answered"]),
+    }
+
+
 def cmd_events(args, ctx) -> dict:
     """`perry-task events` — the event log's TAIL, in log order.
 
@@ -8290,7 +8373,7 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "depends": cmd_depends,
             "design-link": cmd_design_link,
-            "list": cmd_list, "events": cmd_events,
+            "list": cmd_list, "events": cmd_events, "asks": cmd_asks,
             "signoff-offer": cmd_signoff_offer}
 
 
@@ -8415,7 +8498,7 @@ SURFACE = {
          "takes_id": False,
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "done", "summary":
-         "close a row: evidence required, rung recorded, row leaves the board",
+         "close a row: evidence required, rung recorded",
          "flags": ["--actor", "--also", "--checked", "--dry-run", "--evidence", "--json", "--measured", "--not-looked-at", "--restated", "--rung", "--signed-on", "--signer"],
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "drop", "summary":
@@ -8477,13 +8560,18 @@ SURFACE = {
          "flags": ["--actor", "--clear", "--design", "--dry-run"],
          "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
         {"name": "list", "summary":
-         "the read contract: every open row, bounded at 200 by default",
+         "every open row, bounded at 200",
          "flags": ["--all", "--limit", "--track"],
          "takes_id": False,
          "writes": []},
         {"name": "events", "summary":
          "one page of the event log, newest first",
          "flags": ["--limit", "--since"],
+         "takes_id": False,
+         "writes": []},
+        {"name": "asks", "summary":
+         "open asks; --all adds answered ones and answers",
+         "flags": ["--all"],
          "takes_id": False,
          "writes": []},
         {"name": "signoff-offer", "summary":
@@ -8703,6 +8791,16 @@ def main(argv: list[str]) -> int:
         print(f"\n  {result['count']} of {result['total']} event(s)"
               + (f" · more: --since {result['cursor']}" if result["more"]
                  else " · caught up"))
+    elif args.cmd == "asks":
+        for r in result["asks"]:
+            mark = "·" if r["answered"] else " "
+            when = r["answered_on"] or ("answered" if r["answered"] else
+                                        (f"{r['idle_days']}d" if r["idle_days"]
+                                         is not None else ""))
+            text = r["answer"] if r["answered"] else r["needed"]
+            print(f" {mark}{r['id']:10} {when:11} {text[:56]}")
+        print(f"\n  {result['open']} open · {result['answered']} answered"
+              + ("" if result["all"] else " · --all shows the answered ones"))
     elif args.cmd == "list":
         displayed = (result["tasks"] if args.all else
                      [r for r in result["tasks"] if r["open"]])

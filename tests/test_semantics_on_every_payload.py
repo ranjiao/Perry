@@ -49,9 +49,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: `perry-roles/list` is a subtree of `perry-state --json`, which is exactly
 #: how it was missed when this row was measured.
 #:
-#: Six, and a hand-kept tuple of six is the shape of list this project keeps
-#: finding rotted, so `TestTheListIsEveryContractOnDisk` counts it against the
-#: glob that discovers a contract page rather than trusting it.
+#: Seven, and a hand-kept tuple is the shape of list this project keeps finding
+#: rotted, so `TestTheListIsEveryContractOnDisk` counts it against the glob
+#: that discovers a contract page rather than trusting it. It did its job on
+#: 2026-09-13: `perry-asks/list` shipped a page and this tuple still said six.
 PAYLOADS = (
     ("perry-task/list", ("perry-task", "list", "--all"), ""),
     ("perry-events/list", ("perry-task", "events"), ""),
@@ -59,12 +60,14 @@ PAYLOADS = (
     ("perry-decide/list", ("perry-decide", "list"), ""),
     ("perry-knowledge/list", ("perry-knowledge", "list"), ""),
     ("perry-roles/list", ("perry-state", "--section", "roles"), "roles"),
+    ("perry-asks/list", ("perry-task", "asks", "--all"), ""),
 )
 
 #: The three that carry `[]` today. Named so the assertions about them can be
 #: about presence, and so a payload that later earns an entry is a deliberate
 #: edit here rather than a test quietly passing on new content.
-EMPTY_TODAY = ("perry-decide/list", "perry-knowledge/list", "perry-roles/list")
+EMPTY_TODAY = ("perry-decide/list", "perry-knowledge/list", "perry-roles/list",
+               "perry-asks/list")
 
 
 def payload(argv: tuple[str, ...], root: pathlib.Path, subtree: str) -> dict:

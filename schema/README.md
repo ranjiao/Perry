@@ -74,7 +74,7 @@ bin/perry-lint --root . --json --strict
 the standup payload; the linter answers "is this file well-formed?", the
 extractor answers "what does it say?".
 
-## The six read contracts
+## The seven read contracts
 
 A program outside Perry reads state through these, not through this schema and
 not by parsing markdown. Each is versioned **independently** (DESIGN-005 § 4
@@ -96,6 +96,7 @@ page states it on its own first line. A test pins this table to carry neither.
 | `perry-goals/list` | `perry-goals list --json` | `schema/goals-list-contract.md` | objectives, KRs (flat), phase, linkage |
 | `perry-roles/list` | `perry-state --json § roles` | `schema/roles-list-contract.md` | the declared roles and what each is allowed to do |
 | `perry-events/list` | `perry-task events --json` | `schema/events-list-contract.md` | the append-only event log behind the board |
+| `perry-asks/list` | `perry-task asks --all --json` | `schema/asks-list-contract.md` | every ask, and for an answered one the date and the answer |
 | `perry-knowledge/list` | `perry-knowledge list --json` | `schema/knowledge-list-contract.md` | knowledge cards, their provenance, and staleness |
 
 ### How a reader finds one — the glob, not this table

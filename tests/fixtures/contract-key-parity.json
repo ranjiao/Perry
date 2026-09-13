@@ -1,6 +1,22 @@
 {
-  "contract_files_discovered": 6,
+  "contract_files_discovered": 7,
   "contracts": {
+    "perry-asks/list/1.0": {
+      "collections_the_witness_filled": [],
+      "command": "perry-task asks --all --json",
+      "contract": "perry-asks/list/1.0",
+      "documented": 20,
+      "documented_not_emitted": [],
+      "emitted": 20,
+      "emitted_not_documented": [],
+      "file": "schema/asks-list-contract.md",
+      "named_no_such_collection": [],
+      "not_observable": {},
+      "observed_in_witness": {},
+      "unassigned": [],
+      "unparsed_sketches": [],
+      "witness": "tests/fixtures/witness-project"
+    },
     "perry-decide/list/2.0": {
       "collections_the_witness_filled": [
         "expired_sunsets"

@@ -2206,6 +2206,45 @@ def ask_is_answered(status_cell: str) -> bool:
             and not s.startswith(_ASK_STILL_OPEN))
 
 
+_ASK_ANSWER = re.compile(r"^answered\s+(\d{4}-\d{2}-\d{2}):\s?(.*)$",
+                         re.IGNORECASE | re.DOTALL)
+
+
+def ask_answer(status_cell: str) -> tuple[str, str]:
+    """`(answered_on, answer)` out of a `Status` cell, or `("", "")`.
+
+    **The cell is normalised exactly as `ask_is_answered` normalises it** —
+    `.strip().strip("*` ")` — and that is why this lives beside it rather than
+    in `perry-task`. Perry's own board carries `**answered 2026-08-16: 30
+    days**`: bold on both ends, which the predicate reads as answered, and a
+    second spelling of the strip would have read as answered with no answer.
+
+    **Populated only for the form `perry-task answer` writes**, `answered
+    YYYY-MM-DD: <text>`. `ask_is_answered` is wider on purpose — `dropped …`
+    and `withdrawn …` close an ask too — and for those this returns `("", "")`
+    rather than guessing which words are the answer. The cell itself is the
+    record of how such an ask closed.
+
+    **Whenever this returns a date, `ask_is_answered` is `True` for the same
+    cell** — a cell that matches `answered YYYY-MM-DD:` after the strip is
+    non-blank and begins with none of the open prefixes. That is an invariant
+    of the two rules, not a check: a guard calling the predicate here was
+    written, mutated away with every test green, and removed, because a check
+    that cannot change the result reads as protection it does not give.
+
+    The text after the FIRST prefix is returned verbatim, case kept. A cell
+    written with the prefix twice (`answered D: answered D: …`, which happens
+    when the answer passed to `perry-task answer` already carried it) keeps
+    its second prefix in `answer`: that is what was stored, and stripping it
+    here would make the reader disagree with the file.
+    """
+    s = (status_cell or "").strip().strip("*` ")
+    m = _ASK_ANSWER.match(s)
+    if not m:
+        return ("", "")
+    return (m.group(1), m.group(2))
+
+
 def _parse_user_input(section: str) -> list[UserInput]:
     """Columns resolved by NAME — see `schema/README.md § Columns resolve by name`.
 

@@ -528,6 +528,11 @@ Usage:
                   from `list` because three of that payload's fields are
                   defined relative to the payload, so paging it would change
                   their meaning per page.
+  perry-task asks  [--all] [--json]
+                  the User Input Queue as a query. Default: the open asks,
+                  the same population and keys as `list`'s `asks.items`.
+                  --all adds the answered ones, each with `answered_on` and
+                  `answer`. Contract: schema/asks-list-contract.md.
 
   --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
   --dry-run       print what would be written; touch nothing

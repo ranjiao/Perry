@@ -516,13 +516,14 @@ class TestWhichSubcommandsWrite(unittest.TestCase):
 
     def test_the_two_derivations_agree_where_both_exist(self):
         """**Measured, not assumed.** `perry-task` declares a `SURFACE` and
-        also has a dispatch table, so both answers exist for all thirty of its
-        subcommands. Five disagree, and each of the five is one of two named
+        also has a dispatch table, so both answers exist for all thirty-one of
+        its subcommands (thirty until 2026-09-13, when `asks` was added as a
+        read-only query for aiMark: `writes: []` declared, nothing reached). Five disagree, and each of the five is one of two named
         shapes — so the approximation used for the UNDECLARED tools is a known
         quantity rather than a hope."""
         declared = declared_writes(BIN / "perry-task")
         reached = reached_writes(BIN / "perry-task")
-        self.assertEqual(len(declared), 30)
+        self.assertEqual(len(declared), 31)
         disagree = {k for k in declared if declared[k] != reached.get(k)}
         self.assertEqual(
             disagree,
