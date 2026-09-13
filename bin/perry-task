@@ -2779,6 +2779,24 @@ def linkage_add_change(state_root: Path,
     if declared_unlinked:
         phase = _current_store_phase(state_root)
         if not phase:
+            # **Two reasons reach here and they must not share a sentence**
+            # (USER-930 answer A, round 5's V4 ROW C). `_current_store_phase`
+            # returns `""` both when the register loads and declares nothing
+            # for the open phase AND when it does not load at all, because
+            # `parsers.load_linkage_store` answers `None` for either. Measured
+            # on an unparseable store still holding 6 key results for phase
+            # 003: `--unlinked` was told the store "declares no key result for
+            # the current phase" — false of that file, and the false-message
+            # class this row has FAILed on twice. `_register_state` already
+            # tells the two apart for the gate; the writer asks it too.
+            if _register_state(state_root)[0] == "unparseable":
+                raise Refused(
+                    f"`{P.LINKAGE_STORE}` exists and could not be read, so an "
+                    f"`unlinked` declaration cannot be placed against a phase. "
+                    f"This is NOT a register with nothing for the current phase "
+                    f"— it is one nobody can parse, and a truncated write and a "
+                    f"merge conflict both land here. Run `perry-lint`, which "
+                    f"says why. Nothing was written.")
             raise Refused(
                 f"`{P.LINKAGE_STORE}` declares no key result for the current "
                 f"phase, so an `unlinked` declaration has no phase to be made "

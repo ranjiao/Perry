@@ -528,6 +528,49 @@ class TestTheGateKeysOffThePhaseNotTheFile(Base):
         (d / "phase" / "CURRENT").write_text("004-next\n")
         return d
 
+    def between_phases(self):
+        """**The window itself — a BLANK `phase/CURRENT` — kept beside `gap()`.**
+
+        Round 5 made `gap()` point at `004-next` so the phase match would be
+        evaluated, and in doing so REPLACED this fixture instead of adding it.
+        The phase match gained a test and the between-phases window lost its
+        only one: the state `goals/reference/phases.md § score-phase` step 7
+        prescribes, and the one USER-928 answer A was built for. Round 5's V4
+        FAIL measured it: reading a blank pointer as phase 003 left every test
+        in this module green. Both shapes now exist, each with its own tests,
+        and `test_the_window_fixture_really_is_blank` stops the swap recurring.
+        """
+        d = self.project(store_edges={}, store_unlinked=[])
+        (d / "phase" / "CURRENT").write_text("")
+        return d
+
+    def test_the_window_fixture_really_is_blank(self):
+        d = self.between_phases()
+        self.assertEqual("", (d / "phase" / "CURRENT").read_text().strip(),
+                         "the between-phases fixture no longer writes a blank "
+                         "pointer, which is how round 5 lost this window")
+
+    def test_the_window_files_the_row_with_a_warning(self):
+        proc = self.add(self.between_phases(), "a row opened between phases")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("warning", proc.stderr.lower())
+
+    def test_in_the_window_the_honest_answer_is_refused_and_the_row_still_files(self):
+        """Round 2's FAIL-2, asserted on the window that produced it."""
+        d = self.between_phases()
+        self.assertNotEqual(
+            0, self.add(d, "an honest declaration", None, "--unlinked").returncode)
+        self.assertEqual(0, self.add(d, "a row").returncode,
+                         "in the window the gate demands an answer the writer "
+                         "refuses — round 2's FAIL-2, restored")
+
+    def test_a_blank_pointer_is_not_read_as_a_phase(self):
+        """The mutation round 5's verdict ran, as a test: were a blank
+        `CURRENT` read as phase 003, the fixture's 003 records would declare,
+        the gate would fire, and this would refuse."""
+        proc = self.add(self.between_phases(), "a row")
+        self.assertNotIn("neither --kr nor --unlinked", proc.stderr)
+
     def test_the_gap_files_the_row_instead_of_refusing(self):
         proc = self.add(self.gap(), "a row opened between phases")
         self.assertEqual(proc.returncode, 0, proc.stderr)
@@ -663,6 +706,24 @@ class TestAnUnreadableRegisterIsItsOwnAnswer(Base):
         before = self.rows_on_board(d)
         self.add(d, "a row with no answer")
         self.assertEqual(before, self.rows_on_board(d))
+
+    def test_unlinked_on_an_unreadable_register_says_it_could_not_be_read(self):
+        """Round 5's V4 ROW C, corrected under USER-930 answer A.
+
+        The writer used to answer `--unlinked` here with "declares no key
+        result for the current phase" — false of a file that still holds them.
+        """
+        proc = self.add(self.unparseable(), "a declaration", None, "--unlinked")
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("could not be read", proc.stderr)
+        self.assertNotIn("declares no key result for the current", proc.stderr)
+
+    def test_unlinked_between_phases_keeps_its_own_sentence(self):
+        """The control: the other reason still gets the other message."""
+        d = self.gap()
+        proc = self.add(d, "a declaration", None, "--unlinked")
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("declares no key result for the current", proc.stderr)
 
     def test_an_answered_row_still_files(self):
         """**Anti-vacuity, and the bound.** This refusal is about the KR
