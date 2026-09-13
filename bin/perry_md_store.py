@@ -470,6 +470,48 @@ def mint_objective_ids(records: list[dict], *,
             f"resolve to both. Give the heading its text in OKR.md and re-run "
             f"`perry-okr write --from-file{root_flag}` first")
 
+    # **Pass zero — two objectives with one title in ONE version stop the
+    # mint** (USER-929 answer C, part B). `by_title` is keyed on the title
+    # alone, deliberately: an objective restated in a later version keeps its
+    # id, and the title is what links the two. Inside a single version block
+    # that same key cannot tell two objectives apart, so both were minted ONE
+    # id — and the render then placed every key result naming it under both.
+    # Measured: a store of three key results rendered six, at exit 0, with
+    # `perry-okr verify`, `diff` and `perry-lint` all clean.
+    #
+    # This does not choose between them. What distinguishes two same-titled
+    # objectives inside a block — the heading, the order — is a design question
+    # with no answer on record, and minting on a guess would fasten key results
+    # to whichever objective the guess preferred. It stops, the same way the
+    # pass-one refusal below stops on two same-titled records carrying
+    # different ids.
+    #
+    # Every record reaching here HAS a title: the untitled guard above refuses
+    # any objective without one before this pass runs, so no blank title can be
+    # grouped. That ordering is what keeps "carry no title" the diagnosis for
+    # an untitled heading, and `test_the_untitled_guard_runs_before_pass_zero`
+    # pins it.
+    seen_in_version: dict[tuple[str, str], list[dict]] = {}
+    for rec in objectives:
+        seen_in_version.setdefault(
+            (rec.get("version", ""), rec.get("title", "")), []).append(rec)
+    collisions = {k: v for k, v in seen_in_version.items() if len(v) > 1}
+    if collisions:
+        said = "; ".join(
+            f"{title!r} in {version!r} ("
+            + ", ".join(repr(r.get("heading", "")) for r in recs) + ")"
+            for (version, title), recs in sorted(collisions.items()))
+        raise Refused(
+            f"{len(collisions)} title(s) are shared by more than one objective "
+            f"inside a single version block: {said}. This command links an "
+            f"objective to its restatement in a later version BY TITLE, so "
+            f"inside one block a shared title cannot say which objective an id "
+            f"belongs to, and minting would give both the same id — which the "
+            f"render then reads as one objective holding every key result "
+            f"twice. Give each a distinct title in OKR.md and re-run "
+            f"`perry-okr write --from-file{root_flag}` first. Nothing was "
+            f"written")
+
     # Pass one — what is already stated. A group's id comes from the store
     # before it comes from the counter, which is what makes a second run a
     # no-op rather than a renumbering.

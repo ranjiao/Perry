@@ -213,7 +213,19 @@ MENTIONS = {
 #: stayed green. That green is the reason the reader changed and the count
 #: moved together — a count held over a population the reader cannot see is
 #: the defect this number exists to prevent, spelled one level up.
-PASTEABLE_WRITER_PHRASES = 66
+#:
+#: **66 -> 68 on 2026-09-13 (TASK-236 round 5, USER-929 answer C), and both
+#: are new hand-backs this time, not the reader widening.**
+#:
+#:   * `bin/perry-goals § overall_kr_model` — the duplicate-objective-id
+#:     refusal names `perry-okr migrate-ids` as the likeliest source of such a
+#:     store. **It was first written WITHOUT the root, and this module caught
+#:     it on the suite run** — the guard doing on round 5 exactly what it was
+#:     repaired to do the same morning.
+#:   * `bin/perry_md_store.py § mint_objective_ids` — pass zero's refusal names
+#:     `perry-okr write --from-file`, rooted from the start, beside the
+#:     untitled guard's identical hand-back.
+PASTEABLE_WRITER_PHRASES = 68
 
 
 def _load(path: Path):

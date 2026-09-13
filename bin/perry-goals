@@ -2940,31 +2940,70 @@ def overall_kr_model(state_root, project_root, want_version: str | None):
     placed: set[int] = set()
     for version in wanted:
         objs = []
-        for obj in [o for o in objectives if o.get("version") == version]:
-            # **A BLANK KEY IS NOT A JOIN, IT IS A CROSS PRODUCT** — round 3's
-            # V4 FAIL-2. `objective_id == obj["id"]` with both `""` matches
-            # EVERY kr against EVERY objective. `DESIGN-009` step 1 has
-            # `derive` write both blank and step 3's `migrate-ids` fills them,
-            # so this is a store the documented adoption path really produces,
-            # and round 3 permitted it at the validator on exactly that
-            # ground — then handed the case to the residual below, which
-            # cannot hold it: nothing is stranded when everything matches.
-            #
-            # Measured on `88fea9fe` by blanking the field on all 38 kr
-            # records and the id on all 10 objectives, no other edit:
-            # `krs --level overall` printed **95 key result(s) for 20 distinct
-            # ids** at exit 0, with `perry-okr verify`, `perry-okr diff` and
-            # `perry-lint` all at 0. Round 2 lost one row; that invents 75.
-            #
-            # Requiring the key to be non-blank on BOTH sides makes such a
-            # record match no objective, which sends it to the residual and
-            # refuses — the loud failure the intermediate store deserves,
-            # and the same rule `cmd_krs` states for a half-read graph.
+        vobjs = [o for o in objectives if o.get("version") == version]
+        # **THE JOIN IS A LOOKUP, AND THE IDENTITY IS CHECKED BEFORE IT**
+        # (USER-929 answer C, part A). Four V4 rounds FAILed this join, each on
+        # a different bad VALUE: round 2 lost one row, round 3 invented 75 from
+        # blank keys, round 4 invented 3 from a DUPLICATE key. Each fix excluded
+        # one value from `objective_id == obj["id"]` and the next round found
+        # another, because nothing made that comparison an identity.
+        #
+        # So the objectives of a version are keyed by id FIRST, and a version
+        # in which two objectives share an id is refused before a single key
+        # result is placed. A dict cannot hold two objectives under one key,
+        # which is the point: once `by_id` exists, a key result belongs to at
+        # most one objective by construction rather than by a filter someone
+        # has to keep correct.
+        #
+        # **Blank ids are not keys, and that is deliberate rather than a gap.**
+        # An objective with no id can hold no key result, so every KR naming a
+        # blank or unknown `objective_id` is left unplaced and the residual
+        # below refuses NAMING EACH KR — which is what a reader with a
+        # half-migrated store (`DESIGN-009` step 1 writes both blank) needs to
+        # act on. Refusing here instead would name objectives, not the rows.
+        #
+        # Ids are compared stripped on both sides, so a padded id is the same
+        # id. Round 4's reviewer found either `.strip()` deletable with every
+        # test green; `TestTheJoinIsAnIdentity` pins both.
+        by_id: dict[str, dict] = {}
+        shared: dict[str, list] = {}
+        for o in vobjs:
+            oid = str(o.get("id") or "").strip()
+            if not oid:
+                continue
+            if oid in by_id:
+                shared.setdefault(oid, [by_id[oid]]).append(o)
+            else:
+                by_id[oid] = o
+        if shared:
+            said = "; ".join(
+                f"{oid} is carried by "
+                + ", ".join(repr(o.get("heading") or o.get("title") or "?")
+                            for o in group)
+                for oid, group in sorted(shared.items()))
+            raise Refused(
+                f"version {version!r} has {len(shared)} objective id(s) that "
+                f"more than one objective carries: {said}. A key result names "
+                f"its objective by that id, so it cannot be placed under one "
+                f"of them without guessing and would be printed under all of "
+                f"them — measured, three key results rendered as six. Nothing "
+                f"was printed. Give each objective its own id in the store. "
+                f"`perry-okr migrate-ids{lib.root_flag(project_root)}` used "
+                f"to mint one id for two "
+                f"same-titled objectives in a single version block and now "
+                f"refuses to; a store it wrote before that is the likeliest "
+                f"source")
+        rows_for: dict[str, list] = {oid: [] for oid in by_id}
+        for k in krs:
+            if k.get("version") != version:
+                continue
+            key = str(k.get("objective_id") or "").strip()
+            if key in rows_for:
+                rows_for[key].append(k)
+                placed.add(id(k))
+        for obj in vobjs:
             oid = str(obj.get("id") or "").strip()
-            rows = [k for k in krs
-                    if k.get("version") == version and oid
-                    and str(k.get("objective_id") or "").strip() == oid]
-            placed.update(id(k) for k in rows)
+            rows = rows_for.get(oid, []) if oid else []
             objs.append({
                 "id": obj.get("id", ""), "heading": obj.get("heading", ""),
                 "title": obj.get("title", ""),

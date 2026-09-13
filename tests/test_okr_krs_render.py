@@ -607,6 +607,109 @@ class TestABlankJoinKeyIsNotAWildcard(Fixture):
                                   f"assertion above ranged over nothing")
 
 
+class TestTheJoinIsAnIdentity(Fixture):
+    """**USER-929 answer C, part A — the join stops being a filter.**
+
+    Four V4 rounds FAILed `objective_id == obj["id"]`, each on a different bad
+    value: round 2 lost one row, round 3 invented 75 from blank keys, round 4
+    invented 3 from a DUPLICATE key. Every fix excluded one more value and the
+    next round found another, because nothing made the comparison an identity.
+
+    Now a version's objectives are keyed by id first, and a version where two
+    objectives share an id is refused before a single key result is placed.
+
+    The reproduction is round 4's, and `perry-okr migrate-ids` produced it
+    itself: two objectives with one title inside one version block were minted
+    ONE id, and a store of three key results rendered SIX rows at exit 0 with
+    `verify`, `diff` and `perry-lint` all clean.
+
+    Built from literals rather than from `STORE`, so a change to the shared
+    fixture cannot quietly give the rendered version only one objective and
+    make the collision impossible to express.
+    """
+
+    V1 = "v1: 2026-01-01"
+    V2 = "v2: 2026-02-01"
+
+    def store(self, objectives, krs, versions=(V1,)):
+        recs = [{"kind": "version", "version": v, "heading": f"## {v}"}
+                for v in versions]
+        for version, oid, heading in objectives:
+            recs.append({"kind": "objective", "version": version, "id": oid,
+                         "heading": heading, "title": heading})
+        for version, oid, kid in krs:
+            recs.append({"kind": "kr", "version": version, "objective_id": oid,
+                         "id": kid, "title": kid, "metric": "m", "target": "1",
+                         "current": "", "stretch": "no", "due": ""})
+        return self.project(store=recs)
+
+    def three_into_six(self):
+        """Round 4's reproduction, exactly."""
+        return self.store(
+            [(self.V1, "O-1", "### Objective A"),
+             (self.V1, "O-1", "### Objective B")],
+            [(self.V1, "O-1", "O1-KR1"), (self.V1, "O-1", "O1-KR2"),
+             (self.V1, "O-1", "O1-KR3")])
+
+    def refusal(self, root) -> str:
+        res = self.render(root)
+        self.assertNotEqual(res.returncode, 0, "the render did not refuse")
+        return json.loads(res.stdout)["refused"]
+
+    def placed(self, root, *extra) -> int:
+        payload = self.payload(root, *extra)
+        return sum(len(o["krs"]) for v in payload["versions"]
+                   for o in v["objectives"])
+
+    def test_two_objectives_sharing_an_id_are_refused(self):
+        res = self.render(self.three_into_six())
+        self.assertNotEqual(res.returncode, 0,
+                            "three key results under a shared id rendered at "
+                            "exit 0 — every one of them printed twice")
+
+    def test_the_refusal_names_the_id_and_both_objectives(self):
+        said = self.refusal(self.three_into_six())
+        for part in ("O-1", "Objective A", "Objective B"):
+            self.assertIn(part, said)
+
+    def test_nothing_is_printed_beside_the_refusal(self):
+        out = json.loads(self.render(self.three_into_six()).stdout)
+        self.assertEqual(["refused"], list(out))
+
+    def test_one_id_in_two_versions_is_not_a_collision(self):
+        """**Anti-vacuity, and the rule's boundary.** An id is stable ACROSS
+        versions by design — an objective restated in v2 keeps v1's id. A
+        check that refused this would refuse every correct multi-version
+        store, so the collision is per version and this is the proof."""
+        root = self.store(
+            [(self.V1, "O-1", "### Objective A"),
+             (self.V2, "O-1", "### Objective A")],
+            [(self.V1, "O-1", "O1-KR1"), (self.V2, "O-1", "O1-KR1")],
+            versions=(self.V1, self.V2))
+        self.assertEqual(2, self.placed(root, "--version", "all"))
+
+    def test_a_padded_id_on_the_objective_is_the_same_id(self):
+        """Pins the OBJECTIVE-side strip. Round 4's reviewer deleted it with
+        all 33 tests green."""
+        root = self.store([(self.V1, " O-1 ", "### Objective A")],
+                          [(self.V1, "O-1", "O1-KR1"), (self.V1, "O-1", "O1-KR2")])
+        self.assertEqual(2, self.placed(root))
+
+    def test_a_padded_id_on_the_key_result_is_the_same_id(self):
+        """Pins the KEY-RESULT-side strip, the other deletable one."""
+        root = self.store([(self.V1, "O-1", "### Objective A")],
+                          [(self.V1, " O-1 ", "O1-KR1"), (self.V1, "O-1\t", "O1-KR2")])
+        self.assertEqual(2, self.placed(root))
+
+    def test_two_padded_spellings_of_one_id_are_still_a_collision(self):
+        """Stripping must not let a duplicate hide behind whitespace."""
+        root = self.store(
+            [(self.V1, "O-1", "### Objective A"),
+             (self.V1, " O-1 ", "### Objective B")],
+            [(self.V1, "O-1", "O1-KR1")])
+        self.assertIn("O-1", self.refusal(root))
+
+
 class TestTheShippedOkr(unittest.TestCase):
     """The live repository — a PROPERTY, never a count.
 

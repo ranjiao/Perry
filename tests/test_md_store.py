@@ -1896,6 +1896,85 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
             (p.root / "perry" / "okr.jsonl").read_text(encoding="utf-8"),
             before, "the store was written despite the refusal")
 
+    def test_two_objectives_sharing_a_title_in_one_version_are_refused(self):
+        """**USER-929 answer C, part B.** The mint links an objective to its
+        restatement in a later version BY TITLE, so `by_title` carries no
+        version. Inside one block that key cannot tell two objectives apart and
+        both were minted ONE id — measured, round 4's V4 reproduction: a store
+        of three key results then rendered six rows at exit 0 with `verify`,
+        `diff` and `perry-lint` clean.
+
+        It refuses rather than choosing, because what distinguishes them — the
+        heading, the order — has no answer on record.
+        """
+        twins = [
+            {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+             "title": "Ship it", "heading": "Objective A", "order": 0},
+            {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+             "title": "Ship it", "heading": "Objective B", "order": 1},
+        ]
+        with self.assertRaises(M.Refused) as caught:
+            M.mint_objective_ids(twins)
+        said = str(caught.exception)
+        for part in ("Ship it", "Objective A", "Objective B"):
+            self.assertIn(part, said)
+
+    def test_a_stated_id_does_not_let_a_same_titled_twin_borrow_it(self):
+        """The collision without a mint: one record already carries `O-1` and
+        its same-titled twin in the SAME version has none. Pass two would have
+        handed the twin `O-1` through `reused`, silently."""
+        half = [
+            {"kind": "objective", "id": "O-1", "version": "v1: 2026-01-01",
+             "title": "Ship it", "heading": "Objective A", "order": 0},
+            {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+             "title": "Ship it", "heading": "Objective B", "order": 1},
+        ]
+        with self.assertRaises(M.Refused):
+            M.mint_objective_ids(half)
+
+    def test_one_title_in_two_versions_still_shares_its_id(self):
+        """**Anti-vacuity, and the reason `by_title` has no version.** An
+        objective restated in v2 must keep v1's id; refusing this would refuse
+        every correct multi-version store."""
+        restated = [
+            {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+             "title": "Ship it", "heading": "Objective A", "order": 0},
+            {"kind": "objective", "id": "", "version": "v2: 2026-02-01",
+             "title": "Ship it", "heading": "Objective A", "order": 1},
+        ]
+        out, _report = M.mint_objective_ids(restated)
+        ids = {r["version"]: r["id"] for r in out if r.get("kind") == "objective"}
+        self.assertEqual(ids["v1: 2026-01-01"], ids["v2: 2026-02-01"])
+        self.assertTrue(ids["v1: 2026-01-01"])
+
+    def test_the_untitled_guard_runs_before_pass_zero(self):
+        """Two untitled headings get "carry no title", not "shared a title".
+
+        **This test replaced one that passed for the wrong reason.** Its first
+        version asserted pass zero did not fire on untitled records and was
+        backed by a skip inside pass zero. Mutating that skip away left the
+        module GREEN — because the untitled guard ABOVE pass zero refuses any
+        objective without a title first, so the skip was unreachable and the
+        test was pinning the guard, not the skip. The skip and the comment
+        claiming it had been measured were both removed.
+
+        What actually protects the diagnosis is ORDERING, so that is what this
+        pins: move pass zero above the untitled guard and two untitled
+        headings would group under `""` and be told they share a title they do
+        not have.
+        """
+        untitled = [
+            {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+             "title": "", "heading": "Objective 1", "order": 0},
+            {"kind": "objective", "id": "", "version": "v1: 2026-01-01",
+             "title": "", "heading": "Objective 2", "order": 1},
+        ]
+        with self.assertRaises(M.Refused) as caught:
+            M.mint_objective_ids(untitled)
+        said = str(caught.exception)
+        self.assertIn("carry no title", said)
+        self.assertNotIn("shared by more than one objective", said)
+
     def test_two_untitled_headings_are_refused_rather_than_merged(self):
         """A heading that is only its ordinal has nothing to be grouped BY.
 
