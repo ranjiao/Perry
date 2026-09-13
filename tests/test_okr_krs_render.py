@@ -467,6 +467,146 @@ class TestAKrThatBelongsToNoObjectiveIsRefused(Fixture):
         self.assertTrue(flatten(payload))
 
 
+class TestABlankJoinKeyIsNotAWildcard(Fixture):
+    """**TASK-236's V4 FAIL, round 3 — and it is the opposite defect.**
+
+    Round 3 required a non-blank `version` in the validator and deliberately
+    PERMITTED a blank `objective_id`, because `DESIGN-009` step 1 has `derive`
+    write it blank and step 3's `migrate-ids` is the only thing that fills it.
+    Requiring it would condemn every store between those two steps — measured,
+    21 tests red.
+
+    It then assigned that case to the residual, **which cannot hold it.** The
+    join is `objective_id == obj["id"]`; when both sides are `""` every key
+    result matches every objective, so nothing is left over for a residual to
+    strand.
+
+    Measured on `88fea9fe` by blanking the field on all 38 `kr` records and the
+    `id` on all 10 objectives, via the documented adoption path and with no
+    other edit: `krs --level overall` printed **95 key result(s) for 20
+    distinct ids** at exit 0, with `perry-okr verify`, `perry-okr diff` and
+    `perry-lint` all at 0.
+
+    **Round 2 lost one row; round 3 invented seventy-five.** The direction
+    changed and the class of defect did not: a count printed as fact over a
+    table that is not the store.
+
+    A blank key now matches no objective rather than all of them, which sends
+    those records to the residual and refuses — the loud failure a half-
+    migrated store deserves, and the same rule `cmd_krs` states for a half-read
+    graph.
+    """
+
+    def blanked(self):
+        """The `DESIGN-009` step-1 shape: ids written, not yet filled."""
+        store = []
+        for r in json.loads(json.dumps(STORE)):
+            if r.get("kind") == "kr":
+                r["objective_id"] = ""
+            elif r.get("kind") == "objective":
+                r["id"] = ""
+            store.append(r)
+        return self.project(store=store)
+
+    def refusal(self, root) -> str:
+        """The refusal text. With `--json` it lands on STDOUT, not stderr.
+
+        Written as a seam because reading `res.stderr` here returns `""` and
+        every assertion over it would pass for free — the vacuity this module
+        already had to re-earn once.
+        """
+        res = self.render(root)
+        self.assertNotEqual(res.returncode, 0, "the render did not refuse")
+        return json.loads(res.stdout)["refused"]
+
+    def test_it_refuses_rather_than_rendering_the_cross_product(self):
+        res = self.render(self.blanked())
+        self.assertNotEqual(res.returncode, 0,
+                            "a store whose join keys are all blank rendered "
+                            "at exit 0 — every kr under every objective")
+
+    def test_the_refusal_names_every_unplaced_record(self):
+        """Scoped to the version actually rendered, which is the last one."""
+        said = self.refusal(self.blanked())
+        rendered = self.payload(self.project())["versions"][0]["version"]
+        expected = [r["id"] for r in STORE
+                    if r.get("kind") == "kr" and r.get("version") == rendered]
+        self.assertTrue(expected, "the fixture renders no kr for this "
+                                  "version, so the loop below checks nothing")
+        for kid in expected:
+            self.assertIn(kid, said)
+
+    def test_the_refusal_says_a_blank_key_is_not_a_wildcard(self):
+        """The sentence a reader needs, since the store looks fine to `diff`.
+
+        **Asserted on the CLAIM, not on the word.** The first draft checked
+        for "blank", which the message contains twice — deleting one occurrence
+        left this green. A test over a word that appears more than once cannot
+        tell which sentence it is holding.
+        """
+        said = self.refusal(self.blanked()).lower()
+        self.assertIn("not a wildcard", said)
+        self.assertIn("is blank", said,
+                      "the refusal no longer names BLANK as one of the two "
+                      "ways a key can be unplaceable, so a reader with a "
+                      "half-migrated store is told only about orphans")
+
+    def test_no_table_is_printed_at_all(self):
+        """**Not a short table — nothing.** The round-2 rule, still held."""
+        out = json.loads(self.render(self.blanked()).stdout)
+        self.assertEqual(["refused"], list(out),
+                         "the payload carries rows beside the refusal")
+
+    def test_a_blank_objective_id_alone_is_enough(self):
+        """One side blank, the other intact: still unplaceable, still refused.
+
+        Without this the fix could have been "both blank is special", which is
+        a rule about a coincidence rather than about the key.
+        """
+        store = []
+        for r in json.loads(json.dumps(STORE)):
+            if r.get("kind") == "kr":
+                r["objective_id"] = ""
+            store.append(r)
+        self.assertNotEqual(self.render(self.project(store=store)).returncode,
+                            0)
+
+    def test_the_correct_store_still_renders(self):
+        """**Anti-vacuity.** The same command on the unmodified fixture.
+
+        Without it, a build that refused every store would pass every test
+        above — which is precisely how round 2's fix passed while leaving
+        round 3's input open.
+        """
+        payload = self.payload(self.project(), "--version", "all")
+        placed = sum(len(o["krs"]) for v in payload["versions"]
+                     for o in v["objectives"])
+        self.assertEqual(
+            len([r for r in STORE if r.get("kind") == "kr"]), placed,
+            "the fixture's key results are no longer all placed, so the "
+            "refusal above may be firing on a correct store")
+
+    def test_every_kr_is_placed_exactly_once(self):
+        """The cross product, asserted directly on a CORRECT store.
+
+        95-for-20 was a placement count exceeding the record count. This is the
+        property that was silently false, held on the shape that must keep it.
+        """
+        payload = self.payload(self.project(), "--version", "all")
+        # Per VERSION, because an OKR id is stable across version blocks by
+        # design — `O1-KR1` appears in v1 and v2 and that is the same key
+        # result restated, not a double placement. Checking globally makes
+        # this assert a property the store deliberately violates.
+        for v in payload["versions"]:
+            seen = [k["id"] for o in v["objectives"] for k in o["krs"]]
+            self.assertEqual(sorted(seen), sorted(set(seen)),
+                             f"in {v['version']} a key result is placed under "
+                             f"more than one objective — the join is matching "
+                             f"on something that is not an identity")
+            self.assertTrue(seen, f"{v['version']} placed nothing, so the "
+                                  f"assertion above ranged over nothing")
+
+
 class TestTheShippedOkr(unittest.TestCase):
     """The live repository — a PROPERTY, never a count.
 

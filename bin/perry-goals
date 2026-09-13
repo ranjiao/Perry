@@ -2941,9 +2941,29 @@ def overall_kr_model(state_root, project_root, want_version: str | None):
     for version in wanted:
         objs = []
         for obj in [o for o in objectives if o.get("version") == version]:
+            # **A BLANK KEY IS NOT A JOIN, IT IS A CROSS PRODUCT** — round 3's
+            # V4 FAIL-2. `objective_id == obj["id"]` with both `""` matches
+            # EVERY kr against EVERY objective. `DESIGN-009` step 1 has
+            # `derive` write both blank and step 3's `migrate-ids` fills them,
+            # so this is a store the documented adoption path really produces,
+            # and round 3 permitted it at the validator on exactly that
+            # ground — then handed the case to the residual below, which
+            # cannot hold it: nothing is stranded when everything matches.
+            #
+            # Measured on `88fea9fe` by blanking the field on all 38 kr
+            # records and the id on all 10 objectives, no other edit:
+            # `krs --level overall` printed **95 key result(s) for 20 distinct
+            # ids** at exit 0, with `perry-okr verify`, `perry-okr diff` and
+            # `perry-lint` all at 0. Round 2 lost one row; that invents 75.
+            #
+            # Requiring the key to be non-blank on BOTH sides makes such a
+            # record match no objective, which sends it to the residual and
+            # refuses — the loud failure the intermediate store deserves,
+            # and the same rule `cmd_krs` states for a half-read graph.
+            oid = str(obj.get("id") or "").strip()
             rows = [k for k in krs
-                    if k.get("version") == version
-                    and k.get("objective_id") == obj.get("id")]
+                    if k.get("version") == version and oid
+                    and str(k.get("objective_id") or "").strip() == oid]
             placed.update(id(k) for k in rows)
             objs.append({
                 "id": obj.get("id", ""), "heading": obj.get("heading", ""),
@@ -2984,9 +3004,12 @@ def overall_kr_model(state_root, project_root, want_version: str | None):
         raise Refused(
             f"{len(stranded)} key result(s) in the store belong to no "
             f"objective and would be dropped from this render: "
-            f"{', '.join(sorted(_name(k) for k in stranded))}. Each names an "
-            f"`objective_id` that no objective record in its version carries, "
-            f"so a table printed here would be missing them and the count "
+            f"{', '.join(sorted(_name(k) for k in stranded))}. Each carries "
+            f"an `objective_id` that is blank, or that no objective record in "
+            f"its version carries — a BLANK one is not a wildcard, it matches "
+            f"no objective rather than all of them, which is what stops a "
+            f"half-migrated store rendering every key result under every "
+            f"objective. A table printed here would be missing them and the count "
             f"beneath it would report the survivors as the whole. Nothing was "
             f"printed. The store is where this is fixed: give each one an "
             f"`objective_id` that exists, or give the objective a record. "
