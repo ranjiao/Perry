@@ -2784,6 +2784,16 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     # `done` REMOVES the row, so a board scan alone measures an empty set on any
     # project using the tool — the same trap `check_verification` documents.
     log = project_root / ".perry" / "events.jsonl"
+    #: When each ask was answered, and when each evidence document first
+    #: appeared in a row's `Evidence` cell. Both feed the escalation ordering
+    #: below: an answered ask clears the FAILs it was answering and no others,
+    #: and "which FAILs" is a comparison of these two timestamps.
+    #:
+    #: `filed_at` takes the EARLIEST event naming a path, because the cell is
+    #: rewritten every time evidence is added and later rewrites would date the
+    #: document to whenever it was last mentioned.
+    _answer_ts: dict[str, str] = {}
+    _filed_at: dict[str, str] = {}
     if log.exists():
         for raw in log.read_text(errors="replace").split("\n"):
             raw = raw.strip()
@@ -2793,6 +2803,16 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                 ev = json.loads(raw)
             except (ValueError, TypeError):
                 continue
+            ts = str(ev.get("ts") or "")
+            if ev.get("event") == "answer" and ts:
+                aid = str(ev.get("id") or "")
+                if aid and ts > _answer_ts.get(aid, ""):
+                    _answer_ts[aid] = ts
+            if ev.get("event") == "evidence" and ts:
+                for path in re.findall(r"[\w./-]+\.md",
+                                       str(ev.get("to") or "")):
+                    if ts < _filed_at.get(path, "\uffff"):
+                        _filed_at[path] = ts
             if ev.get("event") != "done":
                 continue
             tid = str(ev.get("task") or ev.get("id") or "")
@@ -3018,9 +3038,35 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     # `asks.jsonl` whose `blocks` names the row IS that escalation, so the
     # finding reports rows that have neither converged nor escalated, and goes
     # quiet the moment either happens.
+    #
+    # **AN ANSWERED ASK USED TO STOP CLEARING IT, WHICH PUNISHED THE EXACT
+    # WORKFLOW THIS CHECK ASKS FOR.** `if ask.get("answered"): continue` meant
+    # the escalation counted only while the question was still out. The moment
+    # the user answered — the whole point of filing it — the row went back to
+    # being reported as one that had *"neither converged nor escalated"*, and
+    # the remedy the finding prints is "file the ask", which is a second ask
+    # about a question already answered.
+    #
+    # Found live on 2026-09-13: `TASK-236` FAILed twice, `USER-927` was filed
+    # naming both readings, the user chose (B), round 3 was implemented on that
+    # authority — and this check reported the row as un-escalated while the
+    # answer sat in `asks.jsonl` with `answered: true`.
+    #
+    # **An answered ask is a STRONGER escalation than an open one**, not a
+    # weaker one: an open ask says the question is out, an answered one says
+    # the principle has been picked. So it clears — but only for the rounds it
+    # was answering, which is the part that keeps the teeth. A row that FAILs
+    # `limit` more times AFTER the answer is failing on a principle the answer
+    # did not settle, and must fire again.
+    #
+    # The ordering needs no new field. The answer's `ts` is on its `answer`
+    # event, and a review document's arrival is the first `evidence` event
+    # whose value names it — both written by Perry's own writers, so this reads
+    # timestamps rather than parsing prose (`ADR-007` decision 3).
     limit, limit_from = rounds_before_escalation(project_root)
     asks = state_root / "asks.jsonl"
     escalated: set[str] = set()
+    answered_for: dict[str, str] = {}
     if asks.exists():
         for raw in asks.read_text(errors="replace").split("\n"):
             raw = raw.strip()
@@ -3030,10 +3076,33 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                 ask = json.loads(raw)
             except (ValueError, TypeError):
                 continue
-            if ask.get("answered"):
+            blocked = re.findall(r"\b[A-Z]+-\d+\b",
+                                 str(ask.get("blocks") or ""))
+            if not ask.get("answered"):
+                escalated.update(blocked)
                 continue
-            for tid in re.findall(r"\b[A-Z]+-\d+\b", str(ask.get("blocks") or "")):
-                escalated.add(tid)
+            when = _answer_ts.get(str(ask.get("id") or ""))
+            if not when:
+                # **An answered ask with no `answer` event keeps the OLD
+                # behaviour: it clears nothing.** There is no timestamp to
+                # order it against the FAILs, so nothing here can tell the
+                # rounds it settled from the rounds that came after, and the
+                # narrowing below has no evidence to act on.
+                #
+                # That is also the direction `TestTwoFailsIsADecisionNotAThird
+                # Round § test_an_answered_ask_with_nothing_to_order_it_does_
+                # not_clear_it` already fixed, for the reason written there: an
+                # answered ask cannot license the next UNEXAMINED round. The
+                # rule below does not contradict that — it says which rounds
+                # were examined — and where it cannot say, the stricter reading
+                # stands.
+                #
+                # In practice `cmd_answer` always writes the event, so this
+                # branch is a hand-edited or pre-event-log store.
+                continue
+            for tid in blocked:
+                if when > answered_for.get(tid, ""):
+                    answered_for[tid] = when
 
     # **Only a row that can still RECEIVE a round.** The first cut of this
     # check asked the evidence directory alone and reported five rows, four of
@@ -3070,6 +3139,26 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
         # missing criteria file counts. See `fail_grade`.
         charged = [b for b in fails if fail_grade(b[1]) != "ROW"]
         filed = [b for b in fails if fail_grade(b[1]) == "ROW"]
+        # **The rounds an answered ask already settled stop counting.** Only
+        # FAILs whose document arrived AFTER the answer are still evidence that
+        # nobody has picked a principle; the ones that PROMPTED the ask are the
+        # reason it was filed. A FAIL whose document predates the answer, or
+        # whose arrival no event records, is dropped from the count.
+        settled = answered_for.get(tid)
+        if settled:
+            before = len(charged)
+            # **A FAIL with no `evidence` event COUNTS.** `.get(b[0], "")`
+            # would drop it, and a missing event would then silence the limit —
+            # the same unorderable-means-strict rule the answered-ask branch
+            # takes above, pointed the other way.
+            charged = [b for b in charged
+                       if _filed_at.get(b[0], settled + "\uffff") > settled]
+            answered_aside = (
+                f" {before - len(charged)} earlier FAIL(s) are not counted: "
+                f"they arrived before the ask on this row was answered "
+                f"({settled[:10]}), which is what the ask was for.")
+        else:
+            answered_aside = ""
         undeterminable = [b for b in charged if fail_grade(b[1]) is None]
         if len(charged) < limit:
             continue
@@ -3083,6 +3172,7 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                 f" {len(filed)} further FAIL(s) on this row named a ROW-grade "
                 f"criterion and are NOT counted "
                 f"({', '.join(r for r, _, _ in filed)}).")
+        aside += answered_aside
         if undeterminable:
             aside += (
                 f" {len(undeterminable)} of the {len(charged)} counted carry "

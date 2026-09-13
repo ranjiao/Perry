@@ -497,9 +497,19 @@ class TestTwoFailsIsADecisionNotAThirdRound(ReviewLintCase):
             "blocks": tid, "answered": False}) + "\n")
         self.assertNotIn("review-rounds-exhausted", self.rules())
 
-    def test_an_ANSWERED_ask_does_not_clear_it(self):
+    def test_an_answered_ask_with_nothing_to_order_it_does_not_clear_it(self):
         """An answered ask is a decision already taken; it cannot license the
-        next unexamined round the way a pending one licenses waiting."""
+        next unexamined round the way a pending one licenses waiting.
+
+        **Renamed 2026-09-13, and the rule it pins narrowed rather than
+        changed.** An answered ask now clears the FAILs it was ANSWERING —
+        see `TestAnAnsweredAskClearsTheRoundsItAnswered` below — because the
+        old rule reported the exact workflow the finding's own remedy asks
+        for. But that narrowing needs the answer ORDERED against the FAILs,
+        and this fixture writes no `answer` event, so there is nothing to
+        order. Where the check cannot say which rounds were examined, the
+        stricter reading in this test's first paragraph stands.
+        """
         tid = self.two_fails()
         (self.dir / "asks.jsonl").write_text(json.dumps({
             "id": "USER-905", "needed": "pick a principle",
@@ -543,6 +553,148 @@ class TestTwoFailsIsADecisionNotAThirdRound(ReviewLintCase):
                    if f["rule"] == "review-rounds-exhausted")
         self.assertIn("Another round", msg)
         self.assertNotRegex(msg, r"Round \d")
+
+
+class TestAnAnsweredAskClearsTheRoundsItAnswered(ReviewLintCase):
+    """**The old rule reported the exact workflow its own remedy asks for.**
+
+    `review-rounds-exhausted` prints *"File the ask: name the two readings, say
+    which one you recommend and why, and let the user choose"*, and it cleared
+    only while that ask was still OPEN. The moment the user answered — the
+    whole point of filing it — the row went back to being reported as one that
+    had *"neither converged nor escalated"*, and the remedy on offer was a
+    second ask about a question already answered.
+
+    Found live on 2026-09-13. `TASK-236` FAILed V4 twice, `USER-927` was filed
+    naming both readings, the user chose (B), round 3 was implemented on that
+    authority — and the check reported the row as un-escalated while the answer
+    sat in `asks.jsonl` with `answered: true`.
+
+    **An answered ask is a stronger escalation than an open one**: an open ask
+    says the question is out, an answered one says the principle has been
+    picked. So it clears — but only the FAILs it was answering. A row that
+    FAILs the limit again AFTER the answer is failing on a principle the answer
+    did not settle, and `test_two_more_fails_after_the_answer_fire_again` is
+    the test that keeps those teeth.
+
+    The ordering needs no new field. The answer's `ts` is on its `answer`
+    event and a review document's arrival is the first `evidence` event naming
+    it, both written by Perry's own writers — so this reads timestamps rather
+    than parsing prose (`ADR-007` decision 3).
+    """
+
+    ANSWERED = "2026-08-20T12:00:00+08:00"
+
+    # Copied rather than inherited: subclassing the class that owns
+    # `two_fails` would re-run all nine of ITS tests under this name too, and
+    # a suite that counts one assertion twice reports work it did not do.
+    def two_fails(self, tid="TASK-500", status="in_progress"):
+        self.board([self.row(tid, status)])
+        self.evidence(f"{tid}-r1.md", verdict(tid, "FAIL"))
+        self.evidence(f"{tid}-r2.md", verdict(tid, "FAIL"))
+        return tid
+
+    def answered_ask(self, tid, aid="USER-905"):
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": aid, "needed": "pick a principle",
+            "blocks": tid, "answered": True}) + "\n")
+
+    def log(self, *events):
+        (self.dir / ".perry" / "events.jsonl").write_text(
+            "\n".join(json.dumps(e) for e in events) + "\n")
+
+    def answer_event(self, aid="USER-905", ts=None):
+        return {"ts": ts or self.ANSWERED, "event": "answer", "id": aid,
+                "from": "pending", "to": "answered"}
+
+    def filed(self, tid, name, ts):
+        """The `evidence` event that records a review document arriving."""
+        return {"ts": ts, "event": "evidence", "task": tid,
+                "from": "—", "to": f"evidence/2026-08/{name}"}
+
+    def test_the_fails_that_prompted_the_answer_stop_counting(self):
+        tid = self.two_fails()
+        self.answered_ask(tid)
+        self.log(self.filed(tid, f"{tid}-r1.md", "2026-08-20T09:00:00+08:00"),
+                 self.filed(tid, f"{tid}-r2.md", "2026-08-20T10:00:00+08:00"),
+                 self.answer_event())
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_two_more_fails_after_the_answer_fire_again(self):
+        """**The teeth.** The narrowing must not become a permanent silence.
+
+        Without this, one answered ask would exempt a row from the limit for
+        the rest of its life, which is a check that cannot fail on the thing it
+        names — this board's most-found defect.
+        """
+        tid = self.two_fails()
+        self.answered_ask(tid)
+        self.evidence(f"{tid}-r3.md", verdict(tid, "FAIL"))
+        self.evidence(f"{tid}-r4.md", verdict(tid, "FAIL"))
+        self.log(self.filed(tid, f"{tid}-r1.md", "2026-08-20T09:00:00+08:00"),
+                 self.filed(tid, f"{tid}-r2.md", "2026-08-20T10:00:00+08:00"),
+                 self.answer_event(),
+                 self.filed(tid, f"{tid}-r3.md", "2026-08-21T09:00:00+08:00"),
+                 self.filed(tid, f"{tid}-r4.md", "2026-08-21T10:00:00+08:00"))
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_one_fail_after_the_answer_is_below_the_limit(self):
+        """The boundary, so the test above is not passing on "any FAIL"."""
+        tid = self.two_fails()
+        self.answered_ask(tid)
+        self.evidence(f"{tid}-r3.md", verdict(tid, "FAIL"))
+        self.log(self.filed(tid, f"{tid}-r1.md", "2026-08-20T09:00:00+08:00"),
+                 self.filed(tid, f"{tid}-r2.md", "2026-08-20T10:00:00+08:00"),
+                 self.answer_event(),
+                 self.filed(tid, f"{tid}-r3.md", "2026-08-21T09:00:00+08:00"))
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_an_answer_to_an_ask_blocking_another_row_clears_nothing(self):
+        tid = self.two_fails()
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": "USER-905", "needed": "x",
+            "blocks": "TASK-999", "answered": True}) + "\n")
+        self.log(self.filed(tid, f"{tid}-r1.md", "2026-08-20T09:00:00+08:00"),
+                 self.filed(tid, f"{tid}-r2.md", "2026-08-20T10:00:00+08:00"),
+                 self.answer_event())
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_a_fail_no_event_dates_still_counts(self):
+        """**Unorderable means strict, not exempt.**
+
+        A FAIL whose arrival no `evidence` event records cannot be placed
+        against the answer. Dropping it would let a missing event silence the
+        limit, so it counts — the same direction as an answered ask with no
+        `answer` event.
+        """
+        tid = self.two_fails()
+        self.answered_ask(tid)
+        self.log(self.answer_event())
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_an_open_ask_still_clears_without_any_event(self):
+        """The pending path is untouched and needs no ordering at all."""
+        tid = self.two_fails()
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": "USER-905", "needed": "pick a principle",
+            "blocks": tid, "answered": False}) + "\n")
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_the_finding_says_which_fails_the_answer_settled(self):
+        """A count that changed silently is a count a reader cannot check."""
+        tid = self.two_fails()
+        self.answered_ask(tid)
+        self.evidence(f"{tid}-r3.md", verdict(tid, "FAIL"))
+        self.evidence(f"{tid}-r4.md", verdict(tid, "FAIL"))
+        self.log(self.filed(tid, f"{tid}-r1.md", "2026-08-20T09:00:00+08:00"),
+                 self.filed(tid, f"{tid}-r2.md", "2026-08-20T10:00:00+08:00"),
+                 self.answer_event(),
+                 self.filed(tid, f"{tid}-r3.md", "2026-08-21T09:00:00+08:00"),
+                 self.filed(tid, f"{tid}-r4.md", "2026-08-21T10:00:00+08:00"))
+        message = next(f["message"] for f in self.run_lint()["findings"]
+                       if f["rule"] == "review-rounds-exhausted")
+        self.assertIn("2 earlier FAIL(s) are not counted", message)
+        self.assertIn("2026-08-20", message)
 
 
 class TestTheCountIsByCriterionNotByBlock(ReviewLintCase):
