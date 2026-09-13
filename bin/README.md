@@ -431,13 +431,14 @@ Usage:
                    [--depends "TASK-050, TASK-051"] ids this row waits on
                    [--out-of-scope "…"]
                    --kr KR-ID | --unlinked   ONE of these is REQUIRED once the
-                                   project has a linkage register. `--kr`
-                                   attributes the row to that key result;
-                                   `--unlinked` declares that it serves none,
-                                   writes a record no `perry-task` command can
-                                   withdraw, and is reported by `perry-lint`
-                                   for as long as it stands. Passing neither
-                                   is refused (TASK-439). On a project with no
+                                   linkage register declares a key result for
+                                   the open phase. `--kr` attributes the row to
+                                   that key result; `--unlinked` declares that
+                                   it serves none and writes a record no
+                                   `perry-task` command can withdraw. Passing
+                                   neither is refused (TASK-439). A register
+                                   that exists but will not parse is also
+                                   refused, and says so. On a project with no
                                    register there is no KR to name and nowhere
                                    to store a declaration, so `add` still
                                    files the row and warns.

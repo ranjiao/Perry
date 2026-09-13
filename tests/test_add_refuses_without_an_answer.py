@@ -510,9 +510,22 @@ class TestTheGateKeysOffThePhaseNotTheFile(Base):
     """
 
     def gap(self):
-        """A project whose store has no records for the current phase."""
+        """A project whose store has no records for the current phase.
+
+        **`phase/CURRENT` names a REAL phase the store knows nothing about**,
+        rather than being blank — and that distinction is round 3's second V4
+        FAIL. The first version of this fixture cleared the pointer, so
+        `_current_store_phase` returned at `if not number` and never read the
+        store at all. Deleting the phase match it is named for left every test
+        in this class green: the class asserted a property it never exercised.
+
+        Pointing at `004-next` instead means the store IS read, the phase match
+        IS evaluated, and it finds no `kr` for 004 among the 003 records the
+        fixture writes. `test_the_phase_match_is_load_bearing` is the guard
+        that keeps it that way.
+        """
         d = self.project(store_edges={}, store_unlinked=[])
-        (d / "phase" / "CURRENT").write_text("")
+        (d / "phase" / "CURRENT").write_text("004-next\n")
         return d
 
     def test_the_gap_files_the_row_instead_of_refusing(self):
@@ -569,6 +582,102 @@ class TestTheGateKeysOffThePhaseNotTheFile(Base):
         proc = self.add(self.project(), "a row with no answer")
         self.assertNotEqual(proc.returncode, 0, proc.stdout)
         self.assertIn("neither --kr nor --unlinked", proc.stderr)
+
+    def test_the_phase_match_is_load_bearing(self):
+        """**The test the first fixture could not be.**
+
+        `gap()` now points `phase/CURRENT` at a phase the store has no records
+        for, so reaching this assertion requires the store to be READ and the
+        phase compared. With the pointer blank — the old fixture —
+        `_current_store_phase` returned before either happened and this class
+        passed with the phase match deleted.
+        """
+        d = self.gap()
+        self.assertEqual("004-next",
+                         (d / "phase" / "CURRENT").read_text().strip(),
+                         "the fixture stopped naming a real phase, so the "
+                         "class is back to returning before the store is read")
+        kinds = {r.get("kind") for r in self.records(d)}
+        self.assertIn("kr", kinds,
+                      "the fixture's store carries no `kr` record at all, so "
+                      "the phase match below has nothing to compare and the "
+                      "gap is reached for the wrong reason")
+        phases = {str(r.get("phase") or "") for r in self.records(d)
+                  if r.get("kind") == "kr"}
+        self.assertTrue(phases and not any(p.startswith("004-") for p in phases),
+                        f"the store now holds a `kr` for phase 004 ({phases}), "
+                        f"so this fixture is no longer a gap")
+        self.assertEqual(0, self.add(d, "a row").returncode)
+
+
+class TestAnUnreadableRegisterIsItsOwnAnswer(Base):
+    """Round 3's V4 FAIL-1: `""` meant three different things.
+
+    `parsers.load_linkage_store` returns `None` for a MALFORMED store exactly
+    as for an absent one. That contract is deliberate and documented there —
+    the reader is read-only and `perry-lint § check_linkage_store` is the tool
+    that says *why* a store will not parse — so it is not changed. What was
+    wrong was reading its three-way answer as a two-way one.
+
+    Measured: one git conflict marker appended to a `linkage.jsonl` full of key
+    results for the open phase took `add` with neither flag from **rc=1** to
+    **rc=0**, filed the row, and printed the between-phases warning — **every
+    clause of which is false** of that project. The register does declare key
+    results for the current phase and no `score-phase` window is open; it is
+    unparseable, which is the one thing the message did not say. `--unlinked`
+    stays refused there, so the row lands in `never_answered` permanently.
+
+    A register nobody can parse is one we cannot ask, not one with nothing to
+    say — which is the case for stopping rather than for waving through.
+    """
+
+    def gap(self):
+        d = self.project(store_edges={}, store_unlinked=[])
+        (d / "phase" / "CURRENT").write_text("004-next\n")
+        return d
+
+    def unparseable(self):
+        """A register full of records for the open phase that will not load."""
+        d = self.project()
+        with (d / "linkage.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write("<<<<<<< HEAD\n")
+        return d
+
+    def test_an_unparseable_register_is_refused(self):
+        proc = self.add(self.unparseable(), "a row with no answer")
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+
+    def test_it_does_not_claim_the_between_phases_window(self):
+        """The false sentence, named so it cannot come back."""
+        proc = self.add(self.unparseable(), "a row with no answer")
+        self.assertNotIn("score-phase", proc.stderr)
+        self.assertNotIn("declares no key result", proc.stderr)
+
+    def test_it_says_what_is_actually_wrong_and_who_diagnoses_it(self):
+        proc = self.add(self.unparseable(), "a row with no answer")
+        self.assertIn("could not be read", proc.stderr)
+        self.assertIn("perry-lint", proc.stderr)
+
+    def test_nothing_was_written(self):
+        d = self.unparseable()
+        before = self.rows_on_board(d)
+        self.add(d, "a row with no answer")
+        self.assertEqual(before, self.rows_on_board(d))
+
+    def test_an_answered_row_still_files(self):
+        """**Anti-vacuity, and the bound.** This refusal is about the KR
+        question being unanswerable, not about the store being broken. A
+        caller who answers it is not blocked by a file this command only
+        consulted to decide whether to ask."""
+        proc = self.add(self.unparseable(), "a row with an answer",
+                        self.STORE_KR)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_the_gap_and_the_unreadable_store_are_told_apart(self):
+        """Three states, three answers, and only one of them files silently."""
+        self.assertEqual(0, self.add(self.gap(), "a row").returncode)
+        self.assertNotEqual(0, self.add(self.unparseable(), "a row").returncode)
+        self.assertNotEqual(0, self.add(self.project(), "a row").returncode)
 
 
 if __name__ == "__main__":

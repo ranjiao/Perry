@@ -2791,6 +2791,53 @@ def linkage_add_change(state_root: Path,
     return (path, "\n".join(lines) + "\n", record)
 
 
+def _register_state(state_root: Path) -> tuple[str, str]:
+    """What the linkage register can tell us, as `(state, phase)`.
+
+    One question, asked once, because the gate in `cmd_add` and the warning it
+    falls back to must not disagree about what is wrong with a project.
+
+    `state` is one of:
+
+    * `"absent"`      — no `linkage.jsonl`. The register has never been written.
+    * `"unparseable"` — the file is there and did not load.
+    * `"no-phase"`    — it loaded, and declares no key result for the open phase.
+    * `"declared"`    — it declares one; `phase` carries the store's spelling.
+
+    **`unparseable` is its own answer, and that is round 3's V4 FAIL.** A
+    `_current_store_phase` of `""` used to mean all three of the first cases at
+    once, because `parsers.load_linkage_store` returns `None` for a malformed
+    store exactly as for an absent one — deliberately, and documented there:
+    it is read-only and `perry-lint § check_linkage_store` is the tool that
+    says *why* a store will not parse.
+
+    That contract is right and is not changed here. What was wrong was reading
+    a three-way answer as a two-way one. Measured: append a single git conflict
+    marker to a `linkage.jsonl` full of key results for the open phase, and
+    `add` with neither flag went from refusing to filing the row at exit 0,
+    printing a between-phases warning **every clause of which was false** of
+    that project. `--unlinked` stays refused there, so the row lands in
+    `never_answered` permanently — round 2's asymmetry, in a new window.
+
+    The file existing is what separates `absent` from `unparseable`: once
+    `exists()` is true, `None` can only be the load failing.
+    """
+    if not (state_root / P.LINKAGE_STORE).exists():
+        return ("absent", "")
+    records = P.load_linkage_store(state_root)
+    if records is None:
+        return ("unparseable", "")
+    pointer = state_root / "phase" / "CURRENT"
+    slug = pointer.read_text(encoding="utf-8").strip() if pointer.exists() else ""
+    number = P.linkage_phase_number(slug)
+    if number:
+        for rec in records:
+            if (isinstance(rec, dict) and rec.get("kind") == "kr"
+                    and str(rec.get("phase") or "").startswith(f"{number}-")):
+                return ("declared", str(rec["phase"]))
+    return ("no-phase", "")
+
+
 def _current_store_phase(state_root: Path) -> str:
     """The `<NNN>-<slug>` the linkage store declares for the CURRENT phase.
 
@@ -3760,8 +3807,28 @@ def cmd_add(args, ctx) -> dict:
     # `_current_store_phase` is the SAME predicate the writer uses, read from
     # the store's own `kr` records. One question, asked once, so the gate and
     # the writer cannot disagree about whether the register can answer.
+    #
+    # **`unparseable` REFUSES, and it refuses for its own reason.** Round 3's
+    # V4 FAIL: standing the gate down on a store that merely failed to load
+    # filed the row at exit 0 behind a warning whose every clause was false of
+    # that project. A register nobody can read is not a register that has
+    # nothing to say — it is one we cannot ask, which is the case for stopping
+    # rather than the case for waving through.
+    _register, _store_phase = _register_state(ctx["state_root"])
+    if _register == "unparseable" and args.kr is None and not getattr(
+            args, "unlinked", False):
+        raise Refused(
+            f"`{P.LINKAGE_STORE}` exists and could not be read, so this "
+            f"command cannot tell whether the KR question has an answer. It "
+            f"is NOT the between-phases window and it is NOT a project "
+            f"without a register — both of those file the row with a warning, "
+            f"and this one does not, because a register nobody can parse is "
+            f"one we cannot ask rather than one with nothing to say. Run "
+            f"`perry-lint{lib.root_flag(ctx['project_root'])}`, which is the "
+            f"tool that says WHY it will not parse — a truncated write and a "
+            f"merge conflict both land here. Nothing was written")
     if (args.kr is None and not getattr(args, "unlinked", False)
-            and _current_store_phase(ctx["state_root"])):
+            and _register == "declared"):
         raise Refused(
             f"neither --kr nor --unlinked was passed. This project has a "
             f"`{P.LINKAGE_STORE}`, so the KR question has an answer and `add` "
@@ -3990,7 +4057,7 @@ def cmd_add(args, ctx) -> dict:
         # actually true of each.
         why = ("this project has no `" + P.LINKAGE_STORE + "`, so there is "
                "no key result to name and nowhere to record a declaration"
-               if not (ctx["state_root"] / P.LINKAGE_STORE).exists() else
+               if _register == "absent" else
                "`" + P.LINKAGE_STORE + "` declares no key result for the "
                "current phase, so there is nothing to name and an `unlinked` "
                "declaration would have no phase to be made against — the "
