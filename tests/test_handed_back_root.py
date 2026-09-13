@@ -199,7 +199,21 @@ MENTIONS = {
 #: breaking rather than assumed benign. It was: both phrases are absent from
 #: the text by inspection, and the 64 that remain are the 66 minus exactly
 #: these two.
-PASTEABLE_WRITER_PHRASES = 64
+#:
+#: **64 -> 66 on 2026-09-13 (TASK-253), and this rise is the reader widening
+#: rather than new hand-backs being written.** `phrase_pattern`'s head could
+#: not match a tool name that is itself a format field, so
+#: `bin/perry-lint § check_md_store_drift`'s `perry-{doc.name} render --write`
+#: and `perry-{doc.name} write --from-file` were outside the population — two
+#: writers, the second of which DISCARDS stored values, in the tool a reader
+#: runs when something is already wrong.
+#:
+#: The guard's note is what caught it, from the other side: the two sites were
+#: given the root, the root was taken back off as a mutation, and all 22 tests
+#: stayed green. That green is the reason the reader changed and the count
+#: moved together — a count held over a population the reader cannot see is
+#: the defect this number exists to prevent, spelled one level up.
+PASTEABLE_WRITER_PHRASES = 66
 
 
 def _load(path: Path):
@@ -353,8 +367,28 @@ def tool_aliases(tree) -> set[str]:
     return out
 
 
+#: **The tool name can itself be a format field**, and the head pattern could
+#: not see one. `bin/perry-lint § check_md_store_drift` prints
+#: `perry-{doc.name} render --write` and `perry-{doc.name} write --from-file`
+#: — two WRITERS, one of which discards stored values — and
+#: `perry-[a-z][a-z-]*` does not match `perry-{`, so the whole family was
+#: outside this module's population.
+#:
+#: **Found by mutation, not by reading** (2026-09-13, TASK-253): both sites
+#: were given the root, then the root was taken back off, and all 22 tests
+#: stayed green. A guard over "every writer hand-back" that cannot see a
+#: hand-back is this project's most-found defect, and it was sitting inside
+#: the apparatus built to prevent that defect.
+#:
+#: The alias mechanism does not cover it. `tool_aliases` reads
+#: `tool = f"perry-{doc.name}"` and `bin/perry_md_store.py` does bind that
+#: name — but `bin/perry-lint` interpolates inline with no variable, and
+#: `tool_aliases(tree)` returns the empty set for that file.
+_HEAD_FIELD = r"\{[^{}]*\}"
+
+
 def phrase_pattern(aliases: set[str]) -> re.Pattern:
-    heads = "|".join(["perry-[a-z][a-z-]*"]
+    heads = "|".join([r"perry-(?:[a-z][a-z-]*|" + _HEAD_FIELD + r")"]
                      + [r"\{" + re.escape(a) + r"\}" for a in sorted(aliases)])
     return re.compile(r"(?<![\w-])((?:" + heads + r")(?:[ ]" + _ARG + r")+)")
 
@@ -389,9 +423,22 @@ def command_phrases() -> list[dict]:
                     "[A-Za-z0-9._-]*" if part.startswith("{")
                     else re.escape(part)
                     for part in re.split(r"(\{[^{}]*\})", sub) if part) + "$")
+                # **The tool half is expanded exactly as the subcommand half
+                # is**, and for the same reason. `perry-{doc.name}` names one
+                # of several real tools depending on the caller, so the honest
+                # ruling is the one already written below for subcommands: a
+                # writer iff something matches and everything that matches
+                # writes. Before this, a phrase whose tool name was a field
+                # matched no candidate at all and came back `writes: False`,
+                # which is how two writer hand-backs sat outside the count.
+                head = re.compile("^" + "".join(
+                    "[A-Za-z0-9._-]*" if part.startswith("{")
+                    else re.escape(part)
+                    for part in re.split(r"(\{[^{}]*\})", tokens[0])
+                    if part) + "$")
                 candidates = [v for (tool, name), v in writes.items()
                               if (tokens[0].startswith("{")
-                                  or tool == tokens[0]) and expands.match(name)]
+                                  or head.match(tool)) and expands.match(name)]
                 rows.append({
                     "file": rel, "line": lineno, "phrase": phrase,
                     "writes": bool(candidates) and all(candidates),
@@ -580,10 +627,36 @@ class TestEveryWriterHandBackCarriesTheRoot(unittest.TestCase):
 #:
 #: **It bit a SECOND time the same day**, 5714 -> 5778, when TASK-370 scoped
 #: two findings in `check_specs`. Two unrelated rows, both red on a coordinate
-#: rather than on a behaviour, inside one session. The pin is re-dated again
-#: and the recurrence is recorded here rather than filed, per this board's
-#: standing rule; what it costs is one full suite run per occurrence.
-NO_ROOT_TO_GIVE = {("bin/perry-lint", "check_file", 5778)}
+#: rather than on a behaviour, inside one session.
+#:
+#: **THIRD occurrence, 2026-09-13, 5778 -> 5786** — TASK-253 gave
+#: `check_md_store_drift`'s two writer hand-backs the root they were missing,
+#: eight lines higher up, and this module reddened over a call it did not
+#: touch. Three times in two days is not a coincidence to record, so the key
+#: changes here rather than the number.
+#:
+#: **The fix the note above proposed would NOT have worked.** It said
+#: "re-keying it on the enclosing function is a row of its own" — and BOTH
+#: `check_file` call sites are inside `main` (`:5786` for the templates and
+#: `:5827` for the project), so the enclosing function does not tell them
+#: apart and an exemption keyed on it would have excused the ROOTED call too.
+#: That is the silent direction of this failure and the reason it is worth
+#: fixing rather than re-pinning: a coordinate that drifts reddens loudly, but
+#: an exemption that matches the wrong call passes quietly.
+#:
+#: So the key is the call's own SOURCE, `ast.unparse(node)`. It is stable under
+#: every edit above it, it names the distinguishing fact out loud
+#: (`is_template=True`), and it stops matching the moment the call itself
+#: changes — which is exactly when a human should look again.
+#:
+#: **Why this one call is exempt.** The `is_template=True` branch lints the
+#: templates Perry ships, under `PERRY_HOME`. There is no project there to
+#: name, so there is no root to pass; the sibling call at `:5827` lints a real
+#: project and does pass one.
+NO_ROOT_TO_GIVE = {
+    ("bin/perry-lint", "check_file",
+     "check_file(path, tpl, spec, enums, is_template=True)"),
+}
 
 
 class TestTheFlagReachesTheTemplateThatNamesIt(unittest.TestCase):
@@ -667,6 +740,37 @@ class TestTheFlagReachesTheTemplateThatNamesIt(unittest.TestCase):
                 return True
         return False
 
+    def test_every_exemption_still_matches_a_real_call(self):
+        """**An exemption that matches nothing is a hole with no edge.**
+
+        `MENTIONS` has had this control since it was written; `NO_ROOT_TO_GIVE`
+        never did, and that asymmetry is why its three line-number drifts each
+        cost a suite run to diagnose. A key that has stopped matching excuses
+        nothing AND hides that it excuses nothing, so the next reader cannot
+        tell a stale pin from a deliberate one.
+
+        It is also the control that makes re-keying on the call source safe:
+        `ast.unparse` normalises whitespace, so if that normalisation ever
+        changed shape the table would go quiet rather than wrong, and this test
+        is what refuses to let it.
+        """
+        found = set()
+        for path in python_files():
+            rel = str(path.relative_to(ROOT))
+            tree = _parse(path)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    name = _called(node)
+                    if name:
+                        found.add((rel, name, ast.unparse(node)))
+        stale = sorted(k for k in NO_ROOT_TO_GIVE if k not in found)
+        self.assertEqual(
+            [], stale,
+            "these NO_ROOT_TO_GIVE entries match no call in bin/ any more. "
+            "Either the call was rewritten — update or delete the entry — or "
+            "the reader stopped seeing it, in which case the entry is now "
+            "excusing nothing and hiding that fact")
+
     def test_every_format_field_that_holds_the_root_is_given_one(self):
         """`"…{r}…".format(r=…)` — the same hole through `str.format`."""
         bare = []
@@ -723,7 +827,7 @@ class TestTheFlagReachesTheTemplateThatNamesIt(unittest.TestCase):
                                    + f.args.args + f.args.kwonlyargs]), None)
                 if not self._from_the_choke_point(tree, given,
                                                   inside is not None):
-                    if (rel, name, node.lineno) in NO_ROOT_TO_GIVE:
+                    if (rel, name, ast.unparse(node)) in NO_ROOT_TO_GIVE:
                         continue
                     source = ast.unparse(given) if given is not None else ""
                     bare.append(f"{rel}:{node.lineno} {name}(…) — "

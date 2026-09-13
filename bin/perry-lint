@@ -4707,16 +4707,24 @@ def check_md_store_drift(project_root: Path, state_root: Path,
                              f"`{doc.rel_file}` renders no line for it")
 
     stats["drifted"] = len(rows)
+    # TASK-253's category, at the one site in this file that still had it. The
+    # four sibling drift messages (`:3966`, `:4107`, `:4254`, `:4382`) each
+    # build `_r` and paste it; these two did not, while `project_root` sat in
+    # this function's own signature. Both commands here are WRITERS and the
+    # second discards stored values, so a reader who copies one acts on
+    # whatever project their cwd resolves to — the exact harm the row was
+    # opened on, one tool over from where it was found.
+    _r = lib.root_flag(project_root)
     for key in sorted(rows)[:DRIFT_ROWS_SHOWN]:
         findings.append(Finding(
             "warn", rel_file, f"{doc.name}-store-drift",
             f"{key} — {rows[key]}. Under ADR-007 `{doc.rel_file}` is rendered "
             f"output and `{rel_store}` is what the field means, so a hand edit "
-            f"is drift. `perry-{doc.name} render --write` puts the file back "
-            f"in line with the store when every stored record still has a "
-            f"line, and REFUSES when one does not (DESIGN-016 A5); "
-            f"`perry-{doc.name} write --from-file` runs the other direction "
-            f"and DISCARDS the stored values."))
+            f"is drift. `perry-{doc.name} render --write{_r}` puts the file "
+            f"back in line with the store when every stored record still has "
+            f"a line, and REFUSES when one does not (DESIGN-016 A5); "
+            f"`perry-{doc.name} write --from-file{_r}` runs the other "
+            f"direction and DISCARDS the stored values."))
     if len(rows) > DRIFT_ROWS_SHOWN:
         findings.append(Finding(
             "warn", rel_file, f"{doc.name}-store-drift",
