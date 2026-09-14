@@ -609,12 +609,24 @@ def copy_of_perry(dest: pathlib.Path) -> pathlib.Path:
     return dest
 
 
+def refuse_the_checkout(root: pathlib.Path) -> None:
+    """Every writer below edits stores, so it must be handed a copy. A copy
+    step that returned the checkout itself would append events to Perry's own
+    log before any assertion ran — measured, on a scratch archive — so this is
+    checked before the first write, not after."""
+    here, live = root.resolve(), parity.ROOT.resolve()
+    if here == live or live in here.parents:
+        raise AssertionError(f"refusing to write {here}: it is Perry's "
+                             f"checkout, not a copy of it")
+
+
 def event_stamp(moment: datetime) -> str:
     """`bin/lib § event_stamp`'s shape: local wall clock, with its offset."""
     return moment.astimezone().isoformat(timespec="seconds")
 
 
 def append_events(root: pathlib.Path, events: list[dict]) -> None:
+    refuse_the_checkout(root)
     log = root / ".perry" / "events.jsonl"
     text = log.read_text(encoding="utf-8")
     if text and not text.endswith("\n"):
@@ -646,6 +658,7 @@ def freeze_the_clock(root: pathlib.Path) -> dict:
     from `perry-decide list` itself, never parsed here, and the date is
     rewritten on the one `>` header line of the file that carries it.
     """
+    refuse_the_checkout(root)
     now = event_stamp(datetime.now())
     restamped = [row for row in task_records(root)
                  if row.get("status") in IDLE_STATUSES]
@@ -878,6 +891,7 @@ def plant_aged_state(root: pathlib.Path) -> None:
     """An `in_progress` row and a `review` row last moved 30 days ago, and an
     `active` ADR whose sunset passed in 2000 — each fills one clocked
     collection on its own, whatever the live board holds."""
+    refuse_the_checkout(root)
     then = event_stamp(datetime.now() - AGED)
     records = task_records(root)
     for cid, status in CONTROL_ROWS.items():
