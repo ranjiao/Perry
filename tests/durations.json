@@ -24,6 +24,10 @@
       "sec": 3.02,
       "source": "2026-09-09-085824"
     },
+    "test_asks_list.py": {
+      "sec": 4.09,
+      "source": "2026-09-14-asks"
+    },
     "test_asks_store.py": {
       "sec": 4.96,
       "source": "2026-09-09-085824"
@@ -560,6 +564,13 @@
       "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (0.79/0.89/0.8s), on the terms of the 2026-09-12-task439 entry: re-timing every neighbour to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it.",
       "ref": "1d30f84d3f88f7d211b6bbb764f4dfc42a61de7d",
       "taken": "2026-09-14T03:09:47Z",
+      "workers": 1
+    },
+    "2026-09-14-asks": {
+      "load1": 11.94,
+      "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (4.19/4.09/3.94s), on the terms of the 2026-09-12-task439 entry. test_asks_list.py landed in f9143a3b (perry-task asks) without an entry, and tests/run has printed `not in durations.json` for it since. load1 is the uptime sample taken right after the three runs, with a dispatched agent's work on the same machine, so this is high rather than idle.",
+      "ref": "f9143a3b189b3cc8f9050fc41c464842061f5810",
+      "taken": "2026-09-14T03:32:00Z",
       "workers": 1
     }
   }
