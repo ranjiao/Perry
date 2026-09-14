@@ -540,6 +540,94 @@ def resolve_project_root(explicit: str | os.PathLike | None = None, *,
     return found if found is not None else cur
 
 
+# ── a write needs an installed project ────────────────────────────────────
+
+
+#: What a write must NOT create in a directory that is not installed, besides
+#: the canonical stores `parsers § canonical_store_names` reads out of
+#: `schema/state-schema.json § claims`: the journal and the event log.
+#: `.perry/config.jsonl` is deliberately absent — writing it is how every
+#: documented start installs a project (TASK-237 Amendment (6)).
+INSTALL_GATED_WRITES = ("journal/", ".perry/events.jsonl")
+
+
+def declared_writes(surface: dict, sub: str | None) -> list[str]:
+    """The `writes` list a tool's `SURFACE` declares for one subcommand."""
+    declared = surface_subcommand(surface, sub) if sub else None
+    return list((declared or {}).get("writes") or [])
+
+
+def write_needs_installed(writes) -> bool:
+    """Does a write of these paths need an installed project?
+
+    Yes when it names a canonical store (by file name, because a tool's
+    declaration names `tasks.jsonl` and the claim anchors it at the state
+    root), the journal, or `.perry/events.jsonl`. `BOARD.md`, `OKR.md` and
+    `.perry/config.jsonl` alone do not.
+    """
+    stores = set(_parsers().canonical_store_names())
+    for path in writes or ():
+        path = str(path)
+        if (Path(path).name in stores or path in INSTALL_GATED_WRITES
+                or path.startswith("journal")):
+            return True
+    return False
+
+
+def refuse_write_unless_installed(project_root: Path, writes,
+                                  refused: type[BaseException]) -> None:
+    """**The one gate: a write that would create a canonical store, a journal
+    entry or the event log refuses where nothing is installed.** TASK-237
+    round 2, F1.
+
+    3a let a write build its board from the declarations when no `BOARD.md`
+    exists. Nothing asked whether the directory was a Perry project, so
+    `perry-task ask` run in a copy of a pre-ADR-019 consumer (`.perry/config.md`
+    declaring `State root: perry`, the board under `perry/`) exited 0, wrote
+    `asks.jsonl`, the journal and `.perry/events.jsonl` at the project root,
+    and turned `installed` true over an empty second project that hid the
+    real board from every surface. The pre-TASK-237 tools refused there,
+    because they needed the file.
+
+    **Asked here, of `parsers § installed`, and nowhere else.** Each writer
+    calls this once at its dispatch boundary, before its lock, with the
+    subcommand's declared `writes` — so `--dry-run` passes the same gate, a
+    new subcommand is gated by declaring what it writes, and no subcommand
+    carries its own copy. `perry-config set`/`track` declare only
+    `.perry/config.jsonl`, which is not gated: that write is the start.
+    """
+    if not write_needs_installed(writes):
+        return
+    P = _parsers()
+    root = Path(project_root)
+    if P.installed(root):
+        return
+    flag = root_flag(root)
+    msg = (f"{root} is not an installed Perry project, so this write would "
+           f"make one: it holds no `.perry/config.jsonl`, and no canonical "
+           f"store beside a `.perry/` directory (`schema/README.md § "
+           f"installed`). Nothing was written.")
+    try:
+        legacy = (root / ".perry" / "config.md").is_file()
+    except OSError:
+        legacy = False
+    if legacy:
+        msg += (f" This project has `.perry/config.md` and no "
+                f"`.perry/config.jsonl`: it was set up before ADR-019, and no "
+                f"tool reads that file any more. Write its settings into the "
+                f"store with perry-config first — its state root above all, "
+                f"`\"$PERRY_HOME/bin/perry-config\" set 'State root' "
+                f"<dir>{flag}` if its state lives under a directory "
+                f"(`reference/first-run.md § Writing the config store`) — "
+                f"then re-run this command.")
+    else:
+        msg += (f" To start one here, write the config store first — "
+                f"`\"$PERRY_HOME/bin/perry-config\" set 'Document language' "
+                f"<language>{flag}` and the rest of `reference/first-run.md § "
+                f"Writing the config store` — then re-run this command.")
+    raise refused(msg)
+
+
 def root_flag(root: str | os.PathLike | None) -> str:
     """**` --root <root>`, ready to be pasted into the end of a command a
     message hands the reader.** Empty when there is no root to name.

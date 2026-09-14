@@ -1441,6 +1441,12 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     # `bin/perry-tasks § main` records.
     if not _locked:
         try:
+            # TASK-237 round 2, F1: `write` and `migrate-ids` write the store
+            # and refuse on a directory that is not installed; `render
+            # --write` writes the document and every read passes. The scope
+            # is the subcommand's declared `writes`.
+            lib.refuse_write_unless_installed(
+                root, lib.declared_writes(face, cmd), Refused)
             with lib.project_lock(state_root, refused=Refused):
                 return main(doc, argv, _locked=True)
         except Refused as exc:

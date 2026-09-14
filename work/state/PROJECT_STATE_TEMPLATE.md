@@ -1,7 +1,7 @@
 # PROJECT_STATE — {{project_name}}
 
 > Living dashboard. Edited by the `pmo` skill on every standup. Keep < 300 lines.
-> The live work board lives in `BOARD.md`; this file is for cross-phase state.
+> The live work board is `tasks.jsonl` and its register stores (`perry-tasks board` prints them); this file is for cross-phase state.
 
 ## Snapshot
 
@@ -33,7 +33,7 @@
 
 ## Carry-over watch
 
-> Tasks that have rolled over from previous phases. Each carry-over should also exist in `BOARD.md`.
+> Tasks that have rolled over from previous phases. Each carry-over should also be an open task in `tasks.jsonl` (`perry-task list` shows it).
 
 - {{TASK-ID-from-previous-phase}} → {{new TASK-ID}} · {{1-line reason for carry-over}}
 

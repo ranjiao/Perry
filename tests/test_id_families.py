@@ -101,11 +101,11 @@ class Project:
     def __init__(self, foreign: bool = True):
         self._dir = tempfile.TemporaryDirectory()
         self.root = Path(self._dir.name)
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n"
-            "- Conformance gate: advisory\n", encoding="utf-8")
+        # Installed the way a start installs a project (TASK-237 round 2). The
+        # `Conformance gate` line the markdown carried configured a gate
+        # TASK-261 removed, so the store declares only the defaults.
+        import config_store
+        config_store.write_config(self.root)
         (self.root / "BOARD.md").write_text(BOARD, encoding="utf-8")
         if foreign:
             (self.root / "decisions").mkdir()

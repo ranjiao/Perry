@@ -88,10 +88,9 @@ class Project:
     def __init__(self):
         self.dir = tempfile.TemporaryDirectory()
         self.root = Path(self.dir.name)
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n")
+        # Installed the way a start installs a project (TASK-237 round 2).
+        import config_store
+        config_store.write_config(self.root)
         (self.root / "BOARD.md").write_text(BOARD)
         r = subprocess.run(
             ["python3", str(TASKS), "write", "--from-board", "--root",

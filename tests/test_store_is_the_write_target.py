@@ -77,11 +77,11 @@ class Project:
     def __init__(self, case, board: str = BOARD, seed_store: bool = True):
         self.root = pathlib.Path(tempfile.mkdtemp()).resolve()
         case.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
-        (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n",
-            encoding="utf-8")
+        # Installed the way a start installs a project (TASK-237 round 2): a
+        # `.perry/config.md` is read by nothing since ADR-019, and a write now
+        # refuses on a directory that is not installed.
+        import config_store
+        config_store.write_config(self.root)
         (self.root / "BOARD.md").write_text(board, encoding="utf-8")
         if seed_store:
             proc = subprocess.run(

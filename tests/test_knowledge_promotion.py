@@ -76,6 +76,11 @@ class Base(unittest.TestCase):
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(text, encoding="utf-8")
         if (root / "BOARD.md").exists():
+            # The board import writes `tasks.jsonl`, and a write refuses on a
+            # directory that is not installed (TASK-237 round 2): install it
+            # the way a start does. Projects with no board are left as built.
+            import config_store
+            config_store.write_config(root)
             seeded = subprocess.run(
                 [sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
                  "write", "--from-board", "--root", str(root)],

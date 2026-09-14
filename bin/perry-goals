@@ -3316,6 +3316,13 @@ def main(argv: list[str]) -> int:
             # disagreements, because a disagreement needs a foreign project.
             # `--migrate`'s exemption went with it: with no gate to be exempt
             # from, a migration is just a write.
+            # **Nothing is written into a directory that is not installed**
+            # (TASK-237 round 2, F1). This tool declares no `SURFACE`, so the
+            # scope is named here: every command on this branch writes the
+            # OKR or linkage store and appends the event log.
+            lib.refuse_write_unless_installed(
+                project_root, ("okr.jsonl", "linkage.jsonl",
+                               ".perry/events.jsonl"), Refused)
             phase_slug = None
             if args.cmd == "link":
                 phase_slug = current_phase(state_root)

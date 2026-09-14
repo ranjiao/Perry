@@ -17,7 +17,7 @@
 (none)
 
 <!-- Each new task gets the full schema written here once. After today, the canonical
-     scope lives in this entry; BOARD.md only carries enough to know it's open.
+     scope lives in this entry; the task record only carries enough to know it's open.
 
 ### TASK-XXX — {{title}}
 - Owner: {{User | PMO Agent | Coding Agent | Research Agent | Review Agent | User+Agent}}
