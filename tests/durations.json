@@ -602,6 +602,13 @@
       "ref": "c0916ced92ada8d5cafd1da2e1ab43f534c07fd2",
       "taken": "2026-09-14T05:53:18Z",
       "workers": 1
+    },
+    "2026-09-14-task237-d3b": {
+      "load1": 9.17,
+      "note": "TWO modules added by TASK-237 deliverable 3b, each timed alone three times with `python3 -m unittest` from tests/ and recorded at the median: test_cadence_store 1.24/1.29/1.48s, test_board_less_gaps 0.57/0.26/0.20s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "ref": "32c416ee",
+      "taken": "2026-09-14T07:40:00Z",
+      "workers": 1
     }
   }
 }

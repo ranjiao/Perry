@@ -665,10 +665,13 @@ CENSUS_LINES = {
     # `phase/<NNN>-linkage.md`, so this store projects from nothing and a
     # drift verdict over one copy would be a number that cannot be non-zero.
     "linkage.jsonl": ("· linkage store:", "no `linkage.jsonl`"),
+    # The eighth (TASK-237 deliverable 3b): `## Cadence` got a store, and its
+    # census line is the ask register's, one register over.
+    "cadence.jsonl": ("· cadence store:", "no `cadence.jsonl`"),
 }
 
 #: The stores that PROJECT from a markdown document and can therefore drift
-#: from it. Six of the seven. `linkage.jsonl` is claimed, censused and
+#: from it. Seven of the eight. `linkage.jsonl` is claimed, censused and
 #: shape-checked like the rest; what it has no second copy of is a document,
 #: so `perry-lint --json` gives it a `linkage_store` block rather than a
 #: `linkage_store_drift` one. Named here rather than special-cased at the

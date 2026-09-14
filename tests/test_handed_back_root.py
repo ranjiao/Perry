@@ -226,7 +226,14 @@ MENTIONS = {
 #:   * `bin/perry_md_store.py § mint_objective_ids` — pass zero's refusal names
 #:     `perry-okr write --from-file`, rooted from the start, beside the
 #:     untitled guard's identical hand-back.
-PASTEABLE_WRITER_PHRASES = 68
+#:
+#: **68 -> 72 on 2026-09-14 (TASK-237 deliverable 3b), four new hand-backs,
+#: each rooted from the start:** `perry-tasks cadence-render --write` and
+#: `perry-tasks cadence-write --from-board`, once in `bin/perry-tasks §
+#: cmd_cadence_write`'s refusal without `--from-board` and once in
+#: `bin/perry-lint § check_cadence_store_drift`'s drift finding — the ask
+#: register's two hand-backs, one register over.
+PASTEABLE_WRITER_PHRASES = 72
 
 
 def _load(path: Path):
