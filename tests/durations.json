@@ -52,6 +52,10 @@
       "sec": 0.41,
       "source": "2026-09-14-task237-d1"
     },
+    "test_board_less_gaps.py": {
+      "sec": 0.26,
+      "source": "2026-09-14-task237-d3b"
+    },
     "test_board_less_project_is_recognised.py": {
       "sec": 0.8,
       "source": "2026-09-14-task237"
@@ -67,6 +71,10 @@
     "test_cadence.py": {
       "sec": 9.5,
       "source": "2026-09-09-085824"
+    },
+    "test_cadence_store.py": {
+      "sec": 1.29,
+      "source": "2026-09-14-task237-d3b"
     },
     "test_churn.py": {
       "sec": 8.64,
