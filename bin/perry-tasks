@@ -2049,6 +2049,12 @@ def main(argv: list[str], _locked: bool = False) -> int:
         # reason is printed"; a traceback is not that.
         state_root = P.resolve_state_root(root)
         try:
+            # TASK-237 round 2, F1: an import into a canonical store refuses
+            # on a directory that is not installed. The scope is the
+            # subcommand's declared `writes`, so `render --write` (a
+            # `BOARD.md`) and every read pass.
+            lib.refuse_write_unless_installed(
+                root, lib.declared_writes(SURFACE, cmd), Refused)
             with lib.project_lock(state_root, refused=Refused):
                 return main(argv, _locked=True)
         except Refused as exc:

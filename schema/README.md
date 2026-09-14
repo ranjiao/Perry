@@ -251,8 +251,8 @@ fixtures (`tests/fixtures/sample-project/`).
 > and `perry-decide/list` are in the table above, and `OKR.md` has had a store
 > beside it since 2026-08-27. The "resolve columns by name, never by position"
 > rule below still applies to everything a consumer reads out of markdown —
-> which, for the four registers of `BOARD.md` that have no store, is still
-> several things.
+> which, now that every register of the board has a store, is `phase/`,
+> `decisions/` and a `BOARD.md` a project still holds before its import.
 
 The rule that follows: **if a reader can't get something from the declared
 structure, the answer is to declare it — not to infer it.** A number that

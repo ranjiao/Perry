@@ -1207,10 +1207,8 @@ class TestVerificationSeesToolClosedWork(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         root = Path(tmp)
         self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n")
+        # Installed the way a start installs a project (TASK-237 round 2).
+        config_store.write_config(root)
         if hook:
             (root / ".perry" / "hook.md").write_text(
                 f"# hook\n\n## High-stakes operations\n\n- {hook}\n")

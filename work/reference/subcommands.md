@@ -634,8 +634,9 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    section the mode needs and the board lacks**, and writes the task store and
    journal through a durable recovery marker. A normal failure rolls both back;
    a crash between replacements is completed on the next locked Perry run.
-   `BOARD.md` is rendered afterwards and the event is appended and reported if
-   either derived-surface write fails.
+   The event is appended afterwards, and a board file a project still holds
+   is re-rendered from the store; either derived-surface write is reported if
+   it fails.
 
    **Which id family it mints into.** `TASK-NNN` unless the board says
    otherwise, and the board says otherwise in exactly one way: if every

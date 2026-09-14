@@ -732,10 +732,25 @@ class Board:
     # -- locating
 
     def section(self, priority: str) -> tuple[int, int]:
-        """(first line index, end index) of the given priority section."""
+        """(first line index, end index) of the given priority section.
+
+        **Or of a heading, when `priority` is not `P0`/`P1`/`P2`** (TASK-237
+        round 2, R2). `find()` answers `table["priority"] or table["heading"]`,
+        so a row under `## Open — 工程线` hands its heading here, and the
+        lookup `PRIORITY_RE[priority]` raised `KeyError` — a traceback from
+        `next`, `status`, `retitle`, `rung`, `evidence` and `depends` on such a
+        row, with a held board and without one. The heading is matched the way
+        `_section_tables` reads it (`line[3:].strip()`), so the section found
+        is the one `find()` found the row in. On a board-less project that is
+        the `## <group>` section `perry_store § DECLARED_BOARD_CHOICES`'s
+        "undeclared group" places the task under, the same section
+        `perry-tasks board` prints it in.
+        """
+        pattern = PRIORITY_RE.get(priority)
         start = None
         for i, line in enumerate(self.lines):
-            if PRIORITY_RE[priority].match(line):
+            if (pattern.match(line) if pattern is not None else
+                    line.startswith("## ") and line[3:].strip() == priority):
                 start = i
                 continue
             if start is not None and line.startswith("## "):
@@ -8854,6 +8869,11 @@ def main(argv: list[str]) -> int:
         project_root = (Path(args.root).expanduser().resolve() if args.root
                         else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
         state_root = P.resolve_state_root(project_root)
+        # **A write refuses where nothing is installed** (TASK-237 round 2,
+        # F1), before the lock, the board and the dispatch, so `--dry-run`
+        # gets the same answer. The four reads declare no `writes` and pass.
+        lib.refuse_write_unless_installed(
+            project_root, lib.declared_writes(SURFACE, args.cmd), Refused)
         # The track register is the STORE, `.perry/config.jsonl`, and nothing
         # else (ADR-019). `.perry/config.md § Tracks` was the fallback for a
         # project with no store; the projection is gone, so `--track` and every

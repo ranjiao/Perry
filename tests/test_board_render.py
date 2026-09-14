@@ -143,8 +143,10 @@ class Project:
     def fixture(case, board: str) -> pathlib.Path:
         d = pathlib.Path(tempfile.mkdtemp())
         case.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        (d / ".perry").mkdir()
-        (d / ".perry" / "config.md").write_text("# Config\n", encoding="utf-8")
+        # Installed the way a start installs a project (TASK-237 round 2): the
+        # import below writes `tasks.jsonl`, which refuses where nothing is.
+        import config_store
+        config_store.write_config(d)
         (d / "BOARD.md").write_text(board, encoding="utf-8")
         assert run("write", "--from-board", root=d).returncode == 0
         return d

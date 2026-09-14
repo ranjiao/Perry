@@ -687,6 +687,11 @@ class TestItRefusesWhatItCannotWriteSafely(Case):
 
     def test_no_store_at_all(self):
         p = self.project(SYNTHETIC)
+        # With the store gone, `.perry/` alone does not install the directory,
+        # and a write refuses there first (TASK-237 round 2). The config store
+        # keeps it installed, so the refusal under test is still the one met.
+        import config_store
+        config_store.write_config(p.dir)
         p.path.unlink()
         r = p.link("ZZZ-001", "P002-O1-KR1", expect=1)
         self.assertIn("no linkage store", r.stderr)

@@ -1,7 +1,7 @@
 # {{TASK-ID}} — {{Title}}
 
 > Evidence file for {{TASK-ID}}. Lives at `evidence/{{YYYY-MM}}/{{TASK-ID}}-<short-slug>.md`.
-> The BOARD.md `Evidence` field points here. Long-form analysis lives in this file, not in the board.
+> The task record's `evidence` field (`perry-task evidence`) points here. Long-form analysis lives in this file, not in the record.
 
 ## Linkage
 
