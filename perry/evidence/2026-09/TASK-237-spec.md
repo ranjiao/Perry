@@ -165,3 +165,100 @@ in this row's clothes.
   deleting `BOARD.md` forces a decision about them — in which case name it and
   stop, do not widen.
 - `viewer/parsers.py`'s tier-1 readers (`OKR.md`, phase files, role cards).
+
+---
+
+## Amendment 2026-09-14 — the first deliverable is the reading surface (USER-931 answer A)
+
+**Everything above still describes the deletion. None of it runs yet.** The
+reading gate this spec requires was measured on 2026-09-14
+(`evidence/2026-09/2026-09-14-task-237-gate.md`) and it stopped the row: the one
+command that prints a board row whole, `perry-tasks render`, fills the task rows
+**in place** over `BOARD.md` and refuses when the file is gone. And a Perry
+project is recognised by that file in eight code sites and four prose sites. The
+user chose to build what the deletion needs first, as this row's first
+deliverable, with no new row.
+
+### Deliverable 1 — a board render from the store alone
+
+A command that prints the whole board from `tasks.jsonl` (and the register
+stores the board already renders from) **with no `BOARD.md` on disk**: every
+section, every row, every column, every cell whole, to stdout.
+
+**Where the skeleton comes from — measured, not invented.** Today it comes from
+the file: `perry_store.plan(board, …)` iterates `board.lines`. A render with no
+file needs it from somewhere else, and the tree already declares most of it:
+
+| part of the board | declared today in |
+|---|---|
+| section order | `schema/state-schema.json § files[id=board].headings` — P0, P1, P2, Cadence, User Input Queue, Top risks |
+| per-section columns | `§ files[id=board].tables[]` — required `columns` plus `optional_columns` |
+| the title and header prose | `work/state/BOARD_TEMPLATE.md` — but its task tables carry **6** columns and the live board carries **15**, so it is not the live skeleton as-is |
+
+Where the schema and template cannot reproduce the live file, that is a
+**finding to report**, not a gap to paper over by reading the file.
+
+**The acceptance is byte-identity.** On a project where `BOARD.md` still exists,
+the store-only render must be byte-identical to it. Measured baseline:
+`perry-tasks render` on `HEAD` is byte-identical to `perry/BOARD.md` at
+154,151 bytes — that is the bar, now without the file.
+
+### Deliverable 2 — a Perry project is not recognised by `BOARD.md` existing
+
+Every site that decides "is this a Perry project / where is its state root" by
+the file must decide it another way — `bin/lib § ` `configured(d)` already does
+for projects with `.perry/config.jsonl`. **Enumerated 2026-09-14; re-enumerate,
+do not trust this list:**
+
+| code | prose |
+|---|---|
+| `bin/perry-task:669`, `:8720` | `work/SKILL.md:43`, `:108`, `:292` |
+| `bin/perry-explain:663` | `work/reference/bootstrap.md:3` |
+| `bin/perry-lint:4906`, `:5882` | |
+| `bin/perry-state:2595` | |
+| `viewer/parsers.py:579` | |
+| `bin/lib/__init__.py:540` | |
+
+Several accept `OKR.md` as an alternative. Perry's own repository would survive
+on that; a project with neither would bootstrap on every session. Measure it on
+a board-less, OKR-less configured project.
+
+### Files in scope for deliverables 1 and 2
+
+- `bin/perry-tasks`, `bin/perry_store.py` — the renderer.
+- the twelve detection sites above, re-enumerated.
+- `schema/state-schema.json` and `work/state/BOARD_TEMPLATE.md` — **read only.**
+- `tests/` — the guards.
+- `perry/evidence/2026-09/TASK-237-result.md` — written.
+
+### Bound for deliverables 1 and 2
+
+Enumeration: `grep -rnE 'BOARD\.md' bin/ viewer/ SKILL.md work/ goals/ decide/ reference/` filtered to existence and detection checks, plus every call path of `perry_store.plan`. Size: the enumeration's count, stated before the first edit. Remainder: every site not changed, each with a reason.
+
+### What deliverables 1 and 2 must not do
+
+1. **Must not delete `BOARD.md`.** Deletion is deliverable 3 and runs only after
+   1 and 2 are measured — the order this spec already required.
+2. **Must not edit `schema/state-schema.json`.** High-stakes; if the declared
+   skeleton cannot reproduce the live board, report it.
+3. **Must not build the render by reading `BOARD.md`.** A render that reads the
+   file it replaces proves nothing — the blindness `§ What it must not do` item 1
+   already names.
+4. **Must not change what `perry-tasks render` does today** while the file
+   exists, beyond what byte-identity allows.
+
+### Verification for deliverables 1 and 2
+
+1. **Byte-identity, in both states.** With `BOARD.md` present, the store-only
+   render `cmp`-equal to the file. With `BOARD.md` deleted in a scratch copy, the
+   render exits 0 and TASK-391's 2,218-byte next action is in its output whole.
+2. **Detection on a board-less project.** A scratch project with
+   `.perry/config.jsonl`, `tasks.jsonl` and no `BOARD.md` or `OKR.md` is
+   recognised by every enumerated site; the session bootstrap in
+   `work/SKILL.md` is not triggered.
+3. **Mutation.** Reorder one declared heading, drop one optional column, corrupt
+   one record: each reddens a named test.
+4. **Anti-vacuity.** A guard that builds its expected bytes from `BOARD.md` is
+   the defect, not the check — the expectation must come from a file the render
+   does not read.
+5. The suite, with the pre-existing reds named.
