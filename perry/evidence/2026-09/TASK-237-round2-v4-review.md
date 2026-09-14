@@ -24,7 +24,7 @@
 
 | | |
 |---|---|
-| branch | `worktree-agent-ae08e8b55e69dfaee` |
+| branch | `worktree-agent-a0043aa197ba59e30` |
 | arrived at | `583f024f97d8736468e61469e2667de85eeb56c4` |
 | tree | clean (`git status --short` printed nothing) |
 | `git merge-base --is-ancestor c9301eca HEAD` | **exit 1**: stale |
