@@ -4,9 +4,10 @@
 "is this a Perry project / where is its root" must recognise a project that has
 none. **Measured 2026-09-14: every code site already asks `configured(d)`**
 (`.perry/config.jsonl`) beside `BOARD.md` / `OKR.md`, so no code site changes.
-What was missing is a guard: four of the nine sites had no test on a project
-whose other disjuncts are ALL absent, so each `configured(d)` could be deleted
-and the suite stayed green — measured by mutation, `TASK-237-result.md § 4`.
+What was missing is a guard at two of them: with `configured(d)` deleted at
+`bin/lib § resolve_project_root` (A2) or `bin/perry-lint § main`'s walk (A5),
+the only test that goes red is one in this module — measured by mutation,
+`TASK-237-result.md § 4`. The other seven were already caught elsewhere.
 
 **One fixture for all nine, and its emptiness is asserted, not assumed.** A
 fixture carrying `BOARD.md`, `OKR.md`, `phase/` or `design/DESIGN-*.md` answers
@@ -31,10 +32,11 @@ here, as it would be on this repository.
     A8 bin/perry-diagnose § scan_tracking         test_diagnose_calls_it_installed
     A9 bin/perry-diagnose § diagnose (is_perry)   test_diagnose_treats_it_as_perry
 
-A3, A4, A6, A8 and A9 already had a board-less guard in
-`tests/test_config_store_readers.py`; they are asked again here so this one
-fixture — config and a task store, nothing else — is the whole acceptance of
-the amendment's verification 2, in one module a reviewer can mutate against.
+A3, A4, A6, A8 and A9 were already reddened by
+`tests/test_config_store_readers.py`, A1 by `tests/test_project_root_resolution.py`
+and A7 by `tests/test_explain_typed_tasks.py`. They are asked again here so this
+one fixture — config and a task store, nothing else — is the whole acceptance
+of the amendment's verification 2, in one module a reviewer can mutate against.
 
 Run: python3 tests/parallel test_board_less_project_is_recognised
 """

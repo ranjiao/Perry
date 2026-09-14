@@ -44,6 +44,10 @@
       "sec": 0.08,
       "source": "2026-09-09-085824"
     },
+    "test_board_less_project_is_recognised.py": {
+      "sec": 0.8,
+      "source": "2026-09-14-task237"
+    },
     "test_board_render.py": {
       "sec": 32.58,
       "source": "2026-09-09-085824"
@@ -549,6 +553,13 @@
       "note": "ONE module, timed alone three times and recorded at the median (5.99/3.30/2.64) rather than from a `--record` sweep, which would have re-timed all 132 under a different load.",
       "ref": "f3df62193eebfa139219b60e2cd983836f74cada",
       "taken": "2026-09-12T15:20:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task237": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (0.79/0.89/0.8s), on the terms of the 2026-09-12-task439 entry: re-timing every neighbour to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it.",
+      "ref": "1d30f84d3f88f7d211b6bbb764f4dfc42a61de7d",
+      "taken": "2026-09-14T03:09:47Z",
       "workers": 1
     }
   }
