@@ -182,7 +182,8 @@ flowchart LR
   fall back to editing the file by hand.
 
 ### Contract: `perry-task list --json` → outside consumers
-- `schema/task-list-contract.md`, version **2.0**. `tasks[]` is bounded at 200
+- `schema/task-list-contract.md`, version **2.1** (confirmed by the user
+  2026-09-14; 2.1 announces asks and risks read from their stores). `tasks[]` is bounded at 200
   rows by default; `bound.open_total` carries the project's figure.
 - **Error mode**: a refusal is JSON on stdout, not prose on stderr.
 
@@ -274,9 +275,9 @@ flowchart LR
   - §2 and the §3 diagram: 20 executables, `parsers.py` 5,228 lines, schema
     107KB, 136 test modules (the last full run).
   - §4: eight stores, with `cadence.jsonl` added, and `--json` ≈ 174KB.
-  - **Not changed here:** §5 still says `perry-task list` is **2.0**, while the
-    live contract has been **2.1** since TASK-237 3a. A §5 contract version is
-    the user's to change (NN-6).
+  - §5: `perry-task list` 2.0 → **2.1**, the live version since TASK-237 3a.
+    The user confirmed the change the same day, as NN-6 requires for a §5
+    contract version.
   - `BOARD.md` still appears in §2, §4 and §6 because the file still exists.
     Its deletion (TASK-237 3c) rewrites those lines.
 - 2026-09-09 · v1 · Initial architecture document, written while Perry's own
