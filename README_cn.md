@@ -328,5 +328,6 @@ Perry 本身是英文写的，你的项目不必是。首次配置时它会记�
 - **[reference/i18n.md](reference/i18n.md)** —— 换语言工作
 - **[modes/](modes/)** —— 四种工作形态，一种一份：什么让它结束、主线是什么、triage 先问什么
 - **[reference/diagnose.md](reference/diagnose.md)** —— 项目体检是怎么做的
+- **[reference/version-compatibility.md](reference/version-compatibility.md)** —— 项目里是哪一代 Perry 状态、现在的工具怎么对待它、老项目怎么升级
 - **[reference/adoption.md](reference/adoption.md)** —— 接管已有项目是怎么做的
 - **[schema/README.md](schema/README.md)** —— 文件格式，如果你要写东西来读 Perry 的文件

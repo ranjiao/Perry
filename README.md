@@ -328,5 +328,6 @@ to be migrated.
 - **[reference/i18n.md](reference/i18n.md)** — writing in another language
 - **[modes/](modes/)** — the four kinds of work, one file each: what ends them, what the spine is, what triage asks
 - **[reference/diagnose.md](reference/diagnose.md)** — how the project audit works
+- **[reference/version-compatibility.md](reference/version-compatibility.md)** — which generation of Perry state a project holds, what today's tools do with it, and how to upgrade an older project
 - **[reference/adoption.md](reference/adoption.md)** — how adopting an existing project works
 - **[schema/README.md](schema/README.md)** — the file format, if you're building something that reads Perry's files
