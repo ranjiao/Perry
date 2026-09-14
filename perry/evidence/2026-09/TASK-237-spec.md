@@ -262,3 +262,64 @@ Enumeration: `grep -rnE 'BOARD\.md' bin/ viewer/ SKILL.md work/ goals/ decide/ r
    the defect, not the check — the expectation must come from a file the render
    does not read.
 5. The suite, with the pre-existing reds named.
+
+## Amendment 2026-09-14 (2): deliverable 1 is accepted cell-whole, not byte-identical (USER-932 answer 3)
+
+Deliverables 1 and 2 ran and were merged at `9549626e`
+(`evidence/2026-09/TASK-237-result.md`).
+
+- **Deliverable 2 was delivered and re-measured by the PMO.** Each of the nine
+  detection sites, with `configured(...)` replaced by `False`, reddens its
+  named test. A project holding only `.perry/config.jsonl` reports
+  `installed: true`.
+- **Deliverable 1 stopped at hard limit 5.** A board built only from the
+  declared skeleton is 157,422 B against the live 157,242 B, with 2,349 B on
+  matching lines. The gap is 12 kinds of layout that exist only in the file.
+  Every cell is already held in a store.
+
+USER-932 answered **3: drop the byte clause.**
+
+### Deliverable 1, re-stated
+
+A board render that reads **only** `tasks.jsonl`, `asks.jsonl`, `risks.jsonl`,
+`intake.jsonl`, `.perry/config.jsonl`, `schema/state-schema.json` and
+`work/state/BOARD_TEMPLATE.md`. With `BOARD.md` absent, it prints every row,
+every column and every cell whole.
+
+- **Layout** follows the declared skeleton. Where the skeleton leaves a choice
+  open, the render makes it once and says so; it does not copy the live file.
+- **Byte-identity with the live file** is not a criterion.
+- **Replaces** the retired `### Verification for deliverables 1 and 2` item 1.
+  Items 2–5 stand.
+
+### Verification for deliverable 1 (replaces item 1 above)
+
+1. **Cell-whole, in both states.** Run in a scratch copy with `BOARD.md`
+   deleted, and again with it present:
+   - every store row appears exactly once in its declared section;
+   - every column the section declares is present;
+   - every cell equals the store value, after the one documented escaping of
+     `|` and newlines;
+   - TASK-391's 2,218-byte next action is whole.
+2. **Independence from the file.** The same run with `BOARD.md` replaced by
+   garbage prints the same bytes. The guard's expectations come from the stores,
+   never from `BOARD.md`.
+3. **Mutation.** Each of these reddens a named test:
+   - drop one declared column;
+   - truncate one cell;
+   - skip one store row;
+   - read one byte of `BOARD.md`.
+
+### Still before deletion (deliverable 3), measured 2026-09-14 on `5fa66a7f`
+
+Neither blocker opens a row; both are TASK-237's own deliverable-3 work.
+
+1. **With `BOARD.md` deleted, `perry-task` writes refuse.** `perry-task next`
+   answers "no BOARD.md … this command needs the projection layout to render
+   its write".
+2. **`schema/state-schema.json § files[id=board]` still has `required: true`,**
+   so a board-less project lints red (measured: `perry-lint --root` on an archive of
+   `5fa66a7f` with `BOARD.md` deleted exits 1 with `[missing-file] required state file not found`;
+   the same archive with the file exits 0, 0 errors).
+   - Changing it is a schema edit: it needs the user's consent and appears on
+     `.perry/hook.md § High-stakes operations`.
