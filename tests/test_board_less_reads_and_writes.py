@@ -619,8 +619,10 @@ class TestLintOnABoardlessProject(unittest.TestCase):
                              capture_output=True, text=True, cwd=p.tmp)
         return json.loads(out.stdout)
 
-    def test_the_errors_are_the_present_errors_plus_the_missing_file(self):
-        """Item 3: the same errors as with the file, except `[missing-file]`."""
+    def test_a_board_less_project_lints_with_the_errors_it_has_with_the_file(self):
+        """3a item 3, closed by 3c: `files[id=board].required` is `false`, so a
+        board-less project reports exactly the errors it reports with a
+        rendered file — and neither carries `[missing-file]`."""
         absent, present = Project(board=None), Project(board=None)
         self.addCleanup(absent.close)
         self.addCleanup(present.close)
@@ -631,10 +633,19 @@ class TestLintOnABoardlessProject(unittest.TestCase):
             (f["rule"], f["file"], f["message"]) for f in got["findings"]
             if f.get("severity") == "error")
         without, with_file = errors(self.lint(absent)), errors(self.lint(present))
-        missing = ("missing-file", "BOARD.md", "required state file not found")
-        self.assertNotIn(missing, with_file)
-        self.assertIn(missing, without)
-        self.assertEqual([e for e in without if e != missing], with_file)
+        self.assertEqual([e for e in without if e[0] == "missing-file"], [])
+        self.assertEqual(without, with_file)
+
+    def test_no_board_draws_no_drift_finding(self):
+        """3c: with no file there is nothing for a store to drift from, so no
+        `*-store-drift*` finding of any kind — `uncheckable` included, which
+        said drift was unknown."""
+        p = Project(board=None)
+        self.addCleanup(p.close)
+        got = self.lint(p)
+        self.assertEqual([f for f in got["findings"]
+                          if "store-drift" in f["rule"]
+                          and not f["rule"].startswith("okr")], [])
 
     def test_the_store_counts_are_the_stores_with_no_file(self):
         p = Project(board=None)

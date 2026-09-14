@@ -835,7 +835,20 @@ def document_reports_on_a_check(path: Path) -> bool:
     exempts nothing: `split_dangling` also requires the id to be one the
     project has already reported on.
     """
-    return any(names_a_check(line) for line in read_text(path).splitlines())
+    return any(names_a_check(line) for line in _mention_source(path).splitlines())
+
+
+#: A store is read whole; see `report_lines`.
+_STORE_READ_CAP = 1 << 30
+
+
+def _mention_source(path: Path) -> str:
+    """The text a mention's line number points into. A markdown document keeps
+    `read_text`'s cap; a JSONL store is read WHOLE, because
+    `perry-explain § harvest_register_stores` records mentions at a store's
+    real line and `tasks.jsonl` is past the cap (TASK-237 3c)."""
+    return read_text(path, cap=_STORE_READ_CAP) if path.suffix == ".jsonl" \
+        else read_text(path)
 
 
 def report_lines(path: Path) -> set[int]:
@@ -852,6 +865,16 @@ def report_lines(path: Path) -> set[int]:
     statement, and it is a structural unit, not a reading of the English.
     """
     out: set[int] = set()
+    if path.suffix == ".jsonl":
+        # **A store record is one statement** (TASK-237 3c). With `BOARD.md`
+        # deleted, the rows a board carried are read as mentions at their
+        # store line (`perry-explain § harvest_register_stores`). A JSONL file
+        # has no blank line, so the paragraph rule below would make the whole
+        # store one paragraph and one record naming a check would exempt every
+        # id in all of them. The record is the unit instead — narrower than the
+        # board table it replaces, never wider.
+        return {n for n, line in enumerate(_mention_source(path).splitlines(), 1)
+                if names_a_check(line)}
     signed = False
     para: list[int] = []
     para_names_check = False

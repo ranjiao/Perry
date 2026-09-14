@@ -34,7 +34,12 @@ class TestFormatIsMechanized(unittest.TestCase):
         property of the reader, not of this project's backlog, so it is proved
         below on a board this module wrote.
         """
-        board = PT.Board(PERRY_HOME / "perry" / "BOARD.md")
+        # TASK-237 3c: this repository holds no `BOARD.md`. The corpus is the
+        # board its stores print, so the rows here are tool-written; the
+        # hand-written shapes are `ROUND_TRIP_BOARD`'s job below.
+        from printed_board import put_printed_board
+        with tempfile.TemporaryDirectory() as td:
+            board = PT.Board(put_printed_board(Path(td)))
         for _, raw, _ in board.rows():
             self.assertEqual(
                 PT.render_row(PT.split_row(raw)), raw,

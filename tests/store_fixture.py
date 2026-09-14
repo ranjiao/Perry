@@ -9,6 +9,7 @@ import unittest
 
 import config_store
 import inproc
+from printed_board import put_printed_board
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -87,12 +88,17 @@ class StoreFixture(unittest.TestCase):
         return root
 
     def full_project(self) -> pathlib.Path:
-        """Copy the live state only for tests whose subject is that corpus."""
+        """Copy the live state only for tests whose subject is that corpus.
+
+        The live state has no `BOARD.md` since TASK-237 3c, and every caller
+        compares a store with a board, so the copy gets the board this
+        repository's stores print (`tests/printed_board.py`)."""
         root = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         shutil.copytree(ROOT / "perry", root / "perry")
         shutil.copytree(ROOT / ".perry", root / ".perry",
                         ignore=shutil.ignore_patterns("*.lock"))
+        put_printed_board(root / "perry")
         return root
 
     def write_store(self, root: pathlib.Path) -> pathlib.Path:

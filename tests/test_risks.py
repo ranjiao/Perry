@@ -536,10 +536,15 @@ class TestLintToleratesBothForms(unittest.TestCase):
 
 
 class TestPerrysOwnBoard(unittest.TestCase):
-    """The migration required by TASK-040, checked in place."""
+    """The migration required by TASK-040, checked in place.
+
+    Since TASK-237 3c there is no `perry/BOARD.md`; "in place" is the board
+    Perry's own stores print (`tests/printed_board.py`), so what is checked is
+    that the register those stores hold reads as a dated table."""
 
     def setUp(self):
-        self.text = (PERRY_HOME / "perry" / "BOARD.md").read_text()
+        from printed_board import printed_board
+        self.text = printed_board()
 
     def test_perrys_top_risks_is_a_table(self):
         parsed = risks(self.text)

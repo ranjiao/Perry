@@ -1194,7 +1194,8 @@
       "path": "BOARD.md",
       "kind": "file",
       "owner": "work",
-      "anchor": "state"
+      "anchor": "state",
+      "note": "No command creates this file since TASK-237 deliverable 3c: the board is `perry-tasks board`'s output. It stays claimed because a project that still holds one keeps it under the state root — `/perry relocate` moves it with the rest, and the `--from-board` imports read it there."
     },
     {
       "path": "tasks.jsonl",
@@ -1343,7 +1344,8 @@
       "tier": 2,
       "cap": 200,
       "cap_kind": "soft",
-      "required": true,
+      "required": false,
+      "note": "Not required since TASK-237 deliverable 3c (the user's consent of 2026-09-14): the board is what `perry-tasks board` prints from the stores, and no command writes this file. A project that still holds one is linted against this declaration, and `perry-tasks <register>-write --from-board` imports a register it holds that has no store yet. The headings and tables stay declared because `perry-tasks board` lays the board out from them.",
       "headings": [
         {
           "level": 2,

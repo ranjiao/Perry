@@ -21,6 +21,8 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-tasks"
 
+from printed_board import put_printed_board  # noqa: E402
+
 #: Computable from the stored twenty plus the event log. Storing any of them
 #: is the "a stored value that is derived" defect, and keeping them computed is
 #: why `perry-task/list` does not change shape — phase 002's `P002-O3-KR2`.
@@ -35,14 +37,29 @@ def run(*args, root=ROOT):
 
 
 class TestTheSplitIsTheDesign(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # TASK-237 3c: this repository holds no `BOARD.md`, and `build`
+        # derives FROM one, so it runs on a copy carrying the board the stores
+        # print (`tests/printed_board.py`).
+        cls.tmp = pathlib.Path(tempfile.mkdtemp())
+        shutil.copytree(ROOT / "perry", cls.tmp / "perry")
+        shutil.copytree(ROOT / ".perry", cls.tmp / ".perry",
+                        ignore=shutil.ignore_patterns("*.lock"))
+        put_printed_board(cls.tmp / "perry")
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
     def test_no_derived_field_is_stored(self):
-        mod_stored = set(json.loads(run("build").stdout)["sample"])
+        mod_stored = set(json.loads(run("build", root=self.tmp).stdout)["sample"])
         overlap = mod_stored & DERIVED
         self.assertEqual(overlap, set(),
                          f"stored a value that is derived: {overlap}")
 
     def test_every_stored_field_appears_in_a_record(self):
-        out = json.loads(run("build").stdout)
+        out = json.loads(run("build", root=self.tmp).stdout)
         self.assertEqual(len(out["sample"]), out["stored_fields"])
 
 
@@ -59,6 +76,10 @@ class TestTheStoreReproducesTheBoard(unittest.TestCase):
                         ignore=shutil.ignore_patterns("tasks.jsonl"))
         shutil.copytree(ROOT / ".perry", d / ".perry",
                         ignore=shutil.ignore_patterns("*.lock"))
+        # TASK-237 3c: this repository holds no `BOARD.md`; the copy gets the
+        # board its stores print, which is what these imports would read on a
+        # project that still holds one (`tests/printed_board.py`).
+        put_printed_board(d / "perry")
         return d
 
     def test_verify_passes_against_a_store_it_did_not_just_build(self):

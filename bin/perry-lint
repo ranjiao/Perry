@@ -4023,6 +4023,15 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
         # it is silence about a question that was never asked.
         return findings
 
+    if not board_path.exists():
+        # **No file, no drift** (TASK-237 deliverable 3c). Drift is a board
+        # that disagrees with its store, and no command writes a board any
+        # more. This returned `store-drift-uncheckable` — "drift is unknown
+        # here rather than absent" — on every board-less project, which is
+        # false: there is nothing for the store to disagree with. `main()`
+        # prints the census line that says so.
+        return findings
+
     try:
         derived = _tasks_module().build(project_root)
     except Exception as exc:  # noqa: BLE001 — one check may not kill the lint
@@ -4177,10 +4186,8 @@ def check_risk_store_drift(project_root: Path, state_root: Path) -> list["Findin
         # summary line read "0 valid record(s)" of a store holding four.
         check_risk_store_drift.stats["records"] = len(
             _STORE.validate_risk_records(on_disk)[0])
-        return [Finding("warn", rel_store, "risk-store-drift-uncheckable",
-                        f"`{rel_store}` exists and there is no `BOARD.md` to "
-                        f"project it onto, so drift is unknown here rather "
-                        f"than absent")]
+        # No file, no drift (TASK-237 3c) — `check_store_drift` says why.
+        return []
 
     # One check may not kill the lint — the rule its sibling states and broke.
     try:
@@ -4327,10 +4334,8 @@ def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Find
     if not board_path.exists():
         check_intake_store_drift.stats["records"] = len(
             _STORE.validate_intake_records(on_disk)[0])
-        return [Finding("warn", rel_store, "intake-store-drift-uncheckable",
-                        f"`{rel_store}` exists and there is no `BOARD.md` to "
-                        f"project it onto, so drift is unknown here rather "
-                        f"than absent")]
+        # No file, no drift (TASK-237 3c) — `check_store_drift` says why.
+        return []
 
     try:
         tasks_mod = _tasks_module()
@@ -4455,10 +4460,8 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
     if not board_path.exists():
         check_ask_store_drift.stats["records"] = len(
             _STORE.validate_ask_records(on_disk)[0])
-        return [Finding("warn", rel_store, "ask-store-drift-uncheckable",
-                        f"`{rel_store}` exists and there is no `BOARD.md` to "
-                        f"project it onto, so drift is unknown here rather "
-                        f"than absent")]
+        # No file, no drift (TASK-237 3c) — `check_store_drift` says why.
+        return []
 
     try:
         tasks_mod = _tasks_module()
@@ -4593,10 +4596,8 @@ def check_cadence_store_drift(project_root: Path, state_root: Path) -> list["Fin
     if not board_path.exists():
         check_cadence_store_drift.stats["records"] = len(
             _STORE.validate_cadence_records(on_disk)[0])
-        return [Finding("warn", rel_store, "cadence-store-drift-uncheckable",
-                        f"`{rel_store}` exists and there is no `BOARD.md` to "
-                        f"project it onto, so drift is unknown here rather "
-                        f"than absent")]
+        # No file, no drift (TASK-237 3c) — `check_store_drift` says why.
+        return []
 
     try:
         tasks_mod = _tasks_module()
@@ -6268,11 +6269,22 @@ def main(argv: list[str]) -> int:
         # line a reader is most likely to be looking at. The wording is keyed
         # in `tests/test_store_drift.py § CENSUS_LINES`, which is what makes
         # renaming it a two-file edit rather than a silent one.
+        # **No `BOARD.md`, no drift** (TASK-237 deliverable 3c). The five board
+        # registers below compare a store with the section a board file holds.
+        # With no file they printed "comparison incomplete — drift is
+        # unchecked, not clean", which is false: there is nothing the store can
+        # disagree with. `root` is the state root here (templates never reach
+        # the census).
+        _board_absent = not mode_templates and not (root / "BOARD.md").exists()
+        _no_board = ("no `BOARD.md` — nothing is projected from it, so there "
+                     "is nothing to drift")
         _st = getattr(check_store_drift, "stats", None)
         if _st and not mode_templates:
             if not _st["store_present"]:
                 print("  · no `tasks.jsonl` — drift against the tasks store "
                       "is unchecked, not clean")
+            elif _board_absent:
+                print(f"  · tasks store: {_st['records']} record(s); {_no_board}")
             elif not _st["log_present"]:
                 # Named rather than folded into "comparison incomplete": the
                 # user can DO something about a missing log, and a reason is
@@ -6300,6 +6312,8 @@ def main(argv: list[str]) -> int:
             if not _rst["store_present"]:
                 print("  · no `risks.jsonl` — drift against the risks store "
                       "is unchecked, not clean")
+            elif _board_absent:
+                print(f"  · risks store: {_rst['records']} record(s); {_no_board}")
             elif not _rst["comparison_performed"]:
                 print(f"  · risks store: {_rst['records']} valid record(s), "
                       "comparison incomplete — drift is unchecked, not clean")
@@ -6313,6 +6327,8 @@ def main(argv: list[str]) -> int:
             if not _ist["store_present"]:
                 print("  · no `intake.jsonl` — drift against the intake store "
                       "is unchecked, not clean")
+            elif _board_absent:
+                print(f"  · intake store: {_ist['records']} record(s); {_no_board}")
             elif not _ist["comparison_performed"]:
                 print(f"  · intake store: {_ist['records']} valid record(s), "
                       "comparison incomplete — drift is unchecked, not clean")
@@ -6326,6 +6342,8 @@ def main(argv: list[str]) -> int:
             if not _ast["store_present"]:
                 print("  · no `asks.jsonl` — drift against the ask store is "
                       "unchecked, not clean")
+            elif _board_absent:
+                print(f"  · ask store: {_ast['records']} record(s); {_no_board}")
             elif not _ast["comparison_performed"]:
                 print(f"  · ask store: {_ast['records']} valid record(s), "
                       "comparison incomplete — drift is unchecked, not clean")
@@ -6339,6 +6357,8 @@ def main(argv: list[str]) -> int:
             if not _cst["store_present"]:
                 print("  · no `cadence.jsonl` — drift against the cadence store "
                       "is unchecked, not clean")
+            elif _board_absent:
+                print(f"  · cadence store: {_cst['records']} record(s); {_no_board}")
             elif not _cst["comparison_performed"]:
                 print(f"  · cadence store: {_cst['records']} valid record(s), "
                       "comparison incomplete — drift is unchecked, not clean")
