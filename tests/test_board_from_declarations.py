@@ -101,7 +101,13 @@ def read_stores(state: Path) -> dict[str, list[dict]]:
 
 
 def sections(text: str) -> list[dict]:
-    """`[{title, header, rows}]` per `## ` section that holds a table."""
+    """`[{title, header, rows}]` per `## ` section that holds a table.
+
+    A header cell's trailing ` †` is TASK-262's not-stored mark, and is
+    dropped here: whether it is on the right columns is
+    `test_board_names_its_sources`'s question, and this module's is whether
+    the declared columns are there. Only a HEADER cell is touched; a row cell
+    is compared whole."""
     out, title, lines = [], None, text.split("\n")
     i = 0
     while i < len(lines):
@@ -109,7 +115,8 @@ def sections(text: str) -> list[dict]:
         if line.startswith("## "):
             title = line[3:].strip()
         if line.startswith("|") and i + 1 < len(lines) and lines[i + 1].startswith("|"):
-            header = split_row(line)
+            header = [c[:-len(" †")] if c.endswith(" †") else c
+                      for c in split_row(line)]
             j = i + 2
             rows = []
             while j < len(lines) and lines[j].startswith("|"):
@@ -457,7 +464,10 @@ class TestTheFileIsNeverRead(unittest.TestCase):
         home = ROOT.resolve()
         declared = {str((home / "schema" / "state-schema.json").resolve()),
                     str((home / SPEC["template"]).resolve()),
-                    str((self.fx.root / ".perry" / "config.jsonl").resolve())}
+                    str((self.fx.root / ".perry" / "config.jsonl").resolve()),
+                    # TASK-262: the section lines' writers are this file's
+                    # `SURFACE`, read as a literal.
+                    str((home / "bin" / "perry-task").resolve())}
         declared |= {str((self.fx.state / f"{n}.jsonl").resolve()) for n in REGISTERS}
         data = {str(Path(p).resolve()) for p in opened
                 if not p.endswith((".py", ".pyc"))}

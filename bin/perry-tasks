@@ -330,12 +330,13 @@ def cmd_render(root: Path, byte_compare: bool,
 #
 # `render` fills today's `BOARD.md` in place and refuses when the file is gone.
 # `board` prints the whole board from what the tree declares: it reads exactly
-# the seven files below, and no other. `perry_store.declared_board` does the
+# the eight files below, and no other. `perry_store.declared_board` does the
 # work and opens nothing itself; its `DECLARED_BOARD_CHOICES` lists every
 # layout decision.
 #
-#     schema/state-schema.json § files[id=board]   (PERRY_HOME)
+#     schema/state-schema.json § files[id=board], § claims   (PERRY_HOME)
 #     work/state/BOARD_TEMPLATE.md                 (PERRY_HOME, the entry's `template`)
+#     bin/perry-task § SURFACE                     (TASK-262: the section lines' writers)
 #     .perry/config.jsonl                          (the project's, for `state_root`)
 #     <state root>/tasks.jsonl, asks.jsonl, risks.jsonl, intake.jsonl,
 #     cadence.jsonl                                (3b: the fifth store)
@@ -345,6 +346,26 @@ def cmd_render(root: Path, byte_compare: bool,
 # or fails its own `validate_*`, refuses with exit 2 and prints no board.
 
 BOARD_STORES = perry_store.BOARD_STORES
+
+
+def writer_surface() -> dict:
+    """`bin/perry-task § SURFACE`, read as a literal and never executed.
+
+    TASK-262: the section lines name the subcommands whose declared `writes`
+    names the section's store, so the list is the declaration's rather than
+    typed here. Loading the module instead would cost `board` ~0.37s and open
+    files at import; `ast.literal_eval` of the one assignment costs ~0.03s and
+    runs nothing. A `SURFACE` that is not a literal refuses the board.
+    """
+    import ast
+    path = Path(__file__).resolve().parent / "perry-task"
+    tree = ast.parse(path.read_text(encoding="utf-8"), str(path))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == "SURFACE"
+                for t in node.targets):
+            return ast.literal_eval(node.value)
+    raise Refused(f"{path} declares no SURFACE")
 
 
 def cmd_board(root: Path) -> int:
@@ -366,7 +387,9 @@ def cmd_board(root: Path) -> int:
         if spec is None:
             raise Refused("schema/state-schema.json declares no files[id=board]")
         template = (lib.PERRY_HOME / spec["template"]).read_text(encoding="utf-8")
-    except (Refused, OSError, ValueError, KeyError) as exc:
+        sources = {"claims": schema.get("claims") or [],
+                   "writers": writer_surface()}
+    except (Refused, OSError, ValueError, KeyError, SyntaxError) as exc:
         print(f"perry-tasks: refused — the board's declaration is unreadable "
               f"({type(exc).__name__}: {exc}). Nothing was printed.",
               file=sys.stderr)
@@ -380,7 +403,8 @@ def cmd_board(root: Path) -> int:
         return 2
     try:
         text, report = perry_store.declared_board(
-            spec, template, stores, project_name=P.project_name(root))
+            spec, template, stores, project_name=P.project_name(root),
+            sources=sources)
     except UnrenderableCell as exc:
         print(f"perry-tasks: refused — {exc.why}. Nothing was printed.",
               file=sys.stderr)
