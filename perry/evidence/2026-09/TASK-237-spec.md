@@ -817,3 +817,73 @@ substitution.
   - restore the old git-boundaries line without re-pinning;
   - grow `SKILL.md` past its budget.
 - The full suite, run on the final commit.
+
+## Amendment 2026-09-14 (9): V4 round 1 FAILed on F1; round 2 is the fix
+
+The verdict is `evidence/2026-09/TASK-237-v4-review.md` (reviewer commit `cb9962d3`):
+**FAIL**, with one finding that fails the row and four row-level findings.
+
+**F1, reproduced by the PMO.** The input is a copy of aiMark's Perry files:
+`.perry/config.md` (pre-ADR-019, no `.perry/config.jsonl`) and `perry/BOARD.md`
+with 21 task rows. Running `perry-task ask --needed "f1 probe"` from that
+directory gives:
+- **main (`68fc9c09`):** exit 0. It creates `tasks.jsonl`, `asks.jsonl`,
+  `journal/…` and `.perry/events.jsonl` at the project root. `installed` becomes
+  `true` and `list` reports 0 tasks, so the 21-row board is hidden from every
+  surface.
+- **pre-TASK-237 (`b7c89276`):** exit 1, refused, nothing written, and
+  `installed` stays `false`.
+
+The reviewer's proof is `bin/perry-task:8905`: it builds the declared write board
+whenever no board file sits at the resolved state root, and never asks whether
+the directory is installed.
+
+This is the first FAIL on this row, so review.md § 6 allows a round without an
+ask.
+
+### Round 2 deliverable
+
+1. **F1: a write refuses on a directory that is not installed.** Every
+   `perry-task` (and `perry-tasks` / `perry-config` / other `bin/`) write that
+   would create a canonical store, a journal entry or an event log exits 1 and
+   writes nothing, unless `installed` is true for the resolved project.
+   - **Exception:** `perry-config set` / `track` writing `.perry/config.jsonl`
+     itself, which is how every start installs a project (3b′).
+   - The refusal names the reason, and says that a pre-ADR-019 project
+     (`.perry/config.md` without `.perry/config.jsonl`) needs `perry-config set`
+     first.
+   - Re-run every documented start and show each still ends `installed: true`
+     with no refusal.
+2. **R2: no traceback.** On a board-less project, `perry-task next` (and any
+   write) on a task whose group matches no declared heading refuses cleanly
+   (exit 1, reason on stderr, nothing written), or places the row per
+   `DECLARED_BOARD_CHOICES` C7. Pick one, argue it, and keep it consistent with
+   `perry-tasks board`. The reviewer's reproduction is `bin/perry-task:738`,
+   `KeyError`.
+3. **R3: the six doc lines**:
+   - the four templates under `work/state/`;
+   - `work/reference/subcommands.md:637`;
+   - `schema/README.md:254`.
+
+   These are prose only.
+
+**Not in round 2, recorded here:**
+- **R1:** Gimegime-pmo's shape (`.perry/config.md` plus a root `BOARD.md`) reads
+  not installed. That follows the user's criterion (Amendments 4, 6, 7) and is
+  not a defect of this row.
+- **R4:** the register carry-forward mutation at `bin/perry-task:2709` stays
+  green. It predates TASK-237.
+
+**Verification (round 2):**
+- F1's reproduction on a copy of aiMark's marker files (never the real
+  project): exit 1, zero new files, `installed` still `false`.
+- The same on an empty directory and on a `BOARD.md`-only directory.
+- An installed project's writes unchanged (the 3c write matrix, re-run).
+- Every start re-run.
+- R2's reproduction: exit 1 (or correct C7 placement) and no traceback.
+- Mutations, each reddening a named test:
+  - remove the installed check from the write path;
+  - make `perry-config set` refuse on a non-installed directory (the start
+    must not break silently);
+  - restore the `KeyError` path.
+- The suite, run on the final commit.
