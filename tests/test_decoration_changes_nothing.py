@@ -213,7 +213,9 @@ class TestDecorationIsInvisible(unittest.TestCase):
     def test_the_fixture_really_does_decorate_something(self):
         """A test whose input is unchanged asserts nothing. This is the
         anti-vacuity check the header-rule module's own regex lacked."""
-        plain = (PERRY_HOME / "perry" / "BOARD.md").read_text()
+        # TASK-237 3c: no `perry/BOARD.md`; the board Perry's stores print.
+        from printed_board import printed_board
+        plain = printed_board()
         bolded = bold_headers(plain)
         self.assertNotEqual(plain, bolded)
         self.assertIn("**ID**", bolded)

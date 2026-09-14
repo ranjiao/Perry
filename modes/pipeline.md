@@ -13,18 +13,18 @@ because pipeline's rules exist nowhere else in Perry yet.
 | Slot | Value | Where it is written |
 |---|---|---|
 | **Ends when** | The item ships — or is explicitly dropped | — |
-| **Unit that gets an ID** | The deliverable, not the task. One ID per thing that will leave the building | `BOARD.md` row |
+| **Unit that gets an ID** | The deliverable, not the task. One ID per thing that will leave the building | the task record (`tasks.jsonl`) |
 | **Spine** | `OKR.md § Commitments` — id · track · promise · to whom · due · status. `Due` is typed — an ISO date for pipeline rows — and the prose half lives in `By when note`, which nothing validates | Written by the **goals** lane |
-| **Horizon** | The cycle, declared explicitly (`2026-W34`, `until 2026-09-30`) | `.perry/config.md § Tracks` → `Cycle` |
+| **Horizon** | The cycle, declared explicitly (`2026-W34`, `until 2026-09-30`) | track register (`.perry/config.jsonl`) → `Cycle` |
 | **Calendar** | **Binding** — see *What "binding" does and does not mean* below | — |
-| **Item states** | Two orthogonal fields: `Status` (the global lifecycle enum, unchanged) and `Stage` (this track's vocabulary) | `BOARD.md` → `Status`, `Stage` |
-| **Stage vocabulary** | Default `brief → draft → review → approved → published` | `.perry/config.md § Tracks` → `Stages` |
-| **WIP control** | A limit per stage | `.perry/config.md § Tracks` → `WIP` |
-| **Dwell time** | Expected time in stage before triage flags it | `.perry/config.md § Tracks` → `SLA` |
-| **Stage clock** | The date the item entered its current stage | `BOARD.md` → `Stage since` |
-| **Commitment link** | The `Id` of the promise this item discharges | `BOARD.md` → `Commitment` |
+| **Item states** | Two orthogonal fields: `Status` (the global lifecycle enum, unchanged) and `Stage` (this track's vocabulary) | task record → `Status`, `Stage` |
+| **Stage vocabulary** | Default `brief → draft → review → approved → published` | track register (`.perry/config.jsonl`) → `Stages` |
+| **WIP control** | A limit per stage | track register (`.perry/config.jsonl`) → `WIP` |
+| **Dwell time** | Expected time in stage before triage flags it | track register (`.perry/config.jsonl`) → `SLA` |
+| **Stage clock** | The date the item entered its current stage | task record → `Stage since` |
+| **Commitment link** | The `Id` of the promise this item discharges | task record → `Commitment` |
 | **Triage asks** | Which item is aging in which stage? | — |
-| **Default rung** | **V5** — a shipped deliverable is outward-facing by definition. Three layers: the mode default (`work_modes.modes.pipeline.default_rung`), a per-track override (`Tracks` → `Default rung`), and the per-row value | `BOARD.md` → `Verification` |
+| **Default rung** | **V5** — a shipped deliverable is outward-facing by definition. Three layers: the mode default (`work_modes.modes.pipeline.default_rung`), a per-track override (`Tracks` → `Default rung`), and the per-row value | task record → `Verification` |
 | **Signature failure** | Everything sits in `review` forever | — |
 
 ### `Status` and `Stage` are orthogonal, and that is the point
@@ -137,7 +137,7 @@ precedence between track, pack and mode — so the clause was removed rather tha
 left as a promise.)
 
 ```markdown
-## Tracks      (in .perry/config.md)
+## Tracks      (the track register in .perry/config.jsonl, written with perry-config track)
 
 | Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
 |---|---|---|---|---|---|---|---|
@@ -238,7 +238,7 @@ Ordered. The first question is not "what's important" but "what's stuck":
    triage last ran or when the next one is due, so "before the next triage" is
    not a datum — read `OKR.md § Commitments` for rows in this `Track` whose
    `Due` date falls inside that window, take each
-   one's `Id`, then scan `BOARD.md` for rows whose `Commitment` cell carries
+   one's `Id`, then scan `perry-task list --json` for rows whose `Commitment` carries
    that id and report how far along each is. **The link is followed from the
    board side**, never by dereferencing the commitment row's `Discharged by`
    prose — that cell describes, it does not enumerate.

@@ -88,7 +88,7 @@ User Input Queue: {{n}}/{{N}} done (剩 {{remaining USER-IDs}})
 
 When you (PMO Agent in a new session) resume tomorrow, **read these files first**, in this order:
 
-1. `BOARD.md` (the latest board)
+1. `perry-tasks board` (the latest board)
 2. `evidence/{{YYYY-MM}}/{{the most active TASK-ID}}.md` (latest evidence)
 3. **This file** (`handoff/{{YYYY-MM-DD}}.md`)
 
@@ -97,4 +97,4 @@ Then have the user say: "已读今日总结, [{{key topic}}] 进展如何" — a
 ---
 
 **Generated**: {{YYYY-MM-DD}} by PMO Agent
-**Source files**: all `evidence/{{YYYY-MM}}/` + `BOARD.md` + today's conversation.
+**Source files**: all `evidence/{{YYYY-MM}}/` + `perry-tasks board` + today's conversation.

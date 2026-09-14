@@ -236,7 +236,6 @@ your-project/
 │   ├── *.jsonl             记录本身：任务、问询、风险、例行节奏、OKR、关联
 │   ├── OKR.md              总体目标
 │   ├── phase/              当前阶段 + 历史快照
-│   ├── BOARD.md            此刻的开放任务
 │   ├── journal/            每天发生了什么
 │   ├── decisions/          一个决策一个文件，含推理过程
 │   ├── design/             设计文档 / RFC

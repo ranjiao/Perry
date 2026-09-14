@@ -56,7 +56,7 @@ class Refused(Exception):
 # feed said it first: `perry-events` 1.1 "returns different ROWS … which is
 # precisely the change `1.x` only adds keys does not cover". Specified in
 # `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/2.2"
+LIST_CONTRACT = "perry-task/list/2.3"
 
 #: How many rows `list` returns when the caller names no bound. DESIGN-016
 #: goal 6, and the measurement behind it: `perry-task list --json` on this
@@ -229,13 +229,16 @@ LIST_SEMANTICS = [
     {"version": "2.2",
      "fields": ["installed"],
      "note": "`installed` is added (TASK-237 3b′). Before 2.2, on a directory that is not a Perry project this payload answered its empty shape at exit 0 — `tasks` empty, `open` 0, `risks`, `asks` and `intake` empty — exactly as it answers for a project that has nothing in it, so a consumer could not tell the two apart. `installed: false` now says which. The criterion is `schema/README.md § installed`: `.perry/config.jsonl` at the project root, or a canonical store under the state root; `BOARD.md`, `OKR.md`, `phase/` or `design/` alone do not count. A consumer that read an empty payload as 'this project has nothing' must read `installed` first."},
+    {"version": "2.3",
+     "fields": ["installed"],
+     "note": "`installed` is narrower (TASK-237 Amendment (7), user decision 2026-09-14). At 2.2 a canonical store under the state root counted on its own, so a folder holding only a file named `tasks.jsonl` — another tool's — read `installed: true`. From 2.3 a store counts only when a `.perry/` directory exists at the project root beside it: `installed` is `.perry/config.jsonl` at the project root, or `.perry/` there and a canonical store under the state root (`schema/README.md § installed`). No key moved. A directory holding a store and no `.perry/` now answers `installed: false` with the empty shape at exit 0; every project Perry started writes `.perry/config.jsonl` first and is unaffected."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:
 # `schema/events-list-contract.md` § Why this exists rather than `--limit` on
 # `list` has the measurement that made a second payload cheaper than paging the
 # first one.
-EVENTS_CONTRACT = "perry-events/list/1.3"
+EVENTS_CONTRACT = "perry-events/list/1.4"
 
 # Same rule as `LIST_SEMANTICS`, for the feed: one entry per minor under which
 # an existing value changed MEANING. Empty is the normal case and 1.1 is not
@@ -266,6 +269,9 @@ EVENTS_SEMANTICS = [
     {"version": "1.3",
      "fields": ["installed"],
      "note": "`installed` is added (TASK-237 3b′). Before 1.3, on a directory that is not a Perry project this payload answered its empty shape at exit 0 — `events` empty, `total` 0 — exactly as it answers for a project that has nothing in it, so a consumer could not tell the two apart. `installed: false` now says which. The criterion is `schema/README.md § installed`: `.perry/config.jsonl` at the project root, or a canonical store under the state root; `BOARD.md`, `OKR.md`, `phase/` or `design/` alone do not count. A consumer that read an empty payload as 'this project has nothing' must read `installed` first."},
+    {"version": "1.4",
+     "fields": ["installed"],
+     "note": "`installed` is narrower (TASK-237 Amendment (7), user decision 2026-09-14). At 1.3 a canonical store under the state root counted on its own, so a folder holding only a file named `tasks.jsonl` — another tool's — read `installed: true`. From 1.4 a store counts only when a `.perry/` directory exists at the project root beside it: `installed` is `.perry/config.jsonl` at the project root, or `.perry/` there and a canonical store under the state root (`schema/README.md § installed`). No key moved. A directory holding a store and no `.perry/` now answers `installed: false` with the empty shape at exit 0; every project Perry started writes `.perry/config.jsonl` first and is unaffected."},
 ]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
@@ -8312,7 +8318,7 @@ SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
 
 #: The contract `perry-task asks --json` publishes. See
 #: `schema/asks-list-contract.md`.
-ASKS_CONTRACT = "perry-asks/list/1.2"
+ASKS_CONTRACT = "perry-asks/list/1.3"
 
 #: `perry-asks/list`'s meaning changes, oldest minor first — the rule
 #: `LIST_SEMANTICS` states. `state_root` arrived in 1.1 too, and is a key
@@ -8332,6 +8338,9 @@ ASKS_SEMANTICS = [
     {"version": "1.2",
      "fields": ["installed"],
      "note": "`installed` is added (TASK-237 3b′). Before 1.2, on a directory that is not a Perry project this payload answered its empty shape at exit 0 — `asks` empty, `count`, `open` and `answered` 0 — exactly as it answers for a project that has nothing in it, so a consumer could not tell the two apart. `installed: false` now says which. The criterion is `schema/README.md § installed`: `.perry/config.jsonl` at the project root, or a canonical store under the state root; `BOARD.md`, `OKR.md`, `phase/` or `design/` alone do not count. A consumer that read an empty payload as 'this project has nothing' must read `installed` first."},
+    {"version": "1.3",
+     "fields": ["installed"],
+     "note": "`installed` is narrower (TASK-237 Amendment (7), user decision 2026-09-14). At 1.2 a canonical store under the state root counted on its own, so a folder holding only a file named `tasks.jsonl` — another tool's — read `installed: true`. From 1.3 a store counts only when a `.perry/` directory exists at the project root beside it: `installed` is `.perry/config.jsonl` at the project root, or `.perry/` there and a canonical store under the state root (`schema/README.md § installed`). No key moved. A directory holding a store and no `.perry/` now answers `installed: false` with the empty shape at exit 0; every project Perry started writes `.perry/config.jsonl` first and is unaffected."},
 ]
 
 #: An id inside the free-text `Blocks` cell — matched, not validated.

@@ -45,6 +45,7 @@ import parsers as P                                             # noqa: E402
 import tables as T                                              # noqa: E402
 
 import inproc                                                   # noqa: E402
+from printed_board import put_printed_board                     # noqa: E402
 
 #: The shapes measured on the second real project, in one board. Written by
 #: hand and NOT through `render_row`, because a fixture built by the writer
@@ -131,6 +132,10 @@ class Project:
                         ignore=shutil.ignore_patterns("*.lock"))
         shutil.copytree(ROOT / ".perry", d / ".perry",
                         ignore=shutil.ignore_patterns("*.lock"))
+        # TASK-237 3c: this repository holds no `BOARD.md`. The board a
+        # project that still holds one would carry is the one its stores
+        # print, so the copy gets that (`tests/printed_board.py`).
+        put_printed_board(d / "perry")
         assert run("write", "--from-board", root=d).returncode == 0
         return d
 
@@ -161,7 +166,11 @@ class TestTheBytesMatch(unittest.TestCase):
         return proc.stdout.encode("utf-8")
 
     def test_perrys_own_board(self):
-        """The live file, byte for byte — and with NO verbatim fallback.
+        """Perry's board, byte for byte — and with NO verbatim fallback.
+
+        Since TASK-237 3c the board is the one `perry-tasks board` prints from
+        this repository's stores, put on disk in a copy; it was the hand-kept
+        file before.
 
         `identical: true` alone would also be true of a renderer that copied
         every row, so the two counters are asserted beside it."""

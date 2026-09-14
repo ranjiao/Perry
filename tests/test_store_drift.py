@@ -509,7 +509,9 @@ class TestTheMessageIsTrueOfTheFile(unittest.TestCase):
         (d / "perry").mkdir()
         (d / ".perry").mkdir()
         (d / ".perry" / "config.md").write_text("State root: perry\n")
-        shutil.copy(ROOT / "perry" / "BOARD.md", d / "perry" / "BOARD.md")
+        # TASK-237 3c: no live `BOARD.md`; the board the stores print.
+        from printed_board import put_printed_board
+        put_printed_board(d / "perry")
         # **The event log, or this fixture asserts nothing (TASK-117).** The
         # store comparison derives its left-hand side with
         # `perry-tasks.build()`, which reads the board AND the log, so a

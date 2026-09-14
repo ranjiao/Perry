@@ -567,7 +567,90 @@ def harvest(root: Path, read=None) -> dict:
                     e["mentions"].append(loc)
 
     harvest_linkage_store(root, ent)
+    harvest_register_stores(root, ent)
     return entries
+
+
+#: The work registers whose records are an id's home, and the field that is
+#: the record's title. `intake` has no id.
+REGISTER_STORE_TITLES = (("tasks", "title"), ("asks", "needed"),
+                         ("risks", "risk"), ("cadence", "title"))
+
+
+def harvest_register_stores(root: Path, ent) -> None:
+    """Every id the task, ask, risk and cadence STORES declare, as a register.
+
+    **`BOARD.md` was the register for these ids, and it is deleted** (TASK-237
+    deliverable 3c). A `| USER-004 | … |` row under the board's User Input
+    Queue was the home `split_dangling` looked for; with no file,
+    `perry-diagnose` reported `USER-004`, `USER-906`, `RX-002` and the rest as
+    ids a tracking document relies on and no register declares — on Perry's
+    own repository, `test_perry_itself_passes_its_own_id_checks`. The records
+    are in `tasks.jsonl`, `asks.jsonl`, `risks.jsonl` and `cadence.jsonl`, and
+    a typed store record is a register by construction, which is the argument
+    `harvest_linkage_store` above already makes for a KR.
+
+    Every record is its id's home, closed tasks included: a closed task's
+    record is still where it is declared.
+
+    **The rows a board carried were also MENTIONS**, and that half matters as
+    much. An id cited in an open task's next action was a mention at
+    `perry/BOARD.md:<line>`, inside a table whose paragraph names a check, so
+    `split_dangling` read it as a report and exempted the id's other report
+    mentions — that is how `V4-1`…`V4-3` (TASK-436's own finding) stayed out of
+    `dangling`. The ids inside the records a board would carry — open tasks,
+    and every ask, risk and cadence row (`perry-lint §
+    ids_the_board_would_carry`'s population) — are read here as mentions at
+    their store line. A JSONL store has no blank line, so `report_lines` reads
+    it as one paragraph, which is how it read each board table.
+
+    Read line by line with `json.loads`, like `harvest_linkage_store`, so a
+    mention carries the store's real line number; a line that will not parse
+    contributes nothing (`perry-lint` reports it by number).
+    """
+    for state in {Path(root), Path(resolve_state_root(root))}:
+        for name, title_field in REGISTER_STORE_TITLES:
+            store = state / f"{name}.jsonl"
+            if not store.is_file():
+                continue
+            rel = str(store.relative_to(root)) if store.is_relative_to(root) \
+                else store.name
+            try:
+                lines = store.read_text(encoding="utf-8",
+                                        errors="replace").split("\n")
+            except OSError:
+                continue
+            for n, line in enumerate(lines, 1):
+                if not line.strip():
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                rid = str(rec.get("id") or "")
+                if not ID_RE.fullmatch(rid) or not is_real_id(rid):
+                    continue
+                e = ent(rid)
+                loc = f"{rel}:{n}"
+                e["defined"] = e["defined"] or loc
+                e["kind"] = e["kind"] or "store record"
+                e["title"] = e["title"] or (str(rec.get(title_field) or "")
+                                            or None)
+                e["register"] = True
+                if name == "tasks" and rec.get("status") in \
+                        perry_store.TERMINAL_STATUSES:
+                    continue          # no board carried this row
+                text = " ".join(str(v) for k, v in rec.items()
+                                if k != "id" and isinstance(v, (str, list)))
+                for i in set(find_ids(blank_code_spans(text))):
+                    if i == rid:
+                        continue
+                    m = ent(i)
+                    m["in_tracking_doc"] = True
+                    if len(m["mentions"]) < 40:
+                        m["mentions"].append(loc)
 
 
 def harvest_linkage_store(root: Path, ent) -> None:

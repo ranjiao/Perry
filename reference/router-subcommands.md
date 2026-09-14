@@ -28,8 +28,8 @@ Sources, trust tiers, and the depth matrix (including non-code projects) are in 
 /perry relocate . --dry-run     # show the moves, touch nothing
 ```
 
-Moves every path Perry claims under a new state root and rewrites
-`State root:` in `.perry/config.md`. `.perry/` itself never moves — it holds
+Moves every path Perry claims under a new state root and sets
+`State root` in `.perry/config.jsonl`. `.perry/` itself never moves — it holds
 the pointer, so it cannot sit behind it.
 
 This exists because the state root is chosen **once**, at setup, and projects
@@ -56,8 +56,9 @@ someone loses a journal directory.
    Never move a user's files without the list in front of them.
 5. **`git mv` each existing path** (plain `mv` outside git). Paths that do not
    exist are skipped silently — a project without `runbook/` is not an error.
-6. **Rewrite `State root:`** in `.perry/config.md`, adding a short `## Why the
-   state root is not \`.\`` block naming what collided.
+6. **Set `State root`** with `perry-config set --root . "State root" <path>`, and
+   add a short note naming what collided to `.perry/hook.md § Configuration
+   notes` — the store holds no prose (`reference/config.md`).
 7. **Verify**: `perry-lint --root .` must pass, and `perry-lint --claims` must
    report zero collisions. If either fails, print the `from → to` list so the
    move is reversible by hand, and stop.

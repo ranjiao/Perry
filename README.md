@@ -235,7 +235,6 @@ your-project/
 │   ├── *.jsonl             the records: tasks, asks, risks, cadence, OKR, linkage
 │   ├── OKR.md              overall goals
 │   ├── phase/              the current stretch of work + saved snapshots
-│   ├── BOARD.md            open tasks, right now
 │   ├── journal/            what happened each day
 │   ├── decisions/          one file per decision, with the reasoning
 │   ├── design/             design docs / RFCs

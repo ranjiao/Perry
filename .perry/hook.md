@@ -49,7 +49,7 @@ reaches other people's projects on the next `git pull`.
 ## Project specifics
 
 If the project is **Perry**:
-- Roadmap source-of-truth: `perry/BOARD.md` + `perry/design/` (locked designs are the plan of record)
+- Roadmap source-of-truth: the task store — `perry-tasks board` for a person, `perry-task list --json` for a program — + `perry/design/` (locked designs are the plan of record)
 - Prefer MCP tools: —
 - Decision tag types: Process | Architecture | Tooling | Design
 - Cost ceiling source: — (no `OKR.md`, no phase, so no ceiling to enforce)

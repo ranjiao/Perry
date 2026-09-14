@@ -408,8 +408,8 @@ class TestTheVersionSpaceIsEnumerated(unittest.TestCase):
     def test_the_changelog_gives_a_usable_independent_order(self):
         self.assertGreaterEqual(len(self.declared), 19,
                                 "1.0 through 1.18 and 2.0 at least")
-        # 2.2: TASK-237 3b′'s `installed` minor is now the newest entry.
-        self.assertEqual(self.declared[0], "2.2", "newest first")
+        # 2.3: TASK-237 3c's narrowed `installed` minor is now the newest entry.
+        self.assertEqual(self.declared[0], "2.3", "newest first")
         self.assertEqual(self.declared[-1], "1.0", "oldest last")
 
     def test_every_declared_pair_agrees_with_document_order(self):

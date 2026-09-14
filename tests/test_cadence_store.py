@@ -399,14 +399,16 @@ class TestTheLintCensusCarriesTheCadenceStore(unittest.TestCase):
             [f for f in self.lint(p)["findings"]
              if f["rule"] == "NS-01" and f["file"].endswith("cadence.jsonl")], [])
 
-    def test_with_no_file_it_is_uncheckable_and_counts_the_records(self):
+    def test_with_no_file_it_is_silent_and_counts_the_records(self):
+        """TASK-237 3c: no board file, nothing to drift from — no
+        `cadence-store-drift-uncheckable` (which said drift was unknown)."""
         p = Project()
         self.addCleanup(p.close)
         got = self.lint(p)
         self.assertEqual(got["cadence_store_drift"]["records"], len(CADENCE))
         self.assertTrue(got["cadence_store_drift"]["store_present"])
-        self.assertIn("cadence-store-drift-uncheckable",
-                      [f["rule"] for f in got["findings"]])
+        self.assertNotIn("cadence-store-drift-uncheckable",
+                         [f["rule"] for f in got["findings"]])
 
     def test_a_hand_edit_to_a_prose_cell_is_drift_and_the_render_is_not(self):
         for edited in (False, True):

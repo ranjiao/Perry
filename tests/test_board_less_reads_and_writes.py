@@ -619,8 +619,10 @@ class TestLintOnABoardlessProject(unittest.TestCase):
                              capture_output=True, text=True, cwd=p.tmp)
         return json.loads(out.stdout)
 
-    def test_the_errors_are_the_present_errors_plus_the_missing_file(self):
-        """Item 3: the same errors as with the file, except `[missing-file]`."""
+    def test_a_board_less_project_lints_with_the_errors_it_has_with_the_file(self):
+        """3a item 3, closed by 3c: `files[id=board].required` is `false`, so a
+        board-less project reports exactly the errors it reports with a
+        rendered file — and neither carries `[missing-file]`."""
         absent, present = Project(board=None), Project(board=None)
         self.addCleanup(absent.close)
         self.addCleanup(present.close)
@@ -631,10 +633,36 @@ class TestLintOnABoardlessProject(unittest.TestCase):
             (f["rule"], f["file"], f["message"]) for f in got["findings"]
             if f.get("severity") == "error")
         without, with_file = errors(self.lint(absent)), errors(self.lint(present))
-        missing = ("missing-file", "BOARD.md", "required state file not found")
-        self.assertNotIn(missing, with_file)
-        self.assertIn(missing, without)
-        self.assertEqual([e for e in without if e != missing], with_file)
+        self.assertEqual([e for e in without if e[0] == "missing-file"], [])
+        self.assertEqual(without, with_file)
+
+    def test_no_board_draws_no_drift_finding(self):
+        """3c: with no file there is nothing for a store to drift from, so no
+        `*-store-drift*` finding of any kind — `uncheckable` included, which
+        said drift was unknown."""
+        p = Project(board=None)
+        self.addCleanup(p.close)
+        got = self.lint(p)
+        self.assertEqual([f for f in got["findings"]
+                          if "store-drift" in f["rule"]
+                          and not f["rule"].startswith("okr")], [])
+
+    def test_the_census_says_there_is_nothing_to_drift(self):
+        """3c: the human census used to say "comparison incomplete — drift is
+        unchecked, not clean" of every board register on a board-less project,
+        which is false. The fixture carries an event log, so the tasks check
+        reaches past its log gate and this is the board clause answering."""
+        p = Project(board=None)
+        self.addCleanup(p.close)
+        self.assertTrue((p.root / ".perry" / "events.jsonl").stat().st_size > 0)
+        out = subprocess.run([str(LINT_TOOL), "--root", str(p.root)],
+                             capture_output=True, text=True, cwd=p.tmp).stdout
+        self.assertNotIn("comparison incomplete", out)
+        for label in ("tasks store", "risks store", "intake store", "ask store"):
+            with self.subTest(store=label):
+                line = next((l for l in out.splitlines()
+                             if l.strip().startswith(f"· {label}:")), "")
+                self.assertIn("nothing to drift", line, out[-1200:])
 
     def test_the_store_counts_are_the_stores_with_no_file(self):
         p = Project(board=None)

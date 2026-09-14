@@ -9,7 +9,7 @@
 
 ## Context
 
-<!-- Why this decision needs to be made. Observable facts driving it. Write in configured language from .perry/config.md. -->
+<!-- Why this decision needs to be made. Observable facts driving it. Write in configured language from .perry/config.jsonl. -->
 
 ## Options
 

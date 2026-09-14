@@ -68,7 +68,7 @@ When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
 ## Companion skill
 
-Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** `work` is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, and `handoff/`. `decisions/` moved to the `decide` lane. OKR is the only writer of `OKR.md` and `phase/`.
+Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as task records (`perry-task add`) and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** `work` is the only writer of the task store, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, and `handoff/`. `decisions/` moved to the `decide` lane. OKR is the only writer of `OKR.md` and `phase/`.
 
 ## Two file models (read both first)
 
@@ -80,18 +80,18 @@ PMO **state** files split across three layers with different lifecycles:
 
 | Layer | File(s) | Lifetime | Read frequency | Write pattern |
 |---|---|---|---|---|
-| **Live** | `BOARD.md` | now (closed work leaves) | every standup | mutated as state changes; **≤200 lines hard cap** |
+| **Live** | the task store — read with `perry-tasks board` | now (closed work leaves the board) | every standup | mutated by `perry-task` as state changes |
 | **History** | `journal/<YYYY-MM>/<YYYY-MM-DD>.md` | append-only per day | only on demand or by weekly/retro subcommands | one file per day; **append-only after the day ends** |
 | **Artifact** | `evidence/<YYYY-MM>/<TASK-ID>-*.md` | per task | only when verifying a `done` claim or writing a retro | one file per task deliverable (incl. `<TASK-ID>-spec.md` for P0/P1 — see `reference/subcommands.md` § add-task) |
 
-`BOARD.md` is the PMO's **working memory**. It must always be true, current, and small. The journal is the audit trail. Evidence is the deliverable.
+The task store is the PMO's **working memory**; `perry-tasks board` is how it is read. It must always be true, current, and small. The journal is the audit trail. Evidence is the deliverable.
 
 ### Axis B — audience tiers (who reads this file)
 
 EVERY Perry file falls into exactly one of three tiers based on **who reads it**. Tier determines size cap, format, and edit pattern.
 
 - **Tier 1 — user-read-and-edit** (`OKR.md`, `phase/<NNN>-<slug>.md`, `ARCHITECTURE.md`, `runbook/<component>.md`, `.perry/{config,hook}.md`). Strategic; the user must read it raw, so each has a **hard line cap**. When a write would exceed it, OKR / PMO **refuses the write** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/<topic>-appendix.md` or `architecture/sections/§N-<topic>.md`), leaving the main file as a §-index + 1-paragraph summaries. This preserves tier 1's "readable in one sitting" property.
-- **Tier 2 — agent-internal state** (`BOARD.md`, `journal/`, `evidence/`, `decisions/`, `incidents/`, `weekly/`, `handoff/`, `PROJECT_STATE.md`, `phase/snapshots/`, `architecture/audit-history/`, `knowledge/`). No user-read constraint, so no hard cap — only the soft BOARD ≤200 / SKILL.md ~300 limits, which are context-budget driven, not readability driven.
+- **Tier 2 — agent-internal state** (the task store, `journal/`, `evidence/`, `decisions/`, `incidents/`, `weekly/`, `handoff/`, `PROJECT_STATE.md`, `phase/snapshots/`, `architecture/audit-history/`, `knowledge/`). No user-read constraint, so no hard cap — only the soft SKILL.md ~300 limit, which are context-budget driven, not readability driven.
 - **Tier 3 — the consumption surface.** Perry does **not** write this tier. Reading state richly is the frontend's job, and the frontend is **aiMark** (`~/proj/aimark`), which watches the project directory and renders it live. Perry's obligation to tier 3 is to write tier 1/2 in the declared structure so a reader can parse it — see `$PERRY_HOME/schema/README.md`.
 
 **Per-file caps and the structural contract each file must satisfy** live in `$PERRY_HOME/schema/state-schema.json` (checked by `bin/perry-lint`); the full inventory is in `reference/state-files.md`. `bin/perry-state` reports current cap usage in `operations.tier1_caps`, so the standup sees an overrun before the next write hits it.
@@ -281,9 +281,9 @@ Without arg: print the **Subcommand index** table above verbatim, plus a pointer
 
 ## State files & size discipline
 
-PMO writes a fixed set of state files at the project root: `BOARD.md` (live), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history), `PROJECT_STATE.md`, `evidence/<YYYY-MM>/<TASK-ID>-*.md`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` and `knowledge/<topic>/`. Plus optional lazy-created trees: `ARCHITECTURE.md` + `architecture/audit-history/`, `runbook/`, `incidents/`. Reads from `OKR.md` / `phase/` (owned by okr skill) and `design/<DESIGN-ID>-*.md` (owned by design skill).
+PMO writes a fixed set of state files under the state root: `tasks.jsonl` and its register stores (live, through `perry-task`), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history), `PROJECT_STATE.md`, `evidence/<YYYY-MM>/<TASK-ID>-*.md`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` and `knowledge/<topic>/`. Plus optional lazy-created trees: `ARCHITECTURE.md` + `architecture/audit-history/`, `runbook/`, `incidents/`. Reads from `OKR.md` / `phase/` (owned by okr skill) and `design/<DESIGN-ID>-*.md` (owned by design skill).
 
-**Which writes are tool-mediated.** `BOARD.md` rows and the `## Status changes` lines that accompany them go through `bin/perry-task`; so does `## Intake`. Everything else in the list above — `journal/` prose, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/` — is still written directly, and deliberately: decision 3 scoped the first release to the task lifecycle, and those files carry judgment rather than state transitions.
+**Which writes are tool-mediated.** Task records and the `## Status changes` lines that accompany them go through `bin/perry-task`; so do the intake, ask, risk and cadence registers. Everything else in the list above — `journal/` prose, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/` — is still written directly, and deliberately: decision 3 scoped the first release to the task lifecycle, and those files carry judgment rather than state transitions.
 
 Size discipline is non-negotiable: tier 1 files have hard caps PMO/OKR **refuse to write past**; tier 2 have soft caps `triage` enforces. **Full inventory + ownership + templates + caps**: `reference/state-files.md`. **Structural contract** (sections, columns, enums): `$PERRY_HOME/schema/state-schema.json`.
 

@@ -101,7 +101,7 @@ PROPOSE_CONTRACT = "perry-knowledge/propose/1.0"
 #: key addition and the key `schema/knowledge-list-contract.md § The three
 #: rules` already said a meaning change here would be reported in. `propose`
 #: does not move — it is versioned separately and gained nothing.
-LIST_CONTRACT = "perry-knowledge/list/1.2"
+LIST_CONTRACT = "perry-knowledge/list/1.3"
 
 #: **Minors where a value's MEANING changed, not just where a key was added.**
 #: Same rule, shape and order as `bin/perry-task § LIST_SEMANTICS`: one entry
@@ -113,10 +113,16 @@ LIST_CONTRACT = "perry-knowledge/list/1.2"
 #: not a Perry project read exactly like a project with nothing in it. No
 #: value this payload carried before 1.2 has changed meaning. The key is
 #: present on every response, because **a consumer checks before it looks**.
+#:
+#: **A second, at 1.3: `installed` narrowed** (TASK-237 Amendment (7)): a
+#: store counts only with `.perry/` beside it.
 LIST_SEMANTICS: list[dict] = [
     {"version": "1.2",
      "fields": ["installed"],
      "note": "`installed` is added (TASK-237 3b′). Before 1.2, on a directory that is not a Perry project this payload answered its empty shape at exit 0 — `cards` empty, `total` and `stale` 0 — exactly as it answers for a project that has nothing in it, so a consumer could not tell the two apart. `installed: false` now says which. The criterion is `schema/README.md § installed`: `.perry/config.jsonl` at the project root, or a canonical store under the state root; `BOARD.md`, `OKR.md`, `phase/` or `design/` alone do not count. A consumer that read an empty payload as 'this project has nothing' must read `installed` first."},
+    {"version": "1.3",
+     "fields": ["installed"],
+     "note": "`installed` is narrower (TASK-237 Amendment (7), user decision 2026-09-14). At 1.2 a canonical store under the state root counted on its own, so a folder holding only a file named `tasks.jsonl` — another tool's — read `installed: true`. From 1.3 a store counts only when a `.perry/` directory exists at the project root beside it: `installed` is `.perry/config.jsonl` at the project root, or `.perry/` there and a canonical store under the state root (`schema/README.md § installed`). No key moved. A directory holding a store and no `.perry/` now answers `installed: false` with the empty shape at exit 0; every project Perry started writes `.perry/config.jsonl` first and is unaffected."},
 ]
 
 #: A rung at or below this is the agent attesting its own output. A claim

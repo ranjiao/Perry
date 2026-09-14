@@ -1,4 +1,4 @@
-# `perry-task asks --all --json` — `perry-asks/list/1.2`
+# `perry-task asks --all --json` — `perry-asks/list/1.3`
 
 The User Input Queue as a query. By default the **open** asks; with `--all`,
 every ask Perry has recorded, and for each answered one **when** it was
@@ -30,7 +30,7 @@ not empty this payload.
 
 ```jsonc
 {
-  "contract": "perry-asks/list/1.2",
+  "contract": "perry-asks/list/1.3",
   "installed": true,        // false: not a Perry project — schema/README.md § installed
   "semantics": [ /* below */ ],  // meaning changes, oldest minor first
   "project_root": "/abs/path",
@@ -45,9 +45,9 @@ not empty this payload.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `contract` | string | `perry-asks/list/1.2` |
-| `installed` | bool | `true` when the directory read is an installed Perry project, by `schema/README.md § installed`. `false` on any other directory, with `asks` empty, the counts 0 and exit 0. Added in 1.2 |
-| `semantics` | array | meaning changes by version, oldest first, each `{version, fields, note}` — the shape `perry-task/list § semantics[]` documents. Empty at 1.0; one entry since 1.1, two since 1.2 |
+| `contract` | string | `perry-asks/list/1.3` |
+| `installed` | bool | `true` when the directory read is an installed Perry project, by `schema/README.md § installed`. `false` on any other directory, with `asks` empty, the counts 0 and exit 0. Added in 1.2; narrowed in 1.3 (a store needs `.perry/` beside it) |
+| `semantics` | array | meaning changes by version, oldest first, each `{version, fields, note}` — the shape `perry-task/list § semantics[]` documents. Empty at 1.0; one entry since 1.1, two since 1.2, three since 1.3 |
 | `project_root` | string | absolute path of the project read |
 | `state_root` | string | absolute path of the state root — where `asks.jsonl` is read from. Added in 1.1 |
 | `all` | bool | `true` when `--all` was passed |
@@ -123,6 +123,22 @@ empty register, not an unreadable one.
 printed rather than an empty `asks`, which would say nothing was ever asked.
 
 ## Changelog
+
+### 1.3 — 2026-09-14 (TASK-237 3c)
+
+**No key added, removed or retyped: `installed` means something narrower**
+(TASK-237 Amendment (7), the user's decision of 2026-09-14). At 1.2 a
+canonical store under the state root counted on its own, so a folder that
+held only a file named `tasks.jsonl` — another tool's — read
+`installed: true`, stopped every project-root walk and printed a board. From
+1.3 a store counts only when a `.perry/` directory exists at the project root
+beside it (`schema/README.md § installed`). Such a directory now answers
+`installed: false` with the empty shape at exit 0. Every documented start
+writes `.perry/config.jsonl` first, so no project Perry began is affected.
+
+`semantics` carries a `1.3` entry: the key stayed and started returning
+something else, which is what the array is for. A narrowed meaning is not a
+removal or a retype, so this is a minor.
 
 ### 1.2 — 2026-09-14 (TASK-237 3b′)
 

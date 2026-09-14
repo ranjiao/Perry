@@ -21,7 +21,7 @@ the live project state is rooted at `perry/` through `.perry/config.jsonl`.
 3. If recovery is blocking, stop and report its paths/errors. Otherwise, if
    `interrupted` is non-empty, ask; never resume a pipeline automatically.
 4. Use `perry-state` for counts and status. Do not derive a dashboard by
-   eyeballing `perry/BOARD.md` or walking the journal.
+   eyeballing `bin/perry-tasks board` or walking the journal.
 5. Read only the current phase and the selected task's spec, evidence, and
    relevant locked design. Do not preload all designs, ADRs, or journal files.
 
@@ -35,8 +35,8 @@ the live project state is rooted at `perry/` through `.perry/config.jsonl`.
 - Before implementing a P0/P1 task, locate its written acceptance criteria.
   If they are absent, treat that as a task-state problem rather than inventing
   criteria from the code.
-- Change task state through `bin/perry-task`; do not hand-edit `BOARD.md`, the
-  journal, `tasks.jsonl`, or `.perry/events.jsonl`.
+- Change task state through `bin/perry-task`; do not hand-edit the journal,
+  `tasks.jsonl` or `.perry/events.jsonl`. There is no `BOARD.md` to edit.
 - V4 requires a fresh-context reviewer against written criteria. V5 requires
   the named human sign-off. The implementing session cannot self-award either.
 - Never put current task counts, current priorities, or a current task ID in

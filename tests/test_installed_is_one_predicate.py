@@ -8,8 +8,9 @@ Amendment (4) items 1 and 2, user decisions A and A (2026-09-14):
   Perry project keeps its empty shape at exit 0;
 - `perry-state § installed` and all six answer from ONE criterion,
   `schema/README.md § installed`: `.perry/config.jsonl` at the project root, or
-  a canonical store under the state root. `BOARD.md`, `OKR.md`, `phase/` and
-  `design/` alone do not count;
+  a `.perry/` directory there AND a canonical store under the state root
+  (TASK-237 Amendment (7): a store with no `.perry/` beside it does not count).
+  `BOARD.md`, `OKR.md`, `phase/` and `design/` alone do not count;
 - `perry-tasks board` refuses on a directory that is not installed: exit 1,
   the reason on stderr, nothing on stdout.
 
@@ -66,6 +67,9 @@ def declared_stores() -> list[str]:
 
 def build(d: Path, files: dict[str, str]) -> None:
     for rel, text in files.items():
+        if rel.endswith("/"):
+            (d / rel).mkdir(parents=True, exist_ok=True)
+            continue
         p = d / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text, encoding="utf-8")
@@ -91,7 +95,10 @@ SHAPES = [
     ("empty", {}, False),
     ("board_only", {"BOARD.md": "# Board\n"}, False),
     ("config_only", {".perry/config.jsonl": json.dumps(CONFIG_RECORD) + "\n"}, True),
-    ("tasks_only", {"tasks.jsonl": ""}, True),
+    # TASK-237 Amendment (7): a store with no `.perry/` beside it is some other
+    # tool's file, not a Perry project (3b′ row R1). With `.perry/` it counts.
+    ("tasks_only_without_dot_perry", {"tasks.jsonl": ""}, False),
+    ("dot_perry_and_tasks", {".perry/": "", "tasks.jsonl": ""}, True),
     # The other markers the old disjunctions accepted.
     ("okr_only", {"OKR.md": "# OKR\n"}, False),
     ("phase_only", {"phase/001-first.md": "# Phase 001\n"}, False),
@@ -101,7 +108,8 @@ SHAPES = [
                       "design/DESIGN-001-x.md": "# D\n"}, False),
     # A store counts only under the state root. With no config the state root
     # is the directory itself, so a store one level down is not under it.
-    ("store_below_an_undeclared_state_root", {"perry/tasks.jsonl": ""}, False),
+    ("store_below_an_undeclared_state_root",
+     {".perry/": "", "perry/tasks.jsonl": ""}, False),
 ]
 
 
@@ -111,8 +119,10 @@ class InstalledIsOnePredicate(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp(prefix="perry-installed-")).resolve()
         cls.dirs: dict[str, tuple[Path, bool]] = {}
-        shapes = list(SHAPES) + [(f"store_{name}", {name: ""}, True)
-                                 for name in declared_stores()]
+        shapes = list(SHAPES) + [(f"store_{name}", {".perry/": "", name: ""}, True)
+                                 for name in declared_stores()] \
+            + [(f"bare_store_{name}", {name: ""}, False)
+               for name in declared_stores()]
         for name, files, want in shapes:
             d = cls.tmp / name
             d.mkdir()
