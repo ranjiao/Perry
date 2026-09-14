@@ -564,6 +564,75 @@ class TestTheGateKeysOffThePhaseNotTheFile(Base):
                          "in the window the gate demands an answer the writer "
                          "refuses — round 2's FAIL-2, restored")
 
+    #: **Every spelling of "no current phase" a user can leave behind.**
+    #: Round 6 pinned only `""`. Round 6's V4 FAIL: `goals/reference/phases.md
+    #: § score-phase` step 7 clears the pointer by DELETING the file or writing
+    #: `(none)` — neither of which is `""` — and a deleted pointer takes its own
+    #: branch (`if pointer.exists() else ""`) that no test ran. Mutating that
+    #: branch to read as phase 003 left all 45 tests green, and the reviewer
+    #: drove two edits there that each pass the whole suite: one tracebacks
+    #: every `add`, one is round 2's FAIL-2. Each spelling below is a separate
+    #: subTest so a regression names which one it broke.
+    WINDOW_SPELLINGS = {
+        "deleted": None,          # step 7, first half
+        "(none)": "(none)\n",      # step 7, second half, and what this repo wrote
+        "blank": "",
+        "newline only": "\n",
+    }
+
+    def window(self, spelling):
+        d = self.project(store_edges={}, store_unlinked=[])
+        pointer = d / "phase" / "CURRENT"
+        content = self.WINDOW_SPELLINGS[spelling]
+        if content is None:
+            pointer.unlink()
+        else:
+            pointer.write_text(content)
+        return d
+
+    def test_every_window_spelling_is_really_what_it_says(self):
+        """Anti-vacuity for the fixture: a spelling that silently became another
+        one is how round 5 lost this window and round 6 half-lost it."""
+        for spelling, content in self.WINDOW_SPELLINGS.items():
+            with self.subTest(spelling=spelling):
+                pointer = self.window(spelling) / "phase" / "CURRENT"
+                if content is None:
+                    self.assertFalse(pointer.exists())
+                else:
+                    self.assertEqual(content, pointer.read_text())
+
+    def test_every_window_spelling_files_the_row_with_a_warning(self):
+        for spelling in self.WINDOW_SPELLINGS:
+            with self.subTest(spelling=spelling):
+                proc = self.add(self.window(spelling), "a row opened between phases")
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                self.assertIn("warning", proc.stderr.lower())
+                self.assertNotIn("Traceback", proc.stderr)
+
+    def test_in_every_window_spelling_the_row_files_while_unlinked_is_refused(self):
+        """Round 2's FAIL-2, on every spelling step 7 can leave.
+
+        **`--unlinked` must be REFUSED, not merely non-zero.** The first draft
+        asserted only `returncode != 0`, and a traceback is non-zero too:
+        removing the `exists()` guard at the WRITER's read of `phase/CURRENT`
+        (`_current_store_phase`) made `--unlinked` on a deleted pointer crash
+        with `FileNotFoundError`, and this test stayed green. That is the shape
+        round 5's reviewer found — a check that cannot tell a refusal from a
+        crash — repeated in the round meant to close it.
+        """
+        for spelling in self.WINDOW_SPELLINGS:
+            with self.subTest(spelling=spelling):
+                d = self.window(spelling)
+                declared = self.add(d, "a declaration", None, "--unlinked")
+                self.assertNotEqual(0, declared.returncode)
+                self.assertNotIn("Traceback", declared.stderr,
+                                 f"{spelling}: --unlinked crashed instead of "
+                                 f"being refused")
+                self.assertIn("refused", declared.stderr)
+                self.assertEqual(0, self.add(d, "a row").returncode,
+                                 f"{spelling}: the gate demands an answer the "
+                                 f"writer refuses — round 2's FAIL-2, restored")
+
     def test_a_blank_pointer_is_not_read_as_a_phase(self):
         """The mutation round 5's verdict ran, as a test: were a blank
         `CURRENT` read as phase 003, the fixture's 003 records would declare,
