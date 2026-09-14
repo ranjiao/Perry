@@ -141,3 +141,31 @@ Last element: the last column of the last table in print order
 - Deleting `BOARD.md` or anything else in `TASK-237`.
 - Writing the KR record (the goals lane).
 - `TASK-434` (answered asks never leave the board).
+
+## Amendment (1) — 2026-09-14, at dispatch
+
+- **The dependency is met.** `TASK-237` closed at V4 on 2026-09-14 (`90d2f853`):
+  `BOARD.md` is deleted, nothing re-renders it, and `perry-tasks board` is the
+  only board. There is one renderer, so the "two faces" risk above is gone. Do
+  not recreate `BOARD.md` or add a marker to any file-writing path.
+- **Base.** Pinned to the commit that carries this amendment. Assert it is an
+  ancestor of your HEAD before any work; if it is not, fast-forward your own
+  branch to it (never another branch, never main).
+- **Recount the sections.** On this repository at `90d2f853` the board prints
+  `## P0`, `## P1`, `## P2`, `## Cadence …`, `## User Input Queue` and
+  `## Top risks …`, and **no Intake section** (no intake rows here). The
+  fixture `test_board_from_declarations` builds may print Intake. Verification
+  1–3 cover both.
+- **Writers.** Name the `perry-task` subcommands whose `SURFACE` entry writes
+  the section's store. The `perry-tasks … --from-board` and `*-write` imports
+  are upgrade paths (`reference/version-compatibility.md`), not the writer a
+  reader should use; do not name them. A store with no such `perry-task`
+  writer says so (What it must not do 4).
+- **Verification 5 is the PMO's, after merge.** You cannot ask the user. Put
+  in the result: the exact board sample to show (a file under
+  `perry/evidence/2026-09/`, rendered from a copy, not this repository's live
+  stores if they would change before the reading), and the three questions.
+  Leave the answers section empty and say so. The row closes only after the
+  PMO records the reading.
+- **The suite** on your final commit, foreground, with the tree still. There
+  are no standing reds at `5f6bee61` (`TASK-335` closed them).
