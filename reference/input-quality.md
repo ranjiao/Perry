@@ -1,7 +1,7 @@
 # Input quality pass (shared across okr / pmo / design)
 
 Perry's three skills each accept user-authored content that lands in tier 1 files
-(`OKR.md`, `phase/<NNN>-<slug>.md`, `design/<ID>-<slug>.md`) or in `BOARD.md`.
+(`OKR.md`, `phase/<NNN>-<slug>.md`, `design/<ID>-<slug>.md`) or in a task record (`tasks.jsonl`).
 This file is the **single source of truth for the input-quality rubric** every
 skill runs before writing that content. SKILL.md files name the pass and link
 here; they do not inline the rubric.
@@ -18,7 +18,7 @@ The pass is **advisory + override**, never silent rewrite, never (on its own) a 
 2. **Each issue names the field, says why in one line, and shows a concrete bad→good rewrite.** Never "this is vague" with no fix.
 3. **The user decides**: fix, or write as-is. Writing as-is is an **override** — record a one-line reason in the journal / `## Changes` (whichever the owning skill uses). Never overrule the user.
 4. **Layer on top of, don't replace, existing hard gates.** `design lock` (no open User Decisions), `pmo` evidence-for-`done`, and tier-1 size caps stay hard refusals. The quality pass is the softer, earlier coaching step; it runs *before* those gates, at draft/input time.
-5. **User-facing prompt language follows `.perry/config.md § Document language`.** This file (Perry source) is English; the rubric labels below are for the agent, the message it renders to the user is in the configured language.
+5. **User-facing prompt language follows the `Document language` setting in `.perry/config.jsonl`.** This file (Perry source) is English; the rubric labels below are for the agent, the message it renders to the user is in the configured language.
 
 ### When each skill runs the pass
 
@@ -78,7 +78,7 @@ Inherits §1.1–1.5 for the phase's Objectives/KRs, plus:
 non-empty, no TBD). The pass catches them earlier, at `new`, so lock isn't the first
 time the user hears about a thin Non-Goals.
 
-## §4 — Task rubric (`BOARD.md` row / `plan-week` proposal / `add-task`)
+## §4 — Task rubric (task record / `plan-week` proposal / `add-task`)
 
 | # | Check | Bad | Good |
 |---|---|---|---|

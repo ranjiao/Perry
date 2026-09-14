@@ -58,8 +58,8 @@ asking, and it is honest, so nothing is measured against a number.
 `no-default` on a queue or pipeline row whose `SLA` or `Cycle` is undeclared,
 and stops there: a project that already has such a track predates this rule,
 and an error would report the whole track register red over one blank cell.
-(It used to do worse: under ADR-004 it made `.perry/config.md` undeclarable and
-therefore unwritable. That gate is deleted — `TASK-261`.) The hard stops live where the missing value is actually
+(History: under ADR-004 it did worse — it made `.perry/config.md`, a file ADR-019
+has since deleted, undeclarable and therefore unwritable. That gate is deleted — `TASK-261`.) The hard stops live where the missing value is actually
 used instead: `goals/reference/phases.md` refuses to write a queue commitment
 while the track has no `SLA` cell, and triage below reports the gap rather than
 skipping the breach step.
@@ -73,9 +73,11 @@ decision available is what to do with it once it is here.
 
 So this mode has an organ no other mode needs: **intake**.
 
-### `BOARD.md § Intake`
+### `## Intake`
 
-Untriaged external requests, one line each, with the date they arrived:
+Untriaged external requests, one line each, with the date they arrived. The
+records are `intake.jsonl`; `perry-tasks board` prints them as this section for
+a person, and `perry-task list --json` carries them as `intake` for a program:
 
 ```markdown
 ## Intake
@@ -91,18 +93,21 @@ Untriaged external requests, one line each, with the date they arrived:
 mode mandated recording something and shipped a table with nowhere to put it —
 which is what an independent review of this file found.
 
-It lives inside `BOARD.md` rather than a separate `INTAKE.md` because
-DESIGN-003 decision 3 chose zero new claimed paths, and `BOARD.md` is already a
-path Perry claims. (Perry does ship a standalone `templates/ops/INTAKE.md` with
+It is a register beside the task store rather than a separate `INTAKE.md`.
+DESIGN-003 decision 3 first put it inside `BOARD.md`, so that it claimed no new
+path; that file is deleted (TASK-237), and the register is `intake.jsonl`,
+declared in `schema/state-schema.json § claims`. (Perry does ship a standalone `templates/ops/INTAKE.md` with
 different columns — that is the scaffold `/perry diagnose` hands to a project
 which should *not* adopt Perry, where there is no board for the section to live
-in. Adopting Perry moves that list into this section.) The cost of that choice is real and named in the design's
-risk table: untriaged requests compete with the 200-line board cap.
+in. Adopting Perry moves that list into this register.)
 
-**That cost is the feature.** An intake that overflows the board is a project
-taking on more than it is discharging, and the correct response is to surface it
-as a finding, not to raise the cap or move the section somewhere it can grow
-unnoticed. If it recurs, revisit decision 3 — do not quietly relax it.
+The design's risk table named what the file placement cost: untriaged requests
+competed with the 200-line board cap, and this page argued that cost was the
+feature. **That clause is dropped: the board `perry-tasks board` prints is not a
+file and has no line cap**, so there is no cap for intake to overflow. A
+`BOARD.md` a project still holds keeps its cap
+(`work/reference/state-files.md`), and intake pushing it there is still reported
+as a finding (`work/reference/subcommands.md § triage`).
 
 ### `triage` drains intake first
 
@@ -134,10 +139,10 @@ computable and "still here after two triages" is not.
 vocabulary two screens up, and one word cannot mean both.) Routed, dropped and
 deferred rows all stay visible until the period closes, then move to that day's
 journal entry with their `Outcome` intact — the same live/history split
-`BOARD.md` and `journal/` use everywhere else. Without this rule intake only
-grows, and a board could overflow on a year of recorded drops, which would
-destroy the argument above: overflow is supposed to mean *taking on more than
-you discharge*, not *having discharged a lot*.
+the board and `journal/` use everywhere else. Without this rule intake only
+grows, and a year of recorded drops would read as intake pressure, which is
+supposed to mean *taking on more than you discharge*, not *having discharged a
+lot*.
 
 ## Standing commitments, not objectives
 

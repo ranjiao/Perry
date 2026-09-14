@@ -81,8 +81,8 @@ including the event that was appended.
    rather than fixed again (ADR-007, decision 3). If a promise's deadline needs
    words, the words go in the note and the date still goes in `Due`.
 
-   For a queue track, the tool refuses if `.perry/config.md § Tracks` has no
-   `SLA` cell for it: a commitment measured against the track's SLA, pointing
+   For a queue track, the tool refuses if its track record in
+   `.perry/config.jsonl` has no `SLA`: a commitment measured against the track's SLA, pointing
    at an empty register, is a promise with no clock at all. Set the track's SLA
    first.
 

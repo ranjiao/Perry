@@ -15,7 +15,7 @@ For a project that already exists — code, docs, git history, an issue tracker 
 /perry adopt [--depth=quick|standard|deep] [--only=okr,board,design,knowledge,arch] [--resume] [--recheck]
 ```
 
-**Read `reference/adoption.md` before running it.** The one rule that governs the whole pipeline: **evidence proposes, the user declares.** Adoption writes exactly one file of its own — `.perry/adoption/<YYYY-MM-DD>-dossier.md` — and everything that reaches `OKR.md` / `BOARD.md` / `design/` gets there through the normal subcommands after the user accepted it. File ownership is unchanged: adoption is an orchestrator, not a fourth writer.
+**Read `reference/adoption.md` before running it.** The one rule that governs the whole pipeline: **evidence proposes, the user declares.** Adoption writes exactly one file of its own — `.perry/adoption/<YYYY-MM-DD>-dossier.md` — and everything that reaches `OKR.md` / `tasks.jsonl` / `design/` gets there through the normal subcommands after the user accepted it. File ownership is unchanged: adoption is an orchestrator, not a fourth writer.
 
 Five stages, each resumable: **scan** (read-only report) → **harvest** (cited evidence) → **infer** (candidates, clustered) → **confirm** (goals authored by the user from a strawman; tasks triaged by cluster; designs/ADRs transcribed only where a source doc exists) → **commit** (materialize, then `perry-lint` must pass). `--recheck` re-runs the harvest against an adopted project and reports drift — work that landed in the repo but never on the board.
 

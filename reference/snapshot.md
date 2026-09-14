@@ -126,12 +126,12 @@ still the contract `schema/` documents.
    on demand, exactly like `*/reference/*.md` — the router's own tier-0 cost is
    this paragraph and one payload field.
 
-   The register is a `## Tracks` table in `.perry/config.md` — a tier-1 file
-   the user owns and edits directly, because a track is configuration rather
-   than state and `.perry/` is a path Perry already claims. Its shape is in
-   `schema/state-schema.json`; `perry-lint` validates the `Mode` and
-   `Default rung` cells whenever the section exists and skips it entirely when
-   it doesn't.
+   The register is the track records in `.perry/config.jsonl`, which the user
+   owns and writes with `perry-config track`, because a track is configuration
+   rather than state and `.perry/` is a path Perry already claims. Its shape is
+   in `schema/state-schema.json`; `perry-lint` validates each record's `mode`
+   and `default_rung` whenever the store exists and reports the absence when it
+   doesn't.
 
 ## Step 3c — apply the active packs' display glossary
 

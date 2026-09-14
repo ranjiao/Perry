@@ -141,8 +141,8 @@ the spine, the horizon, the item states and the default rung.
 Implemented: modes/project.md
 
 ### track
-A named stream of work inside one project, declared in `.perry/config.md §
-Tracks`. A blank `Track` cell means the implicit `main` track.
+A named stream of work inside one project, declared as a track record in
+`.perry/config.jsonl` (`perry-config track`). A blank `Track` cell means the implicit `main` track.
 Implemented: schema/state-schema.json
 
 ### knowledge card

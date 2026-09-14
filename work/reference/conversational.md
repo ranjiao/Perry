@@ -71,7 +71,7 @@ When surfacing a decision, blocker, or open question to the user in chat, **lead
 
 A user reading the chat without opening a single file should understand WHAT is being decided and WHY it matters. The IDs let them dig deeper afterward.
 
-This rule is for chat output only. Inside `BOARD.md`, `journal/`, `evidence/`, `decisions/`, and `weekly/`, IDs and short titles are still the canonical form — those files are reference material, not conversation.
+This rule is for chat output only. Inside task records (and the board `perry-tasks board` prints from them), `journal/`, `evidence/`, `decisions/`, and `weekly/`, IDs and short titles are still the canonical form — those are reference material, not conversation.
 
 ## The in-flight board (use when it helps, not by default)
 
