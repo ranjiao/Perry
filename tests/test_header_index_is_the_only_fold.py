@@ -26,6 +26,7 @@ import importlib.machinery
 import importlib.util
 import io
 import shutil
+import json
 import sys
 import tempfile
 import unittest
@@ -119,6 +120,10 @@ WATCHED = [
     "replace_row",             # bin/perry-task
     "canonical_of",            # bin/perry-goals
     "markdown_tables",         # bin/perry_store.py
+    # TASK-237 D1: `declared_board`'s nested `emit_table` folds each declared
+    # table's columns. `parse_everything` drives it with those columns
+    # decorated, so the fold is one the watch can see.
+    "emit_table",              # bin/perry_store.py
     "cmd_intake_write",        # bin/perry-tasks
 ]
 
@@ -467,6 +472,18 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
         load("perry-goals").header_language(OKR_HEADER, ["kr"])
         import perry_store                       # noqa: E402
         perry_store.markdown_tables(OKR_TABLE, 0, len(OKR_TABLE), lambda s: s)
+        # TASK-237 D1. The schema never decorates a column name, so the
+        # declaration is copied with its `columns` bolded: the fold in
+        # `emit_table` is then a decorated header cell, and watched.
+        schema = json.loads((PERRY_HOME / "schema" / "state-schema.json")
+                            .read_text(encoding="utf-8"))
+        board = next(f for f in schema["files"] if f.get("id") == "board")
+        decorated = dict(board, tables=[
+            dict(t, columns=[f"**{c}**" for c in t["columns"]])
+            for t in board["tables"]])
+        perry_store.declared_board(
+            decorated,
+            (PERRY_HOME / board["template"]).read_text(encoding="utf-8"), {})
         import perry_md_store                    # noqa: E402
         perry_md_store.scan_okr(OKR)
         self.drive_intake_write()

@@ -1690,8 +1690,8 @@ DECLARED_BOARD_CHOICES = (
      "tasks: every record whose `status` is not terminal (`done`, `dropped`), "
      "as the template says (\"closed tasks leave this file\"). asks, risks: "
      "every record (a cleared risk stays, per the template comment). intake: "
-     "every record; `perry-task intake-sweep` is what removes a discharged "
-     "one."),
+     "every record; the intake sweep in `bin/perry-task` is what removes a "
+     "discharged one."),
     ("which section",
      "A task sits under the template heading whose `headings[].match` also "
      "matches the task's `group`. asks, risks and intake sit under the one "
