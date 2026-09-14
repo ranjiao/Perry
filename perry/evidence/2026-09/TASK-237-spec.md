@@ -666,3 +666,99 @@ is deleted:
 - `bin/perry-tasks`' own `SURFACE` summary, "the task store and the three
   registers beside it". This is code, not a document; it now has four
   registers.
+
+## Amendment 2026-09-14 (7): installed needs `.perry/` (user); 3c's full list
+
+3b′ merged at `0ec65094` (`evidence/2026-09/TASK-237-d3b-prime-result.md`).
+Its row R1: under Amendment (4) item 2, any folder that happens to hold a file
+named `tasks.jsonl` (or another store name) reads as an installed Perry project.
+The PMO reproduced this: a directory holding only `tasks.jsonl` reports
+`installed: true` on every surface.
+
+**User's decision, 2026-09-14: tighten.** A project is installed when
+`.perry/config.jsonl` exists at its root, **or** when a `.perry/` directory
+exists at its root **and** a canonical store declared in `§ claims` exists
+under its state root. A store file with no `.perry/` beside it no longer counts.
+Every documented start writes `.perry/config.jsonl` first (3b′), so no supported
+start is affected. Measure that again rather than assuming it.
+
+### Deliverable 3c: the file is gone (after 3b′, which is merged)
+
+1. **The predicate tightening above.**
+   - `viewer/parsers.py § installed` and `schema/README.md § installed` change.
+   - Each contract that cites the rule is re-read for a sentence the change
+     makes false.
+   - `tests/test_installed_is_one_predicate` gains the `tasks.jsonl`-only-
+     without-`.perry/` directory as a `false` case.
+   - `test_explain_typed_tasks`, which 3b′ inverted, is inverted back if its
+     fixture has no `.perry/`.
+   - **This is a meaning change** to a published field. Announce it with a
+     `semantics` entry on each of the six contracts, as a minor bump. Stop and
+     report if a contract rule says it must be major.
+2. **`files[id=board]`.** Make a board-less project conform (`required`, and
+   the claim). This is the consented schema edit.
+3. **Delete `perry/BOARD.md`.**
+4. **`perry-tasks render` / `diff` / `verify` and the `*-render --write`
+   hand-backs.** Decide what each becomes when there is no file, and argue it in
+   the result. Delete what has no subject, as `perry-config`'s five verbs were
+   deleted under ADR-019. The register import verbs (`*-write --from-board`) stay
+   while other projects still hold boards.
+5. **Every writer stops rendering a file that no longer exists.** No command
+   may create `BOARD.md`. `perry-lint` is clean on this repository without it.
+6. **Documents.** Every line in this spec's two "3c addition" lists:
+   - root: `AGENTS.md`, `ARCHITECTURE.md` §2/§4/§6, `README.md`, `README_cn.md`,
+     and the `SKILL.md` ownership table;
+   - `bin/`: `bin/ARCHITECTURE.md` §1, `bin/README.md § For an agent`'s board
+     fallback, and the `render`/`diff` wording;
+   - `bin/perry-tasks`' SURFACE summary ("three registers");
+   - `ARCHITECTURE.md § 2` and `.perry/hook.md`'s roadmap-source line.
+
+   Plus 3b′'s rows:
+   - **R3:** the docs that still name `.perry/config.md` — relocate,
+     `reference/config.md`, the i18n language-switch section,
+     `reference/diagnose.md`, `modes/`, and the ADR template.
+   - **R5:** `work/reference/bootstrap.md` step 2 writes `BOARD.md` "at the
+     project root". With no board it writes nothing there; re-derive what that
+     step now does.
+
+   Also `modes/queue.md`'s cadence text.
+7. **`perry-tasks board` is the board.** Every doc that tells a reader to open
+   `BOARD.md` names `perry-tasks board` (for a person) or `perry-task list --json`
+   (for a program).
+
+**Must not:**
+- change any published payload's keys, except the item-1 `semantics` entries
+  and versions;
+- write this repository's other stores;
+- touch another project;
+- edit `ARCHITECTURE.md § 1`, a §3 Forbidden line, or a §6 confirmed rule
+  without stopping to ask. NN-6 still binds: §2, §4 and §8 are descriptive and
+  may change; NN-2's wording is a confirmed rule, so report it rather than
+  rewriting it.
+
+**Verification (3c):**
+- On a `git archive` of the final commit, `BOARD.md` is absent and:
+  - `perry-lint --root .` exits 0 with no `[missing-file]`;
+  - every `perry-task` write subcommand exits 0 and creates no `BOARD.md`;
+  - every published read payload equals the pre-deletion payload (the archive
+    of the base with the file deleted), except the item-1 entries and versions;
+  - `perry-tasks board` exits 0.
+- Every documented start is re-run and ends `installed: true`.
+- The five-directory table:
+  - empty: `false`;
+  - `BOARD.md`-only: `false`;
+  - `tasks.jsonl`-only without `.perry/`: `false`;
+  - `.perry/` plus `tasks.jsonl`: `true`;
+  - config-only: `true`.
+- `grep -rn 'BOARD\.md'` over `bin/ viewer/ SKILL.md AGENTS.md README*.md
+  ARCHITECTURE.md work/ goals/ decide/ modes/ reference/`: every remaining hit is
+  listed with a reason (history, the import verbs, fixtures).
+- Mutations, each reddening a named test:
+  - put a `BOARD.md` render back into one writer;
+  - accept a store without `.perry/` in the predicate;
+  - make `perry-lint` require the file again;
+  - restore one doc's `open BOARD.md` instruction, if a doc guard exists.
+    If none exists, say so; do not build one for prose meaning.
+- The suite.
+
+Then one V4 round over deliverables 1–3.
