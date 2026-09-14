@@ -834,6 +834,18 @@ class TestAWitnessProjectMakesAnEmptyCollectionObservable(unittest.TestCase):
             sorted(unittest.defaultTestLoader.getTestCaseNames(
                 TestTheFreezeIsLoadBearing)))
 
+    def test_the_writers_refuse_the_checkout(self):
+        """The freeze and the control edit stores, and are only ever handed a
+        copy. Asked about the checkout, or a path inside it, the guard they
+        call first refuses. Only the guard is called here, never a writer, so
+        a guard that stopped refusing fails this case without writing
+        anything."""
+        for target in (parity.ROOT, parity.ROOT / "perry"):
+            with self.subTest(str(target)):
+                with self.assertRaises(AssertionError):
+                    refuse_the_checkout(target)
+        refuse_the_checkout(pathlib.Path(frozen_copy()))
+
 
 class TestTheWitnessedKeysRedden(unittest.TestCase):
     """Verification 2, one key per collection that was unobservable: delete a
