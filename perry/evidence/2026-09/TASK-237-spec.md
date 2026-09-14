@@ -887,3 +887,21 @@ ask.
     must not break silently);
   - restore the `KeyError` path.
 - The suite, run on the final commit.
+
+### Note 2026-09-14: old Perry projects are not kept compatible (user)
+
+The user, 2026-09-14: the current changes to Perry's logic are not compatible
+with any older Perry project, and the user will later have agents upgrade those
+projects. That settles three points:
+- **R1 is accepted.** A pre-ADR-019 project (`.perry/config.md` with a board and
+  no `.perry/config.jsonl`, such as Gimegime-pmo or aiMark) reading
+  `installed: false` is the intended state until it is upgraded. It is not a
+  defect of this row.
+- **F1 is still required.** Round 2 makes a write refuse on such a project. That
+  refusal is what keeps an old project intact until its upgrade, instead of
+  having an empty store written over it.
+- **The one-way import verbs stay.** Those are `perry-tasks write --from-board`
+  and `risks-` / `intake-` / `asks-` / `cadence-write --from-board`. They are the
+  upgrade path, so R5 (retiring the board-projection verbs) waits until those
+  upgrades are done. The upgrade itself is separate work, carried out in each
+  project, and it opens no row here.
