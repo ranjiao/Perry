@@ -423,3 +423,60 @@ census.
 
 `TASK-434` (answered asks never leave the board) is **not** retired by the
 deletion: `perry-tasks board` prints every ask record.
+
+## Amendment 2026-09-14 (4): what a consumer needs from a board-less Perry, added to 3b
+
+aiMark's feedback was verified by the PMO on `e1b171d2`; the record is
+`evidence/2026-09/2026-09-14-aimark-feedback-task-237.md`. The user decided
+three things on 2026-09-14, and all three join deliverable 3b. None opens a
+row.
+
+1. **An `installed` boolean on every published read payload.**
+   - It goes on `perry-task/list`, `perry-asks/list`, `perry-events/list`,
+     `perry-goals/list`, `perry-decide/list` and `perry-knowledge/list`.
+     `perry-roles/list` rides `perry-state --json`, which already carries
+     `installed`.
+   - The change is additive, so it is a minor bump per `schema/README.md`,
+     with one `semantics[]` entry per contract and the parity baseline
+     re-recorded. The only baseline diffs are these keys and versions.
+   - On a non-Perry directory each payload keeps its empty shape and exit 0, and
+     says `installed: false`.
+   - `schema/asks-list-contract.md § Exit codes` is reconciled with that: a
+     directory with no register is not an unreadable register.
+2. **One `installed` criterion, written down.**
+   - A project is installed when `.perry/config.jsonl` exists at its root, or
+     any canonical store declared in `schema/state-schema.json § claims`
+     exists under its state root.
+   - `BOARD.md` alone no longer counts, and neither does `OKR.md`, `phase/`
+     or `design/` alone.
+   - `perry-state` and every payload in item 1 share one predicate. Its
+     criterion is written once in `schema/README.md` and cited by each contract.
+   - The deliverable-2 detection walks that OR in `BOARD.md` are changed to the
+     same predicate.
+   - **Stop and report** if a project shape Perry supports today loses
+     `installed`. Enumerate the test fixtures and the adoption paths
+     (`/perry adopt`, a goals-only start) before changing the predicate, and
+     report any that would.
+3. **`perry-tasks board` for a human reader.**
+   - On a project that is not installed it refuses: exit 1, the reason on
+     stderr, nothing on stdout.
+   - The title names the project: from a `.perry/config.jsonl` setting if one
+     is declared, and from the project directory's name otherwise. Measured:
+     this repository has no such setting. **Do not add a config key**; that is
+     a schema change beyond this consent.
+   - The template's instruction prose, text written for a person filling the
+     file in, is not printed. Headings and tables stay.
+   - This replaces D1 layout choice C1. The `DECLARED_BOARD_CHOICES` entry and
+     its guards are updated, and `{{` must not appear anywhere in the output.
+
+**Verification additions for 3b:**
+- On an empty directory, every read command in item 1 returns exit 0 with
+  `installed: false`, and `board` exits 1.
+- On a directory holding only `BOARD.md`, every surface reports
+  `installed: false`.
+- On a directory holding only `.perry/config.jsonl`, and on one holding only
+  `tasks.jsonl` under a declared state root, every surface reports
+  `installed: true`.
+- Mutations: drop `installed` from one payload; accept `BOARD.md` in the
+  predicate again; let `board` print on a non-installed directory; print one
+  `{{` placeholder. Each reddens a named test.
