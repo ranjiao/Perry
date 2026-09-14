@@ -76,7 +76,8 @@ class TaskSummaryContract(unittest.TestCase):
         project = Project(self)
         rc, payload = project.task("list", "--all")
         self.assertEqual(rc, 0, payload)
-        self.assertEqual(payload["contract"], "perry-task/list/2.0")
+        # 2.1: TASK-237 3a's store-read minor; nothing about `summary` moved.
+        self.assertEqual(payload["contract"], "perry-task/list/2.1")
         contract = (ROOT / "schema" / "task-list-contract.md").read_text(
             encoding="utf-8")
         self.assertIn("### 1.11", contract)

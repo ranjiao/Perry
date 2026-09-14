@@ -56,7 +56,7 @@ class Refused(Exception):
 # feed said it first: `perry-events` 1.1 "returns different ROWS … which is
 # precisely the change `1.x` only adds keys does not cover". Specified in
 # `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/2.0"
+LIST_CONTRACT = "perry-task/list/2.1"
 
 #: How many rows `list` returns when the caller names no bound. DESIGN-016
 #: goal 6, and the measurement behind it: `perry-task list --json` on this
@@ -199,6 +199,33 @@ LIST_SEMANTICS = [
              "count the returned ones: measured here, `--all` reported 24 "
              "open against the project's 156, which is why the major is the "
              "honest number even though no key changed."},
+    {"version": "2.1",
+     "fields": ["asks.items", "asks.open", "asks.items[].idle",
+                "risks.items", "risks.open", "risks.cleared", "risks.source",
+                "intake.rows", "intake.undischarged",
+                "intake.oldest_undischarged",
+                "tasks[].depends_on_resolved", "tasks[].blocked_by",
+                "tasks[].startable", "conformance.depends_on_unknown",
+                "drift.drift", "drift.unrecorded", "drift.unrecorded_sample",
+                "drift.orphaned", "drift.stale_done"],
+     "note": "The asks, risks and intake registers are now READ FROM THEIR "
+             "STORES — `asks.jsonl`, `risks.jsonl`, `intake.jsonl` — and not "
+             "parsed out of `BOARD.md`, which is read only by a project that "
+             "has no such store. That includes the ask register the "
+             "dependency graph resolves a `USER-` edge against. Before 2.1 "
+             "every field named here was built from the file, so with "
+             "`BOARD.md` absent they answered wrongly at exit 0. Measured on "
+             "this repository at b7c89276, with 33 asks and 4 risks in the "
+             "stores: `asks` empty, `risks.open` 0 with `risks.source` "
+             "\"none\", eight answered-ask edges `kind: \"unknown\"` and "
+             "unsatisfied, and `drift.drift` 96. With no file on disk `drift` "
+             "is now computed against the store's rows, since there is no "
+             "projection to have drifted. On a project whose `BOARD.md` "
+             "agrees with its stores every value is unchanged except "
+             "`asks.items[].idle`, which is `\"\"`: the ask store holds no "
+             "`Idle` cell, and `idle_days` is derived from `asked` as before. "
+             "Where a hand-edited `BOARD.md` disagreed with a store, these "
+             "fields now report the store."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:
@@ -668,6 +695,25 @@ class Board:
         if not path.exists():
             raise Refused(f"no BOARD.md at {path}")
         self.lines = path.read_text().split("\n")
+        #: Whether `commit()` renders this board back to `path`. False only for
+        #: `declared()`'s, which stands in for a file that does not exist.
+        self.on_disk = True
+
+    @classmethod
+    def declared(cls, path: Path, text: str) -> "Board":
+        """A board with no file behind it: the layout a write mutates in memory.
+
+        TASK-237 deliverable 3a. A write derives its store records from the
+        board it has just mutated, so a project with no `BOARD.md` needs a
+        board to mutate. This one is `perry_store.declared_board`'s — the text
+        `perry-tasks board` prints from the stores and the declarations — and
+        it reads no `BOARD.md`. `commit()` never writes it to `path`.
+        """
+        board = cls.__new__(cls)
+        board.path = path
+        board.lines = text.split("\n")
+        board.on_disk = False
+        return board
 
     # -- locating
 
@@ -3319,7 +3365,12 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # nothing backs.
     plan["board_rendered"] = True
     try:
-        lib.write_atomic(board.path, board_text)
+        if not getattr(board, "on_disk", True):
+            # No file to render (TASK-237 deliverable 3a). `None`, not `False`:
+            # nothing failed, and the success line names no board.
+            plan["board_rendered"] = None
+        else:
+            lib.write_atomic(board.path, board_text)
     except OSError as exc:
         plan["board_rendered"] = False
         print(f"perry-task: warning — {spath.name} and the journal were "
@@ -7115,7 +7166,22 @@ def ask_register(ctx) -> dict[str, dict]:
     `{}` on a project with no `## User Input Queue`, and on one with no
     projection at all. Then every `USER-` id is unknown again and the payload
     reads exactly as it did before this existed.
+
+    **The ask STORE answers first** (TASK-237 deliverable 3a). With no
+    `BOARD.md` this returned `{}`, so on this project eight answered asks
+    became unknown ids at exit 0: their rows lost `startable`, gained a
+    `blocked_by` and landed in `depends_on_unknown`. The board is read only
+    when the project has no `asks.jsonl`, which is an unmigrated register.
+    None of what this feeds is a stored task field, so the pre-write store is
+    the right one to read mid-write as well.
     """
+    answered = perry_state().answered
+    records = P.load_register_store(ctx["state_root"], P.ASK_STORE)
+    if records is not None:
+        return {u.id: {"answered": answered(u), "needed": u.needed_from_user,
+                       "status": u.status}
+                for u in P.parse_board("", asks=records).user_input_queue
+                if u.id}
     board = ctx.get("board")
     if board is None:
         return {}
@@ -7124,7 +7190,6 @@ def ask_register(ctx) -> dict[str, dict]:
         rows = board.section_rows("User Input Queue")
     except Refused:
         return {}                     # not every project asks the user anything
-    answered = perry_state().answered
     keys = header_keys(header)
     register: dict[str, bool] = {}
     for _, cells in rows:
@@ -7789,7 +7854,21 @@ def cmd_list(args, ctx) -> dict:
 
     intake_rows = []
     board = ctx.get("board")
-    if board is not None:
+    # **From `intake.jsonl` when there is one** (TASK-237 deliverable 3a). `n`
+    # is the row's position in stored order, which is the order the board
+    # prints and the number `route` / `resolve-intake` take. The section is
+    # read only for a project with no intake store.
+    intake_records = P.load_register_store(ctx["state_root"], P.INTAKE_STORE)
+    if intake_records is not None:
+        for pos, row in enumerate(
+                P.parse_board("", intake=intake_records).intake, 1):
+            intake_rows.append({
+                "n": pos, "arrived": row["arrived"],
+                "request": row["request"], "outcome": row["outcome"],
+                "discharged": row["discharged"],
+                "age_days": days_between(row["arrived"]),
+            })
+    elif board is not None:
         try:
             _, ihdr = board.section_table("Intake")
             for pos, (_, cells) in enumerate(board.section_rows("Intake"), 1):
@@ -7938,6 +8017,44 @@ def perry_state():
 #: own gate first, for a different reason, and named the hole rather than
 #: faking it; this is the same move with the measurement attached.
 READ_ONLY_COMMANDS = {"list", "events", "asks", "signoff-offer"}
+#: Writes whose register has no store: `## Cadence` lives in `BOARD.md` and
+#: nowhere else, so with no file they refuse rather than lose the row.
+NO_STORE_COMMANDS = {"cadence-add", "cadence-done"}
+
+
+def declared_write_board(schema: dict, state_root: Path, path: Path) -> Board:
+    """The board a write mutates when `BOARD.md` does not exist (TASK-237 3a).
+
+    `perry_store.declared_board` over the four validated stores, the schema's
+    `files[id=board]` and its template — the same inputs and the same text
+    `perry-tasks board` prints, loaded by the same `load_board_stores`. A store
+    that fails its validator refuses the write, for the reason `commit()`
+    refuses one: records derived from a board built on a store this tool could
+    not read would be written back over it.
+    """
+    spec = next((f for f in schema.get("files", []) if f.get("id") == "board"),
+                None)
+    if spec is None:
+        raise Refused("no BOARD.md, and schema/state-schema.json declares no "
+                      "files[id=board] to lay out the write. Nothing was "
+                      "written.")
+    try:
+        template = (lib.PERRY_HOME / spec["template"]).read_text(encoding="utf-8")
+    except (OSError, KeyError) as exc:
+        raise Refused(f"no BOARD.md, and the board template cannot be read "
+                      f"({type(exc).__name__}: {exc}). Nothing was "
+                      f"written.") from None
+    stores, findings = perry_store.load_board_stores(state_root)
+    if findings:
+        first = findings[0]
+        raise Refused(f"no BOARD.md, and {first['store']} is malformed "
+                      f"({first['message']}). Nothing was written.")
+    try:
+        text, _report = perry_store.declared_board(spec, template, stores)
+    except UnrenderableCell as exc:
+        raise Refused(f"no BOARD.md, and a stored value cannot be laid out as "
+                      f"a board cell: {exc.why}. Nothing was written.") from None
+    return Board.declared(path, text)
 TASK_ROW_COMMANDS = {"start", "stage", "track", "done", "drop", "purge",
                      "status", "depends", "next", "retitle", "summary",
                      "rung", "evidence", "prioritize"}
@@ -8159,7 +8276,24 @@ SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
 
 #: The contract `perry-task asks --json` publishes. See
 #: `schema/asks-list-contract.md`.
-ASKS_CONTRACT = "perry-asks/list/1.0"
+ASKS_CONTRACT = "perry-asks/list/1.1"
+
+#: `perry-asks/list`'s meaning changes, oldest minor first — the rule
+#: `LIST_SEMANTICS` states. `state_root` arrived in 1.1 too, and is a key
+#: addition, so it is in the Changelog and not here.
+ASKS_SEMANTICS = [
+    {"version": "1.1",
+     "fields": ["asks", "count", "open", "answered", "asks[].idle"],
+     "note": "The ask population is now READ FROM `asks.jsonl`, not parsed "
+             "out of `BOARD.md § User Input Queue`; the file is read only by a "
+             "project with no ask store. Before 1.1, with `BOARD.md` absent, "
+             "this payload answered `count: 0` and `answered: 0` at exit 0 "
+             "while the store held 33 asks — measured on this repository at "
+             "b7c89276 — which reads as 'nothing was ever asked'. On a "
+             "project whose `BOARD.md` agrees with its store the population "
+             "is unchanged. `asks[].idle` is `\"\"`: the store holds no `Idle` "
+             "cell, and `idle_days` is derived from `asked` as before."},
+]
 
 #: An id inside the free-text `Blocks` cell — matched, not validated.
 #:
@@ -8230,8 +8364,10 @@ def cmd_asks(args, ctx) -> dict:
     shown = rows if args.all else [r for r in rows if not r["answered"]]
     return {
         "contract": ASKS_CONTRACT,
-        "semantics": [],
+        "semantics": ASKS_SEMANTICS,
         "project_root": ctx["project_root"].as_posix(),
+        # 1.1: every other published read payload carries it.
+        "state_root": ctx["state_root"].as_posix(),
         "all": bool(args.all),
         "asks": shown,
         "count": len(shown),
@@ -8716,10 +8852,18 @@ def main(argv: list[str]) -> int:
             board_path = state_root / "BOARD.md"
             board = Board(board_path) if board_path.exists() else None
             if args.cmd not in READ_ONLY_COMMANDS and board is None:
-                raise Refused(
-                    f"no BOARD.md at {board_path}. Task truth is safe in "
-                    f"{perry_store.store_path(state_root)}, but this command "
-                    "needs the projection layout to render its write.")
+                # **TASK-237 deliverable 3a: a write does not need the file.**
+                # This refused ("needs the projection layout to render its
+                # write"). The layout now comes from the declarations and the
+                # stores, and `commit()` writes the stores, the journal and
+                # the event and renders no file.
+                if args.cmd in NO_STORE_COMMANDS:
+                    raise Refused(
+                        f"no BOARD.md at {board_path}, and `## Cadence` has no "
+                        f"store: `{args.cmd}` writes its row into the board "
+                        f"file and nowhere else, so with no file the row "
+                        f"would be lost at exit 0. Nothing was written.")
+                board = declared_write_board(schema, state_root, board_path)
             ctx = {"schema": schema, "project_root": project_root,
                    "state_root": state_root, "config": config,
                    "board": board, "events": read_events(project_root),
@@ -8884,6 +9028,8 @@ def main(argv: list[str]) -> int:
                 ("event", result.get("event_written", True),
                  "event log unwritable — this row will show as `unrecorded` "
                  "until it is fixed")):
+            if ok is None:
+                continue          # no BOARD.md on disk: nothing was rendered
             tail += f" + {name}" if ok else f" ({why})"
         # Not every subcommand mints an id — `intake`, `intake-sweep` and
         # `resolve-intake` act on a section row. Printing `None` there told the

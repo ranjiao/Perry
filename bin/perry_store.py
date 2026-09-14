@@ -1890,6 +1890,44 @@ def declared_board(spec: dict, template: str,
     return "\n".join(out) + "\n", report
 
 
+#: `declared_board`'s four stores: name, where it lives, its own validator.
+BOARD_STORES = (
+    ("tasks", store_path, validate_records),
+    ("asks", ask_store_path, validate_ask_records),
+    ("risks", risk_store_path, validate_risk_records),
+    ("intake", intake_store_path, validate_intake_records),
+)
+
+
+def load_board_stores(state_root: Path) -> tuple[dict[str, list[dict]], list[dict]]:
+    """`(stores, findings)` — the validated records `declared_board` takes.
+
+    One loader for its two callers, `perry-tasks board` and a `perry-task`
+    write on a project with no `BOARD.md` (TASK-237 deliverable 3a), so the
+    board a write mutates is built from exactly the records the board a reader
+    prints is. An absent store is empty. An unreadable or invalid one is a
+    finding and contributes no records; each caller refuses on findings.
+    """
+    stores: dict[str, list[dict]] = {}
+    findings: list[dict] = []
+    for name, where, validate in BOARD_STORES:
+        path = where(state_root)
+        if not path.exists():
+            stores[name] = []
+            continue
+        try:
+            records = [json.loads(l) for l in
+                       path.read_text(encoding="utf-8").split("\n") if l.strip()]
+        except (OSError, ValueError) as exc:
+            findings.append({"store": path.name, "message":
+                             f"not readable JSONL ({type(exc).__name__}: {exc})"})
+            continue
+        good, bad = validate(records)
+        findings += [{"store": path.name, **b} for b in bad]
+        stores[name] = good
+    return stores, findings
+
+
 __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "describe_cell", "load_store", "plan", "record", "render",
            "render_line", "render_lines", "row_descriptor", "slot_descriptor",
@@ -1911,4 +1949,7 @@ __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "duplicate_row_ids", "duplicate_record_ids",
            # TASK-237 deliverable 1: the board from its declarations alone.
            "DECLARED_BOARD_CHOICES", "DECLARED_BOARD_REGISTERS",
-           "declared_board"]
+           "declared_board",
+           # TASK-237 deliverable 3a: one loader for the board a write mutates
+           # and the board a reader prints.
+           "BOARD_STORES", "load_board_stores"]

@@ -1,4 +1,4 @@
-# `perry-task asks --all --json` — `perry-asks/list/1.0`
+# `perry-task asks --all --json` — `perry-asks/list/1.1`
 
 The User Input Queue as a query. By default the **open** asks; with `--all`,
 every ask Perry has recorded, and for each answered one **when** it was
@@ -22,13 +22,18 @@ second surface, which is the move `events` made one register over.
 population is built from the same snapshot, filtered by the same
 `parsers.ask_is_answered`, and carries the same eight keys `asks.items` does.
 
+**The population is `asks.jsonl`** (since 1.1). `BOARD.md § User Input Queue`
+is read only on a project that has no ask store, so deleting the file does
+not empty this payload.
+
 ## The payload
 
 ```jsonc
 {
-  "contract": "perry-asks/list/1.0",
-  "semantics": [],          // meaning changes, oldest minor first; none yet
+  "contract": "perry-asks/list/1.1",
+  "semantics": [ /* below */ ],  // meaning changes, oldest minor first
   "project_root": "/abs/path",
+  "state_root": "/abs/path",     // where asks.jsonl lives
   "all": true,              // whether --all was passed
   "asks": [ /* below */ ],
   "count": 30,              // entries in `asks` in THIS response
@@ -39,14 +44,27 @@ population is built from the same snapshot, filtered by the same
 
 | Key | Type | Meaning |
 |---|---|---|
-| `contract` | string | `perry-asks/list/1.0` |
-| `semantics` | array | meaning changes by version, oldest first. Empty at 1.0 |
+| `contract` | string | `perry-asks/list/1.1` |
+| `semantics` | array | meaning changes by version, oldest first, each `{version, fields, note}` — the shape `perry-task/list § semantics[]` documents. Empty at 1.0; one entry since 1.1 |
 | `project_root` | string | absolute path of the project read |
+| `state_root` | string | absolute path of the state root — where `asks.jsonl` is read from. Added in 1.1 |
 | `all` | bool | `true` when `--all` was passed |
 | `asks` | array | the asks; entries below |
 | `count` | int | `len(asks)` |
 | `open` | int | open asks in the whole register. Equals `list --json § asks.open` |
 | `answered` | int | answered asks in the whole register. `open + answered` is every ask |
+
+## A meaning change — `semantics[]`
+
+Ordered oldest minor first. Carries **only** the minors under which an
+existing value changed meaning; a key addition such as 1.1's `state_root` is in
+the Changelog and not here.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `version` | string | the minor the change shipped in, `"1.1"`. Compare it as a pair of ints, never as a float or a string |
+| `fields` | array | the payload paths whose meaning moved, in this payload's dotted notation — `"asks"`, `"asks[].idle"` |
+| `note` | string | what the value used to mean, what it means now, and what a consumer that hardcoded the old meaning gets wrong |
 
 ## An ask — `asks[]`
 
@@ -57,7 +75,7 @@ population is built from the same snapshot, filtered by the same
 | `blocks` | string | the `Blocks` cell verbatim. Free text |
 | `blocks_ids` | array | the ids matched inside `blocks`, in order. Two shapes: `LETTERS-DIGITS` (`TASK-236`, `USER-927`, `RX-003`) and a key result, phase (`P003-O2-KR3`) or overall (`O2-KR3`). **Matched, not validated** — an id no register carries is still listed, and anything else in the cell is ignored |
 | `asked` | string | `YYYY-MM-DD`, or `""` on a board that carries `Idle` instead |
-| `idle` | string | the `Idle` cell as written, displayable |
+| `idle` | string | `""` when read from `asks.jsonl`, which holds no `Idle` cell (since 1.1). The board's `Idle` cell as written only on a project with no ask store |
 | `idle_days` | int \| null | days since `asked`, derived at read time; `null` when nothing says |
 | `status` | string | the `Status` cell verbatim — the only record of HOW an ask closed |
 | `priority` | string | the row's priority cell, `""` when none |
@@ -97,6 +115,19 @@ or id; do not assume either.
 printed rather than an empty `asks`, which would say nothing was ever asked.
 
 ## Changelog
+
+### 1.1 — 2026-09-14
+
+**The ask population is read from `asks.jsonl`** (TASK-237 deliverable 3a).
+It was parsed out of `BOARD.md § User Input Queue`, so with the file absent
+the payload answered `count: 0` at exit 0 while the store held 33 asks,
+measured on this repository at `b7c89276`. The file is now read only on a
+project with no ask store. On a project whose board agrees with its store the
+population is unchanged; `asks[].idle` is `""`, because the store holds no
+`Idle` cell. Announced in `semantics`.
+
+**`state_root` is added** — the only published read payload that lacked it.
+A key addition.
 
 ### 1.0 — 2026-09-13
 

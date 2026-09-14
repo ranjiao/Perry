@@ -1,13 +1,13 @@
 {
   "contract_files_discovered": 7,
   "contracts": {
-    "perry-asks/list/1.0": {
+    "perry-asks/list/1.1": {
       "collections_the_witness_filled": [],
       "command": "perry-task asks --all --json",
-      "contract": "perry-asks/list/1.0",
-      "documented": 20,
+      "contract": "perry-asks/list/1.1",
+      "documented": 24,
       "documented_not_emitted": [],
-      "emitted": 20,
+      "emitted": 24,
       "emitted_not_documented": [],
       "file": "schema/asks-list-contract.md",
       "named_no_such_collection": [],
@@ -15,7 +15,7 @@
       "observed_in_witness": {},
       "unassigned": [],
       "unparsed_sketches": [],
-      "witness": "tests/fixtures/witness-project"
+      "witness": ""
     },
     "perry-decide/list/2.0": {
       "collections_the_witness_filled": [
@@ -117,13 +117,13 @@
       "unparsed_sketches": [],
       "witness": "tests/fixtures/witness-project"
     },
-    "perry-task/list/2.0": {
+    "perry-task/list/2.1": {
       "collections_the_witness_filled": [
         "conformance.depends_on_unknown",
         "conformance.review_idle"
       ],
       "command": "perry-task list --json",
-      "contract": "perry-task/list/2.0",
+      "contract": "perry-task/list/2.1",
       "documented": 140,
       "documented_not_emitted": [],
       "emitted": 132,

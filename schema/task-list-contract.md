@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/2.0`**
+> Contract: **`perry-task/list/2.1`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -97,7 +97,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/2.0",   // check this before anything else
+  "contract":     "perry-task/list/2.1",   // check this before anything else
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
@@ -354,7 +354,7 @@ non-task registers could not be read.
 | `dependency_cycles` | array | arrays of ids, each a loop found in the stored edges, e.g. `[["A","B","A"]]`. Every task in one waits forever and none is `startable`. The write path refuses to create one; an externally edited store is reported rather than hidden. |
 | `blocked_without_dependency` | array | open ids whose `status` is `blocked` and whose `depends_on` is empty — the row says it is stopped and does not say on what. **The migration worklist**: their dependency is still in prose somewhere no program can read. On Perry's own board this is every blocked row today. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` may be empty, and that is not an error: current fields remain canonical in the store while history is unavailable. |
-| `missing_projection` | string | `""` when `BOARD.md` exists; otherwise its expected path. Task records and event history remain readable, while Board-backed risks, asks and intake keep their empty contract shapes. |
+| `missing_projection` | string | `""` when `BOARD.md` exists; otherwise its expected path. Task records, event history, and — since 2.1 — `risks`, `asks` and `intake` are read from their stores and are unaffected; only a project with no such store reads those three out of the file, and then gets their empty contract shapes. |
 
 #### `sections_read[]` — the entry, key by key
 
@@ -517,7 +517,7 @@ An ask:
 | `needed` | string | what the user has to supply |
 | `blocks` | string | the cell verbatim — free text, often a task id |
 | `asked` | string | `YYYY-MM-DD`, or `""` on a board that carries `Idle` instead |
-| `idle` | string | the `Idle` cell as written (`"9d"`, `"—"`). Displayable. |
+| `idle` | string | `""` when read from `asks.jsonl`, which holds no `Idle` cell (since 2.1). The board's `Idle` cell as written (`"9d"`, `"—"`) only on a project with no ask store. Displayable. |
 | `idle_days` | int \| null | **the number to sort on.** Derived from `asked` at read time when the board has it, else the digits out of `idle`; `null` when nothing says. A stored age is stale the morning after it is written. |
 | `status` | string | the cell verbatim |
 | `priority` | string | `P0` when the ask blocks a P0 task, else `""` |
@@ -576,7 +576,7 @@ comparison performed"* the same way on the same tree.
    this section used to show only the first:
 
    ```python
-   SUPPORTED = {1: 18, 2: 0}           # major -> the minor you read against
+   SUPPORTED = {1: 18, 2: 1}           # major -> the minor you read against
 
    def pair(v):                        # "1.18" -> (1, 18). Compare versions ONLY
        major, minor = v.split(".")     # as this pair: as strings "1.5" > "1.18"
@@ -662,6 +662,28 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### 2.1 — the registers are read from their stores, 2026-09-14 (TASK-237 deliverable 3a)
+
+**`asks`, `risks` and `intake` are read from `asks.jsonl`, `risks.jsonl` and
+`intake.jsonl`**, and so is the ask register the dependency graph resolves a
+`USER-` edge against. `BOARD.md` is read for them only on a project that has
+no such store. No key was added, removed or retyped. What moved is where the
+values come from, which is what `semantics` is for, and it carries the entry.
+
+**What a consumer saw before, with `BOARD.md` absent**, measured on this
+repository at `b7c89276` (33 asks, 4 risks in the stores), all at exit 0:
+- `asks.items` empty;
+- `risks.open` 0 with `risks.source` `"none"`;
+- eight answered-ask edges `kind: "unknown"` and unsatisfied;
+- `drift.drift` 96.
+
+With no file on disk, `drift` is now computed against the store's rows.
+
+**What a consumer with a board sees:** nothing different on a project whose
+`BOARD.md` agrees with its stores, except `asks.items[].idle`, which is `""`
+because the store holds no `Idle` cell. Where a hand-edited board disagreed
+with a store, the store is what these fields report (ADR-010).
 
 ### 2.0 — `tasks[]` is bounded, 2026-09-09 (DESIGN-016 goal 6)
 
