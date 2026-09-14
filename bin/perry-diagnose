@@ -483,6 +483,34 @@ def open_user_asks(root: Path, entries: dict, explain,
         return sorted((i, entries[i].get("defined") or "")
                       for i in open_ids if not not_a_row_of_this_queue(i))
 
+    # **The ask STORE is the register once it exists** (TASK-237 deliverable
+    # 3b; `TASK-237-d3a-result.md § 6 R3`). This read `BOARD.md § User Input
+    # Queue` whatever the project held, so deleting the file sent a project
+    # with 33 stored asks to the fallback below, and a project whose file had
+    # drifted from its store was counted by the file. Same predicate on the
+    # same cell — `ask_is_answered(status)` — and the same row identity, the
+    # `USER-` id; `where` cites the store line instead of the board line.
+    state_root = lib.resolve_state_root(root)
+    if P.load_register_store(state_root, P.ASK_STORE) is not None:
+        store = state_root / P.ASK_STORE
+        try:
+            rel_store = str(store.relative_to(root))
+        except ValueError:
+            rel_store = str(store)
+        answered_ids: set[str] = set()
+        where_ids: dict[str, str] = {}
+        for n, line in enumerate(store.read_text(encoding="utf-8").split("\n"), 1):
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            rid = str(rec.get("id") or "")
+            if not re.fullmatch(r"USER-\d+", rid):
+                continue
+            where_ids.setdefault(rid, f"{rel_store}:{n}")
+            if P.ask_is_answered(str(rec.get("status") or "")):
+                answered_ids.add(rid)
+        return sorted((i, where_ids[i]) for i in set(where_ids) - answered_ids)
+
     board = root / "BOARD.md"
     if not board.exists():
         # Same question again: a `fixtures/BOARD.md` sorting ahead of the real
@@ -2049,6 +2077,13 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
 
     rows: list[dict] = []
     intake_rows = 0
+    # **The intake STORE is the register once it exists** (TASK-237
+    # deliverable 3b, `TASK-237-d3a-result.md § 1.2 L11`): the count is its
+    # records, and the section in the file is not read for it. With no
+    # `BOARD.md` this counted 0 arrived requests against a store holding them.
+    intake_store = P.load_register_store(state_root, P.INTAKE_STORE)
+    if intake_store is not None:
+        intake_rows = len(intake_store)
     for heading, body in md_sections(board):
         header, cells = md_table(body, aliases)
         if not header:
@@ -2056,7 +2091,8 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         if re.match(r"(?:Intake|收件)\b", heading, re.I):
             # Counted as its own organ, not as board rows — the `Arrived`
             # column appears in both and would otherwise be scored twice.
-            intake_rows += len(cells)
+            if intake_store is None:
+                intake_rows += len(cells)
             continue
         rows += [_as_dict(header, c) for c in cells]
 
@@ -2116,7 +2152,8 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     file_ev = shape_ev
     if intake_rows:
         _award(file_ev, ("queue",), STRUCTURAL,
-               f"BOARD.md § Intake carries {intake_rows} arrived request(s)")
+               f"{'intake.jsonl' if intake_store is not None else 'BOARD.md § Intake'}"
+               f" carries {intake_rows} arrived request(s)")
     if answers:
         _award(file_ev, ("inquiry",), STRUCTURAL,
                f"{len(answers)} answer file(s) under evidence/")

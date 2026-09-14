@@ -217,9 +217,14 @@ class TestDeclaredAndDispatchableAreTheSameSet(unittest.TestCase):
         ("perry-tasks", ("asks-write", "--from-board", "--dry-run", "--json"),
          "asks.jsonl"),
         ("perry-tasks", ("asks-build",), '"unanswered"'),
-        # TASK-237 D1: `board` prints the TEMPLATE's title, placeholder and all,
-        # which no board on disk carries — so `render` answering cannot pass.
-        ("perry-tasks", ("board",), "# Board — {{project name}}"),
+        ("perry-tasks", ("cadence-write", "--from-board", "--dry-run", "--json"),
+         "cadence.jsonl"),
+        # TASK-237 D1 / 3b: `board` prints the TEMPLATE's headings, which the
+        # fixture board on disk does not carry (its `## Top risks` has no
+        # parenthetical) — so `render` answering cannot pass. The title's
+        # `{{project name}}` was the fingerprint until 3b filled it.
+        ("perry-tasks", ("board",),
+         "## Top risks (one-line; full list in `PROJECT_STATE.md`)"),
     )
 
     def test_every_declared_subcommand_runs_its_own_verb(self):
@@ -548,6 +553,15 @@ class TestTheChainToolsDeclareTheFlagsTheirBranchesRead(unittest.TestCase):
         The count is a ceiling, not a record. A refactor that moved a flag's
         only reader into shared code would raise it, and the point of the
         number is that such a move has to be argued for.
+
+        **TASK-237 3b argued one, and replaced the number with the set it
+        stood for.** The fifteen were five pairs per prefixed register, three
+        registers: `--register` on `build` / `render` / `write` / `diff`, and
+        `--write` on `diff`. `cadence` is a fourth register with the same four
+        verbs through the same dispatch, so it brings the same five and the
+        count became 20. A literal 20 would admit any five new blind pairs; the
+        set admits exactly these, derived from the registers the schema
+        declares, so a sixth shape still reddens here.
         """
         blind = []
         for tool, name, declared, reads, only in self._pairs():
@@ -558,10 +572,15 @@ class TestTheChainToolsDeclareTheFlagsTheirBranchesRead(unittest.TestCase):
                     f"{tool} {name} reads {flag} where no other subcommand "
                     f"goes and does not declare it — direction A is failing "
                     f"above, not this")
+        prefixes = [p for p in inproc.load("perry-tasks").registers().values() if p]
+        allowed = ({("perry-tasks", f"{p}{verb}", "--register")
+                    for p in prefixes for verb in ("build", "render", "write", "diff")}
+                   | {("perry-tasks", f"{p}diff", "--write") for p in prefixes})
+        self.assertEqual(len(allowed), 5 * len(prefixes))
         self.assertLessEqual(
-            len(blind), 15,
-            f"direction B is now blind on {len(blind)} pairs, up from the 15 "
-            f"measured on 488cf079: {blind}")
+            set(blind), allowed,
+            f"direction B is blind on pairs outside the per-register shape "
+            f"measured on 488cf079: {sorted(set(blind) - allowed)}")
 
     def test_the_derivation_finds_what_the_source_plainly_reads(self):
         """The other control: `_reads` returning nothing would pass direction B
@@ -643,12 +662,14 @@ class TestRegisterIsAParameter(unittest.TestCase):
         self.p = Project()
         self.p.run("add", "--title", "a row so the store has something")
         for sub in ("write --from-board", "risks-write --from-board",
-                    "intake-write --from-board", "asks-write --from-board"):
+                    "intake-write --from-board", "asks-write --from-board",
+                    "cadence-write --from-board"):
             run("perry-tasks", *sub.split(), "--root", str(self.p.root))
 
     def test_the_registers_come_from_the_schema(self):
         table = inproc.load("perry-tasks").registers()
-        self.assertEqual(set(table), {"tasks", "risks", "intake", "asks"})
+        self.assertEqual(set(table),
+                         {"tasks", "risks", "intake", "asks", "cadence"})
         self.assertEqual(table["tasks"], "", "the bare verbs are the task ones")
 
     def test_the_parameter_and_the_alias_are_the_same_call(self):
@@ -666,7 +687,7 @@ class TestRegisterIsAParameter(unittest.TestCase):
         extra = {"write": ("--from-board",),
                  "render": ("--write", "--dry-run", "--json")}
         succeeded = 0
-        for register in ("risks", "intake", "asks"):
+        for register in ("risks", "intake", "asks", "cadence"):
             for verb in ("build", "diff", "render", "write"):
                 with self.subTest(register=register, verb=verb):
                     args = extra.get(verb, ())
@@ -687,7 +708,7 @@ class TestRegisterIsAParameter(unittest.TestCase):
         out = run("perry-tasks", "build", "--register", "nosuch",
                   "--root", str(self.p.root))
         self.assertEqual(out.returncode, 2)
-        for name in ("tasks", "risks", "intake", "asks"):
+        for name in ("tasks", "risks", "intake", "asks", "cadence"):
             self.assertIn(name, out.stderr)
 
     def test_a_verb_the_register_lacks_says_which_it_has(self):

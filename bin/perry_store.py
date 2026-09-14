@@ -1647,6 +1647,243 @@ def ask_render(board, records: list[dict], ops) -> tuple[str, dict]:
     return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
 
 
+# ── the cadence register (TASK-237 deliverable 3b) ───────────────────────
+#
+# **The fourth register, and the last section of `BOARD.md` that held data no
+# store did.** 3a stopped on it: `cadence-add` and `cadence-done` wrote their
+# row into the board file and nowhere else, so with no file the row was lost.
+# The user answered A on 2026-09-14 ("给 cadence 建存储"), and the claim is
+# `schema/state-schema.json § claims[path=cadence.jsonl]`.
+#
+# The shape is the ask register's, because the key is the same kind: the row's
+# `ID` cell. What differs is that EVERY column is stored. The ask store leaves
+# `Idle` out because an age is stale the moment it is written; nothing in a
+# cadence row is like that. `Next due` looks computed, and `cadence-done`
+# does compute it, but on a real register it is prose a human wrote —
+# `**2026-08-31**（7 月版 ✅ 8/3 补作 → …）`, `2026-W32（W23–W31 停摆…）`, `n/a`
+# — and the amendment says in as many words that such a cell is stored as
+# written. `bin/perry-state § cadence_report` reads a date out of it at read
+# time and reports the cells it cannot read; the store never does.
+
+#: Written to the store, in this key order. `title` is the `Recurring task`
+#: column; `last_evidence` is `Last evidence`. `order` is the row's position
+#: among the rows the store holds, the rule `ask_records` states.
+CADENCE_STORED = ("id", "title", "owner", "frequency", "next_due", "last_run",
+                  "last_evidence", "order")
+
+#: `norm(header cell)` → the store field that column is rendered from. `Title`
+#: and `Evidence` are the two alternative spellings `parsers._parse_cadence`
+#: already accepts for the same columns, so a board the reader reads is a board
+#: this renders.
+CADENCE_FIELD_BY_COLUMN = {"id": "id", "recurring task": "title",
+                           "title": "title", "owner": "owner",
+                           "frequency": "frequency", "next due": "next_due",
+                           "last run": "last_run",
+                           "last evidence": "last_evidence",
+                           "evidence": "last_evidence"}
+
+#: The heading the register lives under, canonically.
+CADENCE_SECTION = "Cadence"
+
+
+def cadence_store_path(state_root: Path) -> Path:
+    return Path(state_root) / "cadence.jsonl"
+
+
+def cadence_section_shape(board, ops) -> tuple[str, list[dict]]:
+    """`absent` | `table` | `prose` | `foreign` for `## Cadence`.
+
+    `ask_section_shape`'s four answers. `foreign` is a table with no
+    `Frequency` column, or a section holding more than one table: which one is
+    the register is a question about somebody's document.
+    """
+    if not board.has_section(CADENCE_SECTION):
+        return "absent", []
+    start, end = board.named_section(CADENCE_SECTION)
+    tables = markdown_tables(board.lines, start, end, ops.norm)
+    if len(tables) == 1 and P.is_cadence_register_header(tables[0]["header"]):
+        return "table", tables
+    if tables:
+        return "foreign", tables
+    return "prose", tables
+
+
+def cadence_table(board, ops) -> dict | None:
+    """The one table under `## Cadence` that IS the register, or None."""
+    shape, tables = cadence_section_shape(board, ops)
+    return tables[0] if shape == "table" else None
+
+
+def cadence_record(values: dict, order: int | None) -> dict:
+    """One register row → one store record, in `CADENCE_STORED` key order.
+
+    **Every value is the cell as written**, which is the whole contract of this
+    store: nothing is parsed, stripped of decoration or defaulted. A column the
+    row does not have is `""`.
+    """
+    def cell(*keys: str) -> str:
+        return next((values[k] for k in keys if k in values), "")
+
+    out: dict = {}
+    for k in CADENCE_STORED:
+        if k == "order":
+            out[k] = order
+        elif k == "title":
+            out[k] = cell("recurring task", "title")
+        elif k == "last_evidence":
+            out[k] = cell("last evidence", "evidence")
+        else:
+            out[k] = cell(k.replace("_", " "))
+    return out
+
+
+def cadence_records(board, ops, current: list[dict] | None = None) -> list[dict]:
+    """The cadence store, derived from `## Cadence` as it stands.
+
+    `ask_records`' rule: a row whose `ID` cell holds no handle is layout, not a
+    record, and a repeated id is kept once. `current` is accepted for the
+    register signature `bin/perry-task § REGISTER_SPEC` calls and is not
+    needed: every stored field has a column, so there is nothing to carry.
+    """
+    table = cadence_table(board, ops)
+    if table is None:
+        return []
+    out: list[dict] = []
+    seen: set[str] = set()
+    n = 0
+    for row in table["rows"]:
+        cid = ops.strip_handle(row["values"].get("id", ""))
+        if not cid or cid in seen:
+            continue
+        seen.add(cid)
+        values = dict(row["values"])
+        values["id"] = cid
+        out.append(cadence_record(values, n))
+        n += 1
+    return out
+
+
+def validate_cadence_records(records: list) -> tuple[list[dict], list[dict]]:
+    """Valid cadence records, and structured findings for the malformed ones.
+
+    `validate_ask_records`' rules without `answered`: one JSON object per line,
+    `id` a unique non-empty string, `order` an integer or null, every other
+    stored field a string or null.
+    """
+    good: list[dict] = []
+    findings: list[dict] = []
+    seen: set[str] = set()
+    for line, rec in enumerate(records, 1):
+        if not isinstance(rec, dict):
+            findings.append({"line": line, "field": None,
+                             "message": "expected one JSON object per line"})
+            continue
+        bad = []
+        for field, value in rec.items():
+            if field not in CADENCE_STORED:
+                continue
+            if field == "order":
+                ok = value is None or (isinstance(value, int)
+                                       and not isinstance(value, bool))
+                expected = "integer or null"
+            else:
+                ok = value is None or isinstance(value, str)
+                expected = "string or null"
+            if not ok:
+                bad.append({"field": field, "actual": type(value).__name__,
+                            "expected": expected})
+        cid = rec.get("id")
+        if not isinstance(cid, str) or not cid.strip():
+            bad.append({"field": "id", "actual": type(cid).__name__,
+                        "expected": "non-empty string"})
+        elif cid in seen:
+            bad.append({"field": "id", "actual": cid,
+                        "expected": "unique cadence id"})
+        if bad:
+            findings.append({"line": line,
+                             "id": cid if isinstance(cid, str) else None,
+                             "fields": bad,
+                             "message": "; ".join(
+                                 f"`{b['field']}` is {b['actual']}, expected "
+                                 f"{b['expected']}" for b in bad)})
+            continue
+        seen.add(cid)
+        good.append(rec)
+    return good, findings
+
+
+def cadence_plan(board, records: list[dict], ops) -> dict:
+    """`## Cadence`, split into the lines the store fills and the rest.
+
+    `ask_plan`'s split, joined by the `ID` cell. Unlike the ask register no
+    column is verbatim by design, so a non-empty `cells_verbatim` here names a
+    column no stored field holds — which `perry-tasks cadence-write` refuses,
+    because importing that section would drop the column's cells.
+    """
+    lines = board.lines
+    by_id = {r["id"]: r for r in records}
+    rows: dict[int, dict] = {}
+    report = {"register": "absent", "rows_from_store": 0, "rows_verbatim": [],
+              "rows_not_on_board": [], "cells_verbatim": {},
+              "cells_wearing_decoration": {},
+              "cells_the_store_and_board_disagree_on": [],
+              "rows_out_of_stored_order": {}}
+    shape, _tables = cadence_section_shape(board, ops)
+    report["register"] = shape
+    table = cadence_table(board, ops)
+    if table is None:
+        report["rows_not_on_board"] = sorted(by_id)
+        return {"lines": lines, "rows": rows, "report": report,
+                "records": dict(by_id)}
+
+    header, keys = table["header"], table["keys"]
+    in_line_order: list[str] = []
+    seen: set[str] = set()
+    for row in table["rows"]:
+        i, cells = row["line"], row["cells"]
+        cid = ops.strip_handle(row["values"].get("id", ""))
+        rec = by_id.get(cid) if cid else None
+        if rec is None:
+            report["rows_verbatim"].append({"cell": cells[0][:60]})
+            continue
+        desc, findings = row_descriptor(lines[i], cells, header, keys,
+                                        CADENCE_FIELD_BY_COLUMN, rec)
+        if desc is None:
+            report["rows_verbatim"].append({"cell": cells[0][:60],
+                                            "why": findings[0]["why"]})
+            continue
+        desc["id"] = desc["key"] = cid
+        seen.add(cid)
+        in_line_order.append(cid)
+        for f in findings:
+            if "verbatim" in f:
+                report["cells_verbatim"][f["verbatim"]] = \
+                    report["cells_verbatim"].get(f["verbatim"], 0) + 1
+            elif "decorated" in f:
+                report["cells_wearing_decoration"][f["decorated"]] = \
+                    report["cells_wearing_decoration"].get(f["decorated"], 0) + 1
+            else:
+                report["cells_the_store_and_board_disagree_on"].append(
+                    {"id": cid, "column": f["column"],
+                     "board": f["file"], "store": f["store"]})
+        rows[i] = desc
+        report["rows_from_store"] += 1
+    report["rows_not_on_board"] = sorted(set(by_id) - seen)
+    graded = [r for r in in_line_order if by_id[r].get("order") is not None]
+    if graded != sorted(graded, key=lambda r: by_id[r]["order"]):
+        report["rows_out_of_stored_order"] = {
+            "on_the_board": graded,
+            "in_the_store": sorted(graded, key=lambda r: by_id[r]["order"])}
+    return {"lines": lines, "rows": rows, "report": report,
+            "records": dict(by_id)}
+
+
+def cadence_render(board, records: list[dict], ops) -> tuple[str, dict]:
+    """`cadence.jsonl` → the text of `BOARD.md`. Byte-for-byte is the bar."""
+    p = cadence_plan(board, records, ops)
+    return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
+
+
 # ── the board from its declarations alone (TASK-237 deliverable 1) ───────
 #
 # **Every renderer above needs `BOARD.md` on disk**: `plan` iterates
@@ -1670,10 +1907,17 @@ def ask_render(board, records: list[dict], ops) -> tuple[str, dict]:
 #: `perry/evidence/2026-09/TASK-237-d1-result.md § 1` quotes them.
 DECLARED_BOARD_CHOICES = (
     ("prose",
-     "The template's non-table lines are printed as the template writes them, "
-     "`{{…}}` placeholders included. No declared source names the project, a "
-     "task id or a date: `.perry/config.jsonl § last_updated` is the config's "
-     "own date, not the board's (TASK-237-result.md § 2.3 L3)."),
+     "Printed from the template: its `#` headings and its tables, and nothing "
+     "else. The `# ` title's `{{project name}}` is filled with the project's "
+     "name — a `.perry/config.jsonl` setting if the schema declares one (it "
+     "declares none), else the project root's directory name; "
+     "`viewer/parsers.py § project_name` is the rule, and `perry-state § "
+     "project.name` calls it too. Every other line is instruction prose for a "
+     "person filling the file in — the `>` block, the HTML comment — and is "
+     "not printed. A heading that still carries a `{{…}}` placeholder refuses "
+     "the render, because no declared source fills it. This replaced the "
+     "first version of this choice, which printed the template's prose, "
+     "placeholders included (TASK-237 Amendment (4))."),
     ("sections",
      "The template's `## ` headings, in the template's order and with its "
      "heading text. It agrees with `files[id=board].headings`."),
@@ -1684,14 +1928,14 @@ DECLARED_BOARD_CHOICES = (
      "and its User Input Queue orders `Idle` before `Status`."),
     ("placeholder rows",
      "The template's empty `|  |  |` rows are not printed. A table is its header, "
-     "its separator and its store's rows; Cadence has no store, so it has "
-     "none."),
+     "its separator and its store's rows."),
     ("which rows",
      "tasks: every record whose `status` is not terminal (`done`, `dropped`), "
      "as the template says (\"closed tasks leave this file\"). asks, risks: "
      "every record (a cleared risk stays, per the template comment). intake: "
      "every record; the intake sweep in `bin/perry-task` is what removes a "
-     "discharged one."),
+     "discharged one. cadence: every record — a recurrence has no terminal "
+     "state."),
     ("which section",
      "A task sits under the template heading whose `headings[].match` also "
      "matches the task's `group`. asks, risks and intake sit under the one "
@@ -1726,13 +1970,21 @@ DECLARED_BOARD_CHOICES = (
 #: `(register, a section name its declared table's `under` must match, the
 #: column → field map)`. A `tables[]` entry belongs to the register whose name
 #: its pattern takes; `P1` stands for every task table because `^P[012]\b`
-#: takes it. Cadence takes none of the four, because no cadence store exists.
+#: takes it. Cadence joined in 3b with its store.
 DECLARED_BOARD_REGISTERS = (
     ("tasks", "P1", FIELD_BY_COLUMN),
     ("intake", INTAKE_SECTION, INTAKE_FIELD_BY_COLUMN),
     ("asks", ASK_SECTION, ASK_FIELD_BY_COLUMN),
     ("risks", RISK_SECTION, RISK_FIELD_BY_COLUMN),
+    ("cadence", CADENCE_SECTION, CADENCE_FIELD_BY_COLUMN),
 )
+
+#: The one placeholder a declared source fills: the title's project name.
+_PROJECT_NAME_SLOT = re.compile(r"\{\{\s*project name\s*\}\}")
+
+
+class UnfilledPlaceholder(ValueError):
+    """A printed template heading carries a `{{…}}` no declared source fills."""
 
 
 def _declared_columns(table: dict) -> list[str]:
@@ -1749,18 +2001,23 @@ def _in_stored_order(records: list[dict]) -> list[dict]:
 
 
 def declared_board(spec: dict, template: str,
-                   stores: dict[str, list[dict]]) -> tuple[str, dict]:
-    """The whole board from `files[id=board]`, its template and the four stores.
+                   stores: dict[str, list[dict]],
+                   project_name: str = "") -> tuple[str, dict]:
+    """The whole board from `files[id=board]`, its template and the five stores.
 
     `spec` is the schema's `files[id=board]` entry, `template` the text of the
-    file it names, `stores` `{"tasks"|"asks"|"risks"|"intake": records}` — the
-    records already validated by the store's own `validate_*`. Returns the text
-    and a report: `{"sections": [{heading, register, rows}], "undeclared_groups":
-    [...], "rows": n}`.
+    file it names, `stores` `{"tasks"|"asks"|"risks"|"intake"|"cadence":
+    records}` — the records already validated by the store's own `validate_*`.
+    `project_name` fills the title (`parsers.project_name`, computed by the
+    caller: this function opens nothing). Returns the text and a report:
+    `{"sections": [{heading, register, rows}], "undeclared_groups": [...],
+    "rows": n}`.
 
     Raises `tables.UnrenderableCell` naming the register, record and column
     when a stored value cannot be carried by a markdown row — the caller prints
-    nothing then, rather than a board missing a row.
+    nothing then, rather than a board missing a row. Raises
+    `UnfilledPlaceholder` when a template heading carries a placeholder no
+    declared source fills.
 
     Every layout decision is one of `DECLARED_BOARD_CHOICES`.
     """
@@ -1879,23 +2136,42 @@ def declared_board(spec: dict, template: str,
                 emit_table(out, title, table, register or "", fmap or {}, recs)
             i = j
             continue
-        out.append(line)
+        # **Headings and blank lines only** — choice "prose". The rest of the
+        # template is text written for a person filling the file in.
+        if line.startswith("#"):
+            if line.startswith("# "):
+                line = _PROJECT_NAME_SLOT.sub(project_name, line)
+            if "{{" in line:
+                raise UnfilledPlaceholder(
+                    f"template line {i + 1} ({line[:80]!r}) carries a "
+                    f"placeholder no declared source fills")
+            out.append(line)
+        elif not line.strip():
+            out.append("")
         i += 1
     if not tail_done:
         if out and out[-1] != "":
             out.append("")
         emit_tail(out)
+    # One blank line between blocks, however many prose lines were dropped.
+    collapsed: list[str] = []
+    for line in out:
+        if line == "" and (not collapsed or collapsed[-1] == ""):
+            continue
+        collapsed.append(line)
+    out = collapsed
     while out and out[-1] == "":
         out.pop()
     return "\n".join(out) + "\n", report
 
 
-#: `declared_board`'s four stores: name, where it lives, its own validator.
+#: `declared_board`'s five stores: name, where it lives, its own validator.
 BOARD_STORES = (
     ("tasks", store_path, validate_records),
     ("asks", ask_store_path, validate_ask_records),
     ("risks", risk_store_path, validate_risk_records),
     ("intake", intake_store_path, validate_intake_records),
+    ("cadence", cadence_store_path, validate_cadence_records),
 )
 
 
@@ -1944,6 +2220,12 @@ __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "ask_store_path", "ask_section_shape", "ask_table",
            "ask_record", "ask_records", "ask_plan", "ask_render",
            "validate_ask_records",
+           # TASK-237 deliverable 3b: the cadence register.
+           "CADENCE_STORED", "CADENCE_FIELD_BY_COLUMN", "CADENCE_SECTION",
+           "cadence_store_path", "cadence_section_shape", "cadence_table",
+           "cadence_record", "cadence_records", "cadence_plan",
+           "cadence_render", "validate_cadence_records",
+           "UnfilledPlaceholder",
            # TASK-273. Shared by the two registers whose key is an id, and
            # deliberately not by `intake`, whose key is a row position.
            "duplicate_row_ids", "duplicate_record_ids",

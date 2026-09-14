@@ -1070,12 +1070,12 @@ class TestTheMapIsComplete(unittest.TestCase):
         known = set(PT.TASK_EVENTS) | set(PT.SECTION_EVENTS)
         self.assertEqual(set(PT.REGISTER_EVENTS) - known, set())
 
-    def test_every_section_event_but_cadence_declares_the_store_it_touches(self):
-        """`## Cadence` is the one register section with no store, so its two
-        events are the only members of `SECTION_EVENTS` that may be absent."""
+    def test_every_section_event_declares_the_store_it_touches(self):
+        """Every register section has a store since TASK-237 3b, so no member
+        of `SECTION_EVENTS` may be absent. `## Cadence` was the one exception,
+        and its two events were the whole of it."""
         self.assertEqual(
-            set(PT.SECTION_EVENTS) - set(PT.REGISTER_EVENTS),
-            {"cadence-add", "cadence-done"})
+            set(PT.SECTION_EVENTS) - set(PT.REGISTER_EVENTS), set())
 
     def test_every_register_names_a_store_this_repository_declares(self):
         for key, value in PT.REGISTER_EVENTS.items():

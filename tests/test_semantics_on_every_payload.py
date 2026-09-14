@@ -219,6 +219,67 @@ class TestTheGoalsEntryIsTheOneThatMatters(Base):
             "consumer to re-check three blocks it does not have")
 
 
+SHIPPED = ROOT / "tests" / "fixtures" / "shipped-semantics.json"
+
+
+class TestAShippedEntryNeverLeaves(Base):
+    """**An entry, once shipped, never leaves** (TASK-237 3b item 3; 3a § 6 R7).
+
+    `semantics` is read as "everything newer than the minor I tested against",
+    and aiMark removes a defence when an entry appears. Nothing checked that an
+    entry stays: `test_contract_invariance` asks that each shipped entry has a
+    changelog section, and this module asks about presence and shape. 3a's
+    mutations C1 and C2 deleted a live entry each and only that row's own
+    guards went red.
+
+    `tests/fixtures/shipped-semantics.json` records every entry by version and
+    fields. It is a record of what was PUBLISHED, not an expectation derived
+    from the code under test: the code can only disagree with it by changing
+    what a consumer already read.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.shipped = json.loads(SHIPPED.read_text(encoding="utf-8"))["contracts"]
+
+    @staticmethod
+    def entries(payload: dict) -> list[tuple[str, tuple[str, ...]]]:
+        return [(e["version"], tuple(e["fields"])) for e in payload["semantics"]]
+
+    def test_the_record_covers_every_contract_and_is_not_empty(self):
+        """Anti-vacuity: one record per payload, and entries to lose."""
+        self.assertEqual(set(self.shipped), {name for name, _, _ in PAYLOADS})
+        self.assertGreaterEqual(sum(len(v) for v in self.shipped.values()), 1)
+
+    def test_no_shipped_entry_left_a_payload_or_changed_its_fields(self):
+        for name, recorded in self.shipped.items():
+            live = self.entries(self.live[name])
+            for entry in recorded:
+                want = (entry["version"], tuple(entry["fields"]))
+                with self.subTest(contract=name, version=entry["version"]):
+                    self.assertIn(
+                        want, live,
+                        f"{name} shipped a `semantics` entry at "
+                        f"{entry['version']} and no longer carries it as "
+                        f"recorded. A consumer that read it keyed a decision "
+                        f"on it; an entry, once shipped, never leaves.")
+
+    def test_every_live_entry_is_recorded(self):
+        """The other direction, so the record cannot silently fall behind: a
+        new entry is added to `shipped-semantics.json` in the change that
+        ships it."""
+        for name, _argv, _sub in PAYLOADS:
+            recorded = {(e["version"], tuple(e["fields"]))
+                        for e in self.shipped.get(name, [])}
+            for entry in self.entries(self.live[name]):
+                with self.subTest(contract=name, version=entry[0]):
+                    self.assertIn(entry, recorded,
+                                  f"{name} ships an entry at {entry[0]} that "
+                                  f"`tests/fixtures/shipped-semantics.json` "
+                                  f"does not record")
+
+
 class TestTheListIsEveryContractOnDisk(unittest.TestCase):
     """`PAYLOADS` is a hand-kept tuple, which is the shape of list this project
     keeps finding rotted. It is checked against the glob that discovers a

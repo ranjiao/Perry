@@ -442,10 +442,14 @@ class TestIntakeIsNotServedByTheseLines(unittest.TestCase):
         `## Intake`.
         """
         self.assertNotIn("intake", PT.REGISTER_ID_KEYED)
-        self.assertEqual(PT.REGISTER_ID_KEYED, frozenset({"risks", "asks"}))
+        # TASK-237 3b: `cadence` joined, keyed on the row's `ID` like the two
+        # before it — so it is in on both sides, where intake is out on both.
+        self.assertEqual(PT.REGISTER_ID_KEYED,
+                         frozenset({"risks", "asks", "cadence"}))
         self.assertIsNone(PT.REGISTER_SPEC["intake"][5])
         self.assertIsNotNone(PT.REGISTER_SPEC["risks"][5])
         self.assertIsNotNone(PT.REGISTER_SPEC["asks"][5])
+        self.assertIsNotNone(PT.REGISTER_SPEC["cadence"][5])
         self.assertNotIn("id", S.INTAKE_STORED)
 
     def test_intake_records_has_no_seen_set_and_no_id(self):
