@@ -241,7 +241,7 @@ reading. No card field changed, and `stale` is computed exactly as before.
 **One key added, none removed or retyped: top-level `installed`.** On a
 directory that is not a Perry project this payload answered its empty shape at
 exit 0, which a consumer could not tell from a project with nothing in it
-(aiMark, `evidence/2026-09/2026-09-14-aimark-feedback-task-237.md § 2.2`).
+(aiMark, `perry/evidence/2026-09/2026-09-14-aimark-feedback-task-237.md § Findings, each reproduced`).
 `installed` is `true` exactly when `schema/README.md § installed` holds — the
 same predicate `perry-state --section installed` answers from.
 
