@@ -56,7 +56,7 @@ class Refused(Exception):
 # feed said it first: `perry-events` 1.1 "returns different ROWS … which is
 # precisely the change `1.x` only adds keys does not cover". Specified in
 # `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/2.0"
+LIST_CONTRACT = "perry-task/list/2.1"
 
 #: How many rows `list` returns when the caller names no bound. DESIGN-016
 #: goal 6, and the measurement behind it: `perry-task list --json` on this
@@ -199,6 +199,33 @@ LIST_SEMANTICS = [
              "count the returned ones: measured here, `--all` reported 24 "
              "open against the project's 156, which is why the major is the "
              "honest number even though no key changed."},
+    {"version": "2.1",
+     "fields": ["asks.items", "asks.open", "asks.items[].idle",
+                "risks.items", "risks.open", "risks.cleared", "risks.source",
+                "intake.rows", "intake.undischarged",
+                "intake.oldest_undischarged",
+                "tasks[].depends_on_resolved", "tasks[].blocked_by",
+                "tasks[].startable", "conformance.depends_on_unknown",
+                "drift.drift", "drift.unrecorded", "drift.unrecorded_sample",
+                "drift.orphaned", "drift.stale_done"],
+     "note": "The asks, risks and intake registers are now READ FROM THEIR "
+             "STORES — `asks.jsonl`, `risks.jsonl`, `intake.jsonl` — and not "
+             "parsed out of `BOARD.md`, which is read only by a project that "
+             "has no such store. That includes the ask register the "
+             "dependency graph resolves a `USER-` edge against. Before 2.1 "
+             "every field named here was built from the file, so with "
+             "`BOARD.md` absent they answered wrongly at exit 0. Measured on "
+             "this repository at b7c89276, with 33 asks and 4 risks in the "
+             "stores: `asks` empty, `risks.open` 0 with `risks.source` "
+             "\"none\", eight answered-ask edges `kind: \"unknown\"` and "
+             "unsatisfied, and `drift.drift` 96. With no file on disk `drift` "
+             "is now computed against the store's rows, since there is no "
+             "projection to have drifted. On a project whose `BOARD.md` "
+             "agrees with its stores every value is unchanged except "
+             "`asks.items[].idle`, which is `\"\"`: the ask store holds no "
+             "`Idle` cell, and `idle_days` is derived from `asked` as before. "
+             "Where a hand-edited `BOARD.md` disagreed with a store, these "
+             "fields now report the store."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:
@@ -8249,7 +8276,24 @@ SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
 
 #: The contract `perry-task asks --json` publishes. See
 #: `schema/asks-list-contract.md`.
-ASKS_CONTRACT = "perry-asks/list/1.0"
+ASKS_CONTRACT = "perry-asks/list/1.1"
+
+#: `perry-asks/list`'s meaning changes, oldest minor first — the rule
+#: `LIST_SEMANTICS` states. `state_root` arrived in 1.1 too, and is a key
+#: addition, so it is in the Changelog and not here.
+ASKS_SEMANTICS = [
+    {"version": "1.1",
+     "fields": ["asks", "count", "open", "answered", "asks[].idle"],
+     "note": "The ask population is now READ FROM `asks.jsonl`, not parsed "
+             "out of `BOARD.md § User Input Queue`; the file is read only by a "
+             "project with no ask store. Before 1.1, with `BOARD.md` absent, "
+             "this payload answered `count: 0` and `answered: 0` at exit 0 "
+             "while the store held 33 asks — measured on this repository at "
+             "b7c89276 — which reads as 'nothing was ever asked'. On a "
+             "project whose `BOARD.md` agrees with its store the population "
+             "is unchanged. `asks[].idle` is `\"\"`: the store holds no `Idle` "
+             "cell, and `idle_days` is derived from `asked` as before."},
+]
 
 #: An id inside the free-text `Blocks` cell — matched, not validated.
 #:
@@ -8320,8 +8364,10 @@ def cmd_asks(args, ctx) -> dict:
     shown = rows if args.all else [r for r in rows if not r["answered"]]
     return {
         "contract": ASKS_CONTRACT,
-        "semantics": [],
+        "semantics": ASKS_SEMANTICS,
         "project_root": ctx["project_root"].as_posix(),
+        # 1.1: every other published read payload carries it.
+        "state_root": ctx["state_root"].as_posix(),
         "all": bool(args.all),
         "asks": shown,
         "count": len(shown),

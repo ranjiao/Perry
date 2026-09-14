@@ -559,6 +559,48 @@ class TestEveryWriteLandsWithNoBoard(unittest.TestCase):
                 self.assertFalse(p.board.exists())
 
 
+class TestTheContractsAnnounceTheStoreRead(unittest.TestCase):
+    """The PMO's widening of 3a: a consumer keys on the contract, not the code.
+
+    `perry-task/list` and `perry-asks/list` each carry a `semantics` entry at
+    their shipped minor that names the fields now read from a store, and
+    `perry-asks/list` carries `state_root`.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.p = Project(board=None)
+        cls.listed = cls.p.task_json(["list"])
+        cls.asks = cls.p.task_json(["asks", "--all"])
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.p.close()
+
+    def entry_at_the_shipped_minor(self, payload):
+        minor = payload["contract"].rsplit("/", 1)[1]
+        return next((e for e in payload["semantics"] if e["version"] == minor), None)
+
+    def test_list_announces_asks_and_risks_from_their_stores(self):
+        e = self.entry_at_the_shipped_minor(self.listed)
+        self.assertIsNotNone(e, f"no semantics entry for {self.listed['contract']}")
+        for field in ("asks.items", "risks.items", "risks.source"):
+            self.assertIn(field, e["fields"])
+        for store in ("asks.jsonl", "risks.jsonl"):
+            self.assertIn(store, e["note"])
+
+    def test_asks_announces_its_population_from_the_store(self):
+        e = self.entry_at_the_shipped_minor(self.asks)
+        self.assertIsNotNone(e, f"no semantics entry for {self.asks['contract']}")
+        self.assertIn("asks", e["fields"])
+        self.assertIn("asks.jsonl", e["note"])
+
+    def test_asks_carries_the_state_root(self):
+        # Resolved: the tool resolves `--root`, and a temp dir can be a symlink.
+        self.assertEqual(self.asks.get("state_root"),
+                         self.p.state.resolve().as_posix())
+
+
 class TestLintOnABoardlessProject(unittest.TestCase):
 
     @staticmethod

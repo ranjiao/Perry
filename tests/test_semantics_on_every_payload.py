@@ -66,8 +66,9 @@ PAYLOADS = (
 #: The three that carry `[]` today. Named so the assertions about them can be
 #: about presence, and so a payload that later earns an entry is a deliberate
 #: edit here rather than a test quietly passing on new content.
-EMPTY_TODAY = ("perry-decide/list", "perry-knowledge/list", "perry-roles/list",
-               "perry-asks/list")
+#: `perry-asks/list` left at 1.1: TASK-237 3a moved its population onto
+#: `asks.jsonl`, a meaning change with a real entry.
+EMPTY_TODAY = ("perry-decide/list", "perry-knowledge/list", "perry-roles/list")
 
 
 def payload(argv: tuple[str, ...], root: pathlib.Path, subtree: str) -> dict:
@@ -168,13 +169,15 @@ class TestNothingWasInventedToFillThem(Base):
     #: moved past it at `2.4`, which IS a meaning change and does carry an
     #: entry — so "the current minor" stopped being the right question and the
     #: minor is named.
-    KEY_ADDED_AT = {"perry-goals/list": "2.3"}
+    KEY_ADDED_AT = {"perry-goals/list": "2.3",
+                    # Shipped with the array at 1.0; its 1.1 entry is TASK-237 3a's.
+                    "perry-asks/list": "1.0"}
 
     def test_the_minor_that_added_the_key_is_not_itself_an_entry(self):
         """Adding `semantics` is a key addition, which rule 2 already covers.
         An entry announcing the array's own arrival would be the first false
         alarm in it — the call `perry-task` made for its `1.15` and `1.17`."""
-        for name in EMPTY_TODAY + ("perry-goals/list",):
+        for name in EMPTY_TODAY + ("perry-goals/list", "perry-asks/list"):
             current = self.live[name]["contract"].rsplit("/", 1)[-1]
             minor = self.KEY_ADDED_AT.get(name, current)
             with self.subTest(contract=name):

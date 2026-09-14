@@ -698,7 +698,9 @@ class TestListIsBounded(unittest.TestCase):
         took that decision on 2026-09-09; it shipped as 1.19 for a few hours
         first."""
         payload, _err = self._list()
-        self.assertEqual(payload["contract"], "perry-task/list/2.0")
+        # 2.1 (TASK-237 3a) moved where asks/risks/intake are read from; the
+        # major this test is about is unchanged.
+        self.assertEqual(payload["contract"], "perry-task/list/2.1")
         self.assertIn("2.0", [e["version"] for e in payload["semantics"]])
         major = int(payload["contract"].rsplit("/", 1)[1].split(".")[0])
         self.assertEqual(major, 2, "a row-count change is a major here")
