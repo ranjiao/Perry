@@ -323,3 +323,21 @@ Neither blocker opens a row; both are TASK-237's own deliverable-3 work.
    the same archive with the file exits 0, 0 errors).
    - Changing it is a schema edit: it needs the user's consent and appears on
      `.perry/hook.md § High-stakes operations`.
+3. **The ask and risk read surfaces are built from `BOARD.md`, not from their
+   stores**, and fail silently without it. Measured 2026-09-14 on a `git archive`
+   of `d358a2cf` with the stores unchanged, the file present and then deleted:
+
+   | surface | `BOARD.md` present | `BOARD.md` deleted |
+   |---|---|---|
+   | `perry-task asks --all --json` `count` (store: 33) | 33 | **0**, exit 0 |
+   | `perry-task list --json` `risks` | 2 | **0** |
+   | `perry-task list --json` `drift.drift` | 0 | **97** |
+   | `perry-state --json` `risks.count` / `source` | 2 / `table` | **0 / `none`** |
+   | `perry-task list --json` `tasks` | 97 | 97 |
+   | `perry-tasks board` | 157,364 B | 157,364 B (cmp-equal) |
+
+   `cmd_asks` reads `P.load_snapshot(...).board.user_input_queue`, which parses
+   `BOARD.md`. Deleting the file before these surfaces read their stores would
+   turn "no asks" and "no risks" into answers the tools give confidently. This
+   is deliverable-3 work. It opens no row. The published contracts (`perry-asks/list/1.0`,
+   `perry-task/list/2.0`) name the fields and would not need to change.
