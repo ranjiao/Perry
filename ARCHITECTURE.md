@@ -170,7 +170,7 @@ flowchart LR
     S -->|"--compact ≈ 11KB"| Standup["the standup, every session"]
     S -->|"--section &lt;name&gt;"| Detail["one key, in full"]
     S -->|"--json ≈ 174KB"| Whole["the whole payload"]
-    T["perry-task list --json"] -->|"contract 2.0, bounded"| Outside([aiMark])
+    T["perry-task list --json"] -->|"contract 2.3, bounded"| Outside([aiMark])
 ```
 
 ## §5. Contracts
@@ -186,8 +186,9 @@ flowchart LR
   fall back to editing the file by hand.
 
 ### Contract: `perry-task list --json` → outside consumers
-- `schema/task-list-contract.md`, version **2.1** (confirmed by the user
-  2026-09-14; 2.1 announces asks and risks read from their stores). `tasks[]` is bounded at 200
+- `schema/task-list-contract.md`, version **2.3** (confirmed by the user
+  2026-09-14; 2.2 adds `installed`, 2.3 narrows it to a store with `.perry/`
+  beside it). `tasks[]` is bounded at 200
   rows by default; `bound.open_total` carries the project's figure.
 - **Error mode**: a refusal is JSON on stdout, not prose on stderr.
 
@@ -212,9 +213,11 @@ flowchart LR
 
 ### NN-2 — The store is truth; the projection is rendered
 - **Severity**: hard
-- **Rule**: a mutating command writes the record, then renders the file from it.
-  A file edited by hand is drift, and drift is REPORTED — never silently
-  absorbed and never silently overwritten.
+- **Rule**: a mutating command writes the record first. Every reading of it —
+  a payload, `perry-tasks board`, and a projection file a project still
+  holds — is derived from the record; a projection file is re-rendered from it
+  and never created. A projection edited by hand is drift, and drift is
+  REPORTED — never silently absorbed and never silently overwritten.
 - **Rationale**: `ADR-007`. Absorbing a hand edit destroys the canonical value;
   overwriting it destroys the human's intent. Both must be visible.
 
@@ -282,6 +285,13 @@ flowchart LR
   - Not edited, because NN-6 makes them the user's: §6 NN-2's projection
     wording, and §5's `perry-task/list` version (2.1 here; the tool emits 2.3).
     Both are proposed in `perry/evidence/2026-09/TASK-237-d3c-result.md § 5`.
+- 2026-09-14 · v1 · **User-confirmed** (NN-6), after TASK-237 3c deleted
+  `perry/BOARD.md`:
+  - §6 NN-2 no longer says the command renders "the file". The rule is kept:
+    the record comes first, every reading derives from it, a projection is
+    re-rendered and never created, and a hand edit is reported drift.
+  - §5 `perry-task list` 2.1 → 2.3.
+  - §4's read-path label 2.0 → 2.3.
 - 2026-09-14 · v1 · Descriptive refresh, measured on main:
   - §2 and the §3 diagram: 20 executables, `parsers.py` 5,228 lines, schema
     107KB, 136 test modules (the last full run).
