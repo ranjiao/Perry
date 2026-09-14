@@ -41,9 +41,11 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import shutil
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -565,6 +567,142 @@ WITNESSED = (
 MUTATED = tuple(w for w in WITNESSED if w[4])
 
 
+# ── the frozen copy ──────────────────────────────────────────────────────────
+#
+# TASK-335. `blind` used to read Perry's live checkout, and three `WITNESSED`
+# collections are computed against the wall clock:
+#
+# - `conformance.in_progress_with_no_live_run`: an `in_progress` row whose last
+#   event is older than `thresholds.in_progress_idle_hours` (4h) and holds no
+#   dispatch slot (`bin/perry-task § stranded_row_findings`, `now=datetime.now()`);
+# - `conformance.review_idle`: a `review` row whose last event is older than
+#   `thresholds.review_idle_days` (3d), same function, same clock;
+# - `expired_sunsets`: an `active` ADR whose dated sunset is before
+#   `date.today()` (`bin/perry-decide § cmd_list`).
+#
+# So on 2026-09-14 `TASK-436` went four hours without an event, the first of
+# those filled on an unchanged tree, and both anti-vacuity tests went red.
+# `live` and `blind` now read ONE copy of the tree in which those three clocks
+# are pinned. The other three `WITNESSED` collections compare no clock:
+# `moved_tasks` is an event `ts` against the register's `asserted_at`,
+# `depends_on_unknown` is set membership, and `evidence_relations` is the
+# evidence cell against the files on disk.
+
+#: The statuses `stranded_row_findings` puts an idle clock on.
+IDLE_STATUSES = ("in_progress", "review")
+
+#: A sunset no run of this suite will reach. `cmd_list` compares it as text.
+UNREACHED_SUNSET = "9999-12-31"
+
+#: Who the freeze's events say wrote them, so a reader of the copy can tell.
+FREEZE_ACTOR = "test_contract_key_parity freeze (TASK-335)"
+
+#: What the copy leaves out: git's data, `.claude/` (in the main checkout it
+#: holds whole worktrees of other sessions), and bytecode. Everything else is
+#: copied, because `perry-task list` resolves evidence cells against files
+#: anywhere in the project, `bin/` and `tests/` included.
+NOT_STATE = shutil.ignore_patterns(".git", ".claude", "__pycache__")
+
+
+def copy_of_perry(dest: pathlib.Path) -> pathlib.Path:
+    shutil.copytree(parity.ROOT, dest, ignore=NOT_STATE, symlinks=True)
+    return dest
+
+
+def refuse_the_checkout(root: pathlib.Path) -> None:
+    """Every writer below edits stores, so it must be handed a copy. A copy
+    step that returned the checkout itself would append events to Perry's own
+    log before any assertion ran — measured, on a scratch archive — so this is
+    checked before the first write, not after."""
+    here, live = root.resolve(), parity.ROOT.resolve()
+    if here == live or live in here.parents:
+        raise AssertionError(f"refusing to write {here}: it is Perry's "
+                             f"checkout, not a copy of it")
+
+
+def event_stamp(moment: datetime) -> str:
+    """`bin/lib § event_stamp`'s shape: local wall clock, with its offset."""
+    return moment.astimezone().isoformat(timespec="seconds")
+
+
+def append_events(root: pathlib.Path, events: list[dict]) -> None:
+    refuse_the_checkout(root)
+    log = root / ".perry" / "events.jsonl"
+    text = log.read_text(encoding="utf-8")
+    if text and not text.endswith("\n"):
+        text += "\n"
+    log.write_text(text + "".join(json.dumps(e, ensure_ascii=False) + "\n"
+                                  for e in events), encoding="utf-8")
+
+
+def task_records(root: pathlib.Path) -> list[dict]:
+    store = root / "perry" / "tasks.jsonl"
+    return [json.loads(line) for line in
+            store.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def freeze_the_clock(root: pathlib.Path) -> dict:
+    """Pin the three clocked collections empty in the copy at `root`.
+
+    **Idle rows get an event, not a restamp.** Every `in_progress` / `review`
+    row gets one `next` event stamped now, restating its `next_action`
+    unchanged, so its last event is seconds old and its idle clock reads ~0.
+    Restamping the row's real latest event in place would be shorter and is
+    wrong: `TASK-436`'s is a `start`, a state move, and moving a state move
+    after a KR's `asserted_at` fills `krs[].current_staleness.moved_tasks`,
+    which is one of the four collections the blind tests hold empty. A `next`
+    event's `to` is not a status (`bin/lib § _is_state_move`), so it moves
+    nothing.
+
+    **A dated sunset is pushed to 9999-12-31.** Which sunsets count is read
+    from `perry-decide list` itself, never parsed here, and the date is
+    rewritten on the one `>` header line of the file that carries it.
+    """
+    refuse_the_checkout(root)
+    now = event_stamp(datetime.now())
+    restamped = [row for row in task_records(root)
+                 if row.get("status") in IDLE_STATUSES]
+    append_events(root, [
+        {"ts": now, "event": "next", "id": row["id"],
+         "title": row.get("title") or "", "track": row.get("track") or "",
+         "actor": FREEZE_ACTOR,
+         "from": row.get("next_action") or "", "to": row.get("next_action") or ""}
+        for row in restamped])
+
+    decide = parity.run(["perry-decide", "list", "--json"], str(root), "",
+                        "freeze")
+    pushed = []
+    for adr in decide["decisions"]:
+        sunset = adr["sunset"] or ""
+        if not re.match(r"\d{4}-\d{2}-\d{2}", sunset):
+            continue
+        page = pathlib.Path(decide["state_root"]) / adr["path"]
+        page.write_text("\n".join(
+            line.replace(sunset, UNREACHED_SUNSET)
+            if line.lstrip().startswith(">") and "unset" in line else line
+            for line in page.read_text(encoding="utf-8").split("\n")),
+            encoding="utf-8")
+        pushed.append(adr["id"])
+    return {"at": now, "restamped": [row["id"] for row in restamped],
+            "sunsets": pushed}
+
+
+_FROZEN: dict = {}
+
+
+def frozen_copy() -> str:
+    """The one frozen copy this module's `live` and `blind` read. Built on
+    first use and removed when the module's tests end."""
+    if "root" not in _FROZEN:
+        tmp = tempfile.TemporaryDirectory(prefix="parity-frozen-")
+        unittest.addModuleCleanup(tmp.cleanup)
+        root = copy_of_perry(pathlib.Path(tmp.name) / "perry")
+        _FROZEN["freeze"] = freeze_the_clock(root)
+        _FROZEN["tmp"] = tmp
+        _FROZEN["root"] = str(root)
+    return _FROZEN["root"]
+
+
 class TestAWitnessProjectMakesAnEmptyCollectionObservable(unittest.TestCase):
     """TASK-132. A key inside a collection this project leaves empty has no
     entry to be compared against, so it lands in `not_observable` and **nothing
@@ -580,9 +718,14 @@ class TestAWitnessProjectMakesAnEmptyCollectionObservable(unittest.TestCase):
     than its event log — and the real tools derive the entries from those files.
     """
 
-    def setUp(self):
-        self.live = parity.measure()
-        self.blind = parity.measure(witness=None)
+    @classmethod
+    def setUpClass(cls):
+        # ONE frozen copy for both, so the witness is the only difference
+        # between them and no reading depends on when the suite runs. Read
+        # once per class rather than per case: no case writes to either, and
+        # the per-case reading was 14 of this module's measurements.
+        cls.live = parity.measure(frozen_copy())
+        cls.blind = parity.measure(frozen_copy(), witness=None)
 
     def witness_payload(self, contract: str) -> dict:
         page = parity.ROOT / "schema" / dict(
@@ -670,6 +813,39 @@ class TestAWitnessProjectMakesAnEmptyCollectionObservable(unittest.TestCase):
                 self.assertIn("empty in this run", why, f"{name}: {key}")
                 self.assertIn(parity.WITNESS, why, f"{name}: {key}")
 
+    def test_live_and_blind_read_one_frozen_copy(self):
+        """TASK-335. Both readings name the frozen copy as the project read,
+        and differ only in the witness. A `blind` that reads the live checkout
+        again reports `root: "."` and fails here, whatever the board is doing
+        that minute."""
+        self.assertEqual(frozen_copy(), self.live["root"])
+        self.assertEqual(frozen_copy(), self.blind["root"])
+        self.assertNotEqual(str(parity.ROOT), self.blind["root"])
+        self.assertEqual(parity.WITNESS, self.live["witness"])
+        self.assertEqual("", self.blind["witness"])
+
+    def test_the_freeze_has_its_control(self):
+        """The freeze is only known to be load-bearing because
+        `TestTheFreezeIsLoadBearing` fills each clocked collection without it.
+        Deleting that class, or one of its cases, fails here."""
+        self.assertEqual(
+            ["test_the_freeze_empties_every_clocked_collection_again",
+             "test_without_the_freeze_aged_state_fills_every_clocked_collection"],
+            sorted(unittest.defaultTestLoader.getTestCaseNames(
+                TestTheFreezeIsLoadBearing)))
+
+    def test_the_writers_refuse_the_checkout(self):
+        """The freeze and the control edit stores, and are only ever handed a
+        copy. Asked about the checkout, or a path inside it, the guard they
+        call first refuses. Only the guard is called here, never a writer, so
+        a guard that stopped refusing fails this case without writing
+        anything."""
+        for target in (parity.ROOT, parity.ROOT / "perry"):
+            with self.subTest(str(target)):
+                with self.assertRaises(AssertionError):
+                    refuse_the_checkout(target)
+        refuse_the_checkout(pathlib.Path(frozen_copy()))
+
 
 class TestTheWitnessedKeysRedden(unittest.TestCase):
     """Verification 2, one key per collection that was unobservable: delete a
@@ -686,7 +862,8 @@ class TestTheWitnessedKeysRedden(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             copy = pathlib.Path(tmp) / page
             copy.write_text(text.replace(removed, "", 1))
-            return parity.compare(copy, witness=witness)
+            # The frozen copy both ways, for the reason `setUp` above gives.
+            return parity.compare(copy, frozen_copy(), witness=witness)
 
     def test_removing_a_witnessed_key_from_its_page_is_reported(self):
         for contract, page, _, key, removed in MUTATED:
@@ -707,6 +884,115 @@ class TestTheWitnessedKeysRedden(unittest.TestCase):
                 result = self.mutate(page, removed, None)
                 self.assertNotIn(key, result["emitted_not_documented"])
                 self.assertNotIn(key, result["documented_not_emitted"])
+
+
+#: The `WITNESSED` collections computed against the wall clock — see the
+#: frozen-copy note above `IDLE_STATUSES` for why these three and no others.
+CLOCKED = tuple(w for w in WITNESSED if w[2] in (
+    "conformance.in_progress_with_no_live_run", "conformance.review_idle",
+    "expired_sunsets"))
+
+#: State planted in the control copy, aged past every threshold. The ids are
+#: the copy's alone; nothing is written to Perry's stores.
+AGED = timedelta(days=30)
+CONTROL_ROWS = {"CTL-001": "in_progress", "CTL-002": "review"}
+CONTROL_ADR = ("ADR-999", "ADR-999-freeze-control.md")
+
+
+def plant_aged_state(root: pathlib.Path) -> None:
+    """An `in_progress` row and a `review` row last moved 30 days ago, and an
+    `active` ADR whose sunset passed in 2000 — each fills one clocked
+    collection on its own, whatever the live board holds."""
+    refuse_the_checkout(root)
+    then = event_stamp(datetime.now() - AGED)
+    records = task_records(root)
+    for cid, status in CONTROL_ROWS.items():
+        row = {key: ([] if isinstance(value, list) else "")
+               for key, value in records[0].items()}
+        row.update({"id": cid, "title": f"freeze control, {status}",
+                    "status": status, "track": "main", "order": None})
+        records.append(row)
+        moves = [("add", "", "not_started"), ("start", "not_started", "in_progress")]
+        if status == "review":
+            moves.append(("status", "in_progress", "review"))
+        append_events(root, [
+            {"ts": then, "event": event, "id": cid, "title": row["title"],
+             "track": "main", "actor": FREEZE_ACTOR, "from": src, "to": dst}
+            for event, src, dst in moves])
+    (root / "perry" / "tasks.jsonl").write_text(
+        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records),
+        encoding="utf-8")
+    (root / "perry" / "decisions" / CONTROL_ADR[1]).write_text(
+        f"# {CONTROL_ADR[0]}: freeze control, a decision past its sunset\n\n"
+        "> Status: active\n> Date: 2000-01-01\n> Sunset: 2000-01-02\n",
+        encoding="utf-8")
+
+
+class TestTheFreezeIsLoadBearing(unittest.TestCase):
+    """TASK-335's control. The same copy the two classes above read, with aged
+    state planted in it: WITHOUT the freeze each clocked collection fills in
+    the blind reading, and after the freeze the same copy leaves each empty.
+    So the freeze, not a quiet board, is what empties them."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory(prefix="parity-control-")
+        root = copy_of_perry(pathlib.Path(cls.tmp.name) / "perry")
+        plant_aged_state(root)
+        cls.unfrozen, cls.unfrozen_payload = cls.read(root)
+        cls.freeze = freeze_the_clock(root)
+        cls.frozen, cls.frozen_payload = cls.read(root)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    @staticmethod
+    def read(root: pathlib.Path) -> tuple[dict, dict]:
+        """The blind comparison of each clocked page, and its tool's payload."""
+        compared, payload = {}, {}
+        for _, page, *_ in CLOCKED:
+            if page in compared:
+                continue
+            path = parity.ROOT / "schema" / page
+            compared[page] = parity.compare(path, str(root), witness=None)
+            argv, _ = parity.invoke(path.read_text())
+            payload[page] = parity.run(argv, str(root), "", page)
+        return compared, payload
+
+    @staticmethod
+    def ids(payload: dict, collection: str) -> list[str]:
+        node = payload
+        for segment in collection.split("."):
+            node = node[segment]
+        return sorted(entry["id"] for entry in node)
+
+    def planted(self, collection: str) -> str:
+        if collection == "expired_sunsets":
+            return CONTROL_ADR[0]
+        wanted = "review" if collection.endswith("review_idle") else "in_progress"
+        return next(c for c, s in CONTROL_ROWS.items() if s == wanted)
+
+    def test_without_the_freeze_aged_state_fills_every_clocked_collection(self):
+        for _, page, collection, key, _ in CLOCKED:
+            with self.subTest(collection):
+                self.assertIn(self.planted(collection),
+                              self.ids(self.unfrozen_payload[page], collection))
+                entry = self.unfrozen[page]
+                self.assertNotIn(key, entry["not_observable"])
+                self.assertNotIn(key, entry["documented_not_emitted"])
+                self.assertNotIn(key, entry["emitted_not_documented"])
+
+    def test_the_freeze_empties_every_clocked_collection_again(self):
+        self.assertTrue(set(CONTROL_ROWS) <= set(self.freeze["restamped"]))
+        self.assertIn(CONTROL_ADR[0], self.freeze["sunsets"])
+        for _, page, collection, key, _ in CLOCKED:
+            with self.subTest(collection):
+                self.assertEqual([], self.ids(self.frozen_payload[page],
+                                              collection))
+                entry = self.frozen[page]
+                self.assertIn(key, entry["not_observable"])
+                self.assertIn(collection, entry["not_observable"][key])
 
 
 class TestWhatCouldNotBeComparedIsNamed(unittest.TestCase):

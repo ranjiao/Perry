@@ -101,8 +101,8 @@
       "source": "2026-09-09-085824"
     },
     "test_contract_key_parity.py": {
-      "sec": 9.83,
-      "source": "2026-09-09-085824"
+      "sec": 6.14,
+      "source": "2026-09-14-task335"
     },
     "test_count_fields.py": {
       "sec": 1.88,
@@ -581,6 +581,13 @@
       "note": "ONE module, timed alone three times and recorded at the median (5.99/3.30/2.64) rather than from a `--record` sweep, which would have re-timed all 132 under a different load.",
       "ref": "f3df62193eebfa139219b60e2cd983836f74cada",
       "taken": "2026-09-12T15:20:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task335": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 tests/parallel test_contract_key_parity --times` on a git-archive copy of the ref and recorded at the median of the harness's own per-module seconds (7.03/6.14/6.00s, 40 tests). On the terms of the 2026-09-12-task439 entry: no neighbour was re-timed. The same procedure at b71d8ce5, before TASK-335, read 5.20/5.12/5.19s (35 tests), so the frozen copy costs about 0.95s. `load1` is null because nothing sampled it.",
+      "ref": "3ac11420",
+      "taken": "2026-09-14T11:50:00Z",
       "workers": 1
     },
     "2026-09-14-task237": {
