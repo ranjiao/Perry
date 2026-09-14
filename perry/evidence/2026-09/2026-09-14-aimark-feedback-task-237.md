@@ -40,9 +40,14 @@ covered in § 4 below.
    no longer counts. The criterion is written into the contracts and changes
    with 3b.
 3. **`board` placeholders: fill the project name and drop the instruction
-   prose.** The title takes the project's name from `.perry/config.jsonl`, or
-   the directory name when there is none. The template text written for a human
-   filling the file in is not printed. This changes D1's choice C1.
+   prose.** The title takes the project's name from a `.perry/config.jsonl`
+   setting if one is declared, and the project directory's name otherwise.
+   Measured: this repository's config store has no name setting (its keys are
+   document_language, chat_language, repo_layout, state_root, pmo_repo_path,
+   code_repo_path and last_updated), so the directory name is what prints. No
+   config key is added; that would be a schema change. The template text
+   written for a human filling the file in is not printed. This changes D1's
+   choice C1.
 
 All three are folded into TASK-237 3b (spec Amendment 2026-09-14 (4)), and no
 row is opened.
