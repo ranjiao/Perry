@@ -445,7 +445,7 @@ Re-captured at `32c416ee`, base → final present lint differs only in the four
 
 | module | tests | alone, median of 3 |
 |---|---|---|
-| `tests/test_cadence_store.py` | 26 | 1.29 s (1.24 / 1.29 / 1.48) |
+| `tests/test_cadence_store.py` | 34 | 1.29 s (1.24 / 1.29 / 1.48) |
 | `tests/test_board_less_gaps.py` | 6 | 0.26 s (0.57 / 0.26 / 0.20) |
 
 - The two modules' test counts come from their `--ids` runs.
@@ -534,7 +534,7 @@ equivalent mutation, argued above.
 | run | tree | modules · tests | red modules · red tests | tree guard |
 |---|---|---|---|---|
 | `bash tests/run`, foreground, nothing written during it | `982ac9ce` | 136 · 3,935 | 6 · 9 | "nothing … moved" |
-| `bash tests/run`, final | SUITE_FINAL_TREE | SUITE_FINAL_COUNTS | SUITE_FINAL_RED | SUITE_FINAL_GUARD |
+| **`bash tests/run`, final**, foreground, nothing written during it | `76827ec2` | **136 · 3,935** | **2 · 3** | "nothing … moved" |
 
 **First run.** The reds were the three pre-existing ones and six caused here.
 - **Caused here:** each of the six was re-run alone, red at this code and
@@ -547,7 +547,15 @@ equivalent mutation, argued above.
 - **The harness** also rejected the durations stamp as undefined; the source
   is now declared.
 
-SUITE_FINAL_NOTE
+**Final run: the reds, by id, are exactly the three pre-existing ones the
+dispatch names.** No other red, so no further module was re-run alone.
+- `test_contract_key_parity.TestAWitnessProjectMakesAnEmptyCollectionObservable.test_without_the_witness_the_four_are_unobservable`
+- `test_contract_key_parity.TestTheWitnessedKeysRedden.test_the_same_mutation_is_silent_without_the_witness`
+- `test_resume.TestStaleRuns.test_a_fresh_run_is_not_stale`
+
+**Against base** (134 modules · 3,893 tests), the final run is +2 modules
+(`test_cadence_store`, `test_board_less_gaps`) and +42 tests. The harness's
+only durations complaint is `test_contract_page_snippets.py` (R8, pre-existing).
 
 ## 9. Rows this work names (none minted)
 
