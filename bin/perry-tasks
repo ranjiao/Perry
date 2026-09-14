@@ -348,6 +348,17 @@ BOARD_STORES = perry_store.BOARD_STORES
 
 
 def cmd_board(root: Path) -> int:
+    # **A board for a directory that is not a Perry project is a lie** (TASK-237
+    # Amendment (4) item 1, aiMark 2.1): it printed the template's empty
+    # skeleton at exit 0, which a reader cannot tell from a project with no
+    # open work. The predicate is the payloads' own (`schema/README.md §
+    # installed`). Refused before anything is read, and nothing on stdout.
+    if not P.installed(root):
+        print(f"perry-tasks: refused — {root} is not an installed Perry "
+              f"project: no `.perry/config.jsonl` at its root and no "
+              f"canonical store under its state root (`schema/README.md § "
+              f"installed`). Nothing was printed.", file=sys.stderr)
+        return 1
     try:
         schema = lib.load_schema(refused=Refused)
         spec = next((f for f in schema.get("files", [])

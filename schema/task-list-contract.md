@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/2.1`**
+> Contract: **`perry-task/list/2.2`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -97,7 +97,8 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/2.1",   // check this before anything else
+  "contract":     "perry-task/list/2.2",   // check this before anything else
+  "installed":    true,                    // false: not a Perry project — schema/README.md § installed
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
@@ -114,6 +115,14 @@ from task rows in Markdown.
   "untitled":     ["TASK-004"]             // ids with no title in any record
 }
 ```
+
+### `installed`
+
+`true` when the directory read is an installed Perry project, by the one
+criterion in `schema/README.md § installed` — `.perry/config.jsonl` at the
+project root, or a canonical store under the state root. On any other
+directory every other key keeps its empty shape and the call exits 0, so
+**read `installed` before reading an empty `tasks` as "nothing here"**. Added in 2.2.
 
 ### The bound on `tasks[]`
 
@@ -576,7 +585,7 @@ comparison performed"* the same way on the same tree.
    this section used to show only the first:
 
    ```python
-   SUPPORTED = {1: 18, 2: 1}           # major -> the minor you read against
+   SUPPORTED = {1: 18, 2: 2}           # major -> the minor you read against
 
    def pair(v):                        # "1.18" -> (1, 18). Compare versions ONLY
        major, minor = v.split(".")     # as this pair: as strings "1.5" > "1.18"
@@ -662,6 +671,20 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### 2.2 — `installed`, 2026-09-14 (TASK-237 deliverable 3b′)
+
+**One key added, none removed or retyped: top-level `installed`.** On a
+directory that is not a Perry project this payload answered its empty shape at
+exit 0, which a consumer could not tell from a project with nothing in it
+(aiMark, `evidence/2026-09/2026-09-14-aimark-feedback-task-237.md § 2.2`).
+`installed` is `true` exactly when `schema/README.md § installed` holds — the
+same predicate `perry-state --section installed` answers from.
+
+`semantics` carries a `2.2` entry for it. A key addition is normally a
+Changelog line only; this one is also entered there at the user's decision
+(TASK-237 Amendment (4) item 1), because a consumer that read an empty payload as
+"nothing here" has to change what it does, not only what it parses.
 
 ### 2.1 — the registers are read from their stores, 2026-09-14 (TASK-237 deliverable 3a)
 

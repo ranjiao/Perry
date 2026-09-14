@@ -1570,7 +1570,8 @@ class TestTheReadContractDidNotMove(unittest.TestCase):
     """
 
     def test_the_version_is_unchanged(self):
-        self.assertEqual("perry-goals/list/3.1", G.LIST_CONTRACT)
+        # TASK-237 3b′: `installed` was added, a minor bump.
+        self.assertEqual("perry-goals/list/3.2", G.LIST_CONTRACT)
 
     def test_the_contract_document_agrees(self):
         doc = (ROOT / "schema" / "goals-list-contract.md").read_text()

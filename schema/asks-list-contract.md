@@ -1,4 +1,4 @@
-# `perry-task asks --all --json` — `perry-asks/list/1.1`
+# `perry-task asks --all --json` — `perry-asks/list/1.2`
 
 The User Input Queue as a query. By default the **open** asks; with `--all`,
 every ask Perry has recorded, and for each answered one **when** it was
@@ -30,7 +30,8 @@ not empty this payload.
 
 ```jsonc
 {
-  "contract": "perry-asks/list/1.1",
+  "contract": "perry-asks/list/1.2",
+  "installed": true,        // false: not a Perry project — schema/README.md § installed
   "semantics": [ /* below */ ],  // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root": "/abs/path",     // where asks.jsonl lives
@@ -44,8 +45,9 @@ not empty this payload.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `contract` | string | `perry-asks/list/1.1` |
-| `semantics` | array | meaning changes by version, oldest first, each `{version, fields, note}` — the shape `perry-task/list § semantics[]` documents. Empty at 1.0; one entry since 1.1 |
+| `contract` | string | `perry-asks/list/1.2` |
+| `installed` | bool | `true` when the directory read is an installed Perry project, by `schema/README.md § installed`. `false` on any other directory, with `asks` empty, the counts 0 and exit 0. Added in 1.2 |
+| `semantics` | array | meaning changes by version, oldest first, each `{version, fields, note}` — the shape `perry-task/list § semantics[]` documents. Empty at 1.0; one entry since 1.1, two since 1.2 |
 | `project_root` | string | absolute path of the project read |
 | `state_root` | string | absolute path of the state root — where `asks.jsonl` is read from. Added in 1.1 |
 | `all` | bool | `true` when `--all` was passed |
@@ -111,10 +113,33 @@ or id; do not assume either.
 
 ## Exit codes
 
-`0` read. `1` refused — the register could not be read, and **nothing** is
+`0` read. That includes a directory with **no** register — no `asks.jsonl`
+and no `## User Input Queue` — and a directory that is not a Perry project at
+all: `asks` is `[]`, the counts are 0, and `installed` says which of the two
+it is (`schema/README.md § installed`). A register that does not exist is an
+empty register, not an unreadable one.
+
+`1` refused — a register exists and could not be read, and **nothing** is
 printed rather than an empty `asks`, which would say nothing was ever asked.
 
 ## Changelog
+
+### 1.2 — 2026-09-14 (TASK-237 3b′)
+
+**One key added, none removed or retyped: top-level `installed`.** On a
+directory that is not a Perry project this payload answered its empty shape at
+exit 0, which a consumer could not tell from a project with nothing in it
+(aiMark, `evidence/2026-09/2026-09-14-aimark-feedback-task-237.md § 2.2`).
+`installed` is `true` exactly when `schema/README.md § installed` holds — the
+same predicate `perry-state --section installed` answers from.
+
+`semantics` carries a `1.2` entry for it. A key addition is normally a
+Changelog line only; this one is also entered there at the user's decision
+(TASK-237 Amendment (4) item 1), because a consumer that read an empty payload as
+"nothing here" has to change what it does, not only what it parses.
+
+`§ Exit codes` is reconciled with it: a directory with no register is read at
+exit 0, and `1` is kept for a register that exists and cannot be read.
 
 ### 1.1 — 2026-09-14
 

@@ -35,7 +35,7 @@ Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design
 | **`work`** | `/perry work …` (alias `pmo`) | `$PERRY_HOME/work/SKILL.md` | board, journal, cadence, dispatch, status |
 | **`decide`** | `/perry decide …` (alias `design`) | `$PERRY_HOME/decide/SKILL.md` | RFCs, design docs, locked decisions, ADRs |
 
-Each lane's files are the ownership table below; each lane's SKILL.md carries its own subcommand index. Handled here instead of in a lane: the snapshot, `adopt`, `diagnose`, `relocate`, `help`, and confirming `.perry/config.md`.
+Each lane's files are the ownership table below; each lane's SKILL.md carries its own subcommand index. Handled here instead of in a lane: the snapshot, `adopt`, `diagnose`, `relocate`, `help`, and writing `.perry/config.jsonl`.
 
 > **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md`, everything under `*/reference/`, everything under `packs/`, and everything under this directory's own `reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. That is routing vocabulary for the agent, not a command the user can type, so it is left as-is. Translate it only when quoting a command back to the user.
 >
@@ -86,7 +86,7 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
 
 0. **Auto-update check**: run `bash "$PERRY_HOME/bin/perry-update-check"`. It is throttled to once per 7 days; surface output verbatim. OpenCode and Codex may run this bounded check synchronously.
 
-1. **Read `.perry/config.jsonl`**, else `.perry/config.md`, for document language, chat language and repo layout. If neither exists and a state file does, prompt for first-time setup. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
+1. **Read `.perry/config.jsonl`** for document language, chat language and repo layout. If it does not exist and a state file does, prompt for first-time setup. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
 
 2. **Check for an interrupted run, but only after recovery safety — before anything else reads project state.**
 
@@ -158,7 +158,7 @@ When `/perry` runs in a project with no Perry state files at all **and step 2 fo
    Never enumerate the claimed paths here; run the check
    (`reference/first-run.md § Why the namespace check runs before anything is asked`).
 
-3. **Confirm the project-wide preferences before any file is written**, into `.perry/config.md`. One `AskUserQuestion` call: two questions, or three when step 2 found a collision:
+3. **Confirm the project-wide preferences; write them to `.perry/config.jsonl` first** (`reference/first-run.md § Writing the config store`). One `AskUserQuestion` call: two questions, or three when step 2 found a collision:
    - **Document language** (header `"Language"`): `English | 中文 | other`, `(Recommended)` on whichever the user has been typing. Each `description` gives the consequence: files get this language; IDs and status words stay English.
    - **Repo layout** (header `"Repo layout"`): `Single repo (Recommended) | Split repo (PMO ↔ code)`.
    - **State root** (header `"State root"`) — **only when** step 2 reported a
@@ -166,7 +166,7 @@ When `/perry` runs in a project with no Perry state files at all **and step 2 fo
      project root anyway | Another directory`. Name the colliding path and its
      owner in the question; the user cannot evaluate the options otherwise.
 
-   **Don't ask about chat language.** Write `Chat language: follow user` and mirror what the user types. Document language governs **files**, chat language **replies**. Wordings: `reference/first-run.md`.
+   **Don't ask about chat language.** Set it to `follow user` and mirror what the user types. Document language governs **files**, chat language **replies**. Wordings: `reference/first-run.md`.
 
 4. **New project or existing one** — `AskUserQuestion`, header `"Starting point"`: `New project — start from goals (Recommended if the folder is nearly empty) | Existing project — analyze what's here first`. The second routes to **`/perry adopt`**. **Then offer tracks, once, and only when it would change something.** `reference/first-run.md § New project or existing one, and when to offer tracks`.
 
@@ -192,7 +192,7 @@ Moves every path Perry claims under a new state root and rewrites `State root:` 
 
 ## Configuration
 
-`.perry/config.md` projects `.perry/config.jsonl`; prose belongs in `.perry/hook.md`. First-time setup creates both. Field **names** stay English in every language, because this file declares the language and must be readable before it is known. An optional `## Tracks` table turns on `pipeline` / `queue` / `inquiry` mode; absent means one implicit `main` track, mode `project`.
+`.perry/config.jsonl` holds the settings (`perry-config set`); prose belongs in `.perry/hook.md`. Setup writes the store first. Field **names** stay English in every language, because this file declares the language and must be readable before it is known. An optional `## Tracks` table turns on `pipeline` / `queue` / `inquiry` mode; absent means one implicit `main` track, mode `project`.
 
 The field list and the three subjects with consequences worth reading before you change them are `reference/config.md`: **repo layout** (single, or the two-repo PMO ↔ code split), **state root** (`perry` is what setup writes; the *code* fallback is still the project root and must stay that way), and **tracks**. The ADR-004 **conformance gate** was a fourth; it is deleted (`TASK-261`) — nothing refuses a write now.
 

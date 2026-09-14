@@ -68,7 +68,10 @@ PAYLOADS = (
 #: edit here rather than a test quietly passing on new content.
 #: `perry-asks/list` left at 1.1: TASK-237 3a moved its population onto
 #: `asks.jsonl`, a meaning change with a real entry.
-EMPTY_TODAY = ("perry-decide/list", "perry-knowledge/list", "perry-roles/list")
+#: TASK-237 3b′: `perry-decide/list` 2.1 and `perry-knowledge/list` 1.2 each
+#: carry the `installed` entry the user decided every payload ships
+#: (Amendment (4) item 1), so one is left with nothing to say.
+EMPTY_TODAY = ("perry-roles/list",)
 
 
 def payload(argv: tuple[str, ...], root: pathlib.Path, subtree: str) -> dict:
@@ -113,15 +116,18 @@ class TestEveryPayloadCarriesTheKey(Base):
         project declared and otherwise empty. No task, no OKR, no decision, no
         card, no role, no event log.
 
-        (`.perry/config.md` and an empty `BOARD.md` are the declaration
+        (`.perry/config.jsonl` is the declaration
         itself — `perry-state` emits no `roles` section for a directory that
         has not declared it is a project, and a payload nobody publishes is a
         different question from a key nobody carries.)"""
         with tempfile.TemporaryDirectory() as tmp:
             bare = pathlib.Path(tmp)
             (bare / ".perry").mkdir()
-            (bare / ".perry" / "config.md").write_text("State root: .\n")
-            (bare / "BOARD.md").write_text("# Board\n")
+            # TASK-237 3b′: the config store is the declaration; the deleted
+            # `.perry/config.md` and a `BOARD.md` no longer make a project.
+            (bare / ".perry" / "config.jsonl").write_text(
+                '{"kind": "setting", "key": "state_root", "label": '
+                '"State root", "value": ".", "order": 0}\n')
             for name, argv, sub in PAYLOADS:
                 with self.subTest(contract=name):
                     got = payload(argv, bare, sub)
@@ -170,6 +176,9 @@ class TestNothingWasInventedToFillThem(Base):
     #: entry — so "the current minor" stopped being the right question and the
     #: minor is named.
     KEY_ADDED_AT = {"perry-goals/list": "2.3",
+                    # 3b′: both moved past the minor that added the key.
+                    "perry-decide/list": "1.1",
+                    "perry-knowledge/list": "1.1",
                     # Shipped with the array at 1.0; its 1.1 entry is TASK-237 3a's.
                     "perry-asks/list": "1.0"}
 
@@ -177,7 +186,9 @@ class TestNothingWasInventedToFillThem(Base):
         """Adding `semantics` is a key addition, which rule 2 already covers.
         An entry announcing the array's own arrival would be the first false
         alarm in it — the call `perry-task` made for its `1.15` and `1.17`."""
-        for name in EMPTY_TODAY + ("perry-goals/list", "perry-asks/list"):
+        for name in EMPTY_TODAY + ("perry-goals/list", "perry-asks/list",
+                                   "perry-decide/list",
+                                   "perry-knowledge/list"):
             current = self.live[name]["contract"].rsplit("/", 1)[-1]
             minor = self.KEY_ADDED_AT.get(name, current)
             with self.subTest(contract=name):

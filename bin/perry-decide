@@ -105,24 +105,23 @@ class Refused(Exception):
 # for them to be true or false about. A consumer holding `1.x` reads them
 # today; shipping their disappearance under a minor would be exactly the
 # silent narrowing the changelog rule forbids.
-LIST_CONTRACT = "perry-decide/list/2.0"
+LIST_CONTRACT = "perry-decide/list/2.1"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 # Same rule, shape and order as `bin/perry-task § LIST_SEMANTICS`: one entry
 # per minor that corrected a meaning, oldest first, appended and never
 # inserted.
 #
-# **It is empty, and the empty array is the shipped fact.** No value this
-# payload carries has ever changed meaning — no `1.x` moved one, and `2.0`
-# REMOVED three keys rather than re-pointing any, which is a major and is
-# reported in `schema/decide-list-contract.md § Changelog` where a major
-# belongs. Inventing an entry here to mark it would tell a consumer to go and
-# re-read fields that never moved. The key is present anyway, on every
-# response including this one, because **a consumer checks before it looks**:
-# a key that appears only when there is something to say is one a consumer
-# cannot check, which is the same argument that puts `contract` on an empty
-# store.
-LIST_SEMANTICS: list[dict] = []
+# **One entry, at 2.1: `installed`**, entered at the user's decision
+# (TASK-237 Amendment (4) item 1): an empty payload on a directory that is
+# not a Perry project read exactly like a project with nothing in it. No
+# value this payload carried before 2.1 has changed meaning. The key is
+# present on every response, because **a consumer checks before it looks**.
+LIST_SEMANTICS: list[dict] = [
+    {"version": "2.1",
+     "fields": ["installed"],
+     "note": "`installed` is added (TASK-237 3b′). Before 2.1, on a directory that is not a Perry project this payload answered its empty shape at exit 0 — `decisions` empty, `total` and `active` 0 — exactly as it answers for a project that has nothing in it, so a consumer could not tell the two apart. `installed: false` now says which. The criterion is `schema/README.md § installed`: `.perry/config.jsonl` at the project root, or a canonical store under the state root; `BOARD.md`, `OKR.md`, `phase/` or `design/` alone do not count. A consumer that read an empty payload as 'this project has nothing' must read `installed` first."},
+]
 
 ADR_RE = re.compile(r"\bADR-(\d+)\b")
 
@@ -489,6 +488,8 @@ def cmd_list(args, ctx) -> dict:
                if a["status"] == "active" and re.match(r"\d{4}-\d{2}-\d{2}", a["sunset"] or "")
                and a["sunset"][:10] < today]
     return {"contract": LIST_CONTRACT,
+            # 2.1: `parsers § installed`, `schema/README.md § installed`.
+            "installed": P.installed(ctx["project_root"]),
             # Sorted rather than trusted to writing order — the guard
             # `bin/perry-task` puts on its own list, kept here so an entry
             # appended in the wrong place cannot ship. Empty today.

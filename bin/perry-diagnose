@@ -1511,7 +1511,11 @@ def scan_tracking(root: Path, state_root: Path, inventory: dict) -> dict:
         "phase": (state_root / "phase").is_dir(),
         "state_root": str(state_root.relative_to(root)) if state_root != root else ".",
     }
-    perry["installed"] = perry["config"] or (perry["okr"] and perry["board"])
+    # `parsers § installed`, the criterion in `schema/README.md § installed`.
+    # It was `config or (okr and board)`; the markdown half stopped counting
+    # at TASK-237 3b′. `okr`, `board` and `phase` above still say what is ON
+    # DISK, which is a different question.
+    perry["installed"] = P.installed(root)
 
     return {
         "spine_files": spine,
@@ -2645,9 +2649,8 @@ def diagnose(root: Path, max_files: int) -> dict:
     # Reading the markdown alone here made `perry_owned` empty on a store-only
     # project, so every file Perry itself writes was counted as the user's and
     # the archetype and namespace scans below read a Perry repo as a foreign one.
-    is_perry = P.configured(root) or (
-        (state_root / "OKR.md").is_file() and (state_root / "BOARD.md").is_file()
-    )
+    # `parsers § installed` (TASK-237 3b′): the markdown half no longer counts.
+    is_perry = P.installed(root)
     perry_owned: set[str] = set()
     if is_perry:
         prefix = "" if state_root == root else f"{state_root.relative_to(root)}/"

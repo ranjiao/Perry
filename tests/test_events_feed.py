@@ -275,7 +275,8 @@ class TestTheFlipWasAnnouncedNotSilent(FeedCase):
         self.log(*[self.ev(n) for n in range(3)])
 
     def test_the_minor_moved(self):
-        self.assertEqual(self.feed()["contract"], "perry-events/list/1.2")
+        # TASK-237 3b′: `installed` was added, a minor bump.
+        self.assertEqual(self.feed()["contract"], "perry-events/list/1.3")
 
     def test_the_payload_carries_a_semantics_array(self):
         self.assertIsInstance(self.feed().get("semantics"), list)
@@ -297,7 +298,8 @@ class TestTheFlipWasAnnouncedNotSilent(FeedCase):
 
     def test_the_contract_document_states_the_same_version(self):
         page = (ROOT / "schema" / "events-list-contract.md").read_text()
-        self.assertIn("perry-events/list/1.2", page.splitlines()[0])
+        # TASK-237 3b′: `installed` was added, a minor bump.
+        self.assertIn("perry-events/list/1.3", page.splitlines()[0])
 
 
 class TestItIsReadOnly(FeedCase):

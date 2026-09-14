@@ -88,9 +88,12 @@ class Project:
         self.dir = tempfile.TemporaryDirectory()
         self.root = Path(self.dir.name)
         (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n")
+        # TASK-237 3b′: the config store makes this project installed;
+        # `.perry/config.md` is deleted (ADR-019) and `BOARD.md` alone no
+        # longer counts. It declares nothing the cadence register reads.
+        (self.root / ".perry" / "config.jsonl").write_text(
+            '{"kind": "setting", "key": "state_root", "label": "State root", '
+            '"value": ".", "order": 0}\n')
         (self.root / "BOARD.md").write_text(board)
 
     def run(self, *argv):

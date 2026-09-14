@@ -104,6 +104,12 @@
           "drift.orphaned",
           "drift.stale_done"
         ]
+      },
+      {
+        "version": "2.2",
+        "fields": [
+          "installed"
+        ]
       }
     ],
     "perry-events/list": [
@@ -119,6 +125,12 @@
         "version": "1.2",
         "fields": [
           "events[].ts"
+        ]
+      },
+      {
+        "version": "1.3",
+        "fields": [
+          "installed"
         ]
       }
     ],
@@ -146,10 +158,30 @@
         "fields": [
           "krs[].current"
         ]
+      },
+      {
+        "version": "3.2",
+        "fields": [
+          "installed"
+        ]
       }
     ],
-    "perry-decide/list": [],
-    "perry-knowledge/list": [],
+    "perry-decide/list": [
+      {
+        "version": "2.1",
+        "fields": [
+          "installed"
+        ]
+      }
+    ],
+    "perry-knowledge/list": [
+      {
+        "version": "1.2",
+        "fields": [
+          "installed"
+        ]
+      }
+    ],
     "perry-roles/list": [],
     "perry-asks/list": [
       {
@@ -160,6 +192,12 @@
           "open",
           "answered",
           "asks[].idle"
+        ]
+      },
+      {
+        "version": "1.2",
+        "fields": [
+          "installed"
         ]
       }
     ]

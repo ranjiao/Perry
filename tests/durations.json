@@ -213,6 +213,10 @@
       "sec": 2.63,
       "source": "2026-09-09-085824"
     },
+    "test_installed_is_one_predicate.py": {
+      "sec": 1.57,
+      "source": "2026-09-14-task237-d3b-prime"
+    },
     "test_intake_signal.py": {
       "sec": 0.86,
       "source": "2026-09-09-085824"
@@ -448,6 +452,10 @@
       "sec": 2.99,
       "source": "2026-09-09-085824"
     },
+    "test_starts_write_the_config_store_first.py": {
+      "sec": 1.57,
+      "source": "2026-09-14-task237-d3b-prime"
+    },
     "test_state_cost.py": {
       "sec": 18.86,
       "source": "2026-09-09-085824"
@@ -608,6 +616,13 @@
       "note": "TWO modules added by TASK-237 deliverable 3b, each timed alone three times with `python3 -m unittest` from tests/ and recorded at the median: test_cadence_store 1.24/1.29/1.48s, test_board_less_gaps 0.57/0.26/0.20s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
       "ref": "32c416ee",
       "taken": "2026-09-14T07:40:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task237-d3b-prime": {
+      "load1": 11.53,
+      "note": "TWO modules added by TASK-237 deliverable 3b′, each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_installed_is_one_predicate 1.57/1.53/1.57s, test_starts_write_the_config_store_first 1.57/1.58/1.54s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "ref": "91610742",
+      "taken": "2026-09-14T12:00:00Z",
       "workers": 1
     }
   }

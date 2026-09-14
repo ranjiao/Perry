@@ -418,6 +418,8 @@ class TestListContract(unittest.TestCase):
         "evidence_relations",
     }
     TOP_KEYS = {"contract", "semantics", "project_root", "state_root",
+                # 2.2 — `installed`, TASK-237 3b′.
+                "installed",
                 "conformance",
                 "intake", "tasks", "open", "closed", "events", "untitled",
                 # 1.6 — the three blocks that were readable only through

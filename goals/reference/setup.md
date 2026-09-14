@@ -4,7 +4,20 @@ Loaded when `/okr init` or `/okr revise` fires. Not loaded on routine snapshots.
 
 ## `init` — first-time bootstrap of overall OKR
 
-Run when `OKR.md` doesn't exist. Conduct the interview:
+Run when `OKR.md` doesn't exist.
+
+0. **Write the config store first, when `.perry/config.jsonl` does not exist.** A goals-only start is a start: `OKR.md` alone does not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so without the store every session would offer first-time setup again. Ask the preference questions `$PERRY_HOME/SKILL.md § First-time setup` step 3 asks, then write the answers before any other file:
+
+   ```
+   "$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"
+   "$PERRY_HOME/bin/perry-config" set --root . "Chat language" "follow user"
+   "$PERRY_HOME/bin/perry-config" set --root . "Repo layout" "<single or split>"
+   "$PERRY_HOME/bin/perry-config" set --root . "State root" "<state root>"
+   ```
+
+   When the store already exists (first-time setup ran), this step writes nothing.
+
+Then conduct the interview:
 
 1. **Period** — overall horizon? (3 months / 6 months / 1 year). Default to project-lifetime if known.
 2. **Mission** — one sentence: why this project exists.

@@ -533,9 +533,12 @@ class TestRungDistribution(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# c\n\n- Document language: English\n"
-                "- Repo layout: single\n- State root: .\n")
+            # TASK-237 3b′: `.perry/config.md` was deleted by ADR-019 and a
+            # `BOARD.md` alone no longer makes a project installed; the config
+            # store declares it, and changes nothing this test reads.
+            (root / ".perry" / "config.jsonl").write_text(
+                '{"kind": "setting", "key": "state_root", "label": '
+                '"State root", "value": ".", "order": 0}\n')
             (root / "BOARD.md").write_text(
                 "# Board\n\n## P0\n\n" + header + rows
                 + "\n## P1\n\n| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
@@ -849,9 +852,12 @@ class TestProvenanceLint(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# c\n\n- Document language: English\n"
-                "- Repo layout: single\n- State root: .\n")
+            # TASK-237 3b′: `.perry/config.md` was deleted by ADR-019 and a
+            # `BOARD.md` alone no longer makes a project installed; the config
+            # store declares it, and changes nothing this test reads.
+            (root / ".perry" / "config.jsonl").write_text(
+                '{"kind": "setting", "key": "state_root", "label": '
+                '"State root", "value": ".", "order": 0}\n')
             kd = root / "knowledge" / "topic"
             kd.mkdir(parents=True)
             for name, body in digests.items():
@@ -1155,9 +1161,12 @@ class TestTheHookTemplateIsNotBlind(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# c\n\n- Document language: English\n"
-                "- Repo layout: single\n- State root: .\n")
+            # TASK-237 3b′: `.perry/config.md` was deleted by ADR-019 and a
+            # `BOARD.md` alone no longer makes a project installed; the config
+            # store declares it, and changes nothing this test reads.
+            (root / ".perry" / "config.jsonl").write_text(
+                '{"kind": "setting", "key": "state_root", "label": '
+                '"State root", "value": ".", "order": 0}\n')
             (root / ".perry" / "hook.md").write_text(
                 (PERRY_HOME / "work" / "state" / "hook_TEMPLATE.md").read_text())
             rows = "".join(

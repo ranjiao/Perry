@@ -270,11 +270,13 @@ class TestReadingStaysTolerant(unittest.TestCase):
         p.run("new", "--title", "One", "--type", "Process")
         p.run("status", "ADR-001", "--status", "proposed")
         _, out = p.run("list")
+        # TASK-237 3b′: `installed` was added at 2.1, a key addition.
         self.assertEqual(
-            set(out), {"contract", "semantics", "project_root", "state_root",
-                       "conformance", "decisions", "active", "total",
-                       "expired_sunsets"})
-        self.assertEqual(out["contract"], "perry-decide/list/2.0")
+            set(out), {"contract", "installed", "semantics", "project_root",
+                       "state_root", "conformance", "decisions", "active",
+                       "total", "expired_sunsets"})
+        # TASK-237 3b′: `installed` was added, a minor bump.
+        self.assertEqual(out["contract"], "perry-decide/list/2.1")
         self.assertEqual(set(out["conformance"]),
                          {"off_enum_status", "missing_type"})
 

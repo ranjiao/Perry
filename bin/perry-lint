@@ -5080,10 +5080,12 @@ def is_adopted(project_root: Path, state_root: Path) -> bool:
     file as missing — noise on someone else's project, and unusable as the
     stage-4 gate in `reference/adoption.md`, which needs to distinguish "the
     files adoption wrote are malformed" from "adoption hasn't run"."""
-    return (P.configured(project_root)
-            or (state_root / "BOARD.md").exists()
-            or (state_root / "OKR.md").exists()
-            or (state_root / "phase").is_dir())
+    # The predicate is `parsers § installed`, the criterion `schema/README.md §
+    # installed` states. `BOARD.md`, `OKR.md` and `phase/` alone stopped
+    # counting at TASK-237 3b′: every documented start writes
+    # `.perry/config.jsonl` first. `state_root` stays in the signature for the
+    # callers that pass it.
+    return P.installed(project_root)
 
 
 def iter_targets(root: Path, spec: dict) -> list[Path]:
@@ -6058,11 +6060,11 @@ def main(argv: list[str]) -> int:
     else:
         project_root = Path(root_arg).expanduser().resolve() if root_arg else Path.cwd().resolve()
         if not root_arg:
-            for d in [project_root, *project_root.parents]:
-                if ((d / "BOARD.md").exists() or (d / "OKR.md").exists()
-                        or P.configured(d)):
-                    project_root = d
-                    break
+            # `parsers § installed_project_root` — the walk every tool takes
+            # (TASK-237 3b′; `BOARD.md` / `OKR.md` no longer stop it).
+            found = P.installed_project_root(project_root)
+            if found is not None:
+                project_root = found
         # State may live in a subdirectory when the project already uses a name
         # Perry claims; `.perry/` stays at the project root either way.
         root = P.resolve_state_root(project_root)

@@ -522,13 +522,14 @@ class TestAHeadingMayNameTheCollectionsItServes(unittest.TestCase):
 #: `perry-task/list` 2.0 bounded `tasks[]`, `perry-goals/list` 3.1 rounded a
 #: measured `current` — and a table of literals here turned the first of those
 #: bumps into seven errors, and the second into three, in a module whose
-#: subject is key coverage and not versions. `perry-decide/list` is still a
-#: literal below because it has never moved; the day it does, it comes here.
+#: subject is key coverage and not versions. `perry-decide/list` was a literal
+#: below until it moved at 2.1 (TASK-237 3b′), and it came here that day.
 TASK_LIST = _tool_contract_name("perry-task")
 GOALS_LIST = _tool_contract_name("perry-goals")
+DECIDE_LIST = _tool_contract_name("perry-decide")
 
 WITNESSED = (
-    ("perry-decide/list/2.0", "decide-list-contract.md", "expired_sunsets",
+    (DECIDE_LIST, "decide-list-contract.md", "expired_sunsets",
      "expired_sunsets[].sunset", ', "sunset": "2026-06-30"'),
     (GOALS_LIST, "goals-list-contract.md",
      "krs[].current_staleness.moved_tasks",

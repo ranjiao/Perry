@@ -168,9 +168,13 @@ class Project:
         self.dir = tempfile.TemporaryDirectory()
         self.root = Path(self.dir.name)
         (self.root / ".perry").mkdir()
-        (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + gate)
+        # TASK-237 3b′: the config store makes this project installed, so
+        # `perry-lint` judges its board; `.perry/config.md` is deleted
+        # (ADR-019) and `BOARD.md` alone no longer counts. `gate` was a line
+        # appended to that markdown and has had no reader since TASK-261.
+        (self.root / ".perry" / "config.jsonl").write_text(
+            '{"kind": "setting", "key": "state_root", "label": "State root", '
+            '"value": ".", "order": 0}\n')
         (self.root / "BOARD.md").write_text(board)
         if store:
             self.run(TASKS, "write", "--from-board", json_out=False)
