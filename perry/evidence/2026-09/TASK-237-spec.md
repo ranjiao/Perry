@@ -573,3 +573,68 @@ Amendment (3)'s 3b list, unchanged:
   and `modes/queue.md`'s cadence text;
 - `perry-lint` clean without the file.
 Then one V4 over deliverables 1–3.
+
+## Amendment 2026-09-14 (6): every start creates the config store first (user answer A); the rest of 3b is 3b′
+
+3b merged partially at `161c927c` (`evidence/2026-09/TASK-237-d3b-result.md`)
+and stopped on the `installed` predicate. Four documented starts write only
+markdown, so under Amendment (4)'s rule they would read as not installed and
+be offered the bootstrap on every session:
+- the `work` bootstrap;
+- a decide-only start;
+- `goals init` before `plan-phase`;
+- `/perry adopt --only=design,knowledge,arch`.
+
+The cause is that first-time setup still tells the agent to write
+`.perry/config.md`, which ADR-019 deleted.
+
+**User's decision, 2026-09-14: A.** Every start writes `.perry/config.jsonl`
+first, through `perry-config set`, and then the predicate lands. Measured the
+same day: `perry-config set --root <empty dir> "Document language" English` exits
+0, creates `.perry/config.jsonl`, and `perry-state --section installed` goes from
+`false` to `true`.
+
+### Deliverable 3b′: the rest of 3b
+
+1. **Every start writes the config store first.** Enumerate every documented
+   way a project begins: `/perry setup`, the `work` bootstrap, a decide-only
+   start, `goals init` and every `/perry adopt --only=` subset. Enumerate them
+   from the docs and the router, not from this list.
+   - Each start's first write becomes `perry-config set` on `.perry/config.jsonl`.
+   - Every instruction that still writes `.perry/config.md` is corrected.
+   - These are lane-doc edits: `SKILL.md`, `work/`, `goals/`, `decide/` and
+     `reference/adoption*.md`. They are allowed for exactly this purpose.
+2. **Amendment (4) items 1 and 2, now unblocked.**
+   - `installed` on the six read payloads, as a minor bump with `semantics`
+     and the parity baseline re-recorded.
+   - One predicate: config store, or any declared canonical store, and
+     `BOARD.md` alone does not count. It is written once in
+     `schema/README.md` and cited by each contract.
+   - The deliverable-2 detection walks change to that predicate.
+   - `perry-tasks board` refuses on a non-installed directory.
+   - The `asks` contract's exit-code text is reconciled.
+3. **Re-run the start enumeration after the change.** Every start, executed as
+   its doc now says in a scratch directory, ends with `installed: true`. A doc
+   step that cannot be executed mechanically is followed by hand and
+   recorded.
+
+**Must not:**
+- flip `files[id=board].required`, delete `BOARD.md`, or change
+  `ARCHITECTURE.md` or `.perry/hook.md` (all 3c);
+- edit any other schema;
+- write any real store;
+- touch any other project.
+
+**Verification (3b′):**
+- Amendment (4)'s four-directory list: empty, `BOARD.md`-only,
+  `config.jsonl`-only, and `tasks.jsonl`-only.
+- The start re-run in item 3.
+- Mutations:
+  - drop `installed` from one payload;
+  - accept `BOARD.md` in the predicate;
+  - let `board` print on a non-installed directory;
+  - restore one start's `.perry/config.md` instruction (a doc guard must
+    notice).
+- The suite.
+
+3c is unchanged.
