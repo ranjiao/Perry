@@ -217,6 +217,9 @@ class TestDeclaredAndDispatchableAreTheSameSet(unittest.TestCase):
         ("perry-tasks", ("asks-write", "--from-board", "--dry-run", "--json"),
          "asks.jsonl"),
         ("perry-tasks", ("asks-build",), '"unanswered"'),
+        # TASK-237 D1: `board` prints the TEMPLATE's title, placeholder and all,
+        # which no board on disk carries — so `render` answering cannot pass.
+        ("perry-tasks", ("board",), "# Board — {{project name}}"),
     )
 
     def test_every_declared_subcommand_runs_its_own_verb(self):

@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "viewer"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lib  # noqa: E402
 import parsers as P  # noqa: E402
-from tables import header_index  # noqa: E402
+from tables import UnrenderableCell, header_index  # noqa: E402
 import perry_store  # noqa: E402
 
 #: Written to the store — `bin/perry_store.py` owns the list, and this name is
@@ -324,6 +324,81 @@ def cmd_render(root: Path, byte_compare: bool,
         }
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["identical"] else 1
+
+
+# ── the board from its declarations alone (TASK-237 deliverable 1) ───────
+#
+# `render` fills today's `BOARD.md` in place and refuses when the file is gone.
+# `board` prints the whole board from what the tree declares: it reads exactly
+# the seven files below, and no other. `perry_store.declared_board` does the
+# work and opens nothing itself; its `DECLARED_BOARD_CHOICES` lists every
+# layout decision.
+#
+#     schema/state-schema.json § files[id=board]   (PERRY_HOME)
+#     work/state/BOARD_TEMPLATE.md                 (PERRY_HOME, the entry's `template`)
+#     .perry/config.jsonl                          (the project's, for `state_root`)
+#     <state root>/tasks.jsonl, asks.jsonl, risks.jsonl, intake.jsonl
+#
+# **Read-only, so it takes no lock and no `--register`.** It dispatches ahead of
+# both in `main`. A store that is absent is empty; a store that does not parse,
+# or fails its own `validate_*`, refuses with exit 2 and prints no board.
+
+BOARD_STORES = (
+    ("tasks", perry_store.store_path, perry_store.validate_records),
+    ("asks", perry_store.ask_store_path, perry_store.validate_ask_records),
+    ("risks", perry_store.risk_store_path, perry_store.validate_risk_records),
+    ("intake", perry_store.intake_store_path,
+     perry_store.validate_intake_records),
+)
+
+
+def cmd_board(root: Path) -> int:
+    try:
+        schema = lib.load_schema(refused=Refused)
+        spec = next((f for f in schema.get("files", [])
+                     if f.get("id") == "board"), None)
+        if spec is None:
+            raise Refused("schema/state-schema.json declares no files[id=board]")
+        template = (lib.PERRY_HOME / spec["template"]).read_text(encoding="utf-8")
+    except (Refused, OSError, ValueError, KeyError) as exc:
+        print(f"perry-tasks: refused — the board's declaration is unreadable "
+              f"({type(exc).__name__}: {exc}). Nothing was printed.",
+              file=sys.stderr)
+        return 2
+    state_root = P.resolve_state_root(root)
+    stores: dict[str, list[dict]] = {}
+    findings: list[dict] = []
+    for name, where, validate in BOARD_STORES:
+        path = where(state_root)
+        if not path.exists():
+            stores[name] = []
+            continue
+        try:
+            records = [json.loads(l) for l in
+                       path.read_text(encoding="utf-8").split("\n") if l.strip()]
+        except (OSError, ValueError) as exc:
+            findings.append({"store": path.name, "message":
+                             f"not readable JSONL ({type(exc).__name__}: {exc})"})
+            continue
+        good, bad = validate(records)
+        findings += [{"store": path.name, **b} for b in bad]
+        stores[name] = good
+    if findings:
+        print(json.dumps({"refused": "a store is malformed; no board was "
+                          "printed", "store_findings": findings},
+                         ensure_ascii=False, indent=2), file=sys.stderr)
+        return 2
+    try:
+        text, report = perry_store.declared_board(spec, template, stores)
+    except UnrenderableCell as exc:
+        print(f"perry-tasks: refused — {exc.why}. Nothing was printed.",
+              file=sys.stderr)
+        return 1
+    sys.stdout.write(text)
+    for title in report["undeclared_groups"]:
+        print(f"perry-tasks: open tasks in group {title!r} match no declared "
+              f"heading; printed under `## {title}`", file=sys.stderr)
+    return 0
 
 
 # ── the risks register ────────────────────────────────────────────────────
@@ -1593,6 +1668,10 @@ SURFACE = {
         {"name": "asks-diff", "summary":
          "render `## User Input Queue` and byte-compare with the board",
          "flags": []},
+        {"name": "board", "summary":
+         "the whole board to stdout from the four stores and the declared "
+         "skeleton; never reads BOARD.md",
+         "flags": []},
     ],
 }
 
@@ -1634,6 +1713,17 @@ def main(argv: list[str], _locked: bool = False) -> int:
     cmd = read["sub"]
     seen, given = read["seen"], read["values"]
     flags = frozenset(seen)
+
+    if cmd == "board":
+        # **Ahead of the `--register` rewrite and the lock, on purpose.** It is
+        # a read of seven declared files, so it neither takes a register nor
+        # serialises behind a writer, and nothing below this point runs for it.
+        if read["extra"]:
+            print(f"perry-tasks: {read['extra'][0]!r} is not a flag, and "
+                  f"'board' takes no second argument (try --help)",
+                  file=sys.stderr)
+            return 2
+        return cmd_board(lib.resolve_project_root(given.get("--root")))
 
     # **`--register` is the verb's argument, and the twelve prefixed names are
     # aliases for it** (DESIGN-016 C5). `risks-build` and `build --register
