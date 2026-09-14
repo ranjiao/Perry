@@ -59,6 +59,10 @@ from __future__ import annotations
 import ast
 import re
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import handed_back  # noqa: E402
 
 #: Perry's tools, by name. A command phrase starts at one of these.
 TOOLS = ("conform", "lint", "migrate", "task", "tasks", "goals", "state",
@@ -66,7 +70,12 @@ TOOLS = ("conform", "lint", "migrate", "task", "tasks", "goals", "state",
 CMD = re.compile(r"perry-(?:" + "|".join(TOOLS) + r")\b")
 #: the rest of the phrase, to the closing backtick or the end of the line.
 TAIL = re.compile(r"[^`\n'\"]*")
-ROOT = re.compile(r"\{r\}|\{_root_flag\([^)]*\)\}|--root")
+#: **The root rule is `tests/handed_back.py § ROOTED`, not a copy of it.**
+#: TASK-253 measured the copy that stood here (`{r}`, `{_root_flag(...)}`,
+#: `--root`) reporting 15 of 31 handed-back commands in five `bin/` files as
+#: rootless. Most of them were `{_r}` / `{root_flag}` / `{lib.root_flag(...)}`,
+#: which ARE the root, so the guard and this sweep disagreed about one rule.
+ROOT = handed_back.ROOTED
 #: Every `{...}` in a template, so each can be judged on its own.
 INTERP = re.compile(r"\{([^{}]*)\}")
 #: **The spellings that are shell-safe by construction.**  `_q` is
@@ -74,8 +83,13 @@ INTERP = re.compile(r"\{([^{}]*)\}")
 #: assigns `_root_flag(root_arg)` to, by convention in both tools.  Anything
 #: else interpolated into a command a reader is told to copy is a raw value,
 #: and a raw value with a space in it is the round-4 FAIL.
+#:
+#: `_r`, `root_flag` and `lib.root_flag(...)` join them for the same reason:
+#: `bin/lib § root_flag` is `f" --root {shlex.quote(str(root))}"`, the one
+#: place the quoting decision is made (TASK-253).
 SAFE_INTERP = re.compile(
-    r"^(?:r|_q\(.*\)|_root_flag\(.*\)|(?:shlex\.)?quote\(.*\))$")
+    r"^(?:_?r|_q\(.*\)|[A-Za-z_.]*root_flag(?:\(.*\))?"
+    r"|(?:shlex\.)?quote\(.*\))$")
 #: A long flag whose VALUE is interpolated raw — `--root {root_arg}`.  Read
 #: over every template, not only over command phrases, because the choke point
 #: itself names no tool: this is the rule that would have caught round 4 in
@@ -226,6 +240,16 @@ def sites(path: str):
 
 def main(argv: list[str]) -> int:
     show_all = "--all" in argv
+    if not [a for a in argv if not a.startswith("-")]:
+        # **A sweep over nothing is not a clean sweep.** It used to print
+        # `0 handed-back command(s) … 0 handed back without the caller's root`
+        # and exit 0, which reads as a clean bill of health for a run that
+        # examined no file at all (TASK-253).
+        print("sweep_handed_back_commands: no file given, so nothing was "
+              "examined and nothing can be reported clean. Usage: python3 "
+              "tests/sweep_handed_back_commands.py [--all] <file> [...]",
+              file=sys.stderr)
+        return 2
     handed = mentions = rootless = unquoted = 0
     for f in [a for a in argv if not a.startswith("-")]:
         for path, lineno, phrase, problems in sites(f):

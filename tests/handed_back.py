@@ -10,6 +10,10 @@ that went stale: the round-4 V4 FAIL was invisible to BOTH of them, because
 both asked whether the text `--root <root>` was present and neither asked
 whether the phrase was a command line.
 
+Both of those files were deleted with `bin/perry-conform` and
+`bin/perry-migrate`; the importer today is `tests/test_handed_back_root.py`,
+which also imports the sweep (TASK-253).
+
 The rule lives here so there is one of it.  `tests/sweep_handed_back_commands.py`
 is the other half — this module reads what a message PRINTED, that one reads
 what the source can print — and they are deliberately separate: a message can
@@ -52,6 +56,20 @@ import shlex
 #: TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun` and stated in
 #: `TASK-234-result.md`, rather than left for the next reviewer to find.
 HOSTILE_ROOT_NAME = "My Project (v2) & 'draft' \"q\" $x; echo hi #1 *"
+
+#: **The root, in every spelling `lib.root_flag` reaches a template through:**
+#: inline, through the `r` / `_r` local the longer messages assign, through a
+#: `root_flag` parameter threaded into a helper that has no project of its own,
+#: and literally, in a usage block.
+#:
+#: TASK-253. This lived in `tests/test_handed_back_root.py`, while
+#: `tests/sweep_handed_back_commands.py § ROOT` held a second copy that knew
+#: only `{r}`, `{_root_flag(...)}` and `--root`. That is the older tools'
+#: spelling, not the tree's, so the sweep a human runs by hand reported
+#: `perry-tasks render --write{_r}` as handed back without the root. One rule
+#: with two enforcement points had diverged, and the stale one was the one
+#: read by a human. Both now import this.
+ROOTED = re.compile(r"\{_?r\}|\{[A-Za-z_.]*root_flag[^{}]*\}|--root")
 
 #: An indented line of its own.  **Two spaces, not four** — which is what
 #: `tests/sweep_handed_back_commands.py § CUE` has always required, while this

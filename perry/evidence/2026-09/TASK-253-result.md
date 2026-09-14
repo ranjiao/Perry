@@ -178,3 +178,87 @@ Full run, `tests/run`:
 The three reds are the session's standing ones, none in a module this change
 touches: two conformance-witness keys in `test_contract_key_parity`, and the
 clock-dependent `test_resume.TestStaleRuns.test_a_fresh_run_is_not_stale`.
+
+---
+
+## 7. § 5 closed, 2026-09-14: the sweep imports the guard's rule, and refuses to examine nothing
+
+The two items § 5 left open were fixed inline, in `tests/` only.
+
+1. **One root rule.** `ROOTED` moved into `tests/handed_back.py`, the module
+   whose docstring already says *"the rule lives here so there is one of it"*.
+   - `tests/test_handed_back_root.py` and
+     `tests/sweep_handed_back_commands.py § ROOT` both take that object; neither
+     holds a copy.
+   - The sweep's `SAFE_INTERP` now also accepts `_r`, `root_flag` and
+     `lib.root_flag(...)`. The reason is measured, not asserted:
+     `bin/lib/__init__.py § root_flag` is
+     `f" --root {shlex.quote(str(root))}"`.
+   - `handed_back.py`'s docstring named `tests/test_conformance.py` and
+     `tests/test_migrate.py` as its importers. Both are deleted, and it now
+     names the importer that exists.
+2. **A sweep over nothing is refused.** With no file argument, the sweep prints
+   *"no file given, so nothing was examined and nothing can be reported clean"*
+   to stderr and exits 2. Before, it printed a zero census and exited 0.
+
+### The sweep's own census, before and after
+
+This is the same five-file command as § 5:
+
+| | handed-back | rootless | raw interpolation |
+|---|---|---|---|
+| before | 31 | **15** | 28 |
+| after  | 31 | **4**  | 19 |
+
+**The 4 left are real readings, not rule disagreements.** None of them is a
+writer hand-back, and all four sit outside the population the guard holds:
+
+- `bin/perry-task:633`: `perry-task cadence-done {id} --evidence <path>`, a
+  usage template;
+- `bin/perry-task:2794` and `bin/perry-state:1883`: bare `perry-lint`, a reader;
+- `bin/perry-task:4783`: `perry-task {done/drop}`, a verb name in a sentence.
+
+They are recorded here and not fixed, and no row is opened for them.
+
+The 19 raw interpolations are ids and flag values echoed in refusal prose
+(`--kr {args.kr} is blank`). That is the sweep's `FLAG_VALUE` rule reading
+sentences, and it is out of this row's scope.
+
+### Tests: `TestTheSweepAndTheGuardShareOneRule`, 4 new, module 22 → 26
+
+| test | what it holds |
+|---|---|
+| `test_there_is_one_root_rule` | `sweep.ROOT is handed_back.ROOTED is` this module's `ROOTED` |
+| `test_every_spelling_of_the_root_is_rooted_and_shell_safe` | seven spellings in a planted cued phrase: `{r}`, `{_r}`, `{root_flag}`, `{lib.root_flag(project_root)}`, `{lib.root_flag(ctx['project_root'])}`, `{_root_flag(root_arg)}` and a literal `--root`. Each is read as handed back (count asserted, so the check cannot pass on nothing) with no problems |
+| `test_the_control_without_a_root_is_still_reported` | anti-vacuity: `{id}` is ruled `no root` |
+| `test_a_sweep_over_nothing_is_refused_not_reported_clean` | `main([])` and `main(["--all"])` both exit 2, and print no census |
+
+### Mutations
+
+Each mutation ran on a `git archive HEAD` copy with the three changed files
+overlaid, with every anchor asserted unique and `__pycache__` cleared.
+
+| # | mutation | result |
+|---|---|---|
+| M1 | sweep `ROOT` back to its old copy | **RED 5**: one-rule, spellings |
+| M2 | `SAFE_INTERP` back to its old spelling | **RED 4**: spellings |
+| M3 | no-file refusal removed | **RED 2**: nothing-refused |
+| M4 | guard writes `ROOTED = re.compile(handed_back.ROOTED.pattern)` | GREEN, **an equivalent mutant**: `re.compile` caches by pattern, so the same string returns the same object (measured: `re.compile(r"a\|b") is re.compile(r"a\|b")` is `True`). No rule diverges. |
+| M4b | guard restates a *different*, equivalent pattern (`…\|(?!x)x`) | **RED 1**: one-rule. This is the divergence M4 was aiming at. |
+| M5 | sweep calls everything rooted (`ROOT = re.compile(r"")`) | **RED 2**: control, one-rule |
+| M6 | shared `ROOTED` forgets `_r` | **RED 2**: spellings **and** `test_no_pasteable_writer_is_handed_back_without_the_root` |
+| M7 | `SAFE_INTERP` forgets `lib.root_flag(...)` | **RED 3**: spellings |
+
+### Suite
+
+`tests/run` on the working tree with the change applied:
+
+- exit 1: 2 of 132 modules and 3 of 3,851 tests red;
+- the reds are the three standing ones: `test_contract_key_parity` ×2 and
+  `test_resume.TestStaleRuns.test_a_fresh_run_is_not_stale`;
+- the tree guard reports nothing moved;
+- 3,851 is 3,847 plus these 4.
+
+**What is left on the row: nothing in its deliverable.** `perry-tasks` honours
+`--dry-run` (§ 0), every writer hand-back carries the root with the count held
+(§ 1–4), and the diagnostic now agrees with the guard (this section).

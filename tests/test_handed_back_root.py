@@ -117,11 +117,12 @@ _ARG = r"(?:--?[a-z][a-z0-9-]*|" + _TOK + r"+)"
 #: What the reader has to finish before the line is a command: a metavariable,
 #: or the `…` this codebase writes where a value goes (`--reason "…"`).
 CONTINUES = re.compile(r"^\s*(?:<|[\"'`]?…|\.\.\.)")
-#: The root, in every spelling `lib.root_flag` reaches the template through:
-#: inline, through the `r` / `_r` local the longer messages assign, through a
-#: `root_flag` parameter threaded into a helper that has no project of its own,
-#: and literally, in a usage block.
-ROOTED = re.compile(r"\{_?r\}|\{[A-Za-z_.]*root_flag[^{}]*\}|--root")
+#: The root, in every spelling `lib.root_flag` reaches the template through.
+#: **Imported, not restated**: `tests/handed_back.py § ROOTED` is the one
+#: definition, and `tests/sweep_handed_back_commands.py § ROOT` is the same
+#: object. TASK-253 found the sweep holding an older copy of this rule that
+#: disagreed with this one about `{_r}`.
+ROOTED = handed_back.ROOTED
 
 #: Calls that put bytes on disk.  Not a list of Perry's writers — a list of
 #: what writing is, so the derivation below is about the code rather than about
@@ -1055,6 +1056,75 @@ class TestEveryToolAMessageNamesStillExists(unittest.TestCase):
         for tool in ("perry-migrate", "perry-conform"):
             with self.subTest(tool=tool):
                 self.assertNotIn(tool, self.present)
+
+
+class TestTheSweepAndTheGuardShareOneRule(unittest.TestCase):
+    """**One rule, one definition, and the diagnostic a human runs agrees with
+    the guard the suite runs.** (TASK-253 § 5.)
+
+    `tests/sweep_handed_back_commands.py` held its own root regex, one that
+    knew `{r}`, `{_root_flag(...)}` and `--root`. Those are the spellings of
+    the tools this rule was first written for, and both tools were deleted. The
+    tree spells the root `{_r}`, `{root_flag}` and `{lib.root_flag(...)}`, so
+    the sweep reported 15 of 31 handed-back commands in five `bin/` files as
+    rootless while this module called most of them rooted."""
+
+    #: Every spelling the tree uses to put the root into a template, measured
+    #: in `bin/` on 2026-09-14, plus the older tools' two.
+    SPELLINGS = ("{r}", "{_r}", "{root_flag}",
+                 "{lib.root_flag(project_root)}",
+                 "{lib.root_flag(ctx['project_root'])}",
+                 "{_root_flag(root_arg)}", " --root <path>")
+
+    def _sites(self, template: str):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "probe.py"
+            src.write_text(
+                "def f(project_root, ctx, root_flag, r, _r, root_arg, id):\n"
+                "    return f\"run `perry-tasks render --write" + template
+                + "` to put it back\"\n")
+            return list(sweep.sites(str(src)))
+
+    def test_there_is_one_root_rule(self):
+        self.assertIs(sweep.ROOT, handed_back.ROOTED,
+                      "the sweep holds its own root rule again")
+        self.assertIs(ROOTED, handed_back.ROOTED,
+                      "this module holds its own root rule again")
+
+    def test_every_spelling_of_the_root_is_rooted_and_shell_safe(self):
+        for spelling in self.SPELLINGS:
+            with self.subTest(spelling=spelling):
+                found = self._sites(spelling)
+                handed = [s for s in found if s[3] is not None]
+                self.assertEqual(len(handed), 1,
+                                 f"the probe phrase was not read as a handed-"
+                                 f"back command at all, so this passes on "
+                                 f"nothing: {found!r}")
+                self.assertEqual(handed[0][3], [],
+                                 f"{spelling!r} IS the root, and the sweep "
+                                 f"rules it {handed[0][3]!r}")
+
+    def test_the_control_without_a_root_is_still_reported(self):
+        """Anti-vacuity: a sweep that calls everything rooted passes the test
+        above."""
+        handed = [s for s in self._sites("{id}") if s[3] is not None]
+        self.assertEqual(len(handed), 1)
+        self.assertIn("no root", handed[0][3])
+
+    def test_a_sweep_over_nothing_is_refused_not_reported_clean(self):
+        import contextlib
+        import io
+        for argv in ([], ["--all"]):
+            with self.subTest(argv=argv):
+                out, err = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(out), \
+                        contextlib.redirect_stderr(err):
+                    rc = sweep.main(argv)
+                self.assertEqual(rc, 2, "a run that examined no file exited "
+                                        "as if it had found something or "
+                                        "nothing")
+                self.assertNotIn("handed back without", out.getvalue())
+                self.assertIn("nothing was examined", err.getvalue())
 
 
 if __name__ == "__main__":
