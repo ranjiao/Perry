@@ -480,3 +480,96 @@ row.
 - Mutations: drop `installed` from one payload; accept `BOARD.md` in the
   predicate again; let `board` print on a non-installed directory; print one
   `{{` placeholder. Each reddens a named test.
+
+## Amendment 2026-09-14 (5): cadence gets a store; 3b is split into 3b and 3c
+
+3a merged at `47dce04a` (`evidence/2026-09/TASK-237-d3a-result.md`). It stopped on
+cadence: cadence rows exist only in `BOARD.md § Cadence`, so without the file
+`cadence-add` and `cadence-done` refuse.
+
+**The user's decisions, 2026-09-14:**
+
+1. **Cadence is kept and gets its own store (answer A, "给 cadence 建存储").** This
+   is consent for one more `schema/state-schema.json` change: a new
+   `work`-owned claim for the cadence store. Consent was asked for and given
+   with the uses measured:
+   - this repository: 0 rows, 0 events;
+   - `Gimegime-pmo`: 5 hand-written rows, with prose in `Next due` and the
+     aperiodic frequencies `continuous` and `hourly`;
+   - `aimark`: 1 row, `per task` / `ongoing`.
+2. **`asks[].idle` reading `""` instead of `"—"` is accepted.** It is announced
+   in `perry-asks/list` 1.1 `semantics`, and no further change is needed.
+
+**3b is split so that each round stays reviewable:**
+- **3b** makes everything work with the file still on disk.
+- **3c** deletes it.
+
+### Deliverable 3b: the store-backed features a board-less project still lacks (the file stays)
+
+1. **A cadence store.**
+   - The store is `cadence.jsonl` under the state root, declared in
+     `schema/state-schema.json § claims` beside `risks.jsonl`, `intake.jsonl`
+     and `asks.jsonl`, in the same shape as those claims.
+   - Records carry the register's columns: id, recurring task/title, owner,
+     frequency, next due, last run, last evidence, and order.
+   - **A cell is stored as written.** Prose in `Next due` and aperiodic
+     frequencies are live data on a real register; it is reported by
+     `perry-state § cadence`, never normalised.
+   - `cadence-add` and `cadence-done` write the store, the event and the
+     journal. While `BOARD.md` exists they also re-render its `## Cadence`
+     section, exactly like the other registers after 3a.
+   - `perry-state § cadence` and `perry-tasks board` read the store.
+   - **An import for a project whose cadence lives only on its board:** the
+     same one-way `--from-board` shape the risks, intake and asks registers
+     already have. It refuses unless the claim is declared and the section is a
+     readable table, and it round-trips the section.
+   - Measure the import on **copies** of `Gimegime-pmo/BOARD.md` and
+     `aimark/perry/BOARD.md` in scratch space only. **Never write to either
+     project.**
+2. **Amendment (4) in full:**
+   - `installed` on the six read payloads, as a minor bump with `semantics`;
+   - one `installed` predicate, where `BOARD.md` alone does not count;
+   - `perry-tasks board` refuses on a non-installed directory;
+   - `board` titles itself with the project name and drops the template's
+     instruction prose.
+   The cadence store is a canonical store for the predicate.
+3. **The board-less gaps 3a named**, each fixed or argued in the result:
+   - `perry-diagnose` still reads asks and intake from `BOARD.md`.
+   - Three `perry-lint` checks go quiet with the file absent.
+   - Without the file, `perry-state § project.name` is the state root's
+     directory name (`perry`). Resolve it with the same rule as the board title
+     in Amendment (4): a declared config setting, else the **project** root's
+     directory name.
+   - A test that notices a shipped `semantics` entry being removed.
+
+**Must not:**
+- delete or edit `perry/BOARD.md`;
+- flip `files[id=board].required`, which is 3c;
+- edit `ARCHITECTURE.md`, `.perry/hook.md` or the lane docs, which is 3c;
+- write any real store in the worktree;
+- touch any other project on disk.
+
+**Verification (3b):**
+- 3a's payload-diff and write matrix, extended to `cadence-add`,
+  `cadence-done` and the cadence section of `perry-state` and `board`.
+  Measure present and deleted states, plus a fixture carrying a periodic row,
+  an aperiodic row and a prose `Next due` row.
+- The import round-trips both scratch copies.
+- Amendment (4)'s verification list.
+- Mutations: put a `BOARD.md` read back into the cadence read and the cadence
+  write; lose a prose cell on import; drop `installed`; accept `BOARD.md` in the
+  predicate; print a `{{` placeholder; let `board` print on a non-installed
+  directory. Each must redden a named test.
+- The suite.
+
+### Deliverable 3c: the file is gone (after 3b is merged and re-measured)
+
+Amendment (3)'s 3b list, unchanged:
+- `files[id=board]` so that a board-less project conforms;
+- delete `perry/BOARD.md`;
+- the fate of `render` / `diff` / `verify` and the `*-render --write`
+  hand-backs;
+- the docs: `work/`, `ARCHITECTURE.md § 2`, `.perry/hook.md`, `bin/README.md`,
+  and `modes/queue.md`'s cadence text;
+- `perry-lint` clean without the file.
+Then one V4 over deliverables 1–3.
