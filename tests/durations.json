@@ -57,7 +57,7 @@
       "source": "2026-09-14-task237"
     },
     "test_board_less_reads_and_writes.py": {
-      "sec": 4.76,
+      "sec": 4.55,
       "source": "2026-09-14-task237-d3a"
     },
     "test_board_render.py": {
@@ -589,10 +589,10 @@
       "workers": 1
     },
     "2026-09-14-task237-d3a": {
-      "load1": 8.35,
-      "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (4.82/4.03/4.76s), on the terms of the 2026-09-14-task237 entry: re-timing every neighbour to land one entry is the substitution TASK-304's bound names. load1 is the uptime sample taken right after the three runs, with other sessions' work on the same machine, so this is high rather than idle.",
-      "ref": "fbc8be5dc109003a8bc6b16af1305e537263c67a",
-      "taken": "2026-09-14T05:32:26Z",
+      "load1": 10.1,
+      "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (4.32/4.55/5.15s), on the terms of the 2026-09-14-task237 entry: re-timing every neighbour to land one entry is the substitution TASK-304's bound names. Re-timed after the contract guards took the module from 23 to 26 tests (it read 4.82/4.03/4.76s at fbc8be5d). load1 is the uptime sample taken right after the three runs, with other sessions' work on the same machine, so this is high rather than idle.",
+      "ref": "c0916ced92ada8d5cafd1da2e1ab43f534c07fd2",
+      "taken": "2026-09-14T05:53:18Z",
       "workers": 1
     }
   }

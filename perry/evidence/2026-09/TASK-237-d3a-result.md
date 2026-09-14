@@ -30,6 +30,12 @@
 >   rule on it (§ 2.2).** `asks[].idle` for USER-001 and USER-002 was `"—"`
 >   read from the board's `Idle` cell and is now `""`. The ask store holds no
 >   `Idle` field on purpose, so `idle_days` is `null` in both.
+> - **The contracts announce the store read**, per the PMO's widening of hard
+>   limit 4 during the round (§ 2.4):
+>   - `perry-task/list` 2.0 → **2.1** and `perry-asks/list` 1.0 → **1.1**,
+>     each with a `semantics` entry;
+>   - `perry-asks/list` gains `state_root`;
+>   - the parity baseline's only diffs are those versions and those keys.
 
 ---
 
@@ -51,10 +57,14 @@ floor value matched.
 Commits on this branch:
 - `62169826`: the code and the test module;
 - `fbc8be5d`: two guards sharpened before the mutation battery;
-- the commit carrying this file: the durations entry.
+- the next commit: the durations entry and the first version of this file;
+- `c0916ced`: the contract widening the PMO added mid-round (§ 2.4);
+- the commit carrying this version of this file: the re-timed durations entry.
 
-All measurements below are on `git archive` copies of `fbc8be5d`, the final
-code.
+The read measurements in § 2.1–2.3 and the write matrix in § 3 were taken on
+`git archive` copies of `fbc8be5d`. `c0916ced` changes only the two contracts'
+`contract`/`semantics` values and adds `state_root`, so § 2.1 was re-run on
+copies of `c0916ced`: it gave the same table (§ 2.4).
 
 ## 1. The call-site enumeration
 
@@ -198,6 +208,96 @@ The summary lines read "tasks store: 434 valid record(s)", "risks store: 4",
 drift is unchecked, not clean". At base the risks and ask lines read **0**
 (C13). No present-state warning disappeared: the text diff is additions only.
 
+### 2.4 The contracts announce the store read (the PMO's widening of hard limit 4)
+
+Added mid-round at the PMO's instruction. aiMark keys the removal of a
+temporary defence on a contract signal, so where asks and risks are read from
+has to be announced in the contracts. The change is additive: no `installed`
+field was added, and behaviour outside a Perry directory is untouched.
+
+| contract | before | after | what changed |
+|---|---|---|---|
+| `perry-task/list` | `2.0` | `2.1` | a `semantics` entry at `2.1` (fields below) |
+| `perry-asks/list` | `1.0` | `1.1` | a `semantics` entry at `1.1` (fields below); **`state_root` added** |
+
+Fields each entry names:
+- **`perry-task/list` 2.1:**
+  - `asks.items`, `asks.open`, `asks.items[].idle`;
+  - `risks.items`, `risks.open`, `risks.cleared`, `risks.source`;
+  - `intake.rows`, `intake.undischarged`, `intake.oldest_undischarged`;
+  - `tasks[].depends_on_resolved`, `tasks[].blocked_by`, `tasks[].startable`,
+    `conformance.depends_on_unknown`;
+  - the five `drift.*` keys.
+
+  The note gives the measured before at `b7c89276`: `asks` empty,
+  `risks.open` 0 with `source` `"none"`, eight answered-ask edges unknown, and
+  `drift.drift` 96.
+- **`perry-asks/list` 1.1:** `asks`, `count`, `open`, `answered`,
+  `asks[].idle`. The note gives the measured before: `count: 0` against 33
+  stored asks.
+
+Pages:
+- **`schema/task-list-contract.md`:**
+  - the version line and sketch;
+  - a `### 2.1` changelog entry;
+  - the `missing_projection` row, which said the registers "keep their empty
+    contract shapes" without the file and has been false since this change;
+  - the `asks.items[].idle` row;
+  - rule 3's snippet, now `SUPPORTED = {1: 18, 2: 1}`.
+    `test_contract_page_snippets` runs it as a consumer pinned at the shipped
+    minor, which must be warned about nothing.
+- **`schema/asks-list-contract.md`:**
+  - the version line and sketch;
+  - `state_root` in the sketch and the key table;
+  - a `semantics[]` entry key table. The page had none, so the first
+    re-record reported `semantics[].version`, `.fields` and `.note` as
+    `emitted_not_documented`;
+  - the `idle` row;
+  - a `### 1.1` changelog entry.
+
+**The parity baseline**, `tests/fixtures/contract-key-parity.json`, was
+re-recorded with `python3 tests/contract_key_parity.py --record`. Its whole
+diff against the previous baseline:
+
+| key | before | after | why |
+|---|---|---|---|
+| asks entry name and `.contract` | `perry-asks/list/1.0` | `perry-asks/list/1.1` | the bump |
+| asks `documented` | 20 | 24 | `state_root`, plus `semantics[].version`, `.fields` and `.note` |
+| asks `emitted` | 20 | 24 | the same four |
+| asks `witness` | `tests/fixtures/witness-project` | `""` | see below |
+| list entry name and `.contract` | `perry-task/list/2.0` | `perry-task/list/2.1` | the bump |
+
+**Why asks `witness` became `""`.** The witness is consulted only for an
+empty collection (`contract_key_parity.py § compare`, `if empties`). At 1.0
+the payload's one empty collection was `semantics: []`. At 1.1 it has an
+entry, so nothing is left for the witness to fill;
+`collections_the_witness_filled` was `[]` before too.
+
+No other line moved, and both contracts' `documented_not_emitted` and
+`emitted_not_documented` are `[]`.
+
+**Tests that pinned a version or key set**, each updated with one line of
+reason:
+
+| test | change | reason written beside it |
+|---|---|---|
+| `test_bin_argument_contract.py:701` | `perry-task/list/2.0` → `2.1` | the major this test is about is unchanged |
+| `test_task_summary.py:79` | `2.0` → `2.1` | nothing about `summary` moved |
+| `test_stranded_rows.py:609–610` | `2.0` → `2.1` | the next minor this pin follows |
+| `test_asks_list.py:121` | `perry-asks/list/1.0` → `1.1` | the population now comes from `asks.jsonl`, and `state_root` was added |
+| `test_contract_page_snippets.py:411` | newest changelog heading `2.0` → `2.1` | 3a's minor is now the newest entry |
+| `test_semantics_on_every_payload.py` | `perry-asks/list` leaves `EMPTY_TODAY`; `KEY_ADDED_AT` gains `"perry-asks/list": "1.0"` | its 1.1 entry is a real meaning change; the array itself arrived at 1.0 |
+
+**`tests/fixtures/contract-shapes.json` was not re-recorded.**
+`test_contract_invariance` does not cover `perry-asks/list`, and for
+`perry-task/list` it compares only the MAJOR, which did not move. It is green.
+
+**Present against deleted, re-measured on `git archive` copies of
+`c0916ced`:** the same table as § 2.1. `missing_projection`, `board.lines`,
+`board.last_updated`, `project.name` and `generated_at` differ; everything
+else is equal, including both new `semantics` entries and `state_root`.
+`perry-tasks board` is 155,964 B in both states.
+
 ## 3. The write matrix
 
 **Method.** `scratchpad/matrix.py`, with the tools from the `fbc8be5d` archive.
@@ -275,7 +375,7 @@ and outside the consent the amendment records.
 
 ## 4. Tests and the mutation table
 
-### 4.1 `tests/test_board_less_reads_and_writes.py`: 23 tests, 4.76 s
+### 4.1 `tests/test_board_less_reads_and_writes.py`: 26 tests, 4.55 s
 
 **Where expectations come from.** Two sources only:
 - the store records the module writes (`TASKS`, `ASKS`, `RISKS`, `INTAKE`), or
@@ -295,11 +395,13 @@ only:
 | `TestTheRegistersWithAForgedBoard` | the 5 above, plus `test_no_forged_row_reaches_a_payload`, which first asserts the forged rows are in the file |
 | `TestThisProjectsStoresWithNoBoard` | `test_every_stored_ask_is_listed`, `test_every_open_stored_risk_is_listed`, `test_no_stored_open_row_is_drift`, `test_every_edge_to_a_stored_ask_resolves_as_an_ask`, each with a floor of ≥ 1 |
 | `TestEveryWriteLandsWithNoBoard` | `test_the_write_table_covers_every_declared_write` (against `--describe`), `test_each_write_lands_its_record_event_and_journal_line` (24 subTests), `test_a_write_is_the_same_with_and_without_the_file` (24 subTests; the present file is `perry-tasks board`'s render and must be re-rendered), `test_a_cadence_write_refuses_and_writes_nothing` |
+| `TestTheContractsAnnounceTheStoreRead` (added with § 2.4) | `test_list_announces_asks_and_risks_from_their_stores`, `test_asks_announces_its_population_from_the_store` (each finds the entry at the payload's own shipped minor), `test_asks_carries_the_state_root` |
 | `TestLintOnABoardlessProject` | `test_the_errors_are_the_present_errors_plus_the_missing_file`, `test_the_store_counts_are_the_stores_with_no_file` |
 
-`tests/durations.json` gains an entry: 4.76 s, source `2026-09-14-task237-d3a`.
-It was timed alone three times with `python3 -m unittest` at `fbc8be5d`
-(4.82 / 4.03 / 4.76 s), with load1 8.35.
+`tests/durations.json` gains an entry: 4.55 s, source `2026-09-14-task237-d3a`.
+It was timed alone three times with `python3 -m unittest` at `c0916ced`
+(4.32 / 4.55 / 5.15 s), with load1 10.10. At `fbc8be5d`, with 23 tests, it
+read 4.82 / 4.03 / 4.76 s.
 
 ### 4.2 Mutations
 
@@ -333,8 +435,36 @@ Control runs before and after: 23/23 ok. Every restore compared **equal**.
 | G2 | guard: the forged board loses its forged ask row (test module) | Forged `.test_no_forged_row_reaches_a_payload` | RED (1) |
 | G3 | guard: the write table loses `next` (test module) | `.test_the_write_table_covers_every_declared_write` | RED (1) |
 
-**Coverage:** every one of the 23 tests is reddened by at least one mutation.
-**No mutation stayed green.**
+**Coverage:** every one of the 23 tests at `fbc8be5d` is reddened by at least
+one mutation. **No mutation stayed green.**
+
+### 4.3 Mutations of the contract widening, on `c0916ced`
+
+**How they ran.** `scratchpad/mutate2.py`, on a `git archive` copy of
+`c0916ced`, under § 4.2's rules:
+- each cut located and asserted unique;
+- `__pycache__` cleared;
+- outcomes by test id;
+- each restore compared equal to `git show c0916ced:<path>`.
+
+The reds were collected across every module that could see these signals:
+`test_board_less_reads_and_writes`, `test_semantics_on_every_payload`,
+`test_contract_key_parity`, `test_contract_invariance` and `test_asks_list`,
+114 tests. The two pre-existing `test_contract_key_parity` reds (§ 5) are
+excluded from every red set. Control runs before and after found no other red.
+
+| # | mutation (`bin/perry-task`) | red: named tests | result |
+|---|---|---|---|
+| C1 | **the asks payload's `semantics` entry removed** (`"semantics": []`) | `TestTheContractsAnnounceTheStoreRead.test_asks_announces_its_population_from_the_store` | RED (1) |
+| C2 | **the list payload's `2.1` `semantics` entry removed** | `TestTheContractsAnnounceTheStoreRead.test_list_announces_asks_and_risks_from_their_stores` | RED (1) |
+| C3 | **`state_root` removed from the asks payload** | `TestTheContractsAnnounceTheStoreRead.test_asks_carries_the_state_root`; `test_contract_key_parity.TestTheTwoWayDiffIsHeldToItsBaseline.test_no_documented_key_stopped_being_emitted` | RED (2) |
+
+**Every restore compared equal. Finding: C1 and C2 are caught only by the new
+guards.** No pre-existing contract test notices a `semantics` entry
+disappearing:
+- `test_contract_invariance` checks only that each entry the payload ships has
+  a changelog section;
+- `test_semantics_on_every_payload` checks presence and shape (§ 6 R7).
 
 **Two guards were sharpened before the battery (`fbc8be5d`), because each
 would otherwise have let a mutation through.**
@@ -351,11 +481,13 @@ would otherwise have let a mutation through.**
 |---|---|---|---|---|
 | `bash tests/run`, foreground, nothing written during it | `fbc8be5d` | 134 · 3,890 | 2 · 3 | "nothing … moved" |
 | `python3 tests/parallel --ids <scratch file>` | `fbc8be5d` + the durations entry | 134 · 3,890 | 2 · 3 | — |
+| **`bash tests/run`, final**, foreground, nothing written during it | `c0916ced` + this file and the re-timed durations entry | **134 · 3,893** | 2 · 3 | "nothing … moved" |
 
-**The counts are the base plus this branch, exactly:** 133 + 1 modules and
-3,867 + 23 tests.
+**The counts are the base plus this branch, exactly.** At `fbc8be5d` they were
+133 + 1 modules and 3,867 + 23 tests. The final run is 3,867 + 26, the three
+added by § 2.4's contract guards.
 
-**Reds, by id, identical in both runs and all pre-existing (named in the
+**Reds, by id, identical in all three runs and all pre-existing (named in the
 dispatch):**
 - `test_contract_key_parity.TestAWitnessProjectMakesAnEmptyCollectionObservable.test_without_the_witness_the_four_are_unobservable`
 - `test_contract_key_parity.TestTheWitnessedKeysRedden.test_the_same_mutation_is_silent_without_the_witness`
@@ -382,15 +514,20 @@ No other red, so no module needed re-running alone.
   `BOARD.md`,** bypassing `asks.jsonl` and `intake.jsonl`
   (`TASK-237-result.md § 3.4` named the first). They go to 0 when the file is
   deleted.
-- **R4: the `asks[].idle` contract row is board-shaped** ("the `Idle` cell as
-  written"). With the store read, it is always `""` (§ 2.2). It needs a
-  wording clarification, not a version change, or the reviewer's ruling that
-  this is a stop.
+- **R4: the `asks[].idle` rows are clarified in both pages** by § 2.4. They
+  now say `""` when read from the store, and both `semantics` entries name
+  `idle`. Whether the `"—"` → `""` move was a meaning change the reviewer
+  would have stopped on (§ 2.2) is still the reviewer's call.
 - **R5: perry-lint checks that go quiet without the file** (§ 1.2 L9):
   done-needs-evidence, the closure judgement, `check_reviews` and the id
   lookup. Identical output on this project in both states; not audited.
 - **R6: `test_contract_page_snippets.py` has no `tests/durations.json` entry**,
   already at base.
+- **R7: nothing outside this module notices a `semantics` entry being
+  removed** (§ 4.3, C1 and C2). A consumer that keys on an entry, as aiMark
+  does, is protected only by 3a's own guards, which name these two entries.
+  A general guard would be one the contract tests own: "an entry, once
+  shipped, never leaves".
 
 ## What I did not check
 
