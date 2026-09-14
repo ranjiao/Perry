@@ -38,7 +38,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "viewer"))
 import lib  # noqa: E402
 import parsers as P  # noqa: E402
-from tables import cell_spans, header_index, split_row  # noqa: E402
+from tables import (UnrenderableCell, cell_spans, header_index,  # noqa: E402
+                    render_row, render_separator, split_row)
 
 #: Written to the store. Everything else in `perry-task/list` is computed.
 #:
@@ -1646,6 +1647,249 @@ def ask_render(board, records: list[dict], ops) -> tuple[str, dict]:
     return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
 
 
+# ── the board from its declarations alone (TASK-237 deliverable 1) ───────
+#
+# **Every renderer above needs `BOARD.md` on disk**: `plan` iterates
+# `board.lines`, so the file supplies the layout and the store supplies the
+# cells. `declared_board` is the other arrangement. The layout comes from what
+# the tree DECLARES — `schema/state-schema.json § files[id=board]` and the
+# template it names — and the cells come from the four stores. It takes text
+# and records and returns text: it opens nothing, so "it never reads
+# `BOARD.md`" is a property of its signature before it is a property of any
+# caller. `bin/perry-tasks § cmd_board` is the only caller and reads exactly
+# the seven files `TASK-237-spec.md § Amendment (2)` names.
+#
+# Byte-identity with a live `BOARD.md` is NOT the bar (USER-932 answer 3):
+# `TASK-237-result.md § 2.3` measured twelve kinds of layout that exist only
+# in the file. The bar is every row once, every declared column, every cell
+# whole.
+
+#: **Every choice the declarations leave open, made once, here.** Nothing below
+#: makes a layout decision that is not one of these; `perry-tasks board` does
+#: not print them (they are fixed, not per-run), and
+#: `perry/evidence/2026-09/TASK-237-d1-result.md § 1` quotes them.
+DECLARED_BOARD_CHOICES = (
+    ("prose",
+     "The template's non-table lines are printed as the template writes them, "
+     "`{{…}}` placeholders included. No declared source names the project, a "
+     "task id or a date: `.perry/config.jsonl § last_updated` is the config's "
+     "own date, not the board's (TASK-237-result.md § 2.3 L3)."),
+    ("sections",
+     "The template's `## ` headings, in the template's order and with its "
+     "heading text. It agrees with `files[id=board].headings`."),
+    ("columns",
+     "A section's table is its `tables[]` entry's `columns`, then every "
+     "`optional_columns` key, in declaration order. The template's own header "
+     "rows are not used: its task tables carry 6 of the 15 declared columns, "
+     "and its User Input Queue orders `Idle` before `Status`."),
+    ("placeholder rows",
+     "The template's empty `|  |  |` rows are not printed. A table is its header, "
+     "its separator and its store's rows; Cadence has no store, so it has "
+     "none."),
+    ("which rows",
+     "tasks: every record whose `status` is not terminal (`done`, `dropped`), "
+     "as the template says (\"closed tasks leave this file\"). asks, risks: "
+     "every record (a cleared risk stays, per the template comment). intake: "
+     "every record; `perry-task intake-sweep` is what removes a discharged "
+     "one."),
+    ("which section",
+     "A task sits under the template heading whose `headings[].match` also "
+     "matches the task's `group`. asks, risks and intake sit under the one "
+     "table their register's section name selects."),
+    ("undeclared group",
+     "An open task whose `group` matches no declared task heading is printed, "
+     "not dropped: under `## <group>` (`## (no group)` when empty), with the "
+     "task columns, after the last declared task section. The caller names it "
+     "on stderr."),
+    ("intake section",
+     "`tables[]` declares an Intake table and neither `headings` nor the "
+     "template places it. `## Intake` is printed only when the intake store "
+     "holds a record, directly after the task sections. The same holds for any "
+     "store whose declared table has no template heading."),
+    ("row order",
+     "Ascending `order`. A record without an integer `order` follows, in "
+     "store-file order."),
+    ("a column with no stored field",
+     "`Idle` is an age the store deliberately does not hold, so its cell is "
+     "empty. Computing it would make the output depend on today's date."),
+    ("cells",
+     "The stored value: a list joined with `, `, null as empty, surrounding "
+     "whitespace stripped. `|` is escaped as `\\|` by `viewer/tables.py § "
+     "render_row`. A value containing a line break is refused: the whole "
+     "render exits 1 and prints nothing, because that function's one rule is "
+     "that a table row is one line. An empty list prints as an empty cell, "
+     "not `—`."),
+    ("a table under an undeclared heading",
+     "Printed as the template writes it. The shipped template has none."),
+)
+
+#: `(register, a section name its declared table's `under` must match, the
+#: column → field map)`. A `tables[]` entry belongs to the register whose name
+#: its pattern takes; `P1` stands for every task table because `^P[012]\b`
+#: takes it. Cadence takes none of the four, because no cadence store exists.
+DECLARED_BOARD_REGISTERS = (
+    ("tasks", "P1", FIELD_BY_COLUMN),
+    ("intake", INTAKE_SECTION, INTAKE_FIELD_BY_COLUMN),
+    ("asks", ASK_SECTION, ASK_FIELD_BY_COLUMN),
+    ("risks", RISK_SECTION, RISK_FIELD_BY_COLUMN),
+)
+
+
+def _declared_columns(table: dict) -> list[str]:
+    return list(table.get("columns") or []) + list(table.get("optional_columns") or {})
+
+
+def _in_stored_order(records: list[dict]) -> list[dict]:
+    def key(pair):
+        n, rec = pair
+        o = rec.get("order")
+        graded = isinstance(o, int) and not isinstance(o, bool)
+        return (not graded, o if graded else 0, n)
+    return [rec for _n, rec in sorted(enumerate(records), key=key)]
+
+
+def declared_board(spec: dict, template: str,
+                   stores: dict[str, list[dict]]) -> tuple[str, dict]:
+    """The whole board from `files[id=board]`, its template and the four stores.
+
+    `spec` is the schema's `files[id=board]` entry, `template` the text of the
+    file it names, `stores` `{"tasks"|"asks"|"risks"|"intake": records}` — the
+    records already validated by the store's own `validate_*`. Returns the text
+    and a report: `{"sections": [{heading, register, rows}], "undeclared_groups":
+    [...], "rows": n}`.
+
+    Raises `tables.UnrenderableCell` naming the register, record and column
+    when a stored value cannot be carried by a markdown row — the caller prints
+    nothing then, rather than a board missing a row.
+
+    Every layout decision is one of `DECLARED_BOARD_CHOICES`.
+    """
+    tables = spec.get("tables") or []
+    headings = spec.get("headings") or []
+    lines = template.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+
+    def register_of(table):
+        return next(((name, fmap) for name, probe, fmap in DECLARED_BOARD_REGISTERS
+                     if re.search(table["under"], probe)), (None, None))
+
+    def table_under(title):
+        return next((t for t in tables if re.search(t["under"], title)), None)
+
+    def heading_entry(title):
+        return next((h for h in headings if re.search(h["match"], title)), None)
+
+    task_table = next((t for t in tables if register_of(t)[0] == "tasks"), None)
+    open_tasks = _in_stored_order([r for r in stores.get("tasks", [])
+                                   if r.get("status") not in TERMINAL_STATUSES])
+    claimed: set[int] = set()
+    report = {"sections": [], "undeclared_groups": [], "rows": 0}
+
+    def rows_for(register, title):
+        if register == "tasks":
+            h = heading_entry(title)
+            if h is None:
+                return []
+            got = [r for r in open_tasks if id(r) not in claimed
+                   and re.search(h["match"], r.get("group") or "")]
+        else:
+            got = [r for r in _in_stored_order(stores.get(register, []))
+                   if id(r) not in claimed]
+        claimed.update(id(r) for r in got)
+        return got
+
+    def emit_table(out, title, table, register, fmap, records):
+        cols = _declared_columns(table)
+        fields = [fmap.get(k) for k in header_index(cols)]
+        out.append(render_row(cols))
+        out.append(render_separator(len(cols)))
+        for rec in records:
+            cells = [cell_text(f, rec, escape=False) if f else "" for f in fields]
+            try:
+                out.append(render_row(cells))
+            except UnrenderableCell as exc:
+                who = rec.get("id") or f"order {rec.get('order')}"
+                raise UnrenderableCell(
+                    exc.index, exc.value,
+                    f"{register} record {who}, column "
+                    f"{cols[exc.index]!r}: {exc.why}") from None
+        report["sections"].append({"heading": title, "register": register,
+                                   "rows": len(records)})
+        report["rows"] += len(records)
+
+    task_titles = [l[3:].strip() for l in lines if l.startswith("## ")
+                   and (table_under(l[3:].strip()) is not None)
+                   and register_of(table_under(l[3:].strip()))[0] == "tasks"]
+    placed_registers = {register_of(table_under(l[3:].strip()))[0]
+                        for l in lines if l.startswith("## ")
+                        and table_under(l[3:].strip()) is not None}
+
+    def emit_tail(out):
+        """Undeclared-group task sections, then tables no template heading places."""
+        if task_table is not None:
+            groups: list[str] = []
+            for r in open_tasks:
+                if id(r) not in claimed and (r.get("group") or "") not in groups:
+                    groups.append(r.get("group") or "")
+            for g in groups:
+                recs = [r for r in open_tasks if id(r) not in claimed
+                        and (r.get("group") or "") == g]
+                claimed.update(id(r) for r in recs)
+                title = g or "(no group)"
+                report["undeclared_groups"].append(title)
+                out += [f"## {title}", ""]
+                emit_table(out, title, task_table, "tasks", FIELD_BY_COLUMN, recs)
+                out.append("")
+        for table in tables:
+            register, fmap = register_of(table)
+            if register in (None, "tasks") or register in placed_registers:
+                continue
+            recs = rows_for(register, "")
+            if not recs:
+                continue
+            title = next(probe for name, probe, _m in DECLARED_BOARD_REGISTERS
+                         if name == register)
+            out += [f"## {title}", ""]
+            emit_table(out, title, table, register, fmap, recs)
+            out.append("")
+
+    out: list[str] = []
+    title, seen_tasks, tail_done, i = "", 0, False, 0
+    while i < len(lines):
+        line = lines[i]
+        if line.startswith("## "):
+            if seen_tasks == len(task_titles) and task_titles and not tail_done:
+                emit_tail(out)
+                tail_done = True
+            title = line[3:].strip()
+            if title in task_titles:
+                seen_tasks += 1
+        if (line.startswith("|") and i + 1 < len(lines)
+                and _SEPARATOR.match(lines[i + 1])):
+            j = i + 2
+            while j < len(lines) and lines[j].startswith("|"):
+                j += 1
+            table = table_under(title)
+            if table is None:
+                out += lines[i:j]
+            else:
+                register, fmap = register_of(table)
+                recs = rows_for(register, title) if register else []
+                emit_table(out, title, table, register or "", fmap or {}, recs)
+            i = j
+            continue
+        out.append(line)
+        i += 1
+    if not tail_done:
+        if out and out[-1] != "":
+            out.append("")
+        emit_tail(out)
+    while out and out[-1] == "":
+        out.pop()
+    return "\n".join(out) + "\n", report
+
+
 __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "describe_cell", "load_store", "plan", "record", "render",
            "render_line", "render_lines", "row_descriptor", "slot_descriptor",
@@ -1664,4 +1908,7 @@ __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "validate_ask_records",
            # TASK-273. Shared by the two registers whose key is an id, and
            # deliberately not by `intake`, whose key is a row position.
-           "duplicate_row_ids", "duplicate_record_ids"]
+           "duplicate_row_ids", "duplicate_record_ids",
+           # TASK-237 deliverable 1: the board from its declarations alone.
+           "DECLARED_BOARD_CHOICES", "DECLARED_BOARD_REGISTERS",
+           "declared_board"]
