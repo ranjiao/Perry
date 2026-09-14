@@ -194,18 +194,15 @@ Roughly: writing, content and client deliverables → `pipeline`. Operations, su
 
 What the mode changes: what closes the horizon, whether the calendar is binding or advisory, what the throttle is (priorities in a project, a per-stage limit in a pipeline, depth and age in a queue, a cap on open questions in an inquiry), what triage asks first, and what Perry pre-selects as the level of proof when you finish an item. Non-`project` modes also give board rows a `Stage` column alongside `Status` — where the item is in *this* track's sequence, as opposed to whether it is blocked or done.
 
-You declare a mode in `.perry/config.md`, in a table called the track register:
+You declare a mode by adding a track to the track register in `.perry/config.jsonl`, with `perry-config`:
 
-```markdown
-## Tracks
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| blog | pipeline | commitments | brief→draft→review→approved→published | review:2 | 5d | 2026-W34 | V5 |
-| ops | queue | commitments | new→triaged→in_progress→resolved | — | 1d | monthly | V2 |
+```bash
+perry-config track blog --mode pipeline --spine commitments --stages "brief→draft→review→approved→published" --wip review:2 --sla 5d --cycle 2026-W34 --default-rung V5
+perry-config track ops  --mode queue --spine commitments --stages "new→triaged→in_progress→resolved" --sla 1d --cycle monthly --default-rung V2
+perry-config show        # prints every setting and every track
 ```
 
-One project can run several tracks at once, in different modes — a `pipeline` of client deliverables next to the `queue` that feeds it. A project with no `## Tracks` section has one implicit track called `main` in `project` mode, and behaves exactly as it did before modes existed. That is deliberate: nothing you already have changes because this exists.
+One project can run several tracks at once, in different modes — a `pipeline` of client deliverables next to the `queue` that feeds it. A project that declares no track has one implicit track called `main` in `project` mode, and behaves exactly as it did before modes existed. That is deliberate: nothing you already have changes because this exists.
 
 `Default rung` is how much proof an item needs before it counts as finished — `V2` a structural check, `V3` a reproducible run, `V4` a fresh reviewer against written criteria, `V5` a named human signing off. Perry pre-selects the mode's default when you close an item; **this release reports, it does not refuse.**
 
@@ -229,12 +226,13 @@ These exist because they're what stops a project quietly going wrong.
 
 ## What Perry writes into your project
 
-All plain markdown, all yours:
+Plain markdown plus a few JSONL records, all yours:
 
 ```
 your-project/
-├── .perry/config.md        your settings (language, layout, tracks)
+├── .perry/config.jsonl     your settings (language, layout, tracks)
 ├── perry/                  ← everything below lives here by default
+│   ├── *.jsonl             the records: tasks, asks, risks, cadence, OKR, linkage
 │   ├── OKR.md              overall goals
 │   ├── phase/              the current stretch of work + saved snapshots
 │   ├── BOARD.md            open tasks, right now

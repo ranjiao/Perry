@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: user (§1, §3 Forbidden, §5 versions, §6, §7)
 > Version: v1
-> Last reviewed: 2026-09-09
+> Last reviewed: 2026-09-14
 > Hard cap: ≤ 500 lines. It has two readers — the user in one sitting, and every
 > agent that is dispatched against it — and the second one pays for it per turn.
 > Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`.
@@ -58,8 +58,8 @@ there is no cross-project registry).
 ## §2. Components
 
 ### `bin/` — the deterministic tools
-- **Purpose**: read and write project state. Nineteen executables plus three
-  shared libraries.
+- **Purpose**: read and write project state. Twenty executables plus three shared
+  libraries.
 - **Owns**: every write to a canonical store, every computed number the standup
   prints, and the argument contract those calls are made through.
 - **Doesn't own**: what to do next. The `SKILL.md` files decide; these tools
@@ -67,7 +67,7 @@ there is no cross-project registry).
 - **Module document**: [`bin/ARCHITECTURE.md`](bin/ARCHITECTURE.md)
 
 ### `viewer/parsers.py` — the one reader
-- **Purpose**: parse every state file. 4,861 lines, one implementation.
+- **Purpose**: parse every state file. 5,228 lines, one implementation.
 - **Owns**: `BOARD.md`, `OKR.md`, phase, linkage, config and architecture
   parsing; the project-root and state-root resolution both `bin/` and the skill
   read through.
@@ -75,7 +75,7 @@ there is no cross-project registry).
   shipped twice; `NN-1` below is that rule.
 
 ### `schema/` — the declared shape
-- **Purpose**: `state-schema.json` (103KB) declares every file, heading, table,
+- **Purpose**: `state-schema.json` (107KB) declares every file, heading, table,
   enum, store and claim. Seven contract pages publish the payloads outside
   consumers read.
 - **Owns**: what a file must look like, and what a payload promises.
@@ -95,7 +95,7 @@ there is no cross-project registry).
   tier-1 reference pages loaded on demand, and the scaffolds a new project gets.
 - **Owns**: per-project variation. A track's mode, a pack's glossary.
 
-### `tests/` — 125 modules
+### `tests/` — 136 modules
 - **Purpose**: the contract, executable. Includes `tests/tree_guard.py`, which
   fails the suite if a run changed the checkout it ran in.
 - **Owns**: whether a claim in this repository is true.
@@ -110,12 +110,12 @@ there is no cross-project registry).
 flowchart TD
     User([the one human]) -->|reads, decides| Lanes
     Lanes["SKILL.md · goals / work / decide<br/>procedure only"] -->|invokes| Bin
-    Bin["bin/ — 19 tools<br/>compute and write"] -->|imports| Parsers["viewer/parsers.py<br/>the one reader"]
+    Bin["bin/ — 20 tools<br/>compute and write"] -->|imports| Parsers["viewer/parsers.py<br/>the one reader"]
     Bin -->|imports| Lib["bin/lib · perry_store · perry_md_store"]
     Bin -->|validates against| Schema["schema/state-schema.json"]
     Parsers -->|reads| State[("perry/ · .perry/<br/>stores and projections")]
     Bin -->|writes| State
-    Tests["tests/ — 125 modules"] -.asserts.-> Bin
+    Tests["tests/ — 136 modules"] -.asserts.-> Bin
     Tests -.asserts.-> Parsers
     Tests -.asserts.-> Schema
     Outside([aiMark and other consumers]) -->|published payloads| Contracts["schema/*-contract.md"]
@@ -152,9 +152,10 @@ flowchart LR
     D -.->|"(3) and (4) may fail alone<br/>— reported, not silent"| E
 ```
 
-Seven stores exist, one verdict line each in `perry-lint`'s census:
-`tasks.jsonl`, `risks.jsonl`, `intake.jsonl`, `asks.jsonl`, `okr.jsonl`,
-`linkage.jsonl`, `.perry/config.jsonl`.
+Eight stores exist, one verdict line each in `perry-lint`'s census:
+`tasks.jsonl`, `risks.jsonl`, `intake.jsonl`, `asks.jsonl`, `cadence.jsonl`,
+`okr.jsonl`, `linkage.jsonl`, `.perry/config.jsonl`. `cadence.jsonl` is the
+newest (TASK-237 deliverable 3b).
 
 The read path is the mirror image and has one entry point:
 
@@ -164,7 +165,7 @@ flowchart LR
     P --> S["perry-state"]
     S -->|"--compact ≈ 11KB"| Standup["the standup, every session"]
     S -->|"--section &lt;name&gt;"| Detail["one key, in full"]
-    S -->|"--json ≈ 259KB"| Whole["the whole payload"]
+    S -->|"--json ≈ 174KB"| Whole["the whole payload"]
     T["perry-task list --json"] -->|"contract 2.0, bounded"| Outside([aiMark])
 ```
 
@@ -269,6 +270,15 @@ flowchart LR
 
 ## §8. Change log
 
+- 2026-09-14 · v1 · Descriptive refresh, measured on main:
+  - §2 and the §3 diagram: 20 executables, `parsers.py` 5,228 lines, schema
+    107KB, 136 test modules (the last full run).
+  - §4: eight stores, with `cadence.jsonl` added, and `--json` ≈ 174KB.
+  - **Not changed here:** §5 still says `perry-task list` is **2.0**, while the
+    live contract has been **2.1** since TASK-237 3a. A §5 contract version is
+    the user's to change (NN-6).
+  - `BOARD.md` still appears in §2, §4 and §6 because the file still exists.
+    Its deletion (TASK-237 3c) rewrites those lines.
 - 2026-09-09 · v1 · Initial architecture document, written while Perry's own
   `--section architecture` still reported `exists: false`. Driver: the user's
   request for a bidirectional structure channel, and `DESIGN-016`'s finding that

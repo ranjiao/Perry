@@ -195,18 +195,15 @@ Perry 当前**没有自动接管或迁移路径**。`/perry adopt` 现在不是�
 
 mode 改变的是这些：什么东西能让这一段收尾；日期是硬约束还是参考；用什么控节奏（`project` 用优先级，`pipeline` 用每个 stage 的在制上限，`queue` 用积压量和等待时长，`inquiry` 用同时开着的问题数上限）；triage 第一个问什么；以及你结掉一件事时 Perry 默认要求多少证据。非 `project` 的三种还会给板子加一列 `Stage`，和 `Status` 并存 —— `Stage` 说这件东西走到本条 track 的第几步，`Status` 说它是卡住了还是做完了。
 
-mode 声明在 `.perry/config.md` 里，一张叫 track register 的表：
+mode 通过 `perry-config` 声明，写进 `.perry/config.jsonl` 里的 track register：
 
-```markdown
-## Tracks
-
-| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
-|---|---|---|---|---|---|---|---|
-| blog | pipeline | commitments | brief→draft→review→approved→published | review:2 | 5d | 2026-W34 | V5 |
-| ops | queue | commitments | new→triaged→in_progress→resolved | — | 1d | monthly | V2 |
+```bash
+perry-config track blog --mode pipeline --spine commitments --stages "brief→draft→review→approved→published" --wip review:2 --sla 5d --cycle 2026-W34 --default-rung V5
+perry-config track ops  --mode queue --spine commitments --stages "new→triaged→in_progress→resolved" --sla 1d --cycle monthly --default-rung V2
+perry-config show        # 列出所有设置和所有 track
 ```
 
-一个项目可以同时跑几条 track，各走各的 mode —— 一条 `pipeline` 管客户交付，旁边一条 `queue` 给它供料。没有 `## Tracks` 这一节的项目，等于有一条隐含的 track 叫 `main`、mode 是 `project`，行为和没有 mode 这套东西之前一模一样。这是特意保证的：你已有的东西不会因为这个功能而变。
+一个项目可以同时跑几条 track，各走各的 mode —— 一条 `pipeline` 管客户交付，旁边一条 `queue` 给它供料。没有声明任何 track 的项目，等于有一条隐含的 track 叫 `main`、mode 是 `project`，行为和没有 mode 这套东西之前一模一样。这是特意保证的：你已有的东西不会因为这个功能而变。
 
 `Default rung` 是「算完成之前要拿出多少证据」：`V2` 一次结构检查，`V3` 一次可复现的运行，`V4` 一个不知前情的 reviewer 对着写好的验收标准过一遍，`V5` 一个具名的人签字。你结掉一件事时，Perry 会按 mode 的默认值预选。**这个版本只是报告，不会拦你。**
 
@@ -230,12 +227,13 @@ mode 声明在 `.perry/config.md` 里，一张叫 track register 的表：
 
 ## Perry 会在你项目里写什么
 
-全是普通 markdown，全归你：
+普通 markdown 加几份 JSONL 记录，全归你：
 
 ```
 your-project/
-├── .perry/config.md        你的设置（语言、仓库布局、tracks）
+├── .perry/config.jsonl     你的设置（语言、仓库布局、tracks）
 ├── perry/                  ← 默认下面这些都放在这里
+│   ├── *.jsonl             记录本身：任务、问询、风险、例行节奏、OKR、关联
 │   ├── OKR.md              总体目标
 │   ├── phase/              当前阶段 + 历史快照
 │   ├── BOARD.md            此刻的开放任务

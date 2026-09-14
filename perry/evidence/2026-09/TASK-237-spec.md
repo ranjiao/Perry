@@ -638,3 +638,20 @@ same day: `perry-config set --root <empty dir> "Document language" English` exit
 - The suite.
 
 3c is unchanged.
+
+### 3c addition 2026-09-14: root documents a deletion rewrites
+
+A root-document audit on 2026-09-14 corrected what was already false (commit
+below) and left, on purpose, every line that is true while `BOARD.md` exists.
+3c rewrites these when it deletes the file:
+- `AGENTS.md`: "Do not derive a dashboard by eyeballing `perry/BOARD.md`" and
+  "do not hand-edit `BOARD.md`".
+- `ARCHITECTURE.md`:
+  - §2 `viewer/parsers.py` "Owns: `BOARD.md`, `OKR.md` …";
+  - §4 the write diagram's "BOARD.md re-rendered from the record";
+  - §6 NN-2's projection wording.
+- `README.md` and `README_cn.md`: the file tree's `BOARD.md` line.
+- `SKILL.md`: the lane ownership table's `BOARD.md (incl. ## Intake, ## Cadence)`.
+
+`SKILL.md`'s five `.perry/config.md` mentions belong to the running 3b′ (start
+docs). The PMO sweeps any left over after 3b′ merges.
