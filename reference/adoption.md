@@ -270,7 +270,7 @@ Write in dependency order, each through its owning subcommand:
 | `objective`, `kr` | `OKR.md` | `/perry goals init` |
 | `phase`, phase KRs | `phase/001-<slug>.md` + `linkage.jsonl` | `/perry goals plan-phase` |
 | `design` | `design/<ID>-<slug>.md` | `/perry decide new` |
-| `task` | `BOARD.md` + journal | `/perry work add-task` |
+| `task` | `tasks.jsonl` + journal | `/perry work add-task` |
 | — | linkage `tasks[]` edges | `/perry goals link` (from the cluster→KR map) |
 | `decision` | `decisions/ADR-NNN-*.md` | `/perry decide adr` |
 | `knowledge` | `knowledge/<topic>/` | `/perry work digest` |

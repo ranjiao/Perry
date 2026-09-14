@@ -12,8 +12,8 @@ Twenty executables (the index `perry` included) and three libraries. Everything 
 is computed here, and every write to a canonical file goes through here.
 
 The rule the directory exists to enforce: **a number Perry reports must be
-computed, never eyeballed.** An agent that opens `BOARD.md` and counts blocked
-rows is right most of the time, and the times it is wrong are invisible.
+computed, never eyeballed.** An agent that reads `perry-tasks board` and counts
+blocked rows is right most of the time, and the times it is wrong are invisible.
 
 It does not decide what to do. It does not call a model, with one named
 exception. It does not judge what a document means.
@@ -50,7 +50,7 @@ flowchart TD
 | Module | Lines | What it holds |
 |---|---|---|
 | `lib/__init__.py` | 2,169 | primitives every tool needs: the project-root resolver, the argument parser driven by a `SURFACE` declaration, the project lock, atomic writes, the schema loader, KR progress |
-| `perry_store.py` | 2,237 | the record shape, the renderer for `BOARD.md` and its four registers, and the store-only board render behind `perry-tasks board` |
+| `perry_store.py` | 2,237 | the record shape, the store-only board render behind `perry-tasks board`, and the renderer and `--from-board` importers for a `BOARD.md` a project still holds |
 | `perry_md_store.py` | 1,806 | the same pair for documents keyed by heading — `OKR.md` today |
 
 ### The one tool that reaches outside
@@ -120,7 +120,9 @@ risks, intake, asks, cadence), plus `board`, which prints all of them without
 reading `BOARD.md`, and the
 register is a parameter: `--register risks` is `risks-build`. The register list
 is read from `schema/state-schema.json § claims` — the `work`-owned stores — so
-a fifth store gets the verbs without an edit here.
+a fifth store gets the verbs without an edit here. `render`, `diff` and `verify`
+act on a `BOARD.md` a project still holds and refuse where there is none; no
+command creates one (TASK-237 3c).
 
 ### Exit codes
 `0` read or written · `1` refused, reason printed · `2` bad invocation ·
@@ -173,6 +175,10 @@ a fifth store gets the verbs without an edit here.
 
 ## §8. Change log
 
+- 2026-09-14 · v1 · TASK-237 3c: this repository holds no `BOARD.md`. §1 names
+  `perry-tasks board` as the board a reader counts from; §2's `perry_store.py`
+  row and §5's registers say the render, diff and verify verbs act only on a
+  board a project still holds.
 - 2026-09-14 · v1 · Descriptive refresh, measured on main:
   - 20 executables;
   - `perry-task` 31 subcommands, `perry-tasks` 22 (five registers, with

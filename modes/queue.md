@@ -12,16 +12,16 @@ Carries rules rather than references.
 | Slot | Value | Where it is written |
 |---|---|---|
 | **Ends when** | It doesn't. Steady state, reviewed on a period | — |
-| **Unit that gets an ID** | The request — or the incident | `BOARD.md` row |
+| **Unit that gets an ID** | The request — or the incident | the task record (`tasks.jsonl`) |
 | **Spine** | `OKR.md § Commitments` — standing promises + an SLA. No objectives cascade | Written by the **goals** lane |
-| **Horizon** | A review period, which reports rather than closes | `.perry/config.md § Tracks` → `Cycle` |
+| **Horizon** | A review period, which reports rather than closes | track register (`.perry/config.jsonl`) → `Cycle` |
 | **Calendar** | **Binding** — arrival date + SLA. Same meaning as `modes/pipeline.md § What "binding" does and does not mean`; read it there, it is one argument for both modes | — |
-| **Item states** | `Status` (the global enum, unchanged) and `Stage` — default `new → triaged → in_progress → resolved` | `BOARD.md` → `Status`, `Stage` |
-| **Arrival** | The date it came in, carried from intake and **never lost** | `BOARD.md` → `Arrived` |
-| **SLA** | Response/turnaround time. **No default** — a track without it cannot run the breach step, and triage reports that rather than skipping it | `.perry/config.md § Tracks` → `SLA` |
+| **Item states** | `Status` (the global enum, unchanged) and `Stage` — default `new → triaged → in_progress → resolved` | task record → `Status`, `Stage` |
+| **Arrival** | The date it came in, carried from intake and **never lost** | task record → `Arrived` |
+| **SLA** | Response/turnaround time. **No default** — a track without it cannot run the breach step, and triage reports that rather than skipping it | track register (`.perry/config.jsonl`) → `SLA` |
 | **WIP control** | Depth (from `Status` + `Track`) and age (from `Arrived`). **No cap** — see below | — |
 | **Triage asks** | What breached SLA, what recurs, what should become a runbook? | — |
-| **Default rung** | **V2** + a resolution note. Overridable per track (`Tracks` → `Default rung`) and per row | `BOARD.md` → `Verification` |
+| **Default rung** | **V2** + a resolution note. Overridable per track (`Tracks` → `Default rung`) and per row | task record → `Verification` |
 | **Signature failure** | The board shows intentions while the real work arrives and completes in chat | — |
 
 `Status` and `Stage` are orthogonal here for the same reason as in pipeline
@@ -30,7 +30,7 @@ track's vocabulary. See `modes/pipeline.md § Status and Stage are orthogonal, a
 
 ## Declaring a queue track — ask for the SLA, never default it
 
-**Whoever writes a `queue` row into `.perry/config.md § Tracks` asks for the
+**Whoever declares a `queue` track (`perry-config track`) asks for the
 `SLA` in the same breath.** That is first-time setup, `/perry adopt`, and any
 agent proposing a track register. One `AskUserQuestion`, before the row is
 written; a row is not written with the cell left blank and filled in later.
@@ -169,7 +169,7 @@ what triage sorts and compares. `By when note` is prose and says what was
 promised in the words it was promised in ("within the track SLA", "same
 business day"); **nothing validates it, and no regex asks it anything**
 (ADR-007, rule 2). The number triage actually measures against still lives
-once, in `.perry/config.md § Tracks` → `SLA`. Writing "5 working days" into the
+once, in the track register (`.perry/config.jsonl`) → `SLA`. Writing "5 working days" into the
 note as well is how the same value ends up in two places disagreeing about
 whether days are calendar or working. **`5d` means five calendar days.**
 
@@ -195,7 +195,8 @@ period starts.
 Most queue work is not novel. Month-end close, the weekly report, the quarterly
 access review and the daily backup check are the same object: a thing that
 repeats on a trigger, has an owner, has a procedure, has a last-run and a
-next-due. `BOARD.md § Cadence` is that register, and it already exists:
+next-due. That register is `cadence.jsonl` (TASK-237 3b), and `perry-tasks
+board` prints it as the board's `## Cadence` section, in this shape:
 
 ```markdown
 ## Cadence (recurring; doesn't consume P0 slots)
@@ -331,7 +332,7 @@ Ordered:
    same three: a procedure that reads two of them is a procedure with a blind
    spot, not a shorter one.
 
-**The review period** is the track's `Cycle` cell (`.perry/config.md § Tracks`)
+**The review period** is the track's `Cycle` (`.perry/config.jsonl`, `perry-config track`)
 — `monthly`, `2026-W34`, whatever fits. It reports throughput, breaches and
 depth trend, and then the next period starts. Nothing closes.
 

@@ -1,8 +1,8 @@
 # `bin/` — the deterministic tools
 
 Everything in this folder exists for one reason: **a number Perry reports must be
-computed, never eyeballed.** An agent that opens `BOARD.md` and counts the blocked
-rows will get it right most of the time, and the times it doesn't are invisible.
+computed, never eyeballed.** An agent that reads `perry-tasks board` and counts the
+blocked rows will get it right most of the time, and the times it doesn't are invisible.
 A script that counts them is either right or broken loudly.
 
 So the division of labour is: **the SKILL.md files decide what to do, these tools
@@ -40,7 +40,7 @@ statements it was fixing.
 | [`perry`](perry) | read | The index: `list`, `describe <tool> [<sub>]`, and forwarding. Holds no list of its own — every line comes from a tool's own `SURFACE`. |
 | [`perry-state`](perry-state) | read | The single full read of a project's state — board, phase, OKR, design, attribution. Every standup number comes from here. |
 | [`perry-task`](perry-task) | **write** | The one deterministic way board state changes: add / start / stage / status / done / drop, plus the intake queue, the user-input queue and the recurrence register. |
-| [`perry-tasks`](perry-tasks) | **write** + read | The task STORE (`perry/tasks.jsonl`) and the projection of it: `build` / `verify` derive and check it, `write` migrates a project onto it, `render` / `diff` regenerate `BOARD.md` from it and byte-compare. ADR-007's first slice; `perry-task` is what writes the store on every ordinary command. Four of the same verbs, prefixed `risks-`, reach the **risks register** (`BOARD.md § Top risks`, TASK-040): `risks-build` derives, `risks-diff` byte-compares, `risks-render --write` puts the section back in line with the store, and `risks-write --from-board` is the one-way import that mints `risks.jsonl` for a project that has none. The import refuses unless `risks.jsonl` is declared in `schema/state-schema.json § claims`, unless `## Top risks` is a table it can read, and unless the records it derived render that section back byte for byte. Four more, prefixed `intake-`, reach the **intake register** (`BOARD.md § Intake`, TASK-196), whose store keys on `order` — the row's position — because an intake row has no id and `perry-task resolve-intake <n>` addresses it by one. The byte gate is run there too and cannot fail (nothing collapses two lines into one record), so the load-bearing check is the one beside it: the store and `Board.section_rows` must count the section's rows identically, or one integer has two meanings.  Four more, prefixed `asks-`, reach the **ask register** (`BOARD.md § User Input Queue`, TASK-197), keyed on the `USER-` id. Four more, prefixed `cadence-`, reach the **cadence register** (`BOARD.md § Cadence`, TASK-237 deliverable 3b), keyed on the `CAD-` id, with every cell stored as written — prose in `Next due` and aperiodic frequencies included. **Since DESIGN-016 C5 the prefix is a parameter**: `perry-tasks build --register risks` is `risks-build`, the register names come from the `work`-owned stores in `schema/state-schema.json § claims`, and the sixteen prefixed names stay as aliases for one release. **`board`** (TASK-237) prints the whole board to stdout from the five stores, `.perry/config.jsonl`, `schema/state-schema.json § files[id=board]` and `work/state/BOARD_TEMPLATE.md`, and never reads `BOARD.md`; every layout choice those leave open is `bin/perry_store.py § DECLARED_BOARD_CHOICES`.|
+| [`perry-tasks`](perry-tasks) | **write** + read | The task STORE (`perry/tasks.jsonl`) and the projection of it: `build` / `verify` derive and check it, `write` migrates a project onto it, `render` / `diff` regenerate a `BOARD.md` a project still holds from it and byte-compare — they refuse where there is none, and no command creates one (TASK-237 3c). ADR-007's first slice; `perry-task` is what writes the store on every ordinary command. Four of the same verbs, prefixed `risks-`, reach the **risks register** (`BOARD.md § Top risks`, TASK-040): `risks-build` derives, `risks-diff` byte-compares, `risks-render --write` puts the section back in line with the store, and `risks-write --from-board` is the one-way import that mints `risks.jsonl` for a project that has none. The import refuses unless `risks.jsonl` is declared in `schema/state-schema.json § claims`, unless `## Top risks` is a table it can read, and unless the records it derived render that section back byte for byte. Four more, prefixed `intake-`, reach the **intake register** (`BOARD.md § Intake`, TASK-196), whose store keys on `order` — the row's position — because an intake row has no id and `perry-task resolve-intake <n>` addresses it by one. The byte gate is run there too and cannot fail (nothing collapses two lines into one record), so the load-bearing check is the one beside it: the store and `Board.section_rows` must count the section's rows identically, or one integer has two meanings.  Four more, prefixed `asks-`, reach the **ask register** (`BOARD.md § User Input Queue`, TASK-197), keyed on the `USER-` id. Four more, prefixed `cadence-`, reach the **cadence register** (`BOARD.md § Cadence`, TASK-237 deliverable 3b), keyed on the `CAD-` id, with every cell stored as written — prose in `Next due` and aperiodic frequencies included. **Since DESIGN-016 C5 the prefix is a parameter**: `perry-tasks build --register risks` is `risks-build`, the register names come from the `work`-owned stores in `schema/state-schema.json § claims`, and the sixteen prefixed names stay as aliases for one release. **`board`** (TASK-237) prints the whole board to stdout from the five stores, `.perry/config.jsonl`, `schema/state-schema.json § files[id=board]` and `work/state/BOARD_TEMPLATE.md`, and never reads `BOARD.md`; every layout choice those leave open is `bin/perry_store.py § DECLARED_BOARD_CHOICES`.|
 | [`perry-goals`](perry-goals) | **write** + read | Goals reshaped for a front-end — objectives, and a flat array of every KR with its level and progress. Two write paths, both in place: `commit` edits `OKR.md § Commitments` and writes the OKR store the file is now a projection of; `link` appends to `linkage.jsonl` — a task→KR edge, an alias, a declared-unlinked task, a new Project — refusing any attribution that does not resolve to exactly one KR. `krs` is the read-only render of the phase's key results from that store — TASK-157 removed the KR table from `phase/<NNN>-<slug>.md`, where the same four facts were written a second time by hand. |
 | [`perry-okr`](perry-okr) | **write** + read | The OKR STORE (`okr.jsonl`, beside `OKR.md` in the state root) and the projection of it, in `perry-tasks`' shape: `build` / `verify` derive and check it, `write --from-file` migrates a project onto it, `render` / `diff` regenerate `OKR.md` and byte-compare, and `migrate-ids` mints the `O-<n>` Objective ids into the store alone — no `OKR.md` byte moves (DESIGN-009 step 3, TASK-183). ADR-007's second slice (TASK-092). |
 | [`perry-config`](perry-config) | **write** + read | `show` / `set` / `unset` / `track` / `untrack` over `.perry/config.jsonl` — the project's settings and its track register. **ADR-019 (2026-09-08) deleted `.perry/config.md`**, so there is no projection here any more and no `build` / `render` / `write` / `diff`: this is a settings editor over one store. `track <name> --mode queue --wip 6 …` is how a track is declared, and the field flags come from the same table the writer reads. |
@@ -160,7 +160,8 @@ never defined anywhere.
 Exit `0` even on a folder that has never heard of Perry — `installed: false` says
 so in the payload. A field the payload does not carry prints as `—`; do not
 substitute a guess. On a non-zero exit, say so in one line and fall back to
-reading `BOARD.md` and `OKR.md` directly.
+`perry-task list --json` for the tasks, asks and risks, and to `OKR.md` for the
+goals. There is no `BOARD.md` to read; `perry-tasks board` prints one for a person.
 
 Attribution is strict on purpose: a task resolves to a KR only by exact Project ID,
 exact current name, or registered alias. Anything else lands in `attribution.unlinked`,
@@ -188,8 +189,9 @@ exists, and a block that invents one would be teaching a call that refuses.
 Each mutating call replaces `tasks.jsonl` and the journal `## Status changes`
 line through a durable transaction marker. The two renames are not one atomic
 operation: an ordinary failure rolls the pair back, while a crash is completed
-on the next Perry command under the project lock. `BOARD.md` is then rendered
-from the store with `perry-tasks render --write` as the recovery command, and an
+on the next Perry command under the project lock. A `BOARD.md` the project
+still holds is then re-rendered from the store (`perry-tasks render --write` is
+its recovery command; no command creates one), and an
 event is appended to `.perry/events.jsonl`. Those two derived writes may fail
 alone and are reported. `.perry/events.jsonl` is derived and disposable; delete
 it and Perry still works.
@@ -374,7 +376,7 @@ Every mutating call writes four things, and only the first two are canonical:
 
   1. the task RECORD, in perry/tasks.jsonl — what the fields mean
   2. the `## Status changes` line in journal/<YYYY-MM>/<today>.md
-  3. `BOARD.md`, RE-RENDERED from (1)
+  3. `BOARD.md`, RE-RENDERED from (1) — only where the project still holds one; none is created (TASK-237 3c)
   4. one JSON object appended to .perry/events.jsonl
 
 **(1) and (2) are one recoverable transaction.** A durable marker is written
@@ -559,6 +561,12 @@ perry-tasks build   [--root <p>]        derive the store; write nothing
     perry-tasks write   [--root <p>] --from-board  the board → the store
     perry-tasks diff    [--root <p>]        render and byte-compare with the file
     perry-tasks board   [--root <p>]        the whole board from the stores; never reads BOARD.md
+
+`board` is how a person reads the board; a program reads `perry-task list
+--json`. `render`, `diff` and `verify` — and each register's `-render` and
+`-diff` below — act on a `BOARD.md` a project still holds: with none they
+refuse, and no command creates one (TASK-237 3c). `build` and `write
+--from-board` are the import for such a project.
 
 Four of the same verbs reach the **risks register** — ADR-007 again,
 `perry/risks.jsonl` against `BOARD.md § Top risks` (TASK-040):

@@ -12,7 +12,7 @@ If the user declines, stop. If the user accepts, follow this procedure.
 
 ## Procedure
 
-0. **Write `.perry/config.jsonl` first, when it does not exist.** Before any markdown: `BOARD.md` and `PROJECT_STATE.md` alone do not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so a bootstrap that wrote only those would be offered again on every session. If top-level `/perry` first-time setup has not run, ask its preference questions (`$PERRY_HOME/SKILL.md § First-time setup` step 3) and write the answers with the tool:
+0. **Write `.perry/config.jsonl` first, when it does not exist.** Before any markdown: `PROJECT_STATE.md` and the other markdown alone do not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so a bootstrap that wrote only those would be offered again on every session. If top-level `/perry` first-time setup has not run, ask its preference questions (`$PERRY_HOME/SKILL.md § First-time setup` step 3) and write the answers with the tool:
 
    ```
    "$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"
@@ -25,8 +25,8 @@ If the user declines, stop. If the user accepts, follow this procedure.
 
 1. **Detect project metadata** — folder name, README, any roadmap-looking markdown, git repo URL. These populate template placeholders.
 
-2. **Create state files at the project root**:
-   - `BOARD.md` (from `state/BOARD_TEMPLATE.md`, empty tables)
+2. **Create state files under the state root** — the `State root` step 0 wrote (`perry` is what setup writes); only `.perry/` sits at the project root:
+   - **no `BOARD.md`.** The board is what `"$PERRY_HOME/bin/perry-tasks" board` prints from the stores (TASK-237 3c), and the first `perry-task` write creates the store it needs. This step used to write the board at the project root, beside `.perry/` and outside the state root step 0 had just declared.
    - `PROJECT_STATE.md` (from template)
    - **not** `decisions/` — that belongs to the `decide` lane (`$PERRY_HOME/SKILL.md § The hand-off contract`). `decide`'s own bootstrap creates it, including the ADR that records the bootstrap event. Two lanes writing one record was the state this contract exists to end.
    - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `inputs/`, `knowledge/` — **not** `decisions/` and **not** `design/`, for the reason in the bullet above: both belong to `decide`, and `decide`'s own bootstrap creates them. This list used to contain both, three lines under the sentence forbidding one of them.

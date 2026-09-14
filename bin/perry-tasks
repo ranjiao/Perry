@@ -1852,8 +1852,9 @@ def registers() -> dict[str, str]:
 SURFACE = {
     "name": "perry-tasks",
     "kind": "write",
-    "summary": "the task store and the three registers beside it, and the "
-               "projection of each",
+    "summary": "the task store and the four registers beside it: the whole "
+               "board printed from them, and the import from and render onto "
+               "a BOARD.md a project still holds",
     "root_resolution": "standard",
     "exit_codes": {"0": "read, or written", "1": "refused, or drifted",
                    "2": "bad invocation, or nothing usable to compare"},

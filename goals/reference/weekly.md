@@ -23,7 +23,7 @@ Loaded when `/okr plan-week` fires. The most-used OKR subcommand, and the one pl
 
    **If 5 candidates**: use `AskUserQuestion` (single-select, header `"Subset"`) with options `Approve all 5 | Pick subset (Recommended) | Edit before approving | Skip this week`. If "Pick subset", follow up with a free-text "which IDs to include?" prompt.
 
-5. On approval, **hand off to PMO**: print the exact task block list. PMO `add-task` writes the BOARD row and the journal definition. OKR never writes `BOARD.md` or `journal/` directly.
+5. On approval, **hand off to PMO**: print the exact task block list. PMO `add-task` writes the task record and the journal definition. OKR never writes `tasks.jsonl` or `journal/` directly.
 
 6. Update the current week's row in `phase/<NNN>-<slug>.md` with the chosen TASK-IDs.
 

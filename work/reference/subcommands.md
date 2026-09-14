@@ -5,7 +5,7 @@ The standup ritual + dispatch + delegate live in SKILL.md / `dispatch.md` / `del
 ## Planning
 
 ### `plan-week`
-Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `BOARD.md` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user. **Both halves of that go through the tool** — `"$PERRY_HOME/bin/perry-task" add --priority P0` for a new row, `"$PERRY_HOME/bin/perry-task" prioritize <ID> --priority P0 [--reason "…"]` to move an existing one, which keeps its id and every cell. This line used to say the second was "still a hand edit" because "the tool has no `priority` subcommand yet"; `prioritize` closed that, and a procedure that keeps teaching the hand path after the tool path exists is how a row acquires a post-tool edit for no reason. Writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes` — prose, and the one part of this that is genuinely yours. Drafts the week's row in `weekly/<YYYY-WW>.md`.
+Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `perry-task list --json` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user. **Both halves of that go through the tool** — `"$PERRY_HOME/bin/perry-task" add --priority P0` for a new row, `"$PERRY_HOME/bin/perry-task" prioritize <ID> --priority P0 [--reason "…"]` to move an existing one, which keeps its id and every cell. This line used to say the second was "still a hand edit" because "the tool has no `priority` subcommand yet"; `prioritize` closed that, and a procedure that keeps teaching the hand path after the tool path exists is how a row acquires a post-tool edit for no reason. Writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes` — prose, and the one part of this that is genuinely yours. Drafts the week's row in `weekly/<YYYY-WW>.md`.
 
 ### `triage`
 
@@ -375,30 +375,30 @@ cadence lists do:
 
 **Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`); `inquiry` leads with open questions against the cap, then **`perry-lint --provenance`** — a dangling source id outranks everything else in that mode's list (`modes/inquiry.md`). Read the mode file for any track you are triaging.
 
-Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Apply each accepted suggestion through the subcommand that owns it — `perry-task stage` / `status` / `drop` — which writes the board row and the journal line together. Do **not** then update `BOARD.md` or write a `## Status changes` block yourself: the tool already wrote both, and doing it again duplicates the journal line and leaves a post-tool board edit that `unrecorded` will report. Anything the triage decided that is *not* a transition — a rewritten Next action, a note on why a row survives — goes in today's `## Notes`.
+Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Apply each accepted suggestion through the subcommand that owns it — `perry-task stage` / `status` / `drop` — which writes the board row and the journal line together. Do **not** then edit a store or write a `## Status changes` block yourself: the tool already wrote both, and doing it again duplicates the journal line and leaves a post-tool board edit that `unrecorded` will report. Anything the triage decided that is *not* a transition — a rewritten Next action, a note on why a row survives — goes in today's `## Notes`.
 
 If `BOARD.md` is over the 200-line cap, triage MUST propose specific cuts before exiting.
 
 ## Cadence (recurring; never consume P0 slots)
 
 ### `status` (a.k.a. `friday-review`)
-This week's PMO status report using the format in `reporting-format.md`. Reads `BOARD.md` + this week's journal entries. Save to `weekly/<YYYY-WW>.md`.
+This week's PMO status report using the format in `reporting-format.md`. Reads `perry-task list --json` + this week's journal entries. Save to `weekly/<YYYY-WW>.md`.
 
 ### `monday-plan`
-Run at start of week. Reads `BOARD.md` + last week's `weekly/<YYYY-WW>.md` if any. Output: priorities, P0 set, blockers needing user input, scope cuts. Append to current week's `weekly/` file AND write a `## Notes` entry in today's journal.
+Run at start of week. Reads `perry-task list --json` + last week's `weekly/<YYYY-WW>.md` if any. Output: priorities, P0 set, blockers needing user input, scope cuts. Append to current week's `weekly/` file AND write a `## Notes` entry in today's journal.
 
 ### `midweek-check`
-Mid-week pulse. Reads `BOARD.md` + journal entries since Monday. Output: P0 movement check, blocker escalations, cost-ceiling progress, tests/verification reminders. Write to today's journal.
+Mid-week pulse. Reads `perry-task list --json` + journal entries since Monday. Output: P0 movement check, blocker escalations, cost-ceiling progress, tests/verification reminders. Write to today's journal.
 
 ### `mid-phase-review`
-Triggered manually (or surfaced by the standup when ≥40–60% of phase day budget elapsed). Reads `BOARD.md` + journal entries since the current phase started (resolve start date from the phase file header). Mark each Objective `on_track | at_risk | off_track` based on KR progress. Apply any **Phase Scope Reduction Rule** declared in `phase/<NNN>-<slug>.md`. Recommend scope cuts. Save to `evidence/<YYYY-MM>/midphase-review-<NNN>-<slug>.md`.
+Triggered manually (or surfaced by the standup when ≥40–60% of phase day budget elapsed). Reads `perry-task list --json` + journal entries since the current phase started (resolve start date from the phase file header). Mark each Objective `on_track | at_risk | off_track` based on KR progress. Apply any **Phase Scope Reduction Rule** declared in `phase/<NNN>-<slug>.md`. Recommend scope cuts. Save to `evidence/<YYYY-MM>/midphase-review-<NNN>-<slug>.md`.
 
 **Inline health-check** (added to mid-phase-review): run `/pmo health-check` (see `reference/health-check.md`) and fold its findings — audit violations, runbook gaps, incident patterns — into the mid-phase-review report. The detailed report lives at `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`; the mid-phase-review summarises the top decision items inline.
 
-**Digest archive review** (added to mid-phase-review): if `knowledge/` exists, scan for active digests with no reference in `BOARD.md` / `journal/` / `evidence/` / `decisions/` / `phase/` for ≥ `archive_inactive_days` days (default 90; override per-project hook). For each candidate, use `AskUserQuestion` (header = digest basename, options): `Archive (Recommended) | Keep active — still relevant | Mark eternal — never propose archive | Delete entirely`. On Archive: flip `Status: archived` in the digest header + record `Archived: <date> (reason: <user input>)`. On Eternal: flip `Status: eternal`. On Delete: `git rm` source + digest. Update `knowledge/INDEX.md`. See `work/reference/digests.md § Archive lifecycle` for full detail. (Note: `health-check` already includes the digest stale scan; running it here is the same scan, surfaced for the user to act on.)
+**Digest archive review** (added to mid-phase-review): if `knowledge/` exists, scan for active digests with no reference in the task store / `journal/` / `evidence/` / `decisions/` / `phase/` for ≥ `archive_inactive_days` days (default 90; override per-project hook). For each candidate, use `AskUserQuestion` (header = digest basename, options): `Archive (Recommended) | Keep active — still relevant | Mark eternal — never propose archive | Delete entirely`. On Archive: flip `Status: archived` in the digest header + record `Archived: <date> (reason: <user input>)`. On Eternal: flip `Status: eternal`. On Delete: `git rm` source + digest. Update `knowledge/INDEX.md`. See `work/reference/digests.md § Archive lifecycle` for full detail. (Note: `health-check` already includes the digest stale scan; running it here is the same scan, surfaced for the user to act on.)
 
 ### `end-phase-retro`
-Triggered when OKR `score-phase` is about to run (or explicitly by the user). Reads `BOARD.md` + all journal entries since the current phase started + `evidence/<YYYY-MM>/` for the calendar months the phase spanned. For each KR: mark `achieved | partial | missed | dropped`, link evidence file. Capture lessons. Identify carry-over candidates. Save to `evidence/<YYYY-MM>/retro.md` (using the calendar month at scoring time). This is OKR's input for `plan-phase` of the next phase.
+Triggered when OKR `score-phase` is about to run (or explicitly by the user). Reads `perry-task list --all --json` + all journal entries since the current phase started + `evidence/<YYYY-MM>/` for the calendar months the phase spanned. For each KR: mark `achieved | partial | missed | dropped`, link evidence file. Capture lessons. Identify carry-over candidates. Save to `evidence/<YYYY-MM>/retro.md` (using the calendar month at scoring time). This is OKR's input for `plan-phase` of the next phase.
 
 **Inline health-check** (added to end-phase-retro): run `/pmo health-check` (see `reference/health-check.md`). The retro additionally folds in:
 - **Incident feedback-loop ratio**: of all incidents resolved during this phase, how many produced derived changes (architecture / runbook / digest)? A low ratio + recurring components = a structural problem worth a KR in next phase's OKR.
@@ -925,21 +925,21 @@ Generate the **Day-N Status doc** — a single self-contained document a future 
 3. User Input Queue with recommendations
 4. Next ISO week's day-by-day milestones
 5. Open risks with mitigations
-6. BOARD snapshot — copy the current `BOARD.md` table contents (or summarize if too long)
-7. "Read these N files first when you resume" pointer (typically: `handoff/<this-doc>.md`, `BOARD.md`, last 1–2 journal entries, `PROJECT_STATE.md`)
+6. BOARD snapshot — paste what `perry-tasks board` prints (or summarize if too long)
+7. "Read these N files first when you resume" pointer (typically: `handoff/<this-doc>.md`, `perry-tasks board`, last 1–2 journal entries, `PROJECT_STATE.md`)
 
 The first line of every PMO session after a handoff exists is: "Read `handoff/<latest>.md` and tell me your status." The handoff doc is the bridge.
 
 ## Phase transition
 
 ### `rollover`
-Runs when a phase has been scored via `okr score-phase` and the user is ready to start the next phase. With the BOARD/journal split, rollover is mostly informational — `BOARD.md` is already current; previous phase's journal entries are intact. Steps:
+Runs when a phase has been scored via `okr score-phase` and the user is ready to start the next phase. With the BOARD/journal split, rollover is mostly informational — the task store is already current; previous phase's journal entries are intact. Steps:
 
 1. Confirm `evidence/<YYYY-MM>/retro.md` exists — **this lane's own file, written by `end-phase-retro`**, not by `okr score-phase`, which hands over a summary and does not write `evidence/` (`goals/reference/phases.md` step 5). If it is absent, prompt to run `end-phase-retro`; prompting for `score-phase` cannot produce it.
 2. **Calendar-month directories** — `journal/<YYYY-MM>/` and `evidence/<YYYY-MM>/` are calendar-bound; create new month dirs only if the calendar month rolled (most rollovers do NOT need this — phases can span multiple calendar months OR fit inside one).
-3. **`BOARD.md` is left alone.** Open carry-forward tasks already live there; no "carry forward" step is needed because the board never had a phase boundary in the first place. If a row's task ID encodes a date or phase prefix, leave it untouched — it's the canonical handle.
+3. **The task store is left alone.** Open carry-forward tasks already live there; no "carry forward" step is needed because the board never had a phase boundary in the first place. If a row's task ID encodes a date or phase prefix, leave it untouched — it's the canonical handle.
 4. For each unresolved task on BOARD: **use `AskUserQuestion`** (header = TASK-ID, options = `Carry forward (Recommended) | Drop with reason`). Batch up to 4 per call. For "Drop with reason", follow up with a free-text prompt for the reason, then run `perry-task drop <ID> --reason "<reason>"` — the reason the user just gave, verbatim, not a paraphrase.
 5. Hand off to OKR: print "OKR `plan-phase <new-slug>` is needed — pick the next phase's slug." Do **not** create the new phase file yourself — that's OKR's lane.
 6. Append a `## Notes` entry to today's journal: "rollover from phase #<old-NNN>-<old-slug>; <n> rows carried; see evidence/<YYYY-MM>/retro.md".
 
-`git log -- journal/` shows the full history per day; `git log -- BOARD.md` shows the live board's evolution; `git log -- phase/` shows phase progression.
+`git log -- journal/` shows the full history per day; `git log -- tasks.jsonl` shows the task store's evolution; `git log -- phase/` shows phase progression.

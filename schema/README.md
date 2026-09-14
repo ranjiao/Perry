@@ -27,14 +27,14 @@ Plus `enums` (the canonical status / priority / owner vocabularies),
 ## `i18n` — the localization glossary
 
 A project writes its state files in the language declared by
-`.perry/config.md § Document language`, so the same board section is `## Top
+`.perry/config.jsonl § Document language`, so the same board section is `## Top
 risks` in one project and `## 主要风险` in another. `i18n` is what stops that
 from being a guessing game:
 
 - `languages` — the codes with a glossary (`en`, `zh` today).
 - `invariant` — text that stays ASCII/English in **every** language, because
   it is matched, joined or dereferenced: IDs, enum values, file names, slugs,
-  `P0`/`P1`/`P2`, dates, paths, `.perry/config.md` field names, linkage
+  `P0`/`P1`/`P2`, dates, paths, `.perry/config.jsonl` setting labels, linkage
   frontmatter.
 - `headings` / `fields` / `columns` — canonical English name → its accepted
   spellings per language.
@@ -338,7 +338,7 @@ cannot see.
 ## Where the files are
 
 Paths in `files[]` are relative to the **state root**, not necessarily the
-project root. A project declares `State root:` in `.perry/config.md` when it
+project root. A project declares `State root` in `.perry/config.jsonl` when it
 already uses a directory Perry claims (`design/` is the usual collision), and
 Perry's whole tree moves under it.
 
@@ -353,9 +353,9 @@ Two rules make this safe for every reader:
    state root that escapes the project is ignored rather than honoured — two
    readers silently pointed outside the project is worse than one ignored field.
 
-**aiMark must implement the same resolution**: read `.perry/config.md` at the
-project root, take `State root:` (default `.`), resolve everything else beneath
-it. A project whose state lives in `perry/` is otherwise invisible to it.
+**aiMark must implement the same resolution**: read `.perry/config.jsonl` at
+the project root, take the `state_root` setting (default `.`), resolve
+everything else beneath it. A project whose state lives in `perry/` is otherwise invisible to it.
 
 The related rule: **`perry-lint` judges nothing outside `.perry/` until a project
 is installed** (§ `installed` below). A folder that is not a Perry project cannot

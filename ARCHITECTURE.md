@@ -68,9 +68,11 @@ there is no cross-project registry).
 
 ### `viewer/parsers.py` — the one reader
 - **Purpose**: parse every state file. 5,228 lines, one implementation.
-- **Owns**: `BOARD.md`, `OKR.md`, phase, linkage, config and architecture
-  parsing; the project-root and state-root resolution both `bin/` and the skill
-  read through.
+- **Owns**: `OKR.md`, phase, linkage, config and architecture parsing, the
+  store readers the read payloads answer from, and the reader of a `BOARD.md` a
+  project still holds (none is written since TASK-237 3c); the project-root and
+  state-root resolution, and the `installed` predicate, both `bin/` and the
+  skill read through.
 - **Doesn't own**: writing. A second parser is the defect this repository has
   shipped twice; `NN-1` below is that rule.
 
@@ -137,7 +139,9 @@ Forbidden, and each one has cost this project something:
 ## §4. Data flow
 
 **The store is truth; the markdown is a projection of it** (`ADR-007`). Every
-mutating command writes the record first and renders the file from it.
+mutating command writes the record first. The board is not a file:
+`perry-tasks board` prints it from the stores, and a `BOARD.md` a project still
+holds is re-rendered from the record and never created (TASK-237 3c).
 
 ```mermaid
 flowchart LR
@@ -145,7 +149,7 @@ flowchart LR
         direction TB
         A["perry-task &lt;verb&gt;"] --> B["tasks.jsonl<br/>the record"]
         B --> C["journal/&lt;YYYY-MM&gt;/&lt;day&gt;.md<br/>the history line"]
-        B --> D["BOARD.md<br/>re-rendered from the record"]
+        B --> D["BOARD.md, only where a project still holds one<br/>re-rendered from the record, never created"]
         B --> E[".perry/events.jsonl<br/>derived, disposable"]
     end
     B -.->|"(1) and (2) are one<br/>recoverable transaction"| C
@@ -271,6 +275,13 @@ flowchart LR
 
 ## §8. Change log
 
+- 2026-09-14 · v1 · TASK-237 3c, measured on its branch:
+  - `perry/BOARD.md` is deleted. §2's `viewer/parsers.py` no longer owns a
+    board this repository holds; §4's write diagram and its sentence name the
+    board as re-rendered only where a project still holds one.
+  - Not edited, because NN-6 makes them the user's: §6 NN-2's projection
+    wording, and §5's `perry-task/list` version (2.1 here; the tool emits 2.3).
+    Both are proposed in `perry/evidence/2026-09/TASK-237-d3c-result.md § 5`.
 - 2026-09-14 · v1 · Descriptive refresh, measured on main:
   - §2 and the §3 diagram: 20 executables, `parsers.py` 5,228 lines, schema
     107KB, 136 test modules (the last full run).

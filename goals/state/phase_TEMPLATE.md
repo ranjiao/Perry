@@ -120,7 +120,7 @@ Choose **one or both** triggers (whichever fires first cuts scope). NO calendar-
 
 ## Week-by-week breakdown
 
-> `/perry goals plan-week` reads the row for the current ISO week, proposes tasks, and (after user approval) PMO appends them to `BOARD.md`. Fill `TASK-IDs` as the week unfolds. Weeks below are loose ISO-week labels — they do NOT bound the phase; the phase ends on `score-phase`, not when the table runs out.
+> `/perry goals plan-week` reads the row for the current ISO week, proposes tasks, and (after user approval) PMO adds them with `perry-task add`. Fill `TASK-IDs` as the week unfolds. Weeks below are loose ISO-week labels — they do NOT bound the phase; the phase ends on `score-phase`, not when the table runs out.
 
 | ISO week | Focus | Target KRs to advance | TASK-IDs (filled by `plan-week`) |
 |----------|-------|------------------------|------------------------------------|

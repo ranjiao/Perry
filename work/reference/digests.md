@@ -265,7 +265,7 @@ Files **never move on archive** — only the header field changes. Avoids breaki
 Triggered automatically inside `mid-phase-review` and `end-phase-retro` (see `subcommands.md`). PMO scans `knowledge/` for active digests matching:
 
 1. `Status: active` AND no reference to the digest path found in any of:
-   - `BOARD.md`
+   - the task store (`perry-task list --all --json`)
    - `journal/<YYYY-MM>/*.md` for last 90 days
    - `evidence/<YYYY-MM>/**.md` for last 90 days
    - `decisions/`

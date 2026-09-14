@@ -68,7 +68,7 @@ When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
 ## Companion skill
 
-Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** `work` is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, and `handoff/`. `decisions/` moved to the `decide` lane. OKR is the only writer of `OKR.md` and `phase/`.
+Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as task records (`perry-task add`) and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** `work` is the only writer of the task store, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, and `handoff/`. `decisions/` moved to the `decide` lane. OKR is the only writer of `OKR.md` and `phase/`.
 
 ## Two file models (read both first)
 

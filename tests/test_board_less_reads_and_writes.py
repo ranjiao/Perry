@@ -647,6 +647,23 @@ class TestLintOnABoardlessProject(unittest.TestCase):
                           if "store-drift" in f["rule"]
                           and not f["rule"].startswith("okr")], [])
 
+    def test_the_census_says_there_is_nothing_to_drift(self):
+        """3c: the human census used to say "comparison incomplete — drift is
+        unchecked, not clean" of every board register on a board-less project,
+        which is false. The fixture carries an event log, so the tasks check
+        reaches past its log gate and this is the board clause answering."""
+        p = Project(board=None)
+        self.addCleanup(p.close)
+        self.assertTrue((p.root / ".perry" / "events.jsonl").stat().st_size > 0)
+        out = subprocess.run([str(LINT_TOOL), "--root", str(p.root)],
+                             capture_output=True, text=True, cwd=p.tmp).stdout
+        self.assertNotIn("comparison incomplete", out)
+        for label in ("tasks store", "risks store", "intake store", "ask store"):
+            with self.subTest(store=label):
+                line = next((l for l in out.splitlines()
+                             if l.strip().startswith(f"· {label}:")), "")
+                self.assertIn("nothing to drift", line, out[-1200:])
+
     def test_the_store_counts_are_the_stores_with_no_file(self):
         p = Project(board=None)
         self.addCleanup(p.close)

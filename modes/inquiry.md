@@ -16,18 +16,18 @@ data has nowhere to live.* Nothing below is a control unless it has a column.
 | Slot | Value | Where it is written |
 |---|---|---|
 | **Ends when** | The question is answered — or abandoned, which is a real answer | — |
-| **Unit that gets an ID** | The question | `BOARD.md` row |
-| **Question tree** | The question this one was split out of; blank = a root question | `BOARD.md` → `Parent` |
-| **Spine** | The open root questions | `BOARD.md`, rows with an empty `Parent` |
+| **Unit that gets an ID** | The question | the task record (`tasks.jsonl`) |
+| **Question tree** | The question this one was split out of; blank = a root question | task record → `Parent` |
+| **Spine** | The open root questions | task records with an empty `Parent` |
 | **Horizon** | The root question. Closes when it is answered or abandoned | — |
 | **Calendar** | **Advisory.** A question is not late; it is open or it is not | — |
-| **Item states** | `Status` (global enum) and `Stage` — default `open → researching → answered` | `BOARD.md` → `Status`, `Stage` |
-| **Question clock** | How long it has sat in its current stage | `BOARD.md` → `Stage since` |
-| **WIP control** | A cap on open questions, `open:n` | `.perry/config.md § Tracks` → `WIP` |
+| **Item states** | `Status` (global enum) and `Stage` — default `open → researching → answered` | task record → `Status`, `Stage` |
+| **Question clock** | How long it has sat in its current stage | task record → `Stage since` |
+| **WIP control** | A cap on open questions, `open:n` | track register (`.perry/config.jsonl`) → `WIP` |
 | **The answer** | One file per answered question | `evidence/<YYYY-MM>/<ID>-answer.md` |
 | **Sources** | One digest per source: `Id: SRC-<n>`, `Source:` (origin), `Received:` (fetch date) | `knowledge/<topic>/*.md` |
 | **Claim → source** | `[SRC-n]` inline in the answer | checked by `perry-lint --provenance` |
-| **Default rung** | **V4** — fresh-context review — **plus** clean provenance | `BOARD.md` → `Verification` |
+| **Default rung** | **V4** — fresh-context review — **plus** clean provenance | task record → `Verification` |
 | **Signature failure** | Re-deriving the same synthesis every session, because nothing was written back | — |
 
 ## Provenance is this mode's test suite

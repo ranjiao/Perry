@@ -263,7 +263,7 @@ chosen, never merged; `krs` itself needs a register and says so if there is none
 
 ## `score-phase [<NNN>]`
 
-Close out a phase. Default: the current phase (read from `phase/CURRENT`). Cross-reference `evidence/<YYYY-MM>/` (for the calendar months the phase spanned) and `BOARD.md` Done section.
+Close out a phase. Default: the current phase (read from `phase/CURRENT`). Cross-reference `evidence/<YYYY-MM>/` (for the calendar months the phase spanned) and the closed tasks (`perry-task list --all --json`).
 
 Attribute each done task to its KR **by ID through `linkage.jsonl`**, per `$PERRY_HOME/reference/okr-linkage.md`; any task that does not resolve to exactly one KR is listed under a `## Unlinked at scoring` note and **not** averaged into any KR score — surface it and ask rather than guessing which KR it belonged to. `"$PERRY_HOME/bin/perry-state" --section attribution` lists exactly these.
 
