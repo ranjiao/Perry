@@ -75,8 +75,10 @@ ASKS = [
 RISKS = [
     {"id": "RX-001", "risk": "the store is wrong on a row", "opened": "2026-09-01",
      "cleared": "", "status": "open", "order": 0},
+    # The `Status` cell names no date, so `cleared_on` can only come from the
+    # record's `cleared` field — the source the contract names.
     {"id": "RX-002", "risk": "a reader parses the file", "opened": "2026-08-01",
-     "cleared": "2026-09-10", "status": "cleared 2026-09-10 — read the store",
+     "cleared": "2026-09-10", "status": "cleared — read the store",
      "order": 1},
 ]
 INTAKE = [
@@ -310,6 +312,9 @@ class TestTheRegistersWithAForgedBoard(RegistersFromTheStores, unittest.TestCase
 
     def test_no_forged_row_reaches_a_payload(self):
         self.assertTrue(self.p.board.exists())
+        on_disk = self.p.board.read_text(encoding="utf-8")
+        for forged in ("USER-777", "RX-777", "forged request"):
+            self.assertIn(forged, on_disk, "the forged board lost a forged row")
         blobs = [json.dumps(self.p.task_json(["asks", "--all"])),
                  json.dumps({k: v for k, v in self.p.task_json(["list"]).items()
                              if k in ("risks", "asks", "intake")}),
