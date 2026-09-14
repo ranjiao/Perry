@@ -343,13 +343,7 @@ def cmd_render(root: Path, byte_compare: bool,
 # both in `main`. A store that is absent is empty; a store that does not parse,
 # or fails its own `validate_*`, refuses with exit 2 and prints no board.
 
-BOARD_STORES = (
-    ("tasks", perry_store.store_path, perry_store.validate_records),
-    ("asks", perry_store.ask_store_path, perry_store.validate_ask_records),
-    ("risks", perry_store.risk_store_path, perry_store.validate_risk_records),
-    ("intake", perry_store.intake_store_path,
-     perry_store.validate_intake_records),
-)
+BOARD_STORES = perry_store.BOARD_STORES
 
 
 def cmd_board(root: Path) -> int:
@@ -366,23 +360,7 @@ def cmd_board(root: Path) -> int:
               file=sys.stderr)
         return 2
     state_root = P.resolve_state_root(root)
-    stores: dict[str, list[dict]] = {}
-    findings: list[dict] = []
-    for name, where, validate in BOARD_STORES:
-        path = where(state_root)
-        if not path.exists():
-            stores[name] = []
-            continue
-        try:
-            records = [json.loads(l) for l in
-                       path.read_text(encoding="utf-8").split("\n") if l.strip()]
-        except (OSError, ValueError) as exc:
-            findings.append({"store": path.name, "message":
-                             f"not readable JSONL ({type(exc).__name__}: {exc})"})
-            continue
-        good, bad = validate(records)
-        findings += [{"store": path.name, **b} for b in bad]
-        stores[name] = good
+    stores, findings = perry_store.load_board_stores(state_root)
     if findings:
         print(json.dumps({"refused": "a store is malformed; no board was "
                           "printed", "store_findings": findings},

@@ -1441,6 +1441,103 @@ def load_task_store(state_root: Path) -> list[dict] | None:
         return None
 
 
+#: The three register stores `BOARD.md` projects beside the task store. Spelled
+#: here for the reason `TASK_STORE` is: this module may not import from `bin/`,
+#: where `perry_store § ask_store_path`, `risk_store_path` and
+#: `intake_store_path` name the same files.
+ASK_STORE = "asks.jsonl"
+RISK_STORE = "risks.jsonl"
+INTAKE_STORE = "intake.jsonl"
+
+
+def load_register_store(state_root: Path, name: str) -> list[dict] | None:
+    """Every record of `<state root>/<name>`, or `None` when there is none.
+
+    **TASK-237 deliverable 3a: the ask, risk and intake read paths answer from
+    these, not from `BOARD.md`.** Deleting the file used to turn "no asks" and
+    "no risks" into answers the tools gave with exit 0 — 0 of 33 asks, 0 of 2
+    open risks — because every reader of those three registers parsed the
+    projection.
+
+    `None` has the meaning `load_task_store`'s has, and for the same reason: no
+    store is an unmigrated register, the one case in which the section is read
+    out of the markdown. A malformed store is `None` too, rather than a raise:
+    this reader feeds a viewer and a standup, and `perry-lint`
+    (`*-store-unreadable`) is the tool that says why.
+    """
+    p = Path(state_root) / name
+    if not p.exists():
+        return None
+    try:
+        records = [json.loads(line) for line
+                   in p.read_text(encoding="utf-8").split("\n") if line.strip()]
+    except (OSError, ValueError):
+        return None
+    if not all(isinstance(r, dict) for r in records):
+        return None
+    return records
+
+
+def _in_register_order(records: list[dict]) -> list[dict]:
+    """Ascending `order`; a record with no integer `order` follows, in file order.
+
+    The rule `_records_by_group` applies to task rows and
+    `perry_store § _in_stored_order` applies to the declared board.
+    """
+    return sorted(records, key=lambda r: r["order"]
+                  if isinstance(r.get("order"), int)
+                  and not isinstance(r.get("order"), bool) else 1 << 30)
+
+
+def _text(rec: dict, field: str) -> str:
+    v = rec.get(field)
+    return "" if v is None else str(v)
+
+
+def _asks_from_store(records: list[dict]) -> list[UserInput]:
+    """`asks.jsonl` → the `UserInput` rows `## User Input Queue` parses to.
+
+    `idle` is `""`: the store holds no `Idle` field on purpose
+    (`bin/perry_store.py § ASK_STORED`), because an age is derived from `asked`
+    at read time. `priority` is stamped by `_tag_ask_priority`, the same
+    heuristic a parsed queue gets.
+    """
+    return [UserInput(id=_text(r, "id"), needed_from_user=_text(r, "needed"),
+                      blocks=_text(r, "blocks"), idle="",
+                      status=_text(r, "status"), asked=_text(r, "asked"))
+            for r in _in_register_order(records)]
+
+
+def _intake_from_store(records: list[dict]) -> list[dict]:
+    """`intake.jsonl` → the rows `_parse_intake` returns, in stored order.
+
+    `discharged` goes through `intake_is_discharged`, the one predicate, for
+    the reason `_parse_intake` gives: the store's `discharged` field is that
+    predicate's answer at write time, and a reader with a second opinion is
+    the defect that function was moved to end.
+    """
+    out = []
+    for r in _in_register_order(records):
+        outcome = _text(r, "outcome").strip()
+        out.append({"arrived": _text(r, "arrived").strip(),
+                    "request": _text(r, "request").strip(),
+                    "outcome": outcome,
+                    "discharged": intake_is_discharged(outcome)})
+    return out
+
+
+def top_risks_from_store(records: list[dict]) -> list[TopRisk]:
+    """`risks.jsonl` → `TopRisk`s, through `_register_risk`, the table's rule."""
+    out = []
+    for r in _in_register_order(records):
+        risk = _register_risk(_text(r, "risk"), _text(r, "id"),
+                              _text(r, "status"), _text(r, "opened").strip(),
+                              cleared=_text(r, "cleared"))
+        if risk is not None:
+            out.append(risk)
+    return out
+
+
 def _task_from_record(rec: dict, priority: str) -> Task:
     """One store record → the `Task` the viewer and `bin/perry-state` consume.
 
@@ -1534,7 +1631,10 @@ def _board_tasks_from_store(state: BoardState, records: list[dict]) -> None:
                 (head, [_task_from_record(r, "") for r in rows]))
 
 
-def parse_board(text: str, *, tasks: list[dict] | None = None) -> BoardState:
+def parse_board(text: str, *, tasks: list[dict] | None = None,
+                asks: list[dict] | None = None,
+                risks: list[dict] | None = None,
+                intake: list[dict] | None = None) -> BoardState:
     """`BOARD.md` → the registers it carries.
 
     `tasks` is the task store's records. **When it is given, no task row is
@@ -1542,10 +1642,23 @@ def parse_board(text: str, *, tasks: list[dict] | None = None) -> BoardState:
     this function reads only the registers the store does not hold. When it is
     `None` the project has no store and every register is parsed, which is
     adoption and is the one caller that still needs a header rule here.
+
+    `asks`, `risks` and `intake` are the same rule for the other three stores
+    (TASK-237 deliverable 3a): a register whose store is given is not read out
+    of `text`, so `user_input_queue`, `risks` and `intake` are the same with
+    the file present, absent or garbage. `## Cadence` has no store and is still
+    parsed — with no `BOARD.md` it is empty.
     """
     state = BoardState()
     if tasks is not None:
         _board_tasks_from_store(state, tasks)
+    if asks is not None:
+        state.user_input_queue = _asks_from_store(asks)
+    if risks is not None:
+        state.risks = [Risk(text=r.title, resolved=r.resolved)
+                       for r in top_risks_from_store(risks)]
+    if intake is not None:
+        state.intake = _intake_from_store(intake)
 
     m = re.search(r"Last updated:\s*([^\n]+)", text)
     if m:
@@ -1574,10 +1687,14 @@ def parse_board(text: str, *, tasks: list[dict] | None = None) -> BoardState:
             state.cadence_items = _parse_cadence(chunk)
             state.cadence = [_cadence_as_task(c) for c in state.cadence_items]
         elif heading_is(head, "User Input Queue"):
-            state.user_input_queue = _parse_user_input(chunk)
+            if asks is None:
+                state.user_input_queue = _parse_user_input(chunk)
         elif heading_is(head, "Top risks"):
-            state.risks = _parse_risks(chunk)
+            if risks is None:
+                state.risks = _parse_risks(chunk)
         elif heading_is(head, "Intake"):
+            if intake is not None:
+                continue
             # **`## Intake` matched nothing here**, so `perry-state` carried no
             # intake block at all — while `perry-task/list` parses it. The
             # correlation `work/reference/subcommands.md § triage` asks for
@@ -3036,37 +3153,65 @@ def _parse_risk_table(section: str) -> list[TopRisk] | None:
 
     out: list[TopRisk] = []
     for row in _table_rows(section):
-        statement = _col(row, "Risk")
-        if not statement:
-            continue
-        rid = undecorate_cell(_col(row, "ID"))
-        status = _col(row, "Status")
-        resolved = status_is_cleared(status) or \
-            bool(re.search(r"\*\*RESOLVED", statement)) or statement.strip().startswith("~~")
-        # `""` when the row is cleared and names no date. Not today's date —
-        # see `status_cleared_date`.
-        cleared_on = status_cleared_date(status) if resolved else ""
-        pct = _RE_PCT.search(statement)
-        # DETECTED, not stripped. A table's `Risk` cell comes back whole —
-        # `test_the_statement_is_never_split_into_an_id_and_a_remainder` is the
-        # guard on that, and it is the promise that distinguishes the table
-        # form from the bullet guessing it replaced. So a marker written into
-        # a table cell still ranks the row, and still leaves `title` verbatim.
-        sev_text, sev_rank, _ = split_severity_marker(statement)
-        out.append(TopRisk(
-            id=rid or "?",
-            title=statement,
-            severity=_risk_severity(statement, resolved),
-            severity_text=sev_text,
-            severity_rank=sev_rank,
-            meta=statement,
-            value=float(pct.group(1)) if pct else None,
-            source="table",
-            opened=_col(row, "Opened").strip(),
-            status=status,
-            cleared_on=cleared_on,
-        ))
+        risk = _register_risk(_col(row, "Risk"), undecorate_cell(_col(row, "ID")),
+                              _col(row, "Status"), _col(row, "Opened").strip())
+        if risk is not None:
+            out.append(risk)
     return out
+
+
+def _register_risk(statement: str, rid: str, status: str, opened: str,
+                   cleared: str | None = None) -> TopRisk | None:
+    """One register risk — a table row's cells or a `risks.jsonl` record.
+
+    **One rule for both forms** (TASK-237 deliverable 3a). The table reader
+    and the store reader hand the same four values in, so what counts as
+    cleared, which severity a statement carries and what `title` is cannot
+    differ between a board that exists and a board that does not.
+
+    `cleared` is the store record's own `cleared` field, and it is used when it
+    is given: the contract names that field as `cleared_on`'s source. A table
+    row has no such cell, so the date comes out of `Status` as before. Either
+    way it is `""` on an open risk.
+
+    `None` for a row with no statement, which is not a risk.
+    """
+    if not statement:
+        return None
+    resolved = status_is_cleared(status) or \
+        bool(re.search(r"\*\*RESOLVED", statement)) or statement.strip().startswith("~~")
+    # `""` when the row is cleared and names no date. Not today's date —
+    # see `status_cleared_date`.
+    if not resolved:
+        cleared_on = ""
+    elif cleared is not None:
+        cleared_on = cleared
+    else:
+        cleared_on = status_cleared_date(status)
+    pct = _RE_PCT.search(statement)
+    # DETECTED, not stripped. A table's `Risk` cell comes back whole —
+    # `test_the_statement_is_never_split_into_an_id_and_a_remainder` is the
+    # guard on that, and it is the promise that distinguishes the table
+    # form from the bullet guessing it replaced. So a marker written into
+    # a table cell still ranks the row, and still leaves `title` verbatim.
+    sev_text, sev_rank, _ = split_severity_marker(statement)
+    return TopRisk(
+        id=rid or "?",
+        title=statement,
+        severity=_risk_severity(statement, resolved),
+        severity_text=sev_text,
+        severity_rank=sev_rank,
+        meta=statement,
+        value=float(pct.group(1)) if pct else None,
+        # `table` for a store record too. The store IS the table form's
+        # record — every `RX-` id in it was minted by `risk-add` or imported
+        # from a table — and `source` is a published key whose values are
+        # `table | bullets | none`.
+        source="table",
+        opened=opened,
+        status=status,
+        cleared_on=cleared_on,
+    )
 
 
 def top_risks_section(text: str) -> str | None:
@@ -4810,6 +4955,9 @@ class PMOSnapshot:
     #: `BOARD.md` exactly as it is on disk. Kept so `board_as_authored` can be
     #: computed on demand instead of on every snapshot; nothing else reads it.
     board_text: str = ""
+    #: Whether `BOARD.md` exists at all. `True` by default so a snapshot built
+    #: by hand keeps the behaviour it had; `load_snapshot` sets the real value.
+    board_on_disk: bool = True
 
     @property
     def board_as_authored(self) -> BoardState:
@@ -4832,7 +4980,16 @@ class PMOSnapshot:
         TASK-091 is where it goes: a byte comparison against what the store
         would render (`bin/perry-tasks diff` already performs it) answers the
         same question without parsing anything.
+
+        **With no `BOARD.md` on disk the authored board is the store's**
+        (TASK-237 deliverable 3a). There is no projection a hand could have
+        edited, and the board a reader has is what `perry-tasks board` prints,
+        which is `board`'s rows. Parsing the empty text instead reported every
+        open row as `orphaned` — 96 of them on this project — which is the
+        detector calling drift about a file that does not exist.
         """
+        if not self.board_on_disk:
+            return self.board
         return parse_board(self.board_text)
 
     @property
@@ -4885,6 +5042,7 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
     def read(p: Path) -> str:
         return p.read_text() if p.exists() else ""
 
+    board_on_disk = (root / "BOARD.md").exists()
     board_text = read(root / "BOARD.md")
     okr_text = read(root / "OKR.md")
     project_state_text = read(root / "PROJECT_STATE.md")
@@ -4925,7 +5083,16 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
     # the project declaring where its risks live, so it is read as exactly
     # that. An unmigrated board is untouched: both files, deduped by id, as
     # before.
-    if has_risk_table(board_text):
+    #
+    # **A risks store is that declaration made outright** (TASK-237 deliverable
+    # 3a, TASK-268). `risks.jsonl` exists only after the register moved to the
+    # table form, so when it is there it is the register — and it is read
+    # rather than the projection, which is why `risks` no longer went to 0 /
+    # `none` the moment `BOARD.md` was deleted.
+    risk_records = load_register_store(root, RISK_STORE)
+    if risk_records is not None:
+        top_risks = top_risks_from_store(risk_records)
+    elif has_risk_table(board_text):
         top_risks = parse_top_risks(board_text)
     else:
         top_risks = parse_top_risks(board_text) + parse_top_risks(project_state_text)
@@ -4956,7 +5123,13 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
     # is where ADR-007's "Python never parses a document" has to be true. A
     # project with no `tasks.jsonl` has not been adopted and is parsed, which
     # is the one caller `parse_board`'s markdown reader still has.
-    board = parse_board(board_text, tasks=load_task_store(root))
+    #
+    # The ask, risk and intake registers follow the same rule from their own
+    # stores (TASK-237 deliverable 3a): given a store, the section is not read.
+    board = parse_board(board_text, tasks=load_task_store(root),
+                        asks=load_register_store(root, ASK_STORE),
+                        risks=risk_records,
+                        intake=load_register_store(root, INTAKE_STORE))
 
     return PMOSnapshot(
         board=board,
@@ -4978,6 +5151,7 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
         ops=_load_ops_counts(root),
         weekly=walk_weekly(root),
         board_text=board_text,
+        board_on_disk=board_on_disk,
     )
 
 

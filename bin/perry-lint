@@ -4131,6 +4131,10 @@ def check_risk_store_drift(project_root: Path, state_root: Path) -> list["Findin
     board_path = state_root / "BOARD.md"
     rel_board = _rel(board_path, project_root)
     if not board_path.exists():
+        # The store's own count stays true with no file to compare it to: the
+        # summary line read "0 valid record(s)" of a store holding four.
+        check_risk_store_drift.stats["records"] = len(
+            _STORE.validate_risk_records(on_disk)[0])
         return [Finding("warn", rel_store, "risk-store-drift-uncheckable",
                         f"`{rel_store}` exists and there is no `BOARD.md` to "
                         f"project it onto, so drift is unknown here rather "
@@ -4279,6 +4283,8 @@ def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Find
     board_path = state_root / "BOARD.md"
     rel_board = _rel(board_path, project_root)
     if not board_path.exists():
+        check_intake_store_drift.stats["records"] = len(
+            _STORE.validate_intake_records(on_disk)[0])
         return [Finding("warn", rel_store, "intake-store-drift-uncheckable",
                         f"`{rel_store}` exists and there is no `BOARD.md` to "
                         f"project it onto, so drift is unknown here rather "
@@ -4405,6 +4411,8 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
     board_path = state_root / "BOARD.md"
     rel_board = _rel(board_path, project_root)
     if not board_path.exists():
+        check_ask_store_drift.stats["records"] = len(
+            _STORE.validate_ask_records(on_disk)[0])
         return [Finding("warn", rel_store, "ask-store-drift-uncheckable",
                         f"`{rel_store}` exists and there is no `BOARD.md` to "
                         f"project it onto, so drift is unknown here rather "
