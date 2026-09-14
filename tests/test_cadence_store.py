@@ -386,6 +386,19 @@ class TestTheLintCensusCarriesTheCadenceStore(unittest.TestCase):
                              capture_output=True, text=True, cwd=p.tmp)
         return json.loads(out.stdout)
 
+    def test_the_store_is_claimed_as_a_file_perry_wrote(self):
+        """Without this every project holding the store gets an `NS-01`
+        against Perry's own claim — measured on the payload-diff copies of
+        this change before it was fixed: `cadence.jsonl holds 1 file(s) Perry
+        did not write`. Matched on `file`, not on a message substring."""
+        p = Project()
+        self.addCleanup(p.close)
+        lint = inproc.load("perry-lint")
+        self.assertTrue(lint.looks_like_perry_record(p.store))
+        self.assertEqual(
+            [f for f in self.lint(p)["findings"]
+             if f["rule"] == "NS-01" and f["file"].endswith("cadence.jsonl")], [])
+
     def test_with_no_file_it_is_uncheckable_and_counts_the_records(self):
         p = Project()
         self.addCleanup(p.close)

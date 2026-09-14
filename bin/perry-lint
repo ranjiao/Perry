@@ -3857,6 +3857,11 @@ _INTAKE_STORED_FIELDS = _STORE.INTAKE_STORED
 #: every project that runs the import.
 _ASK_STORED_FIELDS = _STORE.ASK_STORED
 
+#: The cadence register's field list (TASK-237 deliverable 3b), id-keyed like
+#: the two above. Without it `cadence.jsonl` drew an `NS-01` against Perry's
+#: own claim on every project holding the store.
+_CADENCE_STORED_FIELDS = _STORE.CADENCE_STORED
+
 
 def _empty_store_drift_stats() -> dict:
     """The typed machine-readable state before a store comparison runs.
@@ -5585,8 +5590,9 @@ def looks_like_perry_record(path: Path, schema: dict | None = None) -> bool:
     keys = set(rec)
     if "id" in keys and (keys <= set(_STORED_FIELDS)
                          or keys <= set(_RISK_STORED_FIELDS)
-                         or keys <= set(_ASK_STORED_FIELDS)):
-        return True                 # a store — tasks, risks or asks
+                         or keys <= set(_ASK_STORED_FIELDS)
+                         or keys <= set(_CADENCE_STORED_FIELDS)):
+        return True                 # a store — tasks, risks, asks or cadence
     # `intake.jsonl` keys on `order` and carries no `id` at all: the register
     # has no id column and a row is addressed by position (TASK-196). The
     # branch above cannot see it, and `order` alone is too weak a signal, so
