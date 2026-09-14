@@ -655,3 +655,14 @@ below) and left, on purpose, every line that is true while `BOARD.md` exists.
 
 `SKILL.md`'s five `.perry/config.md` mentions belong to the running 3b′ (start
 docs). The PMO sweeps any left over after 3b′ merges.
+
+`bin/` documents, audited the same day. These lines stay true until the file
+is deleted:
+- `bin/ARCHITECTURE.md` §1: "an agent that opens `BOARD.md` and counts…".
+- `bin/README.md § For an agent`: "On a non-zero exit … fall back to reading
+  `BOARD.md` and `OKR.md` directly".
+- The tool-table and usage wording that describes `render` / `diff` as
+  regenerating `BOARD.md`.
+- `bin/perry-tasks`' own `SURFACE` summary, "the task store and the three
+  registers beside it". This is code, not a document; it now has four
+  registers.

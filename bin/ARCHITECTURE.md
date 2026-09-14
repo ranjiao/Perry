@@ -2,13 +2,13 @@
 
 > Written by: agent · Confirmed by: user (§6, §7)
 > Version: v1
-> Last reviewed: 2026-09-09
+> Last reviewed: 2026-09-14
 > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
 > Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
 ## §1. Mission & scope
 
-Nineteen executables and three libraries. Everything Perry reports as a number
+Twenty executables (the index `perry` included) and three libraries. Everything Perry reports as a number
 is computed here, and every write to a canonical file goes through here.
 
 The rule the directory exists to enforce: **a number Perry reports must be
@@ -23,8 +23,8 @@ exception. It does not judge what a document means.
 ```mermaid
 flowchart TD
     subgraph write["writers — every canonical write goes through one of these"]
-        Task["perry-task<br/>30 subcommands · the lane writer"]
-        Tasks["perry-tasks<br/>17 · store ↔ projection, 4 registers"]
+        Task["perry-task<br/>31 subcommands · the lane writer"]
+        Tasks["perry-tasks<br/>22 · store ↔ projection, 5 registers · board"]
         Okr["perry-okr"]
         Goals["perry-goals"]
         Config["perry-config"]
@@ -49,9 +49,9 @@ flowchart TD
 
 | Module | Lines | What it holds |
 |---|---|---|
-| `lib/__init__.py` | 1,979 | primitives every tool needs: the project-root resolver, the argument parser driven by a `SURFACE` declaration, the project lock, atomic writes, the schema loader, KR progress |
-| `perry_store.py` | 1,667 | the record shape and the renderer for `BOARD.md` and its three registers |
-| `perry_md_store.py` | 1,381 | the same pair for documents keyed by heading — `OKR.md` today |
+| `lib/__init__.py` | 2,169 | primitives every tool needs: the project-root resolver, the argument parser driven by a `SURFACE` declaration, the project lock, atomic writes, the schema loader, KR progress |
+| `perry_store.py` | 2,237 | the record shape, the renderer for `BOARD.md` and its four registers, and the store-only board render behind `perry-tasks board` |
+| `perry_md_store.py` | 1,806 | the same pair for documents keyed by heading — `OKR.md` today |
 
 ### The one tool that reaches outside
 
@@ -110,11 +110,14 @@ The refusal branches are the point of the diagram. Three of them were added by
 Every converted tool carries one: `name`, `kind`, `summary`, `root_resolution`,
 `exit_codes`, `flags[]`, and `subcommands[]` with per-subcommand flag lists.
 It drives the parser, `--describe --json`, the generated usage block and
-`bin/perry list`. Six tools declare one; thirteen do not, and `perry list` says
-which.
+`bin/perry list`. Six tools declare one (`perry-config`, `perry-diagnose`, `perry-okr`,
+`perry-state`, `perry-task`, `perry-tasks`); thirteen do not, and `perry list`
+says which.
 
 ### The registers — `perry-tasks`
-Five verbs (`build verify write render diff`) over four registers, and the
+Five verbs (`build verify write render diff`) over five registers (tasks,
+risks, intake, asks, cadence), plus `board`, which prints all of them without
+reading `BOARD.md`, and the
 register is a parameter: `--register risks` is `risks-build`. The register list
 is read from `schema/state-schema.json § claims` — the `work`-owned stores — so
 a fifth store gets the verbs without an edit here.
@@ -162,8 +165,7 @@ a fifth store gets the verbs without an edit here.
 - **OQ-B1 — The other thirteen tools.** Six declare a `SURFACE`. Converting the
   rest is mechanical but not free, and `perry list` reports them as undeclared
   in the meantime. No row is open for it.
-- **OQ-B2 — Should `perry-task` be split?** 8,294 lines and 30 subcommands
-  against `perry-okr`'s 46. The subcommands cover five different objects
+- **OQ-B2 — Should `perry-task` be split?** 9,069 lines and 31 subcommands against `perry-okr`'s 68. The subcommands cover five different objects
   (tasks, risks, intake, asks, cadences); `DESIGN-016 § 1.4` records the option
   of redrawing the tools by object and does not take it.
 - **OQ-B3 — What keeps this file true?** Nothing does yet. The project
@@ -171,6 +173,14 @@ a fifth store gets the verbs without an edit here.
 
 ## §8. Change log
 
+- 2026-09-14 · v1 · Descriptive refresh, measured on main:
+  - 20 executables;
+  - `perry-task` 31 subcommands, `perry-tasks` 22 (five registers, with
+    `cadence` from TASK-237 3b, plus `board` from TASK-237 D1);
+  - library line counts;
+  - the six SURFACE-declaring tools named;
+  - OQ-B2's sizes.
+  `BOARD.md` in §1 stays true until TASK-237 3c deletes the file.
 - 2026-09-09 · v1 · Written with `DESIGN-016` phases A–D landed: the argument
   contract, the declaration, the index and the register parameter are all in
   the diagrams above because they are what changed the directory's shape.
