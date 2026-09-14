@@ -458,14 +458,24 @@ class TestStaleRuns(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "p"
             shutil.copytree(FIXTURE, root)
-            for d in (root / ".perry" / "adoption").glob("*-dossier.md"):
-                d.write_text(re.sub(r'^updated: ".*"$', f'updated: "{fresh}"',
-                                    d.read_text(), flags=re.M))
-            for d in (root / ".perry" / "diagnosis").glob("*.md"):
-                d.write_text(re.sub(r'^updated: ".*"$', f'updated: "{fresh}"',
-                                    d.read_text(), flags=re.M))
+            # `.perry/diagnose/`, not `.perry/diagnosis/`: the second glob named a
+            # directory the fixture does not have, matched nothing, and left the
+            # diagnosis run at 2026-08-11, which aged past 30 days on 2026-09-10
+            # and turned this case red. So every rewrite is now counted, and every
+            # interrupted run must be one that was rewritten.
+            rewritten = []
+            for sub, pattern in (("adoption", "*-dossier.md"), ("diagnose", "*.md")):
+                for d in (root / ".perry" / sub).glob(pattern):
+                    text, n = re.subn(r'^updated: ".*"$', f'updated: "{fresh}"',
+                                      d.read_text(), flags=re.M)
+                    self.assertEqual(n, 1, f"{d.name}: no `updated:` line to restamp")
+                    d.write_text(text)
+                    rewritten.append(d.relative_to(root).as_posix())
             rows = state(root)["interrupted"]
             self.assertTrue(rows, "the copy still carries interrupted runs")
+            self.assertEqual(sorted(r["path"] for r in rows), sorted(rewritten),
+                             "an interrupted run was not restamped, so its "
+                             "age is the fixture's calendar date, not two days")
             self.assertFalse(any(r["stale"] for r in rows),
                              "a run updated two days ago is not stale")
 
