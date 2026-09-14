@@ -762,3 +762,58 @@ start is affected. Measure that again rather than assuming it.
 - The suite.
 
 Then one V4 round over deliverables 1–3.
+
+## Amendment 2026-09-14 (8): the user's decisions on 3c's stops; 3d is the doc sweep
+
+3c merged at `0f1ed007`: `perry/BOARD.md` is deleted
+(`evidence/2026-09/TASK-237-d3c-result.md`). It stopped on four documentation
+points. The user decided all four on 2026-09-14.
+
+1. **V5 sign-off on the hand-off contract: SIGNED, as proposed** (3c result
+   § 5.3). The `work` row of `SKILL.md § The hand-off contract` names
+   `tasks.jsonl` and its four register stores (`perry-tasks board` prints them)
+   instead of `BOARD.md`. The refusal case "`goals` writing `BOARD.md`" becomes
+   "`goals` writing `tasks.jsonl`". The signature is the user's answer
+   "签，按建议文本" (sign, per the proposed text), 2026-09-14. It covers exactly
+   that text, plus the same substitution in:
+   - `tests/test_ownership.py`'s `SCHEMA_PATH_TO_CONTRACT`, `FOREIGN_WRITES` and
+     the refusal-case literal;
+   - `goals/SKILL.md:51`;
+   - `reference/adoption.md:29`.
+2. **`ARCHITECTURE.md` NN-2 and § 5: both as proposed.** The PMO applied this
+   on main before 3d; it is not 3d's.
+3. **`work/reference/git-boundaries.md:11`: edit and re-pin.** Remove `BOARD.md`
+   from the work-docs list, or replace it with the store if the sentence needs a
+   noun. Update `test_spec_scannability`'s SHA-256 pin in the same commit, and
+   let the commit message give the reason.
+4. **The remaining documents: a small doc-only round (3d), then one V4 over
+   deliverables 1–3.**
+
+### Deliverable 3d: documents only
+
+1. Item 1, exactly as signed. `SKILL.md` has about 23 B of byte-budget
+   headroom and the new row costs about 45 B, so compress equal text **elsewhere
+   in `SKILL.md`** without changing any other rule's meaning. Say what was
+   compressed.
+2. Item 3.
+3. **3c result § 8.2's "sweep (R3)" lines.** Each describes the board as a file
+   Perry keeps. Rewrite each so it is true of a project with no `BOARD.md`, and
+   point to `perry-tasks board` (a person) or `perry-task list --json` (a
+   program). The frontmatter descriptions of `work/SKILL.md:3` and
+   `goals/SKILL.md:3` are routing text; keep their trigger words.
+4. **3c result § 11 R10's `.perry/config.md` mentions.** History lines stay,
+   marked as history.
+
+**Must not:** change code in `bin/` or `viewer/`, or change the schema, a
+contract, a store, `ARCHITECTURE.md`, or any rule's meaning beyond the signed
+substitution.
+
+**Verification (3d):**
+- `grep` census before and after, per file.
+- `tests/test_ownership.py`, `tests/test_spec_scannability.py` and
+  `tests/test_router_budget.py` green, with the new SHA shown.
+- Mutations, each reddening a named test:
+  - restore the old ownership row;
+  - restore the old git-boundaries line without re-pinning;
+  - grow `SKILL.md` past its budget.
+- The full suite, run on the final commit.
