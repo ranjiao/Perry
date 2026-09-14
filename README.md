@@ -8,7 +8,7 @@ Perry is one skill for **Claude Code**, **OpenCode**, and **Codex CLI** that kee
 
 You talk to it with **one command: `/perry`**.
 
-It keeps everything in plain markdown files inside your project folder, so you can read them, edit them, and commit them like any other file. Nothing is hidden in a database.
+It keeps everything as plain files inside your project folder: markdown you read, and small JSONL records that Perry's commands write. You can read, diff and commit them like any other file. Nothing is hidden in a database.
 
 ---
 

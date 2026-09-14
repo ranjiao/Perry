@@ -2,8 +2,7 @@
 
 Perry is a virtual project office, and this repository dogfoods Perry to build
 Perry itself. Product code and skill instructions live at the repository root;
-the live project state is rooted at `perry/` through `.perry/config.jsonl`
-(`State root`; `bin/perry-config show` prints it).
+the live project state is rooted at `perry/` through `.perry/config.jsonl`.
 
 ## Start every session
 

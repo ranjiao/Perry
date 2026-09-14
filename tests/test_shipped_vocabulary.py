@@ -1082,14 +1082,24 @@ class TestTheReadmesNameTheFourModes(unittest.TestCase):
 
     def test_both_readmes_say_how_a_project_declares_one(self):
         """Naming the modes without the register is a feature list. The
-        register is the only thing that turns three of the four on."""
+        register is the only thing that turns three of the four on.
+
+        **The register moved, and so does what this pins.** It asserted the
+        markdown spelling, a `## Tracks` table in `.perry/config.md`, until
+        ADR-019 deleted that file (2026-09-08). A README still showing it
+        taught a reader to hand-write a file no tool reads. The register is
+        now `.perry/config.jsonl`, written by `perry-config track`, and a
+        README naming the deleted file is the defect."""
         for doc in self.READMES:
             with self.subTest(doc=doc):
                 text = read(doc)
-                self.assertIn("## Tracks", text,
-                              f"{doc} names the modes but not the register "
+                self.assertIn("perry-config track", text,
+                              f"{doc} names the modes but not the command "
                               f"that declares one")
-                self.assertIn(".perry/config.md", text)
+                self.assertIn(".perry/config.jsonl", text)
+                self.assertNotIn(".perry/config.md", text,
+                                 f"{doc} still points at .perry/config.md, "
+                                 f"which ADR-019 deleted")
 
     def test_both_readmes_link_the_mode_file_that_carries_each_rule(self):
         for doc in self.READMES:
