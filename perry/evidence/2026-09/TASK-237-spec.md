@@ -341,3 +341,85 @@ Neither blocker opens a row; both are TASK-237's own deliverable-3 work.
    turn "no asks" and "no risks" into answers the tools give confidently. This
    is deliverable-3 work. It opens no row. The published contracts (`perry-asks/list/1.0`,
    `perry-task/list/2.0`) name the fields and would not need to change.
+
+## Amendment 2026-09-14 (3): deliverable 3, deleting `BOARD.md`, is authorised and split in two
+
+**The user's consent, in their words, 2026-09-14:** "删除board.md可以做" (deleting
+BOARD.md can go ahead). The PMO reads it as covering every change the deletion
+needs and that this spec names as needing consent:
+
+- the `schema/state-schema.json § files[id=board]` edit (`required: true`, and
+  the claim);
+- the `ARCHITECTURE.md § 2` change that the header block says to stop and ask
+  about;
+- the `.perry/hook.md` line naming `perry/BOARD.md` as the roadmap source of
+  truth;
+- deleting `perry/BOARD.md` itself.
+
+Anything wider than those is still a stop.
+
+Deliverable 3 is split so that the risky half can be measured before the file
+goes. Both parts share the Bound above: derive the call-site set, do not take
+a number from here. On 2026-09-14 a `grep -c` of `BOARD.md` over `bin/` and
+`viewer/` gave roughly 250 mentions in 15 files; that is a size warning, not a
+census.
+
+### Deliverable 3a: nothing needs `BOARD.md` (the file stays on disk)
+
+1. **Every read surface answers from its store.** With `BOARD.md` deleted, every
+   published read payload must equal the payload with it present. That covers
+   `perry-task list` / `asks` / `events`, `perry-state --json`,
+   `perry-goals list` and `perry-decide list`. Two exceptions:
+   - fields that describe the file itself, each named in the result with its
+     board-less value;
+   - `generated_at`-style clocks.
+   The three measured silent failures are the floor, not the list:
+   - `asks --all` 0 of 33;
+   - `list` risks 0;
+   - `perry-state` risks.count 0.
+   `TASK-268` (top_risks from `BOARD.md`) is inside this item; say so in the
+   result.
+2. **Every `perry-task` write succeeds without `BOARD.md`.** The write lands
+   the store record, the journal line and the event in both states. While the
+   file exists it is still re-rendered, so a project that keeps the file is not
+   broken by this step.
+3. **`perry-lint` on a board-less project** reports the same errors as with
+   the file, except the `[missing-file] BOARD.md` error that 3b removes.
+4. **Published contracts keep their field names and versions.** If a field
+   cannot keep its meaning without the file, stop and report; do not bump the
+   contract.
+
+**Must not:**
+- edit `schema/state-schema.json` (that is 3b);
+- delete `perry/BOARD.md` in the worktree;
+- change `perry-tasks board` output;
+- write any store outside a test fixture or scratch copy.
+
+**Verification (3a):**
+- A payload-diff table per read surface, present against deleted, measured
+  on a `git archive` copy.
+- A write matrix: every `perry-task` write subcommand, in both states, with
+  exit code and the resulting store record compared.
+- Mutations: put a `BOARD.md` read back into the ask, risk and intake read
+  paths, and into one write path. Each must redden a named test.
+- The suite, with pre-existing reds named.
+
+### Deliverable 3b: the file is gone (after 3a is merged and re-measured)
+
+1. Change `files[id=board]` so a board-less project is conformant, and update
+   the claim.
+2. Delete `perry/BOARD.md`.
+3. Decide what `perry-tasks render` / `diff` / `verify` and the `*-render
+   --write` hand-backs become, and argue it in the result. There is nothing to
+   write to any more.
+4. Rewrite every lane doc that tells a reader to read or edit `BOARD.md`:
+   - `work/SKILL.md` and its references;
+   - `ARCHITECTURE.md § 2`;
+   - `.perry/hook.md`;
+   - `bin/README.md`.
+5. `perry-lint` is clean on this repository without the file.
+6. The V4 round for this row runs once, after 3b, over deliverables 1, 2
+   and 3 together.
+
+`TASK-434` (answered asks never leave the board) is **not** retired by the
+deletion: `perry-tasks board` prints every ask record.
