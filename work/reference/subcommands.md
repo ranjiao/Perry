@@ -31,7 +31,7 @@ lived in `modes/queue.md` and nothing implemented it, which matters because the
 same file rests its overflow argument on it: intake pressure is supposed to mean
 *taking on more than you discharge*, not *having discharged a lot*.
 
-**Step 0 — drain `BOARD.md § Intake`, before anything else.** Applies to every queue-mode track. If the track exists and the section does not, it is created by the first `perry-task add` on a queue track or by `perry-task intake`; do not hand-write it, and do not skip the step — a self-skipping step is indistinguishable from a step that has nothing to do. Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
+**Step 0 — drain the intake register (`## Intake` in `perry-tasks board`), before anything else.** Applies to every queue-mode track. If the track exists and the section does not, it is created by the first `perry-task add` on a queue track or by `perry-task intake`; do not hand-write it, and do not skip the step — a self-skipping step is indistinguishable from a step that has nothing to do. Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
 
 - **Routed** to a track → `"$PERRY_HOME/bin/perry-task" route <n> --track <track> [--priority P1 | --group "<heading>"]`, where `<n>` is the intake row's position. `--group` names the project's own heading on a board that does not use `P0`/`P1`/`P2` — the same flag, and the same meaning, as on `add`. The tool carries `Arrived` onto the new row, sets `Stage` to the track's first post-intake stage, and writes the destination back into the intake row's `Outcome` so the request's record is complete. Carrying `Arrived` is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`). It was dropped, by this procedure, until the tool did it structurally.
 - **Dropped** → `"$PERRY_HOME/bin/perry-task" resolve-intake <n> --outcome dropped --reason "…"`. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked. The tool writes the `Outcome` cell, the journal line and the event, so a declined request is as visible as a routed one.
@@ -377,7 +377,7 @@ cadence lists do:
 
 Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Apply each accepted suggestion through the subcommand that owns it — `perry-task stage` / `status` / `drop` — which writes the board row and the journal line together. Do **not** then edit a store or write a `## Status changes` block yourself: the tool already wrote both, and doing it again duplicates the journal line and leaves a post-tool board edit that `unrecorded` will report. Anything the triage decided that is *not* a transition — a rewritten Next action, a note on why a row survives — goes in today's `## Notes`.
 
-If `BOARD.md` is over the 200-line cap, triage MUST propose specific cuts before exiting.
+If a `BOARD.md` the project still holds is over its 200-line cap, triage MUST propose specific cuts before exiting.
 
 ## Cadence (recurring; never consume P0 slots)
 

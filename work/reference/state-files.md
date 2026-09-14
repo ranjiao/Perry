@@ -12,7 +12,7 @@ All at the **project root** unless noted. Greppable, version-controlled.
 
 | File / dir | Owner | Purpose | Template |
 |------------|-------|---------|----------|
-| `BOARD.md` | pmo | **Live working memory.** Current open work only — terse rows, no narrative. P0 / P1 / P2 / Cadence tables + User Input Queue + 1-line risk pointers. Closed tasks leave this file. **Hard cap: ≤200 lines.** | `state/BOARD_TEMPLATE.md` |
+| `BOARD.md` | pmo | **Not written since TASK-237 3c** — the board is what `perry-tasks board` prints from `tasks.jsonl` and its four register stores, and a project that still holds a `BOARD.md` imports a register it holds with `perry-tasks <register>-write --from-board`. What the printed board is: **live working memory.** Current open work only — terse rows, no narrative. P0 / P1 / P2 / Cadence tables + User Input Queue + 1-line risk pointers. Closed tasks leave this file. **Hard cap: ≤200 lines.** | `state/BOARD_TEMPLATE.md` |
 | `journal/<YYYY-MM>/<YYYY-MM-DD>.md` | pmo | **Daily append-only history.** One file per day. Sections: Status changes / New tasks added / Decisions / Notes / Carry to tomorrow. Frozen after the day ends. | `state/journal_TEMPLATE.md` |
 | `PROJECT_STATE.md` | pmo | Cross-phase living dashboard: current phase #, week, top risks, recent cross-session work, multi-phase carry-forwards | `state/PROJECT_STATE_TEMPLATE.md` |
 | `decisions/ADR-NNN-<slug>.md` | **decide** (moved 2026-08-16 by the signed hand-off contract; `work` reads it, never writes it). The whole decision record — there is no index file, `perry-decide list` is the view (TASK-235). | One ADR per file: Context / Options / Chosen / Consequences / Evidence / Sunset criteria. Append-only after creation (status flips append `## Status change` entries; never edit Chosen/Consequences in place). | `decide/state/ADR_TEMPLATE.md` |
@@ -46,7 +46,7 @@ Tiers are about **who reads the file**: tier 1 the user reads raw (hard caps), t
 
 ### Tier 2 caps (existing soft limits, agent-context-budget driven)
 
-- `BOARD.md` ≤ 200 lines. If it grows past, `triage` MUST cut it before the next standup ends.
+- A `BOARD.md` a project still holds is ≤ 200 lines; past that, `triage` cuts it before the next standup ends. The board `perry-tasks board` prints is not a file and has no line cap.
 - `PROJECT_STATE.md` ≤ 200 lines.
 - `work/SKILL.md` itself ≤ ~300 lines. New features → write to `reference/<topic>.md` first, add a one-line pointer in the SKILL.md `## How this file is organized` table. See `reference/extending.md`.
 - Individual `journal/<YYYY-MM>/<YYYY-MM-DD>.md` files have no cap (a busy day might be 300+ lines), but they're append-only and rarely re-read in full — only when answering "what happened on X".
