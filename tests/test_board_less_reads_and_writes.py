@@ -581,8 +581,14 @@ class TestTheContractsAnnounceTheStoreRead(unittest.TestCase):
     def tearDownClass(cls):
         cls.p.close()
 
+    #: The minor that moved each population onto its store. Named rather than
+    #: read off `contract`: TASK-237 3b′ shipped `installed` at the next minor
+    #: of both payloads, and "the current minor" stopped being this entry.
+    STORE_READ_MINOR = {"perry-task/list": "2.1", "perry-asks/list": "1.1"}
+
     def entry_at_the_shipped_minor(self, payload):
-        minor = payload["contract"].rsplit("/", 1)[1]
+        family = payload["contract"].rsplit("/", 1)[0]
+        minor = self.STORE_READ_MINOR[family]
         return next((e for e in payload["semantics"] if e["version"] == minor), None)
 
     def test_list_announces_asks_and_risks_from_their_stores(self):

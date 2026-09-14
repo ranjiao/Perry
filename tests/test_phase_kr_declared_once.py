@@ -558,7 +558,12 @@ class TestTheLinterFallsBackToTheDocumentToo(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "phase").mkdir()
         (d / ".perry").mkdir()
-        (d / ".perry" / "config.md").write_text("State root: .\n")
+        # TASK-237 3b′: the config store is what makes this project installed,
+        # so `perry-lint` judges it; `.perry/config.md` is deleted (ADR-019)
+        # and `BOARD.md` / `phase/` alone no longer count. No linkage store.
+        (d / ".perry" / "config.jsonl").write_text(
+            '{"kind": "setting", "key": "state_root", "label": "State root", '
+            '"value": ".", "order": 0}\n')
         (d / "BOARD.md").write_text("# Board\n")
         (d / "phase" / "CURRENT").write_text("001-old\n")
         (d / "phase" / "001-old.md").write_text(self.DOCUMENT.format(kr=kr))

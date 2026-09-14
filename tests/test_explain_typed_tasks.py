@@ -99,11 +99,32 @@ class TypedTaskLookup(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["title"], "2")
 
-    def test_an_unadopted_projects_tasks_jsonl_is_not_claimed_by_perry(self):
+    def test_a_tasks_jsonl_alone_is_a_canonical_store_and_is_claimed(self):
+        """**Inverted by TASK-237 3b′, and on purpose.** This test asserted a
+        `tasks.jsonl` with no `.perry/` was NOT claimed, because `BOARD.md` /
+        `OKR.md` / `phase/` were then what adopted a project. The user's
+        criterion (Amendment (4) item 2, `schema/README.md § installed`) is
+        the config store OR any canonical store under the state root — so a
+        `tasks.jsonl` at the root makes the directory an installed Perry
+        project, and its record answers ahead of a markdown definition
+        (ADR-009), exactly as on a configured project."""
         self.write_false_markdown_definition("TASK-999")
         self.write_store([{"id": "TASK-999", "title": "unrelated store"}])
         (self.root / ".perry" / "config.jsonl").unlink()
         (self.root / ".perry").rmdir()
+
+        result = self.run_explain("TASK-999", "--json")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["title"], "unrelated store")
+
+    def test_a_markdown_only_project_s_definition_is_not_overridden(self):
+        """The half of the old test the criterion keeps: with no config and no
+        store, nothing is claimed and the markdown lookup answers."""
+        self.write_false_markdown_definition("TASK-999")
+        (self.root / ".perry" / "config.jsonl").unlink()
+        (self.root / ".perry").rmdir()
+        self.assertFalse((self.root / "tasks.jsonl").exists())
 
         result = self.run_explain("TASK-999", "--json")
 

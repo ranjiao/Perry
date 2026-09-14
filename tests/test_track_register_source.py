@@ -178,6 +178,13 @@ class Fixture(unittest.TestCase):
                     d / "OKR.md")
         if store is not None:
             (d / ".perry" / "config.jsonl").write_text(store)
+        else:
+            # TASK-237 3b′: with no config store, `BOARD.md` and `OKR.md`
+            # alone no longer make a project installed, and `perry-state`
+            # would answer its no-state payload with no `project.config` to
+            # read. An empty risk store is a canonical store that declares no
+            # track, so the register stays `absent` — the case under test.
+            (d / "risks.jsonl").write_text("")
         return d
 
     def detail(self, d: pathlib.Path):

@@ -48,3 +48,21 @@ Perry design doc. Never enumerate the claimed paths here; run the check.
    - Then, run `/perry decide init` — creates `design/` **and** `decisions/` (via `perry-decide bootstrap`). **Do not skip this step.** It was absent from this chain for a release: `work`'s bootstrap correctly refuses to create the decision directory and names a `decide` bootstrap, `decide`'s `init` only made `design/`, and nothing here invoked `decide` at all — so every project that followed this list ended up with no decision record, and `adr` wrote its index row into a file that did not exist.
    - Finally, run `/perry goals plan-week` — proposes the first batch of weekly tasks, which `/perry work` then writes as BOARD rows + a journal entry under `## New tasks added`.
 6. Ask: "Run `/perry goals init` now?" — if yes, read `$PERRY_HOME/goals/SKILL.md` and follow its `init` subcommand. If no, stop and let the user proceed at their own pace.
+
+## Writing the config store
+
+`SKILL.md § First-time setup` step 3's answers go into `.perry/config.jsonl`
+**before any other file**, through the tool and never by hand. The store is the
+first write of every start: a project whose only files are markdown is not
+installed (`schema/README.md § installed`), so it would be sent back to
+first-time setup on every session.
+
+```
+"$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"
+"$PERRY_HOME/bin/perry-config" set --root . "Chat language" "follow user"
+"$PERRY_HOME/bin/perry-config" set --root . "Repo layout" "<single or split>"
+"$PERRY_HOME/bin/perry-config" set --root . "State root" "<state root>"
+```
+
+`State root` is `perry` unless step 2 found a collision and the user chose
+otherwise. `Chat language` is never asked; it is `follow user`.

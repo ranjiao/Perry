@@ -66,7 +66,9 @@ GUARDED = (
 #: The sections that perform a start's first write — each must carry the tool
 #: invocation, and each is executed.
 WRITERS = (
-    ("SKILL.md", "## First-time setup"),
+    # The router's step 3 points here: its byte budget (`test_router_budget`)
+    # has no room for the four commands, so the commands live in first-run.
+    ("reference/first-run.md", "## Writing the config store"),
     ("work/reference/bootstrap.md", None),
     ("goals/reference/setup.md", "## `init`"),
     ("decide/SKILL.md", "### `init`"),
