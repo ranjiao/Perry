@@ -401,7 +401,7 @@ On resume, skip prescription items whose `status` is already `done`.
    file from an impression of it. The user's words survive the refactor; only
    their location changes.
 4. **Perry state goes through its owning skill.** If the prescription touches
-   `OKR.md`, `BOARD.md`, or `design/`, route through `/okr`, `/pmo`, `/design`
+   `OKR.md`, `tasks.jsonl`, or `design/`, route through `/okr`, `/pmo`, `/design`
    as `adopt` does. Diagnose writes exactly one file of its own —
    `.perry/diagnose/<YYYY-MM-DD>-diagnosis.md` — and one class of change on
    its own authority: non-Perry documents in the project's own tree.

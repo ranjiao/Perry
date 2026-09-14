@@ -438,7 +438,7 @@ everywhere and PASSes.
 
 **Two is a measured default, not a law.** It is
 `schema § thresholds.review_fail_rounds_before_escalation`; a project sets its
-own with `- Review rounds before escalation: N` in `.perry/config.md`, and a
+own with `perry-config set "Review rounds before escalation" N`, and a
 single run overrides both with `PERRY_REVIEW_ROUNDS=N`. The finding names
 which of the three set the limit it is enforcing. Raise it for work that
 genuinely converges by accretion; `1` makes every FAIL a decision point.

@@ -139,7 +139,7 @@ class TestRefusalCasesAreNamed(unittest.TestCase):
     def test_the_contract_names_concrete_refusal_cases(self):
         s = contract_section()
         self.assertIn("asks in chat and stops", s)
-        for case in ("`BOARD.md`", "`decisions/`", "`journal/`"):
+        for case in ("`tasks.jsonl`", "`decisions/`", "`journal/`"):
             self.assertIn(case, s, f"refusal case for {case} not named")
 
     def test_each_lane_skill_still_forbids_writing_outside_itself(self):
@@ -285,7 +285,7 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
     # must claim it. Explicit, because the substring heuristic this replaces
     # silently skipped whatever it failed to match.
     SCHEMA_PATH_TO_CONTRACT = {
-        "BOARD.md": "BOARD.md",
+        "BOARD.md": "tasks.jsonl",
         "journal/<YYYY-MM>/<YYYY-MM-DD>.md": "journal/",
         "PROJECT_STATE.md": "PROJECT_STATE.md",
         "evidence/<YYYY-MM>/<TASK-ID>-*.md": "evidence/",
@@ -476,10 +476,10 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
     # Which lane owns what, as a set of paths each OTHER lane must not be
     # instructed to write. Derived from the signed contract table, not restated.
     FOREIGN_WRITES = {
-        "goals": ("BOARD.md", "journal/", "evidence/", "weekly/", "handoff/",
+        "goals": ("tasks.jsonl", "journal/", "evidence/", "weekly/", "handoff/",
                   "decisions/"),
         "work": ("OKR.md", "phase/", "decisions/"),
-        "decide": ("BOARD.md", "journal/", "OKR.md", "phase/", "evidence/"),
+        "decide": ("tasks.jsonl", "journal/", "OKR.md", "phase/", "evidence/"),
     }
 
     # Verbs that make a sentence an instruction to write rather than to read.

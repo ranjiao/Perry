@@ -69,12 +69,12 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 | Lane | Only writer of | Proposes, never writes |
 |---|---|---|
 | **`goals`** (`goals/`) | `OKR.md` — **including `## Commitments`** — and `phase/<NNN>-<slug>.md` | weekly tasks, handed to `work` |
-| **`work`** (`work/`) | `BOARD.md` (incl. `## Intake`, `## Cadence`), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
+| **`work`** (`work/`) | `tasks.jsonl` + its 4 register stores (`perry-tasks board` prints them), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
 | **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
 
 **Two changes from the previous contract** — `decisions/` + its then-index moved from `work` to `decide`, and `OKR.md § Commitments` became explicitly `goals`. **The lane names and the directories now agree**, an edit needing no second signature because the ownership set above is byte-identical across it. Both accounts: `reference/hand-off-contract.md`.
 
-**What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing `BOARD.md`; `work` writing `decisions/`; `decide` writing `journal/`.
+**What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing `tasks.jsonl`; `work` writing `decisions/`; `decide` writing `journal/`.
 
 ## Mandatory first move: combined snapshot
 
@@ -118,8 +118,7 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
 
    **When `stale: true`** (no movement in `stale_after_days`, default 30, from
    `schema/state-schema.json § thresholds`), say so and move `Abandon it` first
-   with the `(Recommended)` tag. It stays a recommendation, never an automatic
-   retirement: `abandoned` is set by the user,
+   with the `(Recommended)` tag. It stays a recommendation: `abandoned` is set by the user,
    never by Perry deciding a run has gone stale. **Never resume without asking.**
 
    The card, its three answer branches and the flag-mismatch refusal:

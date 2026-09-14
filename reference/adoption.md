@@ -13,7 +13,7 @@ roadmap docs, ADR folders, open issues, TODO comments — but those are
 
 **Adoption never writes a state file directly, and never writes anything the user
 did not choose.** It writes exactly one artifact of its own — the dossier — and
-everything that reaches `OKR.md` / `BOARD.md` / `design/` gets there through the
+everything that reaches `OKR.md` / `tasks.jsonl` / `design/` gets there through the
 normal subcommands after the user accepted it.
 
 This is the same class of gate as `pmo` "no `done` without evidence" and `okr`
@@ -26,7 +26,7 @@ from fact ever again.
 Three corollaries, all load-bearing:
 
 - **One writer per file survives adoption.** Adoption is an orchestrator. `okr`
-  still writes `OKR.md`, `pmo` still writes `BOARD.md`, `design` still writes
+  still writes `OKR.md`, `pmo` still writes `tasks.jsonl`, `design` still writes
   `design/`. Adoption owns only `.perry/adoption/`.
 - **Nothing is materialized mid-pipeline.** Stages 0–3 write only the dossier. A
   user who abandons adoption halfway has an untouched project.
@@ -49,7 +49,7 @@ means. So the three layers are authored differently, and this is not negotiable:
 | Layer | Authored by | Why |
 |---|---|---|
 | `OKR.md`, `phase/` | **The user**, from an evidence-drawn strawman | git history has zero information about intent. A plausible-looking inferred Objective is worse than no Objective, because the whole cascade inherits it. |
-| `BOARD.md` tasks | **Evidence**, user-triaged in bulk | "what is unfinished" is genuinely legible from TODOs, open issues, and stale branches. High volume, reliable inference. |
+| Tasks (`tasks.jsonl`) | **Evidence**, user-triaged in bulk | "what is unfinished" is genuinely legible from TODOs, open issues, and stale branches. High volume, reliable inference. |
 | `design/`, `decisions/`, `knowledge/` | **Transcribed only** | Converted where a real source document exists. Never invented. |
 
 ### Declared is not inferred

@@ -98,7 +98,7 @@ survive.
 silent-with-a-payload when there is no `intake.jsonl`: *no store* and *clean* are
 different answers.
 
-A row still sitting in intake for **more than 14 days** is reported by age. Not "after two triages": `Arrived` is recorded and nothing counts triages, so elapsed time is computable and a triage count is not. And if intake is pushing `BOARD.md` toward the 200-line cap, **say so as a finding** — a project taking on more than it discharges is exactly what that pressure means. Do not raise the cap and do not move the section somewhere it can grow unnoticed; if it recurs, that is a reason to revisit DESIGN-003 § 4 decision 3, not to relax it quietly.
+A row still sitting in intake for **more than 14 days** is reported by age. Not "after two triages": `Arrived` is recorded and nothing counts triages, so elapsed time is computable and a triage count is not. And if intake is pushing a `BOARD.md` the project still holds toward its 200-line cap, **say so as a finding** — a project taking on more than it discharges is exactly what that pressure means. Do not raise the cap and do not move the section somewhere it can grow unnoticed; if it recurs, that is a reason to revisit DESIGN-003 § 4 decision 3, not to relax it quietly. The board `perry-tasks board` prints is not a file and has no line cap, so a board-less project has no cap for intake to push against.
 
 **Read the payload, then walk what it returns — do not open `BOARD.md` and
 look.** Eyeballing a file for numbers is the one thing Perry's oldest rule
@@ -345,7 +345,7 @@ them: the columns that track's mode has **no honest default** for and which it
 left blank. Say it as a line per track and do not skip the step it blocks —
 
 > `ops` (queue) has no `SLA`, so the breach step below cannot run. Declare one
-> in `.perry/config.md § Tracks`, or accept that this track has no clock.
+> with `perry-config track ops --sla <value>`, or accept that this track has no clock.
 
 This is not a nicety. `modes/pipeline.md § The mode contract`, `modes/queue.md § The mode contract` and
 `schema/state-schema.json` all say **triage** reports the missing value rather
@@ -437,10 +437,11 @@ The migration for a pre-Perry project that keeps all its ADRs in one file moved 
 "$PERRY_HOME/bin/perry-task" risk-migrate            # bullets → the table, once
 ```
 
-`BOARD.md § Top risks` is a table — `| ID | Risk | Opened | Status |` — and the
+`## Top risks`, as `perry-tasks board` prints it from `risks.jsonl`, is a table
+— `| ID | Risk | Opened | Status |` — and the
 rule is the one `## Intake` and `## User Input Queue` already follow: **the tool
 owns the row and every computed cell; the agent owns the prose cell.** `risk-add`
-mints the `RX-NNN`, stamps `Opened`, and writes the board row, the journal line
+mints the `RX-NNN`, stamps `Opened`, and writes the record, the journal line
 and the event together. `Risk` is your sentence and nothing rewrites it.
 
 Do not hand-write a row and do not retire a risk by striking it through. That
@@ -455,7 +456,7 @@ published `id: "Perry"`, `title: "is half-adopted: …"`.
 that the mitigation worked. It simply stops counting.
 
 **The section is a projection of a record store** (TASK-040, ADR-007 applied to
-this register the way it was applied to `BOARD.md`). `bin/perry_store.py` holds
+this register the way it had been applied to `BOARD.md`, the file TASK-237 later deleted). `bin/perry_store.py` holds
 the record shape — `id`, `risk`, `opened`, `cleared`, `status`, `order` — and
 renders it back through the same functions the task store uses, so the two
 cannot drift into two renderers.
@@ -475,7 +476,7 @@ register existed or retired without a day recorded, and today's date would be
 a claim about the project's history that nothing in its files supports.
 
 `perry-lint` reports a hand edit to the section as `risk-store-drift`, at
-`warn` — the severity `store-drift` uses for `BOARD.md`, and for the same
+`warn` — the severity `store-drift` uses for a `BOARD.md` a project still holds, and for the same
 reason: the store is authoritative, so drift never changes what a risk is, and
 `perry-tasks risks-render --write` restores the projection. The check is silent
 and says so when there is no `risks.jsonl`: *no store* and *clean* are
@@ -515,8 +516,8 @@ it ended — was emitted by nothing. `risks.source` is one of four values —
 from; on a bullet the `id` is invented and `age_days` is `null`, and a reader
 is entitled to know which it got. `mixed` means the rows came from more than
 one form, which now only happens on a board that has not migrated: **once
-`BOARD.md § Top risks` is a table, that table is the register and
-`PROJECT_STATE.md` is no longer merged into it.** Before the table existed both
+`## Top risks` is a table on a held board, or `risks.jsonl` exists, that register
+is the one read and `PROJECT_STATE.md` is no longer merged into it.** Before the table existed both
 files held bullets and both ids were invented out of the prose, so a risk
 written into both collapsed by accident — the invented ids were the first word
 of each sentence. Minted ids can never collide with invented ones, so the merge
@@ -607,9 +608,9 @@ Print the exact command — **in its `/perry <lane> …` form**, since this stri
 
 A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-mode board must carry `Stage` and `Arrived`. They are optional in the schema so that no pre-DESIGN-003 board is invalidated, **not** so a mode track can skip them — a track that does is missing the clock its own triage reads.
 
-**An existing row changes track with `perry-task track <ID> --track <track>`, never by hand.** The table above is about creation, and for a long time creation and `route` were the only two entrances a track had — so a project that declared a second track started it empty and had no tool path for the work already on the board. Moving a row is one command and it re-stamps the destination's clock in the same write: onto a `queue` track it sets `Stage` to the first post-intake stage and `Arrived` (carrying an existing one rather than restamping it, so a move cannot erase an in-flight breach); onto a staged non-queue track it sets `Stage` and `Stage since`; onto a track that reads neither it **clears** `Stage` / `Stage since` / `Arrived` and writes what they held into the journal line and the event. A track named in no row of `.perry/config.md § Tracks` is refused by name, with the declared ones listed — the tool does not create a track, because a typo that invented one would be counted as real by every reader afterwards. Editing the `Track` cell by hand instead drops the clock, which is the same defect this section records for `Arrived` one paragraph up.
+**An existing row changes track with `perry-task track <ID> --track <track>`, never by hand.** The table above is about creation, and for a long time creation and `route` were the only two entrances a track had — so a project that declared a second track started it empty and had no tool path for the work already on the board. Moving a row is one command and it re-stamps the destination's clock in the same write: onto a `queue` track it sets `Stage` to the first post-intake stage and `Arrived` (carrying an existing one rather than restamping it, so a move cannot erase an in-flight breach); onto a staged non-queue track it sets `Stage` and `Stage since`; onto a track that reads neither it **clears** `Stage` / `Stage since` / `Arrived` and writes what they held into the journal line and the event. A track with no record in `.perry/config.jsonl` (`perry-config show`) is refused by name, with the declared ones listed — the tool does not create a track, because a typo that invented one would be counted as real by every reader afterwards. Editing the `Track` cell by hand instead drops the clock, which is the same defect this section records for `Arrived` one paragraph up.
 
-**Creating a queue-mode row also creates `BOARD.md § Intake` if it is absent**, with its three columns (`Arrived`, `Request`, `Outcome`). Intake is the organ queue mode is built on and the first thing `triage` walks; a section nothing creates means step 0 no-ops forever, and `modes/queue.md`'s warning about a track "whose intake is always empty while work is clearly happening" would describe the guaranteed default rather than a risk.
+**Creating a queue-mode row also creates the intake register, `intake.jsonl`, if it is absent** — printed by `perry-tasks board` as `## Intake`, with its three columns (`Arrived`, `Request`, `Outcome`). Intake is the organ queue mode is built on and the first thing `triage` walks; a register nothing creates means step 0 no-ops forever, and `modes/queue.md`'s warning about a track "whose intake is always empty while work is clearly happening" would describe the guaranteed default rather than a risk.
 
 1. **Create the row with the tool, not by hand.**
 
@@ -804,7 +805,7 @@ Reject if no evidence path provided.
 
 **Pre-close gate 3 — record the verification rung** (DESIGN-003 § 5.3; `schema/state-schema.json § verification`):
 
-Before flipping status, capture **how** this was verified, not just that evidence exists. Pre-select the track's `Default rung` from `.perry/config.md § Tracks` (V3 for `project`, V5 for `pipeline`, V2 for `queue`, V4 for `inquiry`), so the ordinary case costs the user no decision at all — they confirm rather than choose.
+Before flipping status, capture **how** this was verified, not just that evidence exists. Pre-select the track's `Default rung` from its record in `.perry/config.jsonl` (V3 for `project`, V5 for `pipeline`, V2 for `queue`, V4 for `inquiry`), so the ordinary case costs the user no decision at all — they confirm rather than choose.
 
 Two rules override the default, and neither is optional:
 

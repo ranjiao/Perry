@@ -67,7 +67,7 @@ check establishes that a claim is *traceable*, not that it is *true*.
 
 Research does not proceed as a list. A question splits into sub-questions, those
 split again, and the value of the whole thing is knowing which branch is still
-open. `BOARD.md` has no nesting, so the edge is a cell: `Parent` carries the ID
+open. The board has no nesting (`perry-tasks board` prints flat tables), so the edge is a cell: `Parent` carries the ID
 of the question this row was split out of, and a blank `Parent` marks a root.
 
 ```markdown

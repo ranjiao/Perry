@@ -47,8 +47,8 @@ would put a terminal state into a sequence every WIP and dwell number is
 computed over.
 
 **Where it died is recorded, and it is not recorded on the board.** `perry-task
-drop` removes the row: `BOARD.md` holds open work, and a dropped item is not
-open work. The stage it reached goes into the two surfaces that survive the
+drop` takes the row off the board: `perry-tasks board` prints open work, and a
+dropped item is not open work. The stage it reached goes into the two surfaces that survive the
 removal — the journal's status-change line (`… → dropped · at stage: review ·
 reason: …`) and the `drop` event's `stage` field — alongside the reason, like
 every other drop. That is the diagnostic that matters here: three items dying at

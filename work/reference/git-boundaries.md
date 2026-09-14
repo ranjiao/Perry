@@ -8,7 +8,7 @@ Each role owns its own deliverable's commit. PMO never commits code; Coding neve
 |---|---|---|---|---|---|
 | **Coding Agent** | its **own worktree** | Code + tests on a **feature branch** | only if the hook does not escalate `git push` | same condition | ✗ |
 | **Research Agent** | its **own worktree** | Generated reports / evidence files | only if the hook does not escalate `git push` | same condition | ✗ |
-| **PMO Agent** | the **primary checkout** | work docs (`BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`) — **not** `decisions/`, which belongs to `decide` | direct push to main acceptable for low-risk doc updates, subject to the hook | — | ✓ for own PMO doc commits, plus the `--no-ff` merge of a verified agent branch |
+| **PMO Agent** | the **primary checkout** | work docs (`tasks.jsonl`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`) — **not** `decisions/`, which belongs to `decide` | direct push to main acceptable for low-risk doc updates, subject to the hook | — | ✓ for own PMO doc commits, plus the `--no-ff` merge of a verified agent branch |
 | **Review Agent** | its **own worktree** | Review notes / approval comments | same condition | — | reviews; does not merge |
 | **User** | anywhere | Anything on the user's behalf | ✓ | ✓ | ✓ |
 
@@ -23,7 +23,7 @@ Each role owns its own deliverable's commit. PMO never commits code; Coding neve
 - **Direct push to main is acceptable** for: (a) PMO Agent's own doc commits with low risk; (b) trivial typo fixes the user explicitly authorizes — both still subject to the project's hook, which is what decides whether pushing is escalated at all. Code lands on `main` through the merge of a verified agent branch, or through a PR where the hook permits one.
 - **Branch naming**: `<owner-prefix>/<task-id>-<slug>` (e.g. `coding/task-007-cli-lifecycle`, `pmo/2026-05-board-update`). PMO Agent commits to `main` in the primary checkout; it is the one lane that does not need a worktree, because it is the lane the primary checkout belongs to.
 
-If `.perry/config.md` records `Repo layout: split` (PMO docs and code in separate repos), every delegation prompt MUST state which repo the work targets (absolute path), and evidence files MUST reference code via `<commit-SHA> path/to/file`. The split layout itself is documented in the top-level Perry SKILL.md; PMO is responsible for honoring it in delegation prompts and evidence files.
+If `.perry/config.jsonl` records `Repo layout: split` (PMO docs and code in separate repos), every delegation prompt MUST state which repo the work targets (absolute path), and evidence files MUST reference code via `<commit-SHA> path/to/file`. The split layout itself is documented in the top-level Perry SKILL.md; PMO is responsible for honoring it in delegation prompts and evidence files.
 
 ## Time Estimation for Coding Agent Tasks
 

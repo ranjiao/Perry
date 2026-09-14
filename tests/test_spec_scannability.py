@@ -857,9 +857,16 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         # 3780eb88a43b3d0aede6306e42f8580cc65998f7cf43a6438e4ccb8f1f2f641c
         "dispatch.md § the tree + § Executor: claude-subagent":
             "0338efa0df46fc8d09a6a8938e4c85eeb2388ef7161607c7c40c390a6ca79f3c",
-        # span 4,269 chars / 26 lines — all pinned, no free block
+        # Re-pinned by TASK-237 3d: the PMO row's work-docs list named
+        # `BOARD.md`, which TASK-237 3c deleted, and now names `tasks.jsonl`
+        # (the signed hand-off contract's `work` row, V5 2026-09-14); the
+        # split-layout sentence read `.perry/config.md`, which ADR-019
+        # deleted, and now reads `.perry/config.jsonl`. **The diff was read
+        # before this digest was pasted** — two tokens, no rule moved.
+        # Previous pin: e89b1321cd55a7a910322b6045e33b6763717c760d753175816f4a53a5dc45af
+        # span 4,273 chars / 24 lines — all pinned, no free block
         "git-boundaries.md § Git Role Boundaries":
-            "e89b1321cd55a7a910322b6045e33b6763717c760d753175816f4a53a5dc45af",
+            "0a85b4b6d716887b1edd45dd30337276c6aad90ccc7c178a746e65088bdecaec",
         # span 3,036 chars / 39 lines — all pinned, no free block
         "delegate.md § required fields + roleless path":
             "867706de4988717819124856ae579749f412d0d44d32e800904cf07a1a0e5f58",

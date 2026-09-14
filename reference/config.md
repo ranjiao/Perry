@@ -140,5 +140,5 @@ its ledger, `bin/perry-conform` and `bin/perry-migrate` are all deleted.
 declaration. A writer that can render a file writes it. `perry-lint` still says
 whether a file matches the schema — that half was never the gate.
 
-A `- Conformance gate:` line left in an existing `.perry/config.md` is inert.
+History: a `- Conformance gate:` line left in a pre-ADR-019 `.perry/config.md` is inert.
 Nothing reads it and nothing reports it.
