@@ -1,10 +1,10 @@
 # DESIGN-011: The OKR is collected as ten fields where it should be elicited
 
-> Status: locked
+> Status: superseded
 > Date: 2026-08-27 · Locked: 2026-08-28
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: O1-KR2 (`perry/OKR.md` v2, Objective 1 — the four work modes are usable, not just declared)
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: DESIGN-020
 > Revisits: `goals/reference/setup.md`, `reference/input-quality.md`
 
 ## 1. Problem
@@ -234,6 +234,8 @@ the questions are wrong and steps 3–5 are decoration.
   which questions are choices and which are prose.
 
 ## 9. Changes (append-only after lock)
+
+- 2026-09-14 — Superseded by DESIGN-020 (`design/DESIGN-020-guided-planning.md`). § 5.1–5.5 carry over as written; the successor adds an editable draft with approve and finalize, resumable interviews, and a state-derived next-command recommendation at `/perry` and after commands. Superseded rather than revised because § 3 excluded the tier-0 router, which the recommendation must change — user decision in session, Ran Jiao, 2026-09-14.
 
 ## 10. References
 
