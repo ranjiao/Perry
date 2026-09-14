@@ -64,3 +64,13 @@ the computation.
    predicate, which waits on the user. 3c, the deletion, has not started.
    `TASK-262` waits on 3c.
 2. **The item-5 / `P003-O3-KR2` reading** above.
+
+### Update, later on 2026-09-14
+
+- Blocker 1 is gone: `TASK-237` closed at V4 (`90d2f853`, round 2 review
+  `evidence/2026-09/TASK-237-round2-v4-review.md`), and `TASK-335` closed at V3
+  (`5f6bee61`), so the suite has no standing reds.
+- Item 6: `TASK-262` dispatched against `7f97d337`; its row closes only after
+  the PMO records a person's reading of the board sample (spec Amendment 1).
+- What remains before `score-phase`: `TASK-262` (nice-to-have), then the
+  item-5 / `P003-O3-KR2` reading, which the user decides at `score-phase`.
