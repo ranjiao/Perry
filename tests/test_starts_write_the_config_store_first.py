@@ -82,7 +82,12 @@ def section(rel: str, heading: str | None) -> str:
     if heading is None:
         return text
     lines = text.splitlines(keepends=True)
-    hits = [i for i, line in enumerate(lines) if line.startswith(heading)]
+    # The heading text must END where the prefix ends or continue with a
+    # separator: `## Bootstrap` must not match `## Bootstrapping`, which would
+    # leave a renamed section guarded by its neighbour (mutation G3).
+    hits = [i for i, line in enumerate(lines)
+            if line.startswith(heading)
+            and line[len(heading):len(heading) + 1] in ("", "\n", " ", ":")]
     if len(hits) != 1:
         raise AssertionError(f"{rel}: heading {heading!r} matched {len(hits)} "
                              f"line(s); a guard over no section guards nothing")
