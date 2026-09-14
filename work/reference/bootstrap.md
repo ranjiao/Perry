@@ -1,10 +1,10 @@
 # PMO bootstrap procedure
 
-Loaded only when `/pmo` is invoked in a project that has no `BOARD.md` at the project root and the user accepts the bootstrap prompt. One-time per project.
+Loaded only when `/pmo` is invoked in a project `perry-state --json` reports `installed: false` for and the user accepts the bootstrap prompt. One-time per project.
 
 ## Trigger
 
-`work/SKILL.md`'s standup ritual detects missing state files at step 2 ("Read live state"). If `BOARD.md` is absent, the agent asks:
+`work/SKILL.md`'s standup ritual detects missing state files at step 2 ("Read live state"). If `perry-state --json` reports `installed: false`, the agent asks:
 
 > "No PMO state in `<project>`. Bootstrap it now? (yes/no)"
 
@@ -46,6 +46,6 @@ If the user declines, stop. If the user accepts, follow this procedure.
 
 ## Post-bootstrap
 
-Subsequent `/pmo` invocations will find `BOARD.md` present and skip the bootstrap prompt entirely. The state files grow organically from there — see `reference/state-files.md` for the full inventory and size caps.
+Subsequent `/pmo` invocations will find `perry-state --json` reporting `installed: true` — a `.perry/config.jsonl` alone is enough — and skip the bootstrap prompt entirely. The state files grow organically from there — see `reference/state-files.md` for the full inventory and size caps.
 
 Top-level `/perry` setup (if not yet run) confirms two project-wide preferences and writes `.perry/config.md` (document language, single vs split repo layout). Bootstrap doesn't write `.perry/config.md` directly — that's the top-level skill's job; PMO reads the file at every standup.

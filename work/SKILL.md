@@ -40,7 +40,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/conversational.md` | Every chat reply (plain-language + on-demand in-flight board) |
 | `reference/reporting-format.md` | `status`, `monday-plan`, `midweek-check` weekly output |
 | `reference/state-files.md` | Full state-file inventory + tier 1 hard caps + tier 2 soft caps. Read on bootstrap, when introducing new files, or answering "where does this go?" |
-| `reference/bootstrap.md` | First-time PMO bootstrap procedure in a project with no `BOARD.md` |
+| `reference/bootstrap.md` | First-time PMO bootstrap procedure in a project `perry-state --json` reports `installed: false` for |
 | `reference/extending.md` | Adding new subcommands + per-project hooks (`.perry/hook.md` format) |
 | `$PERRY_HOME/reference/input-quality.md` (shared, perry root — not `work/reference/`) | `add-task` input-quality pass (§ 4 Task) |
 | `$PERRY_HOME/reference/okr-linkage.md` (shared, perry root) | Resolving a Task/Project's KR attribution: standup roll-up, `add-task`, `digest`/`coordinate` progress ingest. The "never guess attribution — resolve by ID or ask" gate. |
@@ -105,7 +105,7 @@ Trigger on any of:
 - The user invokes `/pmo digest <path>` or drops a file in `inputs/` and asks for digestion — see `reference/digests.md`. Digest is a focused subcommand and does not require the full standup before running.
 - The user asks "where are we", "项目状态", "what's the plan this week", "weekly status", "what's blocked", "delegate this", "rollover".
 - The user wants to plan a week, close a task, log a decision, write a handoff, run a cadence ritual, or consolidate work from other agents/sessions.
-- A new session opens in a project that contains a `BOARD.md` at the root.
+- A new session opens in a Perry project — one `"$PERRY_HOME/bin/perry-state" --json` reports `installed: true` for. A `.perry/config.jsonl` at the project root is enough on its own; whether a `BOARD.md` exists is not the test.
 
 ## Mandatory first move: the Standup
 
@@ -289,7 +289,7 @@ Size discipline is non-negotiable: tier 1 files have hard caps PMO/OKR **refuse 
 
 ## Bootstrap
 
-If invoked in a project with no `BOARD.md` at the project root, ask once:
+If `"$PERRY_HOME/bin/perry-state" --json` reports `installed: false` for the project — no `.perry/config.jsonl` at its root and no Perry state files — ask once:
 > "No PMO state in `<project>`. Bootstrap it now? (yes/no)"
 
 On yes → read `reference/bootstrap.md` and follow the procedure (creates initial state files, writes ADR-001, writes `.perry/hook.md` with the default high-stakes safety list and asks the user to confirm it, lazy-defers `ARCHITECTURE.md` / `runbook/` / `incidents/` until first use, then runs the standup).
