@@ -37,7 +37,7 @@ Three corollaries, all load-bearing:
   the paraphrase alongside if one helps. Translating a quote and then citing it
   turns evidence into assertion, which is the one thing this pipeline exists to
   prevent. Adoption also asks for `Document language` during `confirm`, next to
-  `State root`, when `.perry/config.md` does not exist yet — an existing
+  `State root`, when `.perry/config.jsonl` does not exist yet — an existing
   project's own docs are the best available evidence for which language it
   should be. See `reference/i18n.md`.
 
@@ -133,7 +133,7 @@ That last one is not a new requirement — it is **evidence proposes, the user
 declares** extended to the axis of time. A declaration that lives only in
 conversation memory makes the governing rule hold *within one session*, which is
 not a property worth having. The precedent already existed: stage 3 step 0 writes
-the state-root answer to `.perry/config.md` immediately rather than deferring it
+the state-root answer to `.perry/config.jsonl` immediately rather than deferring it
 to `commit`. Everything else the user authors now behaves the same way, via
 `declarations[]`.
 
@@ -206,8 +206,11 @@ Ordering matters and is fixed, because attribution depends on goals existing:
    is not this file's to keep. If anything
    collides, **ask** (`AskUserQuestion`, header `"State root"`, options:
    `Put Perry's files under perry/ (Recommended) | Use the project root anyway |
-   Another directory`) and record the answer as `State root:` in
-   `.perry/config.md`.
+   Another directory`) and record the answer in `.perry/config.jsonl`:
+
+   ```
+   "$PERRY_HOME/bin/perry-config" set --root . "State root" "<state root>"
+   ```
 
    Perry must not claim a namespace it was not given. An existing
    `design/global-search.md` is its author's document, not a malformed Perry
@@ -241,7 +244,7 @@ numbered sub-steps above, in order:
 
 | `step:` | Sub-step | On resume |
 |---|---|---|
-| `state_root` | 0 · Where Perry's files go | Skip if `.perry/config.md` already carries `State root:` |
+| `state_root` | 0 · Where Perry's files go | Skip if `.perry/config.jsonl` already carries `state_root` |
 | `goals` | 1 · Objectives + KRs | Skip if a `declarations[]` entry has `step: goals` — **re-render it back to the user, do not re-ask** |
 | `phase` | 2 · The current phase | Skip if a declaration has `step: phase` |
 | `clusters` | 3 · Cluster triage | Resume at the first cluster whose candidates are still `status: pending` |
@@ -263,7 +266,7 @@ Write in dependency order, each through its owning subcommand:
 
 | Candidate kind | Target | Written by |
 |---|---|---|
-| — | `.perry/config.md` | `/perry` setup (language + repo layout) |
+| — | `.perry/config.jsonl` | `perry-config set` (language, chat language, repo layout, state root — `SKILL.md § First-time setup` step 3). **First, whatever `--only` names.** It is what makes the project installed (`schema/README.md § installed`); `--only=design,knowledge,arch` writes nothing else that counts, and would otherwise be offered first-time setup on every session |
 | `objective`, `kr` | `OKR.md` | `/perry goals init` |
 | `phase`, phase KRs | `phase/001-<slug>.md` + `linkage.jsonl` | `/perry goals plan-phase` |
 | `design` | `design/<ID>-<slug>.md` | `/perry decide new` |

@@ -12,6 +12,17 @@ If the user declines, stop. If the user accepts, follow this procedure.
 
 ## Procedure
 
+0. **Write `.perry/config.jsonl` first, when it does not exist.** Before any markdown: `BOARD.md` and `PROJECT_STATE.md` alone do not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so a bootstrap that wrote only those would be offered again on every session. If top-level `/perry` first-time setup has not run, ask its preference questions (`$PERRY_HOME/SKILL.md § First-time setup` step 3) and write the answers with the tool:
+
+   ```
+   "$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"
+   "$PERRY_HOME/bin/perry-config" set --root . "Chat language" "follow user"
+   "$PERRY_HOME/bin/perry-config" set --root . "Repo layout" "<single or split>"
+   "$PERRY_HOME/bin/perry-config" set --root . "State root" "<state root>"
+   ```
+
+   When the store already exists, this step writes nothing.
+
 1. **Detect project metadata** — folder name, README, any roadmap-looking markdown, git repo URL. These populate template placeholders.
 
 2. **Create state files at the project root**:
@@ -48,4 +59,4 @@ If the user declines, stop. If the user accepts, follow this procedure.
 
 Subsequent `/pmo` invocations will find `perry-state --json` reporting `installed: true` — a `.perry/config.jsonl` alone is enough — and skip the bootstrap prompt entirely. The state files grow organically from there — see `reference/state-files.md` for the full inventory and size caps.
 
-Top-level `/perry` setup (if not yet run) confirms two project-wide preferences and writes `.perry/config.md` (document language, single vs split repo layout). Bootstrap doesn't write `.perry/config.md` directly — that's the top-level skill's job; PMO reads the file at every standup.
+Top-level `/perry` setup confirms the project-wide preferences and writes them into `.perry/config.jsonl` with `perry-config set`, as its first write. When this bootstrap runs without it, step 0 writes the store the same way before anything else, because a project whose only files are markdown is not installed (`schema/README.md § installed`) and would be offered this bootstrap again on every session. PMO reads the store at every standup.

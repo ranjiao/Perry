@@ -1,4 +1,4 @@
-# `perry-knowledge list --json` — `perry-knowledge/list/1.1`
+# `perry-knowledge list --json` — `perry-knowledge/list/1.2`
 
 The read side of the knowledge card store: every card under `knowledge/`, the
 five provenance fields each one carries, and whether it is past its
@@ -18,8 +18,9 @@ sides together.
 
 ```jsonc
 {
-  "contract": "perry-knowledge/list/1.1",  // check this before anything else
-  "semantics": [],                         // meaning changes, oldest minor first
+  "contract": "perry-knowledge/list/1.2",  // check this before anything else
+  "installed": true,                       // false: not a Perry project — schema/README.md § installed
+  "semantics": [ /* below */ ],            // meaning changes, oldest minor first
   "project_root": "/abs/path/to/project",  // absolute, as resolved
   "state_root": "/abs/path/to/project/perry",
   "cards": [ /* below */ ],
@@ -35,8 +36,9 @@ cards is one a consumer cannot check.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `contract` | string | `perry-knowledge/list/1.1`. Always present, always first |
-| `semantics` | array | the minors under which a value already in this payload started meaning something else, oldest minor first. **`[]` today, and always present** — see below |
+| `contract` | string | `perry-knowledge/list/1.2`. Always present, always first |
+| `installed` | bool | `true` when the directory read is an installed Perry project, by `schema/README.md § installed`. `false` on any other directory, with `cards` empty and exit 0. Added in 1.2 |
+| `semantics` | array | the minors under which a value already in this payload started meaning something else, oldest minor first. **one entry since 1.2, and always present** — see below |
 | `project_root` | string | the resolved project root, absolute. `.perry/` is anchored here |
 | `state_root` | string | where Perry's state lives, absolute — `project_root` unless `.perry/config.md` declares a `State root:`. **`cards[].path` is relative to this**, not to `project_root` |
 | `cards` | array | the cards, one object each, sorted by file path. `[]` when the project has no `knowledge/` directory at all — never a missing key and never `null` |
@@ -48,14 +50,23 @@ cards is one a consumer cannot check.
 hold on every response including a filtered one. A consumer never has to
 choose between trusting the count and counting the array.
 
-## `semantics` — empty, and that is the answer
+## `installed`
+
+`true` when the directory read is an installed Perry project, by the one
+criterion in `schema/README.md § installed` — `.perry/config.jsonl` at the
+project root, or a canonical store under the state root. On any other
+directory every other key keeps its empty shape and the call exits 0, so
+**read `installed` before reading an empty `cards` as "nothing here"**. Added in 1.2.
+
+## `semantics` — one entry, since 1.2
 
 Rule 3 below used to say this was *"where a `semantics` array would appear if a
 value here ever changes meaning"*. It appears now, before there is anything to
 put in it, and that is the point rather than an oversight.
 
-**Nothing in this payload has changed meaning.** `1.0` and `1.1` are the only
-versions a consumer can have read against; `1.1` added this key and moved no
+**It carries one entry, at `1.2`: `installed`** (`schema/README.md § installed`),
+entered at the user's decision (TASK-237 Amendment (4) item 1). No value
+carried before `1.2` has changed meaning; `1.1` added this key and moved no
 value. `stale` is still the field most likely to need an entry one day, and it
 has not needed one yet. **An entry invented to fill the array would be worse
 than the empty array** — a consumer that walked it would go and re-check a
@@ -65,9 +76,17 @@ The key ships on **every** response all the same, including a store with no
 `knowledge/` directory at all. It is the argument this page already makes two
 paragraphs up about `contract`: **a consumer checks before it looks**, and a
 key that appears only when there is something to say is one a consumer cannot
-check. The entry shape, for the day there is one, is
-`perry-task/list § semantics[]` — `version`, `fields`, `note` — documented
-there rather than copied here.
+check. The entry shape is
+`perry-task/list § semantics[]` — `version`, `fields`, `note` — and its keys
+are tabled here since `1.2`, the first version with an entry to place:
+
+### The entry — `semantics[]`
+
+| Key | Type | Meaning |
+|---|---|---|
+| `version` | string | the minor the change shipped in, `"1.2"`. Compare it as a pair of ints, never as a float or a string |
+| `fields` | array | the payload paths the entry is about, in this payload's dotted notation |
+| `note` | string | what changed, and what a consumer that hardcoded the old reading gets wrong |
 
 ## A card
 
@@ -197,8 +216,8 @@ more.
    the same worked example, as `schema/task-list-contract.md § The three rules`.
    Since `1.1` the answer to the second question is **in the payload**: walk
    `semantics` for every entry newer than the minor you read against. It is
-   empty today — see the section above for why that is a fact rather than a
-   placeholder. `stale` is the field most likely to fill it.
+   one entry since `1.2` — see the section above. `stale` is the field most
+   likely to need the next one.
 
 ## Changelog
 
@@ -216,3 +235,17 @@ still mean what it meant"*, and until now this payload carried nowhere to read
 that answer from — so the promise could not be kept and nothing could ever
 report it broken. `perry-events/list/1.1` added the same key on the same
 reading. No card field changed, and `stale` is computed exactly as before.
+
+### 1.2 — 2026-09-14 (TASK-237 3b′)
+
+**One key added, none removed or retyped: top-level `installed`.** On a
+directory that is not a Perry project this payload answered its empty shape at
+exit 0, which a consumer could not tell from a project with nothing in it
+(aiMark, `evidence/2026-09/2026-09-14-aimark-feedback-task-237.md § 2.2`).
+`installed` is `true` exactly when `schema/README.md § installed` holds — the
+same predicate `perry-state --section installed` answers from.
+
+`semantics` carries a `1.2` entry for it. A key addition is normally a
+Changelog line only; this one is also entered there at the user's decision
+(TASK-237 Amendment (4) item 1), because a consumer that read an empty payload as
+"nothing here" has to change what it does, not only what it parses.

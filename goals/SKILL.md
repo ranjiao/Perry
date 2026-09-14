@@ -66,7 +66,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 −3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: it's the perry/ root dir (the grandparent of `goals/SKILL.md`).
 −2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `opencode` | `codex-cli`) and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` follow that matrix (OpenCode = `question`; Codex = numbered free text; same chosen value and writes).
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
-0. **Read `.perry/config.md`** if present, for document language, chat language and repo layout. `OKR.md` and every phase file are written in `Document language`; the snapshot, the TL;DR and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; KR ids (`KR-O1.2`, `P<NNN>-O<n>-KR<n>`), phase slugs, dates and enum values stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`.
+0. **Read `.perry/config.jsonl`** if present (`"$PERRY_HOME/bin/perry-config" show --json`), for document language, chat language and repo layout. `OKR.md` and every phase file are written in `Document language`; the snapshot, the TL;DR and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; KR ids (`KR-O1.2`, `P<NNN>-O<n>-KR<n>`), phase slugs, dates and enum values stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
 2. **Compute the state — one call**: `"$PERRY_HOME/bin/perry-state" --json`. Deterministic, read-only, stdlib-only. It resolves the current phase via `phase/CURRENT`, parses `OKR.md` and the phase file, reads `linkage.jsonl`, cross-checks `BOARD.md`, and returns objectives, KR ids, phase day, scope-reduction triggers, cost-ceiling lines, `attribution.linked` / `attribution.unlinked`, and tier-1 cap overruns. **Every number in the snapshot comes from this payload** — never count by eye; a field the payload doesn't carry prints `—`. On non-zero exit, say so in one line and read `OKR.md` + the phase file directly.
 3. **Read the source text** only when the conversation is about its content — the phase narrative, an Objective's wording, an Operating Principle. The payload answers "how many / how far / what's unlinked" without loading it.
@@ -105,7 +105,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
 5. **Suggest 1–3 next actions** based on what's missing or behind. Two prompts fire automatically based on phase state:
    - **KR-progress prompt** (auto): if ≥80% of `commit` KRs in the current phase are achieved (metric ≥ target) → "Phase #<NNN> commit KRs are <X>/<Y> done — ready to `/okr score-phase` and start the next?"
-   - **Heartbeat prompt** (auto): if days-since-last-snapshot ≥ `phase_heartbeat_days` (read from `.perry/config.md`, default 14) → "It's been <N>d since the last snapshot — run `/okr snapshot` to preserve the current state."
+   - **Heartbeat prompt** (auto): if days-since-last-snapshot ≥ `phase_heartbeat_days` (read from `.perry/config.jsonl`, default 14) → "It's been <N>d since the last snapshot — run `/okr snapshot` to preserve the current state."
    - Other 1–2 suggestions based on what's missing/behind:
      - "no current phase → run `/okr plan-phase <slug>`"
      - "KR P<NNN>-O<n>-KR<n> at 30% with 80% of phase commits hit → consider `score-phase` carrying it forward"
@@ -176,6 +176,8 @@ and lint pass in the style rules below still apply to those.
 
 If no `OKR.md`:
 > "No OKR found in `<project>`. Run `init` to create one? (yes/no)"
+
+`init` writes `.perry/config.jsonl` first when it does not exist (`reference/setup.md § init` step 0), so a goals-only start ends installed.
 
 If `OKR.md` exists but no current phase (no `phase/CURRENT` or it points at a phase already scored):
 > "Overall OKR found (v<N>), no current phase. Run `plan-phase <slug>`?"

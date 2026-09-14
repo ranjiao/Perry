@@ -607,8 +607,9 @@ class TestTheContractAnnouncedAllOfIt(unittest.TestCase):
         # `semantics` below is what keeps this suite about 1.13; the
         # handle here is only "the doc and the tool agree about today".
         # 2.1: TASK-237 3a's store-read minor, the next one this pin follows.
-        self.assertEqual("perry-task/list/2.1", self.payload["contract"])
-        self.assertIn("`perry-task/list/2.1`", self.doc)
+        # TASK-237 3b′: `installed` was added, a minor bump.
+        self.assertEqual("perry-task/list/2.2", self.payload["contract"])
+        self.assertIn("`perry-task/list/2.2`", self.doc)
 
     def test_every_new_conformance_key_is_documented(self):
         for key in ("blocked_by_closed_rows", "in_progress_with_no_live_run",

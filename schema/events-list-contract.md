@@ -1,4 +1,4 @@
-# `perry-task events --json` — `perry-events/list/1.2`
+# `perry-task events --json` — `perry-events/list/1.3`
 
 The event log's **tail**, in **log order**, with a cursor you can page on.
 `--limit N` is the **newest** N events; the cursor walks **backwards** from
@@ -35,7 +35,8 @@ is the answer. It is.
 
 ```jsonc
 {
-  "contract": "perry-events/list/1.2",
+  "contract": "perry-events/list/1.3",
+  "installed": true,        // false: not a Perry project — schema/README.md § installed
   "semantics": [ /* below */ ],  // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "events":  [ /* below */ ],
@@ -51,6 +52,14 @@ The first page of a 256-event log is `seq` 236 through 255 — **the end of the
 log, not its start.** `seq` is the absolute position in the log and is not
 renumbered per page, so a consumer reassembling pages sorts on `seq` and never
 has to know which way the cursor walked.
+
+### `installed`
+
+`true` when the directory read is an installed Perry project, by the one
+criterion in `schema/README.md § installed` — `.perry/config.jsonl` at the
+project root, or a canonical store under the state root. On any other
+directory every other key keeps its empty shape and the call exits 0, so
+**read `installed` before reading an empty `events` as "nothing here"**. Added in 1.3.
 
 ## An event
 
@@ -193,6 +202,20 @@ Same shape as `perry-task/list § semantics[]`, on purpose.
 | `note` | string | prose, always populated: what the value used to mean, what it means now, and what a consumer that hardcoded the old meaning does wrong. Meant to be shown, not branched on |
 
 ## Changelog
+
+### 1.3 — 2026-09-14 — `installed` (TASK-237 3b′)
+
+**One key added, none removed or retyped: top-level `installed`.** On a
+directory that is not a Perry project this payload answered its empty shape at
+exit 0, which a consumer could not tell from a project with nothing in it
+(aiMark, `evidence/2026-09/2026-09-14-aimark-feedback-task-237.md § 2.2`).
+`installed` is `true` exactly when `schema/README.md § installed` holds — the
+same predicate `perry-state --section installed` answers from.
+
+`semantics` carries a `1.3` entry for it. A key addition is normally a
+Changelog line only; this one is also entered there at the user's decision
+(TASK-237 Amendment (4) item 1), because a consumer that read an empty payload as
+"nothing here" has to change what it does, not only what it parses.
 
 ### 1.2 — 2026-08-28 — one clock (TASK-144)
 

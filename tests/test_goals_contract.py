@@ -42,7 +42,8 @@ class TestShape(unittest.TestCase):
     # `semantics` is `2.3`, TASK-205. Asserted here by PRESENCE in the key
     # set, which is the whole assertion this payload needs: the array's
     # contents are held by `tests/test_semantics_on_every_payload.py`.
-    TOP = {"contract", "semantics", "project_root", "state_root",
+    # `installed`: TASK-237 3b′, the 3.2 key addition.
+    TOP = {"contract", "installed", "semantics", "project_root", "state_root",
            "conformance", "okr", "phase", "krs", "linkage", "counts",
            "answered_by", "unlinked_task_ids"}
     KR = {"id", "level", "objective", "title", "metric", "qualifier",

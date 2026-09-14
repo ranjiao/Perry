@@ -1,6 +1,6 @@
 # `perry-goals list --json` — the goals contract
 
-> Contract: **`perry-goals/list/3.1`**
+> Contract: **`perry-goals/list/3.2`**
 > Locked by `tests/test_goals_contract.py`.
 > DESIGN-005 § 6 step 2.
 
@@ -33,7 +33,8 @@ Perry's tests cannot reach.
 
 ```jsonc
 {
-  "contract":     "perry-goals/list/3.1",
+  "contract":     "perry-goals/list/3.2",
+  "installed":    true,                    // false: not a Perry project — schema/README.md § installed
   "semantics":    [ /* below */ ],         // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",
@@ -65,6 +66,14 @@ Perry's tests cannot reach.
   "counts":       { "objectives": 3, "krs": 12, "stretch": 1 }
 }
 ```
+
+### `installed`
+
+`true` when the directory read is an installed Perry project, by the one
+criterion in `schema/README.md § installed` — `.perry/config.jsonl` at the
+project root, or a canonical store under the state root. On any other
+directory every other key keeps its empty shape and the call exits 0, so
+**read `installed` before reading an empty `krs` as "nothing here"**. Added in 3.2.
 
 ### `semantics[]` — the entry, key by key
 
@@ -385,6 +394,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `2.3` | 2026-08-28 | **additive, TASK-205.** One key added, none removed or retyped: top-level `semantics`, the array documented above. A consumer could read this payload's minor and had nowhere to find out what a minor had changed, so `CONTRACT_TESTED` against `2.2` could never go red — the same gap `perry-task/list` closed at `1.7` and `perry-events/list` at `1.1`. Adding the key changed no value, so the array itself carries no `2.3` entry; it carries `2.2`. |
 | `2.0` | 2026-08-19 | **unchanged by TASK-091.** `OKR.md § Commitments` split `By when` into a typed `Due` and a prose `By when note`, and this payload does not carry that register — so no key here was added, removed or retyped, and `tests/test_contract_invariance.py` is right to see nothing. The columns are documented under *Not here* for consumers that parse the markdown. |
 | `3.1` | 2026-09-10 | **no key added, one value's meaning changed, and one invariant written down. TASK-415.** A **measured** `current` — one whose `current_provenance.measured` is `true` — is now rounded to one decimal place, with `0.0` and `100.0` reserved for the exact cases; `P003-O3-KR2` reads `34.2` where it read `34.21052631578947`. Same key, different number, which is exactly what moved `2.2`, and rule 2 is untouched: nothing removed, nothing retyped. The invariant is that a KR with `measured: true` carries a non-null `target`, held by `tests/test_measured_krs_declare_a_target.py`; it adds no key either, and is recorded here because a consumer cannot rely on a guarantee nobody stated. The page also stopped saying `current_provenance.measured` is *always false* and `current_provenance.state` is only `asserted` or `unasserted` — both had been wrong since DESIGN-015 row F shipped `COMPUTED_KR_METRICS`, and correcting a page to match a payload that already shipped is not itself a version move (the `2.1`/TASK-131 precedent). |
+| `3.2` | 2026-09-14 | **additive, TASK-237 3b′.** One key added, none removed or retyped: top-level `installed`, `true` exactly when `schema/README.md § installed` holds. On a directory that is not a Perry project this payload answered its empty shape at exit 0 — `okr.present` false, `krs` empty, `phase` null — which a consumer could not tell from a project with nothing in it. `semantics` carries a `3.2` entry for it, at the user's decision (Amendment (4) item 1), although a key addition is normally a changelog row only. |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a
 deterministic writer and still has no deterministic *reader* — a consumer that

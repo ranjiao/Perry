@@ -1,6 +1,6 @@
 # `perry-decide list --json` — the decisions contract
 
-> Contract: **`perry-decide/list/2.0`**
+> Contract: **`perry-decide/list/2.1`**
 > Locked by `tests/test_decide_writer.py § TestListContract`.
 > DESIGN-005 § 6 step 1.
 
@@ -31,8 +31,9 @@ listable at all.**
 
 ```jsonc
 {
-  "contract":        "perry-decide/list/2.0",
-  "semantics":       [],                    // meaning changes, oldest minor first
+  "contract":        "perry-decide/list/2.1",
+  "installed":       true,                  // false: not a Perry project — schema/README.md § installed
+  "semantics":       [ /* below */ ],       // meaning changes, oldest minor first
   "project_root":    "/abs/path",
   "state_root":      "/abs/path",
   "conformance":     { /* below */ },
@@ -43,7 +44,15 @@ listable at all.**
 }
 ```
 
-### `semantics` — empty, and that is the answer
+### `installed`
+
+`true` when the directory read is an installed Perry project, by the one
+criterion in `schema/README.md § installed` — `.perry/config.jsonl` at the
+project root, or a canonical store under the state root. On any other
+directory every other key keeps its empty shape and the call exits 0, so
+**read `installed` before reading an empty `decisions` as "nothing here"**. Added in 2.1.
+
+### `semantics` — one entry, since 2.1
 
 **The minors under which a value already in this payload started meaning
 something else, oldest minor first.** Rule 2 of `schema/task-list-contract.md
@@ -51,20 +60,28 @@ something else, oldest minor first.** Rule 2 of `schema/task-list-contract.md
 key that stays and starts returning something else, and that is what this array
 reports.
 
-**It is `[]` here because nothing in this payload has ever changed meaning.**
-`1.1` added this key and moved no value; `2.0` **removed** three and re-pointed
-none. A removal is a major and belongs in the changelog below, not here — an
-entry invented to mark it would send a consumer to re-check fields that never
-moved.
+**It carries one entry, at `2.1`: `installed`** (`schema/README.md § installed`), entered at the
+user's decision (TASK-237 Amendment (4) item 1): on a directory that is not a Perry
+project an empty `decisions` read exactly like a project with none. No value
+this payload carried before `2.1` has changed meaning — `1.1` added this key and
+moved no value; `2.0` **removed** three and re-pointed none, and a removal is a
+major that belongs in the changelog below, not here.
 
 The key is nevertheless present on **every** response, including this one and
 including a project with no `decisions/` at all — **a consumer checks before it
 looks**, and a key that appears only when there is something to say is one a
 consumer cannot check. Same argument as `contract` on an empty store, same
-shape as `perry-task/list § semantics[]` for the day there is an entry: an
-object with `version`, `fields` and `note`, documented there rather than
-duplicated here, because a second copy of an entry shape is a second thing to
-keep true.
+shape as `perry-task/list § semantics[]`: an
+object with `version`, `fields` and `note`. Its keys are tabled here since `2.1`, the
+first version with an entry for the parity check to place:
+
+#### The entry — `semantics[]`
+
+| Key | Type | Meaning |
+|---|---|---|
+| `version` | string | the minor the change shipped in, `"2.1"`. Compare it as a pair of ints, never as a float or a string |
+| `fields` | array | the payload paths the entry is about, in this payload's dotted notation |
+| `note` | string | what changed, and what a consumer that hardcoded the old reading gets wrong |
 
 ### A decision
 
@@ -158,3 +175,4 @@ the bug. `perry-decide` writes `decisions/` and nothing else, and
 | `1.0` | 2026-08-21 | **unchanged.** `enums.decision_status` gained `proposed`. No key added, removed or retyped — see *Adding a status is not a break* above. |
 | `1.1` | 2026-08-28 | **additive, TASK-205.** One key added, none removed or retyped: top-level `semantics`, `[]` today. Until now this payload had no place to report a value whose meaning moved, so a consumer holding `perry-decide/list/1.0` could read the minor and learn nothing from it. `perry-events/list/1.1` added the same key on the same reading. |
 | `2.0` | 2026-08-29 | **breaking, TASK-235.** Three keys **removed** from `conformance` — `index_present`, `indexed_without_file`, `filed_without_index_row` — because `DECISIONS.md` is deleted (DESIGN-013 § 5.3) and each of them compared it against `decisions/`. Nothing was added, renamed or retyped, and no surviving value changed meaning. *Removing a key* is named as the break in **Adding a status is not a break** above, so this is the major that rule points at. A consumer that read the three: `index_present` is now always the answer to "does `decisions/` exist", which `total` and an empty `decisions[]` already say; the other two have no successor, because the divergence they reported cannot occur without a second copy to diverge from. |
+| `2.1` | 2026-09-14 | **additive, TASK-237 3b′.** One key added, none removed or retyped: top-level `installed`, `true` exactly when `schema/README.md § installed` holds. On a directory that is not a Perry project this payload answered its empty shape at exit 0 — `decisions` empty, `total` and `active` 0 — which a consumer could not tell from a project with nothing in it. `semantics` carries a `2.1` entry for it, at the user's decision (Amendment (4) item 1), although a key addition is normally a changelog row only. |

@@ -336,7 +336,8 @@ class TestListContract(unittest.TestCase):
     # belongs in this set for exactly that reason: the shape is exact, so a
     # key that shipped empty is asserted the same way a populated one is, and
     # a future edit that drops it "because it says nothing" fails here.
-    TOP = {"contract", "semantics", "project_root", "state_root",
+    # `installed`: TASK-237 3b′, the 2.1 key addition.
+    TOP = {"contract", "installed", "semantics", "project_root", "state_root",
            "conformance", "decisions", "active", "total", "expired_sunsets"}
     ITEM = {"id", "title", "type", "status", "date", "deciders", "supersedes",
             "superseded_by", "sunset", "path", "lines"}

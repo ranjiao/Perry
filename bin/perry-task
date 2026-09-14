@@ -56,7 +56,7 @@ class Refused(Exception):
 # feed said it first: `perry-events` 1.1 "returns different ROWS … which is
 # precisely the change `1.x` only adds keys does not cover". Specified in
 # `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/2.1"
+LIST_CONTRACT = "perry-task/list/2.2"
 
 #: How many rows `list` returns when the caller names no bound. DESIGN-016
 #: goal 6, and the measurement behind it: `perry-task list --json` on this
@@ -226,13 +226,16 @@ LIST_SEMANTICS = [
              "`Idle` cell, and `idle_days` is derived from `asked` as before. "
              "Where a hand-edited `BOARD.md` disagreed with a store, these "
              "fields now report the store."},
+    {"version": "2.2",
+     "fields": ["installed"],
+     "note": "`installed` is added (TASK-237 3b′). Before 2.2, on a directory that is not a Perry project this payload answered its empty shape at exit 0 — `tasks` empty, `open` 0, `risks`, `asks` and `intake` empty — exactly as it answers for a project that has nothing in it, so a consumer could not tell the two apart. `installed: false` now says which. The criterion is `schema/README.md § installed`: `.perry/config.jsonl` at the project root, or a canonical store under the state root; `BOARD.md`, `OKR.md`, `phase/` or `design/` alone do not count. A consumer that read an empty payload as 'this project has nothing' must read `installed` first."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:
 # `schema/events-list-contract.md` § Why this exists rather than `--limit` on
 # `list` has the measurement that made a second payload cheaper than paging the
 # first one.
-EVENTS_CONTRACT = "perry-events/list/1.2"
+EVENTS_CONTRACT = "perry-events/list/1.3"
 
 # Same rule as `LIST_SEMANTICS`, for the feed: one entry per minor under which
 # an existing value changed MEANING. Empty is the normal case and 1.1 is not
@@ -260,6 +263,9 @@ EVENTS_SEMANTICS = [
     {"version": "1.2",
      "fields": ["events[].ts"],
      "note": "Every event appended from now on stamps its UTC OFFSET: `2026-08-28T02:15:22+08:00`, where the same event used to be written `2026-08-28T02:15:22` and meant local wall clock without saying so. The lines already in the log are not rewritten and still carry no zone; `bin/lib § ts_moment` reads those as the reading machine's local time, which is what `datetime.now()` wrote them as. Local rather than UTC on purpose, so the log's text goes on rising across the cutover. A consumer that parses `ts` must accept an offset — `datetime.fromisoformat` always has; a hand-rolled `%Y-%m-%dT%H:%M:%S` will not — and one that compares two of them as TEXT is why this moved: the register stamps UTC, and comparing the two shapes as strings put every move inside the machine's offset on the wrong side of the assertion it was compared against."},
+    {"version": "1.3",
+     "fields": ["installed"],
+     "note": "`installed` is added (TASK-237 3b′). Before 1.3, on a directory that is not a Perry project this payload answered its empty shape at exit 0 — `events` empty, `total` 0 — exactly as it answers for a project that has nothing in it, so a consumer could not tell the two apart. `installed: false` now says which. The criterion is `schema/README.md § installed`: `.perry/config.jsonl` at the project root, or a canonical store under the state root; `BOARD.md`, `OKR.md`, `phase/` or `design/` alone do not count. A consumer that read an empty payload as 'this project has nothing' must read `installed` first."},
 ]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
@@ -7720,6 +7726,8 @@ def _cmd_list_from_board(args, ctx) -> dict:
 
     sections = board_sections(ctx)
     return {"contract": LIST_CONTRACT,
+            # 2.2: `parsers § installed`, `schema/README.md § installed`.
+            "installed": P.installed(ctx["project_root"]),
             # Sorted here rather than trusted to writing order: the list is
             # consumed as "everything newer than the minor I tested against",
             # and it shipped once as 1.5, 1.9, 1.7 because an entry was
@@ -7968,6 +7976,8 @@ def cmd_list(args, ctx) -> dict:
               f"row, `--limit <n>` for a different one, or `--track <name>` to "
               f"narrow the set.", file=sys.stderr)
     return {"contract": LIST_CONTRACT,
+            # 2.2: `parsers § installed`, `schema/README.md § installed`.
+            "installed": P.installed(ctx["project_root"]),
             "bound": {"limit": limit or None, "default": not asked,
                       "returned": len(rows), "total": total,
                       "open_total": open_total,
@@ -8300,7 +8310,7 @@ SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
 
 #: The contract `perry-task asks --json` publishes. See
 #: `schema/asks-list-contract.md`.
-ASKS_CONTRACT = "perry-asks/list/1.1"
+ASKS_CONTRACT = "perry-asks/list/1.2"
 
 #: `perry-asks/list`'s meaning changes, oldest minor first — the rule
 #: `LIST_SEMANTICS` states. `state_root` arrived in 1.1 too, and is a key
@@ -8317,6 +8327,9 @@ ASKS_SEMANTICS = [
              "project whose `BOARD.md` agrees with its store the population "
              "is unchanged. `asks[].idle` is `\"\"`: the store holds no `Idle` "
              "cell, and `idle_days` is derived from `asked` as before."},
+    {"version": "1.2",
+     "fields": ["installed"],
+     "note": "`installed` is added (TASK-237 3b′). Before 1.2, on a directory that is not a Perry project this payload answered its empty shape at exit 0 — `asks` empty, `count`, `open` and `answered` 0 — exactly as it answers for a project that has nothing in it, so a consumer could not tell the two apart. `installed: false` now says which. The criterion is `schema/README.md § installed`: `.perry/config.jsonl` at the project root, or a canonical store under the state root; `BOARD.md`, `OKR.md`, `phase/` or `design/` alone do not count. A consumer that read an empty payload as 'this project has nothing' must read `installed` first."},
 ]
 
 #: An id inside the free-text `Blocks` cell — matched, not validated.
@@ -8388,6 +8401,8 @@ def cmd_asks(args, ctx) -> dict:
     shown = rows if args.all else [r for r in rows if not r["answered"]]
     return {
         "contract": ASKS_CONTRACT,
+        # 1.2: `parsers § installed`, `schema/README.md § installed`.
+        "installed": P.installed(ctx["project_root"]),
         "semantics": ASKS_SEMANTICS,
         "project_root": ctx["project_root"].as_posix(),
         # 1.1: every other published read payload carries it.
@@ -8488,6 +8503,8 @@ def cmd_events(args, ctx) -> dict:
     window = events[start:end]
     return {
         "contract": EVENTS_CONTRACT,
+        # 1.3: `parsers § installed`, `schema/README.md § installed`.
+        "installed": P.installed(ctx["project_root"]),
         # The minors under which a value here changed MEANING, oldest first.
         # Rule 2 promises `1.x` only adds keys and that is still true; 1.1 adds
         # no key and returns different ROWS under the same one, which is

@@ -536,11 +536,8 @@ def resolve_project_root(explicit: str | os.PathLike | None = None, *,
     cur = Path.cwd().resolve()
     if not walk:
         return cur
-    for d in [cur, *cur.parents]:
-        if (_parsers().configured(d) or (d / "BOARD.md").exists()
-                or (d / "OKR.md").exists()):
-            return d
-    return cur
+    found = _parsers().installed_project_root(cur)
+    return found if found is not None else cur
 
 
 def root_flag(root: str | os.PathLike | None) -> str:

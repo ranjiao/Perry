@@ -31,7 +31,7 @@ where a future reader would go looking for permission to.
 
 ## Language: configured doc language is mandatory
 
-Before drafting any ADR, **read `.perry/config.md` § Document language**. The ADR's narrative content — Context, Options, Chosen, Consequences, Sunset criteria — MUST be written in that language. Citations (file paths, commit SHAs, code refs, evidence paths), the ADR id, and the `Type:` / `Status:` / `Date:` / `Supersedes:` **values** stay English regardless — they are matched by `bin/perry-state` and every downstream reader. There is no index heading left to localize — `perry-decide list` prints ids, statuses and titles as the files spell them; the full contract, including which field *names* may be localized and which may not, is `$PERRY_HOME/reference/i18n.md`.
+Before drafting any ADR, **read `document_language` from `.perry/config.jsonl`**. The ADR's narrative content — Context, Options, Chosen, Consequences, Sunset criteria — MUST be written in that language. Citations (file paths, commit SHAs, code refs, evidence paths), the ADR id, and the `Type:` / `Status:` / `Date:` / `Supersedes:` **values** stay English regardless — they are matched by `bin/perry-state` and every downstream reader. There is no index heading left to localize — `perry-decide list` prints ids, statuses and titles as the files spell them; the full contract, including which field *names* may be localized and which may not, is `$PERRY_HOME/reference/i18n.md`.
 
 This rule applies to all PMO-written artifacts but is called out explicitly here because ADRs are long-lived records the user reads months later. Mixed-language ADRs are hard to skim — one language per file, end to end.
 
@@ -127,7 +127,7 @@ steps existed here for a release, and the id one is the reason: a number
 arrived at by eye is reused the first time two ADRs are filed in one session,
 and a reused id does not dangle visibly.
 
-1. **Read `.perry/config.md`** for document language. If absent, refuse and ask user to run top-level `/perry` first-time setup.
+1. **Read `.perry/config.jsonl`** for document language. If absent, refuse and ask user to run top-level `/perry` first-time setup.
 2. **Walk Context → Options → Chosen → Consequences** interactively with the user:
    - Use `AskUserQuestion` (header `"ADR Type"`) to pick Type from project hook's declared list (default `Process | Architecture | Operations | Risk | Cost | Design | Tooling`).
    - Use `AskUserQuestion` for binary / small-set yes/no in the Options walk if relevant.

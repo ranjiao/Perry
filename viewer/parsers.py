@@ -477,6 +477,78 @@ def configured(project_root: Path) -> bool:
         Path(project_root) / ".perry" / "config.jsonl") is not False
 
 
+@lru_cache(maxsize=1)
+def canonical_store_names() -> tuple[str, ...]:
+    """The canonical stores `schema/state-schema.json § claims` declares.
+
+    A claim is a canonical store when it is a `file` anchored at the STATE
+    root whose path ends in `.jsonl`: `tasks.jsonl`, `okr.jsonl`,
+    `risks.jsonl`, `intake.jsonl`, `asks.jsonl`, `cadence.jsonl`,
+    `linkage.jsonl` on 2026-09-14. Read from the declaration rather than
+    listed, so a store claimed later counts without a second edit here.
+    `.perry/config.jsonl` and `.perry/events.jsonl` are anchored at the
+    project; the first is `configured` above and the second is not part of
+    the criterion.
+
+    An unreadable schema answers `()`, so only the config store counts. That
+    narrows `installed`; it never widens it.
+    """
+    try:
+        claims = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8")).get(
+            "claims", []) or []
+    except Exception:
+        return ()
+    return tuple(sorted(
+        c["path"] for c in claims
+        if isinstance(c, dict) and c.get("kind") == "file"
+        and c.get("anchor") == "state"
+        and str(c.get("path", "")).endswith(".jsonl")))
+
+
+def installed(project_root: Path) -> bool:
+    """**Is this directory an installed Perry project?** The one predicate.
+
+    The criterion is written once, in `schema/README.md § installed`: the
+    project root holds `.perry/config.jsonl`, OR any canonical store
+    (`canonical_store_names`) exists under its state root. `BOARD.md`,
+    `OKR.md`, `phase/` and `design/` do not count, alone or together
+    (TASK-237 Amendment (4) item 2, user decision A).
+
+    `bin/perry-state § build` and every published read payload call this,
+    and so does every walk that asks "where is the project"
+    (`installed_project_root`). A second spelling is how `perry-state` and
+    the payloads came to disagree about a directory holding only `BOARD.md`.
+    """
+    root = Path(project_root)
+    if configured(root):
+        return True
+    state_root = resolve_state_root(root)
+    # `None` (a directory that may not be searched) counts, on `configured`'s
+    # argument: saying no would hide a project that has real state.
+    return any(exists_or_unreadable(state_root / name) is not False
+               for name in canonical_store_names())
+
+
+def installed_project_root(start: Path) -> Path | None:
+    """The walk: the first directory at or above `start` that is `installed`,
+    handed to `resolve_project_root` so the PROJECT root comes back.
+
+    That hand-off is what a store makes necessary. `perry/tasks.jsonl` makes
+    `perry/` installed on its own terms (no `.perry/`, so its state root is
+    itself), and standing below it the walk meets `perry/` first. The inverse
+    finds the ancestor whose `.perry/` points back at `perry/`, which is the
+    answer `BOARD.md` gave the old walk only by being absent from the fixture.
+
+    `None` when nothing above `start` is installed; each caller keeps its own
+    fallback.
+    """
+    cur = Path(start)
+    for d in [cur, *cur.parents]:
+        if installed(d):
+            return resolve_project_root(d)
+    return None
+
+
 def resolve_state_root(project_root: Path) -> Path:
     """Where this project's Perry state files live.
 
@@ -563,22 +635,16 @@ def _resolve_project_root() -> Path:
     same directory to both readers or they are back to disagreeing, which is the
     defect this function used to be half of.
 
-    The walk is `perry-state § resolve_root`'s walk, predicate for predicate:
-    `.perry/config.jsonl` OR `BOARD.md` OR `OKR.md`, first ancestor wins. It
-    reads `.perry/` as well as the state files so that standing in a project
-    root whose state is a subdirectory resolves to that project root rather than
-    falling through to the CWD — the second half of the same defect.
-    `tests/test_project_root.py` asserts the two walks against each other rather
-    than trusting this comment."""
+    The walk is `installed_project_root` — the `installed` predicate, first
+    ancestor wins, mapped back to its project root — and so is every other
+    walk in `bin/` (TASK-237 3b′). It used to be `.perry/config.jsonl` OR
+    `BOARD.md` OR `OKR.md`, spelled out here and in three copies."""
     env = os.environ.get("PERRY_PROJECT")
     if env:
         return Path(env).expanduser().resolve()
     cur = Path.cwd().resolve()
-    for d in [cur, *cur.parents]:
-        if (configured(d)
-                or (d / "BOARD.md").exists() or (d / "OKR.md").exists()):
-            return d
-    return cur  # fall back to CWD; load_snapshot will just find nothing
+    found = installed_project_root(cur)
+    return found if found is not None else cur  # load_snapshot finds nothing
 
 
 #: Where `.perry/` is anchored. What `bin/perry-viewer` exports as

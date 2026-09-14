@@ -1818,18 +1818,13 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # `.perry/` is anchored at the project root even when state lives in a
     # subdirectory, so config/hook are read from there, not from `root`.
     perry_root = project_root or root
-    installed = (
-        any((root / f).exists() for f in ("BOARD.md", "OKR.md"))
-        # `.perry/config.jsonl` counts. A project configured by the store
-        # alone read as never configured here until TASK-233 round 2 — this
-        # file kept its own `.perry/config.md`-exists test after the other four
-        # were converted, and the reviewer found it. ADR-019 removed the other
-        # half of that disjunction by removing the file.
-        or P.configured(perry_root)
-        # A bare `design/` is not evidence: plenty of projects have one that has
-        # nothing to do with Perry. Require a doc named the way `design` writes.
-        or bool(list((root / "design").glob("DESIGN-*.md")) if (root / "design").is_dir() else [])
-    )
+    # **One predicate, shared with every published read payload** —
+    # `parsers § installed`, whose criterion is `schema/README.md § installed`:
+    # `.perry/config.jsonl` at the project root, or a canonical store under the
+    # state root. `BOARD.md`, `OKR.md` and `design/DESIGN-*.md` counted here
+    # until TASK-237 3b′, which is how a directory holding only `BOARD.md`
+    # answered `installed: true` while every payload said nothing.
+    installed = P.installed(perry_root)
     if not installed:
         return {
             "schema": 1,
@@ -2586,16 +2581,12 @@ def resolve_root(explicit: str | None) -> Path:
     if env:
         return Path(env).expanduser().resolve()
     cur = Path.cwd().resolve()
-    for d in [cur, *cur.parents]:
-        # Byte-for-byte the walk in `bin/perry-lint § main` and
-        # `parsers § _resolve_project_root`, and it kept its own copy of the
-        # markdown test when those two were converted (TASK-233 round 2). With
-        # the projection deleted this walked past a configured project and fell
-        # through to the CWD, and `build` then said "No Perry state found".
-        if ((d / "BOARD.md").exists() or (d / "OKR.md").exists()
-                or P.configured(d)):
-            return d
-    return cur
+    # The walk `bin/perry-lint § main` and `parsers § _resolve_project_root`
+    # take, called rather than copied: it kept its own copy of the markdown
+    # test once (TASK-233 round 2), and `BOARD.md` / `OKR.md` no longer count
+    # (TASK-237 3b′, `schema/README.md § installed`).
+    found = P.installed_project_root(cur)
+    return found if found is not None else cur
 
 
 

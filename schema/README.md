@@ -358,10 +358,42 @@ project root, take `State root:` (default `.`), resolve everything else beneath
 it. A project whose state lives in `perry/` is otherwise invisible to it.
 
 The related rule: **`perry-lint` judges nothing outside `.perry/` until a project
-is adopted** (no `.perry/config.md`, no `BOARD.md`, no `OKR.md`, no `phase/`). A
-folder that is not a Perry project cannot contain malformed Perry state, and
-reporting someone's own `design/` doc as a broken design doc is the tool claiming
-a namespace nobody gave it.
+is installed** (§ `installed` below). A folder that is not a Perry project cannot
+contain malformed Perry state, and reporting someone's own `design/` doc as a
+broken design doc is the tool claiming a namespace nobody gave it.
+
+## `installed` — the one criterion
+
+A directory is an **installed** Perry project when either of these holds:
+
+1. `.perry/config.jsonl` exists at its project root; or
+2. a **canonical store** exists under its state root. A canonical store is a
+   `claims[]` entry of `kind: "file"` and `anchor: "state"` whose path ends in
+   `.jsonl` — on 2026-09-14 `tasks.jsonl`, `okr.jsonl`, `risks.jsonl`,
+   `intake.jsonl`, `asks.jsonl`, `cadence.jsonl` and `linkage.jsonl`. It is read
+   from the declaration, so a store claimed later counts without an edit here.
+
+`BOARD.md`, `OKR.md`, `phase/` and `design/` do **not** count, alone or together.
+A path that exists but may not be searched counts, because a reader cannot prove
+it empty.
+
+**One implementation:** `viewer/parsers.py § installed`. `perry-state §
+installed`, the `installed` key of the six `list` contracts above (`perry-roles/list` rides
+`perry-state --json`, which carries it at the top), `perry-tasks
+board`'s refusal, `perry-lint`'s adopted gate and every project-root walk
+(`installed_project_root`) call it; none spells the criterion out again.
+
+**Every documented start writes `.perry/config.jsonl` first**, with
+`perry-config set`: first-time setup, the `work` bootstrap, `goals init`,
+`decide init` and every `/perry adopt --only=` subset (TASK-237 3b′,
+`tests/test_starts_write_the_config_store_first.py`). A project begun through
+Perry is therefore installed from its first write.
+
+**On a directory that is not installed**, every read payload keeps its empty
+shape, exits 0 and says `installed: false`; `perry-tasks board` exits 1 with the
+reason on stderr and nothing on stdout. An abandoned `/perry adopt` or `/perry
+diagnose` also reads `installed: false` — `perry-state --section interrupted` is
+what tells it from a folder that has never heard of Perry.
 
 ## Changing the format
 

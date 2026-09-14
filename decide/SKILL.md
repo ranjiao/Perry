@@ -42,7 +42,7 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 −3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: it's the perry/ root dir (the grandparent of `decide/SKILL.md`).
 −2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `opencode` | `codex-cli`) and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` follow that matrix (OpenCode = `question`; Codex = numbered free text).
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
-0. **Read `.perry/config.md`** if present, for document language, chat language and repo layout. Design docs are written in `Document language`; the snapshot and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). Section headings localize through the glossary in `schema/state-schema.json § i18n`; `DESIGN-NNN` ids, slugs, `Status:` values (`draft` | `in_review` | `locked` | …) and code references stay English in every language — a `User Decisions` row may read `| 1 | 缓存后端 | Redis \| Memcached \| DynamoDB | TBD | — |`, with the question localized and the options left as the literal identifiers they name. Contract: `$PERRY_HOME/reference/i18n.md`. If on a split layout and a design doc references code, paths must be absolute (or commit-SHA-pinned) so the code repo can be located.
+0. **Read `.perry/config.jsonl`** if present (`"$PERRY_HOME/bin/perry-config" show --json`), for document language, chat language and repo layout. Design docs are written in `Document language`; the snapshot and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). Section headings localize through the glossary in `schema/state-schema.json § i18n`; `DESIGN-NNN` ids, slugs, `Status:` values (`draft` | `in_review` | `locked` | …) and code references stay English in every language — a `User Decisions` row may read `| 1 | 缓存后端 | Redis \| Memcached \| DynamoDB | TBD | — |`, with the question localized and the options left as the literal identifiers they name. Contract: `$PERRY_HOME/reference/i18n.md`. If on a split layout and a design doc references code, paths must be absolute (or commit-SHA-pinned) so the code repo can be located.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
 2. **Compute the state — one call**: `"$PERRY_HOME/bin/perry-state" --section design`. Deterministic, read-only. It scans `design/` for every `*.md`, normalises each `Status:` (`draft` | `in_review` | `locked` | `superseded` | `dropped`) and `Date:`, and cross-checks `BOARD.md` for implementation rows that back-reference each design ID — so `pending_handoff` lists exactly the locked docs PMO hasn't opened tasks from. Every count in the snapshot comes from this payload.
 3. **Read a doc's full text** only when the conversation is about its content (`decide`, `lock`, `revise`, or a question about one doc). The payload answers "how many, which status, how stale" without loading them all.
@@ -149,7 +149,18 @@ With arg: locate the row for `<subcommand>`, print it, then read the matching `#
 ## Subcommands
 
 ### `init` — first-time bootstrap of the whole lane
-Run once per project. Two halves, and **both are required** — `init` used to do only the first:
+Run once per project. The config store first, then two halves, and **both halves are required** — `init` used to do only the first:
+
+0. **`.perry/config.jsonl`, when it does not exist.** A decide-only start is a start: `design/` and `decisions/` alone do not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so without the store every session would offer first-time setup again. Ask the preference questions `$PERRY_HOME/SKILL.md § First-time setup` step 3 asks, then write the answers before any other file:
+
+   ```
+   "$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"
+   "$PERRY_HOME/bin/perry-config" set --root . "Chat language" "follow user"
+   "$PERRY_HOME/bin/perry-config" set --root . "Repo layout" "<single or split>"
+   "$PERRY_HOME/bin/perry-config" set --root . "State root" "<state root>"
+   ```
+
+   When the store already exists, this step writes nothing.
 
 1. **`design/`** — create the directory and write `design/README.md` documenting the local DESIGN-ID convention (default: `DESIGN-NNN` zero-padded; projects may override in their hook to use domain prefixes like `INFRA-NNN`, `API-NNN`, etc.). No design docs are created.
 
@@ -233,6 +244,8 @@ If `decisions/` doesn't exist — which is a **separate** check, because a proje
 > "No decision record in `<project>`. Run `perry-decide bootstrap` to create `decisions/`? (yes/no)"
 
 Check both. They were one question for a release, and the half nobody ran is the half that never got created.
+
+`init` writes `.perry/config.jsonl` first when it does not exist (`§ init` step 0), so a decide-only start ends installed.
 
 If `design/` exists but contains no docs:
 > "Design lane exists, no docs yet. Run `new <slug>` to start one?"

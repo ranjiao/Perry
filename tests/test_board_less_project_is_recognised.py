@@ -217,5 +217,72 @@ class BoardLessProject(unittest.TestCase):
         self.assertTrue(self.diagnose()["namespace"]["applicable"])
 
 
+class MarkdownNoLongerStopsTheWalk(BoardLessProject):
+    """TASK-237 3b′: the nine sites ask `parsers § installed` now, and
+    `BOARD.md` / `OKR.md` stopped counting. The same fixture, with a `BOARD.md`
+    and an `OKR.md` planted in a directory BETWEEN the working directory and the
+    project — so a walk that still accepts either marker stops there and names
+    the wrong root. The parent's setUp still runs first and still refuses a
+    sibling disjunct in the fixture it built; these markers are added after it,
+    on purpose, as the thing under test."""
+
+    def setUp(self):
+        super().setUp()
+        self.marked = self.below / "marked"
+        (self.marked / "deeper").mkdir(parents=True)
+        (self.marked / "BOARD.md").write_text("# Board\n", encoding="utf-8")
+        (self.marked / "OKR.md").write_text("# OKR\n", encoding="utf-8")
+        self.cwd = self.marked / "deeper"
+
+    # A1
+    def test_the_parsers_walk_passes_a_markdown_only_directory(self):
+        p = subprocess.run(
+            [sys.executable, "-c",
+             "import sys; sys.path.insert(0, %r); import parsers; "
+             "print(parsers.PROJECT_ROOT)" % str(ROOT / "viewer")],
+            capture_output=True, text=True, cwd=str(self.cwd), env=env())
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.strip(), str(self.root))
+
+    # A2
+    def test_the_lib_walk_passes_a_markdown_only_directory(self):
+        p = subprocess.run(
+            [sys.executable, "-c",
+             "import sys; sys.path.insert(0, %r); sys.path.insert(0, %r); "
+             "import lib; print(lib.resolve_project_root(None))"
+             % (str(ROOT / "bin"), str(ROOT / "viewer"))],
+            capture_output=True, text=True, cwd=str(self.cwd), env=env())
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.strip(), str(self.root))
+
+    # A3
+    def test_perry_state_walk_passes_a_markdown_only_directory(self):
+        p = run([str(ROOT / "bin" / "perry-state"), "--json"], cwd=self.cwd)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(json.loads(p.stdout)["project"]["root"],
+                         self.state.as_posix())
+
+    # A5
+    def test_the_linter_walk_passes_a_markdown_only_directory(self):
+        p = run([str(ROOT / "bin" / "perry-lint")], cwd=self.cwd)
+        self.assertIn(f"perry-lint · {self.root} (state root: perry/)\n",
+                      p.stdout, p.stdout[:400])
+
+    # A4, A6, A8, A9 — the markdown-only directory itself is not a project.
+    def test_a_markdown_only_directory_is_not_installed_at_any_site(self):
+        p = run([str(ROOT / "bin" / "perry-state"), "--section", "installed",
+                 "--root", str(self.marked)], cwd=ROOT)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertFalse(json.loads(p.stdout)["installed"])
+        lint = load_bin_module("perry-lint")
+        self.assertFalse(lint.is_adopted(self.marked, self.marked))
+        d = run([str(ROOT / "bin" / "perry-diagnose"), "--root",
+                 str(self.marked), "--json"], cwd=ROOT)
+        self.assertEqual(d.returncode, 0, d.stderr)
+        payload = json.loads(d.stdout)
+        self.assertFalse(payload["tracking"]["perry"]["installed"])
+        self.assertFalse(payload["namespace"]["applicable"])
+
+
 if __name__ == "__main__":
     unittest.main()

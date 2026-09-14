@@ -44,7 +44,7 @@ from pathlib import Path
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or Path(__file__).resolve().parent.parent)
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 from tables import header_index, split_row, squash  # noqa: E402
-from parsers import configured, resolve_state_root  # noqa: E402
+from parsers import installed, resolve_state_root  # noqa: E402
 
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import perry_store  # noqa: E402
@@ -659,10 +659,8 @@ def typed_task_lookup(root: Path, token: str) -> dict | None:
         return None
     state_root = resolve_state_root(root)
     store = perry_store.store_path(state_root)
-    adopted = (configured(root)
-               or (state_root / "BOARD.md").exists()
-               or (state_root / "OKR.md").exists()
-               or (state_root / "phase").is_dir())
+    # `parsers § installed` — `schema/README.md § installed` (TASK-237 3b′).
+    adopted = installed(root)
     if not adopted or not store.exists():
         return None
     rel = str(store.relative_to(root))

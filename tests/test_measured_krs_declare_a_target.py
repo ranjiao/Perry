@@ -146,10 +146,12 @@ class TheRuleHoldsOnTheLivePayload(unittest.TestCase):
         the minor it was published under."""
         page = (PERRY_HOME / "schema" /
                 "goals-list-contract.md").read_text(encoding="utf-8")
-        self.assertIn("perry-goals/list/3.1", page)
+        # TASK-237 3b′: `installed` was added, a minor bump.
+        self.assertIn("perry-goals/list/3.2", page)
         self.assertIn("`current_provenance.measured` is `true`, `target` is "
                       "not `null`", page)
-        self.assertEqual(self.payload["contract"], "perry-goals/list/3.1")
+        # TASK-237 3b′: `installed` was added, a minor bump.
+        self.assertEqual(self.payload["contract"], "perry-goals/list/3.2")
 
 
 class TheCheckCatchesTheRowItWasWrittenFor(unittest.TestCase):
