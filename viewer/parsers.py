@@ -509,10 +509,19 @@ def installed(project_root: Path) -> bool:
     """**Is this directory an installed Perry project?** The one predicate.
 
     The criterion is written once, in `schema/README.md § installed`: the
-    project root holds `.perry/config.jsonl`, OR any canonical store
-    (`canonical_store_names`) exists under its state root. `BOARD.md`,
-    `OKR.md`, `phase/` and `design/` do not count, alone or together
-    (TASK-237 Amendment (4) item 2, user decision A).
+    project root holds `.perry/config.jsonl`, OR the project root holds a
+    `.perry/` directory AND a canonical store (`canonical_store_names`) exists
+    under its state root. `BOARD.md`, `OKR.md`, `phase/` and `design/` do not
+    count, alone or together (TASK-237 Amendment (4) item 2, user decision A).
+
+    **A store needs `.perry/` beside it** (TASK-237 Amendment (7), user
+    decision "tighten", 2026-09-14). Without that clause any folder that
+    happened to hold a file named `tasks.jsonl` — another tool's, a download —
+    read as a Perry project on every surface, stopped every project-root walk
+    and printed a board (3b′ row R1). `.perry/` is the anchor
+    `resolve_state_root` already calls what makes a directory a Perry project;
+    every documented start writes `.perry/config.jsonl` first, so no start
+    reaches the store clause without it.
 
     `bin/perry-state § build` and every published read payload call this,
     and so does every walk that asks "where is the project"
@@ -522,6 +531,13 @@ def installed(project_root: Path) -> bool:
     root = Path(project_root)
     if configured(root):
         return True
+    try:
+        anchored = (root / ".perry").is_dir()
+    except OSError:
+        # May not be searched: counts, on `configured`'s argument below.
+        anchored = True
+    if not anchored:
+        return False
     state_root = resolve_state_root(root)
     # `None` (a directory that may not be searched) counts, on `configured`'s
     # argument: saying no would hide a project that has real state.
@@ -533,11 +549,12 @@ def installed_project_root(start: Path) -> Path | None:
     """The walk: the first directory at or above `start` that is `installed`,
     handed to `resolve_project_root` so the PROJECT root comes back.
 
-    That hand-off is what a store makes necessary. `perry/tasks.jsonl` makes
-    `perry/` installed on its own terms (no `.perry/`, so its state root is
-    itself), and standing below it the walk meets `perry/` first. The inverse
-    finds the ancestor whose `.perry/` points back at `perry/`, which is the
-    answer `BOARD.md` gave the old walk only by being absent from the fixture.
+    The hand-off is kept for a state root that carries its own `.perry/`
+    directory: such a directory is installed on its own terms, and the inverse
+    finds the ancestor whose `.perry/` points back at it. Since TASK-237
+    Amendment (7) a bare `perry/tasks.jsonl` no longer makes `perry/`
+    installed (no `.perry/` beside it), so on an ordinary layout the walk
+    passes the state root and stops at the project root directly.
 
     `None` when nothing above `start` is installed; each caller keeps its own
     fallback.

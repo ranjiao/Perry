@@ -99,19 +99,29 @@ class TypedTaskLookup(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["title"], "2")
 
-    def test_a_tasks_jsonl_alone_is_a_canonical_store_and_is_claimed(self):
-        """**Inverted by TASK-237 3b′, and on purpose.** This test asserted a
-        `tasks.jsonl` with no `.perry/` was NOT claimed, because `BOARD.md` /
-        `OKR.md` / `phase/` were then what adopted a project. The user's
-        criterion (Amendment (4) item 2, `schema/README.md § installed`) is
-        the config store OR any canonical store under the state root — so a
-        `tasks.jsonl` at the root makes the directory an installed Perry
-        project, and its record answers ahead of a markdown definition
-        (ADR-009), exactly as on a configured project."""
+    def test_a_tasks_jsonl_with_no_dot_perry_is_not_claimed(self):
+        """**Inverted back by TASK-237 3c.** 3b′ inverted this test when the
+        criterion counted any canonical store on its own. Amendment (7)
+        (`schema/README.md § installed`) requires a `.perry/` directory beside
+        a store, so a `tasks.jsonl` with no `.perry/` is another tool's file:
+        nothing is claimed and the markdown lookup answers, as before 3b′."""
         self.write_false_markdown_definition("TASK-999")
         self.write_store([{"id": "TASK-999", "title": "unrelated store"}])
         (self.root / ".perry" / "config.jsonl").unlink()
         (self.root / ".perry").rmdir()
+
+        result = self.run_explain("TASK-999", "--json")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["title"], "2")
+
+    def test_a_tasks_jsonl_beside_dot_perry_is_claimed(self):
+        """The half 3b′ established that Amendment (7) keeps: with `.perry/`
+        present and no config store, a canonical store claims the id."""
+        self.write_false_markdown_definition("TASK-999")
+        self.write_store([{"id": "TASK-999", "title": "unrelated store"}])
+        (self.root / ".perry" / "config.jsonl").unlink()
+        self.assertTrue((self.root / ".perry").is_dir())
 
         result = self.run_explain("TASK-999", "--json")
 

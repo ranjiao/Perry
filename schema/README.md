@@ -367,15 +367,18 @@ broken design doc is the tool claiming a namespace nobody gave it.
 A directory is an **installed** Perry project when either of these holds:
 
 1. `.perry/config.jsonl` exists at its project root; or
-2. a **canonical store** exists under its state root. A canonical store is a
+2. a `.perry/` directory exists at its project root **and** a **canonical
+   store** exists under its state root. A canonical store is a
    `claims[]` entry of `kind: "file"` and `anchor: "state"` whose path ends in
    `.jsonl` — on 2026-09-14 `tasks.jsonl`, `okr.jsonl`, `risks.jsonl`,
    `intake.jsonl`, `asks.jsonl`, `cadence.jsonl` and `linkage.jsonl`. It is read
    from the declaration, so a store claimed later counts without an edit here.
 
-`BOARD.md`, `OKR.md`, `phase/` and `design/` do **not** count, alone or together.
-A path that exists but may not be searched counts, because a reader cannot prove
-it empty.
+A store file with **no `.perry/` beside it does not count** (TASK-237 Amendment
+(7), 2026-09-14): a folder that holds another tool's `tasks.jsonl` is not a
+Perry project. `BOARD.md`, `OKR.md`, `phase/` and `design/` do **not** count,
+alone or together. A path that exists but may not be searched counts, because a
+reader cannot prove it empty.
 
 **One implementation:** `viewer/parsers.py § installed`. `perry-state §
 installed`, the `installed` key of the six `list` contracts above (`perry-roles/list` rides

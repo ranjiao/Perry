@@ -701,7 +701,8 @@ class TestListIsBounded(unittest.TestCase):
         # 2.1 (TASK-237 3a) moved where asks/risks/intake are read from; the
         # major this test is about is unchanged.
         # TASK-237 3b′: `installed` was added, a minor bump.
-        self.assertEqual(payload["contract"], "perry-task/list/2.2")
+        # TASK-237 3c: `installed` narrowed (a store needs `.perry/`), a minor bump.
+        self.assertEqual(payload["contract"], "perry-task/list/2.3")
         self.assertIn("2.0", [e["version"] for e in payload["semantics"]])
         major = int(payload["contract"].rsplit("/", 1)[1].split(".")[0])
         self.assertEqual(major, 2, "a row-count change is a major here")

@@ -1,4 +1,4 @@
-# `perry-knowledge list --json` — `perry-knowledge/list/1.2`
+# `perry-knowledge list --json` — `perry-knowledge/list/1.3`
 
 The read side of the knowledge card store: every card under `knowledge/`, the
 five provenance fields each one carries, and whether it is past its
@@ -18,7 +18,7 @@ sides together.
 
 ```jsonc
 {
-  "contract": "perry-knowledge/list/1.2",  // check this before anything else
+  "contract": "perry-knowledge/list/1.3",  // check this before anything else
   "installed": true,                       // false: not a Perry project — schema/README.md § installed
   "semantics": [ /* below */ ],            // meaning changes, oldest minor first
   "project_root": "/abs/path/to/project",  // absolute, as resolved
@@ -36,9 +36,9 @@ cards is one a consumer cannot check.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `contract` | string | `perry-knowledge/list/1.2`. Always present, always first |
+| `contract` | string | `perry-knowledge/list/1.3`. Always present, always first |
 | `installed` | bool | `true` when the directory read is an installed Perry project, by `schema/README.md § installed`. `false` on any other directory, with `cards` empty and exit 0. Added in 1.2 |
-| `semantics` | array | the minors under which a value already in this payload started meaning something else, oldest minor first. **one entry since 1.2, and always present** — see below |
+| `semantics` | array | the minors under which a value already in this payload started meaning something else, oldest minor first. **one entry since 1.2, two since 1.3, and always present** — see below |
 | `project_root` | string | the resolved project root, absolute. `.perry/` is anchored here |
 | `state_root` | string | where Perry's state lives, absolute — `project_root` unless `.perry/config.md` declares a `State root:`. **`cards[].path` is relative to this**, not to `project_root` |
 | `cards` | array | the cards, one object each, sorted by file path. `[]` when the project has no `knowledge/` directory at all — never a missing key and never `null` |
@@ -54,7 +54,9 @@ choose between trusting the count and counting the array.
 
 `true` when the directory read is an installed Perry project, by the one
 criterion in `schema/README.md § installed` — `.perry/config.jsonl` at the
-project root, or a canonical store under the state root. On any other
+project root, or a `.perry/` directory there and a canonical store under the
+state root (a store with no `.perry/` beside it stopped counting in 1.3). On
+any other
 directory every other key keeps its empty shape and the call exits 0, so
 **read `installed` before reading an empty `cards` as "nothing here"**. Added in 1.2.
 
@@ -64,7 +66,7 @@ Rule 3 below used to say this was *"where a `semantics` array would appear if a
 value here ever changes meaning"*. It appears now, before there is anything to
 put in it, and that is the point rather than an oversight.
 
-**It carries one entry, at `1.2`: `installed`** (`schema/README.md § installed`),
+**It carries two entries, both `installed`: at `1.3` it narrowed (a store needs `.perry/` beside it), and the first,** at `1.2` (`schema/README.md § installed`),
 entered at the user's decision (TASK-237 Amendment (4) item 1). No value
 carried before `1.2` has changed meaning; `1.1` added this key and moved no
 value. `stale` is still the field most likely to need an entry one day, and it
@@ -249,3 +251,19 @@ same predicate `perry-state --section installed` answers from.
 Changelog line only; this one is also entered there at the user's decision
 (TASK-237 Amendment (4) item 1), because a consumer that read an empty payload as
 "nothing here" has to change what it does, not only what it parses.
+
+### 1.3 — 2026-09-14 (TASK-237 3c)
+
+**No key added, removed or retyped: `installed` means something narrower**
+(TASK-237 Amendment (7), the user's decision of 2026-09-14). At 1.2 a
+canonical store under the state root counted on its own, so a folder that
+held only a file named `tasks.jsonl` — another tool's — read
+`installed: true`, stopped every project-root walk and printed a board. From
+1.3 a store counts only when a `.perry/` directory exists at the project root
+beside it (`schema/README.md § installed`). Such a directory now answers
+`installed: false` with the empty shape at exit 0. Every documented start
+writes `.perry/config.jsonl` first, so no project Perry began is affected.
+
+`semantics` carries a `1.3` entry: the key stayed and started returning
+something else, which is what the array is for. A narrowed meaning is not a
+removal or a retype, so this is a minor.

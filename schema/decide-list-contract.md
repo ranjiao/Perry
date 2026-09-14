@@ -1,6 +1,6 @@
 # `perry-decide list --json` — the decisions contract
 
-> Contract: **`perry-decide/list/2.1`**
+> Contract: **`perry-decide/list/2.2`**
 > Locked by `tests/test_decide_writer.py § TestListContract`.
 > DESIGN-005 § 6 step 1.
 
@@ -31,7 +31,7 @@ listable at all.**
 
 ```jsonc
 {
-  "contract":        "perry-decide/list/2.1",
+  "contract":        "perry-decide/list/2.2",
   "installed":       true,                  // false: not a Perry project — schema/README.md § installed
   "semantics":       [ /* below */ ],       // meaning changes, oldest minor first
   "project_root":    "/abs/path",
@@ -48,7 +48,9 @@ listable at all.**
 
 `true` when the directory read is an installed Perry project, by the one
 criterion in `schema/README.md § installed` — `.perry/config.jsonl` at the
-project root, or a canonical store under the state root. On any other
+project root, or a `.perry/` directory there and a canonical store under the
+state root (a store with no `.perry/` beside it stopped counting in 2.2). On
+any other
 directory every other key keeps its empty shape and the call exits 0, so
 **read `installed` before reading an empty `decisions` as "nothing here"**. Added in 2.1.
 
@@ -60,7 +62,7 @@ something else, oldest minor first.** Rule 2 of `schema/task-list-contract.md
 key that stays and starts returning something else, and that is what this array
 reports.
 
-**It carries one entry, at `2.1`: `installed`** (`schema/README.md § installed`), entered at the
+**It carries two entries, both `installed`: at `2.1` the key arrived, and at `2.2` it narrowed (a store needs `.perry/` beside it). The first,** (`schema/README.md § installed`), entered at the
 user's decision (TASK-237 Amendment (4) item 1): on a directory that is not a Perry
 project an empty `decisions` read exactly like a project with none. No value
 this payload carried before `2.1` has changed meaning — `1.1` added this key and
@@ -176,3 +178,4 @@ the bug. `perry-decide` writes `decisions/` and nothing else, and
 | `1.1` | 2026-08-28 | **additive, TASK-205.** One key added, none removed or retyped: top-level `semantics`, `[]` today. Until now this payload had no place to report a value whose meaning moved, so a consumer holding `perry-decide/list/1.0` could read the minor and learn nothing from it. `perry-events/list/1.1` added the same key on the same reading. |
 | `2.0` | 2026-08-29 | **breaking, TASK-235.** Three keys **removed** from `conformance` — `index_present`, `indexed_without_file`, `filed_without_index_row` — because `DECISIONS.md` is deleted (DESIGN-013 § 5.3) and each of them compared it against `decisions/`. Nothing was added, renamed or retyped, and no surviving value changed meaning. *Removing a key* is named as the break in **Adding a status is not a break** above, so this is the major that rule points at. A consumer that read the three: `index_present` is now always the answer to "does `decisions/` exist", which `total` and an empty `decisions[]` already say; the other two have no successor, because the divergence they reported cannot occur without a second copy to diverge from. |
 | `2.1` | 2026-09-14 | **additive, TASK-237 3b′.** One key added, none removed or retyped: top-level `installed`, `true` exactly when `schema/README.md § installed` holds. On a directory that is not a Perry project this payload answered its empty shape at exit 0 — `decisions` empty, `total` and `active` 0 — which a consumer could not tell from a project with nothing in it. `semantics` carries a `2.1` entry for it, at the user's decision (Amendment (4) item 1), although a key addition is normally a changelog row only. |
+| `2.2` | 2026-09-14 | **no key added, one value's meaning changed, TASK-237 3c.** `installed` is narrower (Amendment (7), the user's decision): at `2.1` a canonical store under the state root counted on its own, so a folder holding only another tool's `tasks.jsonl` read `installed: true`. From `2.2` a store counts only with a `.perry/` directory at the project root beside it (`schema/README.md § installed`); such a directory now answers `installed: false` with the empty shape at exit 0. `semantics` carries a `2.2` entry. A narrowed meaning is not a removal or a retype, so this is a minor. |

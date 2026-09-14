@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/2.2`**
+> Contract: **`perry-task/list/2.3`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -97,7 +97,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/2.2",   // check this before anything else
+  "contract":     "perry-task/list/2.3",   // check this before anything else
   "installed":    true,                    // false: not a Perry project — schema/README.md § installed
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
@@ -120,7 +120,9 @@ from task rows in Markdown.
 
 `true` when the directory read is an installed Perry project, by the one
 criterion in `schema/README.md § installed` — `.perry/config.jsonl` at the
-project root, or a canonical store under the state root. On any other
+project root, or a `.perry/` directory there and a canonical store under the
+state root (a store with no `.perry/` beside it stopped counting in 2.3). On
+any other
 directory every other key keeps its empty shape and the call exits 0, so
 **read `installed` before reading an empty `tasks` as "nothing here"**. Added in 2.2.
 
@@ -585,7 +587,7 @@ comparison performed"* the same way on the same tree.
    this section used to show only the first:
 
    ```python
-   SUPPORTED = {1: 18, 2: 2}           # major -> the minor you read against
+   SUPPORTED = {1: 18, 2: 3}           # major -> the minor you read against
 
    def pair(v):                        # "1.18" -> (1, 18). Compare versions ONLY
        major, minor = v.split(".")     # as this pair: as strings "1.5" > "1.18"
@@ -671,6 +673,22 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### 2.3 — `installed` narrowed, 2026-09-14 (TASK-237 deliverable 3c)
+
+**No key added, removed or retyped: `installed` means something narrower**
+(TASK-237 Amendment (7), the user's decision of 2026-09-14). At 2.2 a
+canonical store under the state root counted on its own, so a folder that
+held only a file named `tasks.jsonl` — another tool's — read
+`installed: true`, stopped every project-root walk and printed a board. From
+2.3 a store counts only when a `.perry/` directory exists at the project root
+beside it (`schema/README.md § installed`). Such a directory now answers
+`installed: false` with the empty shape at exit 0. Every documented start
+writes `.perry/config.jsonl` first, so no project Perry began is affected.
+
+`semantics` carries a `2.3` entry: the key stayed and started returning
+something else, which is what the array is for. A narrowed meaning is not a
+removal or a retype, so this is a minor.
 
 ### 2.2 — `installed`, 2026-09-14 (TASK-237 deliverable 3b′)
 

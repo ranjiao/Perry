@@ -276,7 +276,8 @@ class TestReadingStaysTolerant(unittest.TestCase):
                        "state_root", "conformance", "decisions", "active",
                        "total", "expired_sunsets"})
         # TASK-237 3b′: `installed` was added, a minor bump.
-        self.assertEqual(out["contract"], "perry-decide/list/2.1")
+        # TASK-237 3c: `installed` narrowed (a store needs `.perry/`), a minor bump.
+        self.assertEqual(out["contract"], "perry-decide/list/2.2")
         self.assertEqual(set(out["conformance"]),
                          {"off_enum_status", "missing_type"})
 

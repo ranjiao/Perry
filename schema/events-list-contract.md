@@ -1,4 +1,4 @@
-# `perry-task events --json` — `perry-events/list/1.3`
+# `perry-task events --json` — `perry-events/list/1.4`
 
 The event log's **tail**, in **log order**, with a cursor you can page on.
 `--limit N` is the **newest** N events; the cursor walks **backwards** from
@@ -35,7 +35,7 @@ is the answer. It is.
 
 ```jsonc
 {
-  "contract": "perry-events/list/1.3",
+  "contract": "perry-events/list/1.4",
   "installed": true,        // false: not a Perry project — schema/README.md § installed
   "semantics": [ /* below */ ],  // meaning changes, oldest minor first
   "project_root": "/abs/path",
@@ -57,7 +57,9 @@ has to know which way the cursor walked.
 
 `true` when the directory read is an installed Perry project, by the one
 criterion in `schema/README.md § installed` — `.perry/config.jsonl` at the
-project root, or a canonical store under the state root. On any other
+project root, or a `.perry/` directory there and a canonical store under the
+state root (a store with no `.perry/` beside it stopped counting in 1.4). On
+any other
 directory every other key keeps its empty shape and the call exits 0, so
 **read `installed` before reading an empty `events` as "nothing here"**. Added in 1.3.
 
@@ -202,6 +204,22 @@ Same shape as `perry-task/list § semantics[]`, on purpose.
 | `note` | string | prose, always populated: what the value used to mean, what it means now, and what a consumer that hardcoded the old meaning does wrong. Meant to be shown, not branched on |
 
 ## Changelog
+
+### 1.4 — 2026-09-14 — `installed` narrowed (TASK-237 3c)
+
+**No key added, removed or retyped: `installed` means something narrower**
+(TASK-237 Amendment (7), the user's decision of 2026-09-14). At 1.3 a
+canonical store under the state root counted on its own, so a folder that
+held only a file named `tasks.jsonl` — another tool's — read
+`installed: true`, stopped every project-root walk and printed a board. From
+1.4 a store counts only when a `.perry/` directory exists at the project root
+beside it (`schema/README.md § installed`). Such a directory now answers
+`installed: false` with the empty shape at exit 0. Every documented start
+writes `.perry/config.jsonl` first, so no project Perry began is affected.
+
+`semantics` carries a `1.4` entry: the key stayed and started returning
+something else, which is what the array is for. A narrowed meaning is not a
+removal or a retype, so this is a minor.
 
 ### 1.3 — 2026-09-14 — `installed` (TASK-237 3b′)
 
