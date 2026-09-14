@@ -8,7 +8,7 @@ procedure below. This page tells you which shape you are looking at, what each
 tool does with it today, and how to upgrade it.
 
 Everything in the tables was measured on 2026-09-14 against Perry `main`
-(`8abcec33`), on copies of real project files. Re-measure before relying on a
+(`8abcec33`, write refusals re-measured at `7523f1fe`), on copies of real project files. Re-measure before relying on a
 row, because Perry moves.
 
 ## The generations
@@ -33,8 +33,8 @@ line in `.perry/config.md` is not read.
 
 | Shape on disk | `installed` | Reads (`perry-task list` etc.) | `perry-tasks board` | A `perry-task` write |
 |---|---|---|---|---|
-| `.perry/config.md` + `perry/BOARD.md`, no stores (G0, `perry/` layout) | `false` | exit 0, empty payload | exit 1 | **see "Pending" below** |
-| `.perry/config.md` + root `BOARD.md`, no stores (G0, root layout) | `false` | exit 0, empty | exit 1 | **see "Pending" below** |
+| `.perry/config.md` + `perry/BOARD.md`, no stores (G0, `perry/` layout) | `false` | exit 0, empty payload | exit 1 | **refused**: exit 1, nothing written, and the message says to run `perry-config set` first |
+| `.perry/config.md` + root `BOARD.md`, no stores (G0, root layout) | `false` | exit 0, empty | exit 1 | **refused**: exit 1, nothing written |
 | `.perry/config.md` + stores under `perry/` + `BOARD.md` (G1, `perry/` layout) | `false`: the stores sit under a state root nothing declares | exit 0, empty | exit 1 | refused |
 | `.perry/config.md` + stores at the project root (G1, root layout) | `true` | the stores' contents | exit 0 | succeeds |
 | `.perry/config.jsonl` + stores + a `BOARD.md` that does not match them (G2 with a stale board) | `true` | the stores' contents | exit 0 | **refused**, e.g. `TASK-391 is not a row on the board`: a board that is present is still re-rendered, so a stale one blocks the write |
@@ -58,14 +58,26 @@ line in `.perry/config.md` is not read.
 5. **Never write into another project from a Perry session.** Upgrade a project
    from inside that project. When measuring, copy its files into scratch space.
 
-## Pending, as of 2026-09-14
+## A write where nothing is installed refuses
 
-**TASK-237 round 2 is not merged yet.** Until it is, a `perry-task` write run in a
-G0 project (`installed: false`, no stores) **exits 0 and creates empty stores at
-the project root**, which hides the project's board from every surface (V4
-finding F1, `perry/evidence/2026-09/TASK-237-v4-review.md`). After round 2, that
-write refuses and writes nothing. Until then rule 2 is not a courtesy: do not run
-a write there.
+Since TASK-237 round 2 (merged at `7523f1fe`, 2026-09-14), every write through
+`perry-task`, `perry-tasks`, `perry-okr` or `perry-goals` on a directory whose
+`installed` is `false` exits 1 **before doing anything**. It writes no store, no
+journal and no event, and `--dry-run` gets the same refusal. The message tells a
+pre-ADR-019 project to run `perry-config set` first.
+
+`perry-config set` / `track` are the one exception, because that is how a project
+becomes installed (step 1 below).
+
+Measured on a copy of aiMark's G0 files:
+- `perry-task ask`, `ask --dry-run`, `add`, `next` and
+  `perry-tasks write --from-board` all exit 1;
+- zero new files appear;
+- `installed` stays `false`;
+- a `perry-config set "State root" perry` afterwards installs the project.
+
+Before round 2, the same `ask` exited 0 and created empty stores at the project
+root (V4 finding F1).
 
 ## Upgrading a project to G3
 
