@@ -360,6 +360,60 @@ class TestTheWritesLandInTheStore(unittest.TestCase):
         self.assertEqual(by_id(last["substituted"], "CAD-002"), CADENCE[1])
 
 
+    def test_a_repeated_id_in_the_store_is_refused_by_its_lint_rule(self):
+        """`load_register_records` names the rule a reader runs to find it —
+        `cadence-store-badly-typed`, not `key[:-1]`'s `cadenc-…`."""
+        p = Project()
+        self.addCleanup(p.close)
+        render = p.tasks(["board"])
+        p.board.write_text(render.stdout, encoding="utf-8")
+        p.store.write_text(jsonl(CADENCE + [dict(CADENCE[0], title="dup")]),
+                           encoding="utf-8")
+        store = p.store.read_bytes()
+        out = p.task(["cadence-add", "--title", "x", "--frequency", "weekly"])
+        self.assertEqual(out.returncode, 1, out.stdout)
+        self.assertIn("`cadence-store-badly-typed`", out.stderr)
+        self.assertEqual(p.store.read_bytes(), store)
+
+
+class TestTheLintCensusCarriesTheCadenceStore(unittest.TestCase):
+    """`check_cadence_store_drift`: `check_ask_store_drift`, one register over."""
+
+    @staticmethod
+    def lint(p: Project) -> dict:
+        out = subprocess.run([sys.executable, str(ROOT / "bin" / "perry-lint"),
+                              "--json", "--root", str(p.root)],
+                             capture_output=True, text=True, cwd=p.tmp)
+        return json.loads(out.stdout)
+
+    def test_with_no_file_it_is_uncheckable_and_counts_the_records(self):
+        p = Project()
+        self.addCleanup(p.close)
+        got = self.lint(p)
+        self.assertEqual(got["cadence_store_drift"]["records"], len(CADENCE))
+        self.assertTrue(got["cadence_store_drift"]["store_present"])
+        self.assertIn("cadence-store-drift-uncheckable",
+                      [f["rule"] for f in got["findings"]])
+
+    def test_a_hand_edit_to_a_prose_cell_is_drift_and_the_render_is_not(self):
+        for edited in (False, True):
+            with self.subTest(edited=edited):
+                p = Project()
+                self.addCleanup(p.close)
+                text = p.tasks(["board"]).stdout
+                if edited:
+                    self.assertIn(CADENCE[2]["next_due"], text)
+                    text = text.replace(CADENCE[2]["next_due"], "2026-09-30")
+                p.board.write_text(text, encoding="utf-8")
+                got = self.lint(p)
+                drift = [f for f in got["findings"] if f["rule"] == "cadence-store-drift"]
+                self.assertTrue(got["cadence_store_drift"]["comparison_performed"])
+                self.assertEqual(got["cadence_store_drift"]["drifted"], int(edited))
+                self.assertEqual(len(drift), int(edited))
+                if edited:
+                    self.assertIn(CADENCE[2]["id"], drift[0]["message"])
+
+
 # ── the import ─────────────────────────────────────────────────────────────
 
 
