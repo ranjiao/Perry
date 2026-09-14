@@ -164,9 +164,9 @@ whatever conclusion it likes from the pair. Perry draws none.
 | `linked_task_completion.open` | int | in any non-terminal status |
 | `linked_task_completion.unknown` | int | an id neither the board nor the event log knows — a dangling edge, never silently counted as open |
 
-A task closed with `perry-task done` may be off `BOARD.md` altogether, so a
-task's status is taken from the board first and from the last state-moving
-event second. `moved_tasks` reads the event log only, and an event counts as a
+A task's status is taken from `tasks.jsonl` first, which keeps closed rows
+(`lib.task_status_index`; a project that still holds a `BOARD.md` adds its
+rows beneath the store), and from the last state-moving event second. `moved_tasks` reads the event log only, and an event counts as a
 state move when its `to` is a task status — `next`, `evidence` and `rung` also
 carry `from`/`to` and hold prose, a path and a rung.
 

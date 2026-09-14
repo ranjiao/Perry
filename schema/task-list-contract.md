@@ -89,7 +89,9 @@ because column order is not something the schema constrains. A front-end
 parsing the markdown itself would be a third chance at exactly that.
 
 It is also what makes a front-end survive the completed storage change:
-`tasks.jsonl` is canonical task truth and `BOARD.md` is its human projection.
+`tasks.jsonl` is canonical task truth, and `perry-tasks board` prints its human
+projection (`BOARD.md` was deleted by TASK-237; a project that still holds one
+keeps it re-rendered from the store).
 The payload shape remains stable even though its current values no longer come
 from task rows in Markdown.
 
@@ -101,7 +103,7 @@ from task rows in Markdown.
   "installed":    true,                    // false: not a Perry project — schema/README.md § installed
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
-  "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
+  "state_root":   "/abs/path",             // where tasks.jsonl, the other stores and journal/ live
   "conformance":  { /* see below */ },     // store findings and projection availability
   "intake":       { /* see below */ },     // queue mode's inbox, by position
   "risks":        { /* see below */ },     // `## Top risks`, open ones
@@ -326,7 +328,7 @@ Its value, per event:
 - **`status`** — on `add`, `route`, `start`, `status`, `done`, `drop`, `purge`. A status value; `""` as `purge`'s `to`, which is this payload's unknown value and here means the row has no destination status because it has no record.
 - **`section`** — on `prioritize`. A **board section**: `P2` → `P1`, or a project's own heading such as `Open — 工程线`.
 - **`stage`** — on `stage`. A stage from the track's declared vocabulary.
-- **`track`** — on `track`. A track declared in `.perry/config.md § Tracks`. **Not `stage`**, though a move re-stamps one: a consumer told the pair was a stage would resolve `main` → `intake` against a stage vocabulary that does not contain them. The stage and the `Arrived` the move produced ride on the stored event's own `stage` / `stage_from` / `arrived` / `arrived_from` keys.
+- **`track`** — on `track`. A track declared in `.perry/config.jsonl` (a `track` record, written by `perry-config track`). **Not `stage`**, though a move re-stamps one: a consumer told the pair was a stage would resolve `main` → `intake` against a stage vocabulary that does not contain them. The stage and the `Arrived` the move produced ride on the stored event's own `stage` / `stage_from` / `arrived` / `arrived_from` keys.
 - **`title`** — on `retitle`. The row's title.
 - **`summary`** — on `summary`. The stable purpose/outcome explanation; `""` is an explicit clear.
 - **`next_action`** — on `next`. The next-action cell, often several hundred characters of prose.
@@ -475,7 +477,7 @@ is queue-shaped, and that is not an error.
 **Discharged rows stay until they are swept.** `perry-task intake-sweep` moves
 them into the journal with their `Outcome` intact. That rule lived in
 `modes/queue.md` and nothing implemented it, which mattered because the same
-file rests its overflow argument on it: intake pressure is supposed to mean
+file rests its intake-pressure argument on it: intake pressure is supposed to mean
 *taking on more than you discharge*, not *having discharged a lot*.
 
 ### `risks` — `## Top risks`, the open ones
