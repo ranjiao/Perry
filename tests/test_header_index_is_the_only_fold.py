@@ -98,6 +98,8 @@ WATCHED = [
     # was RENAMED, not removed, so it stays watched under its new name.
     "_parse_task_table", "read_legacy_conformance", "is_risk_register_header",
     "is_intake_register_header", "is_user_register_header",
+    # TASK-237 3b: the cadence register's predicate, the three above's sibling.
+    "is_cadence_register_header",
     # bin/
     # `parse_tracks` (bin/perry-state) was listed here and is gone with
     # ADR-019: it read `.perry/config.md § Tracks`, and there is no such table.
@@ -448,6 +450,12 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
         P._parse_intake(BOARD)
         P._parse_user_input(BOARD)
         P._parse_cadence(BOARD)
+        # `perry_store.cadence_section_shape` asks this of a table header; the
+        # workload drives it directly, as nothing in `parse_board` calls it.
+        # The decorated cell is `**Title**` because the watch counts a fold
+        # only of a cell in `HEADER_CELLS`, and `header_index` folds every cell
+        # of the header it is given — `**Frequency**` is not one of them.
+        P.is_cadence_register_header(["ID", "**Title**", "Frequency"])
         P._table_rows(OKR)
         P.parse_top_risks(BOARD)
         aliases = {"id": {"id"}, "risk": {"risk"}, "status": {"status"},

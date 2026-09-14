@@ -662,8 +662,10 @@ NON_TASK_REFUSAL = {
         "`dropped` or moved through a status: closing it would delete the only "
         "record that the ritual is supposed to keep happening.\n"
         "  · record a run:  perry-task cadence-done {id} --evidence <path>\n"
-        "  · retire it:     delete the row from `## Cadence` "
-        "(`modes/queue.md § What recurs`)"),
+        "  · retire it:     no perry-task verb does this. The row's record is "
+        "in `cadence.jsonl`; a row deleted from `## Cadence` alone is refused "
+        "as a shrink by the next cadence write, or reported as a substitution "
+        "when that write adds a row (`modes/queue.md § What recurs`)"),
     "Intake": (
         "{id} is a row in `## Intake`, which holds requests that are not yet "
         "work — they carry no `Status` to change and no owner to hold them.\n"
@@ -2149,6 +2151,9 @@ REGISTER_EVENTS = {
     "intake": "intake", "resolve-intake": "intake", "intake-sweep": "intake",
     "route": "intake", "add": "intake",
     "ask": "asks", "answer": "asks",
+    # TASK-237 deliverable 3b: `## Cadence` has a store, so its two writes
+    # land in it through the same transaction as the other three registers.
+    "cadence-add": "cadence", "cadence-done": "cadence",
 }
 
 #: register key -> (board heading, store path fn, derivation fn, validator).
@@ -2166,6 +2171,11 @@ REGISTER_SPEC = {
              perry_store.ask_records, perry_store.validate_ask_records,
              perry_store.ask_section_shape,
              (perry_store.ask_table, "user-id")),
+    "cadence": ("Cadence", perry_store.cadence_store_path,
+                perry_store.cadence_records,
+                perry_store.validate_cadence_records,
+                perry_store.cadence_section_shape,
+                (perry_store.cadence_table, "id")),
 }
 
 #: **What identifies a record of each register, for the substitution report.**
@@ -2192,6 +2202,7 @@ REGISTER_IDENTITY = {
     "risks": lambda r: r.get("id"),
     "asks": lambda r: r.get("id"),
     "intake": lambda r: (r.get("request"), r.get("arrived")),
+    "cadence": lambda r: r.get("id"),
 }
 
 #: How many of a substitution's lost records are named before the tail is
@@ -2210,7 +2221,13 @@ SUBSTITUTION_RECORDS_SHOWN = 5
 #: `dropped — duplicate` exists for and the shape
 #: `carry_forward_is_addressable` already declines to guess about. A
 #: uniqueness rule here would refuse that ordinary board.
-REGISTER_ID_KEYED = frozenset({"risks", "asks"})
+REGISTER_ID_KEYED = frozenset({"risks", "asks", "cadence"})
+
+#: The singular each register's `perry-lint` rules are named with
+#: (`risk-store-badly-typed`). `key[:-1]` was right for the two plural names
+#: and would have named `cadenc-store-badly-typed`.
+REGISTER_RULE_NOUN = {"risks": "risk", "asks": "ask", "intake": "intake",
+                      "cadence": "cadence"}
 
 #: How many repeated ids are named before the tail is summarised.
 #: `SUBSTITUTION_RECORDS_SHOWN`'s rule, and for its reason: the cap is on the
@@ -2520,7 +2537,8 @@ def load_register_records(path: Path, key: str = "") -> list[dict]:
             f"this write would keep whichever record came last and carry ITS "
             f"`cleared` onto the other's row, and nothing would say so "
             f"(TASK-273). Nothing was written. `perry-lint --root .` names "
-            f"every one of these under `{key[:-1]}-store-badly-typed`; delete "
+            f"every one of these under "
+            f"`{REGISTER_RULE_NOUN.get(key, key)}-store-badly-typed`; delete "
             f"or repair the surplus line(s) and run this again.\n"
             f"The linter reports this state and this tool refuses it because "
             f"they are asked different questions: the linter is asked what is "
@@ -8017,12 +8035,13 @@ def perry_state():
 #: own gate first, for a different reason, and named the hole rather than
 #: faking it; this is the same move with the measurement attached.
 READ_ONLY_COMMANDS = {"list", "events", "asks", "signoff-offer"}
-#: Writes whose register has no store: `## Cadence` lives in `BOARD.md` and
-#: nowhere else, so with no file they refuse rather than lose the row.
-NO_STORE_COMMANDS = {"cadence-add", "cadence-done"}
+# `NO_STORE_COMMANDS` (`cadence-add`, `cadence-done`) is gone with its reason
+# (TASK-237 deliverable 3b): `## Cadence` has a store, so with no file those
+# two write it like every other register write.
 
 
-def declared_write_board(schema: dict, state_root: Path, path: Path) -> Board:
+def declared_write_board(schema: dict, state_root: Path, path: Path,
+                         project_root: Path | None = None) -> Board:
     """The board a write mutates when `BOARD.md` does not exist (TASK-237 3a).
 
     `perry_store.declared_board` over the four validated stores, the schema's
@@ -8050,10 +8069,15 @@ def declared_write_board(schema: dict, state_root: Path, path: Path) -> Board:
         raise Refused(f"no BOARD.md, and {first['store']} is malformed "
                       f"({first['message']}). Nothing was written.")
     try:
-        text, _report = perry_store.declared_board(spec, template, stores)
+        text, _report = perry_store.declared_board(
+            spec, template, stores,
+            project_name=P.project_name(project_root or state_root))
     except UnrenderableCell as exc:
         raise Refused(f"no BOARD.md, and a stored value cannot be laid out as "
                       f"a board cell: {exc.why}. Nothing was written.") from None
+    except perry_store.UnfilledPlaceholder as exc:
+        raise Refused(f"no BOARD.md, and the board template cannot be laid "
+                      f"out: {exc}. Nothing was written.") from None
     return Board.declared(path, text)
 TASK_ROW_COMMANDS = {"start", "stage", "track", "done", "drop", "purge",
                      "status", "depends", "next", "retitle", "summary",
@@ -8856,14 +8880,10 @@ def main(argv: list[str]) -> int:
                 # This refused ("needs the projection layout to render its
                 # write"). The layout now comes from the declarations and the
                 # stores, and `commit()` writes the stores, the journal and
-                # the event and renders no file.
-                if args.cmd in NO_STORE_COMMANDS:
-                    raise Refused(
-                        f"no BOARD.md at {board_path}, and `## Cadence` has no "
-                        f"store: `{args.cmd}` writes its row into the board "
-                        f"file and nowhere else, so with no file the row "
-                        f"would be lost at exit 0. Nothing was written.")
-                board = declared_write_board(schema, state_root, board_path)
+                # the event and renders no file. 3b added `## Cadence`'s
+                # store, so the two cadence writes no longer refuse here.
+                board = declared_write_board(schema, state_root, board_path,
+                                             project_root)
             ctx = {"schema": schema, "project_root": project_root,
                    "state_root": state_root, "config": config,
                    "board": board, "events": read_events(project_root),

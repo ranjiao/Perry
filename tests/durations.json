@@ -52,6 +52,10 @@
       "sec": 0.41,
       "source": "2026-09-14-task237-d1"
     },
+    "test_board_less_gaps.py": {
+      "sec": 0.26,
+      "source": "2026-09-14-task237-d3b"
+    },
     "test_board_less_project_is_recognised.py": {
       "sec": 0.8,
       "source": "2026-09-14-task237"
@@ -67,6 +71,10 @@
     "test_cadence.py": {
       "sec": 9.5,
       "source": "2026-09-09-085824"
+    },
+    "test_cadence_store.py": {
+      "sec": 1.29,
+      "source": "2026-09-14-task237-d3b"
     },
     "test_churn.py": {
       "sec": 8.64,
@@ -593,6 +601,13 @@
       "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (4.32/4.55/5.15s), on the terms of the 2026-09-14-task237 entry: re-timing every neighbour to land one entry is the substitution TASK-304's bound names. Re-timed after the contract guards took the module from 23 to 26 tests (it read 4.82/4.03/4.76s at fbc8be5d). load1 is the uptime sample taken right after the three runs, with other sessions' work on the same machine, so this is high rather than idle.",
       "ref": "c0916ced92ada8d5cafd1da2e1ab43f534c07fd2",
       "taken": "2026-09-14T05:53:18Z",
+      "workers": 1
+    },
+    "2026-09-14-task237-d3b": {
+      "load1": 9.17,
+      "note": "TWO modules added by TASK-237 deliverable 3b, each timed alone three times with `python3 -m unittest` from tests/ and recorded at the median: test_cadence_store 1.24/1.29/1.48s, test_board_less_gaps 0.57/0.26/0.20s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "ref": "32c416ee",
+      "taken": "2026-09-14T07:40:00Z",
       "workers": 1
     }
   }

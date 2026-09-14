@@ -543,8 +543,14 @@ class TestOverdueReport(unittest.TestCase):
         to have been abandoned — a clock that stops when it cannot read a date."""
         p = Project()
         p.run("cadence-add", "--title", "x", "--frequency", "weekly")
-        (p.root / "BOARD.md").write_text(
-            p.board().replace(f"| {P.advance(TODAY, 1, 'w'):%Y-%m-%d} |", "| soon |"))
+        # The STORE record is the register since TASK-237 3b, so the unreadable
+        # cell is planted there; a hand edit to `BOARD.md` is drift, not data.
+        store = p.root / "cadence.jsonl"
+        recs = [json.loads(l) for l in store.read_text().split("\n") if l.strip()]
+        self.assertEqual(recs[0]["next_due"],
+                         f"{P.advance(TODAY, 1, 'w'):%Y-%m-%d}")
+        recs[0]["next_due"] = "soon"
+        store.write_text("".join(json.dumps(r) + "\n" for r in recs))
         rep = p.state()
         self.assertEqual([r["id"] for r in rep["undated"]], ["CAD-001"])
         self.assertEqual(rep["overdue"], [])

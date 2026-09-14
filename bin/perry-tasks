@@ -337,7 +337,8 @@ def cmd_render(root: Path, byte_compare: bool,
 #     schema/state-schema.json § files[id=board]   (PERRY_HOME)
 #     work/state/BOARD_TEMPLATE.md                 (PERRY_HOME, the entry's `template`)
 #     .perry/config.jsonl                          (the project's, for `state_root`)
-#     <state root>/tasks.jsonl, asks.jsonl, risks.jsonl, intake.jsonl
+#     <state root>/tasks.jsonl, asks.jsonl, risks.jsonl, intake.jsonl,
+#     cadence.jsonl                                (3b: the fifth store)
 #
 # **Read-only, so it takes no lock and no `--register`.** It dispatches ahead of
 # both in `main`. A store that is absent is empty; a store that does not parse,
@@ -367,9 +368,14 @@ def cmd_board(root: Path) -> int:
                          ensure_ascii=False, indent=2), file=sys.stderr)
         return 2
     try:
-        text, report = perry_store.declared_board(spec, template, stores)
+        text, report = perry_store.declared_board(
+            spec, template, stores, project_name=P.project_name(root))
     except UnrenderableCell as exc:
         print(f"perry-tasks: refused — {exc.why}. Nothing was printed.",
+              file=sys.stderr)
+        return 1
+    except perry_store.UnfilledPlaceholder as exc:
+        print(f"perry-tasks: refused — {exc}. Nothing was printed.",
               file=sys.stderr)
         return 1
     sys.stdout.write(text)
@@ -1477,6 +1483,273 @@ def cmd_asks_write(root: Path, argv: list[str],
                                               unit="ask record(s)")
 
 
+# ── the cadence register (TASK-237 deliverable 3b) ────────────────────────
+#
+# The ask register's four verbs, one register over, because the key is the
+# same kind (the row's `ID`). Two refusals are added to the import, and both
+# exist because this store's promise is stronger: EVERY cell is stored as
+# written. The ask import lets a row with no `USER-` handle and the `Idle`
+# column pass verbatim, and the byte gate cannot see either — rendering a row
+# the store never took reproduces the row. Here a row with no id, or a column
+# no stored field holds, would be a cell the file carries and the store drops,
+# so the import names it and writes nothing.
+
+
+def cadence_board(root: Path):
+    """The board, and `bin/perry-task` as `ops`."""
+    mod = _task_module()
+    return mod.Board(P.resolve_state_root(root) / "BOARD.md"), mod
+
+
+def load_cadence_store(root: Path) -> tuple[list[dict], Path]:
+    """The cadence store as it is ON DISK — never the one just derived."""
+    path = perry_store.cadence_store_path(P.resolve_state_root(root))
+    if not path.exists():
+        return [], path
+    return [json.loads(l) for l in path.read_text(encoding="utf-8")
+            .split("\n") if l.strip()], path
+
+
+#: What `cadence-write` refuses when the claim is not there, and why — the
+#: live guard `ASK_STORE_UNDECLARED` is, one register over.
+CADENCE_STORE_UNDECLARED = (
+    "perry-tasks: refusing to write `cadence.jsonl`.\n\n"
+    "  A canonical record file in the state root is declared in "
+    "`schema/state-schema.json § claims` with an owner and an anchor, the way "
+    "`tasks.jsonl` is, and this schema carries no `cadence.jsonl` claim. "
+    "Writing one would put a file Perry does not admit to owning into the "
+    "user's project.\n\n"
+    "  That declaration is the user's to give. Until it lands, "
+    "`perry-tasks cadence-build` derives the records and `cadence-diff` checks "
+    "the projection, both without writing anything.")
+
+
+def cadence_store_is_declared() -> bool:
+    """Does `schema/state-schema.json § claims` carry `cadence.jsonl`?
+
+    Read at every call, and a schema this tool cannot read is NOT declaring
+    it — `ask_store_is_declared`'s rule.
+    """
+    try:
+        claims = lib.load_schema(RuntimeError).get("claims", [])
+    except Exception:
+        return False
+    return any(isinstance(c, dict) and c.get("path") == "cadence.jsonl"
+               for c in claims)
+
+
+def cmd_cadence_render(root: Path, byte_compare: bool,
+                       write_board: bool = False,
+                       flags: frozenset = frozenset()) -> int:
+    """Render `## Cadence` from the cadence store, or byte-compare the two.
+
+    `cmd_ask_render` one register over: from the store on disk when there is
+    one, from the section when there is not (`source: "board"`), and `--write`
+    refuses without a store rather than write the section back over itself.
+    """
+    board, ops = cadence_board(root)
+    try:
+        records, store_path = load_cadence_store(root)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"identical": False, "store_valid": False,
+                          "store_findings": [{"message":
+                              f"cadence store is not readable JSONL "
+                              f"({type(exc).__name__}: {exc})"}]},
+                         ensure_ascii=False, indent=2),
+              file=sys.stdout if byte_compare else sys.stderr)
+        return 2
+    source = "store" if store_path.exists() else "board"
+    if records:
+        records, findings = perry_store.validate_cadence_records(records)
+        if findings:
+            print(json.dumps({"identical": False, "store_valid": False,
+                              "store_findings": findings},
+                             ensure_ascii=False, indent=2),
+                  file=sys.stdout if byte_compare else sys.stderr)
+            return 2
+    elif source == "board":
+        if write_board:
+            print(json.dumps({
+                "store": str(store_path), "exists": store_path.exists(),
+                "note": "no cadence store on disk, so there is nothing to "
+                        "render `## Cadence` FROM — rendering it from records "
+                        "derived out of that same section would write the "
+                        "file back over itself and report success. "
+                        "`perry-tasks cadence-diff` is the storeless check.",
+            }, ensure_ascii=False, indent=2), file=sys.stderr)
+            return 2
+        records = perry_store.cadence_records(board, ops)
+    text, report = perry_store.cadence_render(board, records, ops)
+    report["source"] = source
+    report["store"] = str(store_path)
+    if not byte_compare:
+        if write_board:
+            return write_board_or_refuse(
+                root, text, records, flags=flags, section="Cadence",
+                unit="cadence record(s)",
+                planner=lambda b, r, m: perry_store.cadence_render(b, r, m)[1])
+        sys.stdout.write(text)
+        return 0
+    live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
+    report["identical"] = text == live
+    if not report["identical"]:
+        a, b = live.split("\n"), text.split("\n")
+        n = next((i for i in range(max(len(a), len(b)))
+                  if (a[i:i + 1] or [None]) != (b[i:i + 1] or [None])), 0)
+        report["first_difference"] = {
+            "line": n + 1,
+            "file": (a[n] if n < len(a) else "<past end of file>")[:400],
+            "rendered": (b[n] if n < len(b) else "<past end of render>")[:400],
+        }
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if report["identical"] else 1
+
+
+#: Why `## Cadence` cannot be imported, per shape `cadence_section_shape`
+#: reports. `prose` is the one that would pass the byte gate and be wrong:
+#: `cadence_records` returns `[]` and rendering `[]` changes no line.
+CADENCE_SECTION_UNIMPORTABLE = {
+    "absent": (
+        "there is no `## Cadence` section on this board, so there is no "
+        "register to import. `perry-task cadence-add --title … --frequency …` "
+        "creates the section and its store."),
+    "prose": (
+        "`## Cadence` holds no table — a heading with prose under it, or an "
+        "empty section. The records this would write are `[]`, and writing "
+        "them would report success over a section somebody keeps rituals in."),
+    "foreign": (
+        "`## Cadence` holds a table this tool must not treat as the register — "
+        "either it has no `Frequency` column or the section holds more than "
+        "one table. Which one is the register is a question about somebody's "
+        "document."),
+}
+
+
+def cmd_cadence_write(root: Path, argv: list[str],
+                      flags: frozenset = frozenset()) -> int:
+    """`BOARD.md § Cadence` → `cadence.jsonl`. The ONE-WAY IMPORT.
+
+    `cmd_asks_write`'s gates, in its order — `--from-board` is the consent; the
+    CLAIM, the SHAPE, the store on disk READABLE, no REPEATED id, the BYTES,
+    and the records READABLE BACK — and, like it, **no event is appended**: the
+    import runs nothing and records no occurrence, and an event would date
+    every ritual to the day of the migration.
+
+    **Two gates the ask import does not have, both about cells the byte gate
+    cannot see.** A row whose `ID` holds no handle is not a record, so the
+    renderer leaves its line alone and `cmp` stays clean with the row absent
+    from the store. A column no stored field holds (`Notes`) renders verbatim
+    for the same reason. Each is a cell the section carries and the store
+    would drop, so each refuses and names what it would drop.
+    """
+    dest = perry_store.cadence_store_path(P.resolve_state_root(root))
+
+    if "--from-board" not in argv:
+        r = lib.root_flag(root)
+        print(f"perry-tasks: refusing section-to-store import without "
+              f"`--from-board`. `cadence.jsonl` is authoritative once it "
+              f"exists; use `perry-tasks cadence-render --write{r}` for "
+              f"store-to-section recovery, or explicitly run `perry-tasks "
+              f"cadence-write --from-board{r}` to derive the store from "
+              f"`BOARD.md § Cadence`.", file=sys.stderr)
+        return 1
+
+    if not cadence_store_is_declared():
+        print(CADENCE_STORE_UNDECLARED, file=sys.stderr)
+        return 1
+
+    board, ops = cadence_board(root)
+    shape, _tables = perry_store.cadence_section_shape(board, ops)
+    if shape != "table":
+        print(f"perry-tasks: refusing to write {dest} — "
+              f"{CADENCE_SECTION_UNIMPORTABLE[shape]}\n\n"
+              f"  Nothing was written.", file=sys.stderr)
+        return 1
+
+    try:
+        on_disk, _path = load_cadence_store(root)
+    except (OSError, ValueError) as exc:
+        print(f"perry-tasks: {dest} exists but cannot be read "
+              f"({type(exc).__name__}: {exc}). Refusing to overwrite a store "
+              f"this tool cannot compare against; move it aside and re-run.",
+              file=sys.stderr)
+        return 2
+    _valid, malformed = perry_store.validate_cadence_records(on_disk)
+    if malformed:
+        print(json.dumps({"refused": f"{dest} is malformed; refusing to "
+                          f"overwrite a store that cannot be safely compared",
+                          "store_findings": malformed},
+                         ensure_ascii=False, indent=2), file=sys.stderr)
+        return 2
+
+    dupes = perry_store.duplicate_row_ids(
+        perry_store.cadence_table(board, ops), ops, "id")
+    if dupes:
+        print(refuse_duplicate_ids("Cadence", dest, dupes), file=sys.stderr)
+        return 1
+
+    records = perry_store.cadence_records(board, ops, on_disk)
+    text, report = perry_store.cadence_render(board, records, ops)
+    live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
+    if text != live:
+        a, b = live.split("\n"), text.split("\n")
+        n = next((i for i in range(max(len(a), len(b)))
+                  if (a[i:i + 1] or [None]) != (b[i:i + 1] or [None])), 0)
+        print(f"perry-tasks: refusing to write {dest}.\n\n"
+              f"  The records derived from `## Cadence` do not render that "
+              f"section back byte for byte, so the store would not be a "
+              f"projection of it.\n", file=sys.stderr)
+        for d in report["cells_the_store_and_board_disagree_on"][:10]:
+            print(f"    {d['id']} · column {d['column']}: "
+                  f"board={d['board']!r} → would render {d['store']!r}",
+                  file=sys.stderr)
+        print(f"\n  First differing line is {n + 1}:\n"
+              f"    board:    {(a[n] if n < len(a) else '<past end of file>')[:200]}\n"
+              f"    rendered: {(b[n] if n < len(b) else '<past end of render>')[:200]}\n"
+              f"\n  Nothing was written.", file=sys.stderr)
+        return 1
+
+    dropped = ([f"row {r['cell']!r}: its `ID` cell holds no handle, so the "
+                f"store would hold no record of it"
+                + (f" ({r['why']})" if r.get("why") else "")
+                for r in report["rows_verbatim"]]
+               + [f"column {col!r}: no stored field holds it, so {n} cell(s) "
+                  f"would be dropped" for col, n in
+                  sorted(report["cells_verbatim"].items())])
+    if dropped:
+        print(f"perry-tasks: refusing to write {dest}.\n\n"
+              f"  `cadence.jsonl` stores every cell of `## Cadence` as "
+              f"written, and this section carries cells it would not "
+              f"hold:\n", file=sys.stderr)
+        for line in dropped[:10]:
+            print(f"    {line}", file=sys.stderr)
+        print("\n  Give the row an id, or move the column's text into a "
+              "column the register declares, and re-run. Nothing was "
+              "written.", file=sys.stderr)
+        return 1
+
+    _valid, bad = perry_store.validate_cadence_records(records)
+    if bad:
+        print(json.dumps({"refused": "`## Cadence` produces a store this tool "
+                          "could not read back; nothing was written",
+                          "store_findings": bad},
+                         ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+
+    losses = _would_discard(on_disk, records)
+    if losses:
+        print(f"perry-tasks: {len(losses)} stored value(s) replaced by what "
+              f"`## Cadence` says — `--from-board` is that instruction:",
+              file=sys.stderr)
+        for line in losses[:10]:
+            print(f"    {line}", file=sys.stderr)
+        if len(losses) > 10:
+            print(f"    … and {len(losses) - 10} more", file=sys.stderr)
+
+    return write_store_or_say_what_would_land(dest, records, flags=flags,
+                                              unit="cadence record(s)")
+
+
 # ---------------------------------------------------------------------------
 # The linkage import is GONE — ADR-019.
 #
@@ -1646,8 +1919,22 @@ SURFACE = {
         {"name": "asks-diff", "summary":
          "render `## User Input Queue` and byte-compare with the board",
          "flags": []},
+        {"name": "cadence-build", "summary":
+         "derive the cadence store from `## Cadence` and print it",
+         "flags": []},
+        {"name": "cadence-render", "summary":
+         "the cadence store -> `## Cadence`",
+         "flags": ["--write", "--dry-run", "--json"],
+         "writes": ["BOARD.md"]},
+        {"name": "cadence-write", "summary":
+         "the one-way import: `## Cadence` -> cadence.jsonl",
+         "flags": ["--from-board", "--dry-run", "--json"],
+         "writes": ["cadence.jsonl"]},
+        {"name": "cadence-diff", "summary":
+         "render `## Cadence` and byte-compare with the board",
+         "flags": []},
         {"name": "board", "summary":
-         "the whole board to stdout from the four stores and the declared "
+         "the whole board to stdout from the five stores and the declared "
          "skeleton; never reads BOARD.md",
          "flags": []},
     ],
@@ -1824,6 +2111,24 @@ def main(argv: list[str], _locked: bool = False) -> int:
 
     if cmd == "asks-write":
         return cmd_asks_write(root, argv, flags)
+
+    if cmd in ("cadence-render", "cadence-diff"):
+        return cmd_cadence_render(root, byte_compare=cmd == "cadence-diff",
+                                  write_board="--write" in flags, flags=flags)
+
+    if cmd == "cadence-build":
+        board, ops = cadence_board(root)
+        records = perry_store.cadence_records(board, ops)
+        shape, _tables = perry_store.cadence_section_shape(board, ops)
+        print(json.dumps({"records": len(records),
+                          "stored_fields": len(perry_store.CADENCE_STORED),
+                          "register": shape,
+                          "sample": records[0] if records else None},
+                         ensure_ascii=False, indent=2))
+        return 0
+
+    if cmd == "cadence-write":
+        return cmd_cadence_write(root, argv, flags)
 
     if cmd in ("render", "diff"):
         # **Not `build(root)`.** These two read the store from disk for the

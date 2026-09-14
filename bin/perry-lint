@@ -1712,9 +1712,12 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     exit — branch on the `--json` counts if you want CI to care.
     """
     findings: list[Finding] = []
+    # TASK-237 3b: this returned `[]` when the file was absent, which silenced
+    # the event-log pass below as well as the board pass — so on a board-less
+    # project no closure the tool had made was ever judged. The board pass
+    # reads only hand-kept `done` rows (a rendered board carries none), and it
+    # is skipped with no file; the event pass runs either way.
     board = state_root / "BOARD.md"
-    if not board.exists():
-        return findings
 
     def judge(where: str, tid: str, title: str, ev: str, rung: str,
               stakes: list[str]) -> int:
@@ -1762,7 +1765,8 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     # done row is fine" from "there were no done rows" — printing a checkmark
     # for an empty scan is how a gate quietly stops being one.
     check_verification.rows_seen = 0
-    text = strip_comments(board.read_text(errors="replace"))
+    text = (strip_comments(board.read_text(errors="replace"))
+            if board.exists() else "")
     stakes = high_stakes_fragments(perry_dir)
 
     rows_seen = rows_ranked = 0
@@ -2126,11 +2130,35 @@ def resolves_somewhere(src: str, state_root: Path, project_root: Path) -> bool:
                     return True
             continue
         if re.fullmatch(r"[A-Z][A-Z0-9]{1,7}-\d+", tok):
-            for hay in (state_root / "BOARD.md",
-                        project_root / ".perry" / "events.jsonl"):
-                if hay.exists() and tok in hay.read_text(errors="replace"):
+            board = state_root / "BOARD.md"
+            # TASK-237 3b: with no file, the ids the board WOULD carry, read
+            # from the stores it is rendered from. Returning quietly here made
+            # every card citing an open task or an ask read as dangling.
+            if board.exists():
+                if tok in board.read_text(errors="replace"):
                     return True
+            elif tok in ids_the_board_would_carry(state_root):
+                return True
+            events = project_root / ".perry" / "events.jsonl"
+            if events.exists() and tok in events.read_text(errors="replace"):
+                return True
     return False
+
+
+def ids_the_board_would_carry(state_root: Path) -> set[str]:
+    """Every id a rendered `BOARD.md` holds, from the stores alone.
+
+    What `perry-tasks board` prints rows for (`perry_store §
+    DECLARED_BOARD_CHOICES` "which rows"): open task records, and every ask,
+    risk and cadence record. Intake has no id. A store that cannot be read
+    contributes nothing — `*-store-unreadable` is the finding for that.
+    """
+    stores, _findings = _STORE.load_board_stores(state_root)
+    ids = {r["id"] for r in stores.get("tasks", [])
+           if r.get("status") not in _STORE.TERMINAL_STATUSES}
+    for name in ("asks", "risks", "cadence"):
+        ids |= {r["id"] for r in stores.get(name, []) if r.get("id")}
+    return ids
 
 
 def undecorate(text: str) -> str:
@@ -2742,10 +2770,12 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                             f"work/reference/review.md § 1", line))
 
     board = state_root / "BOARD.md"
-    if not board.exists():
-        check_reviews.blocks_seen = sum(len(v) for v in seen.values())
-        return findings
-    btext = strip_comments(board.read_text(errors="replace"))
+    # TASK-237 3b: this returned here when the file was absent, and everything
+    # below went quiet with it — the event-log pass that finds a V4 close with
+    # no verdict, and every check on a live row. With no file the live rows
+    # are the store's open records: the rows `perry-tasks board` would print.
+    btext = (strip_comments(board.read_text(errors="replace"))
+             if board.exists() else "")
 
     def verdicts_for(tid: str) -> list[dict]:
         return [f for _, f, _ in seen.get(tid, [])]
@@ -2755,6 +2785,13 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     #: "is this row even at a rung that needs a round" rather than reporting
     #: every `review` row on the board.
     rungs: dict[str, str] = {}
+    if not board.exists():
+        stores, _findings = _STORE.load_board_stores(state_root)
+        for rec in stores.get("tasks", []):
+            if rec.get("status") in _STORE.TERMINAL_STATUSES:
+                continue
+            live[rec["id"]] = str(rec.get("status") or "")
+            rungs[rec["id"]] = str(rec.get("verification") or "")
     for body, _ in section_body(btext, 2, re.compile(r"^P[012]\b")):
         for header, rows in tables(body):
             got = header_index(header)
@@ -3820,6 +3857,11 @@ _INTAKE_STORED_FIELDS = _STORE.INTAKE_STORED
 #: every project that runs the import.
 _ASK_STORED_FIELDS = _STORE.ASK_STORED
 
+#: The cadence register's field list (TASK-237 deliverable 3b), id-keyed like
+#: the two above. Without it `cadence.jsonl` drew an `NS-01` against Perry's
+#: own claim on every project holding the store.
+_CADENCE_STORED_FIELDS = _STORE.CADENCE_STORED
+
 
 def _empty_store_drift_stats() -> dict:
     """The typed machine-readable state before a store comparison runs.
@@ -4504,6 +4546,134 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
             f"{' → '.join(on_board[:6])}, store {' → '.join(in_store[:6])}. "
             f"Row order is recorded, not re-derived, so a row moved by hand is "
             f"drift like any other cell."))
+    return findings
+
+
+def _empty_cadence_store_drift_stats() -> dict:
+    """The typed machine-readable state before a cadence comparison runs."""
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def check_cadence_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """`## Cadence` and `cadence.jsonl` disagree — TASK-237 deliverable 3b.
+
+    `check_ask_store_drift`, one register over, because the key is the same
+    kind: the row's `ID`. The same posture, the same `warn`, and silent with a
+    payload when there is no store. **Every column is stored, so every cell is
+    compared** — there is no `Idle` exception here, and a hand edit to a prose
+    `Next due` is drift like any other.
+    """
+    findings: list[Finding] = []
+    check_cadence_store_drift.stats = _empty_cadence_store_drift_stats()
+
+    store_path = _STORE.cadence_store_path(state_root)
+    if not store_path.exists():
+        return []
+
+    check_cadence_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "cadence-store-unreadable",
+                        f"`cadence.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare `## Cadence` against")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "cadence-store-unreadable",
+                        "`cadence.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record")]
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    if not board_path.exists():
+        check_cadence_store_drift.stats["records"] = len(
+            _STORE.validate_cadence_records(on_disk)[0])
+        return [Finding("warn", rel_store, "cadence-store-drift-uncheckable",
+                        f"`{rel_store}` exists and there is no `BOARD.md` to "
+                        f"project it onto, so drift is unknown here rather "
+                        f"than absent")]
+
+    try:
+        tasks_mod = _tasks_module()
+        ops = tasks_mod._task_module()
+        board = ops.Board(board_path)
+        derived = _STORE.cadence_records(board, ops, on_disk)
+    except Exception as exc:  # noqa: BLE001
+        return [Finding("warn", rel_board, "cadence-store-drift-uncheckable",
+                        f"the cadence store could not be derived from the "
+                        f"current files ({type(exc).__name__}: {exc}), so "
+                        f"drift is unknown here rather than absent")]
+
+    good, issues = _STORE.validate_cadence_records(on_disk)
+    for issue in issues:
+        who = issue.get("id") or f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "cadence-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded from the "
+            f"drift comparison, so this row's drift is unknown here rather "
+            f"than absent."))
+
+    stored = {r["id"]: r for r in good}
+    live = {r["id"]: r for r in derived}
+    check_cadence_store_drift.stats.update({
+        "comparison_performed": not issues, "records": len(stored)})
+
+    rows: list[tuple[str, str, int | None]] = []
+    board_text = board_path.read_text(errors="replace")
+    for cid in sorted(live):
+        want, got = stored.get(cid), live[cid]
+        line = _board_line_of(board_text, cid)
+        if want is None:
+            rows.append((cid, "the file carries this row and the store has no "
+                              "record of it", line))
+            continue
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((cid, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else ""), line))
+    for cid in sorted(set(stored) - set(live)):
+        rows.append((cid, "the store holds this record and `## Cadence` "
+                          "renders no row for it", None))
+
+    check_cadence_store_drift.stats["drifted"] = len(rows)
+    _r = lib.root_flag(project_root)
+    for cid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "cadence-store-drift",
+            f"{cid} — {detail}. Under ADR-007 `## Cadence` is rendered output "
+            f"and `{rel_store}` is what the field means, so a hand edit is "
+            f"drift. `perry-tasks cadence-render --write{_r}` puts the section "
+            f"back in line with the store when every stored record still has a "
+            f"row, and REFUSES when one does not; `perry-tasks cadence-write "
+            f"--from-board{_r}` runs the other direction and DISCARDS the "
+            f"stored values.", line))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "cadence-store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further cadence row(s) "
+            f"disagree with `{rel_store}`."))
+
+    graded = [r for r in live
+              if r in stored and stored[r].get("order") is not None
+              and live[r].get("order") is not None]
+    on_board = sorted(graded, key=lambda r: live[r]["order"])
+    in_store = sorted(graded, key=lambda r: stored[r]["order"])
+    if on_board != in_store:
+        findings.append(Finding(
+            "warn", rel_board, "cadence-store-drift",
+            f"`Cadence` — the rows of this section sit in a different order in "
+            f"the file than in `{rel_store}`: file {' → '.join(on_board[:6])}, "
+            f"store {' → '.join(in_store[:6])}. Row order is recorded, not "
+            f"re-derived, so a row moved by hand is drift like any other cell."))
     return findings
 
 
@@ -5420,8 +5590,9 @@ def looks_like_perry_record(path: Path, schema: dict | None = None) -> bool:
     keys = set(rec)
     if "id" in keys and (keys <= set(_STORED_FIELDS)
                          or keys <= set(_RISK_STORED_FIELDS)
-                         or keys <= set(_ASK_STORED_FIELDS)):
-        return True                 # a store — tasks, risks or asks
+                         or keys <= set(_ASK_STORED_FIELDS)
+                         or keys <= set(_CADENCE_STORED_FIELDS)):
+        return True                 # a store — tasks, risks, asks or cadence
     # `intake.jsonl` keys on `order` and carries no `id` at all: the register
     # has no id column and a row is addressed by position (TASK-196). The
     # branch above cannot see it, and `order` alone is too weak a signal, so
@@ -5865,6 +6036,7 @@ def main(argv: list[str]) -> int:
     check_risk_store_drift.stats = _empty_risk_store_drift_stats()
     check_intake_store_drift.stats = _empty_intake_store_drift_stats()
     check_ask_store_drift.stats = _empty_ask_store_drift_stats()
+    check_cadence_store_drift.stats = _empty_cadence_store_drift_stats()
     check_md_store_drift.stats = _empty_md_store_drift_stats_all()
     check_config_store.stats = _empty_config_store_stats()
     check_specs.stats = {"specs": 0, "unscannable": 0, "unbounded": 0,
@@ -5949,6 +6121,10 @@ def main(argv: list[str]) -> int:
             # returns before deriving anything when there is no `asks.jsonl`,
             # which is every project today.
             findings.extend(check_ask_store_drift(project_root, root))
+            # And the cadence register (TASK-237 deliverable 3b), on the same
+            # terms: it returns before deriving anything when there is no
+            # `cadence.jsonl`.
+            findings.extend(check_cadence_store_drift(project_root, root))
             # And the fifth and sixth (TASK-209), on the same terms and at the
             # same cost: they return before deriving anything when there is no
             # `okr.jsonl` / `.perry/config.jsonl`. These two are the reason the
@@ -6023,6 +6199,9 @@ def main(argv: list[str]) -> int:
             payload["ask_store_drift"] = dict(getattr(
                 check_ask_store_drift, "stats",
                 _empty_ask_store_drift_stats()))
+            payload["cadence_store_drift"] = dict(getattr(
+                check_cadence_store_drift, "stats",
+                _empty_cadence_store_drift_stats()))
             _md = getattr(check_md_store_drift, "stats",
                           None) or _empty_md_store_drift_stats_all()
             for _doc, _label in _MD_STORE_DOCS:
@@ -6151,6 +6330,19 @@ def main(argv: list[str]) -> int:
             else:
                 print(f"  · ask store: {_ast['records']} record(s), "
                       f"{_ast['drifted']} ask(s) drifted")
+        # And the cadence register's (TASK-237 deliverable 3b), for the same
+        # reason: "no cadence store" and "a clean one" are different answers.
+        _cst = getattr(check_cadence_store_drift, "stats", None)
+        if _cst and not mode_templates:
+            if not _cst["store_present"]:
+                print("  · no `cadence.jsonl` — drift against the cadence store "
+                      "is unchecked, not clean")
+            elif not _cst["comparison_performed"]:
+                print(f"  · cadence store: {_cst['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · cadence store: {_cst['records']} record(s), "
+                      f"{_cst['drifted']} row(s) drifted")
         # And the fifth and sixth lines, for the same reason the four above
         # have their own: "no OKR store" and "a clean OKR store" are different
         # answers, and so are "no OKR store" and "no config store". Six

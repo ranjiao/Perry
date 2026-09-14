@@ -1232,6 +1232,13 @@
       "note": "the ask STORE (ADR-007, TASK-197) - the canonical record the `User Input Queue` section of `BOARD.md` is projected from. Keyed on the `USER-` id, like `risks.jsonl` and unlike `intake.jsonl`. Five of the section's six columns are stored; `Idle` is NOT, because it is an age derived from `Asked` at read time and a stored age is stale the moment it is written. Declared before it exists, like `intake.jsonl`; `perry-tasks asks-write --from-board` is the explicit import that creates it. State-root relative, beside `tasks.jsonl`."
     },
     {
+      "path": "cadence.jsonl",
+      "kind": "file",
+      "owner": "work",
+      "anchor": "state",
+      "note": "the cadence STORE (ADR-007, TASK-237 deliverable 3b, user answer A of 2026-09-14) - the canonical record the `Cadence` section of `BOARD.md` is projected from. Keyed on the row's `ID`, like `risks.jsonl` and `asks.jsonl`. Every column of the section is stored - id, recurring task, owner, frequency, next due, last run, last evidence - plus `order`, and **every cell is stored as written**: prose in `Next due` and aperiodic frequencies (`continuous`, `hourly`, `per task`) are live data on real registers and are never normalised; `bin/perry-state § cadence_report` is what reads a date out of them. Written by `perry-task cadence-add` / `cadence-done`; `perry-tasks cadence-write --from-board` is the explicit import for a project whose cadence lives only on its board. State-root relative, beside `tasks.jsonl`."
+    },
+    {
       "path": "linkage.jsonl",
       "kind": "file",
       "owner": "perry",

@@ -452,14 +452,26 @@ WRITES = [
      lambda s: _t(s, "TASK-005")["depends_on"] == ["TASK-002"]),
     ("design-link", [], ["design-link", "TASK-005", "--design", "DESIGN-001"],
      "tasks", lambda s: _t(s, "TASK-005")["design_refs"] == ["DESIGN-001"]),
+    # TASK-237 3b: `## Cadence` has a store, so the two cadence writes left
+    # `NOT_IN_WRITES` for this table. `tests/test_cadence_store.py` holds the
+    # register's own cases.
+    ("cadence-add", [], ["cadence-add", "--title", "probe ritual",
+                         "--frequency", "weekly", "--on", "2026-09-07"],
+     "cadence", lambda s: any(c["title"] == "probe ritual"
+                              and c["next_due"] == "2026-09-14" for c in s)),
+    ("cadence-done", [["cadence-add", "--title", "probe ritual",
+                       "--frequency", "weekly"]],
+     ["cadence-done", "CAD-001", "--evidence", PROOF, "--on", "2026-09-10"],
+     "cadence", lambda s: (_t(s, "CAD-001")["last_run"],
+                           _t(s, "CAD-001")["next_due"],
+                           _t(s, "CAD-001")["last_evidence"])
+     == ("2026-09-10", "2026-09-17", PROOF)),
 ]
 
 #: Every `perry-task` write `--describe` declares, and what covers it here.
 #: `risk-migrate` converts BULLETS in the file into the table; a project with a
 #: risks store has no bullets to convert, and it refuses in both states.
-NOT_IN_WRITES = {"cadence-add": "refused without the file — see below",
-                 "cadence-done": "refused without the file — see below",
-                 "risk-migrate": "nothing to migrate on a store-backed register"}
+NOT_IN_WRITES = {"risk-migrate": "nothing to migrate on a store-backed register"}
 
 TS = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:\d{2}|Z)?")
 
@@ -488,7 +500,8 @@ def outcome(p: Project, prereqs, argv, store):
         "store": read_jsonl(p.state / f"{store}.jsonl"),
         "stores": {n: norm((p.state / f"{n}.jsonl").read_text(encoding="utf-8"))
                    if (p.state / f"{n}.jsonl").exists() else None
-                   for n in ("tasks", "asks", "risks", "intake", "linkage")},
+                   for n in ("tasks", "asks", "risks", "intake", "linkage",
+                             "cadence")},
         "events": norm((p.root / ".perry" / "events.jsonl")
                        .read_text(encoding="utf-8")[len(events_before):]),
         "journal": norm((journal(p).read_text(encoding="utf-8")
@@ -538,25 +551,16 @@ class TestEveryWriteLandsWithNoBoard(unittest.TestCase):
                 self.assertEqual(a["events"], b["events"])
                 self.assertEqual(a["journal"], b["journal"])
                 self.assertIn("BOARD.md", b["stdout"])
-                if name not in ("summary", "design-link"):
-                    # The two writes to a field the board has no column for.
+                if name not in ("summary", "design-link", "purge"):
+                    # `summary` and `design-link` write a field the board has
+                    # no column for. `purge` removes a terminal record, which
+                    # has no line; it changed the file only by stamping
+                    # `> Last updated:`, and the board `perry-tasks board`
+                    # prints has carried no such line since 3b dropped the
+                    # template's prose (3a's write table: "no: a terminal
+                    # record has no line").
                     self.assertNotEqual(present.board.read_text(encoding="utf-8"),
                                         before, "the file was not re-rendered")
-
-    def test_a_cadence_write_refuses_and_writes_nothing(self):
-        for argv in (["cadence-add", "--title", "weekly close", "--frequency", "weekly"],
-                     ["cadence-done", "CAD-001", "--evidence", PROOF]):
-            with self.subTest(write=argv[0]):
-                p = Project(board=None)
-                self.addCleanup(p.close)
-                events = (p.root / ".perry" / "events.jsonl").read_bytes()
-                out = p.task(argv)
-                self.assertEqual(out.returncode, 1)
-                self.assertIn("`## Cadence` has no store", out.stderr)
-                self.assertEqual((p.root / ".perry" / "events.jsonl").read_bytes(),
-                                 events)
-                self.assertFalse(journal(p).exists())
-                self.assertFalse(p.board.exists())
 
 
 class TestTheContractsAnnounceTheStoreRead(unittest.TestCase):

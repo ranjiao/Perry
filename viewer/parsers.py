@@ -1448,6 +1448,8 @@ def load_task_store(state_root: Path) -> list[dict] | None:
 ASK_STORE = "asks.jsonl"
 RISK_STORE = "risks.jsonl"
 INTAKE_STORE = "intake.jsonl"
+#: TASK-237 deliverable 3b: `## Cadence` has a store too.
+CADENCE_STORE = "cadence.jsonl"
 
 
 def load_register_store(state_root: Path, name: str) -> list[dict] | None:
@@ -1524,6 +1526,19 @@ def _intake_from_store(records: list[dict]) -> list[dict]:
                     "outcome": outcome,
                     "discharged": intake_is_discharged(outcome)})
     return out
+
+
+def _cadence_from_store(records: list[dict]) -> list[Cadence]:
+    """`cadence.jsonl` → the `Cadence` rows `_parse_cadence` returns, in stored order.
+
+    Every field is the stored cell as written (`bin/perry_store.py §
+    CADENCE_STORED`); nothing is parsed here, for the reason `Cadence` gives.
+    """
+    return [Cadence(id=_text(r, "id"), title=_text(r, "title"),
+                    owner=_text(r, "owner"), frequency=_text(r, "frequency"),
+                    next_due=_text(r, "next_due"), last_run=_text(r, "last_run"),
+                    last_evidence=_text(r, "last_evidence"))
+            for r in _in_register_order(records)]
 
 
 def top_risks_from_store(records: list[dict]) -> list[TopRisk]:
@@ -1634,7 +1649,8 @@ def _board_tasks_from_store(state: BoardState, records: list[dict]) -> None:
 def parse_board(text: str, *, tasks: list[dict] | None = None,
                 asks: list[dict] | None = None,
                 risks: list[dict] | None = None,
-                intake: list[dict] | None = None) -> BoardState:
+                intake: list[dict] | None = None,
+                cadence: list[dict] | None = None) -> BoardState:
     """`BOARD.md` → the registers it carries.
 
     `tasks` is the task store's records. **When it is given, no task row is
@@ -1646,12 +1662,16 @@ def parse_board(text: str, *, tasks: list[dict] | None = None,
     `asks`, `risks` and `intake` are the same rule for the other three stores
     (TASK-237 deliverable 3a): a register whose store is given is not read out
     of `text`, so `user_input_queue`, `risks` and `intake` are the same with
-    the file present, absent or garbage. `## Cadence` has no store and is still
-    parsed — with no `BOARD.md` it is empty.
+    the file present, absent or garbage. `cadence` is the same rule for
+    `## Cadence` (deliverable 3b): with a cadence store the section is not
+    read, and `cadence_items` / `cadence` come from the records.
     """
     state = BoardState()
     if tasks is not None:
         _board_tasks_from_store(state, tasks)
+    if cadence is not None:
+        state.cadence_items = _cadence_from_store(cadence)
+        state.cadence = [_cadence_as_task(c) for c in state.cadence_items]
     if asks is not None:
         state.user_input_queue = _asks_from_store(asks)
     if risks is not None:
@@ -1684,8 +1704,10 @@ def parse_board(text: str, *, tasks: list[dict] | None = None,
             if tasks is None:
                 state.p2 = _parse_task_table(chunk, "P2")
         elif heading_is(head, "Cadence"):
-            state.cadence_items = _parse_cadence(chunk)
-            state.cadence = [_cadence_as_task(c) for c in state.cadence_items]
+            if cadence is None:
+                state.cadence_items = _parse_cadence(chunk)
+                state.cadence = [_cadence_as_task(c)
+                                 for c in state.cadence_items]
         elif heading_is(head, "User Input Queue"):
             if asks is None:
                 state.user_input_queue = _parse_user_input(chunk)
@@ -2258,6 +2280,17 @@ def is_user_register_header(header: list[str]) -> bool:
     """
     return header_index(header).column(
         _column_keys("Needed from user")) >= 0
+
+
+def is_cadence_register_header(header: list[str]) -> bool:
+    """Whether this table header declares the `Frequency` column.
+
+    `Frequency` is what makes a table under `## Cadence` a recurrence register
+    rather than a legend — every live shape `_parse_cadence` names carries it,
+    and `ID` alone would take any id-keyed table. Resolved by name through the
+    glossary, like the three predicates above.
+    """
+    return header_index(header).column(_column_keys("Frequency")) >= 0
 
 
 #: A `Status` cell that means "this question is still on the user". Matched as a
@@ -5015,12 +5048,24 @@ class PMOSnapshot:
         return kinds.pop() if len(kinds) == 1 else "mixed"
 
 
-def _resolve_project_name(root: Path, board_text: str) -> str:
-    # Prefer the BOARD.md H1 suffix ("# Board — <name>"), else the root dir name.
-    m = re.match(r"#\s+Board\s*[—\-–]\s*(.+)", board_text)
-    if m:
-        return m.group(1).strip()
-    return root.name or "Perry"
+def project_name(project_root: Path) -> str:
+    """The project's name — ONE rule, for `perry-state § project.name` and the
+    title `perry-tasks board` prints (TASK-237 Amendment (4) and 3b item 3).
+
+    The rule is: a `.perry/config.jsonl` setting that names the project, if
+    `schema/state-schema.json` declares one; otherwise the PROJECT root's
+    directory name. **No such setting is declared today** — the config store's
+    keys on this repository are `document_language`, `chat_language`,
+    `repo_layout`, `state_root`, `pmo_repo_path`, `code_repo_path` and
+    `last_updated` — and adding one is a schema change this row was told not to
+    make, so the first half has nothing to read and the name is the directory's.
+
+    It used to be the H1 of `BOARD.md` (`# Board — <name>`), falling back to
+    the STATE root's name: `perry` on this repository with the file gone. That
+    read a projection for a fact, and `perry-tasks board` now writes that very
+    H1 from this function, so reading it back would be a loop.
+    """
+    return Path(project_root).name or "Perry"
 
 
 def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
@@ -5129,7 +5174,8 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
     board = parse_board(board_text, tasks=load_task_store(root),
                         asks=load_register_store(root, ASK_STORE),
                         risks=risk_records,
-                        intake=load_register_store(root, INTAKE_STORE))
+                        intake=load_register_store(root, INTAKE_STORE),
+                        cadence=load_register_store(root, CADENCE_STORE))
 
     return PMOSnapshot(
         board=board,
@@ -5145,7 +5191,7 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
         arch_meta=parse_arch_meta(architecture_text),
         project_root=project_root,
         state_root=root,
-        project_name=_resolve_project_name(root, board_text),
+        project_name=project_name(project_root),
         fetched_at=datetime.now(),
         linkage=linkage,
         ops=_load_ops_counts(root),

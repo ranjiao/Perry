@@ -116,7 +116,11 @@ class TestDecorationIsInvisible(unittest.TestCase):
         # mutation. It is green in an ordinary shell only because a second
         # regex happens to catch `/private/var/folders/`, which is where a
         # machine WITH `TMPDIR` puts them.
-        root = Path(tmp.name).resolve()
+        # **One directory NAME for both projects** (TASK-237 3b). `perry-state
+        # § project.name` is the project root's directory name now, not the
+        # H1 of `BOARD.md`, so two temp dirs named `tmpXXXX` differ in exactly
+        # that key — a difference this test would have created itself.
+        root = Path(tmp.name).resolve() / "Perry"
         shutil.copytree(self.snapshot(), root, dirs_exist_ok=True)
         if bold:
             for f in (root / "perry").rglob("*.md"):
