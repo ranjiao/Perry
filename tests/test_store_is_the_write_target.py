@@ -83,6 +83,7 @@ class Project:
         import config_store
         config_store.write_config(self.root)
         (self.root / "BOARD.md").write_text(board, encoding="utf-8")
+        self.held_at_start = board
         if seed_store:
             proc = subprocess.run(
                 [sys.executable, str(TASKS), "write", "--from-board", "--root",
@@ -131,6 +132,16 @@ class Project:
         return next(r for r in self.store() if r["id"] == tid)
 
     def board(self) -> str:
+        """What `perry-tasks board` prints from the store (TASK-262 round 4a)."""
+        r = subprocess.run([sys.executable, str(TASKS), "board",
+                            "--root", str(self.root)],
+                           capture_output=True, text=True)
+        if r.returncode:
+            raise AssertionError(r.stdout + r.stderr)
+        return r.stdout
+
+    def held(self) -> str:
+        """The fixture's own `BOARD.md` — retired, and never written by a write."""
         return (self.root / "BOARD.md").read_text(encoding="utf-8")
 
     def rows_of(self, heading: str) -> list[str]:
@@ -146,16 +157,44 @@ class Project:
 
 
 class Fixture(unittest.TestCase):
-    def diff_is_identical(self, p: Project, why: str = "") -> dict:
-        """**The acceptance.** `perry-tasks diff` byte-compares the board on
-        disk against the board the store renders."""
-        rc, out = p.tasks("diff")
-        report = json.loads(out)
-        self.assertTrue(report.get("identical"),
-                        f"{why}: the store and the rendered board disagree — "
-                        f"{json.dumps(report.get('first_difference'), ensure_ascii=False)}")
-        self.assertEqual(rc, 0)
-        return report
+    def diff_is_identical(self, p: Project, why: str = "") -> None:
+        """**The acceptance, since TASK-262 round 4a.**
+
+        It was `perry-tasks diff`: a byte comparison of the held `BOARD.md`
+        against the board the store renders, run after every write, because
+        every write re-rendered that file. No write reads or writes a held file
+        now, so that comparison would measure a retired file. What can go wrong
+        is unchanged — the document and the store disagreeing — and the
+        document is `perry-tasks board`. So, after the write:
+
+        - the printed board's task rows are exactly the store's open records,
+          by id;
+        - each row's `Title` and `Status` cells are its record's, read under
+          the row's own header;
+        - the held file still has the bytes the fixture wrote.
+        """
+        rows, header = {}, None
+        for line in p.board().split("\n"):
+            if line.startswith("## "):
+                header = None
+            elif line.startswith("| ID |"):
+                header = [c.strip().lower() for c in line.strip().strip("|").split("|")]
+            elif (header and "title" in header and line.startswith("| ")
+                  and not line.startswith("|---")):
+                cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                rows[cells[0]] = dict(zip(header, cells))
+        open_records = {r["id"]: r for r in p.store()
+                        if r.get("status") not in ("done", "dropped")}
+        self.assertTrue(open_records, f"{why}: control: the store holds open work")
+        self.assertEqual(set(rows), set(open_records),
+                         f"{why}: the printed board and the store's open records "
+                         f"name different rows")
+        for tid, rec in open_records.items():
+            self.assertEqual((rows[tid]["title"], rows[tid]["status"]),
+                             (rec["title"], rec["status"]),
+                             f"{why}: {tid} is printed differently from its record")
+        self.assertEqual(p.held(), p.held_at_start,
+                         f"{why}: a write rewrote the retired BOARD.md")
 
 
 class TestEveryWriteLeavesTheStoreAndTheBoardAgreeing(Fixture):
@@ -245,8 +284,8 @@ class TestOneTaskTableDefinition(Fixture):
         self.assertEqual(p.record("TASK-005")["next_action"], "kept in the store")
         self.assertNotIn("ID", [r["id"] for r in p.store()],
                          "the repeated markdown header became a task record")
-        report = self.diff_is_identical(p)
-        self.assertEqual(report["rows_verbatim"], [])
+        self.diff_is_identical(p)
+        self.assertEqual(out["projection"]["rows_verbatim"], [])
 
     def test_widening_preserves_both_tables_and_targets_the_second_row(self):
         p = Project(self, self.SECOND_TABLE.replace(
@@ -255,18 +294,18 @@ class TestOneTaskTableDefinition(Fixture):
         self.assertEqual(code, 0, out)
         self.assertEqual(p.record("TASK-005")["depends_on"], ["TASK-001"])
         self.assertEqual(p.record("TASK-001")["depends_on"], [])
-        self.assertEqual(p.board().count("| ID | Title | Owner | Status | Next action | Evidence | Depends on |"), 2)
+        # The held layout's two widened headers left with TASK-262 round 4a:
+        # no write widens a held table. The store half is the test's claim.
         self.assertNotIn("ID", [r["id"] for r in p.store()])
         self.diff_is_identical(p)
 
-    def test_duplicate_ids_refuse_even_a_non_task_mutation_and_direct_import(self):
+    def test_duplicate_ids_refuse_the_direct_import(self):
+        """**The write half left with TASK-262 round 4a.** An `ask` refused
+        on a held board carrying `TASK-001` twice. A write no longer reads the
+        held board, so the duplicate is met where the file is still read — the
+        import — and refused there before any store exists."""
         duplicate = self.SECOND_TABLE.replace("TASK-005", "TASK-001")
         p = Project(self, duplicate, seed_store=False)
-        before = p.board()
-        code, out = p.task("ask", "--needed", "a separate decision")
-        self.assertEqual(code, 1, out)
-        self.assertIn("duplicate task ids", out["refused"])
-        self.assertEqual(p.board(), before)
         proc = subprocess.run(
             [sys.executable, str(TASKS), "write", "--from-board", "--root",
              str(p.root)], capture_output=True, text=True)
@@ -473,7 +512,8 @@ class TestTheStoreIsWhatIsWritten(Fixture):
         cell. A board still spelling it `TASK-002、TASK-004` after a write was
         copied, not rendered."""
         p = Project(self, self.CJK_DEPENDS)
-        self.assertIn("TASK-002、TASK-004", p.board())
+        self.assertIn("TASK-002、TASK-004", p.held(),
+                      "control: the held file carries the project's punctuation")
         self.assertEqual(p.task("next", "TASK-004", "--next", "x")[0], 0)
         self.assertEqual(p.record("TASK-001")["depends_on"],
                          ["TASK-002", "TASK-004"])
@@ -484,25 +524,17 @@ class TestTheStoreIsWhatIsWritten(Fixture):
         self.assertIn("| TASK-002, TASK-004 |", p.board())
         self.diff_is_identical(p, "after a cell was re-rendered from the store")
 
-    def test_a_cell_the_store_rewrote_is_reported_rather_than_smoothed_over(self):
-        """The same write, from the payload's side. A projection that changes a
-        cell nobody asked it to change must say so — that is the difference
-        between a rendered board and a board being quietly normalized."""
-        p = Project(self, self.CJK_DEPENDS)
-        _, out = p.task("next", "TASK-004", "--next", "x")
-        rewritten = out["projection"]["cells_the_store_and_board_disagree_on"]
-        self.assertEqual([(c["id"], c["column"]) for c in rewritten],
-                         [("TASK-001", "Depends on")])
-
     def test_the_payload_counts_what_the_projection_could_not_fill(self):
         p = Project(self)
         _, out = p.task("start", "TASK-001")
         proj = out["projection"]
         self.assertGreaterEqual(proj["rows_from_store"], 4)
         self.assertEqual(proj["rows_not_on_board"], [])
-        # TASK-003's cell is one the store cannot hold, so the layout keeps it
-        # and the count says which column paid for it.
-        self.assertEqual(proj["cells_verbatim"], {"Status": 1})
+        # **`{}` since TASK-262 round 4a; it was `{"Status": 1}`.** The layout a
+        # write mutates is the declared board, laid out from the store, so no
+        # cell of it is kept verbatim: TASK-003's unstorable `Status` is in the
+        # held file only.
+        self.assertEqual(proj["cells_verbatim"], {})
 
 
 class TestAStatusTheStoreCannotHold(Fixture):
@@ -544,25 +576,6 @@ class TestAStatusTheStoreCannotHold(Fixture):
                 self.assertEqual(p.task("next", tid, "--next", "still fine")[0],
                                  0)
         self.diff_is_identical(p, "after writing around the unstorable row")
-
-    def test_the_unresolved_cell_is_named_in_every_write_that_proceeds(self):
-        """Counted rather than discovered later. A fallback nobody counts is
-        how the store reproduces nothing while `cmp` stays clean."""
-        p = Project(self)
-        _, out = p.task("start", "TASK-001")
-        named = out["projection"]["status_cells_the_store_cannot_hold"]
-        self.assertEqual([r["id"] for r in named], ["TASK-003"])
-
-    def test_a_board_with_no_such_cell_reports_an_empty_list(self):
-        """The silence is asserted, not assumed — otherwise this check passes
-        on a project where it never ran."""
-        p = Project(self, BOARD.replace(
-            "**迁移 done，占比目标 not_started**", "not_started"))
-        _, out = p.task("start", "TASK-001")
-        self.assertEqual(
-            out["projection"]["status_cells_the_store_cannot_hold"], [])
-        self.assertEqual(p.record("TASK-003")["status"], "not_started")
-
 
 class TestRowOrderIsRecorded(Fixture):
     """TASK-089 decision 2.
@@ -623,12 +636,17 @@ class TestRowOrderIsRecorded(Fixture):
         diff the field exists to prevent."""
         p = Project(self)
         self.assertEqual(p.task("start", "TASK-001")[0], 0)
-        board = p.board()
-        a = "| TASK-001 | First | User | in_progress | — | — |\n"
-        b = "| TASK-002 | Second | User | in_progress | — | — |\n"
-        self.assertIn(a + b, board, "the fixture rows are not adjacent")
-        (p.root / "BOARD.md").write_text(board.replace(a + b, b + a),
-                                         encoding="utf-8")
+        # `diff` compares a held file with the render (a verb R5 retires). No
+        # write re-renders the held file since TASK-262 round 4a, so the file
+        # is made the render first — the state a project that last wrote before
+        # 4a holds — and then two rows are swapped in it.
+        (p.root / "BOARD.md").write_text(p.board(), encoding="utf-8")
+        lines = p.held().split("\n")
+        i = next(n for n, l in enumerate(lines) if l.startswith("| TASK-001 |"))
+        j = next(n for n, l in enumerate(lines) if l.startswith("| TASK-002 |"))
+        self.assertEqual(j, i + 1, "the fixture rows are not adjacent")
+        lines[i], lines[j] = lines[j], lines[i]
+        (p.root / "BOARD.md").write_text("\n".join(lines), encoding="utf-8")
         report = json.loads(p.tasks("diff")[1])
         moved = report["sections_out_of_stored_order"]
         self.assertEqual([s["heading"] for s in moved],

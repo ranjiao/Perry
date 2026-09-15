@@ -333,16 +333,22 @@ class TestColumnsResolveByName(unittest.TestCase):
         self.assertEqual(r.title, "一个风险")
         self.assertEqual(r.opened, "2026-08-01")
 
-    def test_a_new_column_joins_a_localized_table_in_its_own_language(self):
+    def test_a_localized_board_migrates_and_the_next_risk_joins_the_register(self):
+        """**The column half left with TASK-262 round 4a.** This asserted the
+        migrated held table's header came out in the board's own language
+        (`| 编号 | 风险 | 提出 | 状态 |`). `risk-migrate` still converts the held
+        bullets — into `risks.jsonl`, writing no file — and `perry-tasks board`
+        prints the declared header; what survives is the register itself."""
         p = Project(board=board_with(
             "- 一个风险\n",
             headers="| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |"))
+        held = p.held_board()
         self.assertEqual(p.run("risk-migrate")[0], 0)
-        self.assertIn("| 编号 | 风险 | 提出 | 状态 |", p.board())
         code, out = p.run("risk-add", "--title", "另一个风险")
         self.assertEqual(code, 0, out)
         self.assertEqual([r.title for r in risks(p.board())],
                          ["一个风险", "另一个风险"])
+        self.assertEqual(p.held_board(), held)
 
 
 class TestMigrationLosesNothing(unittest.TestCase):
@@ -462,12 +468,6 @@ class TestTheToolOwnsTheComputedCells(unittest.TestCase):
         code, out = p.run("risk-clear", "RX-001", "--reason", "second")
         self.assertEqual(code, 1)
         self.assertIn("already cleared", out["refused"])
-
-    def test_risk_clear_on_an_unmigrated_board_says_what_to_do(self):
-        p = Project(board=board_with(AIMARK_BULLETS))
-        code, out = p.run("risk-clear", "RX-001", "--reason", "x")
-        self.assertEqual(code, 1)
-        self.assertIn("risk-migrate", out["refused"])
 
     def test_risk_add_refuses_without_a_statement(self):
         p = Project(board=board_with("- none\n"))
@@ -600,95 +600,64 @@ class TestTheWriterAsksTheReadersQuestion(unittest.TestCase):
     fixture — the systematic gap the V4 review named: every writer test started
     from a bullet list or an empty section, so the branch that destroyed data
     was the one branch nothing exercised.
-    """
 
-    def test_risk_add_refuses_a_table_that_is_not_a_risk_table(self):
-        p = Project(board=board_with(LEGEND_SECTION))
-        before = p.board()
-        code, out = p.run("risk-add", "--title", "a new risk")
-        self.assertEqual(code, 1, out)
-        self.assertIn("no `Risk` column", out["refused"])
-        self.assertEqual(p.board(), before, "the board was written to anyway")
+    **Since TASK-262 round 4a `risk-add` never reads the held section**, so
+    its two refusals on a legend and on a second table left with it; the loss
+    they prevented cannot happen to a file no write touches, which the two
+    tests below now assert. `risk-migrate`, which still reads the file, still
+    refuses the legend.
+    """
 
     def test_the_bullets_under_a_legend_are_still_there_afterwards(self):
         """The failure was silent loss, so this asserts on the count."""
         p = Project(board=board_with(LEGEND_SECTION))
-        p.run("risk-add", "--title", "a new risk")
-        parsed = risks(p.board())
+        held = p.held_board()
+        code, out = p.run("risk-add", "--title", "a new risk")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(p.held_board(), held)
+        parsed = risks(p.held_board())
         self.assertEqual(len(parsed), 2)
         self.assertIn("Apple developer agreement expired", parsed[0].meta)
 
     def test_no_risk_column_is_ever_added_to_a_legend(self):
         p = Project(board=board_with(LEGEND_SECTION))
         p.run("risk-add", "--title", "a new risk")
-        self.assertIn("| Severity | Meaning |", p.board())
-        self.assertNotIn("| Severity | Meaning | ID | Risk |", p.board())
+        self.assertIn("| Severity | Meaning |", p.held_board())
+        self.assertNotIn("| Severity | Meaning | ID | Risk |", p.held_board())
 
     def test_risk_migrate_refuses_it_too(self):
         """Consent does not make an unwritable shape writable."""
         p = Project(board=board_with(LEGEND_SECTION))
-        before = p.board()
+        before = p.held_board()
         code, out = p.run("risk-migrate")
         self.assertEqual(code, 1, out)
         self.assertIn("no `Risk` column", out["refused"])
-        self.assertEqual(p.board(), before)
-
-    def test_a_second_table_in_the_section_is_refused(self):
-        """`section_table` addresses the first table and `section_rows` reads
-        straight through a blank line into the next one, so a row appended to a
-        section holding two tables lands in whichever one the scan reached."""
-        p = Project(board=board_with(
-            "| ID | Risk | Opened | Status |\n"
-            "|---|---|---|---|\n"
-            "| RX-001 | a real risk | 2026-08-01 | open |\n"
-            "\n"
-            "| Severity | Meaning |\n"
-            "|---|---|\n"
-            "| H | drop everything |\n"))
-        before = p.board()
-        code, out = p.run("risk-add", "--title", "another")
-        self.assertEqual(code, 1, out)
-        self.assertIn("more than one table", out["refused"])
-        self.assertEqual(p.board(), before)
-
+        self.assertEqual(p.held_board(), before)
 
 class TestConversionIsAskedForNotPerformed(unittest.TestCase):
     """B-2. `perry/OKR.md:37` — "No automatic rewrite of a project's existing
     structure. Adoption proposes; the user declares." `risk-add` used to
     convert the whole section on the way past: 9 bullets on a copy of a real
     board became 9 rows, exit 0, and the human-readable line said only
-    `wrote RX-010 (risk-add)`."""
+    `wrote RX-010 (risk-add)`.
 
-    def test_risk_add_refuses_to_convert_a_section_it_did_not_write(self):
+    **Four refusal tests left with TASK-262 round 4a.** `risk-add` asked
+    before converting a held bullet section — refused, counted the lines,
+    printed `risk-migrate`, minted nothing. A write now builds from the risks
+    store and never reads the held file, so there is nothing for it to convert
+    and nothing to ask: the first test below asserts what happens instead. The
+    conversion is still only ever asked for, by `risk-migrate`."""
+
+    def test_risk_add_leaves_a_held_bullet_section_as_the_user_wrote_it(self):
         p = Project(board=board_with(PERRY_BULLETS))
-        before = p.board()
-        code, out = p.run("risk-add", "--title", "a new risk")
-        self.assertEqual(code, 1, out)
-        self.assertEqual(p.board(), before)
-
-    def test_the_refusal_counts_the_lines_it_would_rewrite(self):
-        """A refusal that does not say how much is at stake is not a question."""
-        p = Project(board=board_with(PERRY_BULLETS))
-        _, out = p.run("risk-add", "--title", "a new risk")
-        self.assertIn("3 risk(s)", out["refused"])
-
-    def test_the_refusal_prints_the_command_that_does_it(self):
-        p = Project(board=board_with(AIMARK_BULLETS))
-        _, out = p.run("risk-add", "--title", "a new risk")
-        self.assertIn("perry-task risk-migrate", out["refused"])
-        # And the command it prints is one the tool actually has.
-        self.assertIn("risk-migrate", PT.COMMANDS)
-
-    def test_nothing_is_minted_by_a_refused_risk_add(self):
-        """A refusal that has already burned RX-001 is not a refusal."""
-        p = Project(board=board_with(AIMARK_BULLETS))
-        p.run("risk-add", "--title", "a new risk")
-        self.assertEqual(p.events(), [])
-        self.assertEqual(p.journal(), "")
-        p.run("risk-migrate")
+        held = p.held_board()
         code, out = p.run("risk-add", "--title", "a new risk")
         self.assertEqual(code, 0, out)
-        self.assertEqual(out["id"], "RX-003")
+        self.assertEqual(out["id"], "RX-001")
+        self.assertEqual(p.held_board(), held,
+                         "a write rewrote the section the user wrote")
+        self.assertEqual([e["event"] for e in p.events()], ["risk-add"],
+                         "a risk-add converted the section on the way past")
 
     def test_an_empty_section_is_not_asked_about(self):
         """There is no consent to collect for a section holding nothing of the
@@ -698,13 +667,18 @@ class TestConversionIsAskedForNotPerformed(unittest.TestCase):
         self.assertEqual(code, 0, out)
 
     def test_risk_migrate_refuses_a_board_that_has_already_migrated(self):
-        p = Project(board=board_with("- none\n"))
-        p.run("risk-add", "--title", "a risk")
-        before = p.board()
+        """A held `## Top risks` that is already a table. It was reached by a
+        `risk-add` converting the file; no write touches the file since
+        TASK-262 round 4a, so the table is in it from the start."""
+        p = Project(board=board_with(
+            "| ID | Risk | Opened | Status |\n"
+            "|---|---|---|---|\n"
+            "| RX-001 | a risk | 2026-08-01 | open |\n"))
+        before = p.held_board()
         code, out = p.run("risk-migrate")
         self.assertEqual(code, 1, out)
         self.assertIn("already a table", out["refused"])
-        self.assertEqual(p.board(), before)
+        self.assertEqual(p.held_board(), before)
 
     def test_risk_migrate_refuses_when_there_is_nothing_to_convert(self):
         p = Project(board=board_with("- (no active risks)\n"))
@@ -763,7 +737,20 @@ class TestTheWriterResolvesTheIdColumnByName(unittest.TestCase):
         board: | Status | Opened | Risk | ID |
         reader (parse_top_risks):    id='RX-001'
         writer (risk-clear RX-001):  "RX-001 is not a row in `## Top risks`"
+
+    **The import twin since TASK-262 round 4a.** A write builds from the
+    risks store, so a held table in another column order reaches `risk-clear`
+    through `risks-write --from-board`, which is where the column is resolved
+    by name now; the clear then lands in the stored `status`.
     """
+
+    def imported(self, section: str) -> "Project":
+        import inproc
+        p = Project(board=board_with(section))
+        r = inproc.run("perry-tasks", ["risks-write", "--from-board",
+                                       "--root", str(p.root)])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return p
 
     REORDERED = (
         "| Status | Opened | Risk | ID |\n"
@@ -771,7 +758,7 @@ class TestTheWriterResolvesTheIdColumnByName(unittest.TestCase):
         "| open | 2026-08-01 | the statement | RX-001 |\n")
 
     def test_risk_clear_finds_a_row_the_reader_can_see(self):
-        p = Project(board=board_with(self.REORDERED))
+        p = self.imported(self.REORDERED)
         self.assertEqual(risks(p.board())[0].id, "RX-001")
         code, out = p.run("risk-clear", "RX-001", "--reason", "it stopped")
         self.assertEqual(code, 0, out)
@@ -780,7 +767,7 @@ class TestTheWriterResolvesTheIdColumnByName(unittest.TestCase):
     def test_the_cleared_cell_lands_in_the_status_column(self):
         """Resolving the id by name is only half of it — the write back has to
         respect the same order, or the reason lands in `Opened`."""
-        p = Project(board=board_with(self.REORDERED))
+        p = self.imported(self.REORDERED)
         p.run("risk-clear", "RX-001", "--reason", "it stopped")
         r = risks(p.board())[0]
         self.assertIn("it stopped", r.status)
@@ -788,7 +775,7 @@ class TestTheWriterResolvesTheIdColumnByName(unittest.TestCase):
         self.assertEqual(r.title, "the statement")
 
     def test_a_new_row_lands_in_the_right_columns_too(self):
-        p = Project(board=board_with(self.REORDERED))
+        p = self.imported(self.REORDERED)
         code, out = p.run("risk-add", "--title", "a second statement")
         self.assertEqual(code, 0, out)
         second = risks(p.board())[1]
@@ -797,10 +784,10 @@ class TestTheWriterResolvesTheIdColumnByName(unittest.TestCase):
         self.assertEqual(second.status, "open")
 
     def test_a_localized_header_clears_the_same(self):
-        p = Project(board=board_with(
+        p = self.imported(
             "| 状态 | 提出 | 风险 | 编号 |\n"
             "|---|---|---|---|\n"
-            "| open | 2026-08-01 | 一个风险 | RX-001 |\n"))
+            "| open | 2026-08-01 | 一个风险 | RX-001 |\n")
         code, out = p.run("risk-clear", "RX-001", "--reason", "上游修好了")
         self.assertEqual(code, 0, out)
         self.assertTrue(risks(p.board())[0].resolved)
@@ -1063,17 +1050,28 @@ class TestOneNormalizationForAHeaderCell(unittest.TestCase):
         self.assertIn("already a table", out["refused"])
 
     def test_risk_add_appends_to_the_table_that_is_already_there(self):
-        """Exit three. It wrote a row the reader could not count."""
+        """Exit three. It wrote a row the reader could not count.
+
+        Imported first since TASK-262 round 4a: the decorated header is read
+        by the import, and `risk-add` appends to the store it made."""
+        import inproc
         p = Project(board=board_with(self.BOLD_HEADER))
+        r = inproc.run("perry-tasks", ["risks-write", "--from-board",
+                                       "--root", str(p.root)])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         code, out = p.run("risk-add", "--title", "a second statement")
         self.assertEqual(code, 0, out)
         self.assertEqual([r.id for r in risks(p.board())], ["RX-001", "RX-002"])
 
     def test_the_decorated_header_is_still_one_table_afterwards(self):
+        """Stronger since TASK-262 round 4a: the held file is not appended to
+        at all — it keeps every byte through the write."""
         p = Project(board=board_with(self.BOLD_HEADER))
+        held = p.held_board()
         p.run("risk-add", "--title", "a second statement")
+        self.assertEqual(p.held_board(), held)
         self.assertEqual(
-            p.board().split("\n").count("|---|---|---|---|"), 1, p.board())
+            p.held_board().split("\n").count("|---|---|---|---|"), 1)
 
     # ── the task table, which was surviving on its positional fallbacks ────
 

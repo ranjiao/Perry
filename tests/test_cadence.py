@@ -119,7 +119,40 @@ class Project:
         return r.stdout + r.stderr
 
     def board(self) -> str:
+        """What `perry-tasks board` prints from the stores (TASK-262 round 4a).
+
+        The fixture's `BOARD.md` is the retired file a project upgraded from;
+        no write reads or re-renders it, so the rows a write made are read off
+        the board a reader gets. `held()` is the file itself.
+        """
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-tasks"), "board",
+             "--root", str(self.root)], capture_output=True, text=True)
+        assert r.returncode == 0, r.stdout + r.stderr
+        return r.stdout
+
+    def held(self) -> str:
         return (self.root / "BOARD.md").read_text()
+
+    def cadence_store(self) -> Path:
+        return self.root / "cadence.jsonl"
+
+    def import_cadence(self) -> None:
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-tasks"), "cadence-write",
+             "--from-board", "--root", str(self.root)],
+            capture_output=True, text=True)
+        assert r.returncode == 0, r.stdout + r.stderr
+
+    def edit_record(self, cid: str, **fields) -> None:
+        """Change one stored record by hand; the store is the register."""
+        store = self.cadence_store()
+        recs = [json.loads(l) for l in store.read_text().split("\n") if l.strip()]
+        hits = [r for r in recs if r["id"] == cid]
+        assert len(hits) == 1, (cid, len(hits))
+        hits[0].update(fields)
+        store.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n"
+                                 for r in recs))
 
     def rows(self) -> list:
         return P.parse_board(self.board()).cadence_items
@@ -326,21 +359,33 @@ class TestCadenceAdd(unittest.TestCase):
         self.assertIsNone(P.parse_due(p.row("CAD-001").next_due))
 
     def test_the_section_is_created_after_the_priority_tables(self):
+        """**The register, since TASK-262 round 4a.** A board with no
+        `## Cadence` used to gain the section in the held file. No write writes
+        that file now: the first `cadence-add` creates `cadence.jsonl`, and the
+        board a reader gets prints the row under `## Cadence`, after `## P2`.
+        """
         p = Project(BOARD_NO_SECTION)
-        self.assertNotIn("## Cadence", p.board())
+        self.assertNotIn("## Cadence", p.held())
+        self.assertFalse(p.cadence_store().exists(), "control: no register yet")
+        held = p.held()
         code, out = p.run("cadence-add", "--title", "x", "--frequency", "weekly")
         self.assertEqual(code, 0, out)
+        self.assertTrue(p.cadence_store().exists())
         lines = p.board().split("\n")
-        self.assertLess(next(i for i, l in enumerate(lines) if l.startswith("## P2")),
-                        next(i for i, l in enumerate(lines) if l.startswith("## Cadence")))
+        p2 = next(i for i, l in enumerate(lines) if l.startswith("## P2"))
+        cad = next(i for i, l in enumerate(lines) if l.startswith("## Cadence"))
+        row = next(i for i, l in enumerate(lines) if l.startswith("| CAD-001 |"))
+        self.assertLess(p2, cad)
+        self.assertLess(cad, row)
         self.assertEqual(p.row("CAD-001").frequency, "weekly")
+        self.assertEqual(p.held(), held)
 
     def test_it_refuses_a_frequency_it_cannot_schedule_from(self):
         p = Project()
         code, out = p.run("cadence-add", "--title", "x", "--frequency", "whenever")
         self.assertEqual(code, 1)
         self.assertIn("whenever", out["refused"])
-        self.assertNotIn("## Cadence\n\n| ID", p.board().replace("(recurring; doesn't consume P0 slots)", ""))
+        self.assertFalse(p.cadence_store().exists(), "a refusal created the register")
         self.assertEqual(p.rows(), [])
 
     def test_it_refuses_without_a_title_or_a_frequency(self):
@@ -359,6 +404,9 @@ class TestCadenceAdd(unittest.TestCase):
             "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
             "|---|---|---|---|---|---|\n"
             "| CADENCE-003 | Weekly report | PMO | weekly | 2026-01-01 | — |"))
+        # Imported first (TASK-262 round 4a): the minter reads the register a
+        # write builds from, and a held row reaches it through the import.
+        p.import_cadence()
         code, out = p.run("cadence-add", "--title", "x", "--frequency", "weekly")
         self.assertEqual(code, 0, out)
         self.assertEqual(out["id"], "CAD-004")
@@ -366,9 +414,12 @@ class TestCadenceAdd(unittest.TestCase):
     def test_an_id_is_never_reissued_after_its_row_is_removed(self):
         p = Project()
         p.run("cadence-add", "--title", "x", "--frequency", "weekly")
-        board = p.board()
-        (p.root / "BOARD.md").write_text(
-            "\n".join(l for l in board.split("\n") if "CAD-001" not in l))
+        # The row leaves the way it leaves since TASK-262 round 4a: its record
+        # is deleted from the store by hand, with no event.
+        store = p.cadence_store()
+        store.write_text("".join(
+            l + "\n" for l in store.read_text().split("\n")
+            if l.strip() and json.loads(l)["id"] != "CAD-001"))
         self.assertEqual(p.rows(), [])
         code, out = p.run("cadence-add", "--title", "y", "--frequency", "weekly")
         self.assertEqual(out["id"], "CAD-002", "a retired id was reissued")
@@ -437,25 +488,16 @@ class TestCadenceDone(unittest.TestCase):
         self.assertEqual(self.p.row("CAD-001").next_due, "2026-02-28")
 
     def test_it_refuses_a_row_whose_frequency_it_cannot_read(self):
-        board = self.p.board().replace("| weekly |", "| when the mood takes us |")
-        (self.p.root / "BOARD.md").write_text(board)
+        # In the store (TASK-262 round 4a): the record is what a write reads.
+        self.p.edit_record("CAD-001", frequency="when the mood takes us")
         code, out = self.p.run("cadence-done", "CAD-001", "--evidence", "x.md")
         self.assertEqual(code, 1)
         self.assertIn("--frequency", out["refused"])
 
-    def test_last_run_is_added_to_a_section_that_predates_it(self):
-        """`ensure_section_columns`'s reason for existing: a board that already
-        has the section has nowhere to put the date, and dropping it silently is
-        the defect that lost `--commitment`."""
-        self.assertIn("Last run", self.p.board())
-        header = next(l for l in self.p.board().split("\n")
-                      if l.startswith("| ID | Recurring task"))
-        self.assertEqual(header.count("|"), 8, header)
-
     def test_a_sub_grouped_register_is_written_the_way_it_is_read(self):
         """The reader tolerates a `###` label inside `## Cadence`; the writers
         stopped at the first one, and the two then disagreed about what the
-        section contained.
+        the section contained.
 
         On such a board `cadence-done` refused with "not a row in `## Cadence`"
         — false, and the third false "not a row" message in this file's history
@@ -463,6 +505,11 @@ class TestCadenceDone(unittest.TestCase):
         and padding none of the sub-grouped rows. The result is a ragged table
         that `perry-lint` reports clean, produced by the tool whose entire claim
         is that it mechanizes the format rather than breaking it.
+
+        **Since TASK-262 round 4a the sub-grouped table is read by the import,
+        not by the write**, so the row is reached by importing the held board
+        and the widening half — a write padding a held table — left with the
+        re-render. The file keeps its bytes.
         """
         p = Project(BOARD.replace(
             "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
@@ -473,29 +520,15 @@ class TestCadenceDone(unittest.TestCase):
             "| CAD-100 | friday review | PMO | weekly | 2026-01-01 | w/x.md |\n"
             "\n### Monthly\n\n"
             "| CAD-200 | month close | PMO | monthly | 2026-01-31 | m/x.md |"))
+        p.import_cadence()
+        self.assertEqual({r.id for r in p.rows()}, {"CAD-100", "CAD-200"},
+                         "the import did not read both sub-groups")
+        held = p.held()
         code, out = p.run("cadence-done", "CAD-200", "--evidence", "runbook/y.md")
         self.assertEqual(code, 0, f"a sub-grouped row was unreachable: {out}")
         self.assertEqual(p.row("CAD-200").last_evidence, "runbook/y.md")
-
-        # And the widening `cadence-done` just did reaches every row, including
-        # the ones above the sub-group label.
-        rows = [l for l in p.board().split("\n") if l.startswith("| CAD-")]
-        header = next(l for l in p.board().split("\n")
-                      if l.startswith("| ID | Recurring task"))
-        width = header.count("|")
-        for r in rows:
-            self.assertEqual(r.count("|"), width,
-                             f"row width diverged from the header:\n  {r}")
-
-    def test_last_evidence_is_created_on_a_register_that_lacks_the_column(self):
-        p = Project(BOARD.replace(
-            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n|---|---|---|---|---|---|",
-            "| ID | Recurring task | Owner | Frequency | Next due |\n|---|---|---|---|---|"))
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly")
-        code, out = p.run("cadence-done", "CAD-001", "--evidence", "runbook/x.md")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(p.row("CAD-001").last_evidence, "runbook/x.md")
-
+        self.assertEqual(p.row("CAD-100").last_evidence, "w/x.md")
+        self.assertEqual(p.held(), held)
 
 class TestOverdueReport(unittest.TestCase):
 

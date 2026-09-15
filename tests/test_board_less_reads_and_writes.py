@@ -9,8 +9,9 @@
    `perry-state` risks 0 / `none`. This is also TASK-268 (`top_risks` built
    from `BOARD.md`).
 2. **Every `perry-task` write succeeds without `BOARD.md`**: the store record,
-   the journal line and the event land, and no file is created. While the
-   file exists it is still re-rendered.
+   the journal line and the event land, and no file is created. Since
+   TASK-262 round 4a a held file is neither read nor re-rendered: the write is
+   the same with it, and stderr names it retired.
 
 **No expectation here comes from a `BOARD.md`.** Expectations are the store
 records this module writes (or, for the live case, reads as JSONL) and the
@@ -531,7 +532,8 @@ class TestEveryWriteLandsWithNoBoard(unittest.TestCase):
                 self.assertNotIn("BOARD.md", got["stdout"])
 
     def test_a_write_is_the_same_with_and_without_the_file(self):
-        """Same store, event and journal line in both states; the file is re-rendered."""
+        """Same store, event, journal line and stdout in both states; the held
+        file keeps its bytes and stderr names it retired (TASK-262 round 4a)."""
         for name, prereqs, argv, store, _check in WRITES:
             with self.subTest(write=name):
                 absent, present = Project(board=None), Project(board=None)
@@ -550,17 +552,15 @@ class TestEveryWriteLandsWithNoBoard(unittest.TestCase):
                 self.assertEqual(a["stores"], b["stores"])
                 self.assertEqual(a["events"], b["events"])
                 self.assertEqual(a["journal"], b["journal"])
-                self.assertIn("BOARD.md", b["stdout"])
-                if name not in ("summary", "design-link", "purge"):
-                    # `summary` and `design-link` write a field the board has
-                    # no column for. `purge` removes a terminal record, which
-                    # has no line; it changed the file only by stamping
-                    # `> Last updated:`, and the board `perry-tasks board`
-                    # prints has carried no such line since 3b dropped the
-                    # template's prose (3a's write table: "no: a terminal
-                    # record has no line").
-                    self.assertNotEqual(present.board.read_text(encoding="utf-8"),
-                                        before, "the file was not re-rendered")
+                self.assertEqual(a["stdout"].replace(str(absent.root), "<ROOT>"),
+                                 b["stdout"].replace(str(present.root), "<ROOT>"))
+                self.assertNotIn("BOARD.md", b["stdout"])
+                self.assertEqual(present.board.read_text(encoding="utf-8"),
+                                 before, "a write rewrote the retired BOARD.md")
+                hint = inproc.load("perry-task").lib.retired_board_hint(
+                    present.board.resolve())
+                self.assertIn(hint, b["stderr"])
+                self.assertNotIn("is a retired board", a["stderr"])
 
 
 class TestTheContractsAnnounceTheStoreRead(unittest.TestCase):

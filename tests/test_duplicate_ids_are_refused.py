@@ -142,9 +142,20 @@ ADD = ("risk-add", "--title", "a brand new risk", "--actor", "Coding Agent")
 
 class TestABoardDuplicateIsRefused(unittest.TestCase):
     """Deliverable 1. A repeated id on the BOARD is a refusal that names both
-    rows, writes nothing, and exits 1."""
+    rows, writes nothing, and exits 1.
 
-    def test_two_risk_rows_with_one_id_refuse_and_name_both_lines(self):
+    **The write half left with TASK-262 round 4a.** Five tests here asserted
+    that `risk-add` and `ask` refused a held `BOARD.md` whose register carried
+    one id on two rows — named lines, decorated twins, every duplicate named,
+    the record the write would have destroyed. The destruction ran through the
+    board: `mint_risk_id` read the file's text and reissued the shadowed id. A
+    write now builds from the stores and mints from them, so a duplicate in a
+    held file reaches neither, and the test below asserts that. The import,
+    which still reads the file, still refuses it
+    (`TestTheFromBoardImportIsGuardedToo`), and the report itself is below.
+    """
+
+    def test_a_duplicate_on_a_held_board_does_not_reach_a_write(self):
         f = Fixture(
             board(risks=[risk_row("RX-001", "first"),
                          risk_row("RX-002", "second"),
@@ -152,79 +163,15 @@ class TestABoardDuplicateIsRefused(unittest.TestCase):
             risks=[risk_rec("RX-001", "first", order=0),
                    risk_rec("RX-002", "second", order=1),
                    risk_rec("RX-003", "third, id mistyped", order=2)])
-        before = f.raw("risks.jsonl")
+        held = f.raw("BOARD.md")
         r = f.run(*ADD)
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("carries the same id on more than one row", r.stderr)
-        self.assertIn("RX-001", r.stderr)
-        # BOTH rows, not just the id: a refusal that named one line would send
-        # a human to the row that is fine.
-        self.assertRegex(r.stderr, r"`RX-001` on lines \d+, \d+")
-        self.assertIn("Nothing was written", r.stderr)
-        self.assertEqual(f.raw("risks.jsonl"), before)
-
-    def test_the_record_the_write_would_have_destroyed_is_still_there(self):
-        """Verification 3: no record is lost in either case."""
-        f = Fixture(
-            board(risks=[risk_row("RX-001", "first"),
-                         risk_row("RX-002", "second"),
-                         risk_row("RX-001", "third, id mistyped")]),
-            risks=[risk_rec("RX-001", "first", order=0),
-                   risk_rec("RX-002", "second", order=1),
-                   risk_rec("RX-003", "the record that would have gone",
-                            order=2)])
-        f.run(*ADD)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(
-            [(r["id"], r["risk"]) for r in f.store("risks.jsonl")],
+            [(x["id"], x["risk"]) for x in f.store("risks.jsonl")],
             [("RX-001", "first"), ("RX-002", "second"),
-             ("RX-003", "the record that would have gone")])
-
-    def test_two_ask_rows_with_one_id_refuse(self):
-        """The sibling register, and the same two lines serve it."""
-        f = Fixture(
-            board(asks=[ask_row("USER-001", "a question"),
-                        ask_row("USER-001", "a different question")]),
-            asks=[ask_rec("USER-001", "a question", order=0),
-                  ask_rec("USER-002", "a different question", order=1)])
-        before = f.raw("asks.jsonl")
-        r = f.run("ask", "--needed", "one more thing", "--actor",
-                  "Coding Agent")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("carries the same id on more than one row", r.stderr)
-        self.assertIn("USER-001", r.stderr)
-        self.assertEqual(f.raw("asks.jsonl"), before)
-
-    def test_a_DECORATED_duplicate_id_is_still_a_duplicate(self):
-        """`~~RX-001~~` and `RX-001` are one id, and the check must agree with
-        the derivation about that.
-
-        A cleared risk wears a strikethrough on this board — the shape
-        `risk_record` exists to replace — so a struck-out row carrying an id a
-        live row also carries is the realistic way this defect arrives, not a
-        contrived one. `risk_records` reads both through `strip_handle`; a
-        check that read the raw cell would see two different ids, report
-        nothing, and let the collapse happen behind it.
-        """
-        f = Fixture(
-            board(risks=[risk_row("RX-001", "first"),
-                         risk_row("~~RX-001~~", "the struck-out twin")]),
-            risks=[risk_rec("RX-001", "first", order=0)])
-        r = f.run(*ADD)
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("carries the same id on more than one row", r.stderr)
-        self.assertIn("RX-001", r.stderr)
-
-    def test_every_duplicate_is_named_not_only_the_first(self):
-        """One pass through the refusal has to be enough to fix the board."""
-        f = Fixture(
-            board(risks=[risk_row("RX-001", "a"), risk_row("RX-001", "b"),
-                         risk_row("RX-002", "c"), risk_row("RX-002", "d")]),
-            risks=[risk_rec("RX-001", "a", order=0),
-                   risk_rec("RX-002", "c", order=1)])
-        r = f.run(*ADD)
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("RX-001", r.stderr)
-        self.assertIn("RX-002", r.stderr)
+             ("RX-003", "third, id mistyped"), ("RX-004", "a brand new risk")],
+            "the write reissued an id the store holds, or lost a record")
+        self.assertEqual(f.raw("BOARD.md"), held)
 
     def test_the_report_itself_finds_both_rows(self):
         """`duplicate_row_ids` is the report and decides nothing."""
@@ -306,7 +253,10 @@ class TestAControlBoardWritesExactlyAsBefore(unittest.TestCase):
                    risk_rec("RX-002", "second", order=1)])
         r = f.run(*ADD)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(r.stderr.strip(), "")
+        # Exactly one line since TASK-262 round 4a: the fixture holds a
+        # `BOARD.md`, and a successful write names it retired. Nothing else.
+        self.assertEqual(r.stderr.strip(), PT.lib.retired_board_hint(
+            (f.root / "BOARD.md").resolve()))
         self.assertEqual([x["id"] for x in f.store("risks.jsonl")],
                          ["RX-001", "RX-002", "RX-003"])
 
@@ -466,6 +416,14 @@ class TestIntakeIsNotServedByTheseLines(unittest.TestCase):
                           "| 2026-01-01 | the same request | |"],
                   risks=[risk_row("RX-001", "first")]),
             risks=[risk_rec("RX-001", "first", order=0)])
+        # Imported first (TASK-262 round 4a): a write builds from the intake
+        # store, so the held rows reach it through the upgrade path.
+        imp = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-tasks"), "intake-write",
+             "--from-board", "--root", str(f.root)], capture_output=True, text=True)
+        self.assertEqual(imp.returncode, 0, imp.stdout + imp.stderr)
+        self.assertEqual(len(f.store("intake.jsonl")), 2,
+                         "control: both same-day rows imported")
         r = f.run("intake", "--title", "one more request", "--actor",
                   "Coding Agent")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

@@ -35,6 +35,14 @@ that could not tell — and its round 5 had to add an `assertLess` before its ow
 control could fail. `stage_substitution` returns a `Staged` whose four control
 assertions run first, in `check()`, and one of them is `assertGreater`.
 
+**Constructed since TASK-262 round 4a.** Every substitution here is a hand
+edit to a held `BOARD.md`, and a write no longer reads one, so the report is
+reached through `test_register_store_invariant § the_write_mutates_the_held_board`
+(`Fixture.write_board` turns it on): the report is still in `commit()` and a
+write whose in-memory board disagrees with its store is still the state it is
+for, but that state is constructed, not reached from the command line.
+`TestAHandEditToAHeldBoardReachesNoStore` one module over asserts the real path.
+
 Run: python3 -m unittest discover -s tests   (or ./tests/run)
 """
 
@@ -49,7 +57,7 @@ import inproc
 
 from test_register_store_invariant import (
     ASK_TABLE, Base, INTAKE_TABLE, LINT, PT, REGISTERS, RISK_TABLE,
-    TASKS, build_board, parse)
+    TASKS, build_board, parse, the_write_mutates_the_held_board)
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "bin"))
@@ -300,35 +308,6 @@ class TestTheSubstitutionIsReportedOnEveryRegister(Base):
                 self.assertIn(f"perry-tasks {key}-write --from-board", out)
                 self.assertIn(".perry/events.jsonl", out)
 
-    def test_the_drift_report_may_not_fall_to_zero_unaccompanied(self):
-        """**The property.** The drift count goes to 0 as records are destroyed.
-
-        That fall is honest — after the write the board and the store really do
-        agree — and it is exactly what made the loss silent. What must not
-        happen is the fall being unaccompanied, so the number the write prints
-        is asserted against the number of records actually lost, with the drift
-        before and after asserted around it as controls.
-        """
-        for key in REGISTERS:
-            with self.subTest(register=key):
-                f, staged = stage(self, key)
-                before = lint_drift(f.root, key)
-                self.assertGreater(
-                    before, 0, "control: lint must SEE the substitution before "
-                               "the write, or there is no fall to accompany")
-                rc, out = f.run(*ORDINARY[key])
-                self.assertEqual(rc, 0, out)
-                self.assertEqual(lint_drift(f.root, key), 0,
-                                 "control: the write launders the drift")
-                self.assertEqual(
-                    len(staged.lost()), staged.n,
-                    "control: canonical records really were destroyed")
-                self.assertEqual(reported(out), staged.n,
-                                 f"{before} row(s) drifted fell to 0 and the "
-                                 f"write named {reported(out)} of "
-                                 f"{staged.n} destroyed record(s):\n" + out)
-
-
 class TestTheCapIsOnTheOutputAndNeverOnTheCount(Base):
     """More losses than the report prints. TASK-243 V4 review.
 
@@ -575,9 +554,10 @@ class TestTheLostRecordsAreRecoverable(Base):
 
     def test_the_json_payload_carries_the_report_for_a_caller_with_no_stream(self):
         f, staged = stage(self, "asks", n=2)
-        r = inproc.run("perry-task",
-                       ["ask", "--needed", "an ordinary new question",
-                        "--json", "--root", str(f.root)])
+        with the_write_mutates_the_held_board():
+            r = inproc.run("perry-task",
+                           ["ask", "--needed", "an ordinary new question",
+                            "--json", "--root", str(f.root)])
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         payload = json.loads(r.stdout)["register_store"]
         self.assertEqual(len(payload["substituted"]), staged.n)

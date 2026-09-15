@@ -25,11 +25,14 @@ User Input Queue and Top risks lines said no writer was declared.
      write re-stages `tasks.jsonl` unchanged inside its transaction
      (`commit()` always puts the task store in the canonical set), so
      declaring it would name `ask` a writer of the task sections.
-3. **`BOARD.md` is in no entry.** A project that still holds a `BOARD.md` has
-   it re-rendered by most writes (`bin/README.md`, "only where the project
-   still holds one"); that conditional rewrite is outside the declaration by
-   the user's decision (Amendment (2) item 1), and the one case below that
-   needs a held board excludes it by name.
+3. **`BOARD.md` is in no entry, and no write changes one** (TASK-262
+   Amendment (4), round 4a). Every write is run a second time on a project
+   holding a STALE `BOARD.md` (`test_board_less_reads_and_writes.FORGED_BOARD`,
+   rows no store holds). Its changed files join the same union, so a write
+   that touched the held file would put `BOARD.md` beside a `writes` that
+   names it nowhere; and each such run must print the retired-board hint on
+   stderr. `risk-migrate`'s held board, its import input, is under the same
+   rule.
 
 Run: python3 tests/parallel test_perry_task_writes_are_what_it_writes
 """
@@ -137,6 +140,7 @@ class TestEachWriteChangesWhatItDeclares(unittest.TestCase):
         cls.failures: list[str] = []
         for name, prereqs, argv, _store, _check in BL.WRITES:
             cls.run_board_less(name, prereqs, argv)
+            cls.run_with_a_stale_held_board(name, prereqs, argv)
         cls.run_add_on_a_queue_track_with_no_intake_store()
         cls.run_add_with_a_kr()
         cls.run_risk_migrate_from_bullets()
@@ -153,12 +157,19 @@ class TestEachWriteChangesWhatItDeclares(unittest.TestCase):
         before = snapshot(root)
         out = inproc.run("perry-task", list(argv) + ["--root", str(root)])
         if out.returncode != 0:
-            cls.failures.append(f"{name}: exited {out.returncode}: "
+            cls.failures.append(f"{name}: exited {out.returncode}"
+                                f"{' with a held board' if held_board else ''}: "
                                 f"{out.stderr[-300:]}")
             return
         got = {declared_name(p, state) for p in changed(before, snapshot(root))}
         if held_board:
-            got.discard("BOARD.md")
+            # Not discarded since TASK-262 round 4a: a changed `BOARD.md` lands
+            # in `seen` and the comparison with `writes` goes red.
+            held = (root.resolve() / state / "BOARD.md" if state
+                    else root.resolve() / "BOARD.md")
+            if tool().lib.retired_board_hint(held) not in out.stderr:
+                cls.failures.append(f"{name}: no retired-board hint for {held}: "
+                                    f"{out.stderr[-300:]}")
         cls.seen.setdefault(name, set()).update(got)
 
     @classmethod
@@ -166,6 +177,17 @@ class TestEachWriteChangesWhatItDeclares(unittest.TestCase):
         p = BL.Project(board=None)
         try:
             cls.record(name, p.root, "perry", argv, prereqs)
+        finally:
+            p.close()
+
+    @classmethod
+    def run_with_a_stale_held_board(cls, name, prereqs, argv):
+        """The same write on a project whose `BOARD.md` disagrees with its
+        stores. Before round 4a a stale file refused some of these and was
+        rewritten by the rest."""
+        p = BL.Project(board=BL.FORGED_BOARD)
+        try:
+            cls.record(name, p.root, "perry", argv, prereqs, held_board=True)
         finally:
             p.close()
 

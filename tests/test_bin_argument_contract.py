@@ -196,6 +196,13 @@ class TestARenderThatCannotRestoreRefuses(unittest.TestCase):
         self.p = Project()
         for n in range(3):
             self.p.run("add", "--title", f"a row to lose number {n}")
+        # **The held file is made the render of the stores** (TASK-262 round
+        # 4a). The verbs below read or fill a held `BOARD.md`, and since 4a no
+        # write puts its rows in that file, so it is brought to the state a
+        # project that last wrote before 4a holds: the board its stores print.
+        printed = run("perry-tasks", "board", "--root", str(self.p.root))
+        assert printed.returncode == 0, printed.stderr
+        (self.p.root / "BOARD.md").write_text(printed.stdout)
         self.board = self.p.root / "BOARD.md"
 
     def _delete_the_task_rows(self) -> int:
@@ -410,6 +417,13 @@ class TestEveryWriterHonoursDryRun(unittest.TestCase):
         self.p.run("risk-add", "--title", "a risk so the risks store has one")
         self.p.run("intake", "--title", "a request so the intake store has one")
         self.p.run("ask", "--needed", "an answer so the ask store has one")
+        # **The held file is made the render of the stores** (TASK-262 round
+        # 4a). The verbs below read or fill a held `BOARD.md`, and since 4a no
+        # write puts its rows in that file, so it is brought to the state a
+        # project that last wrote before 4a holds: the board its stores print.
+        printed = run("perry-tasks", "board", "--root", str(self.p.root))
+        assert printed.returncode == 0, printed.stderr
+        (self.p.root / "BOARD.md").write_text(printed.stdout)
         for argv, _target, _source in self.WRITES:
             run(*argv, "--root", str(self.p.root))  # mint the stores
 
