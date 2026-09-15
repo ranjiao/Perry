@@ -38,6 +38,7 @@ import sys
 import tempfile
 import unittest
 from datetime import date, timedelta
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -370,6 +371,39 @@ class TestAnUnknownFactNeverFires(Fixtures):
         self.assertEqual({"drafts.drafted": ["R-all-unknown"]},
                          {u["fact"]: u["rules"] for u in block["unknown"]})
 
+    def test_the_phase_heartbeat_is_declared_and_its_fact_is_unknown(self):
+        """Round 3. `goals/SKILL.md`'s heartbeat prompt is `R-phase-heartbeat`.
+        Nothing dates the last snapshot, so it never fires and says why; with
+        the fact known and past the threshold, the same rule does fire."""
+        block = self.next_of("active_phase_week_unknown")
+        unknown = {u["fact"]: u for u in block["unknown"]}
+        self.assertEqual(["R-phase-heartbeat"],
+                         unknown["phase.days_since_snapshot"]["rules"])
+        self.assertNotIn("R-phase-heartbeat", recommended(block))
+        self.assertNotIn("phase.days_since_snapshot", {
+            u["fact"] for u in self.next_of("okr_no_phase")["unknown"]})
+
+        original = STATE.next_facts
+
+        def known(payload, today, days):
+            facts, cannot = original(payload, today)
+            cannot.pop("phase.days_since_snapshot")
+            facts["phase.days_since_snapshot"] = days
+            return facts, cannot
+
+        for days, fires in ((13, False), (14, True)):
+            with self.subTest(days=days), mock.patch.object(
+                    STATE, "next_facts",
+                    lambda p, t, d=days: known(p, t, d)):
+                got = self.next_of("active_phase_week_unknown")
+            offered = {a["rule"]: a["command"] for a in
+                       [got["primary"], *got["alternates"]] if a}
+            with self.subTest(days=days):
+                self.assertEqual(fires, "R-phase-heartbeat" in offered)
+                if fires:
+                    self.assertEqual("/perry goals snapshot",
+                                     offered["R-phase-heartbeat"])
+
     def test_met_ratio_is_unknown_while_a_commit_key_result_is_unmeasured(self):
         block = self.next_of("active_phase_week_unknown")
         unknown = {u["fact"]: u for u in block["unknown"]}
@@ -560,6 +594,9 @@ class TestTheRuleFile(unittest.TestCase):
     REPLACEMENTS = {"R-sla-breach": "queue", "R-queue-commitment-due": "queue",
                     "R-wip-over-limit": "pipeline",
                     "R-pipeline-commitment-due": "pipeline"}
+    #: Rules DESIGN-020 does not name, each with its spine and the rule it
+    #: follows. The heartbeat carries `goals/SKILL.md`'s old prompt (round 3).
+    ADDITIONS = {"R-phase-heartbeat": ("project", "R-review-due")}
 
     def setUp(self):
         self.doc = rules_doc()
@@ -571,8 +608,12 @@ class TestTheRuleFile(unittest.TestCase):
         sequence = [r["id"] for r in self.doc["rules"]]
         self.assertEqual(list(self.DESIGN_TABLE),
                          [i for i in sequence if i in self.DESIGN_TABLE])
-        self.assertEqual(set(self.DESIGN_TABLE) | set(self.REPLACEMENTS),
-                         set(sequence))
+        self.assertEqual(set(self.DESIGN_TABLE) | set(self.REPLACEMENTS)
+                         | set(self.ADDITIONS), set(sequence))
+        for rid, (spine, follows) in self.ADDITIONS.items():
+            self.assertEqual(sequence.index(follows) + 1, sequence.index(rid))
+            self.assertEqual(spine, {r["id"]: r["spine"]
+                                     for r in self.doc["rules"]}[rid])
         self.assertEqual("R-board-over-cap", sequence[-1])
         spines = {r["id"]: r["spine"] for r in self.doc["rules"]}
         for rid, spine in self.REPLACEMENTS.items():

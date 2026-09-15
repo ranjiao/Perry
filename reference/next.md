@@ -119,6 +119,8 @@ commit key result, or when any of them is unmeasured.
 
 - `week.planned` and `drafts.drafted` — no source until `TASK-444`.
 - `commitments.due` — `perry-state` does not compute which commitments are due.
+- `phase.days_since_snapshot` — `perry-state` computes no date for the last
+  phase snapshot.
 
 ## The rules
 
@@ -204,6 +206,16 @@ cheapest to unblock.
 It is Friday, no weekly report exists, or the newest report is older than last
 week. The weekly report is where a week's work is summed up, and a lapsed one is
 the first sign the cadence has stopped.
+
+### R-phase-heartbeat
+
+A phase that runs for `phase_heartbeat_days` (default 14) with no snapshot has
+no frozen record to compare its end against. `goals/SKILL.md` used to prompt
+`/perry goals snapshot` at that age, and this rule keeps the prompt. Nothing in
+the payload dates the last snapshot, so the rule never fires. It reports
+`phase.days_since_snapshot` as unknown on every project with an active phase.
+DESIGN-020 § 5.3 has no place for it, so it sits after R-review-due, the other
+cadence rule. ARCHITECTURE.md §7 asks whether it should survive.
 
 ### R-handoff-stale
 

@@ -17,6 +17,10 @@
     "handoff_stale_days": {
       "value": 7,
       "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. DESIGN-020 § 5.3 rule 8."
+    },
+    "phase_heartbeat_days": {
+      "value": 14,
+      "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. The default `goals/SKILL.md` used for its heartbeat prompt. A project's own `phase_heartbeat_days` setting is not in the payload, so it is not read."
     }
   },
   "overlays": [
@@ -187,6 +191,19 @@
       "command": "/perry work friday-review",
       "reason": "today is {today.weekday} and the last weekly report is {history.latest_weekly_label}",
       "after": ["close-task", "handoff"]
+    },
+    {
+      "id": "R-phase-heartbeat",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "phase.status", "op": "eq", "value": "active"},
+        {"fact": "phase.days_since_snapshot", "op": "ge", "value": {"threshold": "phase_heartbeat_days"}}
+      ]},
+      "spine": "project",
+      "lane": "goals",
+      "command": "/perry goals snapshot",
+      "reason": "phase {phase.number} has gone {phase.days_since_snapshot} days without a snapshot",
+      "after": []
     },
     {
       "id": "R-handoff-stale",

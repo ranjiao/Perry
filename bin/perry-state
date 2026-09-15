@@ -2326,7 +2326,7 @@ NEXT_FACTS = (
     "phase.status", "phase.number", "phase.day",
     "phase.kr_progress.commit_total", "phase.kr_progress.measured",
     "phase.kr_progress.met", "phase.kr_progress.unmeasured",
-    "phase.kr_progress.met_ratio",
+    "phase.kr_progress.met_ratio", "phase.days_since_snapshot",
     "week.iso", "week.planned",
     "today.date", "today.weekday",
     "history.latest_weekly", "history.latest_weekly_label",
@@ -2475,6 +2475,13 @@ def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
                           f"have no current value or no target")
     else:
         facts[ratio] = counts["met"] / counts["measured"]
+
+    # The heartbeat's fact (TASK-442 round 3). `goals/SKILL.md` prompted a
+    # phase snapshot after `phase_heartbeat_days`. No value in this payload
+    # dates the last snapshot, and listing `phase/snapshots/` here would be a
+    # new read of state (NN-1), so the fact is reported and never guessed.
+    unknown["phase.days_since_snapshot"] = ("perry-state computes no date for "
+                                            "the last phase snapshot")
 
     facts["week.iso"] = iso_week(today)
     unknown["week.planned"] = ("week plans have no source until TASK-444 "

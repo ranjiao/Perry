@@ -38,9 +38,9 @@ When a subcommand fires, **read the matching reference file first**, then act.
 
 Agent-paced projects finish month-scoped KRs in week 1, then spend three weeks doing busy-work to fill the calendar. The "month" is a unit of human team cadence, not of project state. Perry's OKR replaces the monthly OKR with a **current phase OKR**: a tactical commitment scoped to a coherent piece of work, ended when its KRs are largely hit (not when a date arrives). Phases are numbered (`#001`, `#002`, ...) with a user-chosen slug for sortability + searchability.
 
-Two soft prompts replace calendar discipline:
-- **KR-progress prompt**: when ≥80% of commit KRs are achieved, OKR standup suggests `score-phase` and starting the next.
-- **Heartbeat prompt**: when ≥`phase_heartbeat_days` (default 14) have passed since the last snapshot, OKR standup suggests `/okr snapshot` to preserve the current state.
+Two soft prompts replace calendar discipline. Both are rules of `perry-state --section next` (`$PERRY_HOME/reference/next.md`), rendered at standup step 5; this lane does not evaluate them:
+- **KR-progress** — `R-phase-closable`: when at least 80% of the phase's measured commit KRs are met and none is unmeasured, the next block recommends `/perry work end-phase-retro`, then the close sequence.
+- **Heartbeat** — `R-phase-heartbeat`: declared to recommend `/perry goals snapshot` once `phase_heartbeat_days` (default 14) pass without a snapshot. `perry-state` computes no date for the last snapshot, so it never fires, and the next block lists that fact as one it cannot tell.
 
 Both are prompts, not enforcements. The user can ignore either.
 
@@ -101,7 +101,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
    Use `✓` for KRs ≥1.0, `◐` for ≥0.7, `◑` for ≥0.4, `◯` below.
 
-   If no current phase exists: render only the overall OKR block, then suggest `/okr plan-phase <slug>`.
+   If no current phase exists: render only the overall OKR block. Starting a phase is recommended by the next block (`R-no-phase`).
 
 5. **Next actions** — run `"$PERRY_HOME/bin/perry-state" --section next --lane goals` and render it per `$PERRY_HOME/reference/next.md § Rendering`. The command decides; never add, drop or reorder a recommendation.
 
