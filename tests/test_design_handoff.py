@@ -447,7 +447,10 @@ class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
 
         self.perry_task(root, "done", "TASK-001", "--rung", "V1",
                         "--evidence", "evidence/x.md")
-        board = (root / "perry" / "BOARD.md").read_text()
+        # The board `perry-tasks board` prints (TASK-262 round 4a): the held
+        # file is not re-rendered by `done` any more.
+        board = inproc.run("perry-tasks", ["board", "--root", str(root)]).stdout
+        self.assertIn("| TASK-002 |", board, "control: the board printed rows")
         self.assertFalse(
             [ln for ln in board.splitlines() if ln.startswith("| TASK-001 |")],
             "the row must be off the board before this proves anything")
@@ -474,7 +477,8 @@ class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
 
         # The ROW, not the string: `TASK-002` still names it in `Depends on`,
         # which is the projection doing its job, not the row surviving.
-        board = (root / "perry" / "BOARD.md").read_text()
+        board = inproc.run("perry-tasks", ["board", "--root", str(root)]).stdout
+        self.assertIn("| TASK-002 |", board, "control: the board printed rows")
         self.assertFalse(
             [ln for ln in board.splitlines() if ln.startswith("| TASK-001 |")],
             "the fixture must actually exercise row removal")

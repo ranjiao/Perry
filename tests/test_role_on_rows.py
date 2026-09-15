@@ -163,8 +163,24 @@ class TestAProjectThatHasDeclaredRoles(Base):
     def test_a_declared_role_lands_in_the_cell_and_the_payload(self):
         out = self.add(self.root, "--role", "coding")
         self.assertEqual(out.returncode, 0, out.stderr)
-        board = (self.root / "perry" / "BOARD.md").read_text(encoding="utf-8")
-        self.assertIn("Role", board)
+        # The printed board's row, read under its own header (TASK-262 round
+        # 4a). `perry-tasks board` prints a `Role` column on every table, so
+        # the column's presence proves nothing; the cell does.
+        out = subprocess.run([sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
+                              "board", "--root", str(self.root)],
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        tid = self.payload(self.root)["tasks"][0]["id"]
+        header = None
+        for line in out.stdout.split("\n"):
+            if line.startswith("| ID |"):
+                header = [c.strip().lower() for c in T.split_row(line)]
+            elif line.startswith(f"| {tid} |"):
+                self.assertEqual(dict(zip(header, T.split_row(line)))["role"],
+                                 "coding")
+                break
+        else:
+            self.fail(f"{tid} is not a row on the printed board")
         self.assertEqual(self.payload(self.root)["tasks"][0]["role"], "coding")
 
     def test_a_refusal_writes_nothing(self):

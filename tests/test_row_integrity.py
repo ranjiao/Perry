@@ -248,9 +248,19 @@ class TestTheWriterRefusesAndWritesNothing(unittest.TestCase):
     def test_a_single_line_next_action_containing_a_pipe_is_written(self):
         out = self.run_add("quotes a table: | ID | Risk |")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        text = (self.root / "perry" / "BOARD.md").read_text(encoding="utf-8")
-        row = [ln for ln in text.split("\n") if ln.startswith("| TASK-")][0]
-        self.assertEqual(len(T.split_row(row)), len(HEADER))
+        # The printed board (TASK-262 round 4a): the escaped pipe has to
+        # survive the store and the render, and no write re-renders the held
+        # file. Its header is the declared one, so the width is read from it.
+        text = subprocess.run([sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
+                               "board", "--root", str(self.root)],
+                              capture_output=True, text=True).stdout
+        lines = text.split("\n")
+        i = next(n for n, ln in enumerate(lines) if ln.startswith("| TASK-"))
+        header = next(lines[n] for n in range(i, -1, -1)
+                      if lines[n].startswith("| ID |"))
+        row = lines[i]
+        self.assertEqual(len(T.split_row(row)), len(T.split_row(header)))
+        self.assertEqual(T.split_row(header)[4], "Next action")
         self.assertEqual(T.split_row(row)[4], "quotes a table: | ID | Risk |")
 
 

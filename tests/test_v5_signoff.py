@@ -346,7 +346,10 @@ class TestAnEmptySignatureIsRefused(unittest.TestCase):
         p = Project()
         tid = p.a_task()
         p.close_v5(tid, "--checked", "none")
-        self.assertIn(tid, (p.root / "BOARD.md").read_text())
+        board = subprocess.run(["python3", str(TASKS), "board", "--root",
+                                str(p.root)], capture_output=True, text=True)
+        self.assertIn(f"| {tid} |", board.stdout,
+                      "the refused close took the row off the board")
         self.assertEqual([e["event"] for e in p.events()], ["add"])
 
     def test_pressing_return_at_the_prompt_is_what_this_costs(self):

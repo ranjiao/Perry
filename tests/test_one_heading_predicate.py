@@ -197,25 +197,51 @@ class TestTheWriterDoesNotDuplicateTheSection(unittest.TestCase):
                            capture_output=True, text=True, env=env)
         return (json.loads(r.stdout).get("risks") or {}).get("count")
 
+    def imported(self, heading: str) -> Path:
+        """**The bolded heading is read where a held board is still read**
+        (TASK-262 round 4a): by the import. A write builds from the stores, so
+        these tests import `## **Top risks**` first; a heading predicate that
+        did not see the bolded spelling would import nothing."""
+        root = self.project(heading)
+        env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
+        r = subprocess.run([sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
+                            "risks-write", "--from-board", "--root", str(root)],
+                           capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return root
+
+    def stored_risks(self, root: Path) -> list[dict]:
+        return [json.loads(l) for l in
+                (root / "perry" / "risks.jsonl").read_text(encoding="utf-8")
+                .splitlines() if l.strip()]
+
     def test_risk_add_on_a_bolded_heading_writes_into_the_existing_section(self):
-        root = self.project("**Top risks**")
+        root = self.imported("**Top risks**")
+        self.assertEqual([r["risk"] for r in self.stored_risks(root)],
+                         ["first risk", "second risk"],
+                         "the import could not see the risks already there")
         self.assertEqual(self.risks_seen(root), 2,
                          "the reader could not see the risks already there")
+        held = (root / "perry" / "BOARD.md").read_bytes()
         out = self.run_task(root, "risk-add", "--title", "third risk")
         self.assertEqual(out.returncode, 0, out.stderr)
-        board = (root / "perry" / "BOARD.md").read_text(encoding="utf-8")
-        self.assertEqual(board.count("Top risks"), 1,
-                         f"a second section was appended:\n{board}")
+        self.assertEqual((root / "perry" / "BOARD.md").read_bytes(), held,
+                         "a write rewrote the held board")
         self.assertEqual(self.risks_seen(root), 3,
                          "the risks already recorded went invisible")
 
     def test_the_earlier_risks_are_still_addressable_afterwards(self):
         """The consequence a user meets: not "a count is wrong" but "the risk I
-        recorded cannot be cleared"."""
-        root = self.project("**Top risks**")
+        recorded cannot be cleared". Asserted on WHICH risk was cleared, since
+        a board-less `risk-add` mints `RX-001` itself when nothing was imported
+        and would make a bare exit code pass for the wrong row."""
+        root = self.imported("**Top risks**")
         self.run_task(root, "risk-add", "--title", "third risk")
         out = self.run_task(root, "risk-clear", "RX-001", "--reason", "handled")
         self.assertEqual(out.returncode, 0, out.stderr)
+        cleared = {r["id"]: r for r in self.stored_risks(root)}["RX-001"]
+        self.assertEqual(cleared["risk"], "first risk")
+        self.assertTrue(cleared["status"].startswith("cleared"), cleared)
 
 
 if __name__ == "__main__":

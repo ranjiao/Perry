@@ -203,8 +203,26 @@ class TestCustomTaskGroupsReachTheStateReader(Base):
                    stages="new,triaged,in_progress,resolved", wip="triaged:1",
                    sla="3d", cycle="1w", default_rung="V2")]
 
+    #: **One row already filed under the project's own heading, imported**
+    #: (TASK-262 round 4a). A write builds from the declared board, which
+    #: prints `## Release train` only once a stored row sits under it, so
+    #: `--group` into a heading nothing holds refuses. The held board's row
+    #: reaches the store through `write --from-board`; it is on no track, so
+    #: the stage counts and WIP below are the added row's alone, and `open`
+    #: counts both.
+    SEEDED = ("| TASK-001 | an earlier row | Coding Agent | not_started | n "
+              "| — | V3 |  |  |\n")
+
+    def seeded(self, rows, heading: str) -> Path:
+        root = self.project(rows, board_rows=self.SEEDED, heading=heading)
+        r = subprocess.run([sys.executable, str(STATE.parent / "perry-tasks"),
+                            "write", "--from-board", "--root", str(root)],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return root
+
     def test_pipeline_add_is_visible_to_tasks_open_counts_and_wip(self):
-        root = self.project(self.PIPELINE, heading="Release train")
+        root = self.seeded(self.PIPELINE, heading="Release train")
         added = self.task(
             root, "add", "--title", "publish notes", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable",
             "published notes with a test", "--verification", "fresh review",
@@ -214,7 +232,7 @@ class TestCustomTaskGroupsReachTheStateReader(Base):
         payload = self.state(root)
         rows = {t["id"]: t for t in payload["board"]["tasks"]}
         self.assertIn(added["id"], rows)
-        self.assertEqual(payload["board"]["open"], 1)
+        self.assertEqual(payload["board"]["open"], 2)
         self.assertEqual((rows[added["id"]]["track"], rows[added["id"]]["stage"]),
                          ("rel", "review"))
         track = {t["track"]: t for t in payload["project"]["config"]["tracks"]}["rel"]
@@ -223,7 +241,7 @@ class TestCustomTaskGroupsReachTheStateReader(Base):
                          [{"stage": "review", "count": 1, "limit": 1}])
 
     def test_queue_route_is_visible_after_it_leaves_intake(self):
-        root = self.project(self.QUEUE, heading="Support lane")
+        root = self.seeded(self.QUEUE, heading="Support lane")
         self.task(root, "intake", "--title", "customer request",
                   "--arrived", "2026-08-05")
         routed = self.task(root, "route", "1", "--track", "ops",
@@ -232,7 +250,7 @@ class TestCustomTaskGroupsReachTheStateReader(Base):
         payload = self.state(root)
         rows = {t["id"]: t for t in payload["board"]["tasks"]}
         self.assertIn(routed["id"], rows)
-        self.assertEqual(payload["board"]["open"], 1)
+        self.assertEqual(payload["board"]["open"], 2)
         self.assertEqual(rows[routed["id"]]["stage"], "triaged")
         track = {t["track"]: t for t in payload["project"]["config"]["tracks"]}["ops"]
         self.assertEqual(track["stage_counts"], {"triaged": 1})

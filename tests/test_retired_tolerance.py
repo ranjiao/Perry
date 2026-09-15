@@ -207,90 +207,14 @@ class TestTheIdColumnFallbackIsRetired(unittest.TestCase):
     `next(…, -1)` and the refusal becomes a silent write into column 0 — which
     on `| Risk | Opened | Status |` is somebody's risk *statement*, and on
     `| Needed from user | Blocks | Idle | Status |` is the question itself.
+
+    **Six write tests left with TASK-262 round 4a.** They wrote to a held
+    `BOARD.md` whose register had no id column (or a localized one) and
+    asserted the refusal. A write now builds from the declared board, whose
+    registers always carry the declared `ID` column, so none of those tables
+    reaches `find_section_row` any more; what is left is the linter's reading
+    of such a file.
     """
-
-    def refusal(self, board: str, *argv) -> str:
-        p = Project(board=board)
-        before = p.board()
-        rc, out, err = p.run(TASK, *argv)
-        self.assertEqual(rc, 1, f"expected a refusal, got {out!r}")
-        self.assertEqual(p.board(), before, "the file was written anyway")
-        return out.get("refused", "") if isinstance(out, dict) else err
-
-    def test_risk_clear_refuses_a_top_risks_table_with_no_id_column(self):
-        msg = self.refusal(without_id_column(CONFORMANT, "Top risks"),
-                           "risk-clear", "RX-001", "--reason", "it stopped")
-        self.assertIn("no id column", msg)
-        self.assertIn("Top risks", msg)
-
-    def test_answer_refuses_a_queue_with_no_id_column(self):
-        msg = self.refusal(without_id_column(CONFORMANT, "User Input Queue"),
-                           "answer", "USER-001", "--answer", "the second one")
-        self.assertIn("no id column", msg)
-
-    def test_cadence_done_refuses_a_register_with_no_id_column(self):
-        msg = self.refusal(without_id_column(CONFORMANT, "Cadence"),
-                           "cadence-done", "CAD-001",
-                           "--evidence", "evidence/2026-08/run.md")
-        self.assertIn("no id column", msg)
-
-    def test_the_refusal_names_the_road_rather_than_stopping(self):
-        """ADR-004 § 4: a gate that says "not conformant" and stops is a wall.
-
-        **This asserted the two commands by name and they were deleted**
-        (USER-910 removed `perry-migrate` and `perry-conform` with
-        `perry_schema.py` and `test_migrate.py`), so from that day the test
-        held the refusal to naming two tools a reader cannot run — the exact
-        opposite of its own docstring, which says *"a command the reader can
-        run"*. It passed for a year because it checked the spelling and not
-        the property.
-
-        The property is what is asserted now: the refusal names the column, it
-        names where the legal spellings are, and **every command it names
-        exists**. There is no command for this one — a section's header is
-        layout, and `DESIGN-016 § 8` records that the board's layout is not
-        derivable from the store — so "Add the column." is the whole road, and
-        a road is what § 4 asks for, not a shell invocation.
-        """
-        msg = self.refusal(without_id_column(CONFORMANT, "Top risks"),
-                           "risk-clear", "RX-001", "--reason", "it stopped")
-        self.assertIn("Nothing was written", msg)
-        self.assertIn("Add the column", msg, "the refusal names no road")
-        self.assertIn("i18n.columns", msg,
-                      "the refusal does not say where the legal spellings are")
-        tools = {p.name for p in (PERRY_HOME / "bin").iterdir()
-                 if p.is_file() and p.suffix != ".md"}
-        for named in re.findall(r"`(perry-[a-z][a-z-]*)", msg):
-            with self.subTest(tool=named):
-                self.assertIn(named, tools,
-                              f"the refusal tells the reader to run {named} "
-                              f"and bin/ has no such tool")
-
-    def test_the_wrong_row_is_not_cleared_by_guessing_column_zero(self):
-        """The measured cost of the branch, as the property it violated.
-
-        With the fallback in place `RX-001` matched nothing in column 0 and the
-        loop fell through to "is not a row" — but on a table whose first column
-        happens to hold handle-shaped text it matched the WRONG row and wrote
-        the clear into it. Asserted as "no cell of this section changed".
-        """
-        board = without_id_column(CONFORMANT, "Top risks")
-        p = Project(board=board)
-        p.run(TASK, "risk-clear", "the vendor contract lapses",
-              "--reason", "it stopped")
-        self.assertEqual(p.board(), board)
-
-
-    def test_the_localized_spelling_still_resolves(self):
-        """`编号` is the declared Chinese spelling of `ID`, so it must resolve
-        by NAME — the fallback was never what carried the localized case, and a
-        retirement that broke it would be trading one silent defect for another.
-        """
-        p = Project(board=CONFORMANT.replace(
-            "| ID | Risk | Opened | Status |\n|---|---|---|---|",
-            "| 编号 | 风险 | 提出 | 状态 |\n|---|---|---|---|"))
-        rc, out, err = p.run(TASK, "risk-clear", "RX-001", "--reason", "好了")
-        self.assertEqual(rc, 0, f"{out!r} {err}")
 
     def test_the_missing_column_is_a_shape_error_not_a_matter_of_taste(self):
         """The reason the branch is retirable, asserted rather than argued:

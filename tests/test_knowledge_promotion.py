@@ -439,7 +439,12 @@ class TestARealCloseProducesACard(Base):
             [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
              "TASK-001", "--evidence", SRC, "--rung", "V3",
              "--root", str(root)], capture_output=True, text=True, check=True)
-        self.assertNotIn("TASK-001", (root / "BOARD.md").read_text())
+        # The printed board (TASK-262 round 4a); the held file is not
+        # re-rendered by `done`.
+        board = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"), "board",
+             "--root", str(root)], capture_output=True, text=True, check=True)
+        self.assertNotIn("| TASK-001 |", board.stdout)
         r = self.promote(root, source="TASK-001")
         self.assertEqual(r.returncode, 0, r.stderr)
 
