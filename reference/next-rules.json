@@ -1,0 +1,232 @@
+{
+  "contract": "perry-next/1.0",
+  "note": "The rule table `perry-state --section next` evaluates (DESIGN-020 § 5.3, TASK-442). Overlays first, which always win; then `rules` in declared order. The first rule that fires is the primary; the next two that recommend a different command are the alternates. A predicate over a fact the payload cannot tell does not fire, and the fact is listed in `unknown[]`. Predicates compare typed values only — a fact path, an operator from `eq ne lt le gt ge in exists nonempty`, and a literal or a `{\"threshold\": name}` — combined with `all` / `any`. Each rule id is explained in `reference/next.md`. A command still reached through its direct entrance (`/perry goals init`, `plan-phase`, `plan-week`) moves to `/perry plan` when DESIGN-020 phase F ships that entrance.",
+  "thresholds": {
+    "phase_closable_ratio": {
+      "value": 0.8,
+      "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. The share of a phase's measured commit key results that must be met before closing it is recommended — the figure `goals/SKILL.md` has used for its KR-progress prompt."
+    },
+    "asks_waiting_days": {
+      "value": 5,
+      "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. `/perry work nudge` surfaces questions idle this many days, so the rule recommends it at the same age."
+    },
+    "weekly_late_weeks": {
+      "value": 2,
+      "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. A weekly report is late when the newest one is at least this many ISO weeks behind the current week — older than last week, as DESIGN-020 § 5.3 states it."
+    },
+    "handoff_stale_days": {
+      "value": 7,
+      "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. DESIGN-020 § 5.3 rule 8."
+    }
+  },
+  "overlays": [
+    {
+      "id": "R-recovery",
+      "when": {"fact": "recovery.blocking", "op": "eq", "value": true},
+      "spine": "any",
+      "lane": "router",
+      "command": "/perry",
+      "reason": "an interrupted write must be repaired before anything else is read: {recovery.first_path}",
+      "after": []
+    },
+    {
+      "id": "R-interrupted",
+      "when": {"fact": "interrupted.count", "op": "gt", "value": 0},
+      "spine": "any",
+      "lane": "router",
+      "command": "/perry",
+      "reason": "a {interrupted.first_pipeline} run stopped at stage {interrupted.first_stage} and is waiting to be resumed or abandoned",
+      "after": []
+    },
+    {
+      "id": "R-draft-waiting",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "drafts.drafted", "op": "gt", "value": 0}
+      ]},
+      "spine": "any",
+      "lane": "goals",
+      "command": "/perry plan",
+      "reason": "a plan draft is written and waiting for your approval",
+      "after": []
+    }
+  ],
+  "rules": [
+    {
+      "id": "R-setup",
+      "when": {"fact": "installed", "op": "eq", "value": false},
+      "spine": "any",
+      "lane": "router",
+      "command": "/perry",
+      "reason": "Perry is not set up in this project yet",
+      "after": []
+    },
+    {
+      "id": "R-no-okr",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "okr.present", "op": "eq", "value": false}
+      ]},
+      "spine": "any",
+      "lane": "goals",
+      "command": "/perry goals init",
+      "reason": "the project has no goals written down yet",
+      "after": []
+    },
+    {
+      "id": "R-no-phase",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "okr.present", "op": "eq", "value": true},
+        {"fact": "phase.status", "op": "ne", "value": "active"}
+      ]},
+      "spine": "project",
+      "lane": "goals",
+      "command": "/perry goals plan-phase <slug>",
+      "reason": "the goals are set but no phase is under way",
+      "after": ["init", "revise", "score-phase"]
+    },
+    {
+      "id": "R-phase-closable",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "phase.status", "op": "eq", "value": "active"},
+        {"fact": "phase.kr_progress.met_ratio", "op": "ge", "value": {"threshold": "phase_closable_ratio"}}
+      ]},
+      "spine": "project",
+      "lane": "work",
+      "command": "/perry work end-phase-retro",
+      "reason": "{phase.kr_progress.met} of {phase.kr_progress.measured} commit key results in phase {phase.number} are met, so the phase can close",
+      "after": ["close-task", "link"]
+    },
+    {
+      "id": "R-week-unplanned",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "phase.status", "op": "eq", "value": "active"},
+        {"fact": "week.planned", "op": "eq", "value": false}
+      ]},
+      "spine": "project",
+      "lane": "goals",
+      "command": "/perry goals plan-week",
+      "reason": "{week.iso} has no plan",
+      "after": ["plan-phase", "friday-review"]
+    },
+    {
+      "id": "R-sla-breach",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "queue.sla_breaches", "op": "gt", "value": 0}
+      ]},
+      "spine": "queue",
+      "lane": "work",
+      "command": "/perry work triage",
+      "reason": "{queue.sla_breaches} queue item(s) are past their SLA, the longest-waiting being {queue.oldest_breach_id}",
+      "after": ["add-task", "close-task"]
+    },
+    {
+      "id": "R-queue-commitment-due",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "commitments.due", "op": "gt", "value": 0}
+      ]},
+      "spine": "queue",
+      "lane": "work",
+      "command": "/perry work triage",
+      "reason": "{commitments.due} commitment(s) are due",
+      "after": ["add-task", "close-task"]
+    },
+    {
+      "id": "R-wip-over-limit",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "pipeline.wip_breaches", "op": "gt", "value": 0}
+      ]},
+      "spine": "pipeline",
+      "lane": "work",
+      "command": "/perry work triage",
+      "reason": "{pipeline.wip_breaches} pipeline stage(s) are at or over their work-in-progress limit",
+      "after": ["add-task"]
+    },
+    {
+      "id": "R-pipeline-commitment-due",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "commitments.due", "op": "gt", "value": 0}
+      ]},
+      "spine": "pipeline",
+      "lane": "work",
+      "command": "/perry work triage",
+      "reason": "{commitments.due} commitment(s) are due",
+      "after": ["add-task", "close-task"]
+    },
+    {
+      "id": "R-asks-waiting",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "user_input_queue.oldest_idle_days", "op": "ge", "value": {"threshold": "asks_waiting_days"}}
+      ]},
+      "spine": "any",
+      "lane": "work",
+      "command": "/perry work nudge",
+      "reason": "a question has waited {user_input_queue.oldest_idle_days} days for your answer ({user_input_queue.oldest_id})",
+      "after": ["add-task", "close-task"]
+    },
+    {
+      "id": "R-review-due",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"any": [
+          {"fact": "today.weekday", "op": "eq", "value": "Friday"},
+          {"fact": "history.latest_weekly", "op": "eq", "value": ""},
+          {"fact": "history.weeks_since_weekly", "op": "ge", "value": {"threshold": "weekly_late_weeks"}}
+        ]}
+      ]},
+      "spine": "any",
+      "lane": "work",
+      "command": "/perry work friday-review",
+      "reason": "today is {today.weekday} and the last weekly report is {history.latest_weekly_label}",
+      "after": ["close-task", "handoff"]
+    },
+    {
+      "id": "R-handoff-stale",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "history.latest_journal_days", "op": "eq", "value": 0},
+        {"any": [
+          {"fact": "history.latest_handoff", "op": "eq", "value": ""},
+          {"fact": "history.latest_handoff_days", "op": "ge", "value": {"threshold": "handoff_stale_days"}}
+        ]}
+      ]},
+      "spine": "any",
+      "lane": "work",
+      "command": "/perry work handoff",
+      "reason": "project state changed today and the last handoff is {history.latest_handoff_label}",
+      "after": ["close-task", "add-task", "drop-task", "friday-review"]
+    },
+    {
+      "id": "R-design-unhanded",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "design.pending_handoff_count", "op": "gt", "value": 0}
+      ]},
+      "spine": "any",
+      "lane": "decide",
+      "command": "/perry decide handoff {design.first_pending_id}",
+      "reason": "{design.first_pending_id} is a locked design with no implementation tasks yet ({design.pending_handoff_count} such design(s))",
+      "after": ["lock"]
+    },
+    {
+      "id": "R-board-over-cap",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "board.over_cap_by", "op": "gt", "value": 0}
+      ]},
+      "spine": "any",
+      "lane": "work",
+      "command": "/perry work triage",
+      "reason": "the board is {board.over_cap_by} line(s) over its {board.cap}-line cap",
+      "after": ["add-task"]
+    }
+  ]
+}

@@ -25,6 +25,10 @@ Usage:
                 came to hold two different ones, neither of them current
   --dashboard   the standup dashboard rows as plain text, pre-computed
   --section     emit one top-level key only (board / phase / okr / design / …)
+  --after, --lane
+                with `--section next` only: keep the rules that may fire after
+                one subcommand, or one lane's rules; the overlays stay in both.
+                `reference/next.md` explains the block and every rule in it
   --root        project root; default $PERRY_PROJECT, else walk up from cwd
 
   `--section project` prints, under `project.escalation`, the project's
@@ -1841,7 +1845,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # answered `installed: true` while every payload said nothing.
     installed = P.installed(perry_root)
     if not installed:
-        return {
+        bare = {
             "schema": 1,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
             "project": {"root": root.as_posix(), "name": root.name},
@@ -1853,6 +1857,11 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "interrupted": scan_interrupted(perry_root),
             "warnings": ["No Perry state found — run /perry for first-time setup."],
         }
+        # `next` is computed on both branches, like `recovery` and
+        # `interrupted`: an uninstalled directory is exactly where R-setup and
+        # the overlays have something to say (TASK-442).
+        bare["next"] = build_next(bare)
+        return bare
 
     snap = P.load_snapshot(root)
     board = snap.board
@@ -2281,7 +2290,596 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         },
         "warnings": warnings,
     }
+    # **Additive, and computed from this payload alone** (TASK-442,
+    # DESIGN-020 § 5.2). `build_next` reads the values above and the clock;
+    # it opens no state file, so it cannot disagree with them (NN-1).
+    payload["next"] = build_next(payload)
     return payload
+
+
+# ── next: the recommended step (DESIGN-020 phase A, TASK-442) ────────────
+
+
+#: The contract the `next` block publishes. `schema/next-contract.md`.
+NEXT_CONTRACT = "perry-next/1.0"
+
+#: The declared rule table. Shipped with Perry, never with a project: it is
+#: vocabulary, like `schema/`, and reading it is not a read of project state.
+NEXT_RULES_PATH = PERRY_HOME / "reference" / "next-rules.json"
+
+#: `--lane` narrows to one lane's rules plus the overlays.
+NEXT_LANES = ("goals", "work", "decide")
+
+NEXT_SPINES = ("project", "pipeline", "queue", "inquiry", "any")
+NEXT_RULE_LANES = NEXT_LANES + ("router",)
+NEXT_OPERATORS = ("eq", "ne", "lt", "le", "gt", "ge", "in", "exists",
+                  "nonempty")
+WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+            "Saturday", "Sunday")
+
+#: Every fact a rule may name, declared once. `next_facts` answers each one
+#: either with a value (which may be `None`: known to be absent) or with a
+#: reason it cannot be told; a rule naming anything else is a rule-file error.
+NEXT_FACTS = (
+    "installed",
+    "recovery.blocking", "recovery.first_path",
+    "interrupted.count", "interrupted.first_pipeline",
+    "interrupted.first_stage",
+    "drafts.drafted",
+    "okr.present", "okr.version",
+    "phase.status", "phase.number", "phase.day",
+    "phase.kr_progress.commit_total", "phase.kr_progress.measured",
+    "phase.kr_progress.met", "phase.kr_progress.unmeasured",
+    "phase.kr_progress.met_ratio",
+    "week.iso", "week.planned",
+    "today.date", "today.weekday",
+    "history.latest_weekly", "history.latest_weekly_label",
+    "history.weeks_since_weekly",
+    "history.latest_handoff", "history.latest_handoff_label",
+    "history.latest_handoff_days", "history.latest_journal_days",
+    "user_input_queue.count", "user_input_queue.oldest_id",
+    "user_input_queue.oldest_idle_days",
+    "design.pending_handoff_count", "design.first_pending_id",
+    "board.lines", "board.cap", "board.over_cap_by",
+    "project.spines",
+    "queue.sla_breaches", "queue.oldest_breach_id",
+    "pipeline.wip_breaches",
+    "commitments.due",
+)
+
+
+def iso_week(day: date) -> str:
+    year, week, _ = day.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def week_of(value) -> str | None:
+    """A value `perry-state` already emits, as an ISO week — or `None`.
+
+    `history.latest_weekly` is a report's own date stamp: `2026-W35` on this
+    repository, an ISO date on a project that names its reports by day. Both
+    are formats, not prose; anything else is `None` and the caller says it
+    cannot tell."""
+    text = str(value or "").strip()
+    m = re.fullmatch(r"(\d{4})-W(\d{2})", text)
+    try:
+        if m:
+            date.fromisocalendar(int(m.group(1)), int(m.group(2)), 1)
+            return text
+        return iso_week(date.fromisoformat(text[:10]))
+    except ValueError:
+        return None
+
+
+def weeks_between(earlier: str, later: str) -> int:
+    def monday(week: str) -> date:
+        year, number = week.split("-W")
+        return date.fromisocalendar(int(year), int(number), 1)
+    return (monday(later) - monday(earlier)).days // 7
+
+
+def _number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def next_kr_progress(payload: dict) -> tuple[dict, str]:
+    """The current phase's commit key results: measured, met, unmeasured.
+
+    Read from `linkage.objectives[].krs[]` — the `current` and `target` this
+    payload already carries — and nothing else. A commit KR is one whose
+    `stretch` is not `true`. It is **measured** when both numbers are present,
+    and **met** when `current >= target`, except that a target of `0` is met
+    only at `0`: a key result aiming at zero drives a count down, and reading
+    `current >= 0` as met would call every such KR met before its work starts
+    (`bin/lib § kr_progress_provenance` names that failure). No `metric` prose
+    is read to decide a direction.
+
+    Returns `(counts, why)`. `why` is non-empty when the counts themselves
+    cannot be told."""
+    phase = payload.get("phase")
+    if not phase:
+        return {}, ""
+    linkage = payload.get("linkage")
+    if not linkage:
+        return {}, ("the linkage store could not be read, so no key result "
+                    "of this phase is visible")
+    if linkage.get("phase") != phase.get("slug"):
+        return {}, (f"the linkage store describes phase "
+                    f"{linkage.get('phase') or '(none)'}, not the current phase "
+                    f"{phase.get('slug')}")
+    commit = [kr for o in linkage.get("objectives") or []
+              for kr in (o.get("krs") or []) if kr.get("stretch") is not True]
+    measured = [kr for kr in commit
+                if _number(kr.get("current")) and _number(kr.get("target"))]
+    met = [kr for kr in measured
+           if (kr["current"] <= 0 if kr["target"] == 0
+               else kr["current"] >= kr["target"])]
+    return {"commit_total": len(commit), "measured": len(measured),
+            "met": len(met), "unmeasured": len(commit) - len(measured)}, ""
+
+
+def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
+    """`(facts, unknown)` over one `perry-state` payload and the clock.
+
+    **Every value here is one the payload already carries, or the clock.**
+    Nothing reads a state file (`ARCHITECTURE.md § NN-1`): a fact whose source
+    `perry-state` does not compute is put in `unknown` with the reason, and a
+    rule over it does not fire. `today` is a parameter so a test can fix it;
+    the payload's own day counts (`latest_handoff_days` and the like) are
+    `perry-state`'s, computed from the real date as they always were.
+    """
+    facts: dict = {}
+    unknown: dict = {}
+    installed = bool(payload.get("installed"))
+    facts["installed"] = installed
+
+    recovery = payload.get("recovery") or {}
+    facts["recovery.blocking"] = bool(recovery.get("blocking"))
+    hazards = ([t.get("path") for t in recovery.get("pending_transactions") or []]
+               + [d.get("path") for d in recovery.get("malformed_dossiers") or []])
+    facts["recovery.first_path"] = hazards[0] if hazards else None
+
+    interrupted = payload.get("interrupted") or []
+    facts["interrupted.count"] = len(interrupted)
+    facts["interrupted.first_pipeline"] = (interrupted[0].get("pipeline")
+                                           if interrupted else None)
+    facts["interrupted.first_stage"] = (interrupted[0].get("stage")
+                                        if interrupted else None)
+
+    unknown["drafts.drafted"] = ("plan drafts have no source until TASK-444 "
+                                 "builds them")
+
+    okr = payload.get("okr") or {}
+    facts["okr.present"] = bool(okr.get("present")) if installed else None
+    facts["okr.version"] = okr.get("version") or None
+
+    phase = payload.get("phase") or {}
+    facts["phase.status"] = phase.get("status") or None
+    facts["phase.number"] = phase.get("number") or None
+    facts["phase.day"] = phase.get("day")
+
+    counts, why = next_kr_progress(payload)
+    for key in ("commit_total", "measured", "met", "unmeasured"):
+        path = f"phase.kr_progress.{key}"
+        if why:
+            unknown[path] = why
+        else:
+            facts[path] = counts.get(key)
+    ratio = "phase.kr_progress.met_ratio"
+    if why:
+        unknown[ratio] = why
+    elif not counts:
+        facts[ratio] = None
+    elif counts["commit_total"] == 0:
+        unknown[ratio] = (f"phase {facts['phase.number']} declares no commit "
+                          f"key result")
+    elif counts["unmeasured"]:
+        unknown[ratio] = (f"{counts['unmeasured']} of {counts['commit_total']} "
+                          f"commit key results in phase {facts['phase.number']} "
+                          f"have no current value or no target")
+    else:
+        facts[ratio] = counts["met"] / counts["measured"]
+
+    facts["week.iso"] = iso_week(today)
+    unknown["week.planned"] = ("week plans have no source until TASK-444 "
+                               "records a finalized week")
+    facts["today.date"] = today.isoformat()
+    facts["today.weekday"] = WEEKDAYS[today.weekday()]
+
+    history = payload.get("history") or {}
+    weekly = history.get("latest_weekly")
+    facts["history.latest_weekly"] = weekly if installed else None
+    facts["history.latest_weekly_label"] = weekly or "none yet"
+    since = "history.weeks_since_weekly"
+    if not weekly:
+        facts[since] = None
+    elif week_of(weekly) is None:
+        unknown[since] = (f"the latest weekly report is stamped {weekly!r}, "
+                          f"which is neither an ISO week nor a date")
+    else:
+        facts[since] = weeks_between(week_of(weekly), facts["week.iso"])
+    handoff = history.get("latest_handoff")
+    facts["history.latest_handoff"] = handoff if installed else None
+    facts["history.latest_handoff_label"] = handoff or "none yet"
+    facts["history.latest_handoff_days"] = history.get("latest_handoff_days")
+    facts["history.latest_journal_days"] = history.get("latest_journal_days")
+
+    queue = payload.get("user_input_queue") or {}
+    oldest = queue.get("oldest") or None
+    facts["user_input_queue.count"] = queue.get("count")
+    facts["user_input_queue.oldest_id"] = oldest.get("id") if oldest else None
+    idle = "user_input_queue.oldest_idle_days"
+    if oldest and oldest.get("idle_days") is None:
+        unknown[idle] = (f"the oldest open question ({oldest.get('id')}) "
+                         f"carries no date to age it from")
+    else:
+        facts[idle] = oldest.get("idle_days") if oldest else None
+
+    pending = (payload.get("design") or {}).get("pending_handoff") or []
+    facts["design.pending_handoff_count"] = len(pending) if installed else None
+    facts["design.first_pending_id"] = pending[0].get("id") if pending else None
+
+    board = payload.get("board") or {}
+    facts["board.lines"] = board.get("lines")
+    facts["board.cap"] = board.get("cap")
+    facts["board.over_cap_by"] = (board["lines"] - board["cap"]
+                                  if _number(board.get("lines"))
+                                  and _number(board.get("cap")) else None)
+
+    tracks = ((payload.get("project") or {}).get("config") or {}).get("tracks") or []
+    facts["project.spines"] = sorted({(t.get("mode") or "project").strip().lower()
+                                      for t in tracks}) if installed else []
+
+    queues = [t for t in tracks if (t.get("mode") or "").lower() == "queue"]
+    runnable = [t for t in queues if (t.get("sla_check") or {}).get("runnable")]
+    breaches = sorted((b for t in runnable for b in t.get("sla_breaches") or []),
+                      key=lambda b: (b.get("arrived") or "", b.get("id") or ""))
+    if not queues:
+        facts["queue.sla_breaches"] = None
+        facts["queue.oldest_breach_id"] = None
+    elif not runnable:
+        why = "no queue track declares an SLA this build can read"
+        unknown["queue.sla_breaches"] = why
+        unknown["queue.oldest_breach_id"] = why
+    else:
+        facts["queue.sla_breaches"] = len(breaches)
+        facts["queue.oldest_breach_id"] = breaches[0].get("id") if breaches else None
+
+    pipelines = [t for t in tracks if (t.get("mode") or "").lower() == "pipeline"]
+    limited = [t for t in pipelines if parse_wip(t.get("wip") or "")]
+    if not pipelines:
+        facts["pipeline.wip_breaches"] = None
+    elif not limited:
+        unknown["pipeline.wip_breaches"] = ("no pipeline track declares a "
+                                            "work-in-progress limit")
+    else:
+        facts["pipeline.wip_breaches"] = sum(len(t.get("wip_breaches") or [])
+                                             for t in limited)
+
+    unknown["commitments.due"] = ("perry-state does not compute which "
+                                  "commitments are due")
+    return facts, unknown
+
+
+def load_next_rules(path: Path) -> tuple[dict, list[str]]:
+    """The rule file, or `{}` and the reason. Never raises: a standup with a
+    broken rule file still prints, and says why it recommends nothing."""
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return {}, [f"{path.name}: {type(exc).__name__}: {exc}"]
+    if not isinstance(doc, dict):
+        return {}, [f"{path.name}: expected a JSON object"]
+    return doc, []
+
+
+def next_thresholds(doc: dict) -> tuple[dict, list[dict]]:
+    """Each threshold a rule names: `schema/state-schema.json § thresholds`
+    first, which is read and never written; the rule file's own declaration
+    otherwise."""
+    try:
+        declared = json.loads(SCHEMA_PATH.read_text(encoding="utf-8")).get(
+            "thresholds") or {}
+    except (OSError, ValueError):
+        declared = {}
+    values: dict = {}
+    listed: list[dict] = []
+    for name, entry in sorted((doc.get("thresholds") or {}).items()):
+        if name in declared:
+            value, source = (declared[name] or {}).get("value"), "schema"
+        else:
+            value, source = (entry or {}).get("value"), "rule-file"
+        values[name] = value
+        listed.append({"name": name, "value": value, "source": source})
+    return values, listed
+
+
+def _template_facts(text: str) -> list[str]:
+    return re.findall(r"\{([a-z_][a-z0-9_.]*)\}", text or "")
+
+
+def next_rule_problems(rule, seen: set) -> list[str]:
+    """What makes a declared rule unusable. Checked before it is evaluated."""
+    if not isinstance(rule, dict):
+        return ["a rule is not a JSON object"]
+    rid = rule.get("id")
+    label = rid if isinstance(rid, str) and rid else "(a rule with no id)"
+    out = []
+    if not isinstance(rid, str) or not rid:
+        out.append(f"{label}: `id` must be a non-empty string")
+    elif rid in seen:
+        out.append(f"{label}: the id is declared twice")
+    if rule.get("spine") not in NEXT_SPINES:
+        out.append(f"{label}: `spine` must be one of {', '.join(NEXT_SPINES)}")
+    if rule.get("lane") not in NEXT_RULE_LANES:
+        out.append(f"{label}: `lane` must be one of {', '.join(NEXT_RULE_LANES)}")
+    for key in ("command", "reason"):
+        if not isinstance(rule.get(key), str) or not rule.get(key):
+            out.append(f"{label}: `{key}` must be a non-empty string")
+        for name in _template_facts(rule.get(key) or ""):
+            if name not in NEXT_FACTS:
+                out.append(f"{label}: `{key}` names {name!r}, which is not a fact")
+    after = rule.get("after")
+    if not isinstance(after, list) or not all(isinstance(a, str) for a in after):
+        out.append(f"{label}: `after` must be a list of subcommand names")
+    if not isinstance(rule.get("when"), dict):
+        out.append(f"{label}: `when` must be a predicate object")
+    return out
+
+
+class _RuleError(Exception):
+    pass
+
+
+def _compare(op: str, have, want) -> bool:
+    """One typed comparison. A kind mismatch is a rule-file error, never a
+    coercion: `\"5\" gt 3` does not quietly become true or false."""
+    if op == "exists":
+        return have is not None
+    if op == "nonempty":
+        if have is None:
+            return False
+        if not isinstance(have, (list, str, dict)):
+            raise _RuleError(f"`nonempty` needs a list or string, got "
+                             f"{type(have).__name__}")
+        return len(have) > 0
+    if op == "in":
+        if not isinstance(want, list):
+            raise _RuleError("`in` needs a list value")
+        return any(_same(have, w) for w in want)
+    if op in ("eq", "ne"):
+        return _same(have, want) if op == "eq" else not _same(have, want)
+    if have is None:
+        return False
+    if not ((_number(have) and _number(want))
+            or (isinstance(have, str) and isinstance(want, str))):
+        raise _RuleError(f"`{op}` compares {type(have).__name__} with "
+                         f"{type(want).__name__}")
+    return {"lt": have < want, "le": have <= want,
+            "gt": have > want, "ge": have >= want}[op]
+
+
+def _same(a, b) -> bool:
+    if isinstance(a, bool) or isinstance(b, bool):
+        return isinstance(a, bool) and isinstance(b, bool) and a == b
+    if _number(a) and _number(b):
+        return a == b
+    return type(a) is type(b) and a == b
+
+
+def _render(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "none"
+    if isinstance(value, float):
+        return f"{value:g}"
+    if isinstance(value, list):
+        return ", ".join(_render(v) for v in value)
+    return str(value)
+
+
+def next_evaluate(node, facts: dict, unknown: dict,
+                  thresholds: dict) -> tuple[bool | None, list[str], list[str]]:
+    """`(truth, fired, unknown_facts)` for one predicate tree.
+
+    Three answers. `all` is false when any child is false, unknown when none
+    is false and one is unknown, and true otherwise; `any` is the mirror. A
+    rule is recommended only on `True`, so **a predicate over a fact that
+    cannot be told never fires** — it answers `None`, and the caller lists the
+    fact in `unknown[]`."""
+    if not isinstance(node, dict):
+        raise _RuleError("a predicate is not a JSON object")
+    for key in ("all", "any"):
+        if key in node:
+            children = node[key]
+            if not isinstance(children, list) or not children:
+                raise _RuleError(f"`{key}` needs a non-empty list")
+            results = [next_evaluate(c, facts, unknown, thresholds)
+                       for c in children]
+            decisive = False if key == "all" else True
+            if any(r[0] is decisive for r in results):
+                if key == "all":
+                    return False, [], []
+                return True, [f for r in results if r[0] is True
+                              for f in r[1]], []
+            if any(r[0] is None for r in results):
+                return None, [], [u for r in results if r[0] is None
+                                  for u in r[2]]
+            if key == "all":
+                return True, [f for r in results for f in r[1]], []
+            return False, [], []
+    path, op = node.get("fact"), node.get("op")
+    if path not in NEXT_FACTS:
+        raise _RuleError(f"{path!r} is not a fact")
+    if op not in NEXT_OPERATORS:
+        raise _RuleError(f"{op!r} is not an operator")
+    want = node.get("value")
+    if isinstance(want, dict):
+        name = want.get("threshold")
+        if name not in thresholds or thresholds[name] is None:
+            raise _RuleError(f"threshold {name!r} is not declared")
+        want = thresholds[name]
+    if path in unknown:
+        return None, [], [path]
+    if _compare(op, facts.get(path), want):
+        return True, [f"{path}={_render(facts.get(path))}"], []
+    return False, [], []
+
+
+def _fill(template: str, facts: dict, unknown: dict) -> str:
+    return re.sub(r"\{([a-z_][a-z0-9_.]*)\}",
+                  lambda m: ("unknown" if m.group(1) in unknown
+                             else _render(facts.get(m.group(1)))),
+                  template)
+
+
+def next_position(facts: dict, unknown: dict, thresholds: dict) -> list[dict]:
+    """Where the project stands on the sequence: goals, phase, week, review.
+
+    Always four entries in this order, so a renderer never has to ask which
+    are present. Each `state` is one of `done`, `missing`, `due`, `late`,
+    `unknown`, `not_reached` (an earlier step is missing) or `not_applicable`
+    (no track runs this step)."""
+    def step(name, state, label):
+        return {"step": name, "state": state, "label": label}
+
+    if not facts["installed"]:
+        return [step("goals", "missing", "Perry is not set up here"),
+                step("phase", "not_reached", "needs goals first"),
+                step("week", "not_reached", "needs a phase first"),
+                step("review", "not_reached", "needs a phase first")]
+    project = "project" in facts["project.spines"]
+    active = facts["phase.status"] == "active"
+    out = [step("goals", "done", f"OKR {facts['okr.version']}")
+           if facts["okr.present"] else step("goals", "missing", "no goals yet")]
+    if not project:
+        out.append(step("phase", "not_applicable", "no project track"))
+        out.append(step("week", "not_applicable", "no project track"))
+    elif not facts["okr.present"]:
+        out.append(step("phase", "not_reached", "needs goals first"))
+        out.append(step("week", "not_reached", "needs a phase first"))
+    elif not active:
+        label = ("no active phase" if not facts["phase.status"] else
+                 f"no active phase (phase {facts['phase.number']} is "
+                 f"{facts['phase.status']})")
+        out.append(step("phase", "missing", label))
+        out.append(step("week", "not_reached", "needs a phase first"))
+    else:
+        out.append(step("phase", "done",
+                        f"Phase {facts['phase.number']}, day {facts['phase.day']}"))
+        out.append(step("week", "unknown",
+                        f"{facts['week.iso']} plan: cannot tell")
+                   if "week.planned" in unknown else
+                   step("week", "done" if facts.get("week.planned") else "missing",
+                        f"{facts['week.iso']} "
+                        + ("planned" if facts.get("week.planned") else "not planned")))
+    weekly = facts["history.latest_weekly"]
+    late = thresholds.get("weekly_late_weeks")
+    if not weekly:
+        out.append(step("review", "missing", "no weekly report yet"))
+    elif "history.weeks_since_weekly" in unknown:
+        out.append(step("review", "unknown", f"last weekly {weekly}"))
+    elif _number(late) and facts["history.weeks_since_weekly"] >= late:
+        out.append(step("review", "late", f"last weekly {weekly}"))
+    elif facts["today.weekday"] == "Friday":
+        out.append(step("review", "due", f"today is Friday; last weekly {weekly}"))
+    else:
+        out.append(step("review", "done", f"last weekly {weekly}"))
+    return out
+
+
+def build_next(payload: dict, *, today: date | None = None, after: str = "",
+               lane: str = "", rules_path: Path | None = None) -> dict:
+    """The `next` block: the command decides, the agent renders it.
+
+    DESIGN-020 § 5.3–5.4 and its § 9 entry of 2026-09-15. Facts from
+    `next_facts`, rules from `reference/next-rules.json`, evaluated overlays
+    first and then in declared order. The first rule that fires is `primary`;
+    the next two that recommend a DIFFERENT command are `alternates`. `after`
+    keeps the sequence rules that may fire after that subcommand and `lane`
+    keeps one lane's; the overlays are kept by both, because they always win.
+    """
+    today = today or date.today()
+    path = rules_path or NEXT_RULES_PATH
+    facts, unknown_why = next_facts(payload, today)
+    doc, errors = load_next_rules(path)
+    thresholds, listed = next_thresholds(doc)
+    spines = set(facts["project.spines"] or [])
+    declared = eligible = 0
+    fired: list[tuple[dict, list[str]]] = []
+    unknown_rules: dict[str, list[str]] = {}
+    seen: set = set()
+    sections = [("overlay", r) for r in doc.get("overlays") or []] + \
+               [("sequence", r) for r in doc.get("rules") or []]
+    for kind, rule in sections:
+        declared += 1
+        problems = next_rule_problems(rule, seen)
+        if isinstance(rule, dict) and isinstance(rule.get("id"), str):
+            seen.add(rule["id"])
+        if problems:
+            errors.extend(problems)
+            continue
+        if kind == "sequence":
+            if rule["spine"] != "any" and rule["spine"] not in spines:
+                continue
+            if lane and rule["lane"] != lane:
+                continue
+            if after and after not in rule["after"]:
+                continue
+        eligible += 1
+        try:
+            truth, because, cannot = next_evaluate(rule["when"], facts,
+                                                   unknown_why, thresholds)
+        except _RuleError as exc:
+            errors.append(f"{rule['id']}: {exc}")
+            continue
+        if truth is True:
+            fired.append((rule, because))
+        elif truth is None:
+            for fact in cannot:
+                listed_for = unknown_rules.setdefault(fact, [])
+                if rule["id"] not in listed_for:
+                    listed_for.append(rule["id"])
+
+    def recommend(rule: dict, because: list[str]) -> dict:
+        return {"rule": rule["id"], "lane": rule["lane"],
+                "command": _fill(rule["command"], facts, unknown_why),
+                "reason": _fill(rule["reason"], facts, unknown_why),
+                "facts": because}
+
+    primary = recommend(*fired[0]) if fired else None
+    alternates: list[dict] = []
+    used = {primary["command"]} if primary else set()
+    for rule, because in fired[1:]:
+        if len(alternates) == 2:
+            break
+        candidate = recommend(rule, because)
+        if candidate["command"] in used:
+            continue
+        used.add(candidate["command"])
+        alternates.append(candidate)
+
+    return {
+        "contract": NEXT_CONTRACT,
+        "semantics": [],
+        "position": next_position(facts, unknown_why, thresholds),
+        "primary": primary,
+        "alternates": alternates,
+        "unknown": [{"fact": fact, "reason": unknown_why[fact], "rules": rules}
+                    for fact, rules in unknown_rules.items()],
+        "conformance": {
+            "rules_file": (path.relative_to(PERRY_HOME).as_posix()
+                           if path.is_relative_to(PERRY_HOME) else str(path)),
+            "rules_declared": declared,
+            "rules_eligible": eligible,
+            "rules_fired": len(fired),
+            "filters": {"after": after, "lane": lane},
+            "today": today.isoformat(),
+            "thresholds": listed,
+            "rule_errors": errors,
+        },
+    }
 
 
 # ── dashboard text form ───────────────────────────────────────────────────
@@ -2632,6 +3230,12 @@ SURFACE = {
          "the standup rows as plain text, pre-computed"},
         {"name": "--section", "arg": "name", "summary":
          "one top-level key of the full payload, in full"},
+        {"name": "--after", "arg": "subcommand", "summary":
+         "with --section next: only the rules that may fire after this "
+         "subcommand, plus the overlays"},
+        {"name": "--lane", "arg": "lane", "summary":
+         "with --section next: only this lane's rules (goals, work or "
+         "decide), plus the overlays"},
     ],
     "subcommands": [],
 }
@@ -2660,6 +3264,20 @@ def main(argv: list[str]) -> int:
             else "compact" if "--compact" in read["seen"] else "json")
     section = read["values"].get("--section")
     root_arg = read["values"].get("--root")
+    after = read["values"].get("--after")
+    lane = read["values"].get("--lane")
+    if (after is not None or lane is not None) and section != "next":
+        print("perry-state: --after and --lane narrow --section next and "
+              "nothing else (try --help)", file=sys.stderr)
+        return 2
+    if lane is not None and lane not in NEXT_LANES:
+        print(f"perry-state: --lane takes one of {', '.join(NEXT_LANES)}, "
+              f"not {lane!r}", file=sys.stderr)
+        return 2
+    if after is not None and not re.fullmatch(r"[a-z][a-z0-9-]*", after):
+        print(f"perry-state: --after takes a subcommand name, not {after!r}",
+              file=sys.stderr)
+        return 2
 
     project_root = resolve_root(root_arg)
     # State may live in a subdirectory (`state_root` in `.perry/config.jsonl`)
@@ -2704,7 +3322,11 @@ def main(argv: list[str]) -> int:
         if section not in payload:
             print(f"perry-state: no section {section!r}. Keys: {', '.join(payload)}", file=sys.stderr)
             return 2
-        payload = {section: payload[section]}
+        if section == "next" and (after or lane):
+            payload = {"next": build_next(payload, after=after or "",
+                                          lane=lane or "")}
+        else:
+            payload = {section: payload[section]}
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
