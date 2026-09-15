@@ -482,8 +482,13 @@ class TestAnAdditionIsAllowedAndAnnounced(unittest.TestCase):
                       "current minor is unrepresented")
 
     def test_typed_status_alias_change_is_announced(self):
+        # TASK-441 left this one on the checkout. It reads no phase: `semantics`
+        # is built from the tool's own constants. It is also a recorded,
+        # judged entry in `tests/live_state_expectations.py`'s floor, and
+        # moving it to the copy made that finding "gone" without anything
+        # being fixed.
         proc = subprocess.run([sys.executable, "bin/perry-task", "list",
-                               "--all", "--json", "--root", str(project())],
+                               "--all", "--json"],
                               capture_output=True, text=True, cwd=ROOT)
         payload = json.loads(proc.stdout)
         entry = next((item for item in payload["semantics"]
