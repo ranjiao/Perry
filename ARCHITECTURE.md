@@ -96,7 +96,10 @@ there is no cross-project registry).
   ask the user. A lane **renders** the next step `perry-state --section next`
   returns; it never reorders, adds or drops a recommendation, and may add one
   line marked as its own note (`perry/design/DESIGN-020-guided-planning.md § 9`,
-  the 2026-09-15 entry, confirmed by the user in session).
+  the 2026-09-15 entry, confirmed by the user in session). First-time setup
+  sits outside the next block: on a directory with no Perry state `R-setup`
+  recommends only `/perry`, and the order setup recommends after that is the
+  router's own (`SKILL.md`, first-time setup step 5).
 - **Doesn't own**: any number, or which step to recommend. Every figure a lane
   prints comes from a `bin/` call, and so does the recommendation.
 
@@ -309,6 +312,12 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   key?** *Proposed* (TASK-442). §4 describes a section as one key in full.
   `--section next` with `--lane` or `--after` prints a block evaluated over
   fewer rules, which is not what `--json` carries under `next`.
+- **OQ-7 — Does the phase heartbeat survive the move to `--section next`?**
+  *Proposed* (TASK-442). `goals/SKILL.md` prompted a phase snapshot after
+  `phase_heartbeat_days`. That prompt is now the rule `R-phase-heartbeat`, but
+  no value in `perry-state`'s payload dates the last snapshot, so the rule
+  reports its fact unknown and never fires. Keeping it needs `perry-state` to
+  compute that date; dropping it means deleting the rule.
 
 ## §8. Change log
 
@@ -321,7 +330,13 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   - §2 `schema/`: eight contract pages. §2 `reference/`: it holds the rule
     table `bin/` evaluates.
   - §4's read path names the narrowed `--section next`.
-  - §7 gains three questions marked proposed. §1, §3 and §6 are not edited.
+  - §2's lanes say first-time setup sits outside the next block.
+  - §7 gains four questions marked proposed. The fourth is the phase
+    heartbeat. `goals/SKILL.md`'s heartbeat prompt became the rule
+    `R-phase-heartbeat`, declared with its fact reported unknown, because
+    `perry-state` computes no date for the last snapshot. It sits after
+    `R-review-due`, because DESIGN-020's order has no place for it.
+  - §1, §3, §5 and §6 are not edited.
 - 2026-09-15 · v1 · **User-confirmed** (NN-6), after TASK-262 rounds 4a and 4b
   retired a `BOARD.md` a project still holds:
   - §6 NN-2 takes the wording proposed in
