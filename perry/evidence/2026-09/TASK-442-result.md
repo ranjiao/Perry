@@ -6,7 +6,95 @@
 > `1970b6c2` step 4 (the mutation-found test and this file) · `bf9a1d9a` step 5
 > (`--help` back under its cap) · `384f27ac` step 6 (§ 7 of this file).
 > Round 2: `9a3b7c10` merge of main (`ba11da7a`) · `905fb1bf` command pins ·
-> `81b6c43d` the architecture documents · this section.
+> `81b6c43d` the architecture documents · `8c779cca` the round-2 section.
+> Round 3: `08929751` the id fix · `eacba06c` the goals lane and the heartbeat
+> rule · `9db8d934` `ARCHITECTURE.md` · this section.
+
+## Round 3 — the second review FAIL (§2 lanes) and the `test_diagnose` red
+
+### R3.1 The `test_diagnose` red was this branch's
+
+`tests/test_diagnose.py TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks`
+reported five dangling ids, all in this file:
+
+- **A design id and an ask id** were cited in the round-2 section. Neither
+  exists on main or on this branch; both were uncommitted in another checkout. The line now says a separate KR design has
+  already decided the KR-direction question, without the ids.
+- **The three new open questions** were cited by their ids. `ARCHITECTURE.md`
+  says an open question is referred to by its section, because that id prefix
+  is not a citation family, so the line now says §7.
+
+My round-2 suite ran on `81b6c43d`, before the result-file commit, which is how
+the red was missed. On this branch, the open-question ids now appear only in
+their own §7 headings, the form the three older questions already take. No
+other file cites them. This section names the questions by section for the same
+reason.
+
+### R3.2 The review's items
+
+- **(a)** `goals/SKILL.md`'s no-phase line no longer suggests
+  `/okr plan-phase`. It says the next block recommends starting a phase
+  (`R-no-phase`).
+- **(b)** The two soft prompts are described as rules of
+  `perry-state --section next`, which the lane does not evaluate:
+  - KR-progress is `R-phase-closable`, recommending `/perry work end-phase-retro`
+    and not `score-phase`;
+  - the heartbeat is `R-phase-heartbeat`.
+- **(c) The heartbeat was declared with its fact unknown, not computed.**
+  - **Why unknown:** `perry-state` computes no date for the last phase snapshot.
+    The payload has no snapshot field, and `viewer/parsers.py` has no snapshot
+    reader, so computing one would be a new read of state (NN-1).
+  - **The rule:** `R-phase-heartbeat` (spine `project`, lane `goals`,
+    `/perry goals snapshot`, `after: []`) with threshold `phase_heartbeat_days`
+    set to 14. The schema declares no such threshold. The project's own
+    setting is not in the payload, so it is not read.
+  - **Placement:** after `R-review-due`, because DESIGN-020's order has no
+    place for it.
+  - **Where it is recorded:** `reference/next.md` explains it, and the fact is
+    listed among the always-unknown ones. `ARCHITECTURE.md` §7 asks, as
+    *Proposed*, whether the heartbeat survives, and the §8 TASK-442 entry
+    records the choice.
+  - **Test:** `test_the_phase_heartbeat_is_declared_and_its_fact_is_unknown`
+    shows the fact unknown on an active phase and absent without one. With the
+    fact patched known, the rule fires at 14 days with that command, and stays
+    quiet at 13. The rule-file bound test pins its place after `R-review-due`.
+- **(d)** `ARCHITECTURE.md § 2` (lanes) says first-time setup sits outside the
+  next block: `R-setup` recommends only `/perry`, and setup's recommended order
+  is the router's. `SKILL.md` is untouched, 20,457 bytes on both main and this
+  branch.
+
+**Constraints.** Against main, every `ARCHITECTURE.md` hunk falls in §2, §4, §7
+or §8, so §1, §3, §5 and §6 are byte-identical. The document is 379 lines, under
+its cap of 500. `goals/SKILL.md` is 21,235 bytes, under 22,528. No new §8 entry
+claims a confirmation. On this repository, `perry-state --section next` now
+declares 18 rules with no rule errors and lists `phase.days_since_snapshot` as
+unknown.
+
+### R3.3 Mutations and modules, before this commit
+
+Every mutation ran on a scratch copy, each against a green unmutated control, with 43 tests:
+
+| Mutation | Result | Named red |
+|---|---|---|
+| M1–M9, M10 (the round-2 `R-no-okr` command) | all red | as recorded in rounds 1 and 2 |
+| **M12** the heartbeat fact made known (99 days) | **red, 1/43** | `test_the_phase_heartbeat_is_declared_and_its_fact_is_unknown` |
+| **M13** delete `R-phase-heartbeat` | **red, 3/43** | the heartbeat test, `test_every_rule_id_is_explained_on_the_page_and_nothing_else_is`, `test_the_bound_three_overlays_ten_rules_and_the_replacements` |
+| M11 `R-asks-waiting`'s command changed | GREEN | the round-2 finding, unchanged: a command is pinned only where a fixture makes that rule primary |
+
+Nine modules were run alone on the working tree, and all are green:
+
+- `test_next_section`, 43 tests;
+- `test_diagnose`, 158;
+- `test_architecture_rules`, 32;
+- `test_router_budget`, 9;
+- `test_reference_pages_are_reachable`, 6;
+- `test_shipped_vocabulary`, 52;
+- `test_pointers_resolve`, 5;
+- `test_contract_key_parity`, 45;
+- `test_semantics_on_every_payload`, 14.
+
+The full suite runs after this section is committed, on that commit, and its
+result is reported in the round-3 RESULT block rather than here.
 
 ## Round 2 — the architecture review FAIL and the PMO's finding
 
