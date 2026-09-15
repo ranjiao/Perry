@@ -34,6 +34,8 @@ Run: python3 tests/parallel test_events_feed
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "schema/events-list-contract.md")
+
 import ast
 import importlib.machinery
 import importlib.util

@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-detect-host",
+    "bin/perry-dispatch-limit",
+    "bin/perry-update-check",
+    "setup",
+    "reference/host-capabilities.md",
+    "work/reference/",
+    "packs/software-ops/architecture.md",
+)
+
 import json
 import os
 import re

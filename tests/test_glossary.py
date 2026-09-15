@@ -17,6 +17,14 @@ Run: python3 tests/parallel test_glossary
 
 from __future__ import annotations
 
+COVERS = (
+    "reference/glossary.md",
+    "bin/perry-explain",
+    "bin/perry-lint",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import pathlib
 import re

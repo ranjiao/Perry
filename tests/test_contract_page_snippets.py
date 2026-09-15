@@ -42,6 +42,14 @@ Run: python3 tests/parallel test_contract_page_snippets
 
 from __future__ import annotations
 
+COVERS = (
+    "schema/task-list-contract.md",
+    "bin/perry-task",
+    "bin/README.md",
+    "perry/",
+    ".perry/",
+)
+
 import ast
 import builtins
 import json

@@ -38,6 +38,18 @@ Run: python3 tests/parallel test_contract_key_parity
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-goals",
+    "bin/perry-decide",
+    "bin/perry-knowledge",
+    "bin/lib/",
+    "schema/",
+    "README.md",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import pathlib
 import re

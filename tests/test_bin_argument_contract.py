@@ -27,6 +27,8 @@ Run: python3 tests/parallel -j 4 test_bin_argument_contract
 
 from __future__ import annotations
 
+COVERS = ("bin/",)
+
 import json
 import os
 import subprocess

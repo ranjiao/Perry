@@ -34,6 +34,8 @@ Run: python3 tests/parallel test_design_handoff
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "bin/perry_store.py")
+
 import importlib.machinery
 import importlib.util
 import json

@@ -12,6 +12,8 @@ Run: python3 tests/parallel test_asks_list
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "perry/", ".perry/")
+
 import json
 import pathlib
 import subprocess

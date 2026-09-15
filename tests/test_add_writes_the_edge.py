@@ -45,6 +45,14 @@ Run: python3 tests/parallel test_add_writes_the_edge
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-state",
+    "bin/perry_store.py",
+    "reference/okr-linkage.md",
+    "schema/state-schema.json",
+)
+
 import json
 import os
 import pathlib

@@ -22,6 +22,8 @@ Run: python3 tests/parallel test_amend_matches_create
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-goals", "viewer/tables.py")
+
 import importlib.machinery
 import importlib.util
 import pathlib

@@ -23,6 +23,8 @@ Run: python3 tests/parallel -j 4 test_compact_payload
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-state", "SKILL.md", "reference/snapshot.md")
+
 import json
 import os
 import sys

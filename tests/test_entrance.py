@@ -16,6 +16,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = ("setup", "SKILL.md", "README.md", "AGENTS.md", "INSTALL.md")
+
 import re
 import unittest
 from pathlib import Path

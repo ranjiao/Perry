@@ -49,6 +49,8 @@ got — `state_root_from` is `"resolver"` or `"fallback"` — and
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-churn",)
+
 import json
 import os
 import subprocess

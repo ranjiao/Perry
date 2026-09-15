@@ -31,6 +31,16 @@ Run: python3 tests/parallel test_a_write_refuses_where_nothing_is_installed
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-goals",
+    "bin/perry-okr",
+    "bin/perry-config",
+    "bin/perry_store.py",
+    "bin/perry_md_store.py",
+    "bin/lib/",
+)
+
 import importlib.machinery
 import importlib.util
 import json

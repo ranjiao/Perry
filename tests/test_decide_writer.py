@@ -25,6 +25,16 @@ it is the one that goes red if a writer comes back.
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-decide",
+    "decide/",
+    "schema/decide-list-contract.md",
+    "work/reference/bootstrap.md",
+    "SKILL.md",
+    "README.md",
+    "setup",
+)
+
 import json
 import os
 import re

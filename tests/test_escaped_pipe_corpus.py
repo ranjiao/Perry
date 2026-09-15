@@ -22,6 +22,8 @@ Run: python3 tests/parallel test_escaped_pipe_corpus
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "bin/perry-state", "bin/perry-lint", "viewer/")
+
 import json
 import pathlib
 import shutil

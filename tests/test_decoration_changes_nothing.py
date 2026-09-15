@@ -17,6 +17,16 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-state",
+    "bin/perry-task",
+    "bin/perry-lint",
+    "viewer/",
+    "tests/printed_board.py",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import re
 import shutil

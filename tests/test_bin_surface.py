@@ -17,6 +17,8 @@ Run: python3 tests/parallel -j 4 test_bin_surface
 
 from __future__ import annotations
 
+COVERS = ("bin/", "README.md", "perry/", ".perry/")
+
 import ast
 import json
 import os

@@ -59,6 +59,14 @@ Run: python3 tests/parallel test_add_refuses_without_an_answer
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/lib/",
+    "goals/reference/phases.md",
+    "reference/okr-linkage.md",
+    "work/reference/subcommands.md",
+)
+
 import json
 import pathlib
 import sys

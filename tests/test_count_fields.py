@@ -18,6 +18,13 @@ Run: python3 tests/parallel test_count_fields
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "schema/task-list-contract.md",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import pathlib
 import re

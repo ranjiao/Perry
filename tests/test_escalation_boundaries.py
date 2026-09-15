@@ -41,6 +41,13 @@ Run: python3 tests/test_escalation_boundaries.py
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/",
+    "viewer/",
+    "work/reference/dispatch.md",
+    "work/state/hook_TEMPLATE.md",
+)
+
 import json
 import re
 import tempfile

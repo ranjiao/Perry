@@ -61,6 +61,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = ("bin/", "viewer/", "templates/", "perry/", "tests/header_rule.py")
+
 import shutil
 import sys
 import tempfile

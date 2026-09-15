@@ -34,6 +34,8 @@ Run: python3 tests/parallel test_heading_title
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-explain", "reference/user-load.md")
+
 import importlib.util
 import json
 import re

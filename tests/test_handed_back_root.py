@@ -71,6 +71,12 @@ matching anything is itself a failure, so the table cannot rot into a blanket.
 """
 from __future__ import annotations
 
+COVERS = (
+    "bin/",
+    "tests/handed_back.py",
+    "tests/sweep_handed_back_commands.py",
+)
+
 import ast
 import importlib.machinery
 import importlib.util
