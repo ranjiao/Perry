@@ -262,3 +262,63 @@ Deliverable:
    returns); one (c) reader restored.
 7. Verification 1–4 and 6 again, and re-make the board sample only if the
    output changed (it should not).
+
+## Amendment (4) — 2026-09-15, round 4: full retirement, with the pins lifted (user decisions)
+
+Round 3 stopped correctly on contract pins (`TASK-262-round3-result.md § 1`,
+P1–P6, verified by the PMO) and measured the blast radius (Stage A: 40 red
+modules; Stage B: 20). The user decided, 2026-09-15:
+
+- **Scope: full retirement as Amendment (3) wrote it.** The contract pins are
+  lifted: amend `schema/task-list-contract.md` (P1, P2, P3, P6),
+  `schema/asks-list-contract.md` (P4) and `schema/goals-list-contract.md` (P5),
+  each with a **minor version bump and a `semantics[]` entry** in the tool that
+  emits it, following how `installed` was added in TASK-237 3b′.
+- **F14: re-point, do not drop.** `done-needs-evidence`, `check_verification`'s
+  board pass and `check_reviews`' V4 board pass judge **terminal
+  `tasks.jsonl` records that carry no `done` event** (the imported ones) instead
+  of hand-kept board rows. PMO measured this repository at `81a0e808`: 267
+  `done` records, 0 without a `done` event, so it adds no warning here.
+- **`schema/state-schema.json`, consent for exactly two text edits:**
+  `files[id=board].note` (a held file is retired and read only by the import
+  verbs; the headings and tables stay declared because `perry-tasks board` lays
+  the board out from them) and `cross_file[id=done-needs-evidence].description`
+  (a `tasks.jsonl` record, not a BOARD row). **Any other edit to that file:
+  stop and report.**
+- **NN-2:** the user accepted round 3 § 5's wording. The PMO edits
+  `ARCHITECTURE.md` at merge; executors do not.
+
+Delivered in **two rounds, in order**, because both reshape the same tests:
+
+**Round 4a — the write path.**
+1. Amendment (3) item 1: every `perry-task` write builds from the declared
+   board; `commit()` never writes a board file; `risk-migrate` keeps reading
+   `## Top risks` as its import input and never rewrites the file.
+2. The hint (round 3 § 4's wording, defined once in `bin/lib`) on stderr after a
+   successful write where a `BOARD.md` exists.
+3. P1 rewritten, with the `perry-task/list` version/semantics entry if the
+   payload's meaning changes (if it does not, say why no bump).
+4. F12: the ~40 modules that assert held-board write behaviour are rewritten to
+   the board-less behaviour or deleted with it — each deletion named with the
+   behaviour it tested. No test is weakened to pass.
+5. F13: delete `refuse_store_drift`.
+6. Mutations: the rewrite re-enabled; the hint suppressed; the stale-board
+   refusal restored.
+
+**Round 4b — every other reader** (after 4a merges).
+1. F15 first: upgrade `tests/fixtures/sample-project` and any other fixture
+   holding a board and no stores, by the documented upgrade procedure, with
+   expectations re-derived rather than copied.
+2. Retire every class-(c) reader in round 3 § 3: `viewer/parsers.py §
+   load_snapshot`, the `perry-task list`/`asks` fallbacks, `drift`,
+   `perry-state`, `lib.task_status_index`, `perry-diagnose`, `perry-lint`
+   (F14 re-pointed as above), with P2–P6 and the two `state-schema.json` notes.
+3. The hint from `perry-tasks board` and as a `perry-lint --root` warning.
+4. Docs: `reference/version-compatibility.md`, `bin/README.md`,
+   `bin/ARCHITECTURE.md`, and any contract prose round 3 § 6 lists.
+5. Mutations: one retired reader restored; an F14 pass dropped; the lint hint
+   suppressed.
+
+Both rounds: import verbs (class a) keep reading; render/diff/verify verbs
+(class b) stay for `R5`; stdout of non-contract output and exit codes change
+only where a contract amendment says so; the suite on the final commit.
