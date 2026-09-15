@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: user (§1, §3 Forbidden, §5 versions, §6, §7)
 > Version: v1
-> Last reviewed: 2026-09-14
+> Last reviewed: 2026-09-15
 > Hard cap: ≤ 500 lines. It has two readers — the user in one sitting, and every
 > agent that is dispatched against it — and the second one pays for it per turn.
 > Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`.
@@ -68,11 +68,11 @@ there is no cross-project registry).
 
 ### `viewer/parsers.py` — the one reader
 - **Purpose**: parse every state file. 5,228 lines, one implementation.
-- **Owns**: `OKR.md`, phase, linkage, config and architecture parsing, the
-  store readers the read payloads answer from, and the reader of a `BOARD.md` a
-  project still holds (none is written since TASK-237 3c); the project-root and
-  state-root resolution, and the `installed` predicate, both `bin/` and the
-  skill read through.
+- **Owns**: `OKR.md`, phase, linkage, config and architecture parsing, and the
+  store readers the read payloads answer from — a `BOARD.md` a project still
+  holds is parsed only for the import verbs (TASK-262 round 4b); the
+  project-root and state-root resolution, and the `installed` predicate, both
+  `bin/` and the skill read through.
 - **Doesn't own**: writing. A second parser is the defect this repository has
   shipped twice; `NN-1` below is that rule.
 
@@ -140,8 +140,10 @@ Forbidden, and each one has cost this project something:
 
 **The store is truth; the markdown is a projection of it** (`ADR-007`). Every
 mutating command writes the record first. The board is not a file:
-`perry-tasks board` prints it from the stores, and a `BOARD.md` a project still
-holds is re-rendered from the record and never created (TASK-237 3c).
+`perry-tasks board` prints it from the stores. A `BOARD.md` a project still
+holds is retired — no write or reader uses it, only the `--from-board` imports
+read it, and every tool that sees it says to import and then delete it
+(TASK-262 rounds 4a and 4b).
 
 ```mermaid
 flowchart LR
@@ -149,11 +151,10 @@ flowchart LR
         direction TB
         A["perry-task &lt;verb&gt;"] --> B["tasks.jsonl<br/>the record"]
         B --> C["journal/&lt;YYYY-MM&gt;/&lt;day&gt;.md<br/>the history line"]
-        B --> D["BOARD.md, only where a project still holds one<br/>re-rendered from the record, never created"]
         B --> E[".perry/events.jsonl<br/>derived, disposable"]
     end
     B -.->|"(1) and (2) are one<br/>recoverable transaction"| C
-    D -.->|"(3) and (4) may fail alone<br/>— reported, not silent"| E
+    C -.->|"(3) may fail alone<br/>— reported, not silent"| E
 ```
 
 Eight stores exist, one verdict line each in `perry-lint`'s census:
@@ -170,7 +171,7 @@ flowchart LR
     S -->|"--compact ≈ 11KB"| Standup["the standup, every session"]
     S -->|"--section &lt;name&gt;"| Detail["one key, in full"]
     S -->|"--json ≈ 174KB"| Whole["the whole payload"]
-    T["perry-task list --json"] -->|"contract 2.3, bounded"| Outside([aiMark])
+    T["perry-task list --json"] -->|"contract 2.4, bounded"| Outside([aiMark])
 ```
 
 ## §5. Contracts
@@ -186,9 +187,10 @@ flowchart LR
   fall back to editing the file by hand.
 
 ### Contract: `perry-task list --json` → outside consumers
-- `schema/task-list-contract.md`, version **2.3** (confirmed by the user
-  2026-09-14; 2.2 adds `installed`, 2.3 narrows it to a store with `.perry/`
-  beside it). `tasks[]` is bounded at 200
+- `schema/task-list-contract.md`, version **2.4** (confirmed by the user
+  2026-09-15; 2.2 adds `installed`, 2.3 narrows it to a store with `.perry/`
+  beside it, 2.4 reads no `BOARD.md` a project still holds — TASK-262 round
+  4b). `tasks[]` is bounded at 200
   rows by default; `bound.open_total` carries the project's figure.
 - **Error mode**: a refusal is JSON on stdout, not prose on stderr.
 
@@ -213,11 +215,12 @@ flowchart LR
 
 ### NN-2 — The store is truth; the projection is rendered
 - **Severity**: hard
-- **Rule**: a mutating command writes the record first. Every reading of it —
-  a payload, `perry-tasks board`, and a projection file a project still
-  holds — is derived from the record; a projection file is re-rendered from it
-  and never created. A projection edited by hand is drift, and drift is
-  REPORTED — never silently absorbed and never silently overwritten.
+- **Rule**: a mutating command writes the record first. Every reading of it — a
+  payload and `perry-tasks board` — is derived from the record. No command
+  reads, renders or creates a board file; a `BOARD.md` a project still holds is
+  retired, is read only by the import verbs that upgrade the project, and every
+  tool that sees one says it can be deleted. A projection edited by hand is not
+  absorbed: the store is what every reading reports.
 - **Rationale**: `ADR-007`. Absorbing a hand edit destroys the canonical value;
   overwriting it destroys the human's intent. Both must be visible.
 
@@ -278,6 +281,19 @@ flowchart LR
 
 ## §8. Change log
 
+- 2026-09-15 · v1 · **User-confirmed** (NN-6), after TASK-262 rounds 4a and 4b
+  retired a `BOARD.md` a project still holds:
+  - §6 NN-2 takes the wording proposed in
+    `perry/evidence/2026-09/TASK-262-round3-result.md § 5`: no command reads,
+    renders or creates a board file; a held file is read only by the import
+    verbs, and every tool that sees one says it can be deleted. The "drift is
+    REPORTED" clause for the file is dropped. The user chose not to record the
+    `perry-tasks render` / `diff` / `verify` verbs, which still act on a held
+    file when called, as a known exception; they retire with `R5`.
+  - §5 `perry-task list` 2.3 → 2.4.
+  - Descriptive: §2's `viewer/parsers.py` no longer reads a held board for
+    payloads; §4's prose and write diagram lose the re-rendered `BOARD.md`
+    node, and its read-path label moves to 2.4.
 - 2026-09-14 · v1 · TASK-237 3c, measured on its branch:
   - `perry/BOARD.md` is deleted. §2's `viewer/parsers.py` no longer owns a
     board this repository holds; §4's write diagram and its sentence name the
