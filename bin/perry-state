@@ -25,10 +25,6 @@ Usage:
                 came to hold two different ones, neither of them current
   --dashboard   the standup dashboard rows as plain text, pre-computed
   --section     emit one top-level key only (board / phase / okr / design / …)
-  --after, --lane
-                with `--section next` only: keep the rules that may fire after
-                one subcommand, or one lane's rules; the overlays stay in both.
-                `reference/next.md` explains the block and every rule in it
   --root        project root; default $PERRY_PROJECT, else walk up from cwd
 
   `--section project` prints, under `project.escalation`, the project's
@@ -3231,11 +3227,9 @@ SURFACE = {
         {"name": "--section", "arg": "name", "summary":
          "one top-level key of the full payload, in full"},
         {"name": "--after", "arg": "subcommand", "summary":
-         "with --section next: only the rules that may fire after this "
-         "subcommand, plus the overlays"},
+         "--section next only: rules that may fire after it"},
         {"name": "--lane", "arg": "lane", "summary":
-         "with --section next: only this lane's rules (goals, work or "
-         "decide), plus the overlays"},
+         "--section next only: goals, work or decide rules"},
     ],
     "subcommands": [],
 }
