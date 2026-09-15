@@ -22,6 +22,9 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 
 import parsers as P  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from held_board import import_board  # noqa: E402
+
 
 def read(rel: str) -> str:
     return (PERRY_HOME / rel).read_text()
@@ -851,11 +854,11 @@ class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
 
 ## User Input Queue
 
-| USER-id | Needed from user | Blocks | Idle | Status |
+| USER-id | Needed from user | Blocks | Asked | Status |
 |---|---|---|---|---|
-| USER-001 | Answered one | TASK-005 | 3d | **answered 2026-08-16: 30 days** |
-| USER-002 | Still waiting | TASK-006 | 9d | pending |
-| USER-003 | Also waiting | — | 1d | — |
+| USER-001 | Answered one | TASK-005 | 2026-08-01 | **answered 2026-08-16: 30 days** |
+| USER-002 | Still waiting | TASK-006 | 2026-08-05 | pending |
+| USER-003 | Also waiting | — | 2026-08-13 | — |
 
 ## Cadence
 
@@ -876,6 +879,12 @@ class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
             # writes declares the project and nothing else.
             (root / ".perry" / "config.jsonl").write_text("", encoding="utf-8")
             (root / "BOARD.md").write_text(self.BOARD)
+            # **The queue reaches `perry-state` through its import** (TASK-262
+            # round 4b): a held `## User Input Queue` is not read. The fixture
+            # carried `Idle` cells until then; `asks.jsonl` holds no `Idle`, so
+            # the ages are `Asked` dates in the same order (USER-001 oldest,
+            # USER-003 newest) and "the oldest unanswered" is still USER-002.
+            import_board(root, "asks-write")
             r = subprocess.run(
                 ["python3", str(PERRY_HOME / "bin" / "perry-state"),
                  "--root", str(root), "--json"], capture_output=True, text=True)

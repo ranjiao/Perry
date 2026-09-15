@@ -82,6 +82,10 @@ class Base(unittest.TestCase):
         config_store.write_config(root, SETTINGS, tracks)
         (root / "perry" / "BOARD.md").write_text(
             "# Board\n\n## P1\n\n" + HEAD + board_rows, encoding="utf-8")
+        # **The rows reach `perry-state` through their import** (TASK-262
+        # round 4b). It read the held board's rows until then — which is why
+        # `import_board` below said only `perry-task list` needed one.
+        self.import_board(root)
         return root
 
     def state(self, root: Path) -> dict:

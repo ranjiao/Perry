@@ -245,28 +245,6 @@ class TestIdleIsDerivedAndIsNotStored(unittest.TestCase):
                          "`Asked` wins, and the answer is right this morning "
                          "rather than on the morning the cell was typed")
 
-    def test_editing_idle_by_hand_is_not_drift(self):
-        """**The cost, and it is the intended one.** The store asserts nothing
-        about this column, so `perry-lint` reports nothing when it changes. A
-        checker that reported it would be inventing a claim to enforce."""
-        p = _imported(self)
-        _edit(p, "| 3d | pending | 2026-08-25 |", "| 47d | pending | 2026-08-25 |")
-        stats = _lint(p.root)["ask_store_drift"]
-        self.assertEqual(stats["records"], 4)
-        self.assertEqual(stats["drifted"], 0)
-
-    def test_editing_asked_by_hand_IS_drift(self):
-        """The mirror, and the reason the pair is the design rather than a gap:
-        the INPUT is stored, so editing it moves every age computed from it and
-        is reported like any other cell."""
-        p = _imported(self)
-        _edit(p, "| 3d | pending | 2026-08-25 |", "| 3d | pending | 2026-07-12 |")
-        stats = _lint(p.root)["ask_store_drift"]
-        self.assertEqual(stats["drifted"], 1)
-        findings = [f for f in _lint(p.root)["findings"]
-                    if f["rule"] == "ask-store-drift"]
-        self.assertIn("`asked`", findings[0]["message"])
-
     def test_render_write_does_not_repair_an_edited_idle_cell(self):
         """And the store does not put it back, because it never held it. Every
         stored column is restored and `Idle` is left as the human left it —
@@ -282,7 +260,10 @@ class TestIdleIsDerivedAndIsNotStored(unittest.TestCase):
                       "the stored cell came back from the store")
         self.assertIn("| 47d |", board,
                       "the derived cell was left alone")
-        self.assertEqual(_lint(p.root)["ask_store_drift"]["drifted"], 0)
+        # (TASK-262 round 4b) The `drifted == 0` lint assertion that stood here
+        # is gone: no board file is compared with its store any more, so the
+        # register's `drifted` is its empty default whatever the files say,
+        # and asserting it would pass for no reason (round 4b result F33).
 
 
 class TestBlocksIsStoredBecauseItIsNotDerivable(unittest.TestCase):
@@ -302,7 +283,10 @@ class TestBlocksIsStoredBecauseItIsNotDerivable(unittest.TestCase):
         self.assertEqual(
             [t["id"] for t in tasks if "USER-001" in (t.get("depends_on") or [])],
             [], "no inverse edge exists, so there is nothing to derive from")
-        self.assertEqual(_lint(p.root)["ask_store_drift"]["drifted"], 0)
+        # (TASK-262 round 4b) The `drifted == 0` lint assertion that stood here
+        # is gone: no board file is compared with its store any more, so the
+        # register's `drifted` is its empty default whatever the files say,
+        # and asserting it would pass for no reason (round 4b result F33).
 
     def test_a_blocks_cell_that_is_not_an_id_at_all_survives(self):
         """The contract calls it *"free text, often a task id"*. Often is not
@@ -595,13 +579,6 @@ class TestDriftIsReportedRatherThanAbsorbed(unittest.TestCase):
     """ADR-007 decision 2 over the fourth register, and the honest-line rule
     `perry-lint` follows for the other three."""
 
-    def test_a_clean_import_reports_no_drift(self):
-        p = _imported(self)
-        stats = _lint(p.root)["ask_store_drift"]
-        self.assertEqual(stats, {"store_present": True,
-                                 "comparison_performed": True,
-                                 "records": 4, "drifted": 0})
-
     def test_no_store_is_not_the_same_answer_as_a_clean_one(self):
         self._held = p = Project(board=board_with(REGISTER))
         payload = _lint(p.root)
@@ -616,41 +593,6 @@ class TestDriftIsReportedRatherThanAbsorbed(unittest.TestCase):
         self.assertIn("no `asks.jsonl`", out.stdout)
         self.assertIn("unchecked, not clean", out.stdout)
 
-    def test_one_hand_edit_is_exactly_one_finding(self):
-        p = _imported(self)
-        _edit(p, "sign off on the migration plan", "sign off on the PLAN")
-        payload = _lint(p.root)
-        rows = [f for f in payload["findings"] if f["rule"] == "ask-store-drift"]
-        self.assertEqual(len(rows), 1)
-        self.assertIn("USER-004", rows[0]["message"])
-        self.assertEqual(payload["ask_store_drift"]["drifted"], 1)
-
-    def test_a_row_the_store_never_saw_is_reported_once(self):
-        """And an inserted row does NOT report every row below it — the key is
-        the id, so nothing beneath it was renamed. That is the difference from
-        `## Intake`, where the position IS the name."""
-        p = _imported(self)
-        _edit(p, "| USER-002 |",
-              "| USER-009 | a brand new question | — | — | pending | "
-              "2026-08-28 |\n| USER-002 |")
-        payload = _lint(p.root)
-        rows = [f for f in payload["findings"] if f["rule"] == "ask-store-drift"]
-        self.assertEqual(len(rows), 1, [r["message"] for r in rows])
-        self.assertIn("USER-009", rows[0]["message"])
-
-    def test_a_moved_row_is_reported_once_for_the_section(self):
-        p = _imported(self)
-        board = p.root / "BOARD.md"
-        lines = board.read_text().split("\n")
-        i = next(n for n, l in enumerate(lines) if l.startswith("| USER-003 |"))
-        j = next(n for n, l in enumerate(lines) if l.startswith("| USER-002 |"))
-        lines[i], lines[j] = lines[j], lines[i]
-        board.write_text("\n".join(lines))
-        rows = [f for f in _lint(p.root)["findings"]
-                if f["rule"] == "ask-store-drift"]
-        self.assertEqual(len(rows), 1, [r["message"] for r in rows])
-        self.assertIn("different order", rows[0]["message"])
-
     def test_the_ordinary_writer_reaches_the_store_and_leaves_no_drift(self):
         """**Converted by TASK-203.** It read
         `test_the_ordinary_writer_still_writes_the_section_and_that_is_drift`,
@@ -662,9 +604,9 @@ class TestDriftIsReportedRatherThanAbsorbed(unittest.TestCase):
 
         The drift READING is not lost with it. It was never this command's to
         prove — `perry-task` keeps the store current, and what drifts a store
-        is a hand edit, which
-        `TestDriftIsReportedRatherThanAbsorbed`' other four tests cover by
-        editing `BOARD.md` directly.
+        is a hand edit. `TestDriftIsReportedRatherThanAbsorbed`'s four tests
+        that edited `BOARD.md` directly left with TASK-262 round 4b, which
+        retired the comparison; a hand edit to a held file reaches nothing.
         """
         p = _imported(self)
         held = p.root / "BOARD.md"
@@ -676,14 +618,13 @@ class TestDriftIsReportedRatherThanAbsorbed(unittest.TestCase):
             capture_output=True, text=True)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         # **TASK-262 round 4a.** The write reaches the store and no longer
-        # touches the held file, so the file keeps its bytes and `perry-lint`'s
-        # drift check — which compares that file with the store, and is round
-        # 4b's to retire — would now read the answer as drift. The held file is
-        # retired and may be deleted; with it gone there is nothing to drift.
+        # touches the held file, so the file keeps its bytes.
         self.assertEqual(held.read_bytes(), before,
                          "the write rewrote the retired BOARD.md")
-        held.unlink()
-        self.assertEqual(_lint(p.root)["ask_store_drift"]["drifted"], 0)
+        # (TASK-262 round 4b) The `drifted == 0` lint assertion that stood here
+        # is gone: no board file is compared with its store any more, so the
+        # register's `drifted` is its empty default whatever the files say,
+        # and asserting it would pass for no reason (round 4b result F33).
         record = next(r for r in
                       [json.loads(l) for l in
                        (p.root / "asks.jsonl").read_text().split("\n")

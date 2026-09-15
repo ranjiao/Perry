@@ -592,7 +592,7 @@ read. The retired file itself is a `retired-board` warning.
    this section used to show only the first:
 
    ```python
-   SUPPORTED = {1: 18, 2: 3}           # major -> the minor you read against
+   SUPPORTED = {1: 18, 2: 4}           # major -> the minor you read against
 
    def pair(v):                        # "1.18" -> (1, 18). Compare versions ONLY
        major, minor = v.split(".")     # as this pair: as strings "1.5" > "1.18"

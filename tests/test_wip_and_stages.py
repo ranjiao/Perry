@@ -56,6 +56,10 @@ class Base(unittest.TestCase):
         config_store.write_config(root, SETTINGS, rows)
         (root / "perry" / "BOARD.md").write_text(
             f"# Board\n\n## {heading}\n\n" + HEAD + board_rows, encoding="utf-8")
+        # **The rows reach the readers through their import** (TASK-262 round
+        # 4b): `perry-state` reads `tasks.jsonl`, not a held board.
+        from held_board import import_board
+        import_board(root, "write", remove=False)
         return root
 
     def state(self, root: Path) -> dict:

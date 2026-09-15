@@ -246,12 +246,13 @@ class TestGoal7NoRolesChangesNothing(Base):
         results = []
         for roles_dir in (False, True):
             root = self.hooked(roles_dir)
-            (root / "BOARD.md").write_text(
-                "# Board — T\n\n## P0 (must finish this period)\n\n"
-                "| ID | Title | Owner | Status | Next action | Evidence | Verification |\n"
-                "|---|---|---|---|---|---|---|\n"
-                "| T-1 | rm -rf the cache | agent | done | — | `make x` ok | V3 |\n",
-                encoding="utf-8")
+            # A `done` record no `done` event closed (TASK-262 round 4b, F14):
+            # the held `BOARD.md` row this was is retired and not read.
+            (root / "tasks.jsonl").write_text(json.dumps({
+                "id": "T-1", "title": "rm -rf the cache", "owner": "agent",
+                "status": "done", "priority": "P0", "evidence": "`make x` ok",
+                "verification": "V3", "group": "P0 (must finish this period)",
+            }) + "\n", encoding="utf-8")
             r = subprocess.run(
                 [sys.executable, str(LINT), "--verification", "--root",
                  str(root), "--json"], capture_output=True, text=True)

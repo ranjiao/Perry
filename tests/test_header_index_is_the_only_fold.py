@@ -165,9 +165,10 @@ UNCOVERED = [
     ("carried", "bin/perry-task", "_cmd_list_from_board"),
     ("carried", "bin/perry_md_store.py", "plan"),
     ("carried", "bin/perry_store.py", "plan"),
-    ("convert", "bin/perry-lint", "check_cross_file"),
-    ("convert", "bin/perry-lint", "check_reviews"),
-    ("convert", "bin/perry-lint", "check_verification"),
+    # Three `perry-lint` sites left this list at TASK-262 round 4b (8 → 5):
+    # `check_cross_file`, `check_reviews` and `check_verification` read a held
+    # board's table headers, and now read `tasks.jsonl` records instead, so
+    # they fold no header cell at all.
     ("convert", "bin/perry-task", "task_projection_row"),
     ("convert", "bin/perry_store.py", "plan"),
 ]

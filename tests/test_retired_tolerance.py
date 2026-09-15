@@ -57,6 +57,7 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from held_board import import_board  # noqa: E402
 
 
 #: A project that never migrated, and never will unless someone asks it to.
@@ -212,19 +213,15 @@ class TestTheIdColumnFallbackIsRetired(unittest.TestCase):
     `BOARD.md` whose register had no id column (or a localized one) and
     asserted the refusal. A write now builds from the declared board, whose
     registers always carry the declared `ID` column, so none of those tables
-    reaches `find_section_row` any more; what is left is the linter's reading
-    of such a file.
-    """
+    reaches `find_section_row` any more.
 
-    def test_the_missing_column_is_a_shape_error_not_a_matter_of_taste(self):
-        """The reason the branch is retirable, asserted rather than argued:
-        `perry-lint` calls the id-less section a `table-columns` ERROR, so the
-        board cannot be declared conformant and, under `enforce`, cannot be
-        written to at all."""
-        p = Project(board=without_id_column(CONFORMANT, "Top risks"))
-        _, out, _ = p.run(LINT)
-        rules = {f["rule"] for f in out["findings"] if f["severity"] == "error"}
-        self.assertIn("table-columns", rules)
+    **The last test left with round 4b.**
+    `test_the_missing_column_is_a_shape_error_not_a_matter_of_taste` asserted
+    that `perry-lint` reads a held board's id-less `## Top risks` as a
+    `table-columns` error. A held board is retired and `perry-lint` no longer
+    lints it (`files[id=board]` is skipped), so the behaviour it held is gone.
+    The class stays as the record of why the branch is retired.
+    """
 
 
 # ── 2 · the tolerant readers that stay ────────────────────────────────────
@@ -236,20 +233,28 @@ class TestAProjectThatNeverMigratedStillReads(unittest.TestCase):
 
     Deliberately a NEW fixture. The existing suite is built almost entirely on
     boards Perry itself wrote, so it cannot see a regression here.
+
+    **Since TASK-262 round 4b the board reaches the readers through its
+    import.** A held `BOARD.md` is retired and no reader opens it, so what
+    must keep working is the documented upgrade carrying every unmigrated
+    shape here into the stores — measured: two tasks, the two bullets via
+    `risk-migrate`, the `Idle`-only queue, the prose `Frequency`, the
+    four-column `## Intake` — after which the readers read those. The file is
+    left in place, so `test_nothing_here_wrote_to_the_project` still holds.
+
+    Two tests left with the retired readers:
+    `test_perry_lint_reports_the_shape_rather_than_refusing_to_read`
+    (`perry-lint`'s `missing-section` findings over the held file, which it no
+    longer lints) and
+    `test_the_queue_age_still_computes_from_a_board_with_no_asked_column`
+    (`idle_days` read out of the file's `Idle` cell; `asks.jsonl` holds no
+    `Idle`, and a project with no `Asked` has no age, as since 2.1).
     """
 
     @classmethod
     def setUpClass(cls):
-        cls.p = Project(board=LEGACY, gate="", store=True)
-
-    def test_perry_lint_reports_the_shape_rather_than_refusing_to_read(self):
-        rc, out, _ = self.p.run(LINT)
-        self.assertEqual(rc, 1, "an unmigrated board has findings")
-        rules = [f["rule"] for f in out["findings"]]
-        self.assertIn("missing-section", rules)
-        # It read the whole file to say so — a reader that bailed on the first
-        # unfamiliar heading would report one finding, not three.
-        self.assertGreaterEqual(rules.count("missing-section"), 3)
+        cls.p = Project(board=LEGACY, gate="")
+        import_board(cls.p.root, remove=False)
 
     def test_the_namespace_check_adoption_runs_first_still_answers(self):
         """`reference/adoption.md § 3 step 0` — the one command the adoption
@@ -258,18 +263,14 @@ class TestAProjectThatNeverMigratedStillReads(unittest.TestCase):
         self.assertEqual(rc, 0, err)
 
     def test_the_shared_reader_still_reads_the_bullet_risk_register(self):
+        """The bullets crossed verbatim into `risks.jsonl` (`risk-migrate`), so
+        the register is read as a table now — `source` was `bullets` when the
+        held file was parsed — and the struck-through one is still cleared."""
         snap = P.load_snapshot(self.p.root)
-        self.assertEqual(snap.risks_source, "bullets")
+        self.assertEqual(snap.risks_source, "table")
         self.assertEqual(len(snap.top_risks), 2)
         self.assertTrue(snap.top_risks[1].resolved,
                         "the struck-through bullet is a cleared risk")
-
-    def test_the_queue_age_still_computes_from_a_board_with_no_asked_column(self):
-        """`Idle` is declared optional precisely so this board keeps working —
-        the number-out-of-the-cell branch in `bin/perry-state § idle_days` is a
-        DECLARED shape, not a tolerance, and stays."""
-        _, out, err = self.p.run(TASK, "list", "--all")
-        self.assertEqual(out["asks"]["items"][0]["idle_days"], 12, err)
 
     def test_the_projects_own_headings_are_read_and_named(self):
         _, out, err = self.p.run(TASK, "list", "--all")

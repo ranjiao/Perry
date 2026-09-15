@@ -58,7 +58,20 @@ class Base(unittest.TestCase):
                       for i in range(intake_rows)]
         (root / "perry" / "BOARD.md").write_text(
             "\n".join(board) + "\n", encoding="utf-8")
+        self.imported(root)
         return root
+
+    @staticmethod
+    def imported(root: Path) -> None:
+        """The board's tasks and `## Intake`, through their imports (TASK-262
+        round 4b): `perry-state` reads `intake.jsonl`, not a held board.
+
+        **`TestTheOverflowPrescriptionIsModeAware` left with the same round**
+        (5 tests: the `size-cap` prescription over a held board of 220 intake
+        rows — split, or do not split and triage). It policed the length of a
+        file no reader opens any more; `files[id=board]` is not linted."""
+        from held_board import import_board
+        import_board(root, "write", "intake-write", remove=False)
 
     def size_cap(self, root: Path) -> str:
         r = subprocess.run([sys.executable, str(LINT), "--root", str(root),
@@ -72,48 +85,6 @@ class Base(unittest.TestCase):
         r = subprocess.run([sys.executable, str(STATE), "--json",
                             "--root", str(root)], capture_output=True, text=True)
         return json.loads(r.stdout)
-
-
-class TestTheOverflowPrescriptionIsModeAware(Base):
-    def test_an_intake_driven_overflow_forbids_the_split(self):
-        msg = self.size_cap(self.project(intake_rows=220))
-        self.assertIn("Do not split", msg)
-        self.assertIn("Intake", msg)
-        self.assertIn("triage", msg.lower())
-        self.assertNotIn("sibling file rather than", msg)
-
-    def test_it_names_how_many_rows_are_the_cause(self):
-        """A prescription that does not name the cause is a prescription the
-        reader has to verify by hand."""
-        self.assertIn("220", self.size_cap(self.project(intake_rows=220)))
-
-    def test_an_ordinary_overflow_still_says_split(self):
-        """The old advice is right when intake is not the cause. Prescribing
-        triage to a project whose intake is empty would be as wrong as
-        prescribing a split to one whose intake is full."""
-        msg = self.size_cap(self.project(task_rows=220))
-        self.assertIn("Split the overflow", msg)
-        self.assertNotIn("Do not split", msg)
-
-    def test_a_discharged_intake_is_not_the_cause_of_the_overflow(self):
-        """The linter's counter is *undischarged* rows, not table length. A
-        board long because 220 requests were all routed and left on the record
-        is not a queue nobody is draining — and this test did not exist until a
-        mutation of that filter came back green, because every fixture had
-        every row still waiting."""
-        root = self.project(intake_rows=220)
-        board = root / "perry" / "BOARD.md"
-        text = board.read_text()
-        for i in range(215):
-            text = text.replace(f"| request {i} | — |",
-                                f"| request {i} | routed → TASK-{i:03d} |", 1)
-        board.write_text(text, encoding="utf-8")
-        msg = self.size_cap(root)
-        self.assertIn("Split the overflow", msg)
-        self.assertNotIn("Do not split", msg)
-
-    def test_a_board_inside_the_cap_says_nothing(self):
-        self.assertEqual(self.size_cap(self.project(intake_rows=5)), "")
 
 
 class TestTheStandupCanComputeTheCorrelation(Base):
@@ -132,6 +103,7 @@ class TestTheStandupCanComputeTheCorrelation(Base):
             board.read_text().replace("| request 0 | — |",
                                       "| request 0 | routed → TASK-001 |", 1),
             encoding="utf-8")
+        self.imported(root)      # the edited section, re-imported (TASK-262 4b)
         d = self.state(root)["intake"]
         self.assertEqual((d["rows"], d["undischarged"]), (3, 2))
 

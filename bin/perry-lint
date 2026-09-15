@@ -4087,11 +4087,24 @@ def check_risk_store_drift(project_root: Path, state_root: Path) -> list["Findin
 
     # The store's own count stays true with no file to compare it to: the
     # summary line read "0 valid record(s)" of a store holding four.
-    check_risk_store_drift.stats["records"] = len(
-        _STORE.validate_risk_records(on_disk)[0])
+    # **A badly-typed record is a fact about the store** and is reported
+    # on every project. Until TASK-262 round 4b this was reached only
+    # after a held board had been derived, so a board-less project never
+    # heard it; with the comparison gone it must not go too.
+    good, issues = _STORE.validate_risk_records(on_disk)
+    findings = []
+    for issue in issues:
+        rid = issue.get("id")
+        who = repr(rid) if rid else f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "risk-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded "
+            f"from the board the stores print, and `perry-tasks board` "
+            f"refuses while it is there."))
+    check_risk_store_drift.stats["records"] = len(good)
     # No board file is read, so no drift (TASK-262 round 4b) —
     # `check_store_drift` says why.
-    return []
+    return findings
 
 
 def _empty_intake_store_drift_stats() -> dict:
@@ -4142,11 +4155,24 @@ def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Find
                         "OBJECT per line — a whole-file array and a bare "
                         "scalar both parse and neither is a record")]
 
-    check_intake_store_drift.stats["records"] = len(
-        _STORE.validate_intake_records(on_disk)[0])
+    # **A badly-typed record is a fact about the store** and is reported
+    # on every project. Until TASK-262 round 4b this was reached only
+    # after a held board had been derived, so a board-less project never
+    # heard it; with the comparison gone it must not go too.
+    good, issues = _STORE.validate_intake_records(on_disk)
+    findings = []
+    for issue in issues:
+        n = issue.get("order")
+        who = f"row {n + 1}" if isinstance(n, int) else f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "intake-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded "
+            f"from the board the stores print, and `perry-tasks board` "
+            f"refuses while it is there."))
+    check_intake_store_drift.stats["records"] = len(good)
     # No board file is read, so no drift (TASK-262 round 4b) —
     # `check_store_drift` says why.
-    return []
+    return findings
 
 
 def _empty_ask_store_drift_stats() -> dict:
@@ -4195,11 +4221,23 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
                         "OBJECT per line — a whole-file array and a bare "
                         "scalar both parse and neither is a record")]
 
-    check_ask_store_drift.stats["records"] = len(
-        _STORE.validate_ask_records(on_disk)[0])
+    # **A badly-typed record is a fact about the store** and is reported
+    # on every project. Until TASK-262 round 4b this was reached only
+    # after a held board had been derived, so a board-less project never
+    # heard it; with the comparison gone it must not go too.
+    good, issues = _STORE.validate_ask_records(on_disk)
+    findings = []
+    for issue in issues:
+        who = issue.get("id") or f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "ask-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded "
+            f"from the board the stores print, and `perry-tasks board` "
+            f"refuses while it is there."))
+    check_ask_store_drift.stats["records"] = len(good)
     # No board file is read, so no drift (TASK-262 round 4b) —
     # `check_store_drift` says why.
-    return []
+    return findings
 
 
 def _empty_cadence_store_drift_stats() -> dict:
@@ -4241,11 +4279,23 @@ def check_cadence_store_drift(project_root: Path, state_root: Path) -> list["Fin
                         "OBJECT per line — a whole-file array and a bare "
                         "scalar both parse and neither is a record")]
 
-    check_cadence_store_drift.stats["records"] = len(
-        _STORE.validate_cadence_records(on_disk)[0])
+    # **A badly-typed record is a fact about the store** and is reported
+    # on every project. Until TASK-262 round 4b this was reached only
+    # after a held board had been derived, so a board-less project never
+    # heard it; with the comparison gone it must not go too.
+    good, issues = _STORE.validate_cadence_records(on_disk)
+    findings = []
+    for issue in issues:
+        who = issue.get("id") or f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "cadence-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded "
+            f"from the board the stores print, and `perry-tasks board` "
+            f"refuses while it is there."))
+    check_cadence_store_drift.stats["records"] = len(good)
     # No board file is read, so no drift (TASK-262 round 4b) —
     # `check_store_drift` says why.
-    return []
+    return findings
 
 
 #: The markdown-backed stores, in the order the census prints them, with the

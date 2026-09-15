@@ -82,6 +82,14 @@ LEGEND_SECTION = (
 )
 
 
+def _project_state(p, bullets: str) -> None:
+    """`PROJECT_STATE.md` holding these bullets under `## Top risks` — the one
+    bullet register a project with no risks store is read from since TASK-262
+    round 4b retired a held board's."""
+    (p.root / "PROJECT_STATE.md").write_text(
+        f"# Project state\n\n## Top risks\n\n{bullets}", encoding="utf-8")
+
+
 def risks(text: str) -> list:
     return P.parse_top_risks(text)
 
@@ -179,7 +187,11 @@ class TestClearedRisksStopCounting(unittest.TestCase):
         filter applied in the test, because the bug was that the payload did
         not apply one.
         """
-        p = Project(board=board_with(PERRY_BULLETS))
+        # The bullets are `PROJECT_STATE.md`'s (TASK-262 round 4b): a held
+        # board's `## Top risks` is not read, and `PROJECT_STATE.md` is the
+        # one bullet register left for a project with no risks store.
+        p = Project()
+        _project_state(p, PERRY_BULLETS)
         payload = state(p.root)["risks"]
         self.assertEqual(payload["count"], 2)
         self.assertEqual(payload["cleared"], 1)
@@ -187,9 +199,9 @@ class TestClearedRisksStopCounting(unittest.TestCase):
 
     def test_the_cleared_risk_is_never_the_headline_risk(self):
         """`top` is the first OPEN risk, not the first row."""
-        p = Project(board=board_with(
-            "- ~~was a problem~~ — cleared 2026-08-16\n"
-            "- still a problem\n"))
+        p = Project()
+        _project_state(p, "- ~~was a problem~~ — cleared 2026-08-16\n"
+                          "- still a problem\n")
         self.assertEqual(state(p.root)["risks"]["top"]["meta"], "still a problem")
 
     def test_cleared_rows_stay_on_the_board(self):
@@ -846,21 +858,33 @@ class TestOneRegisterNotTwo(unittest.TestCase):
         (p.root / "PROJECT_STATE.md").write_text(self.STATE)
         return P.load_snapshot(p.root)
 
+    # **TASK-262 round 4b: the declaration is the store, not a held table.**
+    # A held `BOARD.md` is retired and its `## Top risks` is not read, so a
+    # migrated table reaches the reader through `risks-write --from-board`
+    # (`_imported`), and "migrated" means a `risks.jsonl` exists — which is
+    # what TASK-237 3a already made the rule.
+
+    def _imported(self, section: str) -> Project:
+        p = Project(board=board_with(section))
+        from held_board import import_board
+        import_board(p.root, "risks-write", remove=False)
+        return p
+
     def test_a_migrated_board_is_the_whole_register(self):
-        p = Project(board=board_with(
+        p = self._imported(
             "| ID | Risk | Opened | Status |\n"
             "|---|---|---|---|\n"
-            "| RX-001 | GAVI — the vendor contract lapses | 2026-08-01 | open |\n"))
+            "| RX-001 | GAVI — the vendor contract lapses | 2026-08-01 | open |\n")
         snap = self.snapshot(p)
         self.assertEqual([r.id for r in snap.top_risks], ["RX-001"])
         self.assertEqual(snap.risks_source, "table")
 
     def test_no_risk_is_reported_open_and_cleared_at_the_same_time(self):
         """The measured symptom, asserted as the property it violates."""
-        p = Project(board=board_with(
+        p = self._imported(
             "| ID | Risk | Opened | Status |\n"
             "|---|---|---|---|\n"
-            "| RX-001 | GAVI — the vendor contract lapses | 2026-08-01 | open |\n"))
+            "| RX-001 | GAVI — the vendor contract lapses | 2026-08-01 | open |\n")
         snap = self.snapshot(p)
         gavi = [r for r in snap.top_risks if "GAVI" in r.meta]
         self.assertEqual(len(gavi), 1)
@@ -877,20 +901,28 @@ class TestOneRegisterNotTwo(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertEqual(len(self.snapshot(p).top_risks), before)
 
-    def test_an_unmigrated_board_still_merges_both_files(self):
-        """The rule is about what migration means, not about dropping a file:
-        before it, nothing changes."""
+    def test_an_unmigrated_board_is_not_merged_and_project_state_is(self):
+        """**Rewritten at TASK-262 round 4b.** This was
+        `test_an_unmigrated_board_still_merges_both_files`: a held board's
+        bullets were merged with `PROJECT_STATE.md`'s. The held board is
+        retired, so with no risks store the one file read is
+        `PROJECT_STATE.md` — the board's bullet reaches nothing until it is
+        migrated (`perry-task risk-migrate`, the import for bullets)."""
         p = Project(board=board_with("- ONLY-ON-THE-BOARD — a third thing\n"))
         metas = " ".join(r.meta for r in self.snapshot(p).top_risks)
-        self.assertIn("ONLY-ON-THE-BOARD", metas)
+        self.assertNotIn("ONLY-ON-THE-BOARD", metas)
         self.assertIn("LEDGER", metas)
 
     def test_an_empty_migrated_table_is_still_a_migrated_board(self):
         """Migrated-and-currently-clear must not read as never-migrated, or the
-        rule would switch itself off the moment the last risk is cleared."""
-        p = Project(board=board_with(
+        rule would switch itself off the moment the last risk is cleared. The
+        empty table's import writes an empty `risks.jsonl` — the declaration —
+        and `PROJECT_STATE.md`'s bullets stay out."""
+        p = self._imported(
             "| ID | Risk | Opened | Status |\n"
-            "|---|---|---|---|\n"))
+            "|---|---|---|---|\n")
+        self.assertTrue((p.root / "risks.jsonl").exists(),
+                        "the empty table's import wrote no store")
         self.assertEqual(self.snapshot(p).top_risks, [])
 
 
@@ -1059,6 +1091,10 @@ class TestOneNormalizationForAHeaderCell(unittest.TestCase):
     def test_perry_state_counts_a_risk_under_a_decorated_header(self):
         """Exit one. It reported 0 while the risk sat in the file."""
         p = Project(board=board_with(self.BOLD_HEADER))
+        # Through the import (TASK-262 round 4b): the decorated header has to
+        # be read by `risks-write --from-board`, and the store by `perry-state`.
+        from held_board import import_board
+        import_board(p.root, "risks-write", remove=False)
         self.assertEqual(state(p.root)["risks"]["count"], 1)
         self.assertEqual(state(p.root)["risks"]["source"], "table")
 

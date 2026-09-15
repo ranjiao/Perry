@@ -2167,7 +2167,13 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     # `main` by the schema's rule — and `main` was in nobody's list, so their
     # evidence went to `ops` or nowhere. Added only when such work exists, so a
     # project whose every record is tracked gains no phantom.
-    untracked_work = any(not (r.get("track") or "").strip() for r in rows) \
+    #
+    # **A row on `main` is untracked work too** (TASK-262 round 4b). The rows
+    # are `tasks.jsonl` records now, and the store writes a blank `Track` cell
+    # as `track: "main"` — the schema's own reading of the blank — so a test
+    # for the empty string alone found no implicit-`main` work on any store.
+    untracked_work = any((r.get("track") or "main").strip().lower() == "main"
+                         for r in rows) \
         or any(not (c.get("track") or "").strip() for c in commitments)
     if not single and untracked_work:
         # The key is `track`, not `name` — `parse_tracks` returns

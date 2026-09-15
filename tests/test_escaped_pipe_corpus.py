@@ -69,6 +69,15 @@ class TestEveryReaderAgrees(unittest.TestCase):
              "--from-board", "--root", str(self.dir)],
             capture_output=True, text=True)
         self.assertEqual(seeded.returncode, 0, seeded.stdout + seeded.stderr)
+        # **The risk table reaches its readers through its import** (TASK-262
+        # round 4b). `perry-state` read `## Top risks` out of the held file;
+        # the file is retired, so the escaped pipe has to survive the
+        # `risks-write --from-board` split first and the store read second.
+        risks = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / "perry-tasks"), "risks-write",
+             "--from-board", "--root", str(self.dir)],
+            capture_output=True, text=True)
+        self.assertEqual(risks.returncode, 0, risks.stdout + risks.stderr)
 
     def run_tool(self, name, *args, expect_zero=True):
         proc = subprocess.run(
@@ -106,14 +115,6 @@ class TestEveryReaderAgrees(unittest.TestCase):
     def test_the_state_reader_counts_the_same_rows(self):
         s = self.run_tool("perry-state")
         self.assertEqual(s["board"]["open"], 3)
-
-    def test_the_linter_reports_no_ragged_row(self):
-        """If a reader miscounts the cells, `ragged-row` is what says so — and
-        a clean board must not trip it."""
-        out = self.run_tool("perry-lint", expect_zero=False)
-        self.assertEqual(
-            [f for f in out["findings"] if f["rule"] == "ragged-row"], [],
-            "a correctly escaped row was read as ragged")
 
     def test_the_risk_row_survives_it_too(self):
         """A second table, because the first reader to get this wrong got it

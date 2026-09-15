@@ -101,10 +101,19 @@ class ReviewLintCase(unittest.TestCase):
         (self.dir / ".perry").mkdir()
 
     def board(self, rows):
-        (self.dir / "BOARD.md").write_text(BOARD.format(rows="\n".join(rows)))
+        """The rows, as the task store `perry-lint --reviews` reads.
+
+        These were rows of a `BOARD.md` under `## P1` until TASK-262 round
+        4b. That file is retired and no check reads it: the live rows are the
+        store's open records, and a `done` record no `done` event closed is
+        what the V4 pass judges (F14). The cells are the same values."""
+        (self.dir / "tasks.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in rows))
 
     def row(self, tid, status, rung="V4", ev=""):
-        return (f"| {tid} | a thing | Claude | {status} | — | {ev} | {rung} |")
+        return {"id": tid, "title": "a thing", "owner": "Claude",
+                "status": status, "priority": "P1", "next_action": "—",
+                "evidence": ev, "verification": rung, "group": "P1"}
 
     def evidence(self, name, text, make_criteria=True):
         """Write a review document, and by default make its exhibit honest.

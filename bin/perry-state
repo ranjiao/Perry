@@ -1222,6 +1222,21 @@ def cadence_report(board) -> dict:
             "unreadable_frequency": unreadable, "items": items}
 
 
+def _closed_without_a_done_event(state_root, events) -> list:
+    """The task store's `done` records that no `done` event closed, as `Task`s.
+
+    `perry-lint § closed_without_a_done_event` is the same population for the
+    three checks F14 re-pointed (TASK-262 round 4b). Here it feeds
+    `verification_distribution`, which counted a held board's `done` rows.
+    """
+    closed_by_event = {str(e.get("task") or e.get("id") or "")
+                       for e in (events or []) if e.get("event") == "done"}
+    return [P._task_from_record(r, "") for r in (P.load_task_store(state_root) or [])
+            if isinstance(r, dict) and r.get("status") == "done"
+            and isinstance(r.get("id"), str) and r["id"]
+            and r["id"] not in closed_by_event]
+
+
 def verification_distribution(tasks, events=None) -> dict:
     """How closures on this project were verified (DESIGN-003 § 5.3).
 
@@ -2136,8 +2151,16 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "cadence": len(board.cadence),
             "blocked": sum(1 for t in all_tasks if t.status == "blocked"),
             "open": sum(1 for t in all_tasks if t.status in open_states),
-            "verification": verification_distribution(all_tasks,
-                                                      raw_events(project_root)),
+            # **Plus the closures no event records** (TASK-262 round 4b, F14's
+            # population). A held board's `done` rows were counted here; the
+            # file is retired, and a store-backed board carries no closed row.
+            # A `done` record no `done` event closed is what such a row became
+            # on import, so it is counted in their place. A closure with an
+            # event is counted from the event, exactly as before.
+            "verification": verification_distribution(
+                all_tasks + _closed_without_a_done_event(
+                    root, raw_events(project_root)),
+                raw_events(project_root)),
             "events": read_event_log(project_root),
             # **The store's board, held file or not** (TASK-262 round 4b).
             # This read `board_as_authored`, a parse of a held `BOARD.md`; the
