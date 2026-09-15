@@ -74,3 +74,19 @@ the computation.
   the PMO records a person's reading of the board sample (spec Amendment 1).
 - What remains before `score-phase`: `TASK-262` (nice-to-have), then the
   item-5 / `P003-O3-KR2` reading, which the user decides at `score-phase`.
+
+### Update, 2026-09-15
+
+- Item 6: `TASK-262` closed at V3. `perry-tasks board` names each section's
+  store and writers and marks what is not stored. Along the way a `BOARD.md` a
+  project still holds was retired entirely (rounds 4a/4b, user decisions). This
+  moved `perry-task/list` to 2.4, `perry-asks/list` to 1.4 and
+  `perry-goals/list` to 3.4, and changed NN-2 and ARCHITECTURE.md § 5, both
+  user-confirmed.
+- **`P003-O2-KR3` is for `score-phase` to judge** (user decision). The one
+  reading (`evidence/2026-09/TASK-262-result.md § 3.5`) shows that the `†` mark
+  and the legend partly carry the property, and the section's writer line did
+  not. The declaration-agreement numbers (6/6 sections, 62/62 columns) are not
+  the property.
+- Nothing now blocks `score-phase` except the two readings the user takes
+  there: item 5 / `P003-O3-KR2`, and `P003-O2-KR3`.
