@@ -444,6 +444,26 @@ class TestTheShape(Fixtures):
         self.assertEqual(["next"], list(got))
         self.assertEqual(payload_of(root)["next"], got["next"])
 
+    def test_an_alternate_never_repeats_a_command_already_offered(self):
+        """Found by mutation: no fixture fires two rules with one command, so
+        dropping the narrowing was green. Four rules fire here; the second
+        repeats the primary's command and the fourth repeats the third's."""
+        def rule(rid, command):
+            return {"id": rid, "spine": "any", "lane": "work",
+                    "command": command, "reason": "fixture", "after": [],
+                    "when": {"fact": "installed", "op": "eq", "value": True}}
+        doc = {"thresholds": {}, "overlays": [], "rules": [
+            rule("R-first", "/perry work triage"),
+            rule("R-same-as-first", "/perry work triage"),
+            rule("R-second", "/perry work handoff"),
+            rule("R-same-as-second", "/perry work handoff"),
+            rule("R-third", "/perry work nudge")]}
+        block = self.next_of("okr_no_phase", rules_path=write_rules(self, doc))
+        self.assertEqual("R-first", block["primary"]["rule"])
+        self.assertEqual(["R-second", "R-third"],
+                         [a["rule"] for a in block["alternates"]])
+        self.assertEqual(5, block["conformance"]["rules_fired"])
+
     def test_nothing_fired_is_a_null_primary_not_an_invented_one(self):
         doc = {"thresholds": {}, "overlays": [], "rules": []}
         block = self.next_of("okr_no_phase", rules_path=write_rules(self, doc))

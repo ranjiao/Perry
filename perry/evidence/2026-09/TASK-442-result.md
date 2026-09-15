@@ -1,32 +1,245 @@
 # TASK-442 — result
 
 > Branch: `coding/task-442-next-section` · Base: `bb178072` · Executor: claude-subagent
-> Written incrementally; each section is dated to the step that produced it.
+> Commits: `1791a8c3` step 1 (block, rule file, rule page) · `00fc5a5c` step 2
+> (pointers, tests, durations) · `cbd1ea8b` step 3 (contract page and registry) ·
+> step 4 (the mutation-found test and this file).
 
 ## 0. Base check
 
-- Worktree HEAD at dispatch: `0b5bf99e`. `git merge-base --is-ancestor HEAD bb178072` → 0,
-  `bb178072` → HEAD → 1: HEAD was a strict ancestor and the tree was clean, so
-  `git merge --ff-only bb178072` fast-forwarded it. Branch created at `bb178072`.
+- Worktree HEAD at dispatch was `0b5bf99e`.
+  `git merge-base --is-ancestor HEAD bb178072` returned 0 and the reverse returned
+  1, so HEAD was a strict ancestor. The tree was clean, so
+  `git merge --ff-only bb178072` fast-forwarded it, and the branch was created at
+  `bb178072`.
 - Read in full before changing anything: `ARCHITECTURE.md`, `bin/ARCHITECTURE.md`,
   `perry/evidence/2026-09/TASK-442-spec.md`, `perry/design/DESIGN-020-guided-planning.md`
-  (all of it, including § 5.1–5.4, § 6 phase A and the § 9 entry of 2026-09-15),
-  and `USER-934` in `perry/asks.jsonl`.
+  (the whole document, including § 5.1–5.4, § 6 phase A and the § 9 entry of
+  2026-09-15), and `USER-934` in `perry/asks.jsonl`.
 
-## 1. Baseline at `bb178072` (measured in this worktree)
+## 1. Baseline at `bb178072`, measured in this worktree
 
-`bash tests/run` (PERRY_PROJECT and PERRY_HOME unset): **140 modules · 3934 tests ·
-2 modules red · 10 tests failed.** Each red module was re-run alone with
-`python3 tests/parallel <module>` and failed identically:
+`bash tests/run`, with PERRY_PROJECT and PERRY_HOME unset: **140 modules ·
+3934 tests · 2 modules red · 10 tests failed.** Each red module was re-run alone
+with `python3 tests/parallel <module>` and failed the same way:
 
 | Module | Alone | What fails |
 |---|---|---|
 | `test_md_store` | 9 of 76 red | objective ids minted 14 ≠ 10; the store holds 0 KRs against 13 KR lines in `perry/OKR.md` |
 | `test_okr_krs_render` | 1 of 40 red | `perry/OKR.md` carries 13 KR table rows (`\| O1-KR1 \| carried → v4 …`) |
 
-Both read this repository's own `perry/OKR.md` / `okr.jsonl`, which the base commit
-itself rewrote to OKR v4 (`15369956`, `bb178072`). Neither touches `perry-state`.
+Both read this repository's own `perry/OKR.md` / `okr.jsonl`, which the base
+commits rewrote to OKR v4 (`15369956`, `bb178072`). Neither touches `perry-state`.
 
-## 2. Step 1 — the `next` block, the rule file, the rule page
+## 2. What was built
 
-(filled in as the work lands)
+1. **`perry-state --section next [--after <subcommand>] [--lane goals|work|decide]`**
+   (`bin/perry-state § build_next`). It emits `contract: perry-next/1.0`,
+   `semantics: []`, `position[]`, `primary`, `alternates[]` (at most 2, each a
+   different command), `unknown[]` and `conformance`. `next` is a key of the full
+   `--json` payload on both the installed and the uninstalled branch.
+   **`COMPACT` is untouched**, and a test asserts `--compact` carries no `next`.
+   `--after` / `--lane` without `--section next`, or a lane outside the three,
+   exit 2.
+2. **Facts** (`next_facts`) come only from the payload `build()` already returns,
+   plus the clock. `today` is a parameter, so tests fix it. New facts:
+   `phase.kr_progress.{commit_total,measured,met,unmeasured,met_ratio}`,
+   `week.iso`, `today.date`, `today.weekday`. A few facts are derived from values
+   the payload already carries:
+   - `history.weeks_since_weekly`, `history.*_label`;
+   - `board.over_cap_by`;
+   - `project.spines`, from `tracks[].mode`;
+   - `queue.sla_breaches` and `pipeline.wip_breaches`, from each track's
+     `sla_check` / `sla_breaches` / `wip_breaches`.
+3. **`reference/next-rules.json`**: 3 overlays, the ten § 5.3 rules in table
+   order, and 4 replacements. The replacements are `R-sla-breach` and
+   `R-queue-commitment-due` (spine `queue`), and `R-wip-over-limit` and
+   `R-pipeline-commitment-due` (spine `pipeline`). The last element is
+   `R-board-over-cap`. Each rule has `id`, `when`, `spine`, `lane`, `command`,
+   `reason` and `after[]`.
+   - Predicates are typed only: fact, operator from `eq ne lt le gt ge in exists
+     nonempty`, and a literal or `{"threshold": name}`, combined with `all` /
+     `any`.
+   - Evaluation is three-valued. A predicate over an unknown fact never fires, and
+     the fact goes into `unknown[]` with the ids of the rules it blocked.
+   - `schema/state-schema.json § thresholds` declares none of the four thresholds,
+     so all four are declared in the rule file with a note:
+     `phase_closable_ratio` 0.8, `asks_waiting_days` 5, `weekly_late_weeks` 2,
+     `handoff_stale_days` 7. The resolver still consults the schema first, and
+     `conformance.thresholds[].source` says which source each came from.
+   - A malformed rule is skipped and named in `conformance.rule_errors`.
+4. **`reference/next.md`** has one `### <rule id>` per rule (a test holds the two
+   lists equal), `§ Rendering`, and `§ What the agent may and may not do`. The
+   latter carries the § 9 rule: never reorder, add or drop a recommendation; at
+   most one line, marked as the agent's own note. The closing step is not built
+   (`TASK-443`).
+5. **Pointers.** `reference/snapshot.md` step 5 and the step-5/7 lines of
+   `goals/SKILL.md`, `work/SKILL.md` and `decide/SKILL.md` now run
+   `perry-state --section next` (with `--lane` in the lanes) and render it per
+   `reference/next.md § Rendering`. The router's step-5 phrase is
+   `**5** render \`next\` per \`reference/next.md\``. The bytes it adds are paid for
+   on the same line (`read the lane file in full first` → `read it in full
+   first`): **`SKILL.md` is 20,457 bytes before and after, net +0.**
+6. **The contract.** `schema/next-contract.md` has 37 keys documented and 37
+   emitted, with 0 missing in either direction, and the witness project makes
+   nothing further observable. `schema/README.md` lists it as the eighth read
+   contract.
+7. **Tests.** `tests/test_next_section.py` holds 40 tests. They cover:
+   - the five fixtures, each with its primary written in the test;
+   - delete-a-rule, with its control;
+   - unknown-never-fires, and three-valued `all` / `any`;
+   - overlay order, with its control;
+   - determinism, and the block surviving deletion of the project (NN-1);
+   - shape and flags;
+   - the rule file's bound and its parity with the page;
+   - the KR-progress edge cases;
+   - review-due and WIP;
+   - the five pointer sites and the router byte cap.
+
+   `tests/durations.json` gains one entry and one source block; parsed against
+   HEAD, nothing else changed.
+
+## 3. `perry-state --section next` on this repository (2026-09-15, a Tuesday)
+
+Shortened to its decisions. The full block also carries `semantics: []`, the four
+thresholds and `rule_errors: []`.
+
+```json
+"position": [
+  {"step": "goals",  "state": "done",    "label": "OKR v4: 2026-09-15"},
+  {"step": "phase",  "state": "done",    "label": "Phase 004, day 1"},
+  {"step": "week",   "state": "unknown", "label": "2026-W38 plan: cannot tell"},
+  {"step": "review", "state": "late",    "label": "last weekly 2026-W35"}
+],
+"primary": {"rule": "R-sla-breach", "lane": "work", "command": "/perry work triage",
+            "reason": "5 queue item(s) are past their SLA, the longest-waiting being TASK-270",
+            "facts": ["installed=true", "queue.sla_breaches=5"]},
+"alternates": [
+  {"rule": "R-review-due", "command": "/perry work friday-review",
+   "reason": "today is Tuesday and the last weekly report is 2026-W35"},
+  {"rule": "R-handoff-stale", "command": "/perry work handoff",
+   "reason": "project state changed today and the last handoff is 2026-08-30"}
+],
+"unknown": [
+  {"fact": "drafts.drafted", "reason": "plan drafts have no source until TASK-444 builds them", "rules": ["R-draft-waiting"]},
+  {"fact": "phase.kr_progress.met_ratio", "reason": "12 of 12 commit key results in phase 004 have no current value or no target", "rules": ["R-phase-closable"]},
+  {"fact": "week.planned", "reason": "week plans have no source until TASK-444 records a finalized week", "rules": ["R-week-unplanned"]},
+  {"fact": "commitments.due", "reason": "perry-state does not compute which commitments are due", "rules": ["R-queue-commitment-due"]}
+],
+"conformance": {"rules_declared": 17, "rules_eligible": 15, "rules_fired": 4,
+                "filters": {"after": "", "lane": ""}, "today": "2026-09-15"}
+```
+
+`R-design-unhanded` also fires, for DESIGN-014 (10 locked designs with no
+implementation task). It is the fourth rule to fire and falls outside the two
+alternates. `--lane decide` shows it as the primary.
+
+For the `[user-verify]` question on reasons, these are the three sentences above.
+
+## 4. Facts emitted as unknown (NN-1)
+
+**Always unknown**, because `perry-state` computes no source for them. None of
+them is inferred from another file.
+
+- `week.planned`: no source until `TASK-444`.
+- `drafts.drafted`: no source until `TASK-444`.
+- `commitments.due`: `perry-state` computes no due date for commitments. So
+  `R-queue-commitment-due` and `R-pipeline-commitment-due` are declared and never
+  fire.
+
+**Unknown on a given project**, derived from values already in the payload:
+
+- `phase.kr_progress.*`: the linkage store is unreadable, or describes another
+  phase.
+- `phase.kr_progress.met_ratio`: the phase has no commit KR, or any commit KR
+  lacks a `current` or a `target`.
+- `history.weeks_since_weekly`: `latest_weekly` is neither an ISO week nor a date.
+- `user_input_queue.oldest_idle_days`: the oldest ask carries no date.
+- `queue.sla_breaches`: no queue track has a readable SLA.
+- `pipeline.wip_breaches`: no pipeline track declares a WIP limit.
+
+## 5. Mutations
+
+Every mutation ran on its own scratch copy of the tree
+(`$PERRY_SCRATCH/mutation-*`, leaving out `.git`, `.claude` and `perry/`). The
+copy was removed afterwards, and the unmutated copy was run green first as the
+control. The worktree's `bin/perry-state`, `reference/next-rules.json` and
+`SKILL.md` were checked against HEAD afterwards: `git diff --stat HEAD` was empty.
+
+| Mutation | Result | Named red |
+|---|---|---|
+| M1 delete `R-sla-breach` from the rule file | red, 6/39 | fixture primary (queue), delete-a-rule, queue case, bound, page parity |
+| M1b delete `R-phase-closable` | red, 7/39 | fixture primary (closable), delete-a-rule, closable facts, met_ratio case, bound, page parity |
+| M2 a predicate over an unknown fact is compared anyway | red, 6/39 | unknown-never-fires, three answers, week plan unknown, met_ratio unknown, WIP unknown, unreadable stamp |
+| M3 overlays moved below the project rules | red, 4/39 | recovery outranks missing OKR, overlays survive `--lane`, bound, page parity |
+| M4 a target of 0 is met by `>=` | red, 1/39 | `test_a_target_of_zero_is_met_only_at_zero` |
+| **M5 an alternate may repeat a command** | **GREEN, a finding** | no fixture fired two rules with one command |
+| M6 `--lane` also drops the overlays | red, 1/39 | `test_the_overlays_survive_a_lane_filter` |
+| M7 `all` ignores an unknown part | red, 18/39 | the fixture primaries, the unknown cases, overlay order |
+| M8 `met_ratio` computed while KRs are unmeasured | red, 9/11 classes | a crash, not a pointed assertion: `ZeroDivisionError` in `setUpClass`, when a phase's commit KRs are all unmeasured |
+| M9 the router pointer reverted | red, 1/39 | `test_the_router_points_at_the_page_without_growing` |
+
+**M5, re-run after its test was added:** the unmutated copy is green (40 tests),
+and M5 is **red, 1/40**:
+`TestTheShape.test_an_alternate_never_repeats_a_command_already_offered`. That
+test fires five rules. Two of them repeat a command already offered, and it
+requires both repeats to be skipped.
+
+## 6. Deviations and findings — for the PMO and the reviewer
+
+1. **Four files outside the spec's Files in scope were edited** (commit
+   `cbd1ea8b`, kept separate so it can be judged on its own). The spec's page
+   `schema/next-contract.md` with contract `perry-next/1.0` reddened the two tests
+   that hard-wire every contract as a `perry-<x>/list` family with a
+   `<x>-list-contract.md` page:
+   - `tests/test_contract_key_parity.py`: the README-row predicate is now "names a
+     `-contract.md` spec" instead of "contains `/list`". The version-pin regex also
+     catches `perry-x/1.0`, so the change widens the guard rather than loosening
+     it.
+   - `tests/test_semantics_on_every_payload.py`: `perry-next` is added to
+     `PAYLOADS` and `EMPTY_TODAY`, and a non-list family maps to `<stem>-contract.md`.
+   - `tests/fixtures/contract-key-parity.json`: only the new entry is added, and
+     `contract_files_discovered` goes 7 → 8. `--record` was not used, because it
+     measures the live checkout while the test measures the frozen copy.
+   - `tests/fixtures/shipped-semantics.json`: `"perry-next": []`.
+2. **`tests/contract_key_parity.py § CONTRACT_ID` matches only three-segment ids**
+   (`perry-x/list/1.0`). The baseline therefore keys the new page by its file path
+   (`schema/next-contract.md`, `contract: ""`). It was left unedited because it is
+   out of scope.
+3. **Recommended commands use the direct entrances, not `/perry plan`.**
+   `/perry plan` is DESIGN-020 phase F and does not exist, so `R-no-okr`,
+   `R-no-phase` and `R-week-unplanned` recommend `/perry goals init`,
+   `/perry goals plan-phase <slug>` and `/perry goals plan-week`.
+   `R-draft-waiting` keeps `/perry plan`, because it cannot fire until `TASK-444`.
+4. **§ 5.4's closing step calls `--section next --after X --compact`, and
+   `--compact` with `--section` is refused** (unchanged, per "must not change
+   `--compact`"). `TASK-443` has to choose `--section next --after X` or ask for
+   the refusal to be lifted.
+5. **`unknown[]` entries are objects `{fact, reason, rules}`**, not the strings of
+   the § 5.4 sketch, so a renderer can key off `fact`.
+6. **"Met" needs a direction no KR record declares.** `current >= target`, except
+   that a target of `0` is met only at `0`. Without that exception every
+   count-to-zero KR reads as met, which is the failure `bin/lib §
+   kr_progress_provenance` describes. The exception is a convention, not a typed
+   fact. See the §7 question below.
+7. **DESIGN's `spine` is matched against `project.config.tracks[].mode`**, whose
+   values are project/pipeline/queue/inquiry. The payload's own `tracks[].spine`
+   (`phase/`, `standing`) is DESIGN-008's other axis. Inquiry tracks get no
+   replacement rules, because DESIGN-020 names none (Bound remainder).
+8. **"A state-changing command ran today"** (`R-handoff-stale`) is read as
+   `history.latest_journal_days == 0`, since every mutating command writes a
+   journal line (ARCHITECTURE.md § 4).
+9. **Suggestions with no rule behind them were dropped from the lanes**, because
+   the sites are now pointers and § 9 forbids adding a recommendation:
+   - goals: the heartbeat snapshot prompt and the scope-reduction trigger;
+   - work: unattributed tasks, board rows without events, un-digested `inputs/`,
+     stale knowledge digests, and in-progress rows without evidence;
+   - decide: a design `in_review` for N days, and open user decisions.
+
+   `goals/SKILL.md` lines 42–43 still describe the KR-progress and heartbeat
+   prompts. They are not step-5 lines and are out of scope. None of this is
+   opened as a row.
+
+## 7. Full suite on the final commit
+
+(filled in below)
