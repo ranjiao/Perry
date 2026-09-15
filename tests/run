@@ -52,6 +52,34 @@ if [ "${1:-}" = "--slow" ]; then
   slow="--slow"
 fi
 
+# `--tier affected --base <ref> --dry-run` prints which test modules a change
+# selects, and the rule that selected each, and runs none of them
+# (DESIGN-021 § 5.2 phase A, TASK-448; the selector is `tests/selection.py`).
+# It is the only `--tier` spelling that exists yet — the tiers themselves, and
+# bare `tests/run` becoming `--tier full`, are TASK-449. Every other `--tier`
+# is REFUSED here, before anything runs. An unknown first argument otherwise
+# falls through to the whole suite, and a "dry run" that quietly ran every
+# module is the one outcome this flag promises not to have.
+tier=""
+tier_base=""
+tier_dry=""
+if [ "${1:-}" = "--tier" ]; then
+  tier="${2:-}"
+  shift 2 2>/dev/null || shift $#
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --base) tier_base="${2:-}"; shift 2 2>/dev/null || shift $# ;;
+      --dry-run) tier_dry=1; shift ;;
+      *) echo "tests/run --tier: unknown argument '$1'" >&2; exit 2 ;;
+    esac
+  done
+  if [ "$tier" != "affected" ] || [ -z "$tier_base" ] || [ -z "$tier_dry" ]; then
+    echo "tests/run --tier: only '--tier affected --base <ref> --dry-run' exists yet" >&2
+    echo "  DESIGN-021 phase A prints a selection; running a tier is TASK-449" >&2
+    exit 2
+  fi
+fi
+
 # ── step 0a: the environment the guard can see ─────────────────────────
 # **The guard hashes $ROOT and only $ROOT, so every write has to be aimed at
 # $ROOT for it to see them.** `perry-task` resolves its project root from
@@ -173,7 +201,10 @@ finish() {
   fi
   rm -f "$GUARD_MANIFEST"
   [ "$fail" = 0 ] || rc=1
-  if [ "$rc" = 0 ]; then
+  if [ "$rc" = 0 ] && [ -n "$tier" ]; then
+    # A dry run verified nothing but the tree, so it does not say "all green".
+    printf '\n\033[32m✓ selection printed — no test ran\033[0m\n'
+  elif [ "$rc" = 0 ]; then
     printf '\n\033[32m✓ all green\033[0m\n'
   else
     printf '\n\033[31m✗ failures above\033[0m\n'
@@ -181,6 +212,15 @@ finish() {
   exit "$rc"
 }
 trap finish EXIT
+
+# The dry run sits inside the guard, after the snapshot and under the trap, so
+# step 0 covers this path as it covers `--lint` (NN-5), although it runs no
+# test: `tests/selection.py` only reads the diff and the modules' sources.
+if [ -n "$tier" ]; then
+  step "affected — what $tier_base...HEAD selects (dry run)"
+  python3 tests/selection.py --base "$tier_base" || fail=1
+  exit "$fail"
+fi
 
 step "1. schema drift guard (templates vs schema/state-schema.json)"
 python3 bin/perry-lint --templates || fail=1
