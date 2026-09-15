@@ -427,5 +427,43 @@ question for after the reading.
 
 ## 9. The suite
 
-_Recorded in the commit after this file's first commit, which changes nothing
-but this section._
+### 9.1 A red on `4a27b2c3`, and whose it was
+
+The first two runs, both on `4a27b2c3` (the evidence commit), each reported
+**1 of 141 modules red**:
+`test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks`,
+`user_load.dangling == ['R2-1', 'R2-2', 'R2-3', 'R2-4']`.
+
+- **Re-run alone on this branch:** red, the same four ids.
+- **Run alone in the base `ddf60594` archive:** green (158 tests).
+- **Cause:** this file. Its findings were labelled `F-R2-1` … `F-R2-4`.
+  `perry-diagnose` finds ids with `\b(?:<prefix>)-\d+\b`, so it read `R2-1`
+  and the rest as references to ids that exist nowhere.
+- **Fix:** `1696571c` relabels them F6–F9, continuing round 1's F1–F5, which
+  have no dash-digit.
+- **After the fix:** the module alone is green (158 tests).
+
+Not a standing red, not order- or clock-dependent, and not a code regression.
+
+### 9.2 On `1696571c`
+
+`bash tests/run`, in the foreground, with nothing else running in the tree.
+The output was saved to scratch.
+
+| step | result |
+|---|---|
+| 0. tree guard | recorded at the start; at the end, nothing under the worktree moved |
+| 1. schema drift guard | clean |
+| 2. contract tests | **141 modules, 3998 tests, 0 red**, 95.3 s, 8 workers: all green |
+| 3. `bin/` scripts | all OK |
+| 4. sample projects lint | English: 0 errors, 9 warnings, the fixture's own standing ones. Chinese: clean |
+
+- **Against round 1:** 140 modules and 3992 tests, plus this row's module
+  with its 6 tests.
+- **The durations line** reads 142 recorded, 144 on disk, 4 unmeasured. It
+  still names the two modules round 1's F5 named,
+  `test_a_write_refuses_where_nothing_is_installed.py` and
+  `test_contract_page_snippets.py`. Neither is this row's.
+  `test_perry_task_writes_are_what_it_writes.py` is recorded.
+
+This section is the only change in the commit that adds it.
