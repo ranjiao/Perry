@@ -1991,52 +1991,6 @@ def store_records(project_root: Path, state_root: Path, board: Board,
     return records, payload["conformance"]
 
 
-def refuse_store_drift(project_root: Path, state_root: Path, board: Board,
-                       events: list[dict]) -> None:
-    """Until TASK-090, never overwrite an independent valid store edit.
-
-    The command still derives its proposed record from the board in this slice.
-    Comparing that baseline before the subcommand runs prevents an unrelated
-    write from silently resolving drift in the obsolete board-to-store
-    direction.
-    """
-    path = perry_store.store_path(state_root)
-    if not path.exists():
-        return
-    try:
-        records = perry_store.load_store(state_root)
-    except (OSError, ValueError) as exc:
-        raise Refused(f"{path} cannot be read as JSONL ({type(exc).__name__}: "
-                      f"{exc}). Refusing to overwrite the canonical store; "
-                      f"repair it or restore it before retrying.") from None
-    good, findings = perry_store.validate_records(records)
-    if findings:
-        raise Refused(f"{path} is malformed ({findings[0]['message']}). "
-                      f"Refusing to overwrite the canonical store.")
-    baseline, _ = store_records(project_root, state_root, board, events,
-                                preserve_terminal=True)
-    stored_by_id = {r["id"]: r for r in good}
-    baseline_by_id = {r["id"]: r for r in baseline}
-    comparable = perry_store.STORED
-    differs = any(
-        stored_by_id.get(tid) is None or
-        any(stored_by_id[tid].get(field) != rec.get(field)
-            for field in comparable)
-        for tid, rec in baseline_by_id.items())
-    differs = differs or any(
-        tid not in baseline_by_id and rec.get("status") not in ("done", "dropped")
-        for tid, rec in stored_by_id.items())
-    if differs:
-        _r = lib.root_flag(project_root)
-        raise Refused(
-            f"{path} differs from the records derived from BOARD.md. Until "
-            f"TASK-090 the writer still reads the board to construct a write, "
-            f"so proceeding would discard a valid store edit. Run `perry-tasks "
-            f"render --write{_r}` to render the authoritative store to "
-            f"BOARD.md, then retry. `perry-tasks write --from-board{_r}` is "
-            f"the explicit destructive board-to-store direction.")
-
-
 def parsed_status(cell: str, statuses) -> str:
     """A `Status` cell → the enum value in it, or `""` when there is none.
 
@@ -3017,60 +2971,31 @@ def replace_canonical_pair(state_root: Path,
                       f"journal were rolled back; nothing was written.") from None
 
 
-#: The board preamble line that says when the file last changed. Matched at the
-#: start of a quote line so a mention of the phrase inside a task row cannot be
-#: mistaken for it.
-LAST_UPDATED_RE = re.compile(r"^(>\s*(?:Last updated|最后更新)\s*[:：]\s*)(.*)$")
-
-
-def stamp_last_updated(board) -> bool:
-    """Rewrite `> Last updated:` to today. Returns whether a line was found.
-
-    A board with no such line is left alone rather than given one: the header
-    is a convention of Perry's own template, not a required section, and
-    inventing it in someone else's board would be this tool writing a line the
-    project never asked for.
-    """
-    today = f"{date.today():%Y-%m-%d}"
-    for i, line in enumerate(board.lines):
-        m = LAST_UPDATED_RE.match(line)
-        if m:
-            if m.group(2).strip() != today:
-                board.lines[i] = m.group(1) + today
-            return True
-    return False
-
-
 def commit(project_root: Path, state_root: Path, board: Board,
            journal_line: str, event: dict, dry_run: bool,
            definition: str = "", signoff_block: str = "",
            off_board: bool = False, removed_id: str = "",
            declared_unlinked: bool = False) -> dict:
-    """Write the store and the journal together, render the board, log the event.
+    """Write the store and the journal together, then log the event.
 
-    **The three-way write is `store + journal + event` now, not `board +
-    journal + event`** (TASK-089, ADR-007). `perry/tasks.jsonl` is what a field
-    means; `BOARD.md` is a projection of it, re-rendered here from the record
-    this write just produced. The subcommand still mutates the in-memory
-    `Board` and that mutation is still load-bearing — it is the LAYOUT, the
-    thing the store does not hold: where a section sits, what a cell is padded
-    with, what decoration it wears. The VALUES come back out of the store, so a
-    store and a board that disagree render as the store, which is what makes
-    the projection falsifiable rather than a copy.
+    **The write is `store + journal + event`** (TASK-089, ADR-007).
+    `perry/tasks.jsonl` is what a field means. The subcommand still mutates the
+    in-memory `Board` — the declared board `perry-tasks board` prints — and
+    that mutation is still load-bearing: it is the LAYOUT the new record is
+    derived from. No board file is written (TASK-237 3a; TASK-262 round 4a for
+    a project that still holds a `BOARD.md`, which is retired).
 
     **The guarantee, stated exactly.** Two renames cannot be one atomic
     filesystem operation. Both post-images and both pre-images are recorded in
     a durable marker before either rename. A caught failure rolls back; a crash
     is completed on the next run under the project lock. The marker is removed
-    only after the pair reaches one deterministic state. `BOARD.md` and the
-    event are written afterwards and may independently be stale or missing.
+    only after the pair reaches one deterministic state. The event is written
+    afterwards and may be missing.
 
     That direction of failure is chosen, not tolerated. DESIGN-004 declares the
     event log derived and disposable, and a missing event is exactly the
-    `unrecorded` condition drift reconciliation reports; ADR-007 decision 2
-    declares `BOARD.md` rendered output, and a stale one is exactly the
-    `store-drift` condition `perry-lint` reports. Losing either costs a
-    projection that one command regenerates. Losing the store costs the truth.
+    `unrecorded` condition drift reconciliation reports. Losing it costs a
+    timeline entry. Losing the store costs the truth.
     """
     # **Derived before anything is written, and before `--dry-run` returns**,
     # so a dry run previews the projection the real write would produce rather
@@ -3223,22 +3148,10 @@ def commit(project_root: Path, state_root: Path, board: Board,
             records.append(target)
     else:
         records = [dict(record) for record in current]
-    # **The `> Last updated:` header is stamped by the WRITER, before the
-    # render** (TASK-215). It read `2026-08-16 (21st pass — …)` on 2026-08-29,
-    # thirteen days stale, on a file re-rendered dozens of times a day — a line
-    # every reader takes at face value and nothing maintained.
-    #
-    # Not in `perry_store.render`, which would be the tidier home and is the
-    # wrong one: `perry-tasks render --byte-compare` and `perry-lint`'s
-    # store-drift check both compare a fresh render against the file on disk,
-    # so a renderer that stamped today's date would report the board as drifted
-    # every morning until somebody wrote to it. "Last updated" means the last
-    # WRITE, and a re-render is not a write — putting it here makes the
-    # sentence true and leaves the drift check quiet.
-    #
-    # The editorial parenthetical goes. A rendered file's header is not a place
-    # for prose nobody re-derives; `journal/` is where "21st pass, 6 tasks"
-    # belongs and already has it.
+    # **The `> Last updated:` stamp is gone with the file it stamped** (TASK-215
+    # added it here; TASK-262 round 4a removed it). It rewrote a header line of
+    # the board this function then wrote to disk. No write writes a board file
+    # any more, so a stamp on the in-memory layout would be seen by nothing.
     # **`tasks.jsonl` is a canonical store too, and it is under the same rule.**
     # `purge` is the only branch above that makes `records` shorter than
     # `current`, and it says so in its own docstring; every other branch
@@ -3249,9 +3162,8 @@ def commit(project_root: Path, state_root: Path, board: Board,
     refuse_to_shrink("tasks", perry_store.store_path(state_root),
                      event, len(current), len(records),
                      root_flag=lib.root_flag(project_root))
-    stamp_last_updated(board)
     unstorable = unstorable_status_rows(conformance)
-    board_text, projection = perry_store.render(board, records, _ops())
+    _board_text, projection = perry_store.render(board, records, _ops())
 
     # Before the plan, so `--dry-run` previews it, and before anything is
     # staged, so a register the board cannot produce a readable store for
@@ -3403,27 +3315,13 @@ def commit(project_root: Path, state_root: Path, board: Board,
     if warning:
         print(f"perry-task: {warning}", file=sys.stderr)
 
-    # `BOARD.md`, re-rendered from what was just stored. Outside the pair for
-    # the same reason the event log is: it is derived, one command regenerates
-    # it, and `perry-lint § store-drift` is the finding that says it is stale.
-    # Writing it first would be worse — a board ahead of the store is a claim
-    # nothing backs.
-    plan["board_rendered"] = True
-    try:
-        if not getattr(board, "on_disk", True):
-            # No file to render (TASK-237 deliverable 3a). `None`, not `False`:
-            # nothing failed, and the success line names no board.
-            plan["board_rendered"] = None
-        else:
-            lib.write_atomic(board.path, board_text)
-    except OSError as exc:
-        plan["board_rendered"] = False
-        print(f"perry-task: warning — {spath.name} and the journal were "
-              f"written, but {board.path.name} could not be re-rendered "
-              f"({exc}). The state is correct and `perry-tasks render "
-              f"--write{lib.root_flag(project_root)}` regenerates the file; "
-              f"`perry-lint` reports it as `store-drift` until then.",
-              file=sys.stderr)
+    # **No board file is written** (TASK-237 3a for a project with none;
+    # TASK-262 round 4a for one that still holds a `BOARD.md`). The board is
+    # `perry-tasks board`, printed from the stores this write just replaced; a
+    # held file is retired and `main()` says so on stderr. `None`, not `False`:
+    # nothing failed, and the success line names no board. The key stays so a
+    # `--json` write payload keeps its shape.
+    plan["board_rendered"] = None
 
     plan["event_written"] = True
     ev = events_path(project_root)
@@ -6304,6 +6202,24 @@ def cmd_risk_migrate(args, ctx) -> dict:
     """
     board = ctx["board"]
     _r = lib.root_flag(ctx["project_root"])
+    # **An import runs once** (TASK-262 round 4a). Before 4a the migration
+    # rewrote the held section into a table, so a second run met "already a
+    # table" and wrote nothing. The held file is not rewritten now, so its
+    # bullets are still there; converting them again would mint fresh ids for
+    # the same risks and derive the whole store from them, replacing the
+    # records the first run wrote (measured: RX-001/RX-002 became RX-003/RX-004
+    # at exit 0). A risks store that already holds records is the migrated
+    # register.
+    store = perry_store.risk_store_path(ctx["state_root"])
+    existing = load_register_records(store, "risks")
+    if existing:
+        raise Refused(
+            f"{store} already holds {len(existing)} risk record(s), so `## Top "
+            f"risks` has been migrated. A held BOARD.md is retired and is not "
+            f"rewritten, so its bullets are still in it, and converting them "
+            f"again would re-mint them over the records that exist. Nothing "
+            f"was written. `perry-task risk-add{_r}` adds a risk; "
+            f"`perry-task risk-clear{_r}` retires one")
     if not board.has_section("Top risks"):
         raise Refused(
             f"BOARD.md has no `## Top risks` section, so there is nothing to "
@@ -8056,7 +7972,8 @@ def perry_state():
 
 
 #: The commands that only read. `list` is a published contract
-#: (`schema/task-list-contract.md`); the rest write `BOARD.md`.
+#: (`schema/task-list-contract.md`); the rest write their stores, the journal
+#: and the event log, and no board file (TASK-262 round 4a).
 #:
 #: **The ADR-004 conformance gate was removed here (TASK-261).** It read a
 #: DECLARATION out of `.perry/conformance.jsonl` and refused a write when the
@@ -8075,7 +7992,7 @@ READ_ONLY_COMMANDS = {"list", "events", "asks", "signoff-offer"}
 
 def declared_write_board(schema: dict, state_root: Path, path: Path,
                          project_root: Path | None = None) -> Board:
-    """The board a write mutates when `BOARD.md` does not exist (TASK-237 3a).
+    """The board every write mutates (TASK-237 3a; TASK-262 round 4a).
 
     `perry_store.declared_board` over the four validated stores, the schema's
     `files[id=board]` and its template — the same inputs and the same text
@@ -8083,34 +8000,51 @@ def declared_write_board(schema: dict, state_root: Path, path: Path,
     that fails its validator refuses the write, for the reason `commit()`
     refuses one: records derived from a board built on a store this tool could
     not read would be written back over it.
+
+    Until round 4a this ran only where `BOARD.md` was absent, and its refusals
+    opened "no BOARD.md, and …". A held file no longer changes which board a
+    write builds, so they name the declared board instead.
     """
     spec = next((f for f in schema.get("files", []) if f.get("id") == "board"),
                 None)
     if spec is None:
-        raise Refused("no BOARD.md, and schema/state-schema.json declares no "
-                      "files[id=board] to lay out the write. Nothing was "
-                      "written.")
+        raise Refused("the declared board cannot be laid out: "
+                      "schema/state-schema.json declares no files[id=board] "
+                      "to lay out the write. Nothing was written.")
     try:
         template = (lib.PERRY_HOME / spec["template"]).read_text(encoding="utf-8")
     except (OSError, KeyError) as exc:
-        raise Refused(f"no BOARD.md, and the board template cannot be read "
-                      f"({type(exc).__name__}: {exc}). Nothing was "
-                      f"written.") from None
+        raise Refused(f"the declared board cannot be laid out: the board "
+                      f"template cannot be read ({type(exc).__name__}: "
+                      f"{exc}). Nothing was written.") from None
+    # **The register loader refuses first** (TASK-262 round 4a). Before 4a a
+    # project holding a `BOARD.md` reached `register_change` with the file's
+    # board, and a corrupt or duplicated register store was refused there by
+    # `load_register_records`, whose message names the line, every repeated id
+    # and the lint rule that reports it. Every write now comes through here,
+    # where `load_board_stores`' finding says only that the store is
+    # malformed; asking the register loader first keeps the refusal a reader
+    # can act on. It raises or returns, and reads each store once more.
+    for key, register in REGISTER_SPEC.items():
+        load_register_records(register[1](state_root), key)
     stores, findings = perry_store.load_board_stores(state_root)
     if findings:
         first = findings[0]
-        raise Refused(f"no BOARD.md, and {first['store']} is malformed "
-                      f"({first['message']}). Nothing was written.")
+        raise Refused(f"the declared board cannot be laid out: "
+                      f"{first['store']} is malformed ({first['message']}). "
+                      f"Nothing was written.")
     try:
         text, _report = perry_store.declared_board(
             spec, template, stores,
             project_name=P.project_name(project_root or state_root))
     except UnrenderableCell as exc:
-        raise Refused(f"no BOARD.md, and a stored value cannot be laid out as "
-                      f"a board cell: {exc.why}. Nothing was written.") from None
+        raise Refused(f"the declared board cannot be laid out: a stored value "
+                      f"cannot be laid out as a board cell: {exc.why}. Nothing "
+                      f"was written.") from None
     except perry_store.UnfilledPlaceholder as exc:
-        raise Refused(f"no BOARD.md, and the board template cannot be laid "
-                      f"out: {exc}. Nothing was written.") from None
+        raise Refused(f"the declared board cannot be laid out: the board "
+                      f"template cannot be laid out: {exc}. Nothing was "
+                      f"written.") from None
     return Board.declared(path, text)
 TASK_ROW_COMMANDS = {"start", "stage", "track", "done", "drop", "purge",
                      "status", "depends", "next", "retitle", "summary",
@@ -8616,8 +8550,8 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
 #: - a register's writers here and in `REGISTER_EVENTS` are the same set, and
 #:   `tests/test_perry_task_writes_are_what_it_writes.py` fails when they part;
 #: - that test also re-runs every write and compares what changed with this.
-#: `BOARD.md` is in no entry: a project that still holds one has it re-rendered
-#: by `commit()`, and that conditional rewrite is outside the declaration.
+#: `BOARD.md` is in no entry, and since TASK-262 round 4a that is true of a
+#: project that still holds one too: `commit()` writes no board file.
 #: The lists stay literals: `perry-tasks § writer_surface` reads this with
 #: `ast.literal_eval`.
 SURFACE = {
@@ -8935,14 +8869,26 @@ def main(argv: list[str]) -> int:
             recovered = recover_transaction(state_root)
             records = load_task_records(state_root)
             board_path = state_root / "BOARD.md"
-            board = Board(board_path) if board_path.exists() else None
-            if args.cmd not in READ_ONLY_COMMANDS and board is None:
-                # **TASK-237 deliverable 3a: a write does not need the file.**
-                # This refused ("needs the projection layout to render its
-                # write"). The layout now comes from the declarations and the
-                # stores, and `commit()` writes the stores, the journal and
-                # the event and renders no file. 3b added `## Cadence`'s
-                # store, so the two cadence writes no longer refuse here.
+            if args.cmd in READ_ONLY_COMMANDS:
+                # The reads still consult a held file where a store is absent;
+                # retiring those fallbacks is TASK-262 round 4b, under P2–P6.
+                board = Board(board_path) if board_path.exists() else None
+            elif args.cmd == "risk-migrate" and board_path.exists():
+                # **The import verb keeps its input** (TASK-262 Amendment (4),
+                # class a). `## Top risks` as bullets exists only in a file a
+                # person wrote, so the held board is what it converts — and it
+                # is never written back: `on_disk = False` is the flag
+                # `commit()` reads, the one the declared board carries.
+                board = Board(board_path)
+                board.on_disk = False
+            else:
+                # **Every write builds from the declarations, held file or no
+                # held file** (TASK-262 Amendment (4), round 4a). TASK-237 3a
+                # did this only where `BOARD.md` was absent; a held one was the
+                # layout the write mutated, and a stale one refused the write
+                # ("is not a row on the board"). The file is retired: it is not
+                # read here, `commit()` writes no board file, and `main()`
+                # prints `lib.retired_board_hint` after the write.
                 board = declared_write_board(schema, state_root, board_path,
                                              project_root)
             ctx = {"schema": schema, "project_root": project_root,
@@ -9101,17 +9047,11 @@ def main(argv: list[str]) -> int:
         if linkage_record:
             written.append(Path(linkage_record["path"]).name)
         tail = " + ".join(written) + " + journal"
-        for name, ok, why in (
-                ("BOARD.md", result.get("board_rendered", True),
-                 f"BOARD.md not re-rendered — `perry-tasks render "
-                 f"--write{lib.root_flag(project_root)}` regenerates it, and "
-                 f"`perry-lint` reports `store-drift` until then"),
-                ("event", result.get("event_written", True),
-                 "event log unwritable — this row will show as `unrecorded` "
-                 "until it is fixed")):
-            if ok is None:
-                continue          # no BOARD.md on disk: nothing was rendered
-            tail += f" + {name}" if ok else f" ({why})"
+        # No `BOARD.md` entry: no write writes a board file (TASK-262 round
+        # 4a), so the line has nothing to name there, held file or not.
+        tail += (" + event" if result.get("event_written", True) else
+                 " (event log unwritable — this row will show as `unrecorded` "
+                 "until it is fixed)")
         # Not every subcommand mints an id — `intake`, `intake-sweep` and
         # `resolve-intake` act on a section row. Printing `None` there told the
         # user the write had no subject when it had a perfectly good one.
@@ -9120,6 +9060,15 @@ def main(argv: list[str]) -> int:
                    or (f"{result['count']} risk(s)" if "count" in result else "")
                    or (f"intake row {args.id}" if args.id else "the row"))
         print(f"perry-task: {verb} {subject} ({args.cmd}) → {tail}")
+    if (args.cmd not in READ_ONLY_COMMANDS and not args.dry_run
+            and not args.as_json):
+        # **The retired-board hint** (TASK-262 Amendment (4), round 4a), after
+        # a successful write, on stderr, one line per held file. Not under
+        # `--dry-run`, which wrote nothing, and not under `--json`:
+        # `schema/task-list-contract.md § Two things about writes` promises a
+        # `--json` caller that stderr stays quiet, and the payload is unchanged.
+        for held in lib.held_board_paths(project_root, state_root):
+            print(lib.retired_board_hint(held), file=sys.stderr)
     return 0
 
 

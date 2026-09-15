@@ -508,7 +508,17 @@ class TestTheWriterGuardIsReachedWhenCalledDirectly(Fixture):
 
 
 class TestTheDeclarationIsNotASecondTransaction(Fixture):
-    """SIGKILL at **seven** crash points; the declaration must not survive alone.
+    """SIGKILL at **five** crash points; the declaration must not survive alone.
+
+    **Seven until TASK-262 round 4a, measured then.** On this fixture `add`
+    made four canonical renames — `tasks.jsonl`, `intake.jsonl`,
+    `linkage.jsonl`, the journal — because the held board's `## Intake` put
+    the intake register in the canonical set, and then wrote `BOARD.md`. A
+    write now builds from the declared board and writes no board file: the
+    renames are three (no intake store exists here, and `add` on a project
+    track writes none), so `canonical:3` was never reached, and `afterboard`
+    (E2, after `BOARD.md` and before the event append) is the same state as
+    `afterpair` (E1). Both were deleted rather than kept green for nothing.
 
     Row D claimed five and drove four. `TASK-279`'s V4 measured seven: its
     harness kills only before renames whose DESTINATION is a canonical target,
@@ -518,10 +528,9 @@ class TestTheDeclarationIsNotASecondTransaction(Fixture):
 
     | # | point                                        | reached by |
     |---|----------------------------------------------|------------|
-    | 1-4 | before each canonical rename               | `canonical:N` |
+    | 1-3 | before each canonical rename               | `canonical:N` |
     | M0 | before the MARKER's own rename               | `marker`   |
-    | E1 | after `replace_canonical_pair`, before BOARD | `afterpair`|
-    | E2 | after `BOARD.md`, before the event append    | `afterboard`|
+    | E1 | after `replace_canonical_pair`, before the event append | `afterpair`|
 
     SIGKILL and not an exception, for row D's reason: an exception unwinds into
     `replace_canonical_pair`'s `except OSError` and takes the deliberate
@@ -567,22 +576,12 @@ elif MODE == "marker":
         return real_replace(src, dst, *a, **kw)
     os.replace = before_marker
 elif MODE == "afterpair":
-    # E1 — the canonical set is entirely on disk; BOARD.md and the event are not.
+    # E1 — the canonical set is entirely on disk; the event is not.
     real_pair = mod.replace_canonical_pair
     def after_pair(*a, **kw):
         real_pair(*a, **kw)
         die()
     mod.replace_canonical_pair = after_pair
-elif MODE == "afterboard":
-    # E2 — BOARD.md has landed; the event append has not. This is the point row
-    # D's harness cannot reach at all: the append is `open(..., "a")`.
-    real_atomic = mod.lib.write_atomic
-    def after_board(path, *a, **kw):
-        out = real_atomic(path, *a, **kw)
-        if os.path.basename(str(path)) == "BOARD.md":
-            die()
-        return out
-    mod.lib.write_atomic = after_board
 else:
     raise SystemExit("unknown mode " + MODE)
 
@@ -592,8 +591,8 @@ sys.exit(mod.main(["add", "--title", TITLE, "--root", ROOT,
                    "Files a throwaway row so the writer reaches its writes."]))
 '''
 
-    POINTS = ["canonical:0", "canonical:1", "canonical:2", "canonical:3",
-              "marker", "afterpair", "afterboard"]
+    POINTS = ["canonical:0", "canonical:1", "canonical:2",
+              "marker", "afterpair"]
 
     def crash_at(self, d: pathlib.Path, mode: str) -> subprocess.CompletedProcess:
         child = d / "_declare_crash_child.py"
@@ -684,10 +683,10 @@ sys.exit(mod.main(["add", "--title", TITLE, "--root", ROOT,
         self.assertFalse((d / MARKER).exists())
 
     def test_after_the_canonical_set_lands_the_declaration_has_its_row(self):
-        """E1/E2's positive half. 'Never alone' is satisfied vacuously if the
-        declaration never lands at all, so the two late points must be shown to
-        land it WITH its row rather than to have dropped both."""
-        for mode in ("afterpair", "afterboard"):
+        """E1's positive half. 'Never alone' is satisfied vacuously if the
+        declaration never lands at all, so the late point must be shown to land
+        it WITH its row rather than to have dropped both."""
+        for mode in ("afterpair",):
             with self.subTest(crash_point=mode):
                 d = self.project()
                 tid = self.next_id(d)

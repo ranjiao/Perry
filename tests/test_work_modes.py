@@ -372,7 +372,16 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
         self.assertNotIn("refused", payload,
                          f"perry-task refused a track the store declares: "
                          f"{payload.get('refused')}")
-        self.assertIn("| intake | triaged |", payload["row"])
+        # Read under the declared header (TASK-262 round 4a): the row a write
+        # lays out is the declared board's, whose `Verification` column sits
+        # between `Track` and `Stage`.
+        board = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-tasks"), "board",
+             "--root", str(self.root)], capture_output=True, text=True).stdout
+        header = next(l for l in board.split("\n") if l.startswith("| ID |"))
+        split = lambda line: [c.strip() for c in line.strip().strip("|").split("|")]  # noqa: E731
+        cells = dict(zip([h.lower() for h in split(header)], split(payload["row"])))
+        self.assertEqual((cells["track"], cells["stage"]), ("intake", "triaged"))
 
     def test_a_project_with_no_store_reads_the_implicit_main_track(self):
         """The invariant `TestTrackParsing` used to hold one function lower.

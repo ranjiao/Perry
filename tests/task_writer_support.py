@@ -225,6 +225,21 @@ class Project:
             return r.returncode, r.stdout + r.stderr
 
     def board(self) -> str:
+        """The board: what `perry-tasks board` prints from the stores.
+
+        **Not the fixture's `BOARD.md`** (TASK-262 round 4a). That file is the
+        import input `import_board` reads, and since round 4a no `perry-task`
+        write reads or re-renders it, so after the first write it says nothing
+        about what the write did. `held_board()` returns its bytes for the
+        tests that assert exactly that.
+        """
+        r = inproc.run("perry-tasks", ["board", "--root", str(self.root)])
+        if r.returncode:
+            raise AssertionError(r.stdout + r.stderr)
+        return r.stdout
+
+    def held_board(self) -> str:
+        """The fixture's own `BOARD.md`, as written — a retired file."""
         return (self.root / "BOARD.md").read_text()
 
     def events(self) -> list[dict]:

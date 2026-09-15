@@ -183,7 +183,10 @@ class TestTheRegisterHasNoId(unittest.TestCase):
             [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "list",
              "--json", "--root", str(p.root)], capture_output=True, text=True)
         rows = json.loads(out.stdout)["intake"]["rows"]
-        _b, _o, records = derive(p.board())
+        # The HELD file: with no intake store, `list` still reads `## Intake`
+        # out of it (the fallback round 4b retires, P2/P3), so the derivation
+        # compared with it is the held file's too.
+        _b, _o, records = derive(p.held_board())
         self.assertEqual([r["n"] for r in rows],
                          [r["order"] + 1 for r in records])
         self.assertEqual([r["request"] for r in rows],
@@ -759,38 +762,47 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         self.assertIn("row 1", rules[0]["message"])
         self.assertIn("resolve-intake 1", rules[0]["message"])
 
-    def test_a_shrink_permitted_command_on_that_same_board_is_refused(self):
-        """**The line the suite stopped one short of.** TASK-203 round 5.
+    def test_a_hand_deleted_row_no_longer_moves_n_for_a_write(self):
+        """**The line the suite stopped one short of**, after TASK-262 round 4a.
 
-        The test above builds the dangerous state — a hand-deleted `## Intake`
-        row against a minted 4-record store — and then asserts something safe
-        about it. The V4 round-4 review found the defect by taking exactly one
-        more step: running a shrink-PERMITTED command on that board. Under
-        round 4's unbounded exemption `resolve-intake` returned rc 0 and
-        persisted a 3-record store, destroying a record it never addressed,
-        with `perry-lint` then reporting `0 row(s) drifted`.
+        TASK-203 round 5 took the state above — a hand-deleted `## Intake` row
+        against a minted 4-record store — one step further, running a
+        shrink-PERMITTED command on it, and asserted `resolve-intake` refused
+        rather than persist a 3-record store. That refusal is still in
+        `commit()` (`tests/test_register_store_invariant.py §
+        TestTheExemptionIsBounded` holds it), but a held file no longer
+        reaches it: a write builds from the declared board, which is the
+        store.
 
-        A test that constructs the dangerous state and asserts only the safe
-        thing about it reads as coverage and is not. This is that same state
-        with the missing question asked.
+        So the same step now has a better answer and this asserts it: the
+        write succeeds, `n = 1` still addresses the FIRST stored request (the
+        one the hand edit deleted from the file), no record is lost, and the
+        hand-edited file keeps its bytes.
         """
         p = self._imported()
         store = p.root / "intake.jsonl"
         self.assertEqual(len(store.read_text().strip().split("\n")), 4,
                          "control: the store holds four records")
         self._hand_delete_the_first_intake_row(p)
-        before = store.read_bytes()
-        task = PERRY_HOME / "bin" / "perry-task"
+        board = p.root / "BOARD.md"
+        edited = board.read_bytes()
+        self.assertNotIn("two test modules import", board.read_text(),
+                         "control: the hand edit removed the first row")
+        tool = PERRY_HOME / "bin" / "perry-task"
         out = subprocess.run(
-            [sys.executable, str(task), "resolve-intake", "1",
+            [sys.executable, str(tool), "resolve-intake", "1",
              "--outcome", "dropped", "--reason", "a request we will not take",
              "--root", str(p.root)], capture_output=True, text=True)
-        self.assertNotEqual(out.returncode, 0,
-                            "resolve-intake persisted a store it shrank by a "
-                            "record it never touched:\n" + out.stdout + out.stderr)
-        self.assertIn("removes 0 record(s)", out.stdout + out.stderr)
-        self.assertEqual(store.read_bytes(), before,
-                         "the store changed on a refused write")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        stored = [json.loads(l) for l in store.read_text().split("\n")
+                  if l.strip()]
+        self.assertEqual(len(stored), 4, "a record was lost")
+        self.assertIn("two test modules import", stored[0]["request"])
+        self.assertIs(stored[0]["discharged"], True,
+                      "n = 1 addressed a different request than the store's first")
+        self.assertIs(stored[1]["discharged"], False)
+        self.assertEqual(board.read_bytes(), edited,
+                         "the write rewrote the retired BOARD.md")
 
     def test_a_sweep_moves_n_and_the_store_is_what_says_so(self):
         """**The mutation this whole row exists to make visible.**
@@ -818,9 +830,10 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
                                   "--root", str(p.root)],
                                  capture_output=True, text=True)
             self.assertEqual(out.returncode, 0, out.stderr)
-        # Re-import so the store knows about the discharge; then sweep.
-        self.assertEqual(
-            self._tasks(p.root, "intake-write", "--from-board").returncode, 0)
+        # **No re-import** (TASK-262 round 4a). It was here so the store knew
+        # about the discharge, back when the held board was the layout a write
+        # mutated; `resolve-intake` writes the store, and re-importing the held
+        # file — which no write updates now — would overwrite that discharge.
         out = subprocess.run([sys.executable, str(task), "intake-sweep",
                               "--json", "--root", str(p.root)],
                              capture_output=True, text=True)
@@ -842,9 +855,10 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         # The drift half is not lost. It belongs to a hand edit, not to the
         # sweep, and `test_a_row_deleted_by_hand_reports_every_row_it_renumbered`
         # thirty lines up is where it is proved.
-        self.assertEqual(self._lint(p.root)["intake_store_drift"],
-                         {"store_present": True, "comparison_performed": True,
-                          "records": 2, "drifted": 0})
+        # The drift reading compares a held file with the store (round 4b's to
+        # retire); the held file is retired, so it is deleted first.
+        (p.root / "BOARD.md").unlink()
+        self.assertEqual(self._lint(p.root)["intake_store_drift"]["drifted"], 0)
         stored = [json.loads(l) for l in
                   (p.root / "intake.jsonl").read_text().split("\n") if l.strip()]
         self.assertEqual([r["request"] for r in stored], [after[1], after[2]])

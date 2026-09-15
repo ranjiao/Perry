@@ -90,8 +90,10 @@ parsing the markdown itself would be a third chance at exactly that.
 
 It is also what makes a front-end survive the completed storage change:
 `tasks.jsonl` is canonical task truth, and `perry-tasks board` prints its human
-projection (`BOARD.md` was deleted by TASK-237; a project that still holds one
-keeps it re-rendered from the store).
+projection. `BOARD.md` was deleted by TASK-237, and a project that still holds
+one holds a retired file: since TASK-262 no `perry-task` write reads it or
+re-renders it, and a successful write that is not `--json` names it on stderr
+as one that can be deleted.
 The payload shape remains stable even though its current values no longer come
 from task rows in Markdown.
 

@@ -75,15 +75,29 @@ class Base(unittest.TestCase):
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
         config_store.write_config(root, SETTINGS, TRACKS)
+        if heading not in ("P0", "P1", "P2"):
+            # **Imported, not added** (TASK-262 round 4a). A write builds from
+            # the declared board, which carries a project's own heading only
+            # once a stored row sits under it — `add --group` refuses a group
+            # no record holds. A held board filed under its own headings
+            # reaches the store through its import, so that is how these rows
+            # arrive.
+            (root / "perry" / "BOARD.md").write_text(
+                f"# Board\n\n## {heading}\n\n" + HEAD
+                + "".join(f"| TASK-{n + 1:03d} | row {n + 1} | Coding Agent "
+                          f"| not_started | n | — | V3 |\n" for n in range(rows)),
+                encoding="utf-8")
+            r = inproc.run("perry-tasks", ["write", "--from-board",
+                                           "--root", str(root)])
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            return root
         (root / "perry" / "BOARD.md").write_text(
             f"# Board\n\n## {heading}\n\n" + HEAD, encoding="utf-8")
         for n in range(rows):
             self.ok(root, "add", "--title", f"row {n + 1}",
                     "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                     "--deliverable", "an artifact with a test",
-                    "--verification", "perry-lint clean", "--next", "n",
-                    *(["--group", heading]
-                      if heading not in ("P0", "P1", "P2") else []))
+                    "--verification", "perry-lint clean", "--next", "n")
         return root
 
     def cli(self, root: Path, *args: str):
@@ -119,7 +133,20 @@ class Base(unittest.TestCase):
                 path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
     def board(self, root: Path) -> str:
-        return (root / "perry" / "BOARD.md").read_text(encoding="utf-8")
+        """What `perry-tasks board` prints (TASK-262 round 4a)."""
+        r = inproc.run("perry-tasks", ["board", "--root", str(root)])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout
+
+    def cells(self, root: Path, tid: str) -> dict:
+        header = None
+        for line in self.board(root).split("\n"):
+            if line.startswith("| ID |"):
+                header = [c.strip().lower() for c in line.strip().strip("|").split("|")]
+            elif line.startswith(f"| {tid} |") and header:
+                return dict(zip(header, [c.strip() for c in
+                                         line.strip().strip("|").split("|")]))
+        self.fail(f"{tid} is not a row on the printed board")
 
     def state(self, root: Path) -> dict:
         r = inproc.run("perry-state", ["--json", "--root", str(root)])
@@ -150,9 +177,15 @@ class TestSixRowsMove(Base):
             self.assertEqual(t["stage"], "triaged", t["id"])
             self.assertEqual(t["arrived"], TODAY, t["id"])
             self.assertEqual(t["stage_since"], TODAY, t["id"])
-        board = self.board(root)
-        self.assertIn("| Track | Stage | Stage since | Arrived |", board)
-        self.assertEqual(board.count(f"| intake | triaged | {TODAY} | {TODAY} |"), 6)
+        # Read under the printed board's own header (TASK-262 round 4a): the
+        # declared table orders its columns `Track | Verification | Stage |
+        # Arrived | … | Stage since`, so the held table's contiguous run of
+        # four is not the thing to count.
+        for tid in self.tasks(root):
+            with self.subTest(row=tid):
+                c = self.cells(root, tid)
+                self.assertEqual((c["track"], c["stage"], c["stage since"],
+                                  c["arrived"]), ("intake", "triaged", TODAY, TODAY))
 
     def test_perry_state_reports_them_under_the_tracks_stage_counts(self):
         """The reader the mode's own triage step runs off. It counted nothing
@@ -368,11 +401,14 @@ class TestBothDirectionsOfTheFieldQuestion(Base):
         root = self.project()
         tid, = self.tasks(root)
         self.ok(root, "track", tid, "--track", "intake")
-        before = self.board(root)
-        r = inproc.run("perry-tasks",
-                       ["render", "--write", "--root", str(root)])
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(self.board(root), before)
+        # **The render is `perry-tasks board` since TASK-262 round 4a.** This
+        # re-rendered the held file with `render --write` and compared; that
+        # verb fills a held file's lines, and no write puts the row in that
+        # file any more. The render from the store is the printed board, so
+        # the move is asserted there, field by field.
+        c = self.cells(root, tid)
+        self.assertEqual((c["track"], c["stage"], c["arrived"]),
+                         ("intake", "triaged", TODAY))
 
 
 class TestAnEventPerMove(Base):
@@ -476,7 +512,10 @@ class TestABoardWithItsOwnHeadings(Base):
         self.assertEqual(rec["track"], "intake")
         self.assertEqual(rec["stage"], "triaged")
         self.assertEqual(rec["arrived"], TODAY)
-        self.assertIn("| intake | triaged |", self.board(root))
+        c = self.cells(root, tid)
+        self.assertEqual((c["track"], c["stage"]), ("intake", "triaged"))
+        section = self.board(root).split("## Open — 工程线", 1)[1].split("\n## ", 1)[0]
+        self.assertIn(f"| {tid} |", section)
 
 
 class TestTheSubcommandIsWiredEverywhereItHasToBe(unittest.TestCase):

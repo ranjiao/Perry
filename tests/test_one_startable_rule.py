@@ -113,12 +113,19 @@ class Graph:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "no-store"
             shutil.copytree(self.project.root, root)
+            state_root = PT.lib.resolve_state_root(root)
+            # **The board `store_records` is handed mid-write** (TASK-262
+            # round 4a). A write no longer re-renders the fixture's held
+            # `BOARD.md`, so that file still holds the empty tables it was
+            # created with; the board a write derives its records from is the
+            # declared one, built from the stores. It is built BEFORE the task
+            # store is removed, because the stores are what it lays out.
+            board = PT.declared_write_board(PT.load_schema(), state_root,
+                                            state_root / "BOARD.md", root)
             stores = list(root.rglob("tasks.jsonl"))
             assert stores, "the fixture never had a store to remove"
             for store in stores:
                 store.unlink()
-            state_root = PT.lib.resolve_state_root(root)
-            board = PT.Board(state_root / "BOARD.md")
             board.refuse_duplicate_task_ids()
             ctx = {"schema": PT.load_schema(), "project_root": root,
                    "state_root": state_root, "config": {"tracks": []},

@@ -221,25 +221,6 @@ class TestRefusals(PurgeCase):
         self.assertEqual(code, 1)
         self.assertIn("TASK-999", str(out))
 
-    def test_a_row_still_on_the_board_is_refused(self):
-        """A terminal record whose row is still rendered means `BOARD.md` is
-        stale; removing the record under it leaves a line rendering from
-        nothing."""
-        p = Project()
-        tid = self.closed_row(p)
-        # Put the row back under `## P1`, immediately after that table's
-        # separator, which is where the projection would carry it. Written by
-        # hand because no subcommand can produce this state — that is the
-        # point: it is what a stale `BOARD.md` looks like.
-        lines = p.board().split("\n")
-        i = next(n for n, l in enumerate(lines) if l.startswith("## P1"))
-        sep = next(n for n in range(i, len(lines)) if lines[n].startswith("|---"))
-        lines.insert(sep + 1, f"| {tid} | the probe row | — | dropped | — | — |")
-        (p.root / "BOARD.md").write_text("\n".join(lines))
-        text = self.refused(p, tid, "--reason", REASON)
-        self.assertIn("perry-tasks render --write", text)
-
-
 class TestItRefusesALiveReference(PurgeCase):
     """TASK-167 decision 2. Each refusal is proved on a constructed case, and
     each says which reference it found."""
@@ -650,6 +631,10 @@ class TestABlankLineInTheLogIsTolerated(unittest.TestCase):
         reconcile_drift` re-reads `events.jsonl` line by line rather than
         going through `read_events`, so it is a distinct tolerance claim."""
         p = self.with_blank_lines()
+        # Board-less (TASK-262 round 4a): `drift` over a held `BOARD.md` is
+        # about that file, which no write re-renders any more, so it would
+        # count the rows these writes made as orphaned. The file is retired.
+        (p.root / "BOARD.md").unlink()
         r = subprocess.run(
             ["python3", str(PERRY_HOME / "bin" / "perry-state"),
              "--root", str(p.root), "--json"], capture_output=True, text=True)

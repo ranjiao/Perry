@@ -630,7 +630,12 @@ sys.exit(mod.main(argv))
         return json.loads(proc.stdout)["id"]
 
     def test_the_edge_never_survives_without_its_row(self):
-        for n in range(0, 4):
+        # **Three canonical renames since TASK-262 round 4a**, measured:
+        # `tasks.jsonl`, `linkage.jsonl`, the journal. The fourth was
+        # `intake.jsonl`, which this fixture's held `## Intake` put in the set
+        # while a write built from the held board, so `n = 3` now dies before
+        # nothing and was dropped.
+        for n in range(0, 3):
             with self.subTest(renames_before_crash=n):
                 d = self.project()
                 tid = self.next_id(d)

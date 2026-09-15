@@ -350,52 +350,6 @@ class TestAWriteInAnUndeclaredGroup(unittest.TestCase):
                     self.assertEqual(rec["group"], GROUP)
                     self.assertEqual(self.section_of(d, "TASK-9500"), GROUP)
 
-    #: A held board whose sections carry six columns, as a hand-kept board
-    #: does. A write to a column the section lacks has to widen THAT section:
-    #: the full-width boards above hold every column already, so they cannot
-    #: tell the task's own section from any other.
-    NARROW_BOARD = (
-        "# Board — narrow\n\n## P1\n\n"
-        "| ID | Title | Owner | Status | Next action | Evidence |\n"
-        "|---|---|---|---|---|---|\n"
-        "| TASK-001 | title of TASK-001 | Coding Agent | not_started "
-        "| next for TASK-001 | — |\n\n"
-        f"## {GROUP}\n\n"
-        "| ID | Title | Owner | Status | Next action | Evidence |\n"
-        "|---|---|---|---|---|---|\n"
-        "| TASK-9500 | title of TASK-9500 | Coding Agent | not_started "
-        "| next for TASK-9500 | — |\n")
-
-    def test_a_narrow_held_board_is_widened_in_the_tasks_own_section(self):
-        for name, argv, field, value in (
-                ("rung", ["--rung", "V2"], "verification", "V2"),
-                ("depends", ["--on", "TASK-001"], "depends_on", ["TASK-001"])):
-            with self.subTest(write=name):
-                d = self.project(held=False)
-                board = d / "perry" / "BOARD.md"
-                board.write_text(self.NARROW_BOARD, encoding="utf-8")
-                out = inproc.run("perry-task", [name, "TASK-9500", *argv,
-                                                "--root", str(d)])
-                self.assertNotIn("Traceback", out.stderr)
-                self.assertEqual(out.returncode, 0, out.stderr[-600:])
-                rec = next(json.loads(l) for l in (d / "perry" / "tasks.jsonl")
-                           .read_text(encoding="utf-8").splitlines()
-                           if l.strip() and json.loads(l)["id"] == "TASK-9500")
-                got = rec[field]
-                if field == "verification":
-                    got = got[:len(value)]
-                self.assertEqual(got, value)
-                # The column went into the task's own section, and only there.
-                sections, heading = {}, None
-                for line in board.read_text(encoding="utf-8").split("\n"):
-                    if line.startswith("## "):
-                        heading = line[3:].strip()
-                    elif line.startswith("| ID ") and heading:
-                        sections[heading] = line
-                self.assertNotEqual(sections[GROUP].count("|"),
-                                    sections["P1"].count("|"),
-                                    "the column was not added to the task's "
-                                    "own section")
 
 
 if __name__ == "__main__":

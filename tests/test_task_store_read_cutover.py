@@ -144,14 +144,26 @@ class TestTaskStoreReadCutover(unittest.TestCase):
         self.assertEqual(listed["next_action"], "store next")
         self.assertEqual(listed["evidence"], "—")
         self.assertEqual(listed["depends_on"], [])
+        edited = board_path.read_bytes()
         code, result, stderr = project.run("ask", "--needed", "unrelated")
         self.assertEqual(code, 0, result or stderr)
         self.assertEqual(project.store()[0]["title"], "Store-only title")
         self.assertEqual([item["order"] for item in project.store()], [0, 1])
-        board = board_path.read_text(encoding="utf-8")
-        self.assertIn("Store-only title", board)
-        self.assertNotIn("Board-only title", board)
-        self.assertTrue(result["projection"]["cells_the_store_and_board_disagree_on"])
+        # **TASK-262 round 4a.** This read the held file back and found it
+        # re-rendered from the store, with the write's payload naming the
+        # cells the hand edit disagreed on. A write no longer reads or writes
+        # that file: the hand edit stays in it byte for byte, the payload has
+        # nothing to report, and the board — `perry-tasks board` — is the
+        # store's.
+        self.assertEqual(board_path.read_bytes(), edited)
+        self.assertEqual(result["projection"]["cells_the_store_and_board_disagree_on"], [])
+        import subprocess, sys
+        printed = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve().parent.parent / "bin" / "perry-tasks"),
+             "board", "--root", str(project.root)], capture_output=True, text=True)
+        self.assertEqual(printed.returncode, 0, printed.stderr)
+        self.assertIn("Store-only title", printed.stdout)
+        self.assertNotIn("Board-only title", printed.stdout)
 
     def test_status_text_is_the_typed_status_alias_not_projection_text(self):
         project = Project(self)

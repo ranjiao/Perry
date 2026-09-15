@@ -87,7 +87,15 @@ class Base(unittest.TestCase):
             raise AssertionError(seeded.stdout + seeded.stderr)
 
     def read(self):
-        return (self.root / "perry" / "BOARD.md").read_text(encoding="utf-8")
+        """The board `perry-tasks board` prints (TASK-262 round 4a). The held
+        `BOARD.md` `write()` puts down is the import input and no write
+        re-renders it any more."""
+        env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
+        out = subprocess.run([sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
+                              "board", "--root", str(self.root)],
+                             capture_output=True, text=True, env=env)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        return out.stdout
 
     def run_tool(self, *argv):
         env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
@@ -211,48 +219,6 @@ class TestItRefuses(Base):
         self.run_tool("prioritize", "TASK-001", "--priority", "P2")
         self.run_tool("prioritize", "TASK-999", "--priority", "P1")
         self.assertEqual((self.root / "perry" / "BOARD.md").read_bytes(), before)
-
-
-class TestBoardsThatAreNotShapedLikePerrys(Base):
-    """The case `route` could not reach, and the reason `--group` exists.
-
-    `~/proj/gimegime-pmo` — the only year-old real project available — files
-    work under its own headings and has no `## P0`/`## P1`/`## P2` at all.
-    A subcommand that only worked on Perry-shaped boards would be unusable on
-    exactly the projects migration is aimed at.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.write("\n".join([
-            "# Board", "",
-            "## Open — 工程线", "", T.render_row(HEADER), SEP,
-            row("ENG-001", nxt="keep me"), "",
-            "## Open — 投资线", "", T.render_row(HEADER), SEP, "",
-            "## Cadence", "",
-            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |",
-            "|---|---|---|---|---|---|", "",
-            "## User Input Queue", "",
-            "| ID | Needed from user | Blocks | Asked | Status |",
-            "|---|---|---|---|---|", "",
-            "## Top risks", "",
-            "| ID | Risk | Opened | Severity | Cleared |",
-            "|---|---|---|---|---|", "",
-        ]))
-
-    def test_a_row_moves_between_the_projects_own_headings(self):
-        out = self.run_tool("prioritize", "ENG-001", "--group", "Open — 投资线")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(self.section_of("ENG-001"), "Open — 投资线")
-        self.assertEqual(self.task("ENG-001")["next_action"], "keep me")
-
-    def test_no_priority_section_is_created_on_a_board_that_has_none(self):
-        """"No automatic rewrite of a project's existing structure" is an
-        Anti-Goal. The refusal must name the headings the project does use."""
-        out = self.run_tool("prioritize", "ENG-001", "--priority", "P1")
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("Open — 工程线", out.stderr)
-        self.assertNotIn("## P1", self.read())
 
 
 class TestTheIndexIsCheckedBeforeAnythingIsDeleted(Base):

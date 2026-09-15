@@ -249,10 +249,6 @@
       "sec": 5.17,
       "source": "2026-09-09-085824"
     },
-    "test_last_updated_header.py": {
-      "sec": 0.79,
-      "source": "2026-09-09-085824"
-    },
     "test_linkage_store_declared.py": {
       "sec": 1.25,
       "source": "2026-09-09-085824"

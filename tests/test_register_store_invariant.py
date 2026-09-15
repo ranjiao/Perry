@@ -33,6 +33,7 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import contextlib
 import json
 import shutil
 import sys
@@ -172,8 +173,49 @@ def parse(text: str):
         return board, PT._ops()
 
 
+@contextlib.contextmanager
+def the_write_mutates_the_held_board():
+    """**Constructed, not reached** — TASK-262 round 4a.
+
+    Every door in this module was opened the same way: a human edits the held
+    `BOARD.md`, and the next write builds its board from that file, so its
+    derivation disagrees with the store. Since round 4a no write reads a held
+    file (`bin/perry-task § main` builds with `declared_write_board`, from the
+    stores), so no hand edit reaches `commit()` and none of these doors can be
+    opened from the command line. `TestAHandEditToAHeldBoardReachesNoStore`
+    below asserts exactly that, on the real path.
+
+    The guards behind the doors — `refuse_to_shrink`, the bounded exemption,
+    `carry_forward_is_addressable` and TASK-243's substitution report — are
+    still in `commit()`, and a write whose in-memory board disagrees with its
+    stores is still the state they exist for. So that state is CONSTRUCTED
+    here the way `test_commit_asks_the_invariant_about_tasks_jsonl` constructs
+    its own: for the duration of one in-process call, `declared_write_board`
+    is replaced by the held file. It proves each guard is wired and still
+    refuses or reports; it does not claim the state is reachable through the
+    CLI, and the round 4a result says so in those words.
+    """
+    tool = inproc.load("perry-task")
+    real = tool.declared_write_board
+
+    def held(schema, state_root, path, project_root=None):
+        return tool.Board(path)
+
+    tool.declared_write_board = held
+    try:
+        yield
+    finally:
+        tool.declared_write_board = real
+
+
 class Fixture:
-    """A throwaway Perry project with the three register stores minted."""
+    """A throwaway Perry project with the three register stores minted.
+
+    **A fixture whose held board a test edits by hand drives its writes
+    through `the_write_mutates_the_held_board`** (TASK-262 round 4a):
+    `write_board` sets `hand_edited`, and `run(..., held=False)` asks for the
+    real path explicitly.
+    """
 
     def __init__(self, board: str, tracks: list | None = None,
                  mint=("intake", "asks", "risks")):
@@ -183,6 +225,7 @@ class Fixture:
         # register is `.perry/config.jsonl` and `tracks` is a list of records.
         config_store.write_config(self.root, tracks=tracks)
         (self.root / "BOARD.md").write_text(board, encoding="utf-8")
+        self.hand_edited = False
         self._tasks("write", "--from-board")
         for name in mint:
             self._tasks(f"{name}-write", "--from-board")
@@ -200,8 +243,11 @@ class Fixture:
         if r.returncode:
             raise AssertionError(" ".join(argv) + "\n" + r.stdout + r.stderr)
 
-    def run(self, *argv) -> tuple[int, str]:
-        r = inproc.run("perry-task", [*argv, "--root", str(self.root)])
+    def run(self, *argv, held: bool | None = None) -> tuple[int, str]:
+        held = self.hand_edited if held is None else held
+        with (the_write_mutates_the_held_board() if held
+              else contextlib.nullcontext()):
+            r = inproc.run("perry-task", [*argv, "--root", str(self.root)])
         return r.returncode, r.stdout + r.stderr
 
     def raw(self, name: str) -> bytes:
@@ -217,6 +263,7 @@ class Fixture:
 
     def write_board(self, text: str) -> None:
         (self.root / "BOARD.md").write_text(text, encoding="utf-8")
+        self.hand_edited = True
 
     def cleanup(self) -> None:
         shutil.rmtree(self.dir, ignore_errors=True)
@@ -285,14 +332,19 @@ class TestTheFixturesAreTheShapeUnderTest(Base):
         the whole of door 4.
         """
         f = self.fixture(build_board(intake=None), tracks=OPS_QUEUE, mint=())
+        # **Asked of the store since TASK-262 round 4a**: the branch no longer
+        # shows in a held file, which no write re-renders; what it does that a
+        # project-track `add` does not is write the intake register.
+        self.assertFalse((f.root / "intake.jsonl").exists(),
+                         "control: no intake store before either write")
         self.assertEqual(f.run("add", "--title", "a project row",
                                "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                                "--deliverable", "d", "--verification", "v")[0], 0)
-        self.assertNotIn("## Intake", f.board_text())
+        self.assertFalse((f.root / "intake.jsonl").exists())
         self.assertEqual(f.run("add", "--title", "a queue row", "--track", "ops",
                                "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                                "--deliverable", "d", "--verification", "v")[0], 0)
-        self.assertIn("## Intake", f.board_text())
+        self.assertTrue((f.root / "intake.jsonl").exists())
 
 
 # ── 2. the reproduction ───────────────────────────────────────────────────
@@ -329,6 +381,9 @@ class TestTheReproduction(Base):
     `commit()` reads anything, so any gate that asks about the board is asked
     about a board the command it guards has already changed. The invariant does
     not ask about the board. It counts.
+
+    **Constructed since TASK-262 round 4a** (`the_write_mutates_the_held_board`):
+    the deleted `## Intake` is in a held file no write reads any more.
     """
 
     def setUp(self):
@@ -401,7 +456,12 @@ class TestTheReproduction(Base):
 
 class TestTheFourDoors(Base):
     """One invariant, four doors. Each door is named for the round that found
-    it, and each is closed by the same line of code."""
+    it, and each is closed by the same line of code.
+
+    **Every door is constructed since TASK-262 round 4a**
+    (`the_write_mutates_the_held_board`); on the real path a hand edit to a
+    held file opens none of them — `TestAHandEditToAHeldBoardReachesNoStore`.
+    """
 
     # Door 1 — round 1. The exemption was keyed on the COMMAND NAME, on the
     # reasoning that `intake-sweep` is the only command that removes a row.
@@ -1013,34 +1073,41 @@ class TestTheStoreIsReadHonestly(Base):
 class TestTheOrdinaryWriteReachesItsStore(Base):
     """The row's original deliverable, which the invariant must not undo."""
 
+    #: **Rewritten for TASK-262 round 4a.** These three counted the held
+    #: board's rows into the store the first write created (4 + 1 = 5): the
+    #: write built from the held file, so its register came along. A write now
+    #: builds from the stores, so on a project that never imported its held
+    #: register the first write starts the store with the one record it made,
+    #: and the held rows reach a store only through `<register>-write
+    #: --from-board` — finding F17 in the round 4a result. The held file keeps
+    #: its bytes. `intake-diff` compared that file with the store right after a
+    #: write and is deleted with the re-render it relied on.
+
     def test_intake_on_a_project_with_no_store_creates_it_and_holds_the_row(self):
         f = self.fixture(build_board(), mint=())
         self.assertFalse((f.root / "intake.jsonl").exists())
+        held = f.raw("BOARD.md")
         rc, out = f.run("intake", "--title", "a brand new request")
         self.assertEqual(rc, 0, out)
         got = f.records("intake.jsonl")
-        self.assertEqual(len(got), 5)
-        self.assertEqual(got[-1]["request"], "a brand new request")
+        self.assertEqual([r["request"] for r in got], ["a brand new request"])
+        self.assertEqual(f.raw("BOARD.md"), held)
 
     def test_ask_and_risk_add_reach_their_stores_too(self):
         f = self.fixture(build_board(), mint=())
         self.assertEqual(f.run("ask", "--needed", "a question")[0], 0)
-        self.assertEqual(len(f.records("asks.jsonl")), 5)
+        self.assertEqual([r["needed"] for r in f.records("asks.jsonl")],
+                         ["a question"])
         self.assertEqual(f.run("risk-add", "--title", "a risk")[0], 0)
-        self.assertEqual(len(f.records("risks.jsonl")), 4)
+        self.assertEqual([r["risk"] for r in f.records("risks.jsonl")],
+                         ["a risk"])
 
     def test_the_lint_prints_a_drift_verdict_rather_than_unchecked(self):
         f = self.fixture(build_board(), mint=())
         f.run("intake", "--title", "a brand new request")
         r = inproc.run("perry-lint", ["--root", str(f.root)])
         self.assertNotIn("no `intake.jsonl`", r.stdout)
-        self.assertIn("intake store: 5 record(s)", r.stdout)
-
-    def test_intake_diff_byte_compares_clean_right_after_an_ordinary_write(self):
-        f = self.fixture(build_board(), mint=())
-        f.run("intake", "--title", "a brand new request")
-        r = inproc.run("perry-tasks", ["intake-diff", "--root", str(f.root)])
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("intake store: 1 record(s)", r.stdout)
 
     def test_the_success_line_names_the_register_store_only_when_one_is_written(self):
         f = self.fixture(build_board())
@@ -1053,6 +1120,70 @@ class TestTheOrdinaryWriteReachesItsStore(Base):
                           "--deliverable", "d", "--verification", "v")
         self.assertIn("tasks.jsonl", out)
         self.assertNotIn("intake.jsonl", out)
+
+
+# ── 8b. the real path: a held board's hand edit reaches no store ──────────
+
+
+class TestAHandEditToAHeldBoardReachesNoStore(Base):
+    """**What the doors are on the command line since TASK-262 round 4a.**
+
+    The same hand edits the classes above construct, run through the real
+    write path (`held=False`): the write builds from the stores, so every
+    shape a human leaves a held register section in — absent, prose, bullets,
+    a second table, a renamed key column, rows tidied away — changes nothing a
+    write stores. The write succeeds, the store gains exactly the record the
+    command made, the held file keeps its bytes, and stderr says the file is
+    retired. A write that read the held board again would refuse on the
+    broken shapes, or shrink on the tidied one, and go red here.
+    """
+
+    def hint(self, f: Fixture) -> str:
+        return PT.lib.retired_board_hint(f.root.resolve() / "BOARD.md")
+
+    def test_no_section_shape_on_a_held_board_changes_what_a_write_stores(self):
+        for key in REGISTERS:
+            for shape in SHAPES[key]:
+                if shape == "table":
+                    continue
+                with self.subTest(register=key, shape=shape):
+                    f = self.fixture(build_board(), mint=(key,))
+                    store = REGISTERS[key][1]
+                    before = f.records(store)
+                    self.assertTrue(before, "control: the store has records")
+                    f.write_board(build_board(**{key: SHAPES[key][shape]}))
+                    held = f.raw("BOARD.md")
+                    rc, out = f.run(*OWN_WRITE[key], held=False)
+                    self.assertEqual(rc, 0, out)
+                    after = f.records(store)
+                    self.assertEqual(after[:len(before)], before,
+                                     f"a stored record moved on a {shape} section")
+                    self.assertEqual(len(after), len(before) + 1)
+                    self.assertEqual(f.raw("BOARD.md"), held)
+                    self.assertIn(self.hint(f), out)
+
+    def test_rows_tidied_off_a_held_board_do_not_move_n(self):
+        """Door one's state, and the exemption's: two rows gone from the file."""
+        f = self.fixture(build_board())
+        before = f.records("intake.jsonl")
+        self.assertEqual(len(before), 4, "control: four stored requests")
+        tidy_intake_rows_off_the_board(f, [1, 2])
+        held = f.raw("BOARD.md")
+        self.assertIs(before[3]["discharged"], False,
+                      "control: the store's fourth request is still waiting")
+        rc, out = f.run("resolve-intake", "4", "--outcome", "dropped",
+                        "--reason", "not for us", held=False)
+        self.assertEqual(rc, 0, out)
+        after = f.records("intake.jsonl")
+        self.assertEqual(len(after), 4, "a record was lost")
+        self.assertEqual([r["request"] for r in after],
+                         [r["request"] for r in before])
+        self.assertIs(after[3]["discharged"], True,
+                      "n = 4 is a row the tidied file no longer has; the "
+                      "store's fourth request is what it addresses")
+        self.assertEqual([r["discharged"] for r in after[:3]],
+                         [r["discharged"] for r in before[:3]])
+        self.assertEqual(f.raw("BOARD.md"), held)
 
 
 # ── 9. the map is complete, both ways ─────────────────────────────────────

@@ -233,7 +233,20 @@ MENTIONS = {
 #: cmd_cadence_write`'s refusal without `--from-board` and once in
 #: `bin/perry-lint § check_cadence_store_drift`'s drift finding — the ask
 #: register's two hand-backs, one register over.
-PASTEABLE_WRITER_PHRASES = 72
+#:
+#: **72 -> 68 on 2026-09-15 (TASK-262 round 4a), four hand-backs deleted with
+#: the code that printed them, none rewritten:** `bin/perry-task §
+#: refuse_store_drift` (F13, no caller) named `perry-tasks render --write` and
+#: `perry-tasks write --from-board`; `commit()`'s warning when a held
+#: `BOARD.md` could not be re-rendered, and `main()`'s success-line note for
+#: the same failure, each named `perry-tasks render --write`. No write renders
+#: a board file any more, so neither failure can happen.
+#:
+#: **68 -> 70 the same day, two new hand-backs, each rooted from the start:**
+#: `perry-task risk-add{_r}` and `perry-task risk-clear{_r}` in `bin/perry-task
+#: § cmd_risk_migrate`'s refusal of a second migration — the held section keeps
+#: its bullets now, so the refusal names the two writers of the migrated store.
+PASTEABLE_WRITER_PHRASES = 70
 
 
 def _load(path: Path):

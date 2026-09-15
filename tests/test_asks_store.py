@@ -667,12 +667,22 @@ class TestDriftIsReportedRatherThanAbsorbed(unittest.TestCase):
         editing `BOARD.md` directly.
         """
         p = _imported(self)
+        held = p.root / "BOARD.md"
+        before = held.read_bytes()
         out = subprocess.run(
             [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "answer",
              "USER-002", "--answer", "CSV, with a header row",
              "--root", str(p.root), "--json"],
             capture_output=True, text=True)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        # **TASK-262 round 4a.** The write reaches the store and no longer
+        # touches the held file, so the file keeps its bytes and `perry-lint`'s
+        # drift check — which compares that file with the store, and is round
+        # 4b's to retire — would now read the answer as drift. The held file is
+        # retired and may be deleted; with it gone there is nothing to drift.
+        self.assertEqual(held.read_bytes(), before,
+                         "the write rewrote the retired BOARD.md")
+        held.unlink()
         self.assertEqual(_lint(p.root)["ask_store_drift"]["drifted"], 0)
         record = next(r for r in
                       [json.loads(l) for l in

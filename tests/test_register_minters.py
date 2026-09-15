@@ -24,6 +24,13 @@ So the tests below are not "does it read three files". They are, per family:
 3. **one mechanism, by identity** — all three route through `minting_text`,
    asserted by substitution rather than by three copies agreeing.
 
+**TASK-262 round 4a.** Since TASK-237 the three registers have stores
+(`asks.jsonl`, `cadence.jsonl`, `risks.jsonl`), and since round 4a a write
+builds its board from them rather than from a held `BOARD.md`. So "the board"
+below is the register's STORE: an id is planted as a stored record, and a row
+leaves by its record leaving the store. A line typed into a held file no longer
+reaches a minter at all.
+
 Every case is built in a throwaway project and read through the real `--root`
 seam. Nothing here asserts anything about Perry's own board: TASK-151's lesson
 is that a check whose expected value is the project living around it stops
@@ -53,20 +60,39 @@ FAMILIES = [
 ]
 
 
+#: The register each family's section is printed from, and a minimal valid
+#: record for it (TASK-262 round 4a).
+STORE = {
+    "User Input Queue": ("asks.jsonl", lambda rid, text, order: {
+        "id": rid, "needed": text, "blocks": "", "asked": "",
+        "status": "pending", "answered": False, "order": order}),
+    "Cadence": ("cadence.jsonl", lambda rid, text, order: {
+        "id": rid, "title": text, "owner": "", "frequency": "weekly",
+        "next_due": "", "last_run": "", "last_evidence": "", "order": order}),
+    "Top risks": ("risks.jsonl", lambda rid, text, order: {
+        "id": rid, "risk": text, "opened": "", "cleared": "",
+        "status": "open", "order": order}),
+}
+
+
 class Register(Project):
     """A throwaway project with one id plantable in exactly one source."""
 
-    def plant_on_board(self, section: str, text: str) -> None:
-        """A raw line at the end of `## <section>`, as a human would type it."""
-        lines = self.board().split("\n")
-        start = next(i for i, l in enumerate(lines)
-                     if l.startswith("## ") and section in l)
-        end = next((i for i in range(start + 1, len(lines))
-                    if lines[i].startswith("## ")), len(lines))
-        while end > start and not lines[end - 1].strip():
-            end -= 1
-        lines.insert(end, text)
-        (self.root / "BOARD.md").write_text("\n".join(lines))
+    def _records(self, name: str) -> list[dict]:
+        p = self.root / name
+        return ([json.loads(l) for l in p.read_text().split("\n") if l.strip()]
+                if p.exists() else [])
+
+    def _write(self, name: str, records: list[dict]) -> None:
+        (self.root / name).write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
+
+    def plant_on_board(self, section: str, rid: str, text: str) -> None:
+        """A record in `section`'s store — the board a write builds from."""
+        name, make = STORE[section]
+        records = self._records(name)
+        records.append(make(rid, text, len(records)))
+        self._write(name, records)
 
     def plant_in_events(self, **event) -> None:
         p = self.root / ".perry" / "events.jsonl"
@@ -84,9 +110,19 @@ class Register(Project):
         d.mkdir(parents=True, exist_ok=True)
         (d / "a-note.md").write_text(text + "\n")
 
-    def drop_board_row(self, needle: str) -> None:
-        lines = [l for l in self.board().split("\n") if needle not in l]
-        (self.root / "BOARD.md").write_text("\n".join(lines))
+    def drop_board_row(self, rid: str) -> None:
+        """The row leaves: its record is deleted from whichever store holds it,
+        with no event and no journal line — a hand edit."""
+        dropped = 0
+        for name, _make in STORE.values():
+            records = self._records(name)
+            kept = [r for r in records if r.get("id") != rid]
+            dropped += len(records) - len(kept)
+            if len(kept) != len(records):
+                for n, r in enumerate(kept):
+                    r["order"] = n
+                self._write(name, kept)
+        assert dropped == 1, (rid, dropped)
 
     def mint(self, cmd: str, tail: tuple[str, ...]) -> str:
         code, out = self.run(cmd, *tail)
@@ -112,7 +148,7 @@ class TestEverySourceIsRead(unittest.TestCase):
         for cmd, tail, prefix, section in FAMILIES:
             with self.subTest(prefix=prefix):
                 p = Register()
-                p.plant_on_board(section, f"| {prefix}-050 | planted by hand |")
+                p.plant_on_board(section, f"{prefix}-050", "planted by hand")
                 self.assertEqual(p.mint(cmd, tail), f"{prefix}-051")
 
     def test_the_event_log_is_read(self):
@@ -160,7 +196,7 @@ class TestEverySourceIsRead(unittest.TestCase):
         beside `CADENCE-002`.
         """
         p = Register()
-        p.plant_on_board("Cadence", "| CADENCE-007 | a hand-numbered ritual |")
+        p.plant_on_board("Cadence", "CADENCE-007", "a hand-numbered ritual")
         self.assertEqual(p.mint("cadence-add",
                                 ("--title", "r", "--frequency", "weekly")),
                          "CAD-008")
@@ -217,7 +253,7 @@ class TestANumberIsRetiredNotFreed(unittest.TestCase):
         for cmd, tail, prefix, section in FAMILIES:
             with self.subTest(prefix=prefix):
                 p = Register()
-                p.plant_on_board(section, f"| {prefix}-050 | typed by hand |")
+                p.plant_on_board(section, f"{prefix}-050", "typed by hand")
                 p.drop_board_row(f"{prefix}-050")
                 self.assertEqual(p.mint(cmd, tail), f"{prefix}-001")
 
