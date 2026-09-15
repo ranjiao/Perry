@@ -200,8 +200,38 @@ I cannot ask the user, so this belongs to the PMO, after merge.
      `USER-001`, tests the legend's second sentence.
   3. "Is the title stored anywhere?"
 
-**Answers (verbatim):** _empty. Nobody has been asked. The row closes only
-after the PMO records the reading here._
+**Answers (verbatim):** taken by the PMO from the user on 2026-09-15, after
+rounds 2–4b were merged. The user was shown the sample file and nothing else.
+The questions pointed at `TASK-173`'s Next action (`## P1`), `USER-001`'s empty
+`Asked` and `Idle †` cells, and the title `# Board — Perry †`. Before answering,
+the user asked what the sample file is for, given that the board file is
+retired; the PMO answered that it is a frozen snapshot of `perry-tasks board`'s
+output, kept as evidence so the reading has fixed content.
+
+> 1. next action不需要改吧，现在这样就行。如果一定要改，那就放到task自己的spec里面比较合适？
+> 2. USER-001是因为太早了，当时数据字段都还没确定
+> 3. 项目名可以放到~/.perry/config.jsonl
+
+**The PMO's reading of the answers, against what each question tests:**
+
+1. **Missed.** The question tests whether the section's writer line
+   (`written by perry-task … next …`) is where the reader goes to change a
+   stored cell. The reader named the task's own spec instead. The writer line
+   was not used.
+2. **Half.** `Asked` is a stored field that is empty, and the answer — the
+   record predates the field — is consistent with that. `Idle †` is supplied by
+   the render, not an empty stored field, and the answer does not distinguish
+   the two.
+3. **Mostly.** "It could go in config" reads as "it is not stored now", which is
+   what `†` says. The answer also proposes storing it. The path named is the
+   home directory's `~/.perry/`; a project's config store is `.perry/config.jsonl`
+   at the project root.
+
+**What it says about `P003-O2-KR3`:** the `†` mark and the legend partly carry
+the property "a reader can tell what is stored from what the render made up".
+The section line does not yet carry "and where to change it". Items 1–4's
+measurement (6/6 sections, 62/62 columns) is agreement with the declarations,
+not this property, as § 4's caveat already says. This is one reader, once.
 
 Before showing it, read F1: the Cadence, User Input Queue and Top risks lines
 say no writer is declared. A reader asked about an ask or a risk will be misled
