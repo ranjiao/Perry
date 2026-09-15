@@ -282,9 +282,10 @@ class RegistersFromTheStores:
 class TestTheRegistersWithNoBoard(RegistersFromTheStores, unittest.TestCase):
     board_text = None
 
-    # Drift is asserted only here. With a file on disk it is DOCUMENTED to be
-    # about that file (`schema/task-list-contract.md § drift`), so a forged
-    # board is supposed to show drift; with no file there is nothing to drift.
+    # Drift is asserted here and, with a held file, in
+    # `TestAHeldBoardIsReadByNoReader`. Until `perry-task/list` 2.4 a held file
+    # was what drift was DOCUMENTED to be about; since TASK-262 round 4b it is
+    # computed against the store's rows whether a file exists or not.
     def test_drift_names_no_stored_open_row(self):
         open_ids = {t["id"] for t in TASKS if t["status"] not in ("done", "dropped")}
         got = self.p.task_json(["list"])
@@ -324,6 +325,112 @@ class TestTheRegistersWithAForgedBoard(RegistersFromTheStores, unittest.TestCase
         for blob in blobs:
             for forged in ("USER-777", "RX-777", "forged request"):
                 self.assertNotIn(forged, blob)
+
+
+class TestAHeldBoardIsReadByNoReader(unittest.TestCase):
+    """**TASK-262 Amendment (4), round 4b: the fallbacks are retired.**
+
+    The two classes above hold every store, so a forged board could only ever
+    lose to a store. The readers round 4b retired are the ones that read the
+    file WHERE A STORE IS ABSENT: the ask, risk and intake fallbacks of `list`,
+    `asks`, `perry-state` and the viewer's snapshot, and `drift` over the file.
+    So this project holds `tasks.jsonl` and nothing else, beside the forged
+    board. Every forged row must stay out of every payload; the file must be
+    named retired by `perry-lint --root` (a warning) and by `perry-tasks
+    board` (stderr); and F14's re-pointed check must judge `TASK-004` — a
+    `done` record with no evidence that no `done` event closed.
+    """
+
+    FORGED = ("TASK-777", "USER-777", "RX-777", "forged request",
+              "forged question", "forged risk")
+
+    def setUp(self):
+        self.p = Project(board=FORGED_BOARD)
+        self.addCleanup(self.p.close)
+        for name in ("asks", "risks", "intake"):
+            (self.p.state / f"{name}.jsonl").unlink()
+
+    def assert_nothing_forged(self, blob: str, where: str):
+        for forged in self.FORGED:
+            self.assertNotIn(forged, blob, f"{where} read the held board")
+
+    def test_list_and_asks_read_no_register_out_of_the_file(self):
+        got = self.p.task_json(["list", "--all"])
+        self.assertEqual(got["contract"], "perry-task/list/2.4")
+        self.assertEqual((got["asks"]["items"], got["intake"]["rows"],
+                          got["risks"]["items"]), ([], [], []))
+        self.assertNotIn("TASK-777", {t["id"] for t in got["tasks"]})
+        # The file exists, so the existence probe keeps its value.
+        self.assertEqual(got["conformance"]["missing_projection"], "")
+        open_ids = {t["id"] for t in TASKS if t["status"] not in ("done", "dropped")}
+        self.assertFalse(set(got["drift"]["orphaned"] or []) & open_ids,
+                         got["drift"])
+        self.assert_nothing_forged(json.dumps(got), "list")
+        asks = self.p.task_json(["asks", "--all"])
+        self.assertEqual((asks["contract"], asks["count"]),
+                         ("perry-asks/list/1.4", 0))
+        self.assert_nothing_forged(json.dumps(asks), "asks")
+
+    def test_perry_state_reads_no_register_and_measures_no_file(self):
+        got = self.p.state_json()
+        self.assertEqual(got["user_input_queue"]["count"], 0)
+        self.assertEqual(got["intake"]["rows"], 0)
+        self.assertEqual(got["risks"]["count"], 0)
+        self.assertEqual(got["board"]["lines"], 0)
+        self.assertFalse([w for w in got["warnings"] if "BOARD.md" in w])
+        self.assert_nothing_forged(json.dumps(got), "perry-state")
+
+    def test_the_viewer_snapshot_reads_no_register(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "viewer"))
+        import parsers as P
+        snap = P.load_snapshot(self.p.state)
+        self.assertEqual((snap.board.user_input_queue, snap.board.intake,
+                          snap.board.risks, snap.top_risks), ([], [], [], []))
+        self.assertNotIn("TASK-777", {t.id for t in snap.board.all_tasks})
+        self.assertFalse(hasattr(snap, "board_as_authored"))
+
+    def test_lint_names_the_file_and_judges_the_imported_closure(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "bin"))
+        import lib
+        out = inproc.run("perry-lint", ["--root", str(self.p.root), "--json"],
+                         cwd=self.p.tmp)
+        got = json.loads(out.stdout)
+        retired = [f for f in got["findings"] if f["rule"] == "retired-board"]
+        self.assertEqual(len(retired), 1, retired)
+        self.assertEqual(retired[0]["severity"], "warn")
+        self.assertEqual(retired[0]["file"], "perry/BOARD.md")
+        self.assertIn(retired[0]["message"],
+                      {lib.retired_board_hint(self.p.board),
+                       lib.retired_board_hint(self.p.board.resolve())})
+        on_the_file = [f for f in got["findings"]
+                       if f["file"].endswith("BOARD.md")
+                       and f["rule"] != "retired-board"]
+        self.assertEqual(on_the_file, [], "a check still reads the held board")
+        self.assertFalse(got["store_drift"]["comparison_performed"])
+        undone = [f for f in got["findings"] if f["rule"] == "done-needs-evidence"]
+        self.assertEqual([(f["file"], "TASK-004" in f["message"]) for f in undone],
+                         [("perry/tasks.jsonl", True)], undone)
+
+    def test_perry_tasks_board_names_the_file_on_stderr_only(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "bin"))
+        import lib
+        held = inproc.run("perry-tasks", ["board", "--root", str(self.p.root)])
+        self.assertEqual(held.returncode, 0, held.stderr)
+        # Lines Perry printed, not an interpreter warning a first in-process
+        # compile may put on the same stream.
+        said = [l for l in held.stderr.splitlines() if l.startswith("perry")]
+        self.assertEqual(len(said), 1, held.stderr)
+        self.assertIn(said[0], {lib.retired_board_hint(self.p.board),
+                                lib.retired_board_hint(self.p.board.resolve())})
+        self.assert_nothing_forged(held.stdout, "perry-tasks board")
+        self.p.board.unlink()
+        gone = inproc.run("perry-tasks", ["board", "--root", str(self.p.root)])
+        self.assertEqual((gone.returncode, gone.stdout), (0, held.stdout))
+        self.assertEqual([l for l in gone.stderr.splitlines()
+                          if l.startswith("perry")], [])
 
 
 class TestThisProjectsStoresWithNoBoard(unittest.TestCase):
