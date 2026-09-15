@@ -35,6 +35,9 @@ STATE = PERRY_HOME / "bin" / "perry-state"
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from held_board import import_board  # noqa: E402
+
 
 def load(name: str, path: Path):
     spec = importlib.util.spec_from_loader(
@@ -596,6 +599,9 @@ class TestOverdueReport(unittest.TestCase):
             "|---|---|---|---|---|---|",
             "|---|---|---|---|---|---|\n"
             "| CAD-009 | mystery | X | when the mood takes us | — | — |"))
+        # TASK-262 round 4b: the held section reaches `perry-state` through
+        # its import; the file itself is not read.
+        import_board(p.root, "cadence-write", remove=False)
         rep = p.state()
         self.assertEqual([r["id"] for r in rep["unreadable_frequency"]], ["CAD-009"])
         self.assertEqual(rep["items"][0]["frequency_kind"], "")
@@ -631,6 +637,7 @@ class TestOverdueReport(unittest.TestCase):
             "|---|---|---|---|---|---|",
             "|---|---|---|---|---|---|\n"
             "| CAD-009 | mystery | X | 每周五 | — | — |"))
+        import_board(p.root, "cadence-write", remove=False)   # TASK-262 4b
         rep = p.state()
         self.assertEqual([r["id"] for r in rep["unreadable_frequency"]], ["CAD-009"])
         self.assertEqual(rep["undated"], [], "the setup no longer reaches the "

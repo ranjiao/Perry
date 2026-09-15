@@ -4,3 +4,4 @@
 {"ts": "2026-08-06T11:20:00", "event": "start", "id": "WIT-001", "track": "main", "actor": "agent", "from": "not_started", "to": "in_progress"}
 {"ts": "2026-08-06T11:40:00", "event": "status", "id": "WIT-002", "track": "main", "actor": "agent", "from": "not_started", "to": "blocked"}
 {"ts": "2026-08-06T12:05:00", "event": "status", "id": "WIT-003", "track": "main", "actor": "agent", "from": "in_progress", "to": "review"}
+{"ts": "2026-09-15T14:46:01+08:00", "event": "risk-migrate", "id": "", "title": "", "count": 1, "migrated": ["RX-001"], "actor": "agent", "from": "bullets", "to": "table"}

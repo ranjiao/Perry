@@ -1,6 +1,6 @@
 # `perry-goals list --json` — the goals contract
 
-> Contract: **`perry-goals/list/3.3`**
+> Contract: **`perry-goals/list/3.4`**
 > Locked by `tests/test_goals_contract.py`.
 > DESIGN-005 § 6 step 2.
 
@@ -33,7 +33,7 @@ Perry's tests cannot reach.
 
 ```jsonc
 {
-  "contract":     "perry-goals/list/3.3",
+  "contract":     "perry-goals/list/3.4",
   "installed":    true,                    // false: not a Perry project — schema/README.md § installed
   "semantics":    [ /* below */ ],         // meaning changes, oldest minor first
   "project_root": "/abs/path",
@@ -165,8 +165,9 @@ whatever conclusion it likes from the pair. Perry draws none.
 | `linked_task_completion.unknown` | int | an id neither the board nor the event log knows — a dangling edge, never silently counted as open |
 
 A task's status is taken from `tasks.jsonl` first, which keeps closed rows
-(`lib.task_status_index`; a project that still holds a `BOARD.md` adds its
-rows beneath the store), and from the last state-moving event second. `moved_tasks` reads the event log only, and an event counts as a
+(`lib.task_status_index`, the store and nothing else; until `3.4` a project
+that still held a `BOARD.md` added that file's rows beneath the store), and
+from the last state-moving event second. `moved_tasks` reads the event log only, and an event counts as a
 state move when its `to` is a task status — `next`, `evidence` and `rung` also
 carry `from`/`to` and hold prose, a path and a rung.
 
@@ -398,6 +399,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `3.1` | 2026-09-10 | **no key added, one value's meaning changed, and one invariant written down. TASK-415.** A **measured** `current` — one whose `current_provenance.measured` is `true` — is now rounded to one decimal place, with `0.0` and `100.0` reserved for the exact cases; `P003-O3-KR2` reads `34.2` where it read `34.21052631578947`. Same key, different number, which is exactly what moved `2.2`, and rule 2 is untouched: nothing removed, nothing retyped. The invariant is that a KR with `measured: true` carries a non-null `target`, held by `tests/test_measured_krs_declare_a_target.py`; it adds no key either, and is recorded here because a consumer cannot rely on a guarantee nobody stated. The page also stopped saying `current_provenance.measured` is *always false* and `current_provenance.state` is only `asserted` or `unasserted` — both had been wrong since DESIGN-015 row F shipped `COMPUTED_KR_METRICS`, and correcting a page to match a payload that already shipped is not itself a version move (the `2.1`/TASK-131 precedent). |
 | `3.2` | 2026-09-14 | **additive, TASK-237 3b′.** One key added, none removed or retyped: top-level `installed`, `true` exactly when `schema/README.md § installed` holds. On a directory that is not a Perry project this payload answered its empty shape at exit 0 — `okr.present` false, `krs` empty, `phase` null — which a consumer could not tell from a project with nothing in it. `semantics` carries a `3.2` entry for it, at the user's decision (Amendment (4) item 1), although a key addition is normally a changelog row only. |
 | `3.3` | 2026-09-14 | **no key added, one value's meaning changed, TASK-237 3c.** `installed` is narrower (Amendment (7), the user's decision): at `3.2` a canonical store under the state root counted on its own, so a folder holding only another tool's `tasks.jsonl` read `installed: true`. From `3.3` a store counts only with a `.perry/` directory at the project root beside it (`schema/README.md § installed`); such a directory now answers `installed: false` with the empty shape at exit 0. `semantics` carries a `3.3` entry. A narrowed meaning is not a removal or a retype, so this is a minor. |
+| `3.4` | 2026-09-15 | **no key added, one value's meaning changed, TASK-262 round 4b.** A held `BOARD.md` is retired (Amendment (4), the user's decision): `lib.task_status_index` reads `tasks.jsonl` alone and no longer puts a held board's rows beneath the store. A linked id that only the held file carried is now counted from the event log's last state-moving event, or as `unknown` when the log has none, in `krs[].linked_task_completion`. Unchanged on a project with no held board and on one whose board rows are all stored. `semantics` carries a `3.4` entry. |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a
 deterministic writer and still has no deterministic *reader* — a consumer that

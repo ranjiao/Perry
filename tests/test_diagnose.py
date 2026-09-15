@@ -29,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import config_store                                            # noqa: E402
+from held_board import import_board                            # noqa: E402
 from config_store import track                                 # noqa: E402
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
@@ -52,7 +53,35 @@ def load_bin_module(name: str):
     return mod
 
 
+def import_held_board(root: Path) -> None:
+    """A fixture's hand-written board, imported before `perry-diagnose` reads.
+
+    **TASK-262 Amendment (4), round 4b.** `perry-diagnose` no longer reads a
+    held `BOARD.md`: the pending asks come from `asks.jsonl`, the mode rows
+    from `tasks.jsonl`'s open records, the intake count from `intake.jsonl`.
+    The fixtures in this module state their projects as boards, because a board
+    is the legible way to write one; they now reach the tool the way a real
+    project's board does, through the documented `--from-board` imports
+    (`tests/held_board.py`). The file is left in place — it is still a document
+    the inventory counts — and nothing reads it.
+
+    Only an installed temporary project is imported. This repository and the
+    shipped fixtures are never written, and `risks-write` is not run: nothing
+    here reads risks, and a bullet section would need a `risk-migrate` write.
+    """
+    root = Path(root).resolve()
+    if root == PERRY_HOME.resolve() or PERRY_HOME.resolve() in root.parents:
+        return
+    if not (root / ".perry" / "config.jsonl").is_file():
+        return
+    if not any((d / "BOARD.md").is_file() for d in (root, root / "perry")):
+        return
+    import_board(root, "write", "asks-write", "intake-write", "cadence-write",
+                 remove=False)
+
+
 def scan(root: Path) -> dict:
+    import_held_board(root)
     # **In-process.** 121 of this module's 153 subprocess calls are this one.
     # Against a fixture the boundary is two thirds of the call, and
     # `perry-diagnose`'s `_TEXT_CACHE` is cleared at the top of `diagnose()`
@@ -468,10 +497,19 @@ class TestIdsResolve(unittest.TestCase):
         self.assertTrue({"REL-001", "ADR-002", "USER-014", "P002-O1-KR1"} <= ids, ids)
 
     def test_dangling_ids_are_reported_and_gate(self):
-        """The fixture's phase doc names REL-003, which is on no board."""
+        """The fixture's phase doc names TASK-157, which nothing here declares.
+
+        It named REL-003 until TASK-262 round 4b. REL-003 was "on no board",
+        but the fixture's own event log opened and closed it, so the upgrade
+        (`perry-tasks write --from-board`) derived its closed record into
+        `tasks.jsonl` — a declared id, correctly not dangling any more.
+        TASK-157, cited in the same document, is declared by no file of this
+        project, and is what the gate now reports."""
         r = self.explain(FIXTURE, "--dangling", "--json")
         self.assertEqual(r.returncode, 1)
-        self.assertIn("REL-003", {x["id"] for x in json.loads(r.stdout)})
+        dangling = {x["id"] for x in json.loads(r.stdout)}
+        self.assertIn("TASK-157", dangling)
+        self.assertNotIn("REL-003", dangling)
 
     def test_unknown_id_fails_helpfully(self):
         r = self.explain(FIXTURE, "REL-999")
@@ -479,11 +517,19 @@ class TestIdsResolve(unittest.TestCase):
         self.assertIn("--all", r.stdout)
 
     def test_label_form_pairs_id_with_title(self):
-        """The form the style rule requires: REL-002 ("Flake detector")."""
+        """The form the style rule requires: REL-009 ("Pipeline docs refresh").
+
+        It was REL-002 ("Flake detector") until TASK-262 round 4b, whose title
+        came from the fixture's `BOARD.md` row: `BOARD.md` sorted ahead of
+        `evidence/REL-002-spec.md` in the walk. With the board imported and
+        deleted, the ID-named spec file is REL-002's first home and its heading
+        is the glossary title (round 4b result, F29). REL-009 has no document
+        named for it, so its title is its `tasks.jsonl` record's, which is the
+        pairing this test is about."""
         mod = load_bin_module("perry-explain")
         entries = mod.harvest(FIXTURE)
-        self.assertEqual(mod.label(entries["REL-002"]),
-                         'REL-002 ("Flake detector")')
+        self.assertEqual(mod.label(entries["REL-009"]),
+                         'REL-009 ("Pipeline docs refresh")')
         self.assertEqual(mod.label({"id": "X-1"}), "X-1")
 
     def test_works_on_a_project_with_its_own_id_convention(self):
@@ -499,8 +545,30 @@ class TestIdsResolve(unittest.TestCase):
 
 class TestUserLoadFindings(unittest.TestCase):
     def test_dangling_ids_surface_as_a_finding(self):
-        p = scan(FIXTURE)
-        self.assertIn("LOAD-02", ids(p))
+        """On a copy of the fixture that cites an id nothing declares.
+
+        The fixture itself carried one until TASK-262 round 4b: its phase doc
+        continues "REL-002 → REL-003", and REL-003 was on no board. The
+        upgrade derived REL-003's closed record from the fixture's event log,
+        and the fixture's other undeclared ids (`TASK-157`, `DESIGN-013`) sit
+        in a quoted note, which `split_dangling` reads as a report. So the
+        dangling reference is planted, in the same prose position REL-003
+        held, and `LOAD-02` must fire on it and not fire on the unplanted copy.
+        """
+        import shutil
+        with tempfile.TemporaryDirectory() as td:
+            clean = Path(td) / "clean"
+            shutil.copytree(FIXTURE, clean)
+            self.assertNotIn("LOAD-02", ids(scan(clean)))
+            planted = Path(td) / "planted"
+            shutil.copytree(FIXTURE, planted)
+            doc = planted / "phase" / "002-release-pipeline.md"
+            text = doc.read_text()
+            anchor = "PMO continues with REL-002 → REL-003."
+            self.assertEqual(text.count(anchor), 1)
+            doc.write_text(text.replace(anchor, "PMO continues with "
+                                        "REL-002 → REL-003 → REL-404."))
+            self.assertIn("LOAD-02", ids(scan(planted)))
 
     def test_id_sprawl_without_a_lookup(self):
         with tempfile.TemporaryDirectory() as td:
@@ -920,6 +988,7 @@ class UserAskAnswerState(unittest.TestCase):
             (root / ".perry").mkdir()
             config_store.write_config(root)
             (root / "BOARD.md").write_text(self._board(rows))
+            import_held_board(root)          # TASK-262 round 4b
             r = subprocess.run(
                 ["python3", str(PERRY_HOME / "bin" / "perry-diagnose"),
                  "--root", str(root), "--json"],
@@ -1462,6 +1531,9 @@ class AnAskIsAnsweredByItsStatusCellAndNotByItsProse(unittest.TestCase):
                 "| USER-001 | Which region is the default | TASK-005 | 1d | "
                 "pending |\n"))
             write(root, "notes/a.md", "# A\n\nUSER-001 is the row.\n")
+            # The queue is `asks.jsonl` (TASK-262 round 4b); the held board's
+            # row reaches it through the import, `Status` cell and all.
+            import_held_board(root)
             entries = explain.harvest(root)
 
             self.assertEqual([i for i, _ in
@@ -1531,7 +1603,15 @@ class AFixtureIsNotTheProjectsState(unittest.TestCase):
 
     # ── the half the row was opened for ──────────────────────────────────
     def test_a_fixture_board_is_neither_the_queue_nor_a_row_in_it(self):
-        """`examples/BOARD.md` is a fixture, `state/BOARD.md` is the project.
+        """`examples/BOARD.md` is a fixture; the project's queue is its store.
+
+        **Rewritten at TASK-262 round 4b.** The project's queue was
+        `state/BOARD.md`, found by the `*/BOARD.md` fallback that sorted
+        `examples/` first. No board file is read now, so the project's queue
+        is `asks.jsonl` and the fixture's board is one more document. What the
+        test holds is unchanged: the fixture's queue is not the project's,
+        `USER-900` is not counted, and the real pending `USER-001` is not lost
+        although the fixture defines it too.
 
         Three ways this used to go wrong, all in one tree:
 
@@ -1550,8 +1630,10 @@ class AFixtureIsNotTheProjectsState(unittest.TestCase):
             write(root, "examples/BOARD.md", board_with_queue(
                 "| USER-001 | Which region is the default | TASK-005 | 9d | pending |\n"
                 "| USER-900 | A row a test needs to see pending | TASK-9 | 4d | pending |\n"))
-            write(root, "state/BOARD.md", board_with_queue(
-                "| USER-001 | Which region is the default | TASK-005 | 3d | pending |\n"))
+            write(root, "asks.jsonl", json.dumps({
+                "id": "USER-001", "needed": "Which region is the default",
+                "blocks": "TASK-005", "asked": "2026-09-12",
+                "status": "pending", "answered": False, "order": 0}) + "\n")
             write(root, "notes/testing.md",
                   "# Testing\n\nThe board fixture keeps USER-900 pending on "
                   "purpose, and USER-001 is the row it mirrors.\n")
@@ -1560,9 +1642,10 @@ class AFixtureIsNotTheProjectsState(unittest.TestCase):
                          {"queue": 1, "design": 0})
         samples = load["open_decision_samples"]
         self.assertEqual(len(samples), 1, samples)
-        # The evidence must point at the project's board, not the fixture's —
-        # the id alone would pass while the reader was sent to `examples/`.
-        self.assertTrue(samples[0].startswith("state/BOARD.md:"), samples[0])
+        # The evidence must point at the project's register, not the
+        # fixture's board — the id alone would pass while the reader was sent
+        # to `examples/`.
+        self.assertTrue(samples[0].startswith("asks.jsonl:"), samples[0])
         self.assertTrue(samples[0].endswith("— USER-001"), samples[0])
 
     # ── one rule, one implementation ─────────────────────────────────────
@@ -2472,7 +2555,9 @@ class TestWorkModeDetection(unittest.TestCase):
             t = modes_of(scan(root))["main"]
         self.assertEqual(t["mode"], "queue")
         self.assertEqual(t["confidence"], "high")
-        self.assertTrue(any("Intake" in e for e in t["evidence"]["queue"]))
+        # `intake.jsonl`, not `BOARD.md § Intake`: the count is the store's
+        # records since TASK-262 round 4b, and the evidence names the store.
+        self.assertTrue(any("intake.jsonl" in e for e in t["evidence"]["queue"]))
         self.assertTrue(any("Arrived" in e for e in t["evidence"]["queue"]))
         self.assertTrue(any("stage vocabulary" in e
                             for e in t["evidence"]["queue"]))
@@ -2485,7 +2570,10 @@ class TestWorkModeDetection(unittest.TestCase):
                 "## P1\n\n| ID | Title | Owner | Status | Stage | Parent |\n"
                 "|---|---|---|---|---|---|\n"
                 "| Q-1 | Does batching cut cost? | Agent | in_progress | researching | — |\n"
-                "| Q-2 | Per-call cost today? | Agent | done | answered | Q-1 |\n"))
+                # `review`, not `done` (TASK-262 round 4b): the rows are the
+                # store's OPEN records, as a board's are, and a closed child
+                # carries no `Parent` signal. A hand board could hold one.
+                "| Q-2 | Per-call cost today? | Agent | review | answered | Q-1 |\n"))
             write(root, "evidence/2026-08/Q-2-answer.md", "# Answer\n$0.004 [SRC-1]\n")
             t = modes_of(scan(root))["main"]
         self.assertEqual(t["mode"], "inquiry")
@@ -2840,7 +2928,7 @@ class TestModeDisagreementIsAFinding(unittest.TestCase):
         self.assertIn("pipeline", f["title"])
         self.assertIn("queue", f["title"])
         self.assertTrue(f["evidence"], "the finding cites no evidence")
-        self.assertTrue(any("Intake" in e for e in f["evidence"]))
+        self.assertTrue(any("intake.jsonl" in e for e in f["evidence"]))
 
     def test_the_same_board_labelled_queue_is_not_a_finding(self):
         """The clearing case. A finding whose signal survives the fix is worse

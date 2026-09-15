@@ -148,12 +148,12 @@ class TheRuleHoldsOnTheLivePayload(unittest.TestCase):
                 "goals-list-contract.md").read_text(encoding="utf-8")
         # TASK-237 3b′: `installed` was added, a minor bump.
         # TASK-237 3c: `installed` narrowed (a store needs `.perry/`), a minor bump.
-        self.assertIn("perry-goals/list/3.3", page)
+        self.assertIn("perry-goals/list/3.4", page)
         self.assertIn("`current_provenance.measured` is `true`, `target` is "
                       "not `null`", page)
         # TASK-237 3b′: `installed` was added, a minor bump.
         # TASK-237 3c: `installed` narrowed (a store needs `.perry/`), a minor bump.
-        self.assertEqual(self.payload["contract"], "perry-goals/list/3.3")
+        self.assertEqual(self.payload["contract"], "perry-goals/list/3.4")
 
 
 class TheCheckCatchesTheRowItWasWrittenFor(unittest.TestCase):

@@ -260,6 +260,12 @@ class TestOpenedAndClearedAreReal(unittest.TestCase):
         """A cleared risk is not in `items` — it is not a top risk — so before
         `cleared_items` its dates were emitted by nothing at all."""
         p = Project(board=board_with(REGISTER))
+        # The register reaches `perry-state` through its import (TASK-262
+        # round 4b): a held `## Top risks` is not read.
+        imported = subprocess.run(
+            [sys.executable, str(TASKS), "risks-write", "--from-board",
+             "--root", str(p.root)], capture_output=True, text=True)
+        self.assertEqual(imported.returncode, 0, imported.stderr)
         out = subprocess.run(
             [sys.executable, str(PERRY_HOME / "bin" / "perry-state"),
              "--root", str(p.root), "--json"],
@@ -346,97 +352,6 @@ class TestAHandEditIsReported(unittest.TestCase):
     SECTION = ("| ID | Risk | Opened | Status |\n"
                "|---|---|---|---|\n"
                "| RX-001 | the vendor contract lapses | 2026-08-01 | open |\n")
-
-    def test_a_clean_register_reports_nothing_and_says_it_compared(self):
-        payload = self._lint(self._project(self.SECTION, self.STORE).root)
-        self.assertEqual(payload["risk_store_drift"],
-                         {"store_present": True, "comparison_performed": True,
-                          "records": 1, "drifted": 0})
-        self.assertEqual(
-            [f for f in payload["findings"]
-             if f["rule"].startswith("risk-store")], [])
-
-    def test_a_hand_edited_cell_is_reported_as_a_warning(self):
-        edited = self.SECTION.replace("the vendor contract lapses",
-                                      "somebody typed this in by hand")
-        payload = self._lint(self._project(edited, self.STORE).root)
-        drifted = [f for f in payload["findings"] if f["rule"] == "risk-store-drift"]
-        self.assertEqual(len(drifted), 1, drifted)
-        self.assertEqual(drifted[0]["severity"], "warn")
-        self.assertIn("RX-001", drifted[0]["message"])
-        self.assertIn("`risk`", drifted[0]["message"])
-        self.assertEqual(payload["risk_store_drift"]["drifted"], 1)
-        # **Reported, not refused, and never an error.** A drifted register
-        # still has a valid register shape, and the conformance gate's boundary
-        # is precise: warnings are quality signals, errors are shape
-        # violations. (The fixture board carries unrelated `missing-section`
-        # errors, so `payload["errors"]` is not the assertion here — the
-        # severity of THIS rule is.)
-        self.assertEqual({f["severity"] for f in payload["findings"]
-                          if f["rule"].startswith("risk-store")}, {"warn"})
-
-    def test_a_hand_added_row_the_store_never_saw_is_reported(self):
-        extra = self.SECTION + "| RX-002 | typed in by hand | | open |\n"
-        payload = self._lint(self._project(extra, self.STORE).root)
-        drifted = [f for f in payload["findings"] if f["rule"] == "risk-store-drift"]
-        self.assertEqual(len(drifted), 1, drifted)
-        self.assertIn("RX-002", drifted[0]["message"])
-        self.assertIn("the store has no record of it", drifted[0]["message"])
-
-    def test_a_stored_risk_the_section_does_not_render_is_reported(self):
-        store = self.STORE + [{"id": "RX-002", "risk": "second", "opened": "",
-                               "cleared": "", "status": "open", "order": 1}]
-        payload = self._lint(self._project(self.SECTION, store).root)
-        drifted = [f for f in payload["findings"] if f["rule"] == "risk-store-drift"]
-        self.assertEqual(len(drifted), 1, drifted)
-        self.assertIn("renders no row for it", drifted[0]["message"])
-
-    def test_the_field_with_no_column_cannot_drift_and_is_not_lost(self):
-        """**`cleared` renders into no cell, so nothing in the file can
-        disagree with it** — and that is a property, not a hole.
-
-        It is carried across every rebuild from the store, exactly as a task's
-        `summary` is (`bin/perry-task § store_records`, ADR-009): a value the
-        projection cannot express must not be recoverable from prose, or the
-        store stops being what the field means. A hand edit that contradicts
-        it is still caught, through the column that does exist — asserted in
-        the test below.
-        """
-        store = [dict(self.STORE[0], cleared="2026-09-09")]
-        payload = self._lint(self._project(self.SECTION, store).root)
-        self.assertEqual(payload["risk_store_drift"]["drifted"], 0)
-        self.assertEqual(
-            [f for f in payload["findings"]
-             if f["rule"] == "risk-store-drift"], [])
-
-    def test_a_hand_written_cleared_date_is_reported_through_status(self):
-        store = [dict(self.STORE[0], cleared="2026-08-16",
-                      status="cleared 2026-08-16 — the vendor renewed")]
-        edited = self.SECTION.replace("| open |", "| cleared 2099-01-01 |")
-        payload = self._lint(self._project(edited, store).root)
-        drifted = [f for f in payload["findings"] if f["rule"] == "risk-store-drift"]
-        self.assertEqual(len(drifted), 1, drifted)
-        self.assertIn("`status`", drifted[0]["message"])
-        self.assertIn("2099-01-01", drifted[0]["message"])
-
-    def test_a_row_moved_by_hand_is_reported_once_for_the_section(self):
-        """`order` is a fact about a sequence, not about a row. Comparing it
-        like the other fields turns one moved row into a finding for every row
-        beneath it — the whole-section diff `order` exists to prevent,
-        re-created inside the report about it (`_order_drift`)."""
-        section = ("| ID | Risk | Opened | Status |\n"
-                   "|---|---|---|---|\n"
-                   "| RX-002 | second | | open |\n"
-                   "| RX-001 | first | | open |\n")
-        store = [{"id": "RX-001", "risk": "first", "opened": "", "cleared": "",
-                  "status": "open", "order": 0},
-                 {"id": "RX-002", "risk": "second", "opened": "", "cleared": "",
-                  "status": "open", "order": 1}]
-        payload = self._lint(self._project(section, store).root)
-        drifted = [f for f in payload["findings"] if f["rule"] == "risk-store-drift"]
-        self.assertEqual(len(drifted), 1, drifted)
-        self.assertIn("file RX-002 → RX-001", drifted[0]["message"])
-        self.assertIn("store RX-001 → RX-002", drifted[0]["message"])
 
     def test_no_store_is_not_a_clean_store(self):
         self._held = p = Project(board=board_with(self.SECTION))
@@ -794,21 +709,6 @@ class TestTheOneWayImport(unittest.TestCase):
         self.assertEqual(
             [d["column"] for d in
              report["cells_the_store_and_board_disagree_on"]], ["Status"])
-
-    def test_a_hand_edited_cell_still_raises_exactly_one_drift_warning(self):
-        p = self._imported()
-        board = p.root / "BOARD.md"
-        board.write_text(board.read_text().replace(
-            "DESIGN-003 phase G", "somebody typed this in by hand"))
-        payload = self._lint(p.root)
-        drifted = [f for f in payload["findings"]
-                   if f["rule"] == "risk-store-drift"]
-        self.assertEqual(len(drifted), 1, drifted)
-        self.assertEqual(drifted[0]["severity"], "warn")
-        self.assertIn("RX-003", drifted[0]["message"])
-        self.assertEqual(payload["risk_store_drift"],
-                         {"store_present": True, "comparison_performed": True,
-                          "records": 3, "drifted": 1})
 
     # ── the claim is a live guard, not a historical note ───────────────
 

@@ -37,7 +37,7 @@ line in `.perry/config.md` is not read.
 | `.perry/config.md` + root `BOARD.md`, no stores (G0, root layout) | `false` | exit 0, empty | exit 1 | **refused**: exit 1, nothing written |
 | `.perry/config.md` + stores under `perry/` + `BOARD.md` (G1, `perry/` layout) | `false`: the stores sit under a state root nothing declares | exit 0, empty | exit 1 | refused |
 | `.perry/config.md` + stores at the project root (G1, root layout) | `true` | the stores' contents | exit 0 | succeeds |
-| `.perry/config.jsonl` + stores + a `BOARD.md` that does not match them (G2 with a stale board) | `true` | the stores' contents | exit 0 | **refused**, e.g. `TASK-391 is not a row on the board`: a board that is present is still re-rendered, so a stale one blocks the write |
+| `.perry/config.jsonl` + stores + a `BOARD.md`, matching them or not (G2 with a held board) | `true` | the stores' contents only: a register with no store is empty, and the file is not read | exit 0, and the retired-board hint on stderr | succeeds, leaves the file's bytes unchanged, and names the file on stderr (not under `--json` or `--dry-run`). `perry-lint --root` warns `retired-board` |
 | `.perry/config.jsonl` + stores, no `BOARD.md` (G3) | `true` | the stores' contents | exit 0 | succeeds, and creates no `BOARD.md` |
 
 ## Rules for an agent
@@ -52,9 +52,13 @@ line in `.perry/config.md` is not read.
    or ask the user.
 3. **Never hand-create a store, and never hand-edit a `*.jsonl`.** Every write
    goes through a `bin/` command.
-4. **A leftover `BOARD.md` in an installed project is a stale projection**, not a
-   second source of truth. If it blocks writes, the upgrade below removes it; do
-   not "fix" it by editing it.
+4. **A leftover `BOARD.md` in an installed project is a retired file**, not a
+   second source of truth (TASK-262). No write and no read uses it: only the
+   `--from-board` imports read it, to create the stores it has and the project
+   does not. `perry-tasks board`, `perry-lint --root` and every successful
+   write name it as one that can be deleted. Import any register it holds that
+   has no store yet (the upgrade below), then `git rm` it; do not "fix" it by
+   editing it, since an edit reaches nothing.
 5. **Never write into another project from a Perry session.** Upgrade a project
    from inside that project. When measuring, copy its files into scratch space.
 
@@ -156,8 +160,8 @@ For a program such as aiMark rather than an agent. Measured on `main`, 2026-09-1
 
 | Payload | Contract |
 |---|---|
-| `perry-task list --json` | `perry-task/list/2.3` |
-| `perry-task asks --json` | `perry-asks/list/1.3` |
+| `perry-task list --json` | `perry-task/list/2.4` |
+| `perry-task asks --json` | `perry-asks/list/1.4` |
 | `perry-task events --json` | `perry-events/list/1.4` |
 | `perry-goals list --json` | `perry-goals/list/3.3` |
 | `perry-decide list --json` | `perry-decide/list/2.2` |

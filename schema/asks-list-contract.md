@@ -1,4 +1,4 @@
-# `perry-task asks --all --json` — `perry-asks/list/1.3`
+# `perry-task asks --all --json` — `perry-asks/list/1.4`
 
 The User Input Queue as a query. By default the **open** asks; with `--all`,
 every ask Perry has recorded, and for each answered one **when** it was
@@ -22,15 +22,17 @@ second surface, which is the move `events` made one register over.
 population is built from the same snapshot, filtered by the same
 `parsers.ask_is_answered`, and carries the same eight keys `asks.items` does.
 
-**The population is `asks.jsonl`** (since 1.1). `BOARD.md § User Input Queue`
-is read only on a project that has no ask store, so deleting the file does
-not empty this payload.
+**The population is `asks.jsonl`, and only it** (since 1.1; the fallback went
+at 1.4). A project that still holds a `BOARD.md` holds a retired file: its
+`## User Input Queue` is not read, with or without an ask store, so a project
+with no `asks.jsonl` answers `asks: []`. Deleting the file changes nothing
+here; import its queue first (`perry-tasks asks-write --from-board`).
 
 ## The payload
 
 ```jsonc
 {
-  "contract": "perry-asks/list/1.3",
+  "contract": "perry-asks/list/1.4",
   "installed": true,        // false: not a Perry project — schema/README.md § installed
   "semantics": [ /* below */ ],  // meaning changes, oldest minor first
   "project_root": "/abs/path",
@@ -45,9 +47,9 @@ not empty this payload.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `contract` | string | `perry-asks/list/1.3` |
+| `contract` | string | `perry-asks/list/1.4` |
 | `installed` | bool | `true` when the directory read is an installed Perry project, by `schema/README.md § installed`. `false` on any other directory, with `asks` empty, the counts 0 and exit 0. Added in 1.2; narrowed in 1.3 (a store needs `.perry/` beside it) |
-| `semantics` | array | meaning changes by version, oldest first, each `{version, fields, note}` — the shape `perry-task/list § semantics[]` documents. Empty at 1.0; one entry since 1.1, two since 1.2, three since 1.3 |
+| `semantics` | array | meaning changes by version, oldest first, each `{version, fields, note}` — the shape `perry-task/list § semantics[]` documents. Empty at 1.0; one entry since 1.1, two since 1.2, three since 1.3, four since 1.4 |
 | `project_root` | string | absolute path of the project read |
 | `state_root` | string | absolute path of the state root — where `asks.jsonl` is read from. Added in 1.1 |
 | `all` | bool | `true` when `--all` was passed |
@@ -77,7 +79,7 @@ the Changelog and not here.
 | `blocks` | string | the `Blocks` cell verbatim. Free text |
 | `blocks_ids` | array | the ids matched inside `blocks`, in order. Two shapes: `LETTERS-DIGITS` (`TASK-236`, `USER-927`, `RX-003`) and a key result, phase (`P003-O2-KR3`) or overall (`O2-KR3`). **Matched, not validated** — an id no register carries is still listed, and anything else in the cell is ignored |
 | `asked` | string | `YYYY-MM-DD`, or `""` on a board that carries `Idle` instead |
-| `idle` | string | `""` when read from `asks.jsonl`, which holds no `Idle` cell (since 1.1). The board's `Idle` cell as written only on a project with no ask store |
+| `idle` | string | `""`: `asks.jsonl` holds no `Idle` cell (since 1.1). Until 1.4 a project with no ask store read the held board's `Idle` cell as written |
 | `idle_days` | int \| null | days since `asked`, derived at read time; `null` when nothing says |
 | `status` | string | the `Status` cell verbatim — the only record of HOW an ask closed |
 | `priority` | string | the row's priority cell, `""` when none |
@@ -113,8 +115,8 @@ or id; do not assume either.
 
 ## Exit codes
 
-`0` read. That includes a directory with **no** register — no `asks.jsonl`
-and no `## User Input Queue` — and a directory that is not a Perry project at
+`0` read. That includes a directory with **no** register — no `asks.jsonl`,
+whatever a held `BOARD.md` carries (1.4) — and a directory that is not a Perry project at
 all: `asks` is `[]`, the counts are 0, and `installed` says which of the two
 it is (`schema/README.md § installed`). A register that does not exist is an
 empty register, not an unreadable one.
@@ -123,6 +125,15 @@ empty register, not an unreadable one.
 printed rather than an empty `asks`, which would say nothing was ever asked.
 
 ## Changelog
+
+### 1.4 — 2026-09-15 (TASK-262 round 4b)
+
+**No key added, removed or retyped: the population has no fallback.**
+Before 1.4 a project with no `asks.jsonl` read `## User Input Queue` out of a
+`BOARD.md` it still held. That file is retired (TASK-262 Amendment (4), the
+user's decision of 2026-09-15) and is not read, so such a project answers
+`asks: []` and zero counts at exit 0. A project with an ask store sees no
+change. `semantics` carries a `1.4` entry.
 
 ### 1.3 — 2026-09-14 (TASK-237 3c)
 

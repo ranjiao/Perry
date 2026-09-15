@@ -110,20 +110,6 @@ class TestEveryMatcherAgrees(unittest.TestCase):
     def setUp(self):
         self.task = _task_mod()
 
-    def missing_sections(self, board_text: str) -> list[dict]:
-        """`perry-lint`'s `missing-section` findings for this board — the fifth
-        implementation, and the one migration acts on."""
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "perry").mkdir()
-            config_store.write_config(root, {"State root": "perry"})
-            (root / "perry" / "BOARD.md").write_text(board_text, encoding="utf-8")
-            r = subprocess.run(
-                [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
-                 "--root", str(root), "--json"], capture_output=True, text=True)
-            return [f for f in json.loads(r.stdout)["findings"]
-                    if f["rule"] == "missing-section"]
-
     def test_migration_does_not_append_a_second_section(self):
         """The consequence, end to end, on the tool that rewrites a stranger's
         files. This is what makes the fifth implementation worse than the other
@@ -161,10 +147,11 @@ class TestEveryMatcherAgrees(unittest.TestCase):
                                 "perry-task")
                 self.assertIsNotNone(P.top_risks_section(text), "section body")
                 self.assertEqual(len(P.parse_board(text).risks), 2, "parse_board")
-                self.assertNotIn(
-                    "Top risks",
-                    " ".join(f["message"] for f in self.missing_sections(text)),
-                    "perry-lint reports the section missing")
+                # The fifth matcher, `perry-lint`'s required-section check over
+                # a held `BOARD.md`, left with TASK-262 round 4b: no check lints
+                # a held board, so its `missing-section` list is empty for
+                # every spelling and asserting it would pass for no reason.
+                # The four readers above are the ones that still read.
 
     def test_a_heading_that_only_starts_the_same_is_not_a_match(self):
         """The boundary the old regex's `(?!\\w)` protected, kept. `## P2` must

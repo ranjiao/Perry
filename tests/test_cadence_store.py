@@ -422,7 +422,16 @@ class TestTheLintCensusCarriesTheCadenceStore(unittest.TestCase):
         self.assertNotIn("cadence-store-drift-uncheckable",
                          [f["rule"] for f in got["findings"]])
 
-    def test_a_hand_edit_to_a_prose_cell_is_drift_and_the_render_is_not(self):
+    def test_a_held_board_is_not_compared_edited_or_not(self):
+        """**Rewritten at TASK-262 round 4b.** This was
+        `test_a_hand_edit_to_a_prose_cell_is_drift_and_the_render_is_not`: a
+        held `BOARD.md` printed from the store was compared with it, clean,
+        and a hand edit to a `Next due` cell was one `cadence-store-drift`.
+
+        The held file is retired and no check reads it, so the same two files
+        — the printed board, and the printed board with a prose cell edited —
+        now get the same answer: no comparison, no count, no drift finding, the
+        store's own record count, and the file named as retired."""
         for edited in (False, True):
             with self.subTest(edited=edited):
                 p = Project()
@@ -433,12 +442,16 @@ class TestTheLintCensusCarriesTheCadenceStore(unittest.TestCase):
                     text = text.replace(CADENCE[2]["next_due"], "2026-09-30")
                 p.board.write_text(text, encoding="utf-8")
                 got = self.lint(p)
-                drift = [f for f in got["findings"] if f["rule"] == "cadence-store-drift"]
-                self.assertTrue(got["cadence_store_drift"]["comparison_performed"])
-                self.assertEqual(got["cadence_store_drift"]["drifted"], int(edited))
-                self.assertEqual(len(drift), int(edited))
-                if edited:
-                    self.assertIn(CADENCE[2]["id"], drift[0]["message"])
+                rules = [f["rule"] for f in got["findings"]]
+                stats = got["cadence_store_drift"]
+                # `drifted` is not asserted: a register's stats keep their
+                # empty default (0) when no comparison runs, as on every
+                # board-less project since TASK-237 3c — round 4b result F33.
+                self.assertTrue(stats["store_present"])
+                self.assertFalse(stats["comparison_performed"])
+                self.assertEqual(stats["records"], len(CADENCE))
+                self.assertNotIn("cadence-store-drift", rules)
+                self.assertIn("retired-board", rules)
 
 
 # ── the import ─────────────────────────────────────────────────────────────

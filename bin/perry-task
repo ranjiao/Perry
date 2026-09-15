@@ -56,7 +56,7 @@ class Refused(Exception):
 # feed said it first: `perry-events` 1.1 "returns different ROWS … which is
 # precisely the change `1.x` only adds keys does not cover". Specified in
 # `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/2.3"
+LIST_CONTRACT = "perry-task/list/2.4"
 
 #: How many rows `list` returns when the caller names no bound. DESIGN-016
 #: goal 6, and the measurement behind it: `perry-task list --json` on this
@@ -232,6 +232,16 @@ LIST_SEMANTICS = [
     {"version": "2.3",
      "fields": ["installed"],
      "note": "`installed` is narrower (TASK-237 Amendment (7), user decision 2026-09-14). At 2.2 a canonical store under the state root counted on its own, so a folder holding only a file named `tasks.jsonl` — another tool's — read `installed: true`. From 2.3 a store counts only when a `.perry/` directory exists at the project root beside it: `installed` is `.perry/config.jsonl` at the project root, or `.perry/` there and a canonical store under the state root (`schema/README.md § installed`). No key moved. A directory holding a store and no `.perry/` now answers `installed: false` with the empty shape at exit 0; every project Perry started writes `.perry/config.jsonl` first and is unaffected."},
+    {"version": "2.4",
+     "fields": ["asks.items", "asks.open", "risks.items", "risks.open",
+                "risks.cleared", "risks.source", "intake.rows",
+                "intake.undischarged", "intake.oldest_undischarged",
+                "tasks[].depends_on_resolved", "tasks[].blocked_by",
+                "tasks[].startable", "conformance.depends_on_unknown",
+                "conformance.missing_projection",
+                "drift.drift", "drift.unrecorded", "drift.unrecorded_sample",
+                "drift.orphaned", "drift.stale_done"],
+     "note": "A held `BOARD.md` is no longer read (TASK-262 Amendment (4), round 4b; the user's decision of 2026-09-15). Before 2.4 a project with no `asks.jsonl`, `risks.jsonl` or `intake.jsonl` read that register out of a `BOARD.md` it still held — the ask register a `USER-` dependency edge resolves against included — and `drift` was computed against the file's rows. From 2.4 each register is read from its store and nothing else. A project that holds a board and has no store for a register reports that register empty: `asks.items` [], `intake.rows` [], and `risks` from `PROJECT_STATE.md`'s bullets alone (`risks.source` \"none\" when it has none). A `USER-` edge whose ask exists only in the file is `kind: \"unknown\"` and unsatisfied, so its row loses `startable` and lands in `depends_on_unknown`. `drift` is computed against the rows `perry-tasks board` prints — the store's — on every project, which is what a board-less project was already told at 2.1; where a held file disagreed with its stores the values move from the file's to the store's. `conformance.missing_projection` keeps its value (`\"\"` when a `BOARD.md` exists at the state root, else its path) and is now an existence probe only: no reader opens the file. No key was added, removed or retyped. A consumer of a store-less, board-holding project must run the `--from-board` imports (`reference/version-compatibility.md § Upgrading a project to G3`); after them nothing here differs from what the file said."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:
@@ -6761,11 +6771,13 @@ def board_sections(ctx) -> dict:
                   "cleared": len(snap.top_risks) - len(open_risks),
                   "source": snap.risks_source or ""},
         "asks": {"items": asks, "open": len(asks)},
-        # **`board_as_authored`, not `board`.** Every other number here is
-        # store-backed now (TASK-094); drift is the one question that has to
-        # be asked of the rendered document, because the document is what it
-        # is checking. See `viewer/parsers.py § PMOSnapshot.board_as_authored`.
-        "drift": ps.reconcile_drift(ctx["project_root"], snap.board_as_authored,
+        # **The store's board, held file or not** (TASK-262 round 4b,
+        # `perry-task/list` 2.4). This read `board_as_authored`, a parse of a
+        # held `BOARD.md`, because drift was documented to be about that file.
+        # The file is retired and no reader opens it, so drift asks whether
+        # the event history explains the rows `perry-tasks board` prints —
+        # what a board-less project was already told since 2.1.
+        "drift": ps.reconcile_drift(ctx["project_root"], snap.board,
                                     ps.read_event_log(ctx["project_root"])),
     }
 
@@ -7143,29 +7155,11 @@ def ask_register(ctx) -> dict[str, dict]:
                        "status": u.status}
                 for u in P.parse_board("", asks=records).user_input_queue
                 if u.id}
-    board = ctx.get("board")
-    if board is None:
-        return {}
-    try:
-        _, header = board.section_table("User Input Queue")
-        rows = board.section_rows("User Input Queue")
-    except Refused:
-        return {}                     # not every project asks the user anything
-    keys = header_keys(header)
-    register: dict[str, bool] = {}
-    for _, cells in rows:
-        values = dict(zip(keys, cells))
-        aid = strip_handle(values.get("user-id", ""))
-        if not aid:
-            continue
-        row = P.UserInput(
-            id=aid, needed_from_user=values.get("needed from user", ""),
-            blocks=values.get("blocks", ""), idle=values.get("idle", ""),
-            status=values.get("status", ""))
-        register[aid] = {"answered": answered(row),
-                         "needed": row.needed_from_user,
-                         "status": row.status}
-    return register
+    # **No store, no register** (TASK-262 round 4b, `perry-task/list` 2.4).
+    # A held `BOARD.md § User Input Queue` was parsed here for a project with
+    # no `asks.jsonl`; the file is retired, so every `USER-` id is unknown
+    # there, exactly as on a board-less project with no ask store.
+    return {}
 
 
 def dependency_satisfied(dep: str, tasks: dict, asks: dict) -> bool:
@@ -7710,8 +7704,12 @@ def cmd_list(args, ctx) -> dict:
                    "blocked_by_closed_rows": [],
                    "in_progress_with_no_live_run": [], "review_idle": [],
                    "has_event_log": bool(ctx["events"]),
-                   "missing_projection": ("" if ctx.get("board") is not None
-                                          else str(ctx["state_root"] / "BOARD.md"))}
+                   # An existence probe, and nothing more (TASK-262 round 4b):
+                   # the value is unchanged, but no reader opens the file it
+                   # names, so it no longer says where anything is read from.
+                   "missing_projection": (
+                       "" if (ctx["state_root"] / "BOARD.md").is_file()
+                       else str(ctx["state_root"] / "BOARD.md"))}
 
     def task_from_record(rec: dict) -> dict:
         status = rec.get("status") or ""
@@ -7818,11 +7816,11 @@ def cmd_list(args, ctx) -> dict:
         live=live_dispatch_ids(), now=datetime.now()))
 
     intake_rows = []
-    board = ctx.get("board")
-    # **From `intake.jsonl` when there is one** (TASK-237 deliverable 3a). `n`
-    # is the row's position in stored order, which is the order the board
-    # prints and the number `route` / `resolve-intake` take. The section is
-    # read only for a project with no intake store.
+    # **From `intake.jsonl`, and only from it** (TASK-237 deliverable 3a;
+    # TASK-262 round 4b). `n` is the row's position in stored order, which is
+    # the order the board prints and the number `route` / `resolve-intake`
+    # take. A project with no intake store has no intake rows: a held
+    # `BOARD.md § Intake` is not read (`perry-task/list` 2.4).
     intake_records = P.load_register_store(ctx["state_root"], P.INTAKE_STORE)
     if intake_records is not None:
         for pos, row in enumerate(
@@ -7833,20 +7831,6 @@ def cmd_list(args, ctx) -> dict:
                 "discharged": row["discharged"],
                 "age_days": days_between(row["arrived"]),
             })
-    elif board is not None:
-        try:
-            _, ihdr = board.section_table("Intake")
-            for pos, (_, cells) in enumerate(board.section_rows("Intake"), 1):
-                row = dict(zip(header_keys(ihdr), cells))
-                outcome = (row.get("outcome") or "").strip()
-                intake_rows.append({
-                    "n": pos, "arrived": row.get("arrived", ""),
-                    "request": row.get("request", ""), "outcome": outcome,
-                    "discharged": P.intake_is_discharged(outcome),
-                    "age_days": days_between(row.get("arrived", "")),
-                })
-        except Refused:
-            pass
 
     sections = board_sections(ctx)
     rows = sorted(tasks.values(), key=lambda task: task["id"])
@@ -8267,7 +8251,7 @@ SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
 
 #: The contract `perry-task asks --json` publishes. See
 #: `schema/asks-list-contract.md`.
-ASKS_CONTRACT = "perry-asks/list/1.3"
+ASKS_CONTRACT = "perry-asks/list/1.4"
 
 #: `perry-asks/list`'s meaning changes, oldest minor first — the rule
 #: `LIST_SEMANTICS` states. `state_root` arrived in 1.1 too, and is a key
@@ -8290,6 +8274,9 @@ ASKS_SEMANTICS = [
     {"version": "1.3",
      "fields": ["installed"],
      "note": "`installed` is narrower (TASK-237 Amendment (7), user decision 2026-09-14). At 1.2 a canonical store under the state root counted on its own, so a folder holding only a file named `tasks.jsonl` — another tool's — read `installed: true`. From 1.3 a store counts only when a `.perry/` directory exists at the project root beside it: `installed` is `.perry/config.jsonl` at the project root, or `.perry/` there and a canonical store under the state root (`schema/README.md § installed`). No key moved. A directory holding a store and no `.perry/` now answers `installed: false` with the empty shape at exit 0; every project Perry started writes `.perry/config.jsonl` first and is unaffected."},
+    {"version": "1.4",
+     "fields": ["asks", "count", "open", "answered"],
+     "note": "The population is `asks.jsonl` and nothing else (TASK-262 Amendment (4), round 4b; the user's decision of 2026-09-15). Before 1.4 a project with no ask store read `## User Input Queue` out of a `BOARD.md` it still held. From 1.4 that file is retired and not read: such a project answers `asks: []` with `count`, `open` and `answered` 0 at exit 0, the shape a project with no register at all has always had. On a project with an ask store nothing changes. No key was added, removed or retyped. A consumer of a board-holding project with no ask store must have the project import its queue first, by the ask register's `--from-board` import (`reference/version-compatibility.md § Upgrading a project to G3`)."},
 ]
 
 #: An id inside the free-text `Blocks` cell — matched, not validated.
@@ -8870,9 +8857,13 @@ def main(argv: list[str]) -> int:
             records = load_task_records(state_root)
             board_path = state_root / "BOARD.md"
             if args.cmd in READ_ONLY_COMMANDS:
-                # The reads still consult a held file where a store is absent;
-                # retiring those fallbacks is TASK-262 round 4b, under P2–P6.
-                board = Board(board_path) if board_path.exists() else None
+                # **A read builds no board and opens no file** (TASK-262
+                # Amendment (4), round 4b). The reads used to load a held
+                # `BOARD.md` for the asks and intake fallbacks of a project
+                # with no such store; those fallbacks are retired
+                # (`perry-task/list` 2.4, `perry-asks/list` 1.4), and every
+                # register a read reports comes from its store.
+                board = None
             elif args.cmd == "risk-migrate" and board_path.exists():
                 # **The import verb keeps its input** (TASK-262 Amendment (4),
                 # class a). `## Top risks` as bullets exists only in a file a

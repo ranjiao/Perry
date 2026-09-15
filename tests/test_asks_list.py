@@ -121,7 +121,7 @@ class TestAllCarriesTheAnswer(Base):
         # 1.1: TASK-237 3a read the population from asks.jsonl and added state_root.
         # TASK-237 3b′: `installed` was added, a minor bump.
         # TASK-237 3c: `installed` narrowed (a store needs `.perry/`), a minor bump.
-        self.assertEqual("perry-asks/list/1.3", self.asks(d, "--all")["contract"])
+        self.assertEqual("perry-asks/list/1.4", self.asks(d, "--all")["contract"])
 
 
 class TestItOnlyReads(Base):

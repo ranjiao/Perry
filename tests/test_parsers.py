@@ -22,6 +22,9 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 
 import parsers as P  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from held_board import import_board  # noqa: E402
+
 
 def read(rel: str) -> str:
     return (PERRY_HOME / rel).read_text()
@@ -266,10 +269,23 @@ class FixtureProject(unittest.TestCase):
         self.assertEqual(by_id["DESIGN-002"].status, "in_review")
 
     def test_top_risk_title_is_prose_not_a_label(self):
+        """The fixture's risk is a `risks.jsonl` record since TASK-262 round 4b.
+
+        It was a bullet, and a bullet's title is guessed: the `TOP RISK` label
+        had to be cut out of it. `risk-migrate` carried the bullet verbatim
+        into the store, and a register risk's statement is returned WHOLE
+        (`_register_risk`: "DETECTED, not stripped"), so `TOP RISK` is part of
+        the title now and the stance is read from it into `severity`. What
+        this test was for still holds: the title is the sentence, never the
+        `4.2%` fragment and never the label alone."""
         self.assertTrue(self.snap.top_risks)
-        title = self.snap.top_risks[0].title
-        self.assertNotIn("TOP RISK", title)
-        self.assertNotEqual(title.strip(), "4.2%")
+        risk = self.snap.top_risks[0]
+        stored = json.loads((FIXTURE / "risks.jsonl").read_text()
+                            .splitlines()[0])
+        self.assertEqual(risk.title, stored["risk"])
+        self.assertEqual(risk.severity, "top")
+        self.assertNotEqual(risk.title.strip(), "4.2%")
+        self.assertNotEqual(risk.title.strip(), "TOP RISK")
 
 
 class BoardColumnsResolveByName(unittest.TestCase):
@@ -646,16 +662,32 @@ class Linter(unittest.TestCase):
                          json.dumps(report["findings"], indent=2, ensure_ascii=False))
 
     def test_catches_a_bad_status_enum(self):
+        """A status off the enum, in the record that holds it.
+
+        This edited the fixture's `BOARD.md` (`| in_progress |` → `| wip |`)
+        and asked `perry-lint` for `bad-enum`, which `check_file` raised over
+        `files[id=board]`. TASK-262 round 4b retired both: the fixture holds
+        no board, and no reader lints a held one. The status now lives in
+        `tasks.jsonl`, and the reader that reports an off-enum stored status is
+        `perry-task list --json § conformance.off_enum_status`
+        (`schema/task-list-contract.md`), so that is what this asks."""
         import shutil
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
-            board = proj / "BOARD.md"
-            board.write_text(board.read_text().replace("| in_progress |", "| wip |"))
-            res = self._run("--root", str(proj), "--json")
-            rules = {f["rule"] for f in json.loads(res.stdout)["findings"]}
-            self.assertIn("bad-enum", rules)
+            store = proj / "tasks.jsonl"
+            text = store.read_text()
+            self.assertEqual(text.count('"status": "in_progress"'), 1)
+            store.write_text(text.replace('"status": "in_progress"',
+                                          '"status": "wip"'))
+            res = subprocess.run(
+                [sys.executable, str(PERRY_HOME / "bin" / "perry-task"),
+                 "list", "--json", "--root", str(proj)],
+                capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            found = json.loads(res.stdout)["conformance"]["off_enum_status"]
+            self.assertEqual(found, [{"id": "REL-001", "status": "wip"}])
 
     def _mutate_store(self, proj: Path, before: str, after: str) -> None:
         """One substitution in the fixture's `linkage.jsonl`, refused if it
@@ -822,11 +854,11 @@ class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
 
 ## User Input Queue
 
-| USER-id | Needed from user | Blocks | Idle | Status |
+| USER-id | Needed from user | Blocks | Asked | Status |
 |---|---|---|---|---|
-| USER-001 | Answered one | TASK-005 | 3d | **answered 2026-08-16: 30 days** |
-| USER-002 | Still waiting | TASK-006 | 9d | pending |
-| USER-003 | Also waiting | — | 1d | — |
+| USER-001 | Answered one | TASK-005 | 2026-08-01 | **answered 2026-08-16: 30 days** |
+| USER-002 | Still waiting | TASK-006 | 2026-08-05 | pending |
+| USER-003 | Also waiting | — | 2026-08-13 | — |
 
 ## Cadence
 
@@ -847,6 +879,12 @@ class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
             # writes declares the project and nothing else.
             (root / ".perry" / "config.jsonl").write_text("", encoding="utf-8")
             (root / "BOARD.md").write_text(self.BOARD)
+            # **The queue reaches `perry-state` through its import** (TASK-262
+            # round 4b): a held `## User Input Queue` is not read. The fixture
+            # carried `Idle` cells until then; `asks.jsonl` holds no `Idle`, so
+            # the ages are `Asked` dates in the same order (USER-001 oldest,
+            # USER-003 newest) and "the oldest unanswered" is still USER-002.
+            import_board(root, "asks-write")
             r = subprocess.run(
                 ["python3", str(PERRY_HOME / "bin" / "perry-state"),
                  "--root", str(root), "--json"], capture_output=True, text=True)

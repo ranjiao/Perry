@@ -189,11 +189,10 @@ exists, and a block that invents one would be teaching a call that refuses.
 Each mutating call replaces `tasks.jsonl` and the journal `## Status changes`
 line through a durable transaction marker. The two renames are not one atomic
 operation: an ordinary failure rolls the pair back, while a crash is completed
-on the next Perry command under the project lock. A `BOARD.md` the project
-still holds is then re-rendered from the store (`perry-tasks render --write` is
-its recovery command; no command creates one), and an
-event is appended to `.perry/events.jsonl`. Those two derived writes may fail
-alone and are reported. `.perry/events.jsonl` is derived and disposable; delete
+on the next Perry command under the project lock. An event is then appended to
+`.perry/events.jsonl`; that derived write may fail alone and is reported. A
+`BOARD.md` the project still holds is retired: no write re-renders it and no
+read opens it, and a successful write names it on stderr (TASK-262). `.perry/events.jsonl` is derived and disposable; delete
 it and Perry still works.
 
 The tool computes rather than accepts: IDs are minted from the max across board,
@@ -376,7 +375,7 @@ Every mutating call writes four things, and only the first two are canonical:
 
   1. the task RECORD, in perry/tasks.jsonl — what the fields mean
   2. the `## Status changes` line in journal/<YYYY-MM>/<today>.md
-  3. `BOARD.md`, RE-RENDERED from (1) — only where the project still holds one; none is created (TASK-237 3c)
+  3. nothing: `BOARD.md` was re-rendered here until TASK-262 retired a held one; none is created (TASK-237 3c) and none is read
   4. one JSON object appended to .perry/events.jsonl
 
 **(1) and (2) are one recoverable transaction.** A durable marker is written
@@ -385,11 +384,12 @@ between replacements is completed deterministically when the next Perry command
 takes the project lock. Two filesystem renames are not falsely described as one
 atomic operation. See `commit()`.
 
-**(3) and (4) are written after and can each fail alone.** Reported, not
-raised: the canonical state is already correct. A missing event shows the row
-as `unrecorded`; a board that was not re-rendered shows as `store-drift` under
-`perry-lint`, and `perry-tasks render --write` regenerates it. This is the direction
-the loss is allowed to run, never the reverse. See `commit()`.
+**(4) is written after and can fail alone.** Reported, not raised: the
+canonical state is already correct. A missing event shows the row as
+`unrecorded`. This is the direction the loss is allowed to run, never the
+reverse. See `commit()`. A held `BOARD.md` is not written and not compared:
+`perry-lint` reports no `store-drift` over it, and warns `retired-board`
+instead (TASK-262).
 
 **It used to be `BOARD.md` in slot (1) and there was no store** (ADR-007,
 TASK-089). The board is rendered output now: a hand edit to it is drift rather

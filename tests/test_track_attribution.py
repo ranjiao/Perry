@@ -85,6 +85,11 @@ class TrackCase(unittest.TestCase):
         (d / "perry").mkdir()
         config_store.write_config(d, SETTINGS, register or [])
         (d / "perry" / "BOARD.md").write_text(board)
+        # **The rows reach `perry-diagnose` through their import** (TASK-262
+        # round 4b): its mode rows are `tasks.jsonl`'s open records, not a held
+        # board's tables.
+        from held_board import import_board
+        import_board(d, "write", remove=False)
         (d / "perry" / "OKR.md").write_text(okr)
         (d / "perry" / "phase").mkdir()
         (d / "perry" / "phase" / "001-a.md").write_text("# Phase 1\n")

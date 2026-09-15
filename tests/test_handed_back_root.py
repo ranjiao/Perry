@@ -152,16 +152,10 @@ MENTIONS = {
         "“several ids were passed to `perry-goals link --unlinked` as one "
         "argument — the shape that put 48 of them on one line here on "
         "2026-08-28.” Past tense: the command is the CAUSE being reported.",
-    ("bin/perry-lint", "perry-task risk-add"):
-        "“It is the fix whenever `perry-task risk-add` / `risk-clear` wrote "
-        "the value — the ordinary case.” Provenance of the drift, not the "
-        "remedy for it; the remedy is `risks-render --write` in the same "
-        "sentence, and that one carries the root.",
-    ("bin/perry-lint", "perry-task resolve-intake {n + 1}"):
-        "“an inserted or deleted line renumbers every row beneath it, so "
-        "`perry-task resolve-intake {n + 1}` no longer addresses what it "
-        "did.” The sentence's whole content is that this command is WRONG "
-        "now. Rooting it would dress a warning up as an instruction.",
+    # Two entries left with TASK-262 round 4b: `perry-task risk-add` and
+    # `perry-task resolve-intake {n + 1}`, both sentences of `perry-lint`'s
+    # held-board drift findings (`check_risk_store_drift`,
+    # `check_intake_store_drift`), which were deleted with the comparison.
     ("bin/perry-task", "perry-task next"):
         "“put the explanation in --reason or `perry-task next`, and name the "
         "handle here” — `next` names the FIELD the prose belongs in. There is "
@@ -246,7 +240,17 @@ MENTIONS = {
 #: `perry-task risk-add{_r}` and `perry-task risk-clear{_r}` in `bin/perry-task
 #: § cmd_risk_migrate`'s refusal of a second migration — the held section keeps
 #: its bullets now, so the refusal names the two writers of the migrated store.
-PASTEABLE_WRITER_PHRASES = 70
+#:
+#: **70 -> 56 at TASK-262 round 4b, fourteen hand-backs deleted with their
+#: code**, every one in `bin/perry-lint`'s held-board drift findings
+#: (`check_store_drift` and the risk / intake / ask / cadence checks), which
+#: the retirement removed: `perry-tasks render --write` (2), `write
+#: --from-board`, and `risks-` / `intake-` / `asks-` / `cadence-` `render
+#: --write` and `write --from-board` (8), plus `perry-task prioritize`,
+#: `perry-task risk-add` and `perry-task resolve-intake {n + 1}`. Measured by
+#: diffing `command_phrases()` over a `git archive` of the base and this tree:
+#: 14 gone, none added.
+PASTEABLE_WRITER_PHRASES = 56
 
 
 def _load(path: Path):
@@ -539,7 +543,7 @@ class TestWhichSubcommandsWrite(unittest.TestCase):
         """**Measured, not assumed.** `perry-task` declares a `SURFACE` and
         also has a dispatch table, so both answers exist for all thirty-one of
         its subcommands (thirty until 2026-09-13, when `asks` was added as a
-        read-only query for aiMark: `writes: []` declared, nothing reached). Five disagree, and each of the five is one of two named
+        read-only query for aiMark: `writes: []` declared, nothing reached). Four disagree (five until TASK-262 round 4b took `list` out), and each of the four is one of two named
         shapes — so the approximation used for the UNDECLARED tools is a known
         quantity rather than a hope."""
         declared = declared_writes(BIN / "perry-task")
@@ -551,9 +555,11 @@ class TestWhichSubcommandsWrite(unittest.TestCase):
             # `cell_writer(field, flag, …)` builds these three as closures, so
             # there is no function body for the walk to enter: under-reported.
             {"evidence", "retitle", "rung"}
-            # These two reach a write through a helper they share with the
-            # writers and do not perform one: over-reported.
-            | {"list", "next"},
+            # This one reaches a write through a helper it shares with the
+            # writers and does not perform one: over-reported. `list` was the
+            # second until TASK-262 round 4b: its read built a `Board` over a
+            # held file, whose refusals the walk counted; a read builds none.
+            | {"next"},
             "the call-graph derivation's error set has changed. It is the only "
             "answer available for perry-goals, perry-decide and "
             "perry-knowledge, so a change here is a change in what this "
@@ -619,9 +625,12 @@ class TestEveryWriterHandBackCarriesTheRoot(unittest.TestCase):
             "reader stopped seeing it, in which case the entry is now "
             "excusing nothing and hiding that fact")
 
-    def test_the_five_mentions_are_the_only_exemptions(self):
+    def test_the_three_mentions_are_the_only_exemptions(self):
+        # Five until TASK-262 round 4b deleted the two drift sentences their
+        # entries excused (see `MENTIONS`). Renamed from
+        # `test_the_five_mentions_are_the_only_exemptions`.
         self.assertEqual(
-            5, len(MENTIONS),
+            3, len(MENTIONS),
             "MENTIONS is the judgement this module does NOT make in code. It "
             "is meant to stay small enough to read; growing it is how a rule "
             "becomes a suggestion")
@@ -932,6 +941,19 @@ class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):
                        handed_back.HOSTILE_ROOT_NAME).resolve()
         src = ROOT / "tests" / "fixtures" / "sample-project"
         subprocess.run(["cp", "-R", str(src), str(cls.project)], check=True)
+        # **A project the import has not run on yet** (TASK-262 round 4b).
+        # The fixture held a `BOARD.md` and no `tasks.jsonl`, which is the
+        # shape this refusal is for; it was upgraded, so the shape is rebuilt
+        # here: the board the fixture's stores print becomes the held file,
+        # and the task store is removed. `perry-tasks write --from-board`
+        # imports that text (4 records, measured), so the command the refusal
+        # hands back has something real to act on.
+        board = subprocess.run(
+            [sys.executable, str(BIN / "perry-tasks"), "board",
+             "--root", str(cls.project)],
+            capture_output=True, text=True, check=True, cwd=str(ROOT))
+        (cls.project / "BOARD.md").write_text(board.stdout, encoding="utf-8")
+        (cls.project / "tasks.jsonl").unlink()
 
     @classmethod
     def tearDownClass(cls):

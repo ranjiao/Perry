@@ -179,13 +179,18 @@ class TestTheRegisterHasNoId(unittest.TestCase):
         store records `order`, 0-based, and the two are the same fact.
         """
         p = Project(board=board_with(REGISTER))
+        # `list` reads `intake.jsonl` only (TASK-262 round 4b retired its
+        # reading of a held `## Intake`), so the register is imported first —
+        # the store it reads is then the derivation of the held file.
+        imported = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
+             "intake-write", "--from-board", "--root", str(p.root)],
+            capture_output=True, text=True)
+        self.assertEqual(imported.returncode, 0, imported.stderr)
         out = subprocess.run(
             [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "list",
              "--json", "--root", str(p.root)], capture_output=True, text=True)
         rows = json.loads(out.stdout)["intake"]["rows"]
-        # The HELD file: with no intake store, `list` still reads `## Intake`
-        # out of it (the fallback round 4b retires, P2/P3), so the derivation
-        # compared with it is the held file's too.
         _b, _o, records = derive(p.held_board())
         self.assertEqual([r["n"] for r in rows],
                          [r["order"] + 1 for r in records])
@@ -335,8 +340,12 @@ class TestOneRuleForDischarged(unittest.TestCase):
 
     def test_the_reader_and_the_writers_call_the_same_function(self):
         src = (PERRY_HOME / "bin" / "perry-task").read_text()
-        self.assertEqual(src.count("P.intake_is_discharged"), 4,
-                         "a fifth answer to `is this row discharged` appeared "
+        # 4 → 3 at TASK-262 round 4b: the fourth call was `list`'s reading of
+        # a held `BOARD.md § Intake` for a project with no intake store, and
+        # that fallback is retired. The three left are the writers' and the
+        # `_cmd_list_from_board` builder's.
+        self.assertEqual(src.count("P.intake_is_discharged"), 3,
+                         "a fourth answer to `is this row discharged` appeared "
                          "in bin/perry-task, or one stopped asking")
         self.assertNotIn("not in INTAKE_UNSET", src)
 
@@ -703,28 +712,6 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         return p
 
-    def test_a_clean_store_gives_the_lint_a_positive_reading(self):
-        payload = self._lint(self._imported().root)
-        self.assertEqual(payload["intake_store_drift"],
-                         {"store_present": True, "comparison_performed": True,
-                          "records": 4, "drifted": 0})
-        self.assertEqual([f for f in payload["findings"]
-                          if f["rule"].startswith("intake-store")], [])
-
-    def test_a_hand_edited_cell_raises_exactly_one_drift_warning(self):
-        p = self._imported()
-        board = p.root / "BOARD.md"
-        board.write_text(board.read_text().replace(
-            "tasks[].role is typed as one string",
-            "somebody typed this in by hand"))
-        payload = self._lint(p.root)
-        drifted = [f for f in payload["findings"]
-                   if f["rule"] == "intake-store-drift"]
-        self.assertEqual(len(drifted), 1, drifted)
-        self.assertEqual(drifted[0]["severity"], "warn")
-        self.assertIn("row 4", drifted[0]["message"])
-        self.assertEqual(payload["intake_store_drift"]["drifted"], 1)
-
     def _hand_delete_the_first_intake_row(self, p: Project) -> None:
         """Delete `## Intake`'s first row from the board and nothing else.
 
@@ -737,30 +724,6 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         del lines[next(i for i, l in enumerate(lines)
                        if "two test modules import" in l)]
         board.write_text("\n".join(lines))
-
-    def test_a_row_deleted_by_hand_reports_every_row_it_renumbered(self):
-        """**Not amplification — the truth.** For a task an inserted line moves
-        `order` and nothing else, because the rows keep their names, so
-        `_order_drift` reports it once. Here the position IS the name: deleting
-        the first row really does mean `resolve-intake 2` now addresses what
-        `resolve-intake 3` addressed yesterday, for every row below it.
-
-        **This test is deliberately lint-only, and that is now stated rather
-        than left to be inferred.** It asks one question — does `perry-lint`
-        report the renumbering — and the V4 round-4 review's finding was that
-        the suite built this state and then asked nothing else of it. The
-        question it does not ask is asked directly below, on the same state.
-        """
-        p = self._imported()
-        self._hand_delete_the_first_intake_row(p)
-        payload = self._lint(p.root)
-        # 3 rows survive, every one of them at a position whose stored record
-        # is a different request; the 4th stored record now has no row at all.
-        self.assertEqual(payload["intake_store_drift"]["drifted"], 4)
-        rules = [f for f in payload["findings"]
-                 if f["rule"] == "intake-store-drift"]
-        self.assertIn("row 1", rules[0]["message"])
-        self.assertIn("resolve-intake 1", rules[0]["message"])
 
     def test_a_hand_deleted_row_no_longer_moves_n_for_a_write(self):
         """**The line the suite stopped one short of**, after TASK-262 round 4a.
@@ -852,13 +815,13 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         # for is unchanged: `n = 2` addresses a different request than it did
         # five commands ago, and the store is what says so.
         #
-        # The drift half is not lost. It belongs to a hand edit, not to the
-        # sweep, and `test_a_row_deleted_by_hand_reports_every_row_it_renumbered`
-        # thirty lines up is where it is proved.
-        # The drift reading compares a held file with the store (round 4b's to
-        # retire); the held file is retired, so it is deleted first.
-        (p.root / "BOARD.md").unlink()
-        self.assertEqual(self._lint(p.root)["intake_store_drift"]["drifted"], 0)
+        # The drift half belonged to a hand edit to a held board, and
+        # `test_a_row_deleted_by_hand_reports_every_row_it_renumbered` left
+        # with TASK-262 round 4b, which retired that comparison.
+        # (TASK-262 round 4b) The `drifted == 0` lint assertion that stood here
+        # is gone: no board file is compared with its store any more, so the
+        # register's `drifted` is its empty default whatever the files say,
+        # and asserting it would pass for no reason (round 4b result F33).
         stored = [json.loads(l) for l in
                   (p.root / "intake.jsonl").read_text().split("\n") if l.strip()]
         self.assertEqual([r["request"] for r in stored], [after[1], after[2]])

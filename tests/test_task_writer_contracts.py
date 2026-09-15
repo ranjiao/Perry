@@ -1106,6 +1106,14 @@ class TestANewIdJoinsTheFamilyTheBoardAlreadyUses(unittest.TestCase):
         self.assertEqual(a["prefix"], "AIM")
 
 
+def _project_state_risks(p, bullets: str) -> None:
+    """`PROJECT_STATE.md` carrying these bullets under `## Top risks` — the
+    risk bullets a project with no risks store is read from (TASK-262 round
+    4b retired a held board's)."""
+    (p.root / "PROJECT_STATE.md").write_text(
+        f"# Project state\n\n## Top risks\n\n{bullets}\n", encoding="utf-8")
+
+
 class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
     """TASK-058. `risks`, `asks` and `drift` — written by `perry-task`, and
     readable until 1.6 only through `perry-state --json`, the one payload that
@@ -1141,10 +1149,12 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         `{"id": "H", "title": "· Apple …", "severity": "watch"}`. Three defects,
         one cause — nothing told the parser the first token was a marker."""
         p = Project()
-        board = p.held_board().replace(
-            "## Top risks\n\n- none",
-            "## Top risks\n\n- H · Apple developer agreement expired")
-        (p.root / "BOARD.md").write_text(board)
+        # **Bullets in `PROJECT_STATE.md`** (TASK-262 round 4b). These four
+        # tests put the bullets under a held `BOARD.md § Top risks`; that file
+        # is retired, and a project with no risks store now reads its risk
+        # bullets from `PROJECT_STATE.md` alone — the one bullet reader left,
+        # through the same `parse_top_risks`.
+        _project_state_risks(p, "- H · Apple developer agreement expired")
         r = self.payload(p)["risks"]["items"][0]
         self.assertEqual("", r["id"], "the severity letter was published as an id")
         self.assertEqual("Apple developer agreement expired", r["title"])
@@ -1156,10 +1166,7 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         project wrote is a second axis, and folding them into one is what made
         an H and an M display identically."""
         p = Project()
-        board = p.held_board().replace(
-            "## Top risks\n\n- none",
-            "## Top risks\n\n- H · certificate expired\n- L · docs are thin")
-        (p.root / "BOARD.md").write_text(board)
+        _project_state_risks(p, "- H · certificate expired\n- L · docs are thin")
         ranks = [r["severity_rank"] for r in self.payload(p)["risks"]["items"]]
         self.assertEqual(["high", "low"], ranks)
 
@@ -1168,10 +1175,7 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         parser eat the first word of every unmarked sentence — which is what it
         used to do: `- Perry is half-adopted` reported `id: "Perry"`."""
         p = Project()
-        board = p.held_board().replace(
-            "## Top risks\n\n- none",
-            "## Top risks\n\n- Hostname resolution is flaky in CI")
-        (p.root / "BOARD.md").write_text(board)
+        _project_state_risks(p, "- Hostname resolution is flaky in CI")
         r = self.payload(p)["risks"]["items"][0]
         self.assertEqual("Hostname resolution is flaky in CI", r["title"])
         self.assertEqual("", r["severity_text"])
@@ -1182,22 +1186,8 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         first words. Removing the invention would have taken every bullet risk
         on every unmigrated project to zero."""
         p = Project()
-        board = p.held_board().replace(
-            "## Top risks\n\n- none",
-            "## Top risks\n\n- H · certificate expired\n- M · vendor is late")
-        (p.root / "BOARD.md").write_text(board)
+        _project_state_risks(p, "- H · certificate expired\n- M · vendor is late")
         self.assertEqual(2, self.payload(p)["risks"]["open"])
-
-    def test_drift_reports_a_row_the_tool_never_wrote(self):
-        p = Project()
-        p.run("add", "--title", "written by the tool", "--priority", "P0")
-        board = p.board().replace(
-            "## P1", "| HAND-001 | typed in by hand | User | not_started | — | — |\n\n## P1", 1)
-        (p.root / "BOARD.md").write_text(board)
-        d = self.payload(p)["drift"]
-        self.assertTrue(d["checked"])
-        self.assertEqual(1, d["unrecorded"])
-        self.assertIn("HAND-001", d["unrecorded_sample"])
 
     def test_a_project_with_no_event_log_reports_drift_unchecked_not_broken(self):
         """**The name was true and the assertion was not (TASK-117).**

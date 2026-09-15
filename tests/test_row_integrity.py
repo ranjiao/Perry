@@ -490,92 +490,45 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
         self.assertTrue(hits, "the guard did not flag a planted defect")
 
 
-class TestARaggedRowIsAFinding(unittest.TestCase):
-    """Guard 3 — the check that would have caught the destroyed rows.
+class TestTheLintersTableReadersAreOneScanner(unittest.TestCase):
+    """Restored on its own at TASK-262 round 4b.
 
-    The fixture is deliberately NOT built by `render_row`: the writer can no
-    longer produce a ragged row, so a fixture it generates could never exercise
-    this. The rows below are written by hand, which is what Perry's own board
-    was.
+    It sat in `TestRaggedRowPointsAtTheRow`, which round 4b deleted with the
+    `ragged-row` findings over a held board. This test is not about the board:
+    it guards the shape of `bin/perry-lint § tables`, which `check_file` still
+    uses for every declared table, so it was restored verbatim rather than
+    lost with its neighbours.
     """
 
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name)
-        (self.root / "perry").mkdir()
-        config_store.write_config(self.root, {"State root": "perry/"})
-        self.addCleanup(self.tmp.cleanup)
+    def test_the_two_table_readers_are_one_scanner(self):
+        """`tables()` is a VIEW of `tables_with_lines()`, not a second scan.
 
-    def lint(self, rows: list[str]) -> list[str]:
-        (self.root / "perry" / "BOARD.md").write_text(board_with(rows),
-                                                      encoding="utf-8")
-        env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
-        out = subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
-             "--root", str(self.root)],
-            capture_output=True, text=True, env=env)
-        return [ln for ln in (out.stdout + out.stderr).split("\n")
-                if "ragged-row" in ln]
+        Checked by shape — the function body must be exactly one `return` —
+        rather than by grepping for a call it should not contain.
 
-    def test_a_short_row_is_reported(self):
-        """Two of seven columns missing. Before this check `perry-lint`
-        reported `✓ clean` — reproduced on a copy of Perry's own board."""
-        found = self.lint(["| TASK-001 | t | o | not_started | do the thing"])
-        self.assertTrue(found, "a row missing two of seven columns linted clean")
-        self.assertIn("TASK-001", found[0])
-        self.assertIn("read as empty", found[0])
-
-    def test_a_long_row_is_reported_too(self):
-        """The other direction, and the one that shifts values into the wrong
-        columns rather than merely losing them. A check written only for the
-        case that bit would be the mistake this module documents."""
-        found = self.lint(
-            ["| TASK-001 | t | o | not_started | a | b | — | V2 |"])
-        self.assertTrue(found, "a row with an extra cell linted clean")
-        self.assertIn("shifted", found[0])
-
-    def test_a_well_formed_row_is_not(self):
+        **The grep version was written first and a mutation walked past it.**
+        It asserted `"split_row(s)" not in body`; planting a scanner that spells
+        its loop variable `s2` left it green. That is the same
+        spelling-not-shape defect this session had just fixed in TASK-050's
+        guard, reproduced inside the test written to prevent it — which is
+        exactly why the rule is "enumerate the category" and not "remember the
+        lesson".
+        """
+        import ast
+        src = (PERRY_HOME / "bin" / "perry-lint").read_text()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "tables")
+        body = [n for n in fn.body if not (isinstance(n, ast.Expr)
+                                           and isinstance(n.value, ast.Constant))]
         self.assertEqual(
-            self.lint([T.render_row(["TASK-001", "t", "o", "not_started",
-                                     "do it", "—", "V2"])]), [])
-
-    def test_a_row_whose_cell_holds_an_escaped_pipe_is_not(self):
-        """The regression the two guards share. This row is seven cells to the
-        writer and was eight to the linter, so before the splitter was unified
-        it would be reported as ragged — a false accusation against a row
-        Perry wrote itself."""
-        self.assertEqual(
-            self.lint([T.render_row(["TASK-001", "t", "o", "not_started",
-                                     "quotes: | ID | Risk |", "—", "V2"])]), [])
-
-    def test_a_table_whose_columns_perry_does_not_recognize_is_still_checked(self):
-        """Why the check sits ABOVE the missing-columns branch.
-
-        That branch bails out with `continue`, so anything after it only ever
-        runs on tables Perry already understands. Comparing a row's width to
-        its header's needs no interpretation of what the columns mean — and a
-        table with headers Perry does not know is exactly what a project
-        arriving from outside Perry has, which is the case migration exists
-        for."""
-        text = board_with([]).replace(
-            T.render_row(HEADER) + "\n" + "|" + "---|" * len(HEADER),
-            "| ID | 事项 | 负责人 |\n|---|---|---|\n| X-1 | a | b |\n| X-2 | a |",
-            1)
-        (self.root / "perry" / "BOARD.md").write_text(text, encoding="utf-8")
-        env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
-        out = subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
-             "--root", str(self.root)], capture_output=True, text=True, env=env)
-        blob = out.stdout + out.stderr
-        self.assertIn("ragged-row", blob)
-        self.assertIn("X-2", blob)
-
-    def test_a_blank_spacer_row_is_not(self):
-        """`|  |  |  |  |  |  |` is how every template ships an empty table,
-        and `## Cadence` carries one on every real board. Reporting it would
-        make the finding fire on Perry's own bootstrap output."""
-        self.assertEqual(self.lint(["|  |  |  |"]), [])
-
+            len(body), 1,
+            f"`tables()` has {len(body)} statements; a view of "
+            f"`tables_with_lines()` is one `return` and anything more is a "
+            f"second scanner")
+        self.assertIsInstance(body[0], ast.Return)
+        called = {n.func.id for n in ast.walk(body[0])
+                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+        self.assertIn("tables_with_lines", called)
 
 
 class TestAppendCellObeysTheSameRule(unittest.TestCase):
@@ -614,80 +567,6 @@ class TestAppendCellObeysTheSameRule(unittest.TestCase):
         """Widening is the reason this function exists; a blank new cell is the
         normal case and must not be mistaken for a refusal."""
         self.assertEqual(T.split_row(T.append_cell("| a |", "")), ["a", ""])
-
-class TestRaggedRowPointsAtTheRow(unittest.TestCase):
-    """The one finding whose whole job is "go look at this line".
-
-    It reported the **section heading's** line: a row at `BOARD.md:21` came
-    back as `:15`. On a board with forty rows under one heading that is not a
-    small imprecision — it is the difference between a pointer and a gesture,
-    in the finding a person reaches for when the board is already broken.
-
-    Two ragged rows at known, different lines, because **one sample cannot
-    tell a constant offset from a coincidence** — the first attempt at this fix
-    was verified with one and was still off by one.
-    """
-
-    def lint(self, board):
-        import json, shutil, subprocess, sys, tempfile
-        d = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        (d / "perry").mkdir()
-        config_store.write_config(d, {"State root": "perry"})
-        (d / "perry" / "BOARD.md").write_text(board)
-        proc = subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
-             "--root", str(d), "--json"], capture_output=True, text=True)
-        return [f["line"] for f in json.loads(proc.stdout)["findings"]
-                if f["rule"] == "ragged-row"]
-
-    BOARD = ("# Board\n\n## P1\n\n"
-             "| ID | Title | Owner | Status | Next action | Evidence | "
-             "Verification |\n"
-             "| --- | --- | --- | --- | --- | --- | --- |\n"
-             "| TASK-001 | a | Claude | not_started | — | — |\n"
-             "| TASK-002 | b | Claude | not_started | — | — | V2 |\n"
-             "| TASK-003 | c | Claude | not_started | — | — |\n")
-
-    def test_each_finding_names_its_own_row(self):
-        self.assertEqual(self.lint(self.BOARD), [7, 9])
-
-    def test_a_well_formed_board_reports_none(self):
-        good = self.BOARD.replace("| — | — |\n", "| — | — | V2 |\n")
-        self.assertEqual(self.lint(good), [])
-
-    def test_the_two_table_readers_are_one_scanner(self):
-        """`tables()` is a VIEW of `tables_with_lines()`, not a second scan.
-
-        Checked by shape — the function body must be exactly one `return` —
-        rather than by grepping for a call it should not contain.
-
-        **The grep version was written first and a mutation walked past it.**
-        It asserted `"split_row(s)" not in body`; planting a scanner that spells
-        its loop variable `s2` left it green. That is the same
-        spelling-not-shape defect this session had just fixed in TASK-050's
-        guard, reproduced inside the test written to prevent it — which is
-        exactly why the rule is "enumerate the category" and not "remember the
-        lesson".
-        """
-        import ast
-        src = (PERRY_HOME / "bin" / "perry-lint").read_text()
-        fn = next(n for n in ast.walk(ast.parse(src))
-                  if isinstance(n, ast.FunctionDef) and n.name == "tables")
-        body = [n for n in fn.body if not (isinstance(n, ast.Expr)
-                                           and isinstance(n.value, ast.Constant))]
-        self.assertEqual(
-            len(body), 1,
-            f"`tables()` has {len(body)} statements; a view of "
-            f"`tables_with_lines()` is one `return` and anything more is a "
-            f"second scanner")
-        self.assertIsInstance(body[0], ast.Return)
-        called = {n.func.id for n in ast.walk(body[0])
-                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
-        self.assertIn("tables_with_lines", called)
-
-
-
 
 # ── the count TASK-094 is measured by ─────────────────────────────────────
 #

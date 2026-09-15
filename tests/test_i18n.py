@@ -319,9 +319,27 @@ class InvariantsHoldInTheFixture(unittest.TestCase):
             self.assertIn(f'"label": "{name}"', text)
 
     def test_priority_sections_stay_english(self):
-        board = (ZH / "BOARD.md").read_text()
+        """Read from the store and the printed board since TASK-262 round 4b.
+
+        The fixture held a `BOARD.md` whose `## P0（本周期必须完成）` headings
+        this read; the upgrade imported it into `tasks.jsonl` and deleted it.
+        The enum value survives in both places a reader meets it now: every
+        record's `priority` and its `group` open with the English value, and
+        `perry-tasks board` prints `## P0`, `## P1`, `## P2`."""
+        records = [json.loads(line) for line in
+                   (ZH / "tasks.jsonl").read_text(encoding="utf-8").splitlines()
+                   if line.strip()]
+        self.assertTrue(records)
+        for rec in records:
+            with self.subTest(id=rec["id"]):
+                self.assertIn(rec["priority"], ("P0", "P1", "P2"))
+                self.assertTrue(rec["group"].startswith(rec["priority"]))
+        board = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"), "board",
+             "--root", str(ZH)], capture_output=True, text=True)
+        self.assertEqual(board.returncode, 0, board.stderr)
         for p in ("## P0", "## P1", "## P2"):
-            self.assertIn(p, board)
+            self.assertIn(p, board.stdout)
 
 
 class TestChatProseRule(unittest.TestCase):

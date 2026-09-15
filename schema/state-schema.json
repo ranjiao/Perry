@@ -1345,7 +1345,7 @@
       "cap": 200,
       "cap_kind": "soft",
       "required": false,
-      "note": "Not required since TASK-237 deliverable 3c (the user's consent of 2026-09-14): the board is what `perry-tasks board` prints from the stores, and no command writes this file. A project that still holds one is linted against this declaration, and `perry-tasks <register>-write --from-board` imports a register it holds that has no store yet. The headings and tables stay declared because `perry-tasks board` lays the board out from them.",
+      "note": "Not required since TASK-237 deliverable 3c (the user's consent of 2026-09-14): the board is what `perry-tasks board` prints from the stores, and no command writes this file. A project that still holds one holds a retired file (TASK-262, the user's consent of 2026-09-15): it is read only by the import verbs — `perry-tasks write --from-board`, `perry-tasks <register>-write --from-board` and `perry-task risk-migrate` — which create the stores it has none of, and no other reader lints, parses or measures it; `perry-tasks board` and `perry-lint --root` name it as one that can be deleted. The headings and tables stay declared because `perry-tasks board` lays the board out from them.",
       "headings": [
         {
           "level": 2,
@@ -2328,7 +2328,7 @@
     {
       "id": "done-needs-evidence",
       "severity": "warn",
-      "description": "A BOARD row at status done must carry an Evidence path."
+      "description": "A tasks.jsonl record at status done that no `done` event closed (an imported record) must carry an Evidence path."
     },
     {
       "id": "hook-high-stakes-armed",

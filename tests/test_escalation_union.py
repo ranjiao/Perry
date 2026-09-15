@@ -202,12 +202,14 @@ class TestTheUnionReachesTheTools(Base):
         matches a term ONLY the role declared now needs a human sign-off,
         exactly as if the project had written the term in its own hook."""
         root = self.project(cards={"finance.md": CARD})
-        (root / "BOARD.md").write_text(
-            "# Board — T\n\n## P0 (must finish this period)\n\n"
-            "| ID | Title | Owner | Status | Next action | Evidence | Verification |\n"
-            "|---|---|---|---|---|---|---|\n"
-            f"| T-1 | Send the {ROLE_TERM} | agent | done | — | `make x` ok | V3 |\n",
-            encoding="utf-8")
+        # A `done` record no `done` event closed — what a hand-kept board row
+        # became on import. It was that row, in a held `BOARD.md`, until
+        # TASK-262 round 4b retired the file and re-pointed the check (F14).
+        (root / "tasks.jsonl").write_text(json.dumps({
+            "id": "T-1", "title": f"Send the {ROLE_TERM}", "owner": "agent",
+            "status": "done", "priority": "P0", "evidence": "`make x` ok",
+            "verification": "V3", "group": "P0 (must finish this period)",
+        }) + "\n", encoding="utf-8")
         r = subprocess.run(
             [sys.executable, str(LINT), "--verification", "--root", str(root),
              "--json"], capture_output=True, text=True)

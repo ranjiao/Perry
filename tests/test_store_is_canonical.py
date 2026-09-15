@@ -143,8 +143,10 @@ class TheRemedyDoesNotDestroyWhatItRepairs(Fixture):
                       "render --write puts the FILE in line with the store")
         after = {r["id"]: r for r in self.records(d)}[self.tid]
         self.assertEqual(after, before, "and touches the store not at all")
-        lint = self.sh(LINT, "--root", str(d))
-        self.assertIn("0 row(s) drifted", lint.stdout)
+        # The last assertion was `perry-lint` reading `0 row(s) drifted`
+        # afterwards. TASK-262 round 4b retired the comparison of a held file
+        # with its store, so no drift count exists to read; `render --write`
+        # is a class-(b) verb kept until R5, and what it does is asserted above.
 
     def test_write_requires_explicit_import_even_when_there_is_no_store(self):
         """The refusal is about discarding, not about the command.
@@ -160,24 +162,6 @@ class TheRemedyDoesNotDestroyWhatItRepairs(Fixture):
         proc = self.sh(TASKS, "write", "--from-board", "--root", str(d))
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertTrue(self.records(d))
-
-    def test_lint_no_longer_prescribes_the_destroying_direction(self):
-        """The finding's own text, checked.
-
-        This is a string assertion on purpose. The bug was not in the code
-        `store-drift` runs — it was in the sentence it printed, and a user who
-        follows Perry's instructions and loses data was failed by the sentence.
-        """
-        d = self._drifted()
-        out = self.sh(LINT, "--root", str(d)).stdout
-        self.assertIn("store-drift", out)
-        line = next(l for l in out.split("\n") if "store-drift]" in l)
-        self.assertIn("render --write", line)
-        self.assertNotIn("run `perry-tasks write` to re-derive", line)
-        self.assertIn("DISCARDS", line,
-                      "the other direction may be mentioned, but never "
-                      "without saying what it costs")
-
 
 class ABadlyTypedStoreIsReportedNotFatal(Fixture):
     """Every shape a hand edit can produce, swept rather than spotted.
@@ -262,53 +246,6 @@ class ABadlyTypedStoreIsReportedNotFatal(Fixture):
         self.put(d, [{}] + recs)
         out = self.sh(LINT, "--root", str(d)).stdout
         self.assertIn("has no `id`", out)
-
-
-class AFindingNamesItsOwnRow(Fixture):
-
-    def test_a_closed_row_named_in_depends_on_is_not_a_board_row(self):
-        """The predicate for "the board carries this row" is the FIRST cell.
-
-        `done` removes the row, so a closed task with dependents is named on
-        the board only inside someone else's `Depends on` cell. Matching the id
-        anywhere in the line made that count as a row, and the finding pointed
-        at the dependent's line number.
-        """
-        d = self.full_project()
-        recs = self.records(d)
-        board = (d / "perry" / "BOARD.md").read_text(encoding="utf-8")
-
-        # **Ghosts are computed from the BOARD, not from `depends_on`.** The
-        # first version of this test read the store's `depends_on` lists and
-        # picked the first id with no board row — and got one that appears in
-        # no board LINE either, so the branch was never entered and reverting
-        # the fix left the test green. The property under test is about what
-        # `_board_line_of` sees, which is board text.
-        first_cells, any_cell = set(), set()
-        for line in board.split("\n"):
-            if not line.lstrip().startswith("|"):
-                continue
-            cells = [c.strip().replace("*", "").replace("~", "")
-                     for c in line.strip().strip("|").split("|")]
-            if cells:
-                first_cells.add(cells[0])
-            any_cell.update(c for c in cells[1:] if c.startswith("TASK-"))
-        stored_ids = {r["id"] for r in recs}
-        ghosts = sorted((any_cell - first_cells) & stored_ids)
-        self.assertTrue(ghosts,
-                        "no id on this board is cited in a non-first cell "
-                        "without having a row of its own, so the case cannot "
-                        "be exercised — construct one rather than passing "
-                        "vacuously")
-
-        # Drop one ghost's record. Before the fix this reported "the file
-        # carries this row" against the CITING row's line number.
-        ghost = ghosts[0]
-        self.put(d, [r for r in recs if r["id"] != ghost])
-        out = self.sh(LINT, "--root", str(d)).stdout
-        self.assertNotIn(f"{ghost} — the file carries this row", out,
-                         f"{ghost} has no row on the board; it is only cited "
-                         f"in a `Depends on` cell")
 
 
 class PerryTasksLocksTheWholeOperation(unittest.TestCase):

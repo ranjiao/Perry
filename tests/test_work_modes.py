@@ -38,6 +38,7 @@ import unittest
 from pathlib import Path
 
 import config_store  # noqa: E402
+from held_board import import_board  # noqa: E402
 
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
@@ -437,14 +438,18 @@ class TestVerificationLint(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# Perry configuration\n\n- Document language: English\n"
-                "- Repo layout: single\n- State root: .\n"
-            )
+            # **Installed, and the rows imported** (TASK-262 round 4b). The
+            # pass read the `done` rows of a held `BOARD.md` under a
+            # `.perry/config.md` nothing reads since ADR-019. That file is
+            # retired and the pass judges `tasks.jsonl`'s `done` records that
+            # no `done` event closed (F14) — exactly what these rows become
+            # through `perry-tasks write --from-board`, which appends no event.
+            config_store.write_config(root, {"State root": "."})
             if hook:
                 (root / ".perry" / "hook.md").write_text(
                     "# hook\n\n## High-stakes operations\n\n" + hook + "\n")
             (root / "BOARD.md").write_text(self.BOARD_HEAD + rows + self.TAIL)
+            import_board(root, "write")
             r = subprocess.run(
                 ["python3", str(LINT), "--verification", "--root", str(root), "--json"],
                 capture_output=True, text=True,
@@ -506,14 +511,16 @@ class TestVerificationLint(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / ".perry").mkdir()
-            (root / ".perry" / "config.md").write_text(
-                "# c\n\n- Document language: English\n- Repo layout: single\n- State root: .\n")
+            # Installed and imported, for `_run`'s reason (TASK-262 round 4b):
+            # two `done` records with no rung and no `done` event.
+            config_store.write_config(root, {"State root": "."})
             (root / "BOARD.md").write_text(
                 "# Board\n\n## P0\n\n"
                 "| ID | Title | Owner | Status | Next action | Evidence |\n"
                 "|---|---|---|---|---|---|\n"
                 "| T-1 | a | Coding Agent | done | — | x.md |\n"
                 "| T-2 | b | Coding Agent | done | — | y.md |\n" + self.TAIL)
+            import_board(root, "write")
             r = subprocess.run(
                 ["python3", str(LINT), "--verification", "--root", str(root), "--json"],
                 capture_output=True, text=True)
@@ -555,6 +562,11 @@ class TestRungDistribution(unittest.TestCase):
                 + "\n## Cadence\n\n| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n|---|---|---|---|---|---|\n"
                 + "\n## User Input Queue\n\n| USER-id | Needed from user | Blocks | Idle | Status |\n|---|---|---|---|---|\n"
                 + "\n## Top risks\n\n- none\n")
+            # The closures reach `perry-state` as `done` records no `done`
+            # event closed (TASK-262 round 4b): a held board's rows are not
+            # read, and the header-name resolution this module asserts is the
+            # import's, `perry-tasks write --from-board`.
+            import_board(root, "write")
             r = subprocess.run(
                 ["python3", str(PERRY_HOME / "bin" / "perry-state"),
                  "--root", str(root), "--json"],
@@ -1190,6 +1202,7 @@ class TestTheHookTemplateIsNotBlind(unittest.TestCase):
                 "\n## Cadence\n\n| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n|---|---|---|---|---|---|\n"
                 "\n## User Input Queue\n\n| USER-id | Needed from user | Blocks | Idle | Status |\n|---|---|---|---|---|\n"
                 "\n## Top risks\n\n- none\n")
+            import_board(root, "write")       # TASK-262 round 4b, F14
             r = subprocess.run(
                 ["python3", str(LINT), "--verification", "--root", str(root), "--json"],
                 capture_output=True, text=True)

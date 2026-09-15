@@ -40,8 +40,16 @@ is a true statement about **this** project.
   unresolved, `WIT-001` stays idle, `WIT-003` stays unreviewed, ADR-001 stays
   `active` past its sunset, and `linkage.jsonl` keeps an `asserted_at` older than
   `.perry/events.jsonl`.
-- **`WIT-001`'s evidence cell was written into the store and the board by
-  hand, on purpose, and no event was logged for it.** `perry-task evidence`
+- **There is no `BOARD.md`** (TASK-262 round 4b). The project held one until
+  its readers were retired; it was upgraded by
+  `reference/version-compatibility.md § Upgrading a project to G3`. The task
+  store was already canonical and was not re-imported (that would have
+  overwritten `WIT-002`'s `depends_on`); the one bullet under `## Top risks`
+  became `risks.jsonl` through `perry-task risk-migrate`, which is the one
+  `risk-migrate` event and the journal day dated 2026-09-15. That event names
+  no task, so no row's idle clock moved.
+- **`WIT-001`'s evidence cell was written into the store by hand, on purpose,
+  and no event was logged for it.** `perry-task evidence`
   would have appended an event dated today, and `WIT-001`'s whole job here is
   that **nothing has moved it since 2026-08-06** — writing that cell through
   the tool empties `in_progress_with_no_live_run`, the condition this row was

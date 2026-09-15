@@ -511,65 +511,12 @@ def open_user_asks(root: Path, entries: dict, explain,
                 answered_ids.add(rid)
         return sorted((i, where_ids[i]) for i in set(where_ids) - answered_ids)
 
-    board = root / "BOARD.md"
-    if not board.exists():
-        # Same question again: a `fixtures/BOARD.md` sorting ahead of the real
-        # one is a fixture's board, and reading it would hand this project
-        # somebody else's queue.
-        for alt in sorted(root.glob("*/BOARD.md")):
-            if explain.is_illustrative(str(alt.relative_to(root))):
-                continue
-            board = alt
-            break
-    if not board.exists():
-        return elsewhere(ids)
-    try:
-        text = board.read_text(errors="replace")
-    except OSError:
-        return elsewhere(ids)
-    rel = str(board.relative_to(root))
-
-    rows: list[tuple[int, str]] = []
-    in_section = False
-    for n, line in enumerate(text.split("\n"), 1):
-        if line.startswith("## "):
-            in_section = bool(re.match(r"##\s+(User Input Queue|用户输入队列)", line))
-            continue
-        if in_section and line.strip().startswith("|"):
-            rows.append((n, line))
-    if not rows:
-        return elsewhere(ids)
-
-    # **The `Status` column is resolved BY NAME, through `md_table`.** That is
-    # this file's one reader allowed to fold a header cell
-    # (`tests/test_header_index_is_the_only_fold.py`), and resolving by name is
-    # the rule its own docstring states: a project may omit any column, and a
-    # positional read then attributes one column's value to another. A queue
-    # table with no `Status` column at all yields -1, and every row on it is
-    # open — the same direction `ask_is_answered` takes on an empty cell, for
-    # the same reason: a row with no answer recorded is a question nobody has
-    # come back to, and reading absence as closed is what silently shortens the
-    # needs-you list.
-    header, _ = md_table([line for _, line in rows], {"status": STATUS_KEYS})
-    status_at = header.get("status", -1)
-
-    answered: set[str] = set()
-    where: dict[str, str] = {}
-    for n, line in rows:
-        m = re.search(r"\bUSER-\d+\b", line)
-        if not m:
-            continue
-        where.setdefault(m.group(0), f"{rel}:{n}")
-        cells = split_row(line)
-        cell = cells[status_at] if 0 <= status_at < len(cells) else ""
-        if P.ask_is_answered(cell):
-            answered.add(m.group(0))
-    # Once a queue table exists, it is the register. USER rows in evidence,
-    # handoffs, or decision logs are history or another register; mixing the
-    # fallback inventory into a real table is how two answered fixture rows
-    # made Perry report three pending asks against the store's one.
-    own = set(where)
-    return sorted((i, where[i]) for i in own - answered)
+    # **No ask store: the fallback inventory, and no board** (TASK-262 round
+    # 4b). This parsed `BOARD.md § User Input Queue` at the root, then
+    # `*/BOARD.md`, for a project with no `asks.jsonl`. A held board is
+    # retired and no reader opens it, so such a project is read the way a
+    # board-less one already was.
+    return elsewhere(ids)
 
 
 def open_design_decisions(root: Path, inventory: dict,
@@ -1921,6 +1868,17 @@ COLUMN_SIGNALS = (
     ("parent", ("inquiry",), "name a `Parent` question"),
 )
 
+#: A board row's column (the name `COLUMN_SIGNALS` and the track/stage reads
+#: in `work_mode_signals` use) → the `tasks.jsonl` field it prints. TASK-262
+#: round 4b: the rows are store records, not a held `BOARD.md`'s tables.
+ROW_FIELDS = (("track", "track"), ("stage", "stage"),
+              ("stage since", "stage_since"), ("commitment", "commitment"),
+              ("arrived", "arrived"), ("parent", "parent"))
+
+#: The statuses that take a row off the board — `perry_store.TERMINAL_STATUSES`,
+#: which this script does not import.
+_OFF_THE_BOARD = frozenset(("done", "dropped"))
+
 #: **Deleted, not narrowed.** This was `re.compile(r"\b\d{4}-\d{2}-\d{2}\b")`
 #: and every caller `search`ed it, so `2026-09-30 or so` counted as a dated
 #: promise here while `bin/perry-goals` refused the identical value on `--due`.
@@ -2099,29 +2057,28 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
                 "tracks_source": "unavailable"}
 
     aliases = column_aliases()
-    board = read_text(state_root / "BOARD.md")
     okr = read_text(state_root / "OKR.md")
 
+    # **The rows are the task store's open records** (TASK-262 Amendment (4),
+    # round 4b). They were the tables of a held `BOARD.md`, parsed by header;
+    # the file is retired and no reader opens it, and a board-less project
+    # read an empty text here and scored no row evidence at all. The rows
+    # `perry-tasks board` prints are the open records (a closed row leaves the
+    # board), keyed by the column names `COLUMN_SIGNALS` reads.
     rows: list[dict] = []
+    for rec in (P.load_task_store(state_root) or []):
+        if not isinstance(rec, dict) \
+                or str(rec.get("status") or "") in _OFF_THE_BOARD:
+            continue
+        rows.append({column: str(rec.get(field) or "")
+                     for column, field in ROW_FIELDS})
     intake_rows = 0
-    # **The intake STORE is the register once it exists** (TASK-237
-    # deliverable 3b, `TASK-237-d3a-result.md § 1.2 L11`): the count is its
-    # records, and the section in the file is not read for it. With no
-    # `BOARD.md` this counted 0 arrived requests against a store holding them.
+    # **The intake STORE is the register** (TASK-237 deliverable 3b,
+    # `TASK-237-d3a-result.md § 1.2 L11`): the count is its records. A held
+    # `BOARD.md § Intake` is not read (TASK-262 round 4b).
     intake_store = P.load_register_store(state_root, P.INTAKE_STORE)
     if intake_store is not None:
         intake_rows = len(intake_store)
-    for heading, body in md_sections(board):
-        header, cells = md_table(body, aliases)
-        if not header:
-            continue
-        if re.match(r"(?:Intake|收件)\b", heading, re.I):
-            # Counted as its own organ, not as board rows — the `Arrived`
-            # column appears in both and would otherwise be scored twice.
-            if intake_store is None:
-                intake_rows += len(cells)
-            continue
-        rows += [_as_dict(header, c) for c in cells]
 
     commitments: list[dict] = []
     for heading, body in md_sections(okr):
@@ -2179,7 +2136,7 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     file_ev = shape_ev
     if intake_rows:
         _award(file_ev, ("queue",), STRUCTURAL,
-               f"{'intake.jsonl' if intake_store is not None else 'BOARD.md § Intake'}"
+               f"intake.jsonl"
                f" carries {intake_rows} arrived request(s)")
     if answers:
         _award(file_ev, ("inquiry",), STRUCTURAL,
@@ -2210,7 +2167,13 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     # `main` by the schema's rule — and `main` was in nobody's list, so their
     # evidence went to `ops` or nowhere. Added only when such work exists, so a
     # project whose every record is tracked gains no phantom.
-    untracked_work = any(not (r.get("track") or "").strip() for r in rows) \
+    #
+    # **A row on `main` is untracked work too** (TASK-262 round 4b). The rows
+    # are `tasks.jsonl` records now, and the store writes a blank `Track` cell
+    # as `track: "main"` — the schema's own reading of the blank — so a test
+    # for the empty string alone found no implicit-`main` work on any store.
+    untracked_work = any((r.get("track") or "main").strip().lower() == "main"
+                         for r in rows) \
         or any(not (c.get("track") or "").strip() for c in commitments)
     if not single and untracked_work:
         # The key is `track`, not `name` — `parse_tracks` returns
