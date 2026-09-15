@@ -564,6 +564,10 @@
     "test_work_modes.py": {
       "sec": 5.14,
       "source": "2026-09-09-085824"
+    },
+    "test_architecture_rules.py": {
+      "sec": 0.78,
+      "source": "2026-09-15-task453"
     }
   },
   "schema": 1,
@@ -671,6 +675,13 @@
       "note": "TASK-441. SIX modules re-timed, each alone three times with `python3 tests/parallel -j 1 --times <module>` on a git-archive copy of the ref, one module per command, and recorded at the median of the harness's own per-module seconds: test_same_action_linkage 8.13/6.38/6.83 (81 tests; base 3.61s, 76 tests); test_contract_invariance 7.20/6.89/6.24 (33 tests; base 3.52s, 27 tests); test_contract_key_parity 7.86/7.27/7.64 (45 tests; base 6.03s, 40 tests); test_kr_progress_provenance 5.71/5.79/5.87 (34 tests; base 3.00s, 29 tests); test_measured_krs_declare_a_target 3.36/3.33/3.31 (20 tests; base 0.46s, 15 tests); test_phase_kr_declared_once 4.49/4.86/4.83 (34 tests; base 2.17s, 29 tests). The base figures are the same procedure on a git-archive copy of 67dada54, where the modules were red. Every module moved by more than 0.5s: each now builds a whole-tree copy with the scored phase pinned and a (none) copy for its control (test_contract_key_parity builds only the control copy, since its frozen copy already existed). No neighbour was re-timed. load1 is the first of six samples, one taken before each module's runs; they ranged 11.08-20.02.",
       "ref": "64fc2630",
       "taken": "2026-09-15T12:30:00Z",
+      "workers": 1
+    },
+    "2026-09-15-task453": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 -m unittest discover -s tests -p test_architecture_rules.py` at the ref and recorded at the median (1.11/0.78/0.77s, 32 tests), on the terms of the 2026-09-12-task439 entry: no neighbour was re-timed. `load1` is null because nothing sampled it.",
+      "ref": "9e3cf9d4",
+      "taken": "2026-09-15T12:29:00Z",
       "workers": 1
     }
   }
