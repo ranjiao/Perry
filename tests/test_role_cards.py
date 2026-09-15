@@ -14,6 +14,17 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-lint",
+    "bin/perry-state",
+    "packs/software-ops/",
+    "modes/project.md",
+    "schema/state-schema.json",
+    "work/reference/delegate.md",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import subprocess
 import sys

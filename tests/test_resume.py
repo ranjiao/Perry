@@ -23,6 +23,17 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-state",
+    "reference/adoption.md",
+    "reference/diagnose.md",
+    "state/adoption_dossier_TEMPLATE.md",
+    "schema/README.md",
+    "schema/state-schema.json",
+    "SKILL.md",
+    "setup",
+)
+
 import json
 import re
 import tempfile

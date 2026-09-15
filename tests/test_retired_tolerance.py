@@ -38,6 +38,15 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-lint",
+    "bin/perry-state",
+    "bin/perry-task",
+    "bin/perry-goals",
+    "bin/perry-decide",
+    "reference/adoption.md",
+)
+
 import re
 import json
 import subprocess

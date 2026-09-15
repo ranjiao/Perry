@@ -17,6 +17,15 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-knowledge",
+    "bin/perry-lint",
+    "schema/knowledge-list-contract.md",
+    "work/reference/promotion.md",
+    "work/state/knowledge_INDEX_TEMPLATE.md",
+    "packs/software-ops/incidents.md",
+)
+
 import json
 import importlib.machinery
 import importlib.util

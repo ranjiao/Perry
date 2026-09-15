@@ -19,6 +19,8 @@ Run: python3 tests/parallel test_rung_vocabulary
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-explain", "schema/state-schema.json", "perry/", ".perry/")
+
 import json
 import pathlib
 import subprocess

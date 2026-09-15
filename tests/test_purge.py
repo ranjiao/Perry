@@ -18,6 +18,15 @@ Run: python3 -m unittest discover -s tests -p test_purge.py
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-lint",
+    "bin/perry-explain",
+    "bin/perry-state",
+    "schema/events-list-contract.md",
+    "schema/task-list-contract.md",
+)
+
 import json
 import re
 import subprocess

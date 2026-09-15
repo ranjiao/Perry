@@ -16,6 +16,16 @@ Run: python3 tests/parallel test_review_verdicts
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-lint",
+    "bin/perry-task",
+    "viewer/tables.py",
+    "work/reference/review.md",
+    "schema/state-schema.json",
+    "perry/",
+    ".perry/",
+)
+
 import importlib.machinery
 import importlib.util
 import json

@@ -18,6 +18,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = ("tests/",)
+
 import concurrent.futures as cf
 import ast
 import importlib.machinery

@@ -125,6 +125,17 @@ Run: python3 tests/parallel test_procedures_read_the_contract
 
 from __future__ import annotations
 
+COVERS = (
+    "SKILL.md",
+    "reference/",
+    "work/",
+    "goals/",
+    "decide/",
+    "packs/",
+    "schema/task-list-contract.md",
+    "tests/one_startable_rule.py",
+)
+
 import re
 import tempfile
 import unittest

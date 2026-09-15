@@ -29,6 +29,16 @@ Run: python3 tests/parallel test_id_families
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-diagnose",
+    "bin/perry-explain",
+    "bin/perry-lint",
+    "bin/perry-task",
+    "bin/lib/",
+    "README.md",
+    "schema/task-list-contract.md",
+)
+
 import json
 import re
 import subprocess

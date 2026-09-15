@@ -30,6 +30,16 @@ Run: python3 tests/parallel test_installed_is_one_predicate
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-goals",
+    "bin/perry-decide",
+    "bin/perry-knowledge",
+    "bin/perry-state",
+    "bin/lib/",
+    "schema/README.md",
+)
+
 import json
 import os
 import shutil

@@ -71,6 +71,15 @@ Run: python3 tests/parallel test_live_state_expectations
 
 from __future__ import annotations
 
+COVERS = (
+    "tests/live_state_expectations.py",
+    "tests/test_",
+    "bin/perry-state",
+    "bin/perry-task",
+    "perry/tasks.jsonl",
+    ".perry/",
+)
+
 import ast
 import hashlib
 import json

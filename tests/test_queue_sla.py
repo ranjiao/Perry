@@ -30,6 +30,14 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-state",
+    "bin/perry-task",
+    "bin/lib/",
+    "modes/queue.md",
+    "viewer/parsers.py",
+)
+
 import json
 import subprocess
 import sys

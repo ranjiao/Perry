@@ -32,6 +32,8 @@ Run: python3 tests/parallel test_linkage_store_declared
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-lint", "bin/lib/", "schema/state-schema.json", "setup")
+
 import json
 import pathlib
 import sys

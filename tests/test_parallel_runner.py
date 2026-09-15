@@ -24,6 +24,8 @@ Run: python3 tests/parallel test_parallel_runner
 
 from __future__ import annotations
 
+COVERS = ("tests/parallel", "tests/durations.json", "tests/module_run.py")
+
 import contextlib
 import importlib.machinery
 import importlib.util

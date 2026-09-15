@@ -22,6 +22,14 @@ Run: python3 tests/parallel test_overall_kr_grammar
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-goals",
+    "bin/perry-lint",
+    "bin/perry_md_store.py",
+    "viewer/parsers.py",
+    "schema/state-schema.json",
+)
+
 import json
 import pathlib
 import re

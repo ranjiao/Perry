@@ -28,6 +28,17 @@ Run: python3 tests/parallel test_pointers_resolve
 
 from __future__ import annotations
 
+COVERS = (
+    "SKILL.md",
+    "work/",
+    "goals/",
+    "decide/",
+    "reference/",
+    "modes/",
+    "packs/",
+    "schema/",
+)
+
 import json
 import pathlib
 import re

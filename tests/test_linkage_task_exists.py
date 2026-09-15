@@ -45,6 +45,8 @@ Run: python3 tests/parallel test_linkage_task_exists
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-lint", "bin/perry-goals", "bin/lib/", "viewer/parsers.py")
+
 import json
 import pathlib
 import shutil

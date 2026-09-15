@@ -11,6 +11,13 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "modes/project.md",
+    "packs/software-ops/roles/",
+    "schema/task-list-contract.md",
+)
+
 import json
 import os
 import subprocess

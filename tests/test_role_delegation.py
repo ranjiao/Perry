@@ -20,6 +20,14 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-state",
+    "work/reference/delegate.md",
+    "work/state/role_card_TEMPLATE.md",
+    "schema/state-schema.json",
+)
+
 import json
 import importlib.machinery
 import importlib.util

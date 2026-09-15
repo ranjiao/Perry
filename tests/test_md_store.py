@@ -50,6 +50,21 @@ Run: python3 tests/parallel test_md_store
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry_md_store.py",
+    "bin/perry_store.py",
+    "bin/perry-okr",
+    "bin/perry-goals",
+    "bin/perry-config",
+    "bin/perry-lint",
+    "bin/perry-state",
+    "bin/perry-tasks",
+    "viewer/tables.py",
+    "perry/OKR.md",
+    "perry/okr.jsonl",
+    ".perry/config.jsonl",
+)
+
 import json
 import pathlib
 import re

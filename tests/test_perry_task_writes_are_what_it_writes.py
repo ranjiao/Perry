@@ -39,6 +39,8 @@ Run: python3 tests/parallel test_perry_task_writes_are_what_it_writes
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "tests/board_sources.py")
+
 import hashlib
 import json
 import shutil

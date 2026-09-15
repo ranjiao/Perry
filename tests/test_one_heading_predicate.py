@@ -20,6 +20,13 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = (
+    "viewer/parsers.py",
+    "bin/perry-task",
+    "bin/perry-state",
+    "bin/perry-lint",
+)
+
 import importlib.machinery
 import importlib.util
 import json

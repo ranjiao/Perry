@@ -35,6 +35,14 @@ Run: python3 tests/parallel test_linkage_store_readers
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-goals",
+    "bin/perry-lint",
+    "bin/perry-state",
+    "bin/perry-task",
+    "viewer/parsers.py",
+)
+
 import json
 import pathlib
 import shutil

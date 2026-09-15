@@ -9,6 +9,18 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "viewer/parsers.py",
+    "bin/perry-state",
+    "bin/perry-lint",
+    "state/",
+    "goals/state/",
+    "work/state/",
+    "SKILL.md",
+    "reference/okr-linkage.md",
+    "schema/task-list-contract.md",
+)
+
 import json
 import subprocess
 import sys

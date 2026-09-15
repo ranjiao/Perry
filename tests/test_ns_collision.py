@@ -40,6 +40,16 @@ Run: python3 tests/parallel test_ns_collision
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-lint",
+    "bin/perry-diagnose",
+    "reference/diagnose.md",
+    "setup",
+    "schema/state-schema.json",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import pathlib
 import re

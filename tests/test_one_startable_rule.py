@@ -38,6 +38,8 @@ Run: python3 tests/parallel test_one_startable_rule
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "bin/lib/", "tests/one_startable_rule.py")
+
 import shutil
 import sys
 import tempfile

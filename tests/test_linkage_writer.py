@@ -33,6 +33,13 @@ What survives is everything the writer was FOR, and it survives sharper:
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-goals",
+    "goals/SKILL.md",
+    "goals/reference/linkage.md",
+    "perry/linkage.jsonl",
+)
+
 import importlib.machinery
 import importlib.util
 import json

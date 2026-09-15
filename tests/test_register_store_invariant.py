@@ -33,6 +33,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "bin/perry-lint", "bin/perry_store.py")
+
 import contextlib
 import json
 import shutil
