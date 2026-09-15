@@ -563,6 +563,37 @@ class TestEveryWriteLandsWithNoBoard(unittest.TestCase):
                 self.assertNotIn("is a retired board", a["stderr"])
 
 
+class TestTheRetiredBoardHintStaysOffTheJsonChannel(unittest.TestCase):
+    """**`--json` keeps stderr quiet, held file or not** (TASK-262 round 4a).
+
+    `schema/task-list-contract.md § Two things about writes` promises a
+    `--json` caller that stderr stays quiet, and aiMark reads that sentence.
+    The retired-board hint is printed on a successful write without `--json`
+    only. A mutation that printed it under `--json` too went green across the
+    whole suite before this class existed.
+    """
+
+    def test_a_json_write_with_a_held_board_prints_nothing_on_stderr(self):
+        for name, prereqs, argv, _store, _check in WRITES:
+            with self.subTest(write=name):
+                p = Project(board=FORGED_BOARD)
+                self.addCleanup(p.close)
+                for pre in prereqs:
+                    self.assertEqual(p.task(pre).returncode, 0)
+                out = p.task(argv + ["--json"])
+                self.assertEqual(out.returncode, 0, out.stdout[-300:])
+                self.assertNotIn("retired board", out.stderr)
+                json.loads(out.stdout)
+
+    def test_the_same_write_without_json_names_the_file(self):
+        """The control: the fixture really holds a file the hint would name."""
+        p = Project(board=FORGED_BOARD)
+        self.addCleanup(p.close)
+        out = p.task(["risk-add", "--title", "a probe risk"])
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("is a retired board", out.stderr)
+
+
 class TestTheContractsAnnounceTheStoreRead(unittest.TestCase):
     """The PMO's widening of 3a: a consumer keys on the contract, not the code.
 
