@@ -241,7 +241,12 @@ MENTIONS = {
 #: `BOARD.md` could not be re-rendered, and `main()`'s success-line note for
 #: the same failure, each named `perry-tasks render --write`. No write renders
 #: a board file any more, so neither failure can happen.
-PASTEABLE_WRITER_PHRASES = 68
+#:
+#: **68 -> 70 the same day, two new hand-backs, each rooted from the start:**
+#: `perry-task risk-add{_r}` and `perry-task risk-clear{_r}` in `bin/perry-task
+#: § cmd_risk_migrate`'s refusal of a second migration — the held section keeps
+#: its bullets now, so the refusal names the two writers of the migrated store.
+PASTEABLE_WRITER_PHRASES = 70
 
 
 def _load(path: Path):

@@ -6202,6 +6202,24 @@ def cmd_risk_migrate(args, ctx) -> dict:
     """
     board = ctx["board"]
     _r = lib.root_flag(ctx["project_root"])
+    # **An import runs once** (TASK-262 round 4a). Before 4a the migration
+    # rewrote the held section into a table, so a second run met "already a
+    # table" and wrote nothing. The held file is not rewritten now, so its
+    # bullets are still there; converting them again would mint fresh ids for
+    # the same risks and derive the whole store from them, replacing the
+    # records the first run wrote (measured: RX-001/RX-002 became RX-003/RX-004
+    # at exit 0). A risks store that already holds records is the migrated
+    # register.
+    store = perry_store.risk_store_path(ctx["state_root"])
+    existing = load_register_records(store, "risks")
+    if existing:
+        raise Refused(
+            f"{store} already holds {len(existing)} risk record(s), so `## Top "
+            f"risks` has been migrated. A held BOARD.md is retired and is not "
+            f"rewritten, so its bullets are still in it, and converting them "
+            f"again would re-mint them over the records that exist. Nothing "
+            f"was written. `perry-task risk-add{_r}` adds a risk; "
+            f"`perry-task risk-clear{_r}` retires one")
     if not board.has_section("Top risks"):
         raise Refused(
             f"BOARD.md has no `## Top risks` section, so there is nothing to "

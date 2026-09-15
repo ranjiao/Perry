@@ -680,6 +680,27 @@ class TestConversionIsAskedForNotPerformed(unittest.TestCase):
         self.assertIn("already a table", out["refused"])
         self.assertEqual(p.held_board(), before)
 
+    def test_a_second_risk_migrate_refuses_and_writes_nothing(self):
+        """**TASK-262 round 4a.** The held section keeps its bullets after the
+        migration, because no write rewrites the file. A second run used to
+        meet the table the first run wrote; now it meets the store, and must
+        refuse there — measured before the guard, it re-minted the two risks
+        as RX-003/RX-004 and replaced RX-001/RX-002 in the store at exit 0."""
+        p = Project(board=board_with(AIMARK_BULLETS))
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 0, out)
+        store = p.root / "risks.jsonl"
+        migrated = store.read_bytes()
+        self.assertIn(b'"RX-002"', migrated, "control: the first run migrated")
+        held = p.held_board()
+        self.assertEqual(len(risks(held)), 2, "control: the bullets are still held")
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 1, out)
+        self.assertIn("already holds 2 risk record(s)", out["refused"])
+        self.assertEqual(store.read_bytes(), migrated)
+        self.assertEqual([e["event"] for e in p.events()], ["risk-migrate"])
+        self.assertEqual(p.held_board(), held)
+
     def test_risk_migrate_refuses_when_there_is_nothing_to_convert(self):
         p = Project(board=board_with("- (no active risks)\n"))
         code, out = p.run("risk-migrate")
