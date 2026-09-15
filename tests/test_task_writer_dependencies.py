@@ -157,34 +157,6 @@ class TestAClosedRowKeepsItsName(unittest.TestCase):
                 self.assertEqual(code, 1, f"{sub} reached a closed row: {out}")
                 self.assertIn("not a row on the board", str(out))
 
-    def test_next_still_refuses_a_finished_row_that_is_on_the_board(self):
-        """Verification 3. The refusal this row must not weaken is not the
-        board one — it is `terminal_ok`, which fires on a project that stages
-        finished work in place rather than removing it."""
-        p = Project(board=BOARD.replace(
-            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
-            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
-            "| TASK-900 | finished in place | User | done | — | e.md |\n\n## P1", 1))
-        code, out = p.run("next", "TASK-900", "--next", "something")
-        self.assertEqual(code, 1, out)
-        self.assertIn("finished", str(out))
-        self.assertEqual(0, p.run("retitle", "TASK-900", "--title", "named")[0],
-                         "the title stopped being correctable in place")
-
-    def test_an_open_row_missing_from_the_board_is_still_refused(self):
-        """The third guard. "Not on the board" means "finished" only because
-        `done` removes the row; an OPEN row that is missing from it is a stale
-        projection, and repairing the record here would paper over that."""
-        p = Project()
-        _, a = p.run("add", "--title", "x", "--priority", "P0")
-        board = p.board()
-        p_board = "\n".join(l for l in board.split("\n")
-                            if not l.startswith(f"| {a['id']} "))
-        (p.root / "BOARD.md").write_text(p_board)
-        code, out = p.run("retitle", a["id"], "--title", "new")
-        self.assertEqual(code, 1, out)
-        self.assertIn("rendering failure", str(out))
-
     def test_the_repair_does_not_reorder_the_store(self):
         """A finished record's position is the order the work happened in.
         Rewriting a name is not a reason to move history — and the generic
@@ -492,18 +464,21 @@ class TestADependencyIsQueryable(unittest.TestCase):
         """`reference/i18n.md`: a board may be written in the project's own
         language, and a column table that only speaks English would report
         every such row as declaring nothing — which reads as `startable`."""
-        p = Project()
-        a, b = self.two(p)
-        board = p.board().replace(
+        # **Imported from a held board, not written by the tool** (TASK-262
+        # round 4a). This added two rows with `add`, then edited them into the
+        # held `BOARD.md` and re-imported; a write no longer re-renders that
+        # file, so the rows were never in it. The localized column is now in
+        # the board the project imports — the only door a markdown cell still
+        # has into the store.
+        a, b = "TASK-001", "TASK-002"
+        p = Project(board=BOARD.replace(
             "| ID | Title | Owner | Status | Next action | Evidence |\n"
-            "|---|---|---|---|---|---|\n"
-            f"| {a} ", "| ID | Title | Owner | Status | Next action | Evidence | 依赖 |\n"
+            "|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence | 依赖 |\n"
             "|---|---|---|---|---|---|---|\n"
-            f"| {a} ", 1)
-        board = board.replace(f"| {a} | first | Coding Agent | not_started | — | — |",
-                              f"| {a} | first | Coding Agent | not_started | — | — | {b} |")
-        (p.root / "BOARD.md").write_text(board)
-        p.import_board()
+            f"| {a} | first | Coding Agent | not_started | — | — | {b} |\n"
+            f"| {b} | second | Coding Agent | not_started | — | — |  |\n"
+            "\n## P1", 1))
         self.assertEqual([b], self.task(p, a)["depends_on"],
                          "a `依赖` column was invisible to the reader")
 

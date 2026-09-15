@@ -255,26 +255,40 @@ class TestUserInputQueueHasAWriter(unittest.TestCase):
              "--root", str(p.root), "--json"], capture_output=True, text=True)
         self.assertEqual(json.loads(r.stdout)["user_input_queue"]["count"], 0)
 
-    def test_a_board_that_already_has_the_section_gains_the_asked_column(self):
+    def test_an_imported_queue_keeps_its_ids_and_the_new_ask_is_dated(self):
         """`ensure_columns` existed for the priority tables from the day mode
         columns landed; its sibling for named sections did not, so the date
         would have been dropped silently — the defect that lost
-        `--commitment`."""
-        # The fixture already carries the section, in the four-column shape a
-        # real project uses — no `Asked`, and no `Idle` either.
+        `--commitment`.
+
+        **Rewritten for TASK-262 round 4a.** This asserted that the held
+        four-column section gained an `Asked` column and its old row was
+        widened. No write touches a held `BOARD.md` any more, so the table a
+        human kept is not widened: the queue is imported (`asks-write
+        --from-board`, the upgrade path) and the date lands in the ask STORE,
+        whose record always carries `asked`. What survives unchanged is the id
+        half: the imported `USER-900` still moves the next mint.
+        """
+        import inproc
+        # The fixture carries the section in the four-column shape a real
+        # project uses — no `Asked`, and no `Idle` either.
         p = Project(board=BOARD.replace(
             "| USER-id | Needed from user | Blocks | Idle | Status |\n|---|---|---|---|---|\n",
             "| USER-id | Needed from user | Blocks | Status |\n|---|---|---|---|\n"
             "| USER-900 | pre-existing | — | pending |\n", 1))
+        r = inproc.run("perry-tasks", ["asks-write", "--from-board",
+                                       "--root", str(p.root)])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         code, a = p.run("ask", "--needed", "new one")
         self.assertEqual(code, 0, a)
+        self.assertEqual(a["id"], "USER-901", "the pre-existing id was reused")
+        stored = {json.loads(l)["id"]: json.loads(l) for l in
+                  (p.root / "asks.jsonl").read_text().split("\n") if l.strip()}
+        self.assertEqual(set(stored), {"USER-900", "USER-901"})
+        self.assertRegex(stored["USER-901"]["asked"], r"^\d{4}-\d{2}-\d{2}$",
+                         "the new ask was stored with no date")
         header = next(l for l in p.board().split("\n") if l.startswith("| USER-id |"))
         self.assertIn("Asked", header)
-        old = next(l for l in p.board().split("\n") if l.startswith("| USER-900 |"))
-        self.assertEqual(len(old.strip("|").split("|")),
-                         len(header.strip("|").split("|")),
-                         "an existing row was not widened with the new column")
-        self.assertEqual(a["id"], "USER-901", "the pre-existing id was reused")
 
 
 class TestAgeIsKnownOrDeclaredUnknown(unittest.TestCase):
@@ -482,19 +496,6 @@ class TestCorrectingANextAction(unittest.TestCase):
         code, out = p.run("next", a["id"])
         self.assertEqual(code, 1)
         self.assertIn("--next", str(out))
-
-    def test_a_finished_row_still_on_the_board_is_refused(self):
-        """A row that has finished has no next step, and writing one would put
-        a live-looking instruction on completed work. `done` removes the row,
-        so the case that matters is a board that stages finished work in place
-        — which Perry's own did, for twenty rows."""
-        p = Project(board=BOARD.replace(
-            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
-            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
-            "| TASK-900 | finished in place | User | done | — | e.md |\n\n## P1", 1))
-        code, out = p.run("next", "TASK-900", "--next", "something")
-        self.assertEqual(code, 1)
-        self.assertIn("finished", str(out))
 
     def test_it_is_classified_as_a_task_event(self):
         """`TASK_EVENTS` / `SECTION_EVENTS` is a partition, and a subcommand

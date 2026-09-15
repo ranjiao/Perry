@@ -305,6 +305,13 @@ class TestTheReadersAreOneFunction(unittest.TestCase):
                    "| RX-001 | the vendor contract lapses | | mitigated "
                    "2026-01-04 — renewed |\n")
         p = Project(board=board_with(section))
+        # Imported first (TASK-262 round 4a): a write builds from the stores,
+        # so a register a human kept in a held `BOARD.md` reaches `risk-clear`
+        # through its import and not through the file.
+        import inproc
+        r = inproc.run("perry-tasks", ["risks-write", "--from-board",
+                                       "--root", str(p.root)])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         rc, out = p.run("risk-clear", "RX-001", "--reason", "again")
         self.assertEqual(rc, 1)
         self.assertIn("already cleared", json.dumps(out))
