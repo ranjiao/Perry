@@ -169,3 +169,42 @@ Last element: the last column of the last table in print order
   PMO records the reading.
 - **The suite** on your final commit, foreground, with the tree still. There
   are no standing reds at `5f6bee61` (`TASK-335` closed them).
+
+## Amendment (2) — 2026-09-15, round 2: the writer declaration (user decision)
+
+Round 1's result F1, reproduced by the PMO on main at `8c8b3602`: all 27
+mutating subcommands in `bin/perry-task § SURFACE` declare the identical
+`writes` list `["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]`
+(the other 4 declare `[]`), while `bin/perry-task § REGISTER_EVENTS` says
+`risk-*` write risks, `intake`/`resolve-intake`/`intake-sweep`/`route`/`add`
+write intake, `ask`/`answer` write asks and `cadence-add`/`cadence-done` write
+cadence. Since the board's section lines are derived from `writes`, three
+sections say no writer is declared and the task sections name all 27. The user
+chose to fix the declaration **inside this row**, before the reading.
+
+**Scope added:** `bin/perry-task` (the `SURFACE` `writes` entries only, and
+whatever single source the fix derives them from), plus the tests that pin
+them.
+
+1. **Each subcommand's `writes` names what it actually writes.** Measure it —
+   run each subcommand on a copy and diff which files change — rather than
+   reading prose. `BOARD.md` leaves every entry: nothing writes it since
+   `TASK-237` 3c.
+2. **One declaration, not two.** `writes` and `REGISTER_EVENTS` must not be
+   able to disagree again: derive one from the other, or add a guard that goes
+   red when they differ. Say which, and why.
+3. **The install gate is unchanged in effect.** `lib.refuse_write_unless_installed`
+   decides on `writes`. Every one of the 27 must still be refused on a
+   non-installed shape and land on an installed one; re-run
+   `tests/test_a_write_refuses_where_nothing_is_installed.py` and mutate a
+   `writes` entry to prove its coverage guard notices.
+4. **Published surfaces.** `perry describe` prints `writes`. Find every test or
+   page that pins the old list (for example `tests/test_bin_surface.py`) and
+   update it; if a published contract page pins it, stop and report instead of
+   editing the page.
+5. **The board follows by derivation.** No change to `bin/perry_store.py`'s
+   derivation should be needed; the section lines for Cadence, User Input Queue
+   and Top risks should now name writers, and the task sections fewer. Re-make
+   the Verification 5 sample from the final commit.
+6. Verification 1–4 and 6 again on the final commit, with mutations for items
+   1–3 above.
