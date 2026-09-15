@@ -331,6 +331,10 @@
       "sec": 3.86,
       "source": "2026-09-09-085824"
     },
+    "test_perry_task_writes_are_what_it_writes.py": {
+      "sec": 2.57,
+      "source": "2026-09-15-task262-round2"
+    },
     "test_phase_kr_declared_once.py": {
       "sec": 4.6,
       "source": "2026-09-09-085824"
@@ -641,6 +645,13 @@
       "note": "TASK-262. ONE module added and ONE slowed, each timed alone three times with `python3 -m unittest discover -s tests -t . -p <module>` and recorded at the median: test_board_names_its_sources 0.79/0.64/0.57s; test_board_from_declarations 0.91/0.91/0.89s. The slowdown is measured, not assumed: the same module at the base 7f97d337, from a `git archive` copy, back to back at the same load, took 0.53/0.86/0.60s (median 0.60). Every `perry-tasks board` now also reads `bin/perry-task § SURFACE` with `ast` (~0.03s a render). No other neighbour was re-timed. load1 is the getloadavg sample taken right after the nine runs.",
       "ref": "7f97d337928a09fe6993f4891e2a5c3822fd3523",
       "taken": "2026-09-14T15:00:00Z",
+      "workers": 1
+    },
+    "2026-09-15-task262-round2": {
+      "load1": 12.51,
+      "note": "TASK-262 round 2. ONE module added, timed alone three times with `/usr/bin/time -p python3 -m unittest discover -s tests -t . -p <module>` and recorded at the median: test_perry_task_writes_are_what_it_writes 2.57/2.67/1.94s (in-module). It re-runs every perry-task write in-process on temp projects. No neighbour was re-timed: only SURFACE `writes` literals changed in bin/perry-task. load1 is the getloadavg sample taken right after the three runs.",
+      "ref": "83fed4f3fd8b6a9dd09d7e51e42fb31db119b20d",
+      "taken": "2026-09-15T10:00:00Z",
       "workers": 1
     }
   }

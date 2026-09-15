@@ -238,6 +238,8 @@ record should not treat 100% here as the KR met.
 subcommand writes, and it disagrees with a second declaration in the same
 file.**
 
+> Fixed in round 2 (Amendment (2)): `perry/evidence/2026-09/TASK-262-round2-result.md`.
+
 - All 27 mutating subcommands declare the identical list
   `["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]`. None
   declares `asks.jsonl`, `risks.jsonl`, `intake.jsonl` or `cadence.jsonl`.
