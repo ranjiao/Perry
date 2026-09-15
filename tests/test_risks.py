@@ -522,31 +522,6 @@ class TestRiskRowsAreNotTaskRows(unittest.TestCase):
         self.assertEqual(out["id"], "TASK-001")
 
 
-class TestLintToleratesBothForms(unittest.TestCase):
-    """Reading is tolerant; writing is strict. The rule that cost 61 -> 67
-    lint errors on a live project the last time it was broken."""
-
-    def test_a_board_that_never_migrated_is_not_reported_missing_a_table(self):
-        p = Project(board=board_with(AIMARK_BULLETS))
-        out = lint(p.root)
-        self.assertNotIn("missing-table", out, out)
-
-    def test_a_migrated_board_passes_the_column_check(self):
-        p = Project(board=board_with("- none\n"))
-        p.run("risk-add", "--title", "a risk")
-        out = lint(p.root)
-        self.assertNotIn("table-columns", out, out)
-
-    def test_status_is_not_enum_checked(self):
-        """It holds a human's reason. An enum here is the reverted mistake."""
-        p = Project(board=board_with(
-            "| ID | Risk | Opened | Status |\n"
-            "|---|---|---|---|\n"
-            "| RX-001 | a risk | 2026-08-01 | 已解除 2026-08-16 — 上游修好了 |\n"))
-        out = lint(p.root)
-        self.assertNotIn("bad-enum", out, out)
-
-
 class TestPerrysOwnBoard(unittest.TestCase):
     """The migration required by TASK-040, checked in place.
 

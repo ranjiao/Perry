@@ -110,20 +110,6 @@ class TestEveryMatcherAgrees(unittest.TestCase):
     def setUp(self):
         self.task = _task_mod()
 
-    def missing_sections(self, board_text: str) -> list[dict]:
-        """`perry-lint`'s `missing-section` findings for this board — the fifth
-        implementation, and the one migration acts on."""
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "perry").mkdir()
-            config_store.write_config(root, {"State root": "perry"})
-            (root / "perry" / "BOARD.md").write_text(board_text, encoding="utf-8")
-            r = subprocess.run(
-                [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
-                 "--root", str(root), "--json"], capture_output=True, text=True)
-            return [f for f in json.loads(r.stdout)["findings"]
-                    if f["rule"] == "missing-section"]
-
     def test_migration_does_not_append_a_second_section(self):
         """The consequence, end to end, on the tool that rewrites a stranger's
         files. This is what makes the fifth implementation worse than the other
