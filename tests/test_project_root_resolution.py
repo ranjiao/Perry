@@ -546,9 +546,21 @@ class TestTheToolLeavesEachGlobalMeaningItsName(unittest.TestCase):
     def test_the_pair_survives_an_unrelated_cwd(self):
         """The requirement that motivated the assignment in the first place.
 
-        Run from `/tmp`, which holds no project of its own and is not an
-        ancestor of anything either global would otherwise walk to."""
-        seen = self.probe(self.root, cwd=tempfile.gettempdir())
+        Run from a fresh empty temp directory, which holds no project of its
+        own and is not an ancestor of anything either global would otherwise
+        walk to.
+
+        **Not `tempfile.gettempdir()` itself, and that is a measurement.** The
+        probe is `python3 -c`, which puts the cwd on `sys.path`, so every
+        import lists the cwd. The shared temp dir held 525,378 entries on
+        2026-09-15 and other processes write into it all the time, so the
+        listing kept going stale: the same probe took 107.5s there and 0.07s
+        from an empty directory. That made this one test the longest module in
+        the default run, and its cost grew with whatever else the machine had
+        left in the temp dir. An empty sibling asks the same question."""
+        cwd = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, cwd, ignore_errors=True)
+        seen = self.probe(self.root, cwd=cwd)
         self.assertEqual(seen["rc"], 0)
         self.assertEqual(Path(seen["project_root"]), self.root)
         self.assertEqual(Path(seen["state_root"]), self.state)

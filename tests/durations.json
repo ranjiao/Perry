@@ -1,5 +1,9 @@
 {
   "modules": {
+    "test_a_write_refuses_where_nothing_is_installed.py": {
+      "sec": 3.97,
+      "source": "2026-09-15-unlisted-pair"
+    },
     "test_add_declares_unlinked.py": {
       "sec": 11.27,
       "source": "2026-09-09-085824"
@@ -107,6 +111,10 @@
     "test_contract_key_parity.py": {
       "sec": 6.14,
       "source": "2026-09-14-task335"
+    },
+    "test_contract_page_snippets.py": {
+      "sec": 4.79,
+      "source": "2026-09-15-unlisted-pair"
     },
     "test_count_fields.py": {
       "sec": 1.88,
@@ -638,6 +646,13 @@
       "note": "TWO modules added by TASK-237 deliverable 3b′, each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_installed_is_one_predicate 1.57/1.53/1.57s, test_starts_write_the_config_store_first 1.57/1.58/1.54s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
       "ref": "91610742",
       "taken": "2026-09-14T12:00:00Z",
+      "workers": 1
+    },
+    "2026-09-15-unlisted-pair": {
+      "load1": 21.08,
+      "note": "TWO modules that landed without an entry — test_contract_page_snippets (7ce9170b, TASK-412) and test_a_write_refuses_where_nothing_is_installed (b42fa3d7, TASK-237 round 2) — each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_contract_page_snippets 5.98/4.79/4.64s; test_a_write_refuses_where_nothing_is_installed 3.97/3.47/4.66s. test_durations_provenance was red over them on `--slow` while the default run, which defers that module, stayed green. No neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "ref": "282e6acb8ac4d285edff263eb781e7816f542d65",
+      "taken": "2026-09-15T02:10:00Z",
       "workers": 1
     },
     "2026-09-14-task262": {
