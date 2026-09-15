@@ -208,3 +208,57 @@ them.
    the Verification 5 sample from the final commit.
 6. Verification 1–4 and 6 again on the final commit, with mutations for items
    1–3 above.
+
+## Amendment (3) — 2026-09-15, round 3: a held `BOARD.md` is retired (user decision)
+
+**Correction.** Amendment (2) said nothing writes `BOARD.md` since `TASK-237`
+3c. That was the PMO's error. Round 2's F6, reproduced by the PMO on a copy of
+`21d271e5` that holds `perry/BOARD.md`: `perry-task next` and `perry-task ask`
+both rewrite it (24 of 27 writes do). A held board is also READ: the write
+builds its layout from it, and a stale one refuses the write
+(`reference/version-compatibility.md`, the G2-with-a-stale-board row). Several
+`perry-lint` checks read `state_root / "BOARD.md"` too.
+
+**User decision, 2026-09-15:** 停用老的 `BOARD.md`，并且提示用户可以删除 — retire
+the old `BOARD.md`, and tell the user they can delete it. Kept in this row
+because F6 arose here and no new row is opened.
+
+Deliverable:
+
+1. **No `perry-task` write reads or rewrites a held `BOARD.md`.** The board a
+   write mutates is built from the declarations exactly as on a board-less
+   project. On an installed project holding a `BOARD.md` that disagrees with
+   the stores, the write succeeds and the file's bytes are unchanged.
+   `writes` stays without `BOARD.md`, which is now true.
+2. **The hint.** Where a `BOARD.md` exists at the state root (or the project
+   root), print one line to **stderr** on a successful write, on
+   `perry-tasks board`, and as a `perry-lint --root` **warning** (not an
+   error): it names the path, says no tool reads or updates it any more, that
+   the board is `perry-tasks board`, and that it can be deleted
+   (`git rm <path>`). Exit codes and stdout (including `--json` payloads) are
+   unchanged. One wording, defined once.
+3. **Every other reader in `bin/` and `viewer/`, enumerated and classified**
+   (write the table into the result):
+   - (a) **import verbs** that read a board to create stores
+     (`perry-tasks write --from-board`, the `*-write --from-board` family,
+     `perry-task risk-migrate`): the upgrade path, keep reading
+     (`reference/version-compatibility.md`);
+   - (b) **render / diff / verify verbs** that write or compare `BOARD.md`
+     (e.g. `perry-tasks render`, `*-render`): retiring them is `R5`, not this
+     round. Leave them, list them;
+   - (c) **everything else** stops reading it. If the check still means
+     something, read the store it projects; if it only existed to police the
+     file, remove it and say so. If a removal would drop a check with no store
+     equivalent, **stop and report** instead of removing it.
+4. **Guards.** The writes guard gains a held-board case (no `BOARD.md` byte
+   changes, the hint is printed). A test proves a stale held board no longer
+   refuses a write.
+5. **Docs.** Update `reference/version-compatibility.md` (the stale-board row
+   and rule 4) and any `bin/README.md` / `bin/ARCHITECTURE.md` sentence saying
+   a write re-renders a held board. **Do not edit `ARCHITECTURE.md` § NN-2**:
+   it is the user's (NN-6). Propose the new wording in the result.
+6. **Mutations**, each red on a named test: the rewrite re-enabled; the hint
+   suppressed; the write reading a held board again (the stale-board refusal
+   returns); one (c) reader restored.
+7. Verification 1–4 and 6 again, and re-make the board sample only if the
+   output changed (it should not).
