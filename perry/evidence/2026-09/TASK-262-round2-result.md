@@ -6,7 +6,9 @@
 > Branch: `worktree-agent-ad79f277983e523ca`
 > Code commit: `83fed4f3`. `f3b8e5c1` corrects one docstring line in the new
 > test. This file, the board sample, the round-1 pointer and
-> `tests/durations.json` are in the commit after that; § 9 is in the commit after that.
+> `tests/durations.json` are in `4a27b2c3`. The commit after it relabels this
+> file's findings F6–F9 (they were `F-R2-n`, which `perry-diagnose` read as ids,
+> § 9); § 9's totals are in the commit after that.
 > Rung reached: V3 (items 1–6). **§ Verification 5, the reading, is not done. It
 > is the PMO's, after merge.**
 
@@ -117,7 +119,7 @@ created. They are left out of the columns below.
 - **The rule for `writes`:** the union, over every shape and case, of the files
   whose bytes changed, spelled as the declaration spells them. A store under the
   state root is named by its file name, and anything under the journal is
-  `journal/`. `BOARD.md` is left out by the user's decision (F-R2-1).
+  `journal/`. `BOARD.md` is left out by the user's decision (F6).
 - **No write created or changed a register store it does not own**, in any shape.
   D and E, with three register stores absent, were run to catch exactly that.
 - **Not exercised**, and so not measured:
@@ -368,7 +370,7 @@ after the PMO records the reading here._
 
 ## 8. Findings
 
-**F-R2-1: the amendment's premise holds only for a board-less project.
+**F6: the amendment's premise holds only for a board-less project.
 `BOARD.md` is still written where a project holds one.**
 
 - **What the premise says:** "nothing writes it since TASK-237 3c". That is
@@ -397,7 +399,7 @@ after the PMO records the reading here._
 
   I made neither change. **No row opened.**
 
-**F-R2-2: every register write replaces `tasks.jsonl` with identical bytes.**
+**F7: every register write replaces `tasks.jsonl` with identical bytes.**
 
 - **What happens:** `commit()` always stages the task store in the canonical
   set, `canonical = [(spath, perry_store.store_text(records))]`.
@@ -410,7 +412,7 @@ after the PMO records the reading here._
   reader that watches mtimes sees the task store "change" on every register
   write. **No row opened.**
 
-**F-R2-3: `REGISTER_EVENTS` maps `add` to intake, and `add` changes
+**F8: `REGISTER_EVENTS` maps `add` to intake, and `add` changes
 `intake.jsonl` only when it creates it.**
 
 - **When:** on a queue-mode track with no intake store (D, E).
@@ -419,7 +421,7 @@ after the PMO records the reading here._
   so that "`add` writes intake" is not read as "every `add` changes the intake
   store".
 
-**F-R2-4: round 1's F2 remains, shorter.** Each task section names 17
+**F9: round 1's F2 remains, shorter.** Each task section names 17
 subcommands. Whether the line should name a writer family is still a wording
 question for after the reading.
 
