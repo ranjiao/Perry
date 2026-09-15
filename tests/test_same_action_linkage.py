@@ -50,7 +50,23 @@ STORE = PERRY_HOME / "perry" / "linkage.jsonl"
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import lib  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pinned_phase  # noqa: E402
+
 KR = "P003-O3-KR2"
+
+
+def project(phase: str = pinned_phase.SCORED_PHASE) -> Path:
+    """The project the two readers publish from. TASK-441.
+
+    `BothReadersPublishTheOneNumber` and `EveryPublisherOfAComputedKrAgrees`
+    read the live checkout. `P003-O3-KR2` belongs to phase 003, so when
+    `score-phase 003` cleared `phase/CURRENT` no reader published it and
+    `perry-goals krs` refused to run. The readers now read a copy of the tree
+    with the scored phase pinned. `TheScoredPhaseIsLoadBearing` reads a
+    `(none)` copy to show that pin is what they depend on.
+    """
+    return pinned_phase.pinned_copy(__name__, phase)
 
 
 def add_event(task_id: str, *, kr="__absent__", track: str = "main") -> dict:
@@ -442,7 +458,7 @@ class BothReadersPublishTheOneNumber(unittest.TestCase):
         return json.loads(r.stdout)
 
     def state_kr(self) -> dict:
-        payload = self._run([str(STATE), "--root", str(PERRY_HOME),
+        payload = self._run([str(STATE), "--root", str(project()),
                              "--section", "linkage"])
         for o in (payload.get("linkage") or {}).get("objectives", []):
             for k in o.get("krs", []):
@@ -451,7 +467,7 @@ class BothReadersPublishTheOneNumber(unittest.TestCase):
         raise AssertionError(f"{KR} missing from perry-state linkage section")
 
     def goals_kr(self) -> dict:
-        payload = self._run([str(GOALS), "list", "--root", str(PERRY_HOME),
+        payload = self._run([str(GOALS), "list", "--root", str(project()),
                              "--json"])
         for k in payload.get("krs", []):
             if k["id"] == KR:
@@ -474,18 +490,19 @@ class BothReadersPublishTheOneNumber(unittest.TestCase):
     def test_the_number_matches_recomputing_it_here(self):
         """The published number against this module's own read of the two
         files. A payload that computed something else — or that fell back to
-        the register — differs here."""
+        the register — differs here. The two files are the copy's, the
+        project the payload was read from."""
         sys.path.insert(0, str(PERRY_HOME / "viewer"))
         import parsers as P  # noqa: E402
-        records = P.load_linkage_store(PERRY_HOME / "perry")
+        records = P.load_linkage_store(project() / "perry")
         events = [json.loads(l) for l in
-                  (PERRY_HOME / ".perry" / "events.jsonl")
+                  (project() / ".perry" / "events.jsonl")
                   .read_text(errors="replace").splitlines() if l.strip()]
         expected = lib.same_action_linkage(records, events)
         self.assertEqual(self.state_kr()["current"], expected["current"])
 
     def test_the_other_five_krs_are_not_reported_measured(self):
-        payload = self._run([str(STATE), "--root", str(PERRY_HOME),
+        payload = self._run([str(STATE), "--root", str(project()),
                              "--section", "linkage"])
         others = [k for o in (payload.get("linkage") or {}).get("objectives", [])
                   for k in o.get("krs", []) if k["id"] != KR]
@@ -1121,8 +1138,8 @@ class EveryPublisherOfAComputedKrAgrees(unittest.TestCase):
 
     # ── the four publishers, each as one lookup ──────────────────────────
 
-    def from_state(self, kr_id: str):
-        payload = self._json([str(STATE), "--root", str(PERRY_HOME),
+    def from_state(self, kr_id: str, root: Path | None = None):
+        payload = self._json([str(STATE), "--root", str(root or project()),
                               "--section", "linkage"])
         for o in (payload.get("linkage") or {}).get("objectives", []):
             for k in o.get("krs", []):
@@ -1130,20 +1147,21 @@ class EveryPublisherOfAComputedKrAgrees(unittest.TestCase):
                     return k
         return None
 
-    def from_goals_list(self, kr_id: str):
-        payload = self._json([str(GOALS), "list", "--root", str(PERRY_HOME),
-                              "--json"])
+    def from_goals_list(self, kr_id: str, root: Path | None = None):
+        payload = self._json([str(GOALS), "list",
+                              "--root", str(root or project()), "--json"])
         for k in payload.get("krs", []):
             if k["id"] == kr_id:
                 return k
         return None
 
-    def from_goals_krs(self, kr_id: str):
+    def from_goals_krs(self, kr_id: str, root: Path | None = None):
         """`krs` at both levels: a computed KR may be filed under the phase
         register or under the overall one, and a lookup that knew only one
         would report `None` as agreement."""
         for level in ("phase", "overall"):
-            argv = [str(GOALS), "krs", "--root", str(PERRY_HOME), "--json"]
+            argv = [str(GOALS), "krs", "--root", str(root or project()),
+                    "--json"]
             if level == "overall":
                 argv += ["--level", "overall", "--version", "all"]
             payload = self._json(argv)
@@ -1186,7 +1204,7 @@ class EveryPublisherOfAComputedKrAgrees(unittest.TestCase):
         """The row's sharpest site. `perry-goals list --json` said `measured`
         while `perry-goals list` said `asserted` for the same row, and a reader
         on a terminal has no way to see the JSON."""
-        out = self._text([str(GOALS), "list", "--root", str(PERRY_HOME)])
+        out = self._text([str(GOALS), "list", "--root", str(project())])
         for kr_id in self.computed_ids():
             row = self.from_goals_list(kr_id)
             if row is None or row["current_provenance"]["state"] != "measured":
@@ -1210,7 +1228,7 @@ class EveryPublisherOfAComputedKrAgrees(unittest.TestCase):
         makes false, printed two lines under the row it was false about. It is
         now derived from the payload; this is the assertion that keeps it
         derived."""
-        out = self._text([str(GOALS), "list", "--root", str(PERRY_HOME)])
+        out = self._text([str(GOALS), "list", "--root", str(project())])
         measured = [kr_id for kr_id in self.computed_ids()
                     if (self.from_goals_list(kr_id) or {})
                     .get("current_provenance", {}).get("state") == "measured"]
@@ -1225,6 +1243,54 @@ class EveryPublisherOfAComputedKrAgrees(unittest.TestCase):
                 kr_id, out,
                 f"the footer claims some number is measured without naming "
                 f"which; {kr_id} must appear")
+
+
+class ThePinnedCopy(pinned_phase.ThePinnedCopyGuards, unittest.TestCase):
+    """TASK-441. The readers above read a copy, not the checkout."""
+
+    OWNER = __name__
+
+
+class TheScoredPhaseIsLoadBearing(unittest.TestCase):
+    """TASK-441's control, for both reader classes above.
+
+    Main after `score-phase 003` is a copy pinned to `(none)`. There no reader
+    publishes `P003-O3-KR2`: `perry-state` and `perry-goals list` leave it
+    out, and `perry-goals krs` refuses to run with no current phase. So
+    `state_kr` raises "missing", and
+    `test_every_computed_kr_is_published_by_at_least_one_reader` has nothing
+    to find. With the scored phase pinned, all three publish it.
+
+    The lookups belong to `EveryPublisherOfAComputedKrAgrees`. One instance is
+    built here and never run, so the control calls the very code the tests
+    call, and not a paraphrase of it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.lookups = EveryPublisherOfAComputedKrAgrees("computed_ids")
+
+    def test_with_no_phase_current_no_reader_publishes_a_computed_kr(self):
+        root = project(pinned_phase.NO_PHASE)
+        self.assertEqual(pinned_phase.NO_PHASE,
+                         pinned_phase.current_phase(root))
+        for kr_id in sorted(lib.COMPUTED_KR_METRICS):
+            with self.subTest(kr=kr_id):
+                self.assertIsNone(self.lookups.from_state(kr_id, root))
+                self.assertIsNone(self.lookups.from_goals_list(kr_id, root))
+                try:
+                    row = self.lookups.from_goals_krs(kr_id, root)
+                except AssertionError:
+                    row = None      # `krs` refuses with no current phase
+                self.assertIsNone(row)
+
+    def test_with_the_scored_phase_pinned_every_reader_publishes_it(self):
+        root = project()
+        for kr_id in sorted(lib.COMPUTED_KR_METRICS):
+            with self.subTest(kr=kr_id):
+                self.assertIsNotNone(self.lookups.from_state(kr_id, root))
+                self.assertIsNotNone(self.lookups.from_goals_list(kr_id, root))
+                self.assertIsNotNone(self.lookups.from_goals_krs(kr_id, root))
 
 
 if __name__ == "__main__":

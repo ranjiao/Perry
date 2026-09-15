@@ -46,11 +46,27 @@ STATE = PERRY_HOME / "bin" / "perry-state"
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import lib  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pinned_phase  # noqa: E402
 
-def goals_payload() -> dict:
-    """`perry-goals list --json` against this repository's own project."""
+
+def project(phase: str = pinned_phase.SCORED_PHASE) -> Path:
+    """The project the payloads are read from. TASK-441.
+
+    This used to be the live checkout, so the anti-vacuity case below went red
+    the day `score-phase 003` cleared `phase/CURRENT`: with no phase current,
+    no KR is measured. It is now a copy of the tree with the scored phase
+    pinned (`tests/pinned_phase.py`). `TheScoredPhaseIsLoadBearing` reads a
+    copy pinned to `(none)` and shows the same case fails there.
+    """
+    return pinned_phase.pinned_copy(__name__, phase)
+
+
+def goals_payload(root: Path | None = None) -> dict:
+    """`perry-goals list --json` against a copy of this repository's project."""
     r = subprocess.run(
-        ["python3", str(GOALS), "list", "--json", "--root", str(PERRY_HOME)],
+        ["python3", str(GOALS), "list", "--json",
+         "--root", str(root or project())],
         capture_output=True, text=True)
     if r.returncode != 0:
         raise AssertionError(f"perry-goals exited {r.returncode}: "
@@ -58,7 +74,14 @@ def goals_payload() -> dict:
     return json.loads(r.stdout)
 
 
-def state_krs() -> list[dict]:
+def measured_ids(krs) -> list[str]:
+    """Every KR a payload reports `measured: true`. The anti-vacuity case and
+    its control both call this."""
+    return [k["id"] for k in krs
+            if (k.get("current_provenance") or {}).get("measured")]
+
+
+def state_krs(root: Path | None = None) -> list[dict]:
     """The same KRs off the OTHER publisher.
 
     Both `perry-state` and `perry-goals` emit a KR's `current` beside its
@@ -66,7 +89,7 @@ def state_krs() -> list[dict]:
     nobody checked gets the blank row back.
     """
     r = subprocess.run(
-        ["python3", str(STATE), "--root", str(PERRY_HOME),
+        ["python3", str(STATE), "--root", str(root or project()),
          "--section", "linkage"],
         capture_output=True, text=True)
     if r.returncode != 0:
@@ -132,8 +155,7 @@ class TheRuleHoldsOnTheLivePayload(unittest.TestCase):
         non-empty; the day it is emptied, this reddens and says so rather than
         letting two green tests mean nothing.
         """
-        measured = [k["id"] for k in self.payload["krs"]
-                    if (k.get("current_provenance") or {}).get("measured")]
+        measured = measured_ids(self.payload["krs"])
         self.assertTrue(
             measured,
             "no KR in the live payload reports `measured: true`, so the two "
@@ -261,6 +283,29 @@ class TheMeasuredPercentIsPublishedToOneDecimal(unittest.TestCase):
             with self.subTest(kr=k["id"]):
                 self.assertIsInstance(m.get("numerator"), int)
                 self.assertIsInstance(m.get("denominator"), int)
+
+
+class ThePinnedCopy(pinned_phase.ThePinnedCopyGuards, unittest.TestCase):
+    """TASK-441. The payloads above come from a copy, not the checkout."""
+
+    OWNER = __name__
+
+
+class TheScoredPhaseIsLoadBearing(unittest.TestCase):
+    """TASK-441's control. `test_at_least_one_kr_is_measured` passes because
+    the copy has a phase current, and not because the anti-vacuity check has
+    stopped firing. A copy pinned to `(none)`, which is main after
+    `score-phase 003`, publishes no measured KR, so the same predicate fails
+    there."""
+
+    def test_with_no_phase_current_no_kr_is_measured(self):
+        unpinned = project(pinned_phase.NO_PHASE)
+        self.assertEqual(pinned_phase.NO_PHASE,
+                         pinned_phase.current_phase(unpinned))
+        self.assertEqual([], measured_ids(goals_payload(unpinned)["krs"]))
+
+    def test_with_the_scored_phase_pinned_one_is(self):
+        self.assertTrue(measured_ids(goals_payload(project())["krs"]))
 
 
 if __name__ == "__main__":

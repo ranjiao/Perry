@@ -72,15 +72,32 @@ import pathlib
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import contract_declared_types as declared_types  # noqa: E402
 import contract_key_parity as parity  # noqa: E402
+import pinned_phase  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "tests" / "fixtures" / "contract-shapes.json"
+
+
+def project(phase: str = pinned_phase.SCORED_PHASE) -> pathlib.Path:
+    """The project every payload in this module is read from. TASK-441.
+
+    It was the checkout (`cwd=ROOT`, no `--root`), so `perry-goals list`'s
+    `phase` subtree followed whatever phase was current. `score-phase 003`
+    cleared it, and `phase` went from an object to `null`. Every
+    `phase.*` path the baseline records then "disappeared", on a payload whose
+    code had not changed. The checkout's board is still the representative
+    fixture. It is read as a copy with the scored phase pinned
+    (`tests/pinned_phase.py`), and `TestTheScoredPhaseIsLoadBearing` reads a
+    `(none)` copy to show the pin is what keeps those paths present.
+    """
+    return pinned_phase.pinned_copy(__name__, phase)
 
 #: The command, and the page that is its contract. The page is what states a
 #: field's declared type; it is discovered here rather than guessed at, and
@@ -188,8 +205,8 @@ def empty_lists(value, path=""):
     return seen - filled
 
 
-def read() -> dict:
-    """Run each contract's command once, and read its page.
+def read(root: pathlib.Path) -> dict:
+    """Run each contract's command once against `root`, and read its page.
 
     Three things per contract: the live shape, the lists this project left
     empty, and `declared` — the types the contract PAGE states, by field path.
@@ -199,7 +216,8 @@ def read() -> dict:
     """
     got = {}
     for name, (argv, page) in CONTRACTS.items():
-        proc = subprocess.run([sys.executable, *argv, "--json"],
+        proc = subprocess.run([sys.executable, *argv, "--json",
+                               "--root", str(root)],
                               capture_output=True, text=True, cwd=ROOT)
         assert proc.returncode == 0, f"{name}: {proc.stderr[-300:]}"
         payload = json.loads(proc.stdout)
@@ -225,7 +243,7 @@ def read() -> dict:
     return got
 
 
-def capture() -> dict:
+def capture(root: pathlib.Path) -> dict:
     """The recordable part of `read()` — what `--record` writes.
 
     `declared` is deliberately not in it. It is not an observation of this
@@ -234,7 +252,37 @@ def capture() -> dict:
     """
     return {name: {key: value for key, value in record.items()
                    if key != "declared"}
-            for name, record in read().items()}
+            for name, record in read(root).items()}
+
+
+def disappeared(recorded: dict, live: dict) -> list[str]:
+    """Recorded paths the live shape no longer carries, outside an empty list.
+    `test_no_key_disappeared` and its control both call this."""
+    gone = []
+    for name, rec in recorded.items():
+        for key in rec["shape"]:
+            if any(key.startswith(f"{parent}[]")
+                   for parent in live[name]["empty_lists"]):
+                continue
+            if key not in live[name]["shape"]:
+                gone.append(f"{name}: {key}")
+    return gone
+
+
+def retyped(recorded: dict, live: dict) -> list[str]:
+    """Recorded paths no page declares whose live type shares nothing with the
+    recording. `test_no_key_changed_type` and its control both call this."""
+    moved = []
+    for name, rec in recorded.items():
+        now_shape = live[name]["shape"]
+        declared = live[name]["declared"]
+        for key, was in rec["shape"].items():
+            now = now_shape.get(key)
+            if now is None or key in declared:
+                continue
+            if not types(was) & types(now):
+                moved.append(f"{name}: {key} was {was}, now {now}")
+    return moved
 
 
 class TestTheShapeIsRecorded(unittest.TestCase):
@@ -265,17 +313,10 @@ class TestNothingIsRemovedOrRetyped(unittest.TestCase):
 
     def setUp(self):
         self.recorded = json.loads(BASELINE.read_text())
-        self.live = read()
+        self.live = read(project())
 
     def test_no_key_disappeared(self):
-        gone = []
-        for name, rec in self.recorded.items():
-            for key in rec["shape"]:
-                if any(key.startswith(f"{parent}[]")
-                       for parent in self.live[name]["empty_lists"]):
-                    continue
-                if key not in self.live[name]["shape"]:
-                    gone.append(f"{name}: {key}")
+        gone = disappeared(self.recorded, self.live)
         self.assertEqual(gone, [], "\n" + "\n".join(gone))
 
     def test_no_key_changed_type(self):
@@ -289,16 +330,7 @@ class TestNothingIsRemovedOrRetyped(unittest.TestCase):
         contract. Recording the other half later would be the regeneration this
         module's docstring refuses.
         """
-        moved = []
-        for name, rec in self.recorded.items():
-            live = self.live[name]["shape"]
-            declared = self.live[name]["declared"]
-            for key, was in rec["shape"].items():
-                now = live.get(key)
-                if now is None or key in declared:
-                    continue
-                if not types(was) & types(now):
-                    moved.append(f"{name}: {key} was {was}, now {now}")
+        moved = retyped(self.recorded, self.live)
         self.assertEqual(moved, [], "\n" + "\n".join(moved))
 
     def test_no_type_contradicts_its_contract_page(self):
@@ -427,8 +459,8 @@ class TestAnAdditionIsAllowedAndAnnounced(unittest.TestCase):
         blocked additions would be re-litigated away the first time somebody
         needed one."""
         recorded = json.loads(BASELINE.read_text())
-        live = capture()
-        added = [f"{n}: {k}" for n in recorded
+        live = capture(project())
+        added =[f"{n}: {k}" for n in recorded
                  for k in live[n]["shape"] if k not in recorded[n]["shape"]]
         self.assertIsInstance(added, list)   # documented, never asserted empty
 
@@ -436,9 +468,9 @@ class TestAnAdditionIsAllowedAndAnnounced(unittest.TestCase):
         """The rule the contract document states and nothing enforced: a value
         whose MEANING changed is reported in `semantics`, because "only adds
         keys" does not cover it."""
-        live = capture()["perry-task/list"]
+        live = capture(project())["perry-task/list"]
         proc = subprocess.run([sys.executable, "bin/perry-task", "list",
-                               "--all", "--json"],
+                               "--all", "--json", "--root", str(project())],
                               capture_output=True, text=True, cwd=ROOT)
         payload = json.loads(proc.stdout)
         minor = live["contract"].rsplit(".", 1)[-1]
@@ -450,6 +482,11 @@ class TestAnAdditionIsAllowedAndAnnounced(unittest.TestCase):
                       "current minor is unrepresented")
 
     def test_typed_status_alias_change_is_announced(self):
+        # TASK-441 left this one on the checkout. It reads no phase: `semantics`
+        # is built from the tool's own constants. It is also a recorded,
+        # judged entry in `tests/live_state_expectations.py`'s floor, and
+        # moving it to the copy made that finding "gone" without anything
+        # being fixed.
         proc = subprocess.run([sys.executable, "bin/perry-task", "list",
                                "--all", "--json"],
                               capture_output=True, text=True, cwd=ROOT)
@@ -494,7 +531,7 @@ class TestArrayOrderDoesNotDecide(unittest.TestCase):
         whose first element used to decide `created`, and Perry's own board
         carries both branches in it."""
         proc = subprocess.run([sys.executable, "bin/perry-task", "list",
-                               "--all", "--json"],
+                               "--all", "--json", "--root", str(project())],
                               capture_output=True, text=True, cwd=ROOT)
         payload = json.loads(proc.stdout)
         flipped = dict(payload, tasks=list(reversed(payload["tasks"])))
@@ -593,13 +630,59 @@ class TestTheDeclaredArmRefusesTheWrongBranch(unittest.TestCase):
         self.assertEqual(self.off_contract({"rows": rows}), ["rows[].n"])
 
 
+class TestThePinnedCopy(pinned_phase.ThePinnedCopyGuards, unittest.TestCase):
+    """TASK-441. Every payload above comes from a copy, not the checkout."""
+
+    OWNER = __name__
+
+
+class TestTheScoredPhaseIsLoadBearing(unittest.TestCase):
+    """TASK-441's control. The two gate tests read no disappeared or retyped
+    path because the copy has a phase current. A copy pinned to `(none)` is
+    main after `score-phase 003`. There, the same two functions report the
+    `phase` subtree of `perry-goals/list` gone and retyped, and nothing
+    outside it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.recorded = json.loads(BASELINE.read_text())
+        cls.unpinned_root = project(pinned_phase.NO_PHASE)
+        cls.unpinned = read(cls.unpinned_root)
+
+    def test_the_control_copy_has_no_phase_current(self):
+        self.assertEqual(pinned_phase.NO_PHASE,
+                         pinned_phase.current_phase(self.unpinned_root))
+
+    def test_with_no_phase_current_the_phase_paths_disappear(self):
+        gone = disappeared(self.recorded, self.unpinned)
+        self.assertIn("perry-goals/list: phase.objectives", gone)
+        self.assertEqual(
+            [], [g for g in gone
+                 if not g.startswith("perry-goals/list: phase.")],
+            "the (none) copy lost paths outside `phase`, so the pin is not "
+            "the only difference")
+
+    def test_with_no_phase_current_phase_is_retyped_to_null(self):
+        self.assertEqual(["perry-goals/list: phase was dict, now NoneType"],
+                         retyped(self.recorded, self.unpinned))
+
+
 # Recording is its own entry, ABOVE the canonical one, so the file still ends
 # with exactly `if __name__ == "__main__": unittest.main()`. `test_claims`
 # requires that tail and was right to: a file whose last statement is anything
 # else can run directly, skip its tests and still report OK. It caught this.
+#
+# It records from a copy with the scored phase pinned (TASK-441), the same
+# project the gate compares against. Recording the checkout between phases
+# would write a baseline with no `phase.*` paths in it.
 if __name__ == "__main__" and "--record" in sys.argv:
     BASELINE.parent.mkdir(parents=True, exist_ok=True)
-    BASELINE.write_text(json.dumps(capture(), indent=2, sort_keys=True))
+    with tempfile.TemporaryDirectory(prefix="perry-record-") as tmp:
+        root = pinned_phase.pin_phase(
+            pinned_phase.copy_of_perry(pathlib.Path(tmp) / "perry"),
+            pinned_phase.SCORED_PHASE)
+        BASELINE.write_text(json.dumps(capture(root), indent=2,
+                                       sort_keys=True))
     print(f"recorded {BASELINE}")
     sys.exit(0)
 

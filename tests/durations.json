@@ -105,12 +105,12 @@
       "source": "2026-09-09-085824"
     },
     "test_contract_invariance.py": {
-      "sec": 5.91,
-      "source": "2026-09-09-085824"
+      "sec": 6.89,
+      "source": "2026-09-15-task441"
     },
     "test_contract_key_parity.py": {
-      "sec": 6.14,
-      "source": "2026-09-14-task335"
+      "sec": 7.64,
+      "source": "2026-09-15-task441"
     },
     "test_contract_page_snippets.py": {
       "sec": 4.79,
@@ -246,8 +246,8 @@
       "source": "2026-09-09-085824"
     },
     "test_kr_progress_provenance.py": {
-      "sec": 5.17,
-      "source": "2026-09-09-085824"
+      "sec": 5.79,
+      "source": "2026-09-15-task441"
     },
     "test_linkage_store_declared.py": {
       "sec": 1.25,
@@ -274,7 +274,8 @@
       "source": "2026-09-09-085824"
     },
     "test_measured_krs_declare_a_target.py": {
-      "sec": null
+      "sec": 3.33,
+      "source": "2026-09-15-task441"
     },
     "test_missing_defaults.py": {
       "sec": 1.1,
@@ -340,8 +341,8 @@
       "source": "2026-09-15-task262-round2"
     },
     "test_phase_kr_declared_once.py": {
-      "sec": 4.6,
-      "source": "2026-09-09-085824"
+      "sec": 4.83,
+      "source": "2026-09-15-task441"
     },
     "test_pointers_resolve.py": {
       "sec": 0.37,
@@ -436,8 +437,8 @@
       "source": "2026-09-09-085824"
     },
     "test_same_action_linkage.py": {
-      "sec": 4.83,
-      "source": "2026-09-09-085824"
+      "sec": 6.83,
+      "source": "2026-09-15-task441"
     },
     "test_scratch_is_per_agent.py": null,
     "test_semantics_on_every_payload.py": {
@@ -663,6 +664,13 @@
       "note": "TASK-262 round 2. ONE module added, timed alone three times with `/usr/bin/time -p python3 -m unittest discover -s tests -t . -p <module>` and recorded at the median: test_perry_task_writes_are_what_it_writes 2.57/2.67/1.94s (in-module). It re-runs every perry-task write in-process on temp projects. No neighbour was re-timed: only SURFACE `writes` literals changed in bin/perry-task. load1 is the getloadavg sample taken right after the three runs.",
       "ref": "83fed4f3fd8b6a9dd09d7e51e42fb31db119b20d",
       "taken": "2026-09-15T10:00:00Z",
+      "workers": 1
+    },
+    "2026-09-15-task441": {
+      "load1": 14.22,
+      "note": "TASK-441. SIX modules re-timed, each alone three times with `python3 tests/parallel -j 1 --times <module>` on a git-archive copy of the ref, one module per command, and recorded at the median of the harness's own per-module seconds: test_same_action_linkage 8.13/6.38/6.83 (81 tests; base 3.61s, 76 tests); test_contract_invariance 7.20/6.89/6.24 (33 tests; base 3.52s, 27 tests); test_contract_key_parity 7.86/7.27/7.64 (45 tests; base 6.03s, 40 tests); test_kr_progress_provenance 5.71/5.79/5.87 (34 tests; base 3.00s, 29 tests); test_measured_krs_declare_a_target 3.36/3.33/3.31 (20 tests; base 0.46s, 15 tests); test_phase_kr_declared_once 4.49/4.86/4.83 (34 tests; base 2.17s, 29 tests). The base figures are the same procedure on a git-archive copy of 67dada54, where the modules were red. Every module moved by more than 0.5s: each now builds a whole-tree copy with the scored phase pinned and a (none) copy for its control (test_contract_key_parity builds only the control copy, since its frozen copy already existed). No neighbour was re-timed. load1 is the first of six samples, one taken before each module's runs; they ranged 11.08-20.02.",
+      "ref": "64fc2630",
+      "taken": "2026-09-15T12:30:00Z",
       "workers": 1
     }
   }
