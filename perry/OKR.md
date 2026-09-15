@@ -125,23 +125,11 @@ one.
 Closed 2026-09-15 by `revise`, not by scoring: no v3 KR carried a current
 value, so each is given a disposition rather than a score.
 
-| v3 KR | Disposition |
-|---|---|
-| O1-KR1 | carried → v4 `O4-KR2`, target 3 → 2 of 3 |
-| O1-KR2 | deferred to v5; it depends on live non-project tracks |
-| O1-KR3 | withdrawn: names `.perry/config.md`, replaced by `.perry/config.jsonl` (`ADR-019`) |
-| O2-KR1 | carried → v4 `O2-KR3` |
-| O2-KR2 | superseded: `BOARD.md` deleted (`TASK-237`, V4); no file left to reconcile |
-| O2-KR3 | withdrawn as a KR; the guard stays in the suite at 0 |
-| O2-KR4 | carried → v4 `O3-KR5`, stretch |
-| O2-KR5 | carried → v4 `O3-KR4`, stretch |
-| O3-KR1 | carried → v4 `O2-KR1`, widened to four authoring paths |
-| O3-KR2 | carried → v4 `O2-KR2`, on a real project |
-| O3-KR3 | withdrawn: baseline never measured; `DESIGN-016` addressed the surface |
-| O4-KR1 | achieved: at aiMark `05ad792` (2026-09-15) no source parses a Perry state file — `OKR.md` and phase paths are only stat'd for cache invalidation. The one markdown reader left, `src/perry-agents.ts`, parses optional agent duty documents, out of scope with Objective 5 withdrawn |
-| O4-KR2 | carried → v4 `O4-KR3`, stretch |
-| O4-KR3, O4-KR4 | deferred to v5 |
-| O5-KR1–KR4 | withdrawn with Objective 5 (user decision 2026-09-15); existing knowledge cards stay |
+- **Carried into v4**: O1-KR1 → `O4-KR2`, target 3 → 2 of 3 · O2-KR1 → `O2-KR3` · O2-KR4 → `O3-KR5`, stretch · O2-KR5 → `O3-KR4`, stretch · O3-KR1 → `O2-KR1`, widened to four authoring paths · O3-KR2 → `O2-KR2`, on a real project · O4-KR2 → `O4-KR3`, stretch
+- **Achieved**: O4-KR1. At aiMark `05ad792` (2026-09-15) no source parses a Perry state file — `OKR.md` and phase paths are only stat'd for cache invalidation. The one markdown reader left, `src/perry-agents.ts`, parses optional agent duty documents, out of scope with Objective 5 withdrawn
+- **Deferred to v5**: O1-KR2, which depends on live non-project tracks · O4-KR3 and O4-KR4
+- **Withdrawn**: O1-KR3, which names `.perry/config.md`, replaced by `.perry/config.jsonl` (`ADR-019`) · O2-KR3 as a KR; the guard stays in the suite at 0 · O3-KR3, baseline never measured; `DESIGN-016` addressed the surface · O5-KR1–KR4 with Objective 5 (user decision 2026-09-15); existing knowledge cards stay
+- **Superseded**: O2-KR2. `BOARD.md` was deleted (`TASK-237`, V4); no file is left to reconcile
 
 ## v4: 2026-09-15
 
