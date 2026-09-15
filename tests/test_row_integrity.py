@@ -490,6 +490,47 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
         self.assertTrue(hits, "the guard did not flag a planted defect")
 
 
+class TestTheLintersTableReadersAreOneScanner(unittest.TestCase):
+    """Restored on its own at TASK-262 round 4b.
+
+    It sat in `TestRaggedRowPointsAtTheRow`, which round 4b deleted with the
+    `ragged-row` findings over a held board. This test is not about the board:
+    it guards the shape of `bin/perry-lint § tables`, which `check_file` still
+    uses for every declared table, so it was restored verbatim rather than
+    lost with its neighbours.
+    """
+
+    def test_the_two_table_readers_are_one_scanner(self):
+        """`tables()` is a VIEW of `tables_with_lines()`, not a second scan.
+
+        Checked by shape — the function body must be exactly one `return` —
+        rather than by grepping for a call it should not contain.
+
+        **The grep version was written first and a mutation walked past it.**
+        It asserted `"split_row(s)" not in body`; planting a scanner that spells
+        its loop variable `s2` left it green. That is the same
+        spelling-not-shape defect this session had just fixed in TASK-050's
+        guard, reproduced inside the test written to prevent it — which is
+        exactly why the rule is "enumerate the category" and not "remember the
+        lesson".
+        """
+        import ast
+        src = (PERRY_HOME / "bin" / "perry-lint").read_text()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "tables")
+        body = [n for n in fn.body if not (isinstance(n, ast.Expr)
+                                           and isinstance(n.value, ast.Constant))]
+        self.assertEqual(
+            len(body), 1,
+            f"`tables()` has {len(body)} statements; a view of "
+            f"`tables_with_lines()` is one `return` and anything more is a "
+            f"second scanner")
+        self.assertIsInstance(body[0], ast.Return)
+        called = {n.func.id for n in ast.walk(body[0])
+                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+        self.assertIn("tables_with_lines", called)
+
+
 class TestAppendCellObeysTheSameRule(unittest.TestCase):
     """`append_cell` was the third writer in the canonical module, and it was
     the one still collapsing what the other two refuse.
