@@ -4,7 +4,98 @@
 > Commits: `1791a8c3` step 1 (block, rule file, rule page) · `00fc5a5c` step 2
 > (pointers, tests, durations) · `cbd1ea8b` step 3 (contract page and registry) ·
 > `1970b6c2` step 4 (the mutation-found test and this file) · `bf9a1d9a` step 5
-> (`--help` back under its cap) · step 6 (§ 7 of this file).
+> (`--help` back under its cap) · `384f27ac` step 6 (§ 7 of this file).
+> Round 2: `9a3b7c10` merge of main (`ba11da7a`) · `905fb1bf` command pins ·
+> `81b6c43d` the architecture documents · this section.
+
+## Round 2 — the architecture review FAIL and the PMO's finding
+
+Sections 0–7 below record round 1 and are unchanged.
+
+### R2.1 The ownership move is recorded (the FAIL)
+
+The review FAILed at `ARCHITECTURE.md § 2`. `bin/` still "doesn't own what to
+do next", and the lanes still owned it, while this branch makes
+`perry-state --section next` decide and the lanes render.
+
+Descriptive lines only (NN-6), in `81b6c43d`, each citing
+`perry/design/DESIGN-020-guided-planning.md § 9`, the 2026-09-15 entry,
+confirmed by the user in session:
+
+- **§2 `bin/`** owns the next-step recommendation, evaluated from the rule table
+  `reference/next-rules.json`. It does not own the rules or the procedure around
+  them.
+- **§2 lanes** render the recommendation and never reorder, add or drop one. The
+  recommendation is no longer theirs to choose.
+- **`bin/ARCHITECTURE.md § 1`** says the same, and its §2 `perry-state` node
+  names the next block.
+
+The same edit fixed the other lines this branch had made stale:
+
+- **§2 `schema/`**: eight contract pages.
+- **§2 `reference/`**: it holds the rule table `bin/` evaluates.
+- **§4 read path**: a `--section next --lane / --after` edge and one sentence
+  on the narrowed block.
+- **§7**: OQ-4 (`--compact` with `--section next`, for `TASK-443`), OQ-5 (the
+  contract registry and non-`/list` families) and OQ-6 (a section that is not
+  the payload's key), each marked *Proposed*. The KR-direction question was not
+  added: DESIGN-022 decided it (USER-937).
+- **§8**: one entry in each document. Neither contains "User-confirmed".
+
+**§6 is not edited.** The patch script checked this with
+`tests/test_architecture_rules.py § decided_text`: §1, §3's Forbidden lines and
+§6 read identically before and after, and a second pass that only rewrapped
+three long citation lines changed no word. `test_architecture_rules` is green
+(32 tests); S7 skips, as it does on main, because no confirmed hash is
+recorded yet. The documents are 364 and 205 lines (`wc -l`), against caps of 500 and 600.
+
+### R2.2 The recommended command is pinned (the PMO's finding)
+
+`TestEachFixtureOffersItsCommand` (`905fb1bf`) asserts each fixture's primary
+command beside its rule, both in `build_next` and in `--section next`'s output:
+
+| Fixture | Command |
+|---|---|
+| installed with no OKR | `/perry goals init` |
+| OKR with no phase | `/perry goals plan-phase <slug>` |
+| active phase, week unknown | `/perry work friday-review` |
+| closable phase | `/perry work end-phase-retro` |
+| queue track | `/perry work triage` |
+
+All mutations were re-run on scratch copies, each against a green unmutated
+control:
+
+| Mutation | Result |
+|---|---|
+| **M10**, the PMO's: `R-no-okr` offers `/perry work triage` | **red, 2/42**: `test_the_primary_offers_the_command_written_for_each_fixture`, `test_the_command_reaches_the_published_payload_unchanged` |
+| M1–M9 | still red, each on its named tests |
+| **M11**, control: `R-asks-waiting` offers `/perry work triage` | **GREEN — a finding** |
+
+M11 shows a command is pinned only where a fixture makes that rule primary. The
+command of R-recovery, R-interrupted, R-draft-waiting, R-setup, R-asks-waiting,
+R-handoff-stale, R-design-unhanded, R-board-over-cap, R-wip-over-limit and the
+two commitment rules can change with this suite green. Closing that means a
+fixture per rule, or a second copy of the rule table's commands in a test. It
+was not done, and no row is opened for it.
+
+### R2.3 Merge of main
+
+`git merge main` (`ba11da7a`) conflicted in `tests/durations.json` only, where
+both sides appended a `sources` block. Both are kept. A script checked that
+every line and key of either parent survives and that the file parses: 145
+modules, 17 sources. `test_durations_provenance` is green, with 145 recorded and
+145 on disk.
+
+### R2.4 Full suite on `81b6c43d`
+
+`bash tests/run`, PERRY_PROJECT and PERRY_HOME unset: **142 modules · 4008 tests ·
+1 module red · 8 tests failed (4000 / 4008).**
+
+- **The only red:** `test_md_store`, 8 of 76. Re-run alone, the same 8 tests
+  fail, the expected base reds that TASK-459 fixes.
+- **Now green:** `test_okr_krs_render`, as on main.
+- **Other steps:** 1, 3 and 4 pass, and the tree guard reports nothing moved.
+- **Nothing new red** beyond `test_md_store`'s 8.
 
 ## 0. Base check
 
