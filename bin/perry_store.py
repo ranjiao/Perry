@@ -1965,7 +1965,79 @@ DECLARED_BOARD_CHOICES = (
      "not `—`."),
     ("a table under an undeclared heading",
      "Printed as the template writes it. The shipped template has none."),
+    ("sources",
+     "TASK-262, `perry-tasks board` only (the in-memory board a write mutates "
+     "carries none). Directly under the `# ` title, one legend line naming "
+     "the mark `†`; the title's project name wears it, because no record "
+     "holds it. Directly under every `## ` heading, one line naming the "
+     "section's store, as `schema/state-schema.json § claims` declares its "
+     "path, and the `perry-task` subcommands whose `SURFACE` `writes` names "
+     "that path — or saying no subcommand declares one. A column header "
+     "wears `†` exactly when the register's `*FIELD_BY_COLUMN` map gives the "
+     "column no stored field. No cell, row or column order moves."),
 )
+
+#: TASK-262. **One mark for everything the render supplies and no record
+#: holds**: a column with no stored field, and the title's project name.
+NOT_STORED_MARK = "†"
+
+#: The legend, printed once, directly under the title.
+BOARD_LEGEND = (f"> {NOT_STORED_MARK} = not stored: no record holds it; the "
+                f"render supplies it. An unmarked cell is one field of one "
+                f"record, printed as written, and an empty one is an empty "
+                f"field.")
+
+#: How a claim's `anchor` reads on the section line.
+_ANCHOR_WORDS = {"state": "under the state root",
+                 "project": "at the project root"}
+
+
+def board_store_claim(register: str | None, claims: list[dict]) -> dict | None:
+    """The `§ claims` entry for `register`'s store, or `None`.
+
+    The file name is the one `BOARD_STORES` reads the register from, so the
+    line names the store the render actually read, and the claim is looked up
+    by that name rather than typed beside it.
+    """
+    where = next((w for name, w, _v in BOARD_STORES if name == register), None)
+    if where is None:
+        return None
+    path = where(Path("")).name
+    return next((c for c in claims
+                 if c.get("path") == path and c.get("kind") == "file"), None)
+
+
+def surface_writers(surface: dict, path: str) -> list[str]:
+    """The subcommands of `surface` whose declared `writes` names `path`, in
+    declaration order."""
+    return [s["name"] for s in surface.get("subcommands", ())
+            if path in (s.get("writes") or ())]
+
+
+def section_source_line(register: str | None, claims: list[dict],
+                        surface: dict) -> str:
+    """The one line printed under a `## ` heading: its store and its writers.
+
+    Writers come from `surface` (`bin/perry-task § SURFACE`) and nothing
+    else. A store no subcommand declares a write to says so, rather than
+    naming the nearest writer (TASK-262 § What it must not do, 4).
+    """
+    tool = surface.get("name") or "perry-task"
+    if register is None:
+        return (f"> {NOT_STORED_MARK} No store: this section's table is the "
+                f"template's, not a register's")
+    claim = board_store_claim(register, claims)
+    if claim is None:
+        return (f"> {NOT_STORED_MARK} No store: `schema/state-schema.json § "
+                f"claims` declares none for the {register} register")
+    where = " ".join(p for p in (f"`{claim['path']}`",
+                                 _ANCHOR_WORDS.get(claim.get("anchor"), ""))
+                     if p)
+    writers = surface_writers(surface, claim["path"])
+    if not writers:
+        return (f"> Stored in {where}; no `{tool}` subcommand declares a "
+                f"write to it")
+    return f"> Stored in {where}; written by `{tool}` " + ", ".join(writers)
 
 #: `(register, a section name its declared table's `under` must match, the
 #: column → field map)`. A `tables[]` entry belongs to the register whose name
@@ -2002,7 +2074,8 @@ def _in_stored_order(records: list[dict]) -> list[dict]:
 
 def declared_board(spec: dict, template: str,
                    stores: dict[str, list[dict]],
-                   project_name: str = "") -> tuple[str, dict]:
+                   project_name: str = "",
+                   sources: dict | None = None) -> tuple[str, dict]:
     """The whole board from `files[id=board]`, its template and the five stores.
 
     `spec` is the schema's `files[id=board]` entry, `template` the text of the
@@ -2018,6 +2091,12 @@ def declared_board(spec: dict, template: str,
     nothing then, rather than a board missing a row. Raises
     `UnfilledPlaceholder` when a template heading carries a placeholder no
     declared source fills.
+
+    `sources` (TASK-262) is `{"claims": schema § claims, "writers":
+    bin/perry-task § SURFACE}`. Given, the text carries choice "sources": the
+    legend, one store-and-writer line per section and `†` on every column
+    with no stored field. Omitted, it carries none — that is the board a
+    write mutates in memory, which nobody reads.
 
     Every layout decision is one of `DECLARED_BOARD_CHOICES`.
     """
@@ -2056,10 +2135,18 @@ def declared_board(spec: dict, template: str,
         claimed.update(id(r) for r in got)
         return got
 
+    def heading(out, title, register):
+        out.append(f"## {title}")
+        if sources is not None:
+            out.append(section_source_line(register, sources.get("claims") or [],
+                                           sources.get("writers") or {}))
+
     def emit_table(out, title, table, register, fmap, records):
         cols = _declared_columns(table)
         fields = [fmap.get(k) for k in header_index(cols)]
-        out.append(render_row(cols))
+        out.append(render_row(cols if sources is None else
+                              [c if f else f"{c} {NOT_STORED_MARK}"
+                               for c, f in zip(cols, fields)]))
         out.append(render_separator(len(cols)))
         for rec in records:
             cells = [cell_text(f, rec, escape=False) if f else "" for f in fields]
@@ -2095,7 +2182,8 @@ def declared_board(spec: dict, template: str,
                 claimed.update(id(r) for r in recs)
                 title = g or "(no group)"
                 report["undeclared_groups"].append(title)
-                out += [f"## {title}", ""]
+                heading(out, title, "tasks")
+                out.append("")
                 emit_table(out, title, task_table, "tasks", FIELD_BY_COLUMN, recs)
                 out.append("")
         for table in tables:
@@ -2107,12 +2195,14 @@ def declared_board(spec: dict, template: str,
                 continue
             title = next(probe for name, probe, _m in DECLARED_BOARD_REGISTERS
                          if name == register)
-            out += [f"## {title}", ""]
+            heading(out, title, register)
+            out.append("")
             emit_table(out, title, table, register, fmap, recs)
             out.append("")
 
     out: list[str] = []
     title, seen_tasks, tail_done, i = "", 0, False, 0
+    legend_done = sources is None
     while i < len(lines):
         line = lines[i]
         if line.startswith("## "):
@@ -2128,7 +2218,12 @@ def declared_board(spec: dict, template: str,
             while j < len(lines) and lines[j].startswith("|"):
                 j += 1
             table = table_under(title)
-            if table is None:
+            if table is None and sources is not None:
+                # No register, so no column of it is a stored field.
+                out.append(render_row([f"{c} {NOT_STORED_MARK}"
+                                       for c in split_row(lines[i])]))
+                out += lines[i + 1:j]
+            elif table is None:
                 out += lines[i:j]
             else:
                 register, fmap = register_of(table)
@@ -2139,13 +2234,25 @@ def declared_board(spec: dict, template: str,
         # **Headings and blank lines only** — choice "prose". The rest of the
         # template is text written for a person filling the file in.
         if line.startswith("#"):
+            supplied = False
             if line.startswith("# "):
+                supplied = bool(_PROJECT_NAME_SLOT.search(line))
                 line = _PROJECT_NAME_SLOT.sub(project_name, line)
             if "{{" in line:
                 raise UnfilledPlaceholder(
                     f"template line {i + 1} ({line[:80]!r}) carries a "
                     f"placeholder no declared source fills")
-            out.append(line)
+            if line.startswith("## "):
+                t = table_under(line[3:].strip())
+                heading(out, line[3:].strip(),
+                        register_of(t)[0] if t is not None else None)
+            else:
+                if supplied and sources is not None:
+                    line = f"{line} {NOT_STORED_MARK}"
+                out.append(line)
+                if line.startswith("# ") and not legend_done:
+                    out.append(BOARD_LEGEND)
+                    legend_done = True
         elif not line.strip():
             out.append("")
         i += 1
@@ -2232,6 +2339,9 @@ __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            # TASK-237 deliverable 1: the board from its declarations alone.
            "DECLARED_BOARD_CHOICES", "DECLARED_BOARD_REGISTERS",
            "declared_board",
+           # TASK-262: what is stored, where, and who writes it.
+           "NOT_STORED_MARK", "BOARD_LEGEND", "board_store_claim",
+           "surface_writers", "section_source_line",
            # TASK-237 deliverable 3a: one loader for the board a write mutates
            # and the board a reader prints.
            "BOARD_STORES", "load_board_stores"]

@@ -49,12 +49,16 @@
       "source": "2026-09-09-085824"
     },
     "test_board_from_declarations.py": {
-      "sec": 0.41,
-      "source": "2026-09-14-task237-d1"
+      "sec": 0.91,
+      "source": "2026-09-14-task262"
     },
     "test_board_less_gaps.py": {
       "sec": 0.26,
       "source": "2026-09-14-task237-d3b"
+    },
+    "test_board_names_its_sources.py": {
+      "sec": 0.64,
+      "source": "2026-09-14-task262"
     },
     "test_board_less_project_is_recognised.py": {
       "sec": 0.8,
@@ -630,6 +634,13 @@
       "note": "TWO modules added by TASK-237 deliverable 3b′, each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_installed_is_one_predicate 1.57/1.53/1.57s, test_starts_write_the_config_store_first 1.57/1.58/1.54s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
       "ref": "91610742",
       "taken": "2026-09-14T12:00:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task262": {
+      "load1": 11.08,
+      "note": "TASK-262. ONE module added and ONE slowed, each timed alone three times with `python3 -m unittest discover -s tests -t . -p <module>` and recorded at the median: test_board_names_its_sources 0.79/0.64/0.57s; test_board_from_declarations 0.91/0.91/0.89s. The slowdown is measured, not assumed: the same module at the base 7f97d337, from a `git archive` copy, back to back at the same load, took 0.53/0.86/0.60s (median 0.60). Every `perry-tasks board` now also reads `bin/perry-task § SURFACE` with `ast` (~0.03s a render). No other neighbour was re-timed. load1 is the getloadavg sample taken right after the nine runs.",
+      "ref": "7f97d337928a09fe6993f4891e2a5c3822fd3523",
+      "taken": "2026-09-14T15:00:00Z",
       "workers": 1
     }
   }

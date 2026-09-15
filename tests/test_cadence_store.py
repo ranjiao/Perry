@@ -584,9 +584,11 @@ class TestTheBoardNamesItsProjectAndPrintsNoProse(unittest.TestCase):
         cls.p.close()
 
     def test_the_title_is_the_project_directory_name(self):
+        # The trailing ` †` is TASK-262's mark: no record holds the name, the
+        # render supplies it. The name itself is this case's subject.
         self.assertEqual(self.out.returncode, 0, self.out.stderr)
         self.assertEqual(self.out.stdout.split("\n")[0],
-                         f"# Board — {self.p.root.name}")
+                         f"# Board — {self.p.root.name} †")
 
     def test_no_placeholder_is_printed(self):
         self.assertIn("{{", TEMPLATE_PATH.read_text(encoding="utf-8"),
@@ -594,9 +596,18 @@ class TestTheBoardNamesItsProjectAndPrintsNoProse(unittest.TestCase):
         self.assertNotIn("{{", self.out.stdout)
 
     def test_no_template_prose_is_printed(self):
-        for line in self.out.stdout.split("\n"):
+        # TASK-262 prints two kinds of `> ` line, and only in two places: the
+        # legend, directly under the title, and one line directly under each
+        # `## ` heading. A `>` line anywhere else is the template's own block
+        # leaking, which is this case's subject.
+        lines = self.out.stdout.split("\n")
+        for n, line in enumerate(lines):
             with self.subTest(line=line[:60]):
-                self.assertTrue(line == "" or line.startswith(("#", "|")), line)
+                placed = line.startswith("> ") and n > 0 and (
+                    lines[n - 1].startswith("## ")
+                    or (n == 1 and line.startswith("> † = not stored")))
+                self.assertTrue(line == "" or placed
+                                or line.startswith(("#", "|")), line)
         self.assertFalse(re.search(r"\n\n\n", self.out.stdout))
 
     def test_every_template_heading_and_table_stays(self):
