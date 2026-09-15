@@ -161,10 +161,11 @@ class TestEveryMatcherAgrees(unittest.TestCase):
                                 "perry-task")
                 self.assertIsNotNone(P.top_risks_section(text), "section body")
                 self.assertEqual(len(P.parse_board(text).risks), 2, "parse_board")
-                self.assertNotIn(
-                    "Top risks",
-                    " ".join(f["message"] for f in self.missing_sections(text)),
-                    "perry-lint reports the section missing")
+                # The fifth matcher, `perry-lint`'s required-section check over
+                # a held `BOARD.md`, left with TASK-262 round 4b: no check lints
+                # a held board, so its `missing-section` list is empty for
+                # every spelling and asserting it would pass for no reason.
+                # The four readers above are the ones that still read.
 
     def test_a_heading_that_only_starts_the_same_is_not_a_match(self):
         """The boundary the old regex's `(?!\\w)` protected, kept. `## P2` must
