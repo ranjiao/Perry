@@ -1257,24 +1257,22 @@ def ts_key(value) -> str:
     return moment.strftime("%Y-%m-%dT%H:%M:%SZ") if moment else ""
 
 
-def task_status_index(state_root, board=None) -> dict:
-    """`id` → status, from the STORE first and the projection second.
+def task_status_index(state_root) -> dict:
+    """`id` → status, from the task STORE and nothing else.
 
-    `board.all_tasks` alone is not enough on an adopted project. The store's
-    projection deliberately drops every closed row — `viewer/parsers.py §
-    _records_by_group` skips a terminal status, because a closed row leaves
-    `BOARD.md` — so a KR every one of whose tasks is finished would see none of
-    them and report them all as unknown. `tasks.jsonl` keeps them, and it is
-    the canonical side, so it wins where the two are both present.
+    `board.all_tasks` alone was never enough on an adopted project: the
+    store's projection drops every closed row, so a KR every one of whose tasks
+    is finished would see none of them. `tasks.jsonl` keeps them.
 
-    A project with no store has only the markdown, and there a closed row
-    really is gone from the board. That is what the event log is asked about
-    afterwards, in `kr_progress_provenance`.
+    **The board half is gone** (TASK-262 Amendment (4), round 4b). This took a
+    `board` too and put its rows beneath the store's, which on a project still
+    holding a `BOARD.md` added the rows of that file (`perry-goals/list` 3.3
+    said so). The file is retired and no reader opens it, and a store-backed
+    board's rows are the store's own, so there is nothing left for the second
+    argument to add. A project with no store has no statuses here; the event
+    log is asked afterwards, in `kr_progress_provenance`.
     """
     out: dict[str, str] = {}
-    for task in (getattr(board, "all_tasks", None) or []):
-        if getattr(task, "id", ""):
-            out[task.id] = task.status or ""
     for record in (_parsers().load_task_store(Path(state_root)) or []):
         if record.get("id"):
             out[str(record["id"])] = str(record.get("status") or "")

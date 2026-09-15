@@ -1567,30 +1567,28 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                 "the work lane has nothing to open tasks from",
             ))
 
-    # BOARD: done rows need evidence
-    board = root / "BOARD.md"
-    if board.exists():
-        for header, rows in tables(strip_comments(board.read_text())):
-            got = header_index(header)
-            if "status" not in got or "evidence" not in got:
-                continue
-            si, ei = got.index("status"), got.index("evidence")
-            for row in rows:
-                if max(si, ei) >= len(row):
-                    continue
-                if row[si].replace("*", "").strip().startswith("done"):
-                    ev = row[ei].strip()
-                    # TASK-431: was `ev in {"—", "-", ""}`. A `done` row whose
-                    # Evidence cell read `无` or `待定` was carrying evidence
-                    # as far as this check could tell, so the one warning that
-                    # exists to catch a closure with nothing behind it stayed
-                    # silent on exactly the boards least likely to be read in
-                    # English.
-                    if not ev or lib.is_blank_cell(ev):
-                        findings.append(Finding(
-                            "warn", "BOARD.md", "done-needs-evidence",
-                            f"row {row[0]!r} is done with no evidence path",
-                        ))
+    # done records need evidence — **re-pointed, not dropped** (TASK-262
+    # Amendment (4), round 4b, F14). This judged the `done` rows a person kept
+    # by hand in a held `BOARD.md`. The file is retired and no reader opens it,
+    # and a closure `perry-task done` made is judged from its event elsewhere.
+    # What had no judge was a `done` record that no `done` event closed — the
+    # rows `perry-tasks write --from-board` imported — so those records are
+    # what this reads now.
+    rel_store, closed = closed_without_a_done_event(
+        root, project_root or root)
+    for n, rec in closed:
+        ev = str(rec.get("evidence") or "").strip()
+        # TASK-431: was `ev in {"—", "-", ""}`. A `done` row whose Evidence
+        # cell read `无` or `待定` was carrying evidence as far as this check
+        # could tell, so the one warning that exists to catch a closure with
+        # nothing behind it stayed silent on exactly the boards least likely to
+        # be read in English.
+        if not ev or lib.is_blank_cell(ev):
+            findings.append(Finding(
+                "warn", rel_store, "done-needs-evidence",
+                f"record {rec['id']!r} is done with no evidence path, and "
+                f"no `done` event records its closure", n,
+            ))
 
     # hook safety list
     #
@@ -1703,6 +1701,64 @@ def rung_satisfied(rung: str, evidence: str) -> str | None:
     return None
 
 
+def closed_without_a_done_event(state_root: Path, project_root: Path
+                                ) -> tuple[str, list[tuple[int, dict]]]:
+    """`tasks.jsonl`'s `done` records that no `done` event closed.
+
+    **F14's store equivalent** (TASK-262 Amendment (4), round 4b, the user's
+    decision "re-point, do not drop"). Three checks judged the `done` rows a
+    person kept by hand in `BOARD.md`: `done-needs-evidence`,
+    `check_verification`'s board pass and `check_reviews`' V4 board pass. The
+    event passes beside them judge only closures `perry-task done` made. With
+    the board retired, the closures no event records are the records
+    `perry-tasks write --from-board` imported — a hand-kept `done` row becomes
+    exactly such a record — so these are what the three checks judge instead.
+
+    Returns the store's path as a finding names it and `(line, record)` pairs,
+    in file order. A line that will not parse, a record with no string `id`,
+    and a missing store contribute nothing: `store-unreadable` and
+    `store-badly-typed` are the findings for those. A `done` event names its
+    task as `task` or `id`, the two spellings the log has carried.
+    """
+    store = Path(state_root) / "tasks.jsonl"
+    rel = _rel(store, Path(project_root))
+    if not store.is_file():
+        return rel, []
+    closed_by_event: set[str] = set()
+    log = Path(project_root) / ".perry" / "events.jsonl"
+    if log.is_file():
+        for raw in log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(ev, dict) and ev.get("event") == "done":
+                tid = str(ev.get("task") or ev.get("id") or "")
+                if tid:
+                    closed_by_event.add(tid)
+    out: list[tuple[int, dict]] = []
+    try:
+        lines = store.read_text(encoding="utf-8", errors="replace").split("\n")
+    except OSError:
+        return rel, []
+    for n, raw in enumerate(lines, 1):
+        if not raw.strip():
+            continue
+        try:
+            rec = json.loads(raw)
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(rec, dict) or not isinstance(rec.get("id"), str) \
+                or not rec["id"]:
+            continue
+        if rec.get("status") == "done" and rec["id"] not in closed_by_event:
+            out.append((n, rec))
+    return rel, out
+
+
 def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     """Advisory pass over every `done` row's verification rung.
 
@@ -1714,10 +1770,9 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     findings: list[Finding] = []
     # TASK-237 3b: this returned `[]` when the file was absent, which silenced
     # the event-log pass below as well as the board pass — so on a board-less
-    # project no closure the tool had made was ever judged. The board pass
-    # reads only hand-kept `done` rows (a rendered board carries none), and it
-    # is skipped with no file; the event pass runs either way.
-    board = state_root / "BOARD.md"
+    # project no closure the tool had made was ever judged. Since TASK-262
+    # round 4b no board file is read at all: the first pass reads the store's
+    # `done` records that no event closed, and the event pass runs either way.
 
     def judge(where: str, tid: str, title: str, ev: str, rung: str,
               stakes: list[str]) -> int:
@@ -1765,30 +1820,24 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     # done row is fine" from "there were no done rows" — printing a checkmark
     # for an empty scan is how a gate quietly stops being one.
     check_verification.rows_seen = 0
-    text = (strip_comments(board.read_text(errors="replace"))
-            if board.exists() else "")
     stakes = high_stakes_fragments(perry_dir)
 
     rows_seen = rows_ranked = 0
     seen_ids: set[str] = set()
-    for body, _ in section_body(text, 2, re.compile(r"^P[012]\b")):
-        for header, rows in tables(body):
-            got = header_index(header)
-            ci_id, ci_st = column_index(got, "ID"), column_index(got, "Status")
-            ci_ev, ci_v = column_index(got, "Evidence"), column_index(got, "Verification")
-            ci_ti = column_index(got, "Title")
-            if ci_st < 0:
-                continue
-            for row in rows:
-                def cell(i):
-                    return row[i].replace("*", "").strip() if 0 <= i < len(row) else ""
-                if cell(ci_st) != "done":
-                    continue
-                rows_seen += 1
-                tid = cell(ci_id) or "(unnamed row)"
-                seen_ids.add(tid)
-                rows_ranked += judge("BOARD.md", tid, cell(ci_ti),
-                                     cell(ci_ev), cell(ci_v), stakes)
+    # **The closures no event records** (TASK-262 round 4b, F14 re-pointed).
+    # This pass read the `done` rows of a held `BOARD.md`'s P sections; the
+    # file is retired. The store's `done` records that no `done` event closed
+    # are the same population a hand-kept row became on import, and they are
+    # judged by the same `judge`.
+    rel_store, closed = closed_without_a_done_event(state_root,
+                                                    perry_dir.parent)
+    for _n, rec in closed:
+        rows_seen += 1
+        seen_ids.add(rec["id"])
+        rows_ranked += judge(
+            rel_store, rec["id"], str(rec.get("title") or ""),
+            str(rec.get("evidence") or ""),
+            str(rec.get("verification") or "").strip().upper(), stakes)
 
     # The closures that have already left the board. `done` removes the row,
     # so without this pass the check rated only work closed by hand — and on a
@@ -2130,14 +2179,12 @@ def resolves_somewhere(src: str, state_root: Path, project_root: Path) -> bool:
                     return True
             continue
         if re.fullmatch(r"[A-Z][A-Z0-9]{1,7}-\d+", tok):
-            board = state_root / "BOARD.md"
             # TASK-237 3b: with no file, the ids the board WOULD carry, read
             # from the stores it is rendered from. Returning quietly here made
-            # every card citing an open task or an ask read as dangling.
-            if board.exists():
-                if tok in board.read_text(errors="replace"):
-                    return True
-            elif tok in ids_the_board_would_carry(state_root):
+            # every card citing an open task or an ask read as dangling. Since
+            # TASK-262 round 4b that is the only answer: a held `BOARD.md` is
+            # retired, and an id only it carries resolves nowhere.
+            if tok in ids_the_board_would_carry(state_root):
                 return True
             events = project_root / ".perry" / "events.jsonl"
             if events.exists() and tok in events.read_text(errors="replace"):
@@ -2769,13 +2816,11 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                             f"finite set to check and no last element. "
                             f"work/reference/review.md § 1", line))
 
-    board = state_root / "BOARD.md"
     # TASK-237 3b: this returned here when the file was absent, and everything
     # below went quiet with it — the event-log pass that finds a V4 close with
-    # no verdict, and every check on a live row. With no file the live rows
-    # are the store's open records: the rows `perry-tasks board` would print.
-    btext = (strip_comments(board.read_text(errors="replace"))
-             if board.exists() else "")
+    # no verdict, and every check on a live row. **Since TASK-262 round 4b no
+    # board file is read**, held or not: the live rows are the store's open
+    # records, the rows `perry-tasks board` prints.
 
     def verdicts_for(tid: str) -> list[dict]:
         return [f for _, f, _ in seen.get(tid, [])]
@@ -2785,38 +2830,27 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     #: "is this row even at a rung that needs a round" rather than reporting
     #: every `review` row on the board.
     rungs: dict[str, str] = {}
-    if not board.exists():
-        stores, _findings = _STORE.load_board_stores(state_root)
-        for rec in stores.get("tasks", []):
-            if rec.get("status") in _STORE.TERMINAL_STATUSES:
-                continue
-            live[rec["id"]] = str(rec.get("status") or "")
-            rungs[rec["id"]] = str(rec.get("verification") or "")
-    for body, _ in section_body(btext, 2, re.compile(r"^P[012]\b")):
-        for header, rows in tables(body):
-            got = header_index(header)
-            ci_id = column_index(got, "ID")
-            ci_st = column_index(got, "Status")
-            ci_v = column_index(got, "Verification")
-            ci_ev = column_index(got, "Evidence")
-            if ci_id < 0 or ci_st < 0:
-                continue
-            for row in rows:
-                def cell(i):
-                    return (row[i].replace("*", "").strip()
-                            if 0 <= i < len(row) else "")
-                tid = cell(ci_id)
-                if not tid:
-                    continue
-                live[tid] = cell(ci_st)
-                rungs[tid] = cell(ci_v)
-                if cell(ci_st) == "done" and cell(ci_v).upper() == "V4":
-                    if not any(f.get("result") for f in verdicts_for(tid)):
-                        findings.append(Finding(
-                            "warn", "BOARD.md", "v4-close-without-verdict",
-                            f"{tid} is closed at V4 and no evidence document "
-                            f"carries a verdict block naming it — the rung is "
-                            f"claimed, not run"))
+    stores, _findings = _STORE.load_board_stores(state_root)
+    for rec in stores.get("tasks", []):
+        if rec.get("status") in _STORE.TERMINAL_STATUSES:
+            continue
+        live[rec["id"]] = str(rec.get("status") or "")
+        rungs[rec["id"]] = str(rec.get("verification") or "")
+    # **A V4 close no event records** (TASK-262 round 4b, F14 re-pointed). This
+    # pass judged the `done` rows at V4 a person kept by hand in a held
+    # `BOARD.md`; the event pass below judges only closures `perry-task done`
+    # made. The store's `done` records that no `done` event closed are what a
+    # hand-kept row became on import, so they are judged here instead.
+    rel_store, closed = closed_without_a_done_event(state_root, project_root)
+    for n, rec in closed:
+        if str(rec.get("verification") or "").strip().upper() != "V4":
+            continue
+        if not any(f.get("result") for f in verdicts_for(rec["id"])):
+            findings.append(Finding(
+                "warn", rel_store, "v4-close-without-verdict",
+                f"{rec['id']} is closed at V4, no `done` event records the "
+                f"closure, and no evidence document carries a verdict block "
+                f"naming it — the rung is claimed, not run", n))
 
     # `done` REMOVES the row, so a board scan alone measures an empty set on any
     # project using the tool — the same trap `check_verification` documents.
@@ -3739,31 +3773,6 @@ def _tasks_module():
     return mod
 
 
-def _board_line_of(text: str, task_id: str) -> int | None:
-    """The 1-based line THIS ROW is written on, or None if there is no row.
-
-    **The first cell, not any cell.** This matched the id anywhere in the line,
-    so a closed row still named in some open row's `Depends on` cell resolved
-    to that other row's line number — and `check_store_drift` uses this as its
-    predicate for *"the board carries this row"*, so it reported
-    `TASK-088 — the file carries this row and the store has no record of it`
-    pointing at the line where the **TASK-089** row is written, for a TASK-088
-    row that does not exist. Reproduced on the real board and the real store by
-    a V4; three live ids qualified that day, and the set grows with every closed
-    row that has dependents.
-
-    The decoration is stripped the way `Board.find` strips it, because a row
-    struck through or bolded is the same row.
-    """
-    for n, line in enumerate(text.split("\n"), 1):
-        if not line.lstrip().startswith("|"):
-            continue
-        cells = split_row(line)
-        if cells and cells[0].replace("*", "").replace("~", "").strip() == task_id:
-            return n
-    return None
-
-
 def _well_typed(on_disk: list[dict], rel_store: str) -> tuple[list[dict], list]:
     """Split the store into records the checks can compare, and findings.
 
@@ -4003,125 +4012,22 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
                         f"re-derives it")]
     check_store_drift.stats["records"] = len(on_disk)
 
-    board_path = state_root / "BOARD.md"
-    rel_board = _rel(board_path, project_root)
-    board_text = (board_path.read_text(errors="replace")
-                  if board_path.exists() else "")
-
-    # **Validated before the gate below, not after.** A store record's TYPE is
-    # a property of the file; it needs no derivation and no log, so the one
-    # check here that can still run on a project with no log still runs.
+    # **Validated, and that is all that is left** (TASK-262 Amendment (4),
+    # round 4b). A store record's TYPE is a property of the file; it needs no
+    # derivation, no log and no board.
     on_disk, type_findings = _well_typed(on_disk, rel_store)
     findings.extend(type_findings)
     stored = {r.get("id"): r for r in on_disk if r.get("id")}
     check_store_drift.stats["records"] = len(stored)
 
-    if not log_present:
-        # No log, so no derivation, so no comparison — see the docstring. The
-        # stats already say `comparison_performed: False` and `drifted: None`,
-        # and `main()` prints the reason. Nothing here is silence about drift;
-        # it is silence about a question that was never asked.
-        return findings
-
-    if not board_path.exists():
-        # **No file, no drift** (TASK-237 deliverable 3c). Drift is a board
-        # that disagrees with its store, and no command writes a board any
-        # more. This returned `store-drift-uncheckable` — "drift is unknown
-        # here rather than absent" — on every board-less project, which is
-        # false: there is nothing for the store to disagree with. `main()`
-        # prints the census line that says so.
-        return findings
-
-    try:
-        derived = _tasks_module().build(project_root)
-    except Exception as exc:  # noqa: BLE001 — one check may not kill the lint
-        return findings + [Finding(
-            "warn", rel_board, "store-drift-uncheckable",
-            f"the store could not be derived from the current "
-            f"files ({type(exc).__name__}: {exc}), so drift is "
-            f"unknown here rather than absent")]
-
-    live = {r.get("id"): r for r in derived if r.get("id")}
-    check_store_drift.stats["comparison_performed"] = not type_findings
-
-    rows: list[tuple[str, str, int | None]] = []
-    projected_live: dict[str, dict] = {}
-    for tid in sorted(live):
-        want, got = stored.get(tid), live[tid]
-        line = _board_line_of(board_text, tid)
-        if want is None:
-            # **`build()` includes CLOSED tasks from the event log**, whose
-            # rows `done` removed from the board — 63 of 95 on this project.
-            # Saying "the file carries this row" of a row the file does not
-            # contain was false for two-thirds of what this branch reported,
-            # with `line: null` and a remedy that does not apply. Found by a V4
-            # round; the board is the authority on what the board carries.
-            if line is None:
-                continue
-            rows.append((tid, "the file carries this row and the store has no "
-                              "record of it", line))
-            continue
-        if line is None:
-            # Terminal rows deliberately leave the projection. They remain in
-            # the canonical store even if the disposable event log is gone, so
-            # their absence from BOARD.md is not drift. An open stored row,
-            # however, is expected to have a rendered row.
-            if want.get("status") not in ("done", "dropped"):
-                rows.append((tid, "the store holds this open row but the file "
-                                  "renders no row for it", None))
-            continue
-        projected_live[tid] = got
-        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
-                     f"store={_cell(want.get(k))!r}"
-                     for k in sorted(set(want) | set(got))
-                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
-        if differing:
-            rows.append((tid, "; ".join(differing[:3])
-                         + (f"; and {len(differing) - 3} more field(s)"
-                            if len(differing) > 3 else ""), line))
-    for tid in sorted(set(stored) - set(live)):
-        # Terminal status does not by itself prove that a record legitimately
-        # left the projection. Historical `done`/`drop` events are already in
-        # `live` through `build()`, so they were handled by the loop above and
-        # remain excluded. Reaching this set means neither BOARD.md nor the
-        # event log can derive the record; silently excusing it would make a
-        # store-only terminal insertion indistinguishable from real history.
-        rows.append((tid, "the store holds this row and nothing in the file or "
-                          "the event log still derives it", None))
-
-    # **`drifted` is a census, and a census that skipped part of its
-    # population is not a smaller census.** The invariant this pins is one
-    # line — `drifted is None` exactly when `comparison_performed` is false —
-    # so a consumer needs one test and cannot reach a number that means
-    # something else. Excluded badly-typed records leave the rows below true
-    # (they did drift) and the total unknown: "here is what I found" and "here
-    # is how many there are" are different claims.
-    if check_store_drift.stats["comparison_performed"]:
-        check_store_drift.stats["drifted"] = len(rows)
-    _r = lib.root_flag(project_root)
-    for tid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
-        findings.append(Finding(
-            "warn", rel_board, "store-drift",
-            f"{tid} — {detail}. Under ADR-007 decision 2 this file is rendered "
-            f"output and `{rel_store}` is what the field means, so a hand edit "
-            f"is drift: `perry-tasks render --write{_r}` puts the file back "
-            f"in line with the store WHEN EVERY STORED RECORD STILL HAS A ROW "
-            f"— a row deleted by hand is refused and named, because render "
-            f"fills lines rather than creating them (DESIGN-016 A5). It is "
-            f"the fix whenever `perry-task` "
-            f"wrote the value — the ordinary case. `perry-tasks write "
-            f"--from-board{_r}` runs the other direction and DISCARDS the "
-            f"stored "
-            f"value; it is for a board edited before the store existed.",
-            line))
-    if len(rows) > DRIFT_ROWS_SHOWN:
-        findings.append(Finding(
-            "warn", rel_board, "store-drift",
-            f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) disagree with "
-            f"`{rel_store}` — at this scale the store is stale rather than the "
-            f"file hand-edited, and `perry-tasks verify` caps at ten too."))
-    findings.extend(_order_drift(stored, projected_live, rel_board,
-                                 rel_store, _r))
+    # **No board file is read, so there is no drift to compare** (TASK-262
+    # round 4b). Drift was a held `BOARD.md` that disagreed with its store,
+    # derived through `perry-tasks build` and compared field by field. The
+    # file is retired and no reader opens it: a hand edit to it reaches no
+    # reading, so there is nothing for the store to disagree with. A
+    # board-less project already returned here (TASK-237 3c); a held file no
+    # longer changes that. `comparison_performed` stays `false` and `drifted`
+    # `null`, and `main()` prints the census line that says why.
     return findings
 
 
@@ -4179,106 +4085,13 @@ def check_risk_store_drift(project_root: Path, state_root: Path) -> list["Findin
                         "OBJECT per line — a whole-file array and a bare "
                         "scalar both parse and neither is a record")]
 
-    board_path = state_root / "BOARD.md"
-    rel_board = _rel(board_path, project_root)
-    if not board_path.exists():
-        # The store's own count stays true with no file to compare it to: the
-        # summary line read "0 valid record(s)" of a store holding four.
-        check_risk_store_drift.stats["records"] = len(
-            _STORE.validate_risk_records(on_disk)[0])
-        # No file, no drift (TASK-237 3c) — `check_store_drift` says why.
-        return []
-
-    # One check may not kill the lint — the rule its sibling states and broke.
-    try:
-        tasks_mod = _tasks_module()
-        ops = tasks_mod._task_module()
-        board = ops.Board(board_path)
-        derived = _STORE.risk_records(board, ops, on_disk)
-    except Exception as exc:  # noqa: BLE001
-        return [Finding("warn", rel_board, "risk-store-drift-uncheckable",
-                        f"the risks store could not be derived from the "
-                        f"current files ({type(exc).__name__}: {exc}), so "
-                        f"drift is unknown here rather than absent")]
-
-    good, issues = _STORE.validate_risk_records(on_disk)
-    for issue in issues:
-        rid = issue.get("id")
-        who = repr(rid) if rid else f"line {issue['line']}"
-        findings.append(Finding(
-            "warn", rel_store, "risk-store-badly-typed",
-            f"{who} — {issue['message']}. The record is excluded from the "
-            f"drift comparison, so this row's drift is unknown here rather "
-            f"than absent."))
-
-    stored = {r["id"]: r for r in good}
-    live = {r["id"]: r for r in derived}
-    check_risk_store_drift.stats.update({
-        "comparison_performed": not issues, "records": len(stored)})
-
-    rows: list[tuple[str, str, int | None]] = []
-    board_text = board_path.read_text(errors="replace")
-    for rid in sorted(live):
-        want, got = stored.get(rid), live[rid]
-        line = _board_line_of(board_text, rid)
-        if want is None:
-            rows.append((rid, "the file carries this row and the store has no "
-                              "record of it", line))
-            continue
-        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
-                     f"store={_cell(want.get(k))!r}"
-                     for k in sorted(set(want) | set(got))
-                     # `order` is a fact about a sequence, not about a row —
-                     # `_order_drift` says why, and the risks register has one
-                     # section, so a moved row is reported once, below.
-                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
-        if differing:
-            rows.append((rid, "; ".join(differing[:3])
-                         + (f"; and {len(differing) - 3} more field(s)"
-                            if len(differing) > 3 else ""), line))
-    for rid in sorted(set(stored) - set(live)):
-        rows.append((rid, "the store holds this risk and `## Top risks` "
-                          "renders no row for it", None))
-
-    check_risk_store_drift.stats["drifted"] = len(rows)
-    _r = lib.root_flag(project_root)
-    for rid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
-        findings.append(Finding(
-            "warn", rel_board, "risk-store-drift",
-            f"{rid} — {detail}. Under ADR-007 `## Top risks` is rendered "
-            f"output and `{rel_store}` is what the field means, so a hand edit "
-            f"is drift. `perry-tasks risks-render --write{_r}` puts the "
-            f"section back in line with the store WHEN EVERY STORED RECORD "
-            f"STILL "
-            f"HAS A ROW — a row deleted by hand is refused and named, "
-            f"because render fills lines rather than creating them "
-            f"(DESIGN-016 A5). It is the fix whenever "
-            f"`perry-task risk-add` / `risk-clear` wrote the value — the "
-            f"ordinary case. `perry-tasks risks-write --from-board{_r}` "
-            f"runs the other direction and DISCARDS the stored value.", line))
-    if len(rows) > DRIFT_ROWS_SHOWN:
-        findings.append(Finding(
-            "warn", rel_board, "risk-store-drift",
-            f"and {len(rows) - DRIFT_ROWS_SHOWN} further risk(s) disagree with "
-            f"`{rel_store}`."))
-
-    # Order, once for the section. A record with no `order` at all is skipped
-    # rather than sorted to the front: "not recorded" and "recorded as first"
-    # are different claims (`_order_drift` carries the argument in full).
-    graded = [r for r in live
-              if r in stored and stored[r].get("order") is not None
-              and live[r].get("order") is not None]
-    on_board = sorted(graded, key=lambda r: live[r]["order"])
-    in_store = sorted(graded, key=lambda r: stored[r]["order"])
-    if on_board != in_store:
-        findings.append(Finding(
-            "warn", rel_board, "risk-store-drift",
-            f"`Top risks` — the rows of this section sit in a different order "
-            f"in the file than in `{rel_store}`: file "
-            f"{' → '.join(on_board[:6])}, store {' → '.join(in_store[:6])}. "
-            f"Row order is recorded, not re-derived, so a row moved by hand is "
-            f"drift like any other cell."))
-    return findings
+    # The store's own count stays true with no file to compare it to: the
+    # summary line read "0 valid record(s)" of a store holding four.
+    check_risk_store_drift.stats["records"] = len(
+        _STORE.validate_risk_records(on_disk)[0])
+    # No board file is read, so no drift (TASK-262 round 4b) —
+    # `check_store_drift` says why.
+    return []
 
 
 def _empty_intake_store_drift_stats() -> dict:
@@ -4329,84 +4142,11 @@ def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Find
                         "OBJECT per line — a whole-file array and a bare "
                         "scalar both parse and neither is a record")]
 
-    board_path = state_root / "BOARD.md"
-    rel_board = _rel(board_path, project_root)
-    if not board_path.exists():
-        check_intake_store_drift.stats["records"] = len(
-            _STORE.validate_intake_records(on_disk)[0])
-        # No file, no drift (TASK-237 3c) — `check_store_drift` says why.
-        return []
-
-    try:
-        tasks_mod = _tasks_module()
-        ops = tasks_mod._task_module()
-        board = ops.Board(board_path)
-        derived = _STORE.intake_records(board, ops, on_disk)
-    except Exception as exc:  # noqa: BLE001
-        return [Finding("warn", rel_board, "intake-store-drift-uncheckable",
-                        f"the intake store could not be derived from the "
-                        f"current files ({type(exc).__name__}: {exc}), so "
-                        f"drift is unknown here rather than absent")]
-
-    good, issues = _STORE.validate_intake_records(on_disk)
-    for issue in issues:
-        n = issue.get("order")
-        who = f"row {n + 1}" if isinstance(n, int) else f"line {issue['line']}"
-        findings.append(Finding(
-            "warn", rel_store, "intake-store-badly-typed",
-            f"{who} — {issue['message']}. The record is excluded from the "
-            f"drift comparison, so this row's drift is unknown here rather "
-            f"than absent."))
-
-    stored = {r["order"]: r for r in good}
-    live = {r["order"]: r for r in derived}
-    check_intake_store_drift.stats.update({
-        "comparison_performed": not issues, "records": len(stored)})
-
-    rows: list[tuple[int, str]] = []
-    for n in sorted(live):
-        want, got = stored.get(n), live[n]
-        if want is None:
-            rows.append((n, "the file carries a row at this position and the "
-                            "store has no record of it"))
-            continue
-        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
-                     f"store={_cell(want.get(k))!r}"
-                     for k in sorted(set(want) | set(got))
-                     # `order` is the key here, not a field: two records with
-                     # the same key cannot differ on it.
-                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
-        if differing:
-            rows.append((n, "; ".join(differing[:3])
-                         + (f"; and {len(differing) - 3} more field(s)"
-                            if len(differing) > 3 else "")))
-    for n in sorted(set(stored) - set(live)):
-        rows.append((n, "the store holds a record at this position and "
-                        "`## Intake` renders no row for it"))
-
-    check_intake_store_drift.stats["drifted"] = len(rows)
-    _r = lib.root_flag(project_root)
-    for n, detail in sorted(rows)[:DRIFT_ROWS_SHOWN]:
-        findings.append(Finding(
-            "warn", rel_board, "intake-store-drift",
-            f"row {n + 1} — {detail}. Under ADR-007 `## Intake` is rendered "
-            f"output and `{rel_store}` is what the field means, so a hand edit "
-            f"is drift. **The row number is the key**: an inserted or deleted "
-            f"line renumbers every row beneath it, so `perry-task "
-            f"resolve-intake {n + 1}` no longer addresses what it did. "
-            f"`perry-tasks intake-render --write{_r}` puts the section back "
-            f"in line with the store when every stored record still has a "
-            f"row, and REFUSES when one does not — a deleted line "
-            f"renumbers the rest, so filling them in place would strand "
-            f"the last record (DESIGN-016 A5); `perry-tasks intake-write "
-            f"--from-board{_r}` runs the other direction and DISCARDS the "
-            f"stored values."))
-    if len(rows) > DRIFT_ROWS_SHOWN:
-        findings.append(Finding(
-            "warn", rel_board, "intake-store-drift",
-            f"and {len(rows) - DRIFT_ROWS_SHOWN} further intake row(s) "
-            f"disagree with `{rel_store}`."))
-    return findings
+    check_intake_store_drift.stats["records"] = len(
+        _STORE.validate_intake_records(on_disk)[0])
+    # No board file is read, so no drift (TASK-262 round 4b) —
+    # `check_store_drift` says why.
+    return []
 
 
 def _empty_ask_store_drift_stats() -> dict:
@@ -4455,101 +4195,11 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
                         "OBJECT per line — a whole-file array and a bare "
                         "scalar both parse and neither is a record")]
 
-    board_path = state_root / "BOARD.md"
-    rel_board = _rel(board_path, project_root)
-    if not board_path.exists():
-        check_ask_store_drift.stats["records"] = len(
-            _STORE.validate_ask_records(on_disk)[0])
-        # No file, no drift (TASK-237 3c) — `check_store_drift` says why.
-        return []
-
-    try:
-        tasks_mod = _tasks_module()
-        ops = tasks_mod._task_module()
-        board = ops.Board(board_path)
-        derived = _STORE.ask_records(board, ops, on_disk)
-    except Exception as exc:  # noqa: BLE001
-        return [Finding("warn", rel_board, "ask-store-drift-uncheckable",
-                        f"the ask store could not be derived from the current "
-                        f"files ({type(exc).__name__}: {exc}), so drift is "
-                        f"unknown here rather than absent")]
-
-    good, issues = _STORE.validate_ask_records(on_disk)
-    for issue in issues:
-        who = issue.get("id") or f"line {issue['line']}"
-        findings.append(Finding(
-            "warn", rel_store, "ask-store-badly-typed",
-            f"{who} — {issue['message']}. The record is excluded from the "
-            f"drift comparison, so this row's drift is unknown here rather "
-            f"than absent."))
-
-    stored = {r["id"]: r for r in good}
-    live = {r["id"]: r for r in derived}
-    check_ask_store_drift.stats.update({
-        "comparison_performed": not issues, "records": len(stored)})
-
-    rows: list[tuple[str, str, int | None]] = []
-    board_text = board_path.read_text(errors="replace")
-    for aid in sorted(live):
-        want, got = stored.get(aid), live[aid]
-        line = _board_line_of(board_text, aid)
-        if want is None:
-            rows.append((aid, "the file carries this row and the store has no "
-                              "record of it", line))
-            continue
-        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
-                     f"store={_cell(want.get(k))!r}"
-                     for k in sorted(set(want) | set(got))
-                     # `order` is a fact about a sequence, not about a row —
-                     # `_order_drift` says why, and this register has one
-                     # section, so a moved row is reported once, below.
-                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
-        if differing:
-            rows.append((aid, "; ".join(differing[:3])
-                         + (f"; and {len(differing) - 3} more field(s)"
-                            if len(differing) > 3 else ""), line))
-    for aid in sorted(set(stored) - set(live)):
-        rows.append((aid, "the store holds this record and "
-                          "`## User Input Queue` renders no row for it", None))
-
-    check_ask_store_drift.stats["drifted"] = len(rows)
-    _r = lib.root_flag(project_root)
-    for aid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
-        findings.append(Finding(
-            "warn", rel_board, "ask-store-drift",
-            f"{aid} — {detail}. Under ADR-007 `## User Input Queue` is "
-            f"rendered output and `{rel_store}` is what the field means, so a "
-            f"hand edit is drift. **`Idle` is not in this comparison**: it is "
-            f"an age derived from `Asked`, no stored field claims it, and "
-            f"editing it changes nothing the store asserts. "
-            f"`perry-tasks asks-render --write{_r}` puts the section back in "
-            f"line with the store when every stored record still has a row, "
-            f"and REFUSES when one does not (DESIGN-016 A5); `perry-tasks "
-            f"asks-write --from-board{_r}` runs the other direction and "
-            f"DISCARDS the stored values.", line))
-    if len(rows) > DRIFT_ROWS_SHOWN:
-        findings.append(Finding(
-            "warn", rel_board, "ask-store-drift",
-            f"and {len(rows) - DRIFT_ROWS_SHOWN} further ask row(s) disagree "
-            f"with `{rel_store}`."))
-
-    # Order, once for the section — `check_risk_store_drift`'s block, for the
-    # register that shares its key. A record with no `order` at all is skipped
-    # rather than sorted to the front.
-    graded = [r for r in live
-              if r in stored and stored[r].get("order") is not None
-              and live[r].get("order") is not None]
-    on_board = sorted(graded, key=lambda r: live[r]["order"])
-    in_store = sorted(graded, key=lambda r: stored[r]["order"])
-    if on_board != in_store:
-        findings.append(Finding(
-            "warn", rel_board, "ask-store-drift",
-            f"`User Input Queue` — the rows of this section sit in a different "
-            f"order in the file than in `{rel_store}`: file "
-            f"{' → '.join(on_board[:6])}, store {' → '.join(in_store[:6])}. "
-            f"Row order is recorded, not re-derived, so a row moved by hand is "
-            f"drift like any other cell."))
-    return findings
+    check_ask_store_drift.stats["records"] = len(
+        _STORE.validate_ask_records(on_disk)[0])
+    # No board file is read, so no drift (TASK-262 round 4b) —
+    # `check_store_drift` says why.
+    return []
 
 
 def _empty_cadence_store_drift_stats() -> dict:
@@ -4591,91 +4241,11 @@ def check_cadence_store_drift(project_root: Path, state_root: Path) -> list["Fin
                         "OBJECT per line — a whole-file array and a bare "
                         "scalar both parse and neither is a record")]
 
-    board_path = state_root / "BOARD.md"
-    rel_board = _rel(board_path, project_root)
-    if not board_path.exists():
-        check_cadence_store_drift.stats["records"] = len(
-            _STORE.validate_cadence_records(on_disk)[0])
-        # No file, no drift (TASK-237 3c) — `check_store_drift` says why.
-        return []
-
-    try:
-        tasks_mod = _tasks_module()
-        ops = tasks_mod._task_module()
-        board = ops.Board(board_path)
-        derived = _STORE.cadence_records(board, ops, on_disk)
-    except Exception as exc:  # noqa: BLE001
-        return [Finding("warn", rel_board, "cadence-store-drift-uncheckable",
-                        f"the cadence store could not be derived from the "
-                        f"current files ({type(exc).__name__}: {exc}), so "
-                        f"drift is unknown here rather than absent")]
-
-    good, issues = _STORE.validate_cadence_records(on_disk)
-    for issue in issues:
-        who = issue.get("id") or f"line {issue['line']}"
-        findings.append(Finding(
-            "warn", rel_store, "cadence-store-badly-typed",
-            f"{who} — {issue['message']}. The record is excluded from the "
-            f"drift comparison, so this row's drift is unknown here rather "
-            f"than absent."))
-
-    stored = {r["id"]: r for r in good}
-    live = {r["id"]: r for r in derived}
-    check_cadence_store_drift.stats.update({
-        "comparison_performed": not issues, "records": len(stored)})
-
-    rows: list[tuple[str, str, int | None]] = []
-    board_text = board_path.read_text(errors="replace")
-    for cid in sorted(live):
-        want, got = stored.get(cid), live[cid]
-        line = _board_line_of(board_text, cid)
-        if want is None:
-            rows.append((cid, "the file carries this row and the store has no "
-                              "record of it", line))
-            continue
-        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
-                     f"store={_cell(want.get(k))!r}"
-                     for k in sorted(set(want) | set(got))
-                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
-        if differing:
-            rows.append((cid, "; ".join(differing[:3])
-                         + (f"; and {len(differing) - 3} more field(s)"
-                            if len(differing) > 3 else ""), line))
-    for cid in sorted(set(stored) - set(live)):
-        rows.append((cid, "the store holds this record and `## Cadence` "
-                          "renders no row for it", None))
-
-    check_cadence_store_drift.stats["drifted"] = len(rows)
-    _r = lib.root_flag(project_root)
-    for cid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
-        findings.append(Finding(
-            "warn", rel_board, "cadence-store-drift",
-            f"{cid} — {detail}. Under ADR-007 `## Cadence` is rendered output "
-            f"and `{rel_store}` is what the field means, so a hand edit is "
-            f"drift. `perry-tasks cadence-render --write{_r}` puts the section "
-            f"back in line with the store when every stored record still has a "
-            f"row, and REFUSES when one does not; `perry-tasks cadence-write "
-            f"--from-board{_r}` runs the other direction and DISCARDS the "
-            f"stored values.", line))
-    if len(rows) > DRIFT_ROWS_SHOWN:
-        findings.append(Finding(
-            "warn", rel_board, "cadence-store-drift",
-            f"and {len(rows) - DRIFT_ROWS_SHOWN} further cadence row(s) "
-            f"disagree with `{rel_store}`."))
-
-    graded = [r for r in live
-              if r in stored and stored[r].get("order") is not None
-              and live[r].get("order") is not None]
-    on_board = sorted(graded, key=lambda r: live[r]["order"])
-    in_store = sorted(graded, key=lambda r: stored[r]["order"])
-    if on_board != in_store:
-        findings.append(Finding(
-            "warn", rel_board, "cadence-store-drift",
-            f"`Cadence` — the rows of this section sit in a different order in "
-            f"the file than in `{rel_store}`: file {' → '.join(on_board[:6])}, "
-            f"store {' → '.join(in_store[:6])}. Row order is recorded, not "
-            f"re-derived, so a row moved by hand is drift like any other cell."))
-    return findings
+    check_cadence_store_drift.stats["records"] = len(
+        _STORE.validate_cadence_records(on_disk)[0])
+    # No board file is read, so no drift (TASK-262 round 4b) —
+    # `check_store_drift` says why.
+    return []
 
 
 #: The markdown-backed stores, in the order the census prints them, with the
@@ -5020,58 +4590,6 @@ def check_md_store_drift(project_root: Path, state_root: Path,
             f"not re-derived, so a row moved by hand is drift like any other "
             f"cell."))
     return findings
-
-
-def _order_drift(stored: dict, live: dict, rel_board: str,
-                 rel_store: str, root_flag: str = "") -> list["Finding"]:
-    """`order` compared ONCE PER SECTION, and never per row.
-
-    **`order` is a fact about a sequence, not about a row**, and comparing it
-    like the other nineteen fields amplified one hand edit into a finding for
-    every row beneath it: a line typed into `## P1` shifts the index of all
-    four rows under it, and this check reported five drifted rows for one
-    inserted one. That is the whole-table-diff-burying-the-change objection
-    `order` exists to answer, re-created inside the report about it — found by
-    `test_store_drift § test_a_row_the_store_never_saw_is_reported`, which
-    asserts exactly one finding for exactly one edit.
-
-    So what is compared is the RELATIVE order of the rows both sides carry.
-    An inserted or removed row moves every successor's integer and moves
-    nobody's neighbour, and is already reported once, by id, as the row it is.
-    A row genuinely moved past another changes the sequence and is reported
-    here, once, naming the section rather than the rows.
-
-    A record with no `order` at all — a store written before the field existed
-    — is skipped rather than sorted to the front, because "not recorded" and
-    "recorded as first" are different claims.
-    """
-    out: list[Finding] = []
-    groups = sorted({(r.get("group") or "") for r in live.values()
-                     if r.get("group")})
-    for group in groups:
-        ids = [tid for tid, r in live.items()
-               if (r.get("group") or "") == group
-               and r.get("order") is not None
-               and (stored.get(tid) or {}).get("order") is not None]
-        on_file = sorted(ids, key=lambda t: live[t]["order"])
-        in_store = sorted(ids, key=lambda t: stored[t]["order"])
-        if on_file == in_store:
-            continue
-        out.append(Finding(
-            "warn", rel_board, "store-drift",
-            f"`{group}` — the rows of this section sit in a different order in "
-            f"the file than in `{rel_store}`: file {' → '.join(on_file[:6])}, "
-            f"store {' → '.join(in_store[:6])}. Row order is recorded, not "
-            f"re-derived (ADR-007, TASK-089), so a row moved by hand is drift "
-            f"like any other cell: `perry-task prioritize{root_flag}` moves "
-            f"a row, and `perry-tasks render --write{root_flag}` puts the file "
-            f"back in line when "
-            f"every stored record still has a row, and REFUSES when one does "
-            f"not (DESIGN-016 A5)."))
-    return out
-
-
-# ── main ──────────────────────────────────────────────────────────────────
 
 
 def is_adopted(project_root: Path, state_root: Path) -> bool:
@@ -6071,6 +5589,15 @@ def main(argv: list[str]) -> int:
         root = P.resolve_state_root(project_root)
         adopted = is_adopted(project_root, root)
         for spec in schema["files"]:
+            if spec.get("id") == "board":
+                # **A held `BOARD.md` is retired, and is not linted** (TASK-262
+                # Amendment (4), round 4b; `files[id=board].note`). Its cap,
+                # headings and tables policed a file nothing writes and no
+                # reader opens any more. The declaration stays for
+                # `perry-tasks board`, which lays the board out from it, and
+                # for `--templates` above, which still checks the template
+                # against it. The file is named by `retired-board` below.
+                continue
             base = project_root if spec.get("anchor") == "project" else root
             # Nothing outside `.perry/` can be malformed Perry state before the
             # project is a Perry project: a pre-existing `design/` belongs to
@@ -6101,6 +5628,18 @@ def main(argv: list[str]) -> int:
                                            is_template=False,
                                            root_flag=lib.root_flag(project_root)))
         if adopted:
+            # **The retired board, named** (TASK-262 Amendment (4), round 4b).
+            # One `warn` per held `BOARD.md` at the state root or the project
+            # root, in `lib.retired_board_hint`'s one wording. A warning, never
+            # an error, so the exit code is unchanged without `--strict`. It is
+            # NOT carved out of `--strict` the way `NS-01` is: `NS-01` has no
+            # way out a user can take, and this one names the way out — import,
+            # then `git rm` — so the one-rule-wide carve-out stays one rule.
+            # Existence only: `held_board_paths` opens nothing.
+            for held in lib.held_board_paths(project_root, root):
+                findings.append(Finding(
+                    "warn", _rel(held, project_root), "retired-board",
+                    lib.retired_board_hint(held)))
             findings.extend(check_cross_file(root, enums, project_root))
             # DESIGN-002 decision #4: the collision the state root cannot cover
             # is the one that appears AFTER setup, so the check has to run on
@@ -6269,15 +5808,16 @@ def main(argv: list[str]) -> int:
         # line a reader is most likely to be looking at. The wording is keyed
         # in `tests/test_store_drift.py § CENSUS_LINES`, which is what makes
         # renaming it a two-file edit rather than a silent one.
-        # **No `BOARD.md`, no drift** (TASK-237 deliverable 3c). The five board
-        # registers below compare a store with the section a board file holds.
-        # With no file they printed "comparison incomplete — drift is
-        # unchecked, not clean", which is false: there is nothing the store can
-        # disagree with. `root` is the state root here (templates never reach
-        # the census).
-        _board_absent = not mode_templates and not (root / "BOARD.md").exists()
-        _no_board = ("no `BOARD.md` — nothing is projected from it, so there "
-                     "is nothing to drift")
+        # **No board file is read, so no drift** (TASK-237 deliverable 3c;
+        # TASK-262 round 4b). The five board registers below compared a store
+        # with the section a board file held. With no file they printed
+        # "comparison incomplete — drift is unchecked, not clean", which is
+        # false: there is nothing the store can disagree with. Since round 4b a
+        # held `BOARD.md` is retired and read by no check, so every project
+        # prints this line, and the retired file is named by its own warning.
+        _board_absent = not mode_templates
+        _no_board = ("no board file is read — nothing is projected from one, "
+                     "so there is nothing to drift")
         _st = getattr(check_store_drift, "stats", None)
         if _st and not mode_templates:
             if not _st["store_present"]:

@@ -1930,7 +1930,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # the top of this function states for config and hook.
     _events = raw_events(perry_root)
     _events_present = (perry_root / ".perry" / "events.jsonl").exists()
-    _status_by_id = lib.task_status_index(root, board)
+    _status_by_id = lib.task_status_index(root)
     # The store's own records, for the one KR whose metric is re-run rather
     # than read (DESIGN-015 § 6 row F). `link` is the graph AFTER the document
     # and the store have been folded together, and the measurement needs the
@@ -1985,10 +1985,12 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     locked_designs = [d for d in snap.design if d.status == "locked"]
     pending_handoff = [d for d in locked_designs if d.impl_refs == 0]
 
-    board_path = root / "BOARD.md"
-    board_lines = len(board_path.read_text(errors="replace").split("\n")) if board_path.exists() else 0
-    if board_lines > 200:
-        warnings.append(f"BOARD.md is {board_lines} lines, over the 200-line cap — run /perry work triage.")
+    # **No board file is measured** (TASK-262 Amendment (4), round 4b). This
+    # counted a held `BOARD.md`'s lines and warned past the 200-line cap. The
+    # file is retired — nothing writes it and no reader opens it — so its
+    # length says nothing about the project, and `board.lines` is 0 as it has
+    # been on every board-less project since TASK-237 3c.
+    board_lines = 0
 
     phase_rel = f"phase/{snap.phase.slug}.md" if snap.phase else None
     caps = tier1_caps(root, phase_rel)
@@ -2137,13 +2139,12 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "verification": verification_distribution(all_tasks,
                                                       raw_events(project_root)),
             "events": read_event_log(project_root),
-            # **`board_as_authored`, not `board`.** Every other number on
-            # this payload is store-backed now (TASK-094); drift is the one
-            # question that must be asked of the rendered document, because
-            # the document is what it is checking. Handing it `snap.board`
-            # reported `drift: 0` for a row deleted from `BOARD.md` by hand.
-            # See `viewer/parsers.py § PMOSnapshot.board_as_authored`.
-            "drift": reconcile_drift(project_root, snap.board_as_authored,
+            # **The store's board, held file or not** (TASK-262 round 4b).
+            # This read `board_as_authored`, a parse of a held `BOARD.md`; the
+            # file is retired and no reader opens it, so drift asks whether
+            # the event history explains the rows `perry-tasks board` prints,
+            # the same question `perry-task list --json § drift` asks (2.4).
+            "drift": reconcile_drift(project_root, snap.board,
                                      read_event_log(project_root)),
             "tasks": [encode(t) for t in all_tasks],
         },

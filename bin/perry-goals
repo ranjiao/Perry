@@ -540,7 +540,7 @@ class Okr:
 # whose `current` is MEASURED carries a non-null `target` — which adds no key
 # either. Rule 2 is untouched in both halves: nothing is removed and nothing
 # is retyped.
-LIST_CONTRACT = "perry-goals/list/3.3"
+LIST_CONTRACT = "perry-goals/list/3.4"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -624,6 +624,12 @@ LIST_SEMANTICS = [
     {"version": "3.3",
      "fields": ["installed"],
      "note": "`installed` is narrower (TASK-237 Amendment (7), user decision 2026-09-14). At 3.2 a canonical store under the state root counted on its own, so a folder holding only a file named `tasks.jsonl` — another tool's — read `installed: true`. From 3.3 a store counts only when a `.perry/` directory exists at the project root beside it: `installed` is `.perry/config.jsonl` at the project root, or `.perry/` there and a canonical store under the state root (`schema/README.md § installed`). No key moved. A directory holding a store and no `.perry/` now answers `installed: false` with the empty shape at exit 0; every project Perry started writes `.perry/config.jsonl` first and is unaffected."},
+    {"version": "3.4",
+     "fields": ["krs[].linked_task_completion.done",
+                "krs[].linked_task_completion.dropped",
+                "krs[].linked_task_completion.open",
+                "krs[].linked_task_completion.unknown"],
+     "note": "A task's status comes from `tasks.jsonl` alone (TASK-262 Amendment (4), round 4b; the user's decision of 2026-09-15). Before 3.4 `lib.task_status_index` put the rows of a `BOARD.md` a project still held beneath the store, so a linked id that only the held file carried was counted by its file status. From 3.4 the file is retired and not read: such an id is counted from the event log's last state-moving event if it has one, and otherwise as `unknown`. On a project with no held board, and on one whose board rows are all in its store, every count is unchanged. No key was added, removed or retyped. A project whose tasks live only in a held board runs `perry-tasks write --from-board` (`reference/version-compatibility.md § Upgrading a project to G3`)."},
 ]
 
 _PERRY_STATE = None
@@ -991,8 +997,10 @@ def kr_rows(snap, events: list | None = None,
     # below was computed over 36 percent of the work and returned a plausible
     # number. It is invisible wherever the two roots coincide, which is most
     # projects, which is why it survived.
+    # TASK-262 round 4b: the store alone. The held board's rows beneath it
+    # are retired (`perry-goals/list` 3.4).
     status_by_id = lib.task_status_index(
-        getattr(snap, "state_root", "."), getattr(snap, "board", None))
+        getattr(snap, "state_root", "."))
     # Raw store records for the one KR whose metric is re-run rather than read.
     # `state_root`, not `project_root`: the store sits beside the register.
     linkage_records = P.load_linkage_store(getattr(snap, "state_root", "."))

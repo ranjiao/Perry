@@ -417,6 +417,12 @@ def cmd_board(root: Path) -> int:
     for title in report["undeclared_groups"]:
         print(f"perry-tasks: open tasks in group {title!r} match no declared "
               f"heading; printed under `## {title}`", file=sys.stderr)
+    # **The retired board, named where a reader looks for the board**
+    # (TASK-262 Amendment (4), round 4b). One line per held file, on stderr,
+    # in `lib.retired_board_hint`'s one wording; stdout and the exit code are
+    # the render's. Existence only: `held_board_paths` opens nothing.
+    for held in lib.held_board_paths(root, state_root):
+        print(lib.retired_board_hint(held), file=sys.stderr)
     return 0
 
 

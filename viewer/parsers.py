@@ -5068,45 +5068,15 @@ class PMOSnapshot:
     linkage: Linkage = field(default_factory=Linkage)
     ops: OpsCounts = field(default_factory=OpsCounts)
     weekly: list[JournalEntry] = field(default_factory=list)
-    #: `BOARD.md` exactly as it is on disk. Kept so `board_as_authored` can be
-    #: computed on demand instead of on every snapshot; nothing else reads it.
-    board_text: str = ""
-    #: Whether `BOARD.md` exists at all. `True` by default so a snapshot built
-    #: by hand keeps the behaviour it had; `load_snapshot` sets the real value.
-    board_on_disk: bool = True
 
-    @property
-    def board_as_authored(self) -> BoardState:
-        """The board PARSED FROM ITS MARKDOWN, for the one question that needs it.
-
-        `board` is store-backed on an adopted project (TASK-094): its task
-        rows come out of `perry/tasks.jsonl` and nothing asks a rendered
-        document what a value is. **Drift asks the opposite question** — does
-        the projection still agree with the record of how it got that way —
-        and it cannot ask that of the store, because the store is the thing it
-        is checking against. Handing it `board` reported `drift: 0` for a row
-        deleted from `BOARD.md` by hand and `unrecorded: 0` for a row typed
-        into it, which is the detector saying "no drift" about the two edits
-        it exists to catch.
-
-        So the parse survives, HERE, named for its one caller, rather than
-        twice inside `bin/perry-task` and `bin/perry-state`. On a project with
-        no store this is the same object `board` is.
-
-        TASK-091 is where it goes: a byte comparison against what the store
-        would render (`bin/perry-tasks diff` already performs it) answers the
-        same question without parsing anything.
-
-        **With no `BOARD.md` on disk the authored board is the store's**
-        (TASK-237 deliverable 3a). There is no projection a hand could have
-        edited, and the board a reader has is what `perry-tasks board` prints,
-        which is `board`'s rows. Parsing the empty text instead reported every
-        open row as `orphaned` — 96 of them on this project — which is the
-        detector calling drift about a file that does not exist.
-        """
-        if not self.board_on_disk:
-            return self.board
-        return parse_board(self.board_text)
+    # **`board_as_authored`, `board_text` and `board_on_disk` are gone**
+    # (TASK-262 Amendment (4), round 4b). `board_as_authored` parsed a held
+    # `BOARD.md` so `drift` could ask whether a hand-edited projection still
+    # agreed with the event history. With the board retired no reader opens
+    # the file, so there is no hand-edited projection to ask about: the board a
+    # reader has is what `perry-tasks board` prints, which is `board`'s rows,
+    # and `drift` is computed against those (`perry-task/list` 2.4 semantics).
+    # A board-less project already read it that way since TASK-237 3a.
 
     @property
     def open_top_risks(self) -> list[TopRisk]:
@@ -5170,8 +5140,11 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
     def read(p: Path) -> str:
         return p.read_text() if p.exists() else ""
 
-    board_on_disk = (root / "BOARD.md").exists()
-    board_text = read(root / "BOARD.md")
+    # **A held `BOARD.md` is not read** (TASK-262 Amendment (4), round 4b).
+    # Every register the snapshot carries comes from its store; a project with
+    # no store for one gets that register empty, exactly as a board-less
+    # project does. The file is retired: only the `--from-board` imports read
+    # it, and `perry-tasks board` / `perry-lint` name it as deletable.
     okr_text = read(root / "OKR.md")
     project_state_text = read(root / "PROJECT_STATE.md")
     architecture_text = read(root / "ARCHITECTURE.md")
@@ -5217,13 +5190,16 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
     # table form, so when it is there it is the register — and it is read
     # rather than the projection, which is why `risks` no longer went to 0 /
     # `none` the moment `BOARD.md` was deleted.
+    #
+    # **With the board retired (TASK-262 round 4b) the two files are one**:
+    # the store when there is one, and otherwise `PROJECT_STATE.md`'s bullets,
+    # which is not a board and is still read. The held board's `## Top risks`
+    # is not.
     risk_records = load_register_store(root, RISK_STORE)
     if risk_records is not None:
         top_risks = top_risks_from_store(risk_records)
-    elif has_risk_table(board_text):
-        top_risks = parse_top_risks(board_text)
     else:
-        top_risks = parse_top_risks(board_text) + parse_top_risks(project_state_text)
+        top_risks = parse_top_risks(project_state_text)
     # A BULLET HAS NO ID, AND A RISK MUST NEVER BE DROPPED FOR THAT.
     #
     # This read `if key and key not in seen`, so a risk with a falsy id was
@@ -5254,7 +5230,10 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
     #
     # The ask, risk and intake registers follow the same rule from their own
     # stores (TASK-237 deliverable 3a): given a store, the section is not read.
-    board = parse_board(board_text, tasks=load_task_store(root),
+    #
+    # Since TASK-262 round 4b no text is handed in at all: a register with no
+    # store is empty, not parsed out of a held file.
+    board = parse_board("", tasks=load_task_store(root),
                         asks=load_register_store(root, ASK_STORE),
                         risks=risk_records,
                         intake=load_register_store(root, INTAKE_STORE),
@@ -5279,8 +5258,6 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
         linkage=linkage,
         ops=_load_ops_counts(root),
         weekly=walk_weekly(root),
-        board_text=board_text,
-        board_on_disk=board_on_disk,
     )
 
 

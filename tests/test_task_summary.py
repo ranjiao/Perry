@@ -79,7 +79,7 @@ class TaskSummaryContract(unittest.TestCase):
         # 2.1: TASK-237 3a's store-read minor; nothing about `summary` moved.
         # TASK-237 3b′: `installed` was added, a minor bump.
         # TASK-237 3c: `installed` narrowed (a store needs `.perry/`), a minor bump.
-        self.assertEqual(payload["contract"], "perry-task/list/2.3")
+        self.assertEqual(payload["contract"], "perry-task/list/2.4")
         contract = (ROOT / "schema" / "task-list-contract.md").read_text(
             encoding="utf-8")
         self.assertIn("### 1.11", contract)

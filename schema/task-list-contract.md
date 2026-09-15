@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/2.3`**
+> Contract: **`perry-task/list/2.4`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -92,7 +92,8 @@ It is also what makes a front-end survive the completed storage change:
 `tasks.jsonl` is canonical task truth, and `perry-tasks board` prints its human
 projection. `BOARD.md` was deleted by TASK-237, and a project that still holds
 one holds a retired file: since TASK-262 no `perry-task` write reads it or
-re-renders it, and a successful write that is not `--json` names it on stderr
+re-renders it, no read opens it (this payload since 2.4), and a successful
+write that is not `--json`, `perry-tasks board` and `perry-lint --root` name it
 as one that can be deleted.
 The payload shape remains stable even though its current values no longer come
 from task rows in Markdown.
@@ -101,7 +102,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/2.3",   // check this before anything else
+  "contract":     "perry-task/list/2.4",   // check this before anything else
   "installed":    true,                    // false: not a Perry project — schema/README.md § installed
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
@@ -369,7 +370,7 @@ non-task registers could not be read.
 | `dependency_cycles` | array | arrays of ids, each a loop found in the stored edges, e.g. `[["A","B","A"]]`. Every task in one waits forever and none is `startable`. The write path refuses to create one; an externally edited store is reported rather than hidden. |
 | `blocked_without_dependency` | array | open ids whose `status` is `blocked` and whose `depends_on` is empty — the row says it is stopped and does not say on what. **The migration worklist**: their dependency is still in prose somewhere no program can read. On Perry's own board this is every blocked row today. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` may be empty, and that is not an error: current fields remain canonical in the store while history is unavailable. |
-| `missing_projection` | string | `""` when `BOARD.md` exists; otherwise its expected path. Task records, event history, and — since 2.1 — `risks`, `asks` and `intake` are read from their stores and are unaffected; only a project with no such store reads those three out of the file, and then gets their empty contract shapes. |
+| `missing_projection` | string | `""` when a `BOARD.md` exists at the state root; otherwise its expected path. **An existence probe only** (2.4): no reader opens the file it names. Task records, event history, `risks`, `asks` and `intake` are read from their stores whether it exists or not; a project with no store for one of those three gets its empty contract shape, and a held file is retired (`reference/version-compatibility.md`). |
 
 #### `sections_read[]` — the entry, key by key
 
@@ -562,18 +563,18 @@ only the two counts would have left the same hole three keys over. `0` and `[]`
 are findings; `null` is rule 1's unknown value, and a consumer that skipped
 `checked` now fails on it rather than getting a reassuring number.
 
-A hand edit to the Board projection is not task truth. `perry-lint` reports
-store/projection drift; this compatibility block only describes whether the
-event history explains the rows visible in that projection.
+**What the rows are, since 2.4.** They are the rows `perry-tasks board`
+prints — the store's open records — on every project. A `BOARD.md` a project
+still holds is retired (TASK-262): no reader opens it, so a hand edit to it is
+not task truth and reaches no reading, and this block does not describe it.
+Until 2.4 a held file's rows were what `drift` was computed against.
 
-**And `perry-lint`'s store comparison is unchecked here too.** It derives what
-the store would hold from `BOARD.md` **and this same event log**, so on a
-project with no log it has no left-hand side: its `--json` payload reports
-`store_drift.log_present: false`, `comparison_performed: false` and
-`drifted: null` rather than a count. Before TASK-117 it reported 175 of 175
-records drifted on a board and store that were byte-identical to the reading
-that reported 0 with the log present. The two tools now answer *"was a
-comparison performed"* the same way on the same tree.
+**And `perry-lint` performs no store comparison.** It derived what the store
+would hold from a held `BOARD.md` and this same event log, and reported where
+the two disagreed. With no file read there is nothing to compare, so its
+`--json` payload reports `store_drift.comparison_performed: false` and
+`drifted: null` on every project, and its census line says no board file is
+read. The retired file itself is a `retired-board` warning.
 
 
 ## The three rules that make it safe to code against
@@ -678,6 +679,27 @@ change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
+### 2.4 — a held `BOARD.md` is not read, 2026-09-15 (TASK-262 round 4b)
+
+**No key added, removed or retyped: the registers and `drift` stop reading a
+held board** (TASK-262 Amendment (4), the user's decision of 2026-09-15).
+Before 2.4 a project with no `asks.jsonl`, `risks.jsonl` or `intake.jsonl`
+read that register out of a `BOARD.md` it still held, and `drift` was
+computed against the file's rows. From 2.4:
+- `asks`, `risks` and `intake` come from their stores only. With no store for
+  one, it is empty (`risks` falls back to `PROJECT_STATE.md`'s bullets alone),
+  and a `USER-` edge whose ask is only in the file is unknown and unsatisfied;
+- `drift` is computed against the rows `perry-tasks board` prints, on every
+  project;
+- `conformance.missing_projection` keeps its value and is an existence probe
+  only.
+
+On a project whose stores hold everything its board did, nothing a consumer
+reads changes except `drift` where a held file had drifted. A project with no
+stores upgrades by the `--from-board` imports
+(`reference/version-compatibility.md § Upgrading a project to G3`).
+`semantics` carries a `2.4` entry.
+
 ### 2.3 — `installed` narrowed, 2026-09-14 (TASK-237 deliverable 3c)
 
 **No key added, removed or retyped: `installed` means something narrower**
@@ -712,8 +734,9 @@ Changelog line only; this one is also entered there at the user's decision
 
 **`asks`, `risks` and `intake` are read from `asks.jsonl`, `risks.jsonl` and
 `intake.jsonl`**, and so is the ask register the dependency graph resolves a
-`USER-` edge against. `BOARD.md` is read for them only on a project that has
-no such store. No key was added, removed or retyped. What moved is where the
+`USER-` edge against. At 2.1 `BOARD.md` was still read for them on a project
+that had no such store; that fallback went at 2.4. No key was added, removed
+or retyped. What moved is where the
 values come from, which is what `semantics` is for, and it carries the entry.
 
 **What a consumer saw before, with `BOARD.md` absent**, measured on this

@@ -122,7 +122,10 @@ register is a parameter: `--register risks` is `risks-build`. The register list
 is read from `schema/state-schema.json § claims` — the `work`-owned stores — so
 a fifth store gets the verbs without an edit here. `render`, `diff` and `verify`
 act on a `BOARD.md` a project still holds and refuse where there is none; no
-command creates one (TASK-237 3c).
+command creates one (TASK-237 3c). That file is retired (TASK-262): `write
+--from-board` and the `*-write --from-board` imports (and `perry-task
+risk-migrate`) are the only readers left, `render`/`diff`/`verify` stay until
+R5, and `board` names a held file on stderr as one that can be deleted.
 
 ### Exit codes
 `0` read or written · `1` refused, reason printed · `2` bad invocation ·
