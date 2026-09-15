@@ -8607,6 +8607,19 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
 #: The per-subcommand lists were derived from the code — which `args.<attr>`
 #: each handler actually reads, `cell_writer`'s closures included — and
 #: `tests/test_bin_surface.py` re-derives them and fails when the two disagree.
+#:
+#: **`writes` is measured, per subcommand** (TASK-262 round 2). Each list is
+#: the files whose bytes a successful run changed on a board-less copy: its
+#: store (or stores), the journal and the event log. It used to be one list,
+#: `tasks.jsonl` and `BOARD.md` included, copied onto all 27, so `perry-tasks
+#: board` named no writer for three registers. Two consequences:
+#: - a register's writers here and in `REGISTER_EVENTS` are the same set, and
+#:   `tests/test_perry_task_writes_are_what_it_writes.py` fails when they part;
+#: - that test also re-runs every write and compares what changed with this.
+#: `BOARD.md` is in no entry: a project that still holds one has it re-rendered
+#: by `commit()`, and that conditional rewrite is outside the declaration.
+#: The lists stay literals: `perry-tasks § writer_surface` reads this with
+#: `ast.literal_eval`.
 SURFACE = {
     "name": "perry-task",
     "kind": "write",
@@ -8669,117 +8682,117 @@ SURFACE = {
          "open a row: title, deliverable, verification, summary, and --kr or --unlinked where a register exists",
          "flags": ["--actor", "--arrived", "--commitment", "--deliverable", "--depends", "--design", "--dry-run", "--group", "--kr", "--next", "--out-of-scope", "--owner", "--parent", "--prefix", "--priority", "--role", "--rung", "--stage", "--summary", "--title", "--track", "--unlinked", "--verification"],
          "takes_id": False,
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "intake.jsonl", "linkage.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "start", "summary":
          "not_started -> in_progress, with the next action",
          "flags": ["--actor", "--dry-run", "--next"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "stage", "summary":
          "move a row to another stage of its track",
          "flags": ["--actor", "--dry-run", "--stage"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "track", "summary":
          "move an existing row onto another declared track, id and cells kept",
          "flags": ["--actor", "--arrived", "--dry-run", "--reason", "--stage", "--track"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "ask", "summary":
          "add a question for the user to the User Input Queue",
          "flags": ["--actor", "--arrived", "--blocks", "--dry-run", "--needed"],
          "takes_id": False,
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["asks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "answer", "summary":
          "record the user's answer to one USER- row",
          "flags": ["--actor", "--answer", "--dry-run"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["asks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "next", "summary":
          "rewrite the Next action cell, nothing else",
          "flags": ["--actor", "--dry-run", "--next"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "cadence-add", "summary":
          "declare a recurring task",
          "flags": ["--actor", "--dry-run", "--frequency", "--on", "--owner", "--title"],
          "takes_id": False,
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["cadence.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "cadence-done", "summary":
          "record one occurrence of a recurring task, with evidence",
          "flags": ["--actor", "--dry-run", "--evidence", "--frequency", "--on"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["cadence.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "risk-add", "summary":
          "open a row in the risks register",
          "flags": ["--actor", "--dry-run", "--opened", "--title"],
          "takes_id": False,
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["risks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "risk-clear", "summary":
          "close one risk, with the reason",
          "flags": ["--actor", "--dry-run", "--reason"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["risks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "risk-migrate", "summary":
          "the `## Top risks` bullets into the table",
          "flags": ["--actor", "--dry-run"],
          "takes_id": False,
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["risks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "done", "summary":
          "close a row: evidence required, rung recorded",
          "flags": ["--actor", "--also", "--checked", "--dry-run", "--evidence", "--json", "--measured", "--not-looked-at", "--restated", "--rung", "--signed-on", "--signer"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "drop", "summary":
          "close a row as not-to-be-done, with the reason",
          "flags": ["--actor", "--dry-run", "--reason"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "purge", "summary":
          "DELETE a terminal record from the store; drop keeps it",
          "flags": ["--actor", "--dry-run", "--reason"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "intake", "summary":
          "add a request to the intake queue",
          "flags": ["--actor", "--arrived", "--dry-run", "--title"],
          "takes_id": False,
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["intake.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "route", "summary":
          "turn one intake row into a task on a track",
          "flags": ["--actor", "--arrived", "--commitment", "--dry-run", "--group", "--owner", "--prefix", "--priority", "--stage", "--track"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "intake.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "resolve-intake", "summary":
          "discharge one intake row without turning it into a task",
          "flags": ["--actor", "--dry-run", "--outcome", "--reason"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["intake.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "retitle", "summary":
          "rewrite the Title cell, nothing else",
          "flags": ["--actor", "--dry-run", "--title"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "summary", "summary":
          "rewrite the store-only summary, or clear it",
          "flags": ["--actor", "--clear", "--dry-run", "--summary"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "rung", "summary":
          "rewrite the Verification cell, nothing else",
          "flags": ["--actor", "--dry-run", "--rung"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "evidence", "summary":
          "rewrite the Evidence cell, nothing else",
          "flags": ["--actor", "--dry-run", "--evidence"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "prioritize", "summary":
          "move a row between board sections",
          "flags": ["--actor", "--dry-run", "--group", "--priority", "--reason"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "intake-sweep", "summary":
          "take discharged intake rows off the board, into the journal",
          "flags": ["--actor", "--dry-run"],
          "takes_id": False,
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["intake.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "status", "summary":
          "set the status, with the reason and the next action",
          "flags": ["--actor", "--dry-run", "--next", "--on", "--reason", "--status"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "depends", "summary":
          "replace the set of rows this one waits on",
          "flags": ["--actor", "--clear", "--dry-run", "--on"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "design-link", "summary":
          "replace the set of designs this row implements",
          "flags": ["--actor", "--clear", "--design", "--dry-run"],
-         "writes": ["tasks.jsonl", "BOARD.md", "journal/", ".perry/events.jsonl"]},
+         "writes": ["tasks.jsonl", "journal/", ".perry/events.jsonl"]},
         {"name": "list", "summary":
          "every open row, bounded at 200",
          "flags": ["--all", "--limit", "--track"],
