@@ -10,6 +10,8 @@ Run: python3 tests/parallel test_task_store
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-tasks", "tests/printed_board.py", "perry/", ".perry/")
+
 import json
 import pathlib
 import shutil

@@ -29,6 +29,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "bin/perry-state", "bin/perry-lint")
+
 import json
 import tempfile
 import unittest

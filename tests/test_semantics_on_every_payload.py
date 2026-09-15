@@ -35,6 +35,15 @@ Run: python3 tests/parallel test_semantics_on_every_payload
 """
 from __future__ import annotations
 
+COVERS = (
+    "schema/",
+    "bin/perry-task",
+    "bin/perry-goals",
+    "bin/perry-decide",
+    "bin/perry-knowledge",
+    "bin/perry-state",
+)
+
 import json
 import pathlib
 import subprocess

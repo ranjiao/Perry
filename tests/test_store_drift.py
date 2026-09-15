@@ -39,6 +39,14 @@ Run: python3 tests/parallel test_store_drift
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-lint",
+    "bin/perry-tasks",
+    "bin/perry_store.py",
+    "bin/perry_md_store.py",
+    "schema/state-schema.json",
+)
+
 import json
 import pathlib
 import re

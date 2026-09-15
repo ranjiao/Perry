@@ -51,6 +51,26 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "SKILL.md",
+    "AGENTS.md",
+    "README",
+    "INSTALL.md",
+    "ARCHITECTURE.md",
+    "work/",
+    "goals/",
+    "decide/",
+    "modes/",
+    "packs/",
+    "reference/",
+    "state/",
+    "setup",
+    "bin/",
+    "viewer/",
+    "templates/",
+    "perry/decisions/",
+)
+
 import ast
 import os
 import re

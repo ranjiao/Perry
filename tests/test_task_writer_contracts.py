@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-state",
+    "schema/task-list-contract.md",
+    "work/SKILL.md",
+    "work/reference/subcommands.md",
+    "reference/user-load.md",
+)
+
 import json
 import os
 import re

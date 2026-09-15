@@ -42,6 +42,15 @@ Run: python3 tests/parallel test_stranded_rows
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-dispatch-limit",
+    "bin/lib/",
+    "schema/task-list-contract.md",
+    "work/reference/subcommands.md",
+    "tests/one_startable_rule.py",
+)
+
 import json
 import os
 import re

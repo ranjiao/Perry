@@ -38,6 +38,8 @@ Run: python3 tests/parallel -j 4 test_store_population_agrees
 
 from __future__ import annotations
 
+COVERS = ("bin/", "viewer/parsers.py")
+
 import json
 import os
 import re

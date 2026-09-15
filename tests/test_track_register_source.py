@@ -60,6 +60,17 @@ Run: python3 tests/parallel test_track_register_source
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-config",
+    "bin/perry-state",
+    "bin/perry-diagnose",
+    "bin/perry-goals",
+    "bin/perry-lint",
+    "bin/perry-task",
+    "viewer/parsers.py",
+    "schema/state-schema.json",
+)
+
 import json
 import pathlib
 import shutil

@@ -29,6 +29,18 @@ Run: python3 tests/parallel test_starts_write_the_config_store_first
 
 from __future__ import annotations
 
+COVERS = (
+    "SKILL.md",
+    "work/",
+    "goals/",
+    "decide/",
+    "reference/adoption.md",
+    "reference/first-run.md",
+    "schema/README.md",
+    "setup",
+    "bin/perry-config",
+)
+
 import json
 import os
 import re

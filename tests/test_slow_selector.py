@@ -19,6 +19,13 @@ milliseconds because `run_module` is stubbed — no module is actually run.
 
 from __future__ import annotations
 
+COVERS = (
+    "tests/parallel",
+    "tests/run",
+    "tests/durations.json",
+    "bin/perry-restore-check",
+)
+
 import contextlib
 import io
 import json

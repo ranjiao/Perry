@@ -2,6 +2,17 @@
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry_store.py",
+    "schema/state-schema.json",
+    "schema/task-list-contract.md",
+    "work/state/BOARD_TEMPLATE.md",
+    "tests/printed_board.py",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import os
 import re

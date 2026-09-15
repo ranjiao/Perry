@@ -39,6 +39,14 @@ See `copy_repo` (TASK-258).
 
 from __future__ import annotations
 
+COVERS = (
+    "tests/tree_guard.py",
+    "tests/run",
+    "tests/parallel",
+    "tests/merge-check",
+    ".gitignore",
+)
+
 import io
 import os
 import subprocess

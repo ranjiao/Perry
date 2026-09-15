@@ -28,6 +28,8 @@ Run: python3 tests/parallel test_state_cost
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-state-cost", "schema/state-schema.json")
+
 import hashlib
 import json
 import os

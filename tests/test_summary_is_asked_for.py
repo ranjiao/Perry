@@ -14,6 +14,13 @@ project tried to recognise bad English and lost, and
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-lint",
+    "bin/lib/",
+    "schema/task-list-contract.md",
+)
+
 import json
 import subprocess
 import sys

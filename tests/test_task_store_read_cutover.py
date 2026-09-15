@@ -5,6 +5,8 @@ Run: python3 tests/parallel test_task_store_read_cutover
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task",)
+
 import json
 import shutil
 import subprocess
