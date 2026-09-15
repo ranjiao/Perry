@@ -50,6 +50,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import contract_key_parity as parity  # noqa: E402
+import pinned_phase  # noqa: E402
 
 
 BASELINE = parity.BASELINE
@@ -235,8 +236,12 @@ class TestThisREADMEAgreesWithTheGlob(unittest.TestCase):
 class TestTheTwoWayDiffIsHeldToItsBaseline(unittest.TestCase):
 
     def setUp(self):
+        # TASK-441. The checkout's own board, read as the frozen copy with the
+        # scored phase pinned. Read live, `phase.objectives` and its keys went
+        # to `documented_not_emitted` when `score-phase 003` cleared
+        # `phase/CURRENT`. `TestTheScoredPhaseIsLoadBearing` shows that.
         self.recorded = recorded()
-        self.live = parity.measure()
+        self.live = parity.measure(frozen_copy())
 
     def test_the_same_contracts_are_measured(self):
         self.assertEqual(set(self.recorded["contracts"]),
@@ -691,12 +696,18 @@ _FROZEN: dict = {}
 
 
 def frozen_copy() -> str:
-    """The one frozen copy this module's `live` and `blind` read. Built on
-    first use and removed when the module's tests end."""
+    """The one frozen copy this module's readings of Perry's board use. Built
+    on first use and removed when the module's tests end.
+
+    **Its phase is pinned as well as its clock (TASK-441).** `phase/CURRENT`
+    in the copy is `pinned_phase.SCORED_PHASE`, so `perry-goals list` emits the
+    `phase` subtree the baseline records whether or not the checkout is
+    between phases."""
     if "root" not in _FROZEN:
         tmp = tempfile.TemporaryDirectory(prefix="parity-frozen-")
         unittest.addModuleCleanup(tmp.cleanup)
         root = copy_of_perry(pathlib.Path(tmp.name) / "perry")
+        pinned_phase.pin_phase(root, pinned_phase.SCORED_PHASE)
         _FROZEN["freeze"] = freeze_the_clock(root)
         _FROZEN["tmp"] = tmp
         _FROZEN["root"] = str(root)
@@ -993,6 +1004,41 @@ class TestTheFreezeIsLoadBearing(unittest.TestCase):
                 entry = self.frozen[page]
                 self.assertIn(key, entry["not_observable"])
                 self.assertIn(collection, entry["not_observable"][key])
+
+
+class TestThePinnedCopy(pinned_phase.ThePinnedCopyGuards, unittest.TestCase):
+    """TASK-441. The frozen copy has the scored phase current, and the guard
+    `pin_phase` calls first refuses the checkout."""
+
+    OWNER = __name__
+
+    def pinned_root(self) -> pathlib.Path:
+        return pathlib.Path(frozen_copy())
+
+
+class TestTheScoredPhaseIsLoadBearing(unittest.TestCase):
+    """TASK-441's control. `test_no_documented_key_stopped_being_emitted`
+    holds because the copy has a phase current. In a copy pinned to `(none)`,
+    which is main after `score-phase 003`, `perry-goals list` emits no
+    `phase` object. So `phase.objectives` joins `documented_not_emitted`, and
+    the recorded list and the measured one disagree."""
+
+    GOALS_PAGE = parity.ROOT / "schema" / "goals-list-contract.md"
+
+    def test_with_no_phase_current_a_phase_key_stops_being_emitted(self):
+        root = pinned_phase.pinned_copy(__name__, pinned_phase.NO_PHASE)
+        self.assertEqual(pinned_phase.NO_PHASE,
+                         pinned_phase.current_phase(root))
+        was = recorded()["contracts"][GOALS_LIST]["documented_not_emitted"]
+        now = parity.compare(self.GOALS_PAGE, str(root))[
+            "documented_not_emitted"]
+        self.assertNotEqual(was, now)
+        self.assertIn("phase.objectives", set(now) - set(was))
+
+    def test_with_the_scored_phase_pinned_the_page_matches_its_baseline(self):
+        was = recorded()["contracts"][GOALS_LIST]["documented_not_emitted"]
+        self.assertEqual(was, parity.compare(self.GOALS_PAGE, frozen_copy())[
+            "documented_not_emitted"])
 
 
 class TestWhatCouldNotBeComparedIsNamed(unittest.TestCase):
