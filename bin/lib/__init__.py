@@ -656,6 +656,51 @@ def root_flag(root: str | os.PathLike | None) -> str:
     return f" --root {shlex.quote(str(root))}" if root else ""
 
 
+# ── a held `BOARD.md` is retired ─────────────────────────────────────────
+
+
+def retired_board_hint(path: str | os.PathLike) -> str:
+    """**The one wording for a `BOARD.md` a project still holds** (TASK-262
+    Amendment (4), round 3 § 4). Every tool that notices the file prints this
+    line and no other, so the sentence is defined here and nowhere else.
+
+    One line, for stderr. The path is printed as found; the `git rm` command
+    quotes it with `shlex.quote`, for the reason `root_flag` above gives.
+    """
+    return (f"perry: {path} is a retired board — no Perry tool reads or "
+            f"updates it any more; the board is `perry-tasks board`. It can be "
+            f"deleted: `git rm {shlex.quote(str(path))}`")
+
+
+def held_board_paths(project_root: str | os.PathLike,
+                     state_root: str | os.PathLike) -> list[Path]:
+    """The `BOARD.md` files a project still holds: at the state root, then at
+    the project root, each named once when the two roots are one directory.
+
+    Existence only. Nothing here reads the file: that is the point of the
+    retirement, and a check that opened it would be a reader of its own.
+    """
+    found: list[Path] = []
+    for root in (Path(state_root), Path(project_root)):
+        path = root / "BOARD.md"
+        try:
+            if not path.is_file():
+                continue
+        except OSError:
+            continue
+        if any(_same_file(path, seen) for seen in found):
+            continue
+        found.append(path)
+    return found
+
+
+def _same_file(a: Path, b: Path) -> bool:
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
 # ── the declared surface ─────────────────────────────────────────────────
 #
 # **One declaration per tool, in the tool, and the parser is driven by it.**
