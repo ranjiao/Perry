@@ -2,7 +2,8 @@
 
 > Spec: `evidence/2026-09/TASK-441-spec.md` · Rung: V3 · Change: tests only
 > Branch: `worktree-agent-a9636397149d8c12a` · Code commits: `8e6dea40`,
-> `3486e687`, `64fc2630`, then this file and `tests/durations.json`
+> `3486e687`, `64fc2630`; this file and `tests/durations.json` first at
+> `d4591de9`; then the code fix `afae3f71` (F5), and this revision
 
 The six modules asserted against this repository's live current phase. Each now
 reads **a copy of the tree with `phase/CURRENT` pinned to `003-storage-code`**
@@ -120,9 +121,17 @@ replaced the thing the test is about (the live `P003-O3-KR2`, the real
 - **Moved to the copy:**
   - `read()` and `capture()` take `root`, and pass `--root` to all three
     commands, which ran with `cwd=ROOT` and no `--root` before.
-  - The three direct `perry-task list` calls also pass the copy. They do not
-    read the phase. They were moved so that no payload in the module comes
-    from the checkout.
+  - Two of the three direct `perry-task list` calls also pass the copy:
+    `test_a_minor_bump_carries_a_semantics_entry` and
+    `test_the_live_payload_reads_the_same_reordered`. They do not read the
+    phase.
+  - **The third stays on the checkout:**
+    `test_typed_status_alias_change_is_announced`. It reads `semantics`, which
+    the tool builds from its own constants. It is also a recorded, judged
+    entry in `tests/fixtures/live-state-expectations.json`. I first moved it
+    too, and that made the floor's finding "gone", reddening two tests in
+    `test_live_state_expectations` (F5). Re-recording that fixture baseline is
+    outside this row, and the call does not need to move, so it was put back.
 - **`--record`** now records from a pinned copy in a temporary directory.
   Recording the checkout between phases would have written a baseline with no
   `phase.*` paths.
@@ -255,6 +264,13 @@ separator anyway.
 | M7 | M5, on one class alone (`TheRuleHoldsOnTheLivePayload`) | 1 class | errors=1 | `setUpClass` (the guard refuses) | **none**, and `CURRENT` still `(none)` |
 | M8 | M4+M5, on the same class alone | 1 class | **OK**, 4 tests | — | **`perry/phase/CURRENT`**, now `003-storage-code` |
 
+**Re-run on `afae3f71`.** That commit changed one line of
+`test_contract_invariance`, and the line is in no anchor. So I re-ran every
+row that runs that module or edits its file: C0, M2d, M3d, M4 and M6. The
+results were identical to the table above, the restores byte-equal, and no
+store moved. The other rows were not re-run: their files and modules are
+unchanged between `64fc2630` and `afae3f71`.
+
 M6 is the controls' own mutation. With `NO_PHASE` equal to the scored phase,
 each control's `current_phase` check passes by construction, so every red in
 that row is the control's predicate firing and not its precondition.
@@ -303,6 +319,19 @@ that row is the control's predicate firing and not its precondition.
     from the copy.
   - This is the limit TASK-335 recorded for its M5. See "What I did not
     check".
+- **F5 — my first result commit, `d4591de9`, reddened another module.**
+  - `bash tests/run` on it: 140 modules, 3934 tests, 1 module red, 2 tests:
+    `test_live_state_expectations.TestTheFloorIsRecordedNotAssumed.test_the_baseline_and_the_sweep_agree`
+    and `…test_the_floor_is_not_claimed_to_be_zero`.
+  - Both were red again when that module ran alone. The cause was mine:
+    `test_contract_invariance.test_typed_status_alias_change_is_announced` is a
+    judged entry in `tests/fixtures/live-state-expectations.json`, and moving
+    its `perry-task list` call to the copy removed the finding from the sweep.
+  - The six-module runs could not see it, and neither could the mutation
+    harness, which ran only the six.
+  - That call reads no phase, so it went back on the checkout (the commit
+    after `d4591de9`), and the fixture baseline is unchanged. Both modules are
+    green together afterwards (54 tests).
 
 ## 5 durations
 
@@ -354,9 +383,13 @@ Their totals and the SHA are in the dispatch report. Writing them here would
 create another commit, and that commit would then not be the one the suite ran
 on. That is TASK-335's reason too.
 
-On the final code commit `64fc2630`, before this file existed, all six modules
-were green with `(none)`: C0 in section 4 counted 81 / 33 / 45 / 34 / 20 / 34
-tests, 247 in all, OK in an archive copy.
+- **The first such run, on `d4591de9`, was red:** 1 module and 2 tests, both in
+  `test_live_state_expectations`, and caused by this row (F5). The fix is
+  `afae3f71`.
+- On `afae3f71`, C0 counted all six modules green with `(none)` in an archive
+  copy: 81 / 33 / 45 / 34 / 20 / 34 tests, 247 in all.
+- `test_live_state_expectations` and `test_contract_invariance` ran green
+  together in the worktree: 54 tests.
 
 ## 7 rows named (none minted)
 
