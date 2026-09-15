@@ -70,10 +70,7 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 
    Use `—` for empty fields. Never fabricate.
 
-5. **Suggest 1–3 next actions**:
-   - "DESIGN-002 in_review for 8d → run `lock` or `revise`"
-   - "DESIGN-001 locked 5d ago, no impl tasks in the task store → run `handoff DESIGN-001`"
-   - "DESIGN-003 has 3 open user decisions → run `decide DESIGN-003`"
+5. **Next actions** — run `"$PERRY_HOME/bin/perry-state" --section next --lane decide` and render it per `$PERRY_HOME/reference/next.md § Rendering`. The command decides; never add, drop or reorder a recommendation.
 
 6. Then ask: **"What do you want to do?"**
 

@@ -181,13 +181,14 @@ still the contract `schema/` documents.
    `bash "$PERRY_HOME/bin/perry-explain" <ID>` rather than printing the bare ID
    or inventing a name.
 
-## Step 5 — suggest 1-3 next actions, and step 6 — ask
+## Step 5 — render the next block, and step 6 — ask
 
-5. **Suggest 1–3 next actions** combining `goals`, `work`, and `decide` concerns:
-   - "phase #002 commit KRs ≥80% → run `/perry work end-phase-retro`, `/perry goals score-phase`, `/perry work rollover`, `/perry goals plan-phase <new-slug>`"
-   - "USER-014 (\"Confirm staging env default\") idle 6d, weekly is 8d old → run `/perry work nudge` then `/perry work friday-review`"
-   - "no current phase → run `/perry goals plan-phase <slug>`, then `/perry goals plan-week`, then `/perry work` to add the tasks"
-   - "DESIGN-002 (\"Flake scoring\") in_review for 8d → run `/perry decide lock` or `/perry decide revise`"
+5. **Render the next block.** Run `"$PERRY_HOME/bin/perry-state" --section next`
+   and render it as `reference/next.md § Rendering` says: the *you are here*
+   line, the primary, at most two alternates, and what could not be told. The
+   command decides. Never reorder, add or drop a recommendation, and never build
+   one from the dashboard's numbers. One line marked as your own note is allowed
+   (`reference/next.md § What the agent may and may not do`).
 
 6. Then ask: **"What do you want to do?"**
 

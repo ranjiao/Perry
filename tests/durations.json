@@ -60,10 +60,6 @@
       "sec": 0.26,
       "source": "2026-09-14-task237-d3b"
     },
-    "test_board_names_its_sources.py": {
-      "sec": 0.64,
-      "source": "2026-09-14-task262"
-    },
     "test_board_less_project_is_recognised.py": {
       "sec": 0.8,
       "source": "2026-09-14-task237"
@@ -71,6 +67,10 @@
     "test_board_less_reads_and_writes.py": {
       "sec": 4.55,
       "source": "2026-09-14-task237-d3a"
+    },
+    "test_board_names_its_sources.py": {
+      "sec": 0.64,
+      "source": "2026-09-14-task262"
     },
     "test_board_render.py": {
       "sec": 32.58,
@@ -283,6 +283,10 @@
     },
     "test_module_run_guard.py": {
       "sec": null
+    },
+    "test_next_section.py": {
+      "sec": 1.2,
+      "source": "2026-09-15-task442"
     },
     "test_ns_collision.py": {
       "sec": 17.61,
@@ -672,6 +676,13 @@
       "ref": "64fc2630",
       "taken": "2026-09-15T12:30:00Z",
       "workers": 1
+    },
+    "2026-09-15-task442": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 tests/parallel test_next_section` and recorded at the median (1.4/0.9/1.2s, 39 tests), on the same terms as the 2026-09-11-task437 entry and for the same reason: re-measuring every neighbour to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it.",
+      "ref": "bb178072b1fbaa8bb655f319630b83785899c5ab",
+      "taken": "2026-09-15T00:00:00Z",
+      "workers": 8
     }
   }
 }

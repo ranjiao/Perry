@@ -103,13 +103,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
    If no current phase exists: render only the overall OKR block, then suggest `/okr plan-phase <slug>`.
 
-5. **Suggest 1–3 next actions** based on what's missing or behind. Two prompts fire automatically based on phase state:
-   - **KR-progress prompt** (auto): if ≥80% of `commit` KRs in the current phase are achieved (metric ≥ target) → "Phase #<NNN> commit KRs are <X>/<Y> done — ready to `/okr score-phase` and start the next?"
-   - **Heartbeat prompt** (auto): if days-since-last-snapshot ≥ `phase_heartbeat_days` (read from `.perry/config.jsonl`, default 14) → "It's been <N>d since the last snapshot — run `/okr snapshot` to preserve the current state."
-   - Other 1–2 suggestions based on what's missing/behind:
-     - "no current phase → run `/okr plan-phase <slug>`"
-     - "KR P<NNN>-O<n>-KR<n> at 30% with 80% of phase commits hit → consider `score-phase` carrying it forward"
-     - "scope-reduction trigger tripped (phase day ≥ N and USER-XXX still open) → apply scope cut"
+5. **Next actions** — run `"$PERRY_HOME/bin/perry-state" --section next --lane goals` and render it per `$PERRY_HOME/reference/next.md § Rendering`. The command decides; never add, drop or reorder a recommendation.
 
 6. Then ask: **"What do you want to do?"**
 
