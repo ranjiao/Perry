@@ -305,4 +305,23 @@ stores, `.perry/events.jsonl`, the journal. No `perry-task`, `perry-tasks`,
 
 ## 7. The suite
 
-See § 7.1, added after the run on the commit that carries this file.
+### 7.1 On `b15fc25d`
+
+`b15fc25d` is the code commit `16eba07d` plus this file and the board sample.
+The run: `bash tests/run`, in the foreground, with nothing else running in the
+tree.
+
+| step | result |
+|---|---|
+| 0. tree guard | recorded at the start; at the end, nothing under the worktree moved |
+| 1. schema drift guard | clean |
+| 2. contract tests | **140 modules, 3992 tests, 0 red**, 229.4 s, 8 workers: all green |
+| 3. `bin/` scripts | all OK |
+| 4. sample projects lint | English: 0 errors, 9 warnings, the fixture's own standing ones. Chinese: clean |
+
+- No standing red at the base, and none appeared.
+- The durations line lists 141 recorded, 143 on disk and 4 unmeasured, and
+  names two modules absent from `durations.json` (F5). Neither is this row's.
+  Adding its entry took `test_board_names_its_sources.py` off that list.
+
+The commit that adds this section changes nothing but this file.
