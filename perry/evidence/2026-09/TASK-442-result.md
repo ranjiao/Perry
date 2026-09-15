@@ -3,7 +3,8 @@
 > Branch: `coding/task-442-next-section` · Base: `bb178072` · Executor: claude-subagent
 > Commits: `1791a8c3` step 1 (block, rule file, rule page) · `00fc5a5c` step 2
 > (pointers, tests, durations) · `cbd1ea8b` step 3 (contract page and registry) ·
-> step 4 (the mutation-found test and this file).
+> `1970b6c2` step 4 (the mutation-found test and this file) · `bf9a1d9a` step 5
+> (`--help` back under its cap) · step 6 (§ 7 of this file).
 
 ## 0. Base check
 
@@ -242,4 +243,27 @@ requires both repeats to be skipped.
 
 ## 7. Full suite on the final commit
 
-(filled in below)
+**First full run, on `1970b6c2`:** 141 modules · 3974 tests · 3 modules red ·
+11 tests failed. One red was new and belonged to this change:
+`test_bin_surface.TestHelpIsUsageFirstAndSmall.test_the_whole_tool_help_is_a_page_not_a_paper`
+failed for `perry-state`, because `--help` was 3,240 bytes against its 3,000-byte
+cap. Re-run alone, it failed the same way. Step 5 (`bf9a1d9a`) removed the
+docstring paragraph that restated the generated usage block and shortened the two
+flag summaries. `--help` is now 2,924 bytes. `test_bin_surface` (59),
+`test_next_section` (40) and `test_shipped_vocabulary` (52) are each green when
+run alone.
+
+**Final run, on `bf9a1d9a`**, with `bash tests/run` and PERRY_PROJECT / PERRY_HOME
+unset: **141 modules · 3974 tests · 2 modules red · 10 tests failed
+(3964 / 3974 pass).**
+
+- **Failing tests:** the failing test ids are **identical to the baseline's**,
+  compared as sorted `FAIL` lines from the two logs with `diff`: the 9 in
+  `test_md_store` and the 1 in `test_okr_krs_render` (§ 1).
+- **Nothing new:** there is no red beyond the base measurement.
+- **Other steps:** step 1 (templates versus the schema) is clean; step 3 (every
+  `bin/` script compiles and answers `--help`) and step 4 (sample projects lint)
+  pass; step 0, the tree guard, reports that nothing under the worktree moved.
+
+Against the base, the suite gained one module (`test_next_section`) and 40
+tests.
