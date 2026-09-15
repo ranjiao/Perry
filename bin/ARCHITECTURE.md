@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: user (§6, §7)
 > Version: v1
-> Last reviewed: 2026-09-14
+> Last reviewed: 2026-09-15
 > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
 > Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
@@ -15,8 +15,14 @@ The rule the directory exists to enforce: **a number Perry reports must be
 computed, never eyeballed.** An agent that reads `perry-tasks board` and counts
 blocked rows is right most of the time, and the times it is wrong are invisible.
 
-It does not decide what to do. It does not call a model, with one named
-exception. It does not judge what a document means.
+It decides one thing about what to do, and only from a declared table:
+`perry-state --section next` evaluates `reference/next-rules.json` over the
+payload it computes and returns the next-step recommendation that the lanes
+render. That is the user's decision,
+`perry/design/DESIGN-020-guided-planning.md § 9`, the 2026-09-15 entry,
+confirmed by the user in session. Beyond that it does not decide what to do. It
+does not call a model, with one named exception. It does not judge what a
+document means.
 
 ## §2. Components
 
@@ -32,7 +38,7 @@ flowchart TD
         Know["perry-knowledge"]
     end
     subgraph read["readers"]
-        State["perry-state<br/>the standup payload"]
+        State["perry-state<br/>the standup payload · the next block"]
         Lint["perry-lint<br/>9 modes · the census"]
         Diag["perry-diagnose"]
         Explain["perry-explain"]
@@ -178,6 +184,10 @@ R5, and `board` names a held file on stderr as one that can be deleted.
 
 ## §8. Change log
 
+- 2026-09-15 · v1 · TASK-442: §1 records that `perry-state --section next`
+  owns the next-step recommendation, evaluated from `reference/next-rules.json`
+  (`perry/design/DESIGN-020-guided-planning.md § 9`, 2026-09-15). §2's
+  `perry-state` node names the next block.
 - 2026-09-14 · v1 · TASK-237 3c: this repository holds no `BOARD.md`. §1 names
   `perry-tasks board` as the board a reader counts from; §2's `perry_store.py`
   row and §5's registers say the render, diff and verify verbs act only on a

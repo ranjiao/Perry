@@ -61,9 +61,15 @@ there is no cross-project registry).
 - **Purpose**: read and write project state. Twenty executables plus three shared
   libraries.
 - **Owns**: every write to a canonical store, every computed number the standup
-  prints, and the argument contract those calls are made through.
-- **Doesn't own**: what to do next. The `SKILL.md` files decide; these tools
-  execute and refuse.
+  prints, the argument contract those calls are made through, and the
+  **next-step recommendation**: `perry-state --section next` evaluates the
+  declared rule table `reference/next-rules.json` over the payload it already
+  computes, so the same state gives the same recommendation. The move is the
+  user's decision, `perry/design/DESIGN-020-guided-planning.md § 9`, the
+  2026-09-15 entry, confirmed by the user in session.
+- **Doesn't own**: the rules, which are declared in `reference/`, or the
+  procedure around a recommendation — when to show it and what to ask the user
+  are the `SKILL.md` files'. These tools execute, compute and refuse.
 - **Module document**: [`bin/ARCHITECTURE.md`](bin/ARCHITECTURE.md)
 
 ### `viewer/parsers.py` — the one reader
@@ -78,8 +84,8 @@ there is no cross-project registry).
 
 ### `schema/` — the declared shape
 - **Purpose**: `state-schema.json` (107KB) declares every file, heading, table,
-  enum, store and claim. Seven contract pages publish the payloads outside
-  consumers read.
+  enum, store and claim. Eight contract pages publish the payloads outside
+  consumers read; `next-contract.md` is the eighth.
 - **Owns**: what a file must look like, and what a payload promises.
 - **Doesn't own**: how a tool reaches that shape.
 
@@ -87,15 +93,21 @@ there is no cross-project registry).
 - **Purpose**: the router (222 lines, tier 0, read on every invocation) and
   three lane files loaded on demand.
 - **Owns**: procedure — what an agent does, in what order, and when it stops to
-  ask the user.
-- **Doesn't own**: any number. Every figure a lane prints comes from a `bin/`
-  call.
+  ask the user. A lane **renders** the next step `perry-state --section next`
+  returns; it never reorders, adds or drops a recommendation, and may add one
+  line marked as its own note (`perry/design/DESIGN-020-guided-planning.md § 9`,
+  the 2026-09-15 entry, confirmed by the user in session).
+- **Doesn't own**: any number, or which step to recommend. Every figure a lane
+  prints comes from a `bin/` call, and so does the recommendation.
 
 ### `modes/`, `packs/`, `reference/`, `templates/`
 - **Purpose**: the vocabulary a project can declare (four work modes), the
   domain pack (`software-ops`, which is where this discipline is defined),
   tier-1 reference pages loaded on demand, and the scaffolds a new project gets.
-- **Owns**: per-project variation. A track's mode, a pack's glossary.
+  `reference/` also holds `next-rules.json`, the rule table `bin/perry-state`
+  evaluates for the next step, and `next.md`, which explains each rule.
+- **Owns**: per-project variation. A track's mode, a pack's glossary. The
+  next-step rules, declared as data that `bin/` evaluates.
 
 ### `tests/` — 136 modules
 - **Purpose**: the contract, executable. Includes `tests/tree_guard.py`, which
@@ -170,9 +182,14 @@ flowchart LR
     P --> S["perry-state"]
     S -->|"--compact ≈ 11KB"| Standup["the standup, every session"]
     S -->|"--section &lt;name&gt;"| Detail["one key, in full"]
+    S -->|"--section next --lane / --after"| Next["the next block,<br/>narrowed"]
     S -->|"--json ≈ 174KB"| Whole["the whole payload"]
     T["perry-task list --json"] -->|"contract 2.4, bounded"| Outside([aiMark])
 ```
+
+`--section next` is the one section that is not always the payload's key as it
+stands. With `--lane` or `--after` it prints the block evaluated again over
+only that lane's or that subcommand's rules, plus the overlays (TASK-442).
 
 ## §5. Contracts
 
@@ -278,9 +295,33 @@ flowchart LR
   or what happens when it drifts from the code beside it.
 - **OQ-3 — Should `perry-lint` check mermaid?** `perry-state` already counts
   fenced mermaid blocks (`mermaid_count`) and nothing consumes the number.
+- **OQ-4 — May `--compact` be accepted with `--section next`?** *Proposed*
+  (TASK-442). `DESIGN-020 § 5.4`'s closing step runs
+  `perry-state --section next --after <subcommand> --compact`, and
+  `perry-state` refuses `--compact` together with `--section`. `TASK-443`
+  builds that step and needs one of the two to give way.
+- **OQ-5 — Should the contract registry recognise a family that is not
+  `/list`?** *Proposed* (TASK-442). `perry-next/1.0` is one object, not a list.
+  `tests/contract_key_parity.py § CONTRACT_ID` matches only a three-part id, so
+  the parity baseline keys `schema/next-contract.md` by its path, and two
+  registry tests had their `/list` assumption widened to take the page at all.
+- **OQ-6 — May `--section <name>` print something other than the payload's
+  key?** *Proposed* (TASK-442). §4 describes a section as one key in full.
+  `--section next` with `--lane` or `--after` prints a block evaluated over
+  fewer rules, which is not what `--json` carries under `next`.
 
 ## §8. Change log
 
+- 2026-09-15 · v1 · TASK-442, descriptive (NN-6), on its branch:
+  - §2 `bin/` owns the next-step recommendation: `perry-state --section next`
+    evaluates `reference/next-rules.json` over its own payload, and the lanes
+    render what it returns. The move is the user's decision in
+    `perry/design/DESIGN-020-guided-planning.md § 9`, the 2026-09-15 entry,
+    confirmed by the user in session. `bin/ARCHITECTURE.md § 1` says the same.
+  - §2 `schema/`: eight contract pages. §2 `reference/`: it holds the rule
+    table `bin/` evaluates.
+  - §4's read path names the narrowed `--section next`.
+  - §7 gains three questions marked proposed. §1, §3 and §6 are not edited.
 - 2026-09-15 · v1 · **User-confirmed** (NN-6), after TASK-262 rounds 4a and 4b
   retired a `BOARD.md` a project still holds:
   - §6 NN-2 takes the wording proposed in
