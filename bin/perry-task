@@ -7999,6 +7999,16 @@ def declared_write_board(schema: dict, state_root: Path, path: Path,
         raise Refused(f"the declared board cannot be laid out: the board "
                       f"template cannot be read ({type(exc).__name__}: "
                       f"{exc}). Nothing was written.") from None
+    # **The register loader refuses first** (TASK-262 round 4a). Before 4a a
+    # project holding a `BOARD.md` reached `register_change` with the file's
+    # board, and a corrupt or duplicated register store was refused there by
+    # `load_register_records`, whose message names the line, every repeated id
+    # and the lint rule that reports it. Every write now comes through here,
+    # where `load_board_stores`' finding says only that the store is
+    # malformed; asking the register loader first keeps the refusal a reader
+    # can act on. It raises or returns, and reads each store once more.
+    for key, register in REGISTER_SPEC.items():
+        load_register_records(register[1](state_root), key)
     stores, findings = perry_store.load_board_stores(state_root)
     if findings:
         first = findings[0]
