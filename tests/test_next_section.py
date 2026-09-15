@@ -220,6 +220,42 @@ def recommended(block: dict) -> list[str]:
         a["rule"] for a in block["alternates"]]
 
 
+#: The command each fixture's primary must OFFER, written out beside its rule.
+#: The PMO found the rule id alone was not enough: `R-no-okr` pointed at
+#: `/perry work triage` on a copy and every test here stayed green, because a
+#: rule that fires with the wrong command still fires. What a user types is
+#: the command, so that is what is pinned.
+EXPECTED_COMMAND = {
+    "installed_no_okr": "/perry goals init",
+    "okr_no_phase": "/perry goals plan-phase <slug>",
+    "active_phase_week_unknown": "/perry work friday-review",
+    "closable_phase": "/perry work end-phase-retro",
+    "queue_track": "/perry work triage",
+}
+
+
+class TestEachFixtureOffersItsCommand(Fixtures):
+
+    def test_the_primary_offers_the_command_written_for_each_fixture(self):
+        self.assertEqual(set(EXPECTED), set(EXPECTED_COMMAND))
+        for name, command in EXPECTED_COMMAND.items():
+            with self.subTest(fixture=name):
+                block = self.next_of(name)
+                self.assertIsNotNone(block["primary"], f"{name}: nothing fired")
+                self.assertEqual(EXPECTED[name], block["primary"]["rule"])
+                self.assertEqual(command, block["primary"]["command"])
+
+    def test_the_command_reaches_the_published_payload_unchanged(self):
+        """`--section next` is what a lane runs, so the pin holds there too."""
+        for name, command in EXPECTED_COMMAND.items():
+            proc = inproc.run("perry-state", ["--section", "next", "--root",
+                                              str(self.roots[name])], cwd=ROOT)
+            with self.subTest(fixture=name):
+                self.assertEqual(0, proc.returncode, proc.stderr)
+                primary = json.loads(proc.stdout)["next"]["primary"]
+                self.assertEqual(command, primary["command"])
+
+
 class TestEachFixtureHasItsPrimary(Fixtures):
 
     def test_the_primary_is_the_rule_written_for_each_fixture(self):
