@@ -568,6 +568,7 @@ def harvest(root: Path, read=None) -> dict:
 
     harvest_linkage_store(root, ent)
     harvest_register_stores(root, ent)
+    harvest_nested_register_stores(root, ent)
     return entries
 
 
@@ -575,6 +576,69 @@ def harvest(root: Path, read=None) -> dict:
 #: the record's title. `intake` has no id.
 REGISTER_STORE_TITLES = (("tasks", "title"), ("asks", "needed"),
                          ("risks", "risk"), ("cadence", "title"))
+
+
+def harvest_nested_register_stores(root: Path, ent) -> None:
+    """The ids a NESTED Perry project's stores declare — definitions only.
+
+    **A nested project's `BOARD.md` was a markdown table `walk_md` reached**,
+    so every id it carried had a home: `tests/fixtures/sample-project/BOARD.md`
+    declared `CAD-001`, and the evidence documents on this repository that
+    quote a probe's `CAD-001` were quoting a declared id. TASK-262 round 4b
+    upgraded those fixtures (stores imported, board deleted), and the ids moved
+    into `cadence.jsonl`, which the markdown walk does not read and
+    `harvest_register_stores` reads only at this project's own roots.
+
+    A directory under `root` holding `.perry/` is a Perry project, and its
+    register stores are read here with the same pruning `walk_md` applies
+    (`SKIP_DIRS`, and a nested `.git` is another checkout). **Only the
+    definition is taken, never a mention**: a nested project's records cite
+    ids of THAT project (`WIT-002` depends on `WIT-404` on purpose), and
+    charging this project for them would be the fixture's findings leaking
+    into the scan of the repository that ships it.
+    """
+    root = Path(root)
+    for dirpath, dirnames, _files in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS
+                       and lib.exists_or_unreadable(
+                           Path(dirpath) / d / ".git") is not True]
+        here = Path(dirpath)
+        if here == root or ".perry" not in dirnames:
+            continue
+        try:
+            states = {here, Path(resolve_state_root(here))}
+        except Exception:  # noqa: BLE001 — a nested config may be anything
+            states = {here}
+        for state in states:
+            for name, title_field in REGISTER_STORE_TITLES:
+                store = state / f"{name}.jsonl"
+                if not store.is_file():
+                    continue
+                rel = (str(store.relative_to(root))
+                       if store.is_relative_to(root) else store.name)
+                try:
+                    lines = store.read_text(encoding="utf-8",
+                                            errors="replace").split("\n")
+                except OSError:
+                    continue
+                for n, line in enumerate(lines, 1):
+                    if not line.strip():
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(rec, dict):
+                        continue
+                    rid = str(rec.get("id") or "")
+                    if not ID_RE.fullmatch(rid) or not is_real_id(rid):
+                        continue
+                    e = ent(rid)
+                    e["defined"] = e["defined"] or f"{rel}:{n}"
+                    e["title"] = e["title"] or (
+                        str(rec.get(title_field) or "") or None)
+                    e["kind"] = e["kind"] or "store record"
+                    e["register"] = True
 
 
 def harvest_register_stores(root: Path, ent) -> None:

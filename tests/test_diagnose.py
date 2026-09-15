@@ -468,10 +468,19 @@ class TestIdsResolve(unittest.TestCase):
         self.assertTrue({"REL-001", "ADR-002", "USER-014", "P002-O1-KR1"} <= ids, ids)
 
     def test_dangling_ids_are_reported_and_gate(self):
-        """The fixture's phase doc names REL-003, which is on no board."""
+        """The fixture's phase doc names TASK-157, which nothing here declares.
+
+        It named REL-003 until TASK-262 round 4b. REL-003 was "on no board",
+        but the fixture's own event log opened and closed it, so the upgrade
+        (`perry-tasks write --from-board`) derived its closed record into
+        `tasks.jsonl` — a declared id, correctly not dangling any more.
+        TASK-157, cited in the same document, is declared by no file of this
+        project, and is what the gate now reports."""
         r = self.explain(FIXTURE, "--dangling", "--json")
         self.assertEqual(r.returncode, 1)
-        self.assertIn("REL-003", {x["id"] for x in json.loads(r.stdout)})
+        dangling = {x["id"] for x in json.loads(r.stdout)}
+        self.assertIn("TASK-157", dangling)
+        self.assertNotIn("REL-003", dangling)
 
     def test_unknown_id_fails_helpfully(self):
         r = self.explain(FIXTURE, "REL-999")
@@ -479,11 +488,19 @@ class TestIdsResolve(unittest.TestCase):
         self.assertIn("--all", r.stdout)
 
     def test_label_form_pairs_id_with_title(self):
-        """The form the style rule requires: REL-002 ("Flake detector")."""
+        """The form the style rule requires: REL-009 ("Pipeline docs refresh").
+
+        It was REL-002 ("Flake detector") until TASK-262 round 4b, whose title
+        came from the fixture's `BOARD.md` row: `BOARD.md` sorted ahead of
+        `evidence/REL-002-spec.md` in the walk. With the board imported and
+        deleted, the ID-named spec file is REL-002's first home and its heading
+        is the glossary title (round 4b result, F29). REL-009 has no document
+        named for it, so its title is its `tasks.jsonl` record's, which is the
+        pairing this test is about."""
         mod = load_bin_module("perry-explain")
         entries = mod.harvest(FIXTURE)
-        self.assertEqual(mod.label(entries["REL-002"]),
-                         'REL-002 ("Flake detector")')
+        self.assertEqual(mod.label(entries["REL-009"]),
+                         'REL-009 ("Pipeline docs refresh")')
         self.assertEqual(mod.label({"id": "X-1"}), "X-1")
 
     def test_works_on_a_project_with_its_own_id_convention(self):
@@ -499,8 +516,30 @@ class TestIdsResolve(unittest.TestCase):
 
 class TestUserLoadFindings(unittest.TestCase):
     def test_dangling_ids_surface_as_a_finding(self):
-        p = scan(FIXTURE)
-        self.assertIn("LOAD-02", ids(p))
+        """On a copy of the fixture that cites an id nothing declares.
+
+        The fixture itself carried one until TASK-262 round 4b: its phase doc
+        continues "REL-002 → REL-003", and REL-003 was on no board. The
+        upgrade derived REL-003's closed record from the fixture's event log,
+        and the fixture's other undeclared ids (`TASK-157`, `DESIGN-013`) sit
+        in a quoted note, which `split_dangling` reads as a report. So the
+        dangling reference is planted, in the same prose position REL-003
+        held, and `LOAD-02` must fire on it and not fire on the unplanted copy.
+        """
+        import shutil
+        with tempfile.TemporaryDirectory() as td:
+            clean = Path(td) / "clean"
+            shutil.copytree(FIXTURE, clean)
+            self.assertNotIn("LOAD-02", ids(scan(clean)))
+            planted = Path(td) / "planted"
+            shutil.copytree(FIXTURE, planted)
+            doc = planted / "phase" / "002-release-pipeline.md"
+            text = doc.read_text()
+            anchor = "PMO continues with REL-002 → REL-003."
+            self.assertEqual(text.count(anchor), 1)
+            doc.write_text(text.replace(anchor, "PMO continues with "
+                                        "REL-002 → REL-003 → REL-404."))
+            self.assertIn("LOAD-02", ids(scan(planted)))
 
     def test_id_sprawl_without_a_lookup(self):
         with tempfile.TemporaryDirectory() as td:

@@ -932,6 +932,19 @@ class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):
                        handed_back.HOSTILE_ROOT_NAME).resolve()
         src = ROOT / "tests" / "fixtures" / "sample-project"
         subprocess.run(["cp", "-R", str(src), str(cls.project)], check=True)
+        # **A project the import has not run on yet** (TASK-262 round 4b).
+        # The fixture held a `BOARD.md` and no `tasks.jsonl`, which is the
+        # shape this refusal is for; it was upgraded, so the shape is rebuilt
+        # here: the board the fixture's stores print becomes the held file,
+        # and the task store is removed. `perry-tasks write --from-board`
+        # imports that text (4 records, measured), so the command the refusal
+        # hands back has something real to act on.
+        board = subprocess.run(
+            [sys.executable, str(BIN / "perry-tasks"), "board",
+             "--root", str(cls.project)],
+            capture_output=True, text=True, check=True, cwd=str(ROOT))
+        (cls.project / "BOARD.md").write_text(board.stdout, encoding="utf-8")
+        (cls.project / "tasks.jsonl").unlink()
 
     @classmethod
     def tearDownClass(cls):
