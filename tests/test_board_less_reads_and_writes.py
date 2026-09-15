@@ -593,6 +593,22 @@ class TestTheRetiredBoardHintStaysOffTheJsonChannel(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("is a retired board", out.stderr)
 
+    def test_the_hint_says_import_before_delete(self):
+        """Round 4a's F17 (user decision, 2026-09-15): a register only the held
+        file carries is lost by a bare `git rm`, so the hint names the import
+        verbs, and names them BEFORE the deletion."""
+        p = Project(board=FORGED_BOARD)
+        self.addCleanup(p.close)
+        out = p.task(["risk-add", "--title", "a probe risk"])
+        self.assertEqual(out.returncode, 0, out.stderr)
+        line = next(l for l in out.stderr.splitlines() if "is a retired board" in l)
+        # The verbs are named by their flag, not as pasteable commands: a
+        # pasteable writer must carry the root (`test_handed_back_root`), and
+        # the hint knows the file, not which registers need importing.
+        self.assertIn("`--from-board` imports", line)
+        self.assertIn("reference/version-compatibility.md", line)
+        self.assertLess(line.index("--from-board"), line.index("git rm"))
+
 
 class TestTheContractsAnnounceTheStoreRead(unittest.TestCase):
     """The PMO's widening of 3a: a consumer keys on the contract, not the code.

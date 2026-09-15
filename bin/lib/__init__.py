@@ -666,10 +666,20 @@ def retired_board_hint(path: str | os.PathLike) -> str:
 
     One line, for stderr. The path is printed as found; the `git rm` command
     quotes it with `shlex.quote`, for the reason `root_flag` above gives.
+
+    **Import before delete** (round 4a's F17, the user's decision of
+    2026-09-15). A register the file holds and no store does lives only in the
+    file, so a hint that said only "it can be deleted" invited losing it. The
+    line names the import verbs first. It also says no *write* uses the file,
+    not no *tool*: the import verbs still read it, and that is the point.
     """
-    return (f"perry: {path} is a retired board — no Perry tool reads or "
-            f"updates it any more; the board is `perry-tasks board`. It can be "
-            f"deleted: `git rm {shlex.quote(str(path))}`")
+    return (f"perry: {path} is a retired board — no Perry write reads or "
+            f"updates it any more; the board is `perry-tasks board`. Before "
+            f"deleting it, import any register it holds that has no store yet "
+            f"with the `--from-board` imports "
+            f"(reference/version-compatibility.md § Upgrading a project to "
+            f"G3), then "
+            f"`git rm {shlex.quote(str(path))}`")
 
 
 def held_board_paths(project_root: str | os.PathLike,
