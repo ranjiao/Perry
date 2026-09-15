@@ -145,7 +145,16 @@ No implemented rule's mutation stayed green.
 
 ## 8. Full suite on the final commit (verification 2)
 
-Pending: filled in after the run on the commit that carries this file.
+`bash tests/run` on `c9725643` (the commit that carries this file and the
+durations entry): **141 modules, 3966 tests; 2 modules red, 10 tests failed**;
+tree guard passed (nothing under the worktree moved); durations 144 recorded,
+144 on disk, every module accounted for.
+
+The 10 failing tests are **identical, name for name, to the baseline's 10**
+(`test_md_store` 9, `test_okr_krs_render` 1; compared as sets from the two
+logs: nothing only in the final run, nothing only in the baseline). The 32 new
+tests are the whole difference in count (3934 → 3966). **No reds beyond the
+baseline.**
 
 ## 9. Unusual
 
