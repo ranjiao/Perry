@@ -522,6 +522,17 @@ their scope survives here and ids are never reissued.
 
 ## 9. Changes (append-only after lock)
 
+- 2026-09-15 — § 5.4 clarified: the command decides, the agent renders. The
+  position, primary and alternates the user sees are exactly what
+  `perry-state --section next` returns; the agent puts them into words and
+  never reorders, adds or drops a recommendation. It may add **one line marked
+  as its own note** — context the command cannot read, such as the user having
+  just said to skip this week's review — shown apart from the block and never
+  replacing the primary. Why: the user asked on 2026-09-15 that the next step
+  always come from a deterministic command; without a named place for
+  conversational context, an agent either ignores what the user just said or
+  quietly swaps the recommendation.
+
 ## 10. References
 
 - `perry/design/DESIGN-011-the-okr-is-elicited-not-collected.md` — superseded

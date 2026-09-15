@@ -9,9 +9,11 @@ This document is the long-term reference for the system. The `goals` lane uses i
 
 ## Mission
 
-A project-management skill that fits the four shapes agent work actually takes, whose entire state can be queried and changed by deterministic code, and whose own prose is good enough that an agent reading it produces work a person would have asked for.
+A project-management skill that fits the four shapes agent work actually takes, whose entire state can be queried and changed by deterministic code, and whose own prose is good enough that an agent reading it produces work a person would have asked for, and that tells the one person running the project where it stands and what to do next.
 
 > **Changed in v3, 2026-09-01.** The third clause read *"and that adopts a real project's existing code, data and documents rather than requiring them to be rewritten"*. `USER-910` answered that Perry is never pointed at a foreign project and `bin/perry-migrate` was deleted, so the clause described a capability the skill no longer has. `ADR-011`, `DESIGN-014`.
+
+> **Changed in v4, 2026-09-15.** The final clause was added: v4's Objective 1 — the user always knows where the project stands and what to do next — traced to no clause of the v3 Mission (`reference/input-quality.md § 1.6`, raised at this revision).
 
 ## Operating Principles
 
@@ -118,7 +120,58 @@ one.
 
 ### Objective 5 — Tasks are executed by roles that know things
 
-### Retro — v3     <!-- filled when the version closes; until then, leave empty -->
+### Retro — v3
+
+Closed 2026-09-15 by `revise`, not by scoring: no v3 KR carried a current
+value, so each is given a disposition rather than a score.
+
+| v3 KR | Disposition |
+|---|---|
+| O1-KR1 | carried → v4 `O4-KR2`, target 3 → 2 of 3 |
+| O1-KR2 | deferred to v5; it depends on live non-project tracks |
+| O1-KR3 | withdrawn: names `.perry/config.md`, replaced by `.perry/config.jsonl` (`ADR-019`) |
+| O2-KR1 | carried → v4 `O2-KR3` |
+| O2-KR2 | superseded: `BOARD.md` deleted (`TASK-237`, V4); no file left to reconcile |
+| O2-KR3 | withdrawn as a KR; the guard stays in the suite at 0 |
+| O2-KR4 | carried → v4 `O3-KR5`, stretch |
+| O2-KR5 | carried → v4 `O3-KR4`, stretch |
+| O3-KR1 | carried → v4 `O2-KR1`, widened to four authoring paths |
+| O3-KR2 | carried → v4 `O2-KR2`, on a real project |
+| O3-KR3 | withdrawn: baseline never measured; `DESIGN-016` addressed the surface |
+| O4-KR1 | achieved: at aiMark `05ad792` (2026-09-15) no source parses a Perry state file — `OKR.md` and phase paths are only stat'd for cache invalidation. The one markdown reader left, `src/perry-agents.ts`, parses optional agent duty documents, out of scope with Objective 5 withdrawn |
+| O4-KR2 | carried → v4 `O4-KR3`, stretch |
+| O4-KR3, O4-KR4 | deferred to v5 |
+| O5-KR1–KR4 | withdrawn with Objective 5 (user decision 2026-09-15); existing knowledge cards stay |
+
+## v4: 2026-09-15
+
+v3 set five Objectives and nineteen KRs; when it closed, none of the nineteen
+carried a current value, Objective 3 had not moved, and Objective 5 had declared
+zero roles. Phase 003 finished the storage work (`BOARD.md` deleted, TASK-237)
+and aiMark became Perry's first real consumer. Three designs locked on
+2026-09-14 and 2026-09-15 define what comes next: `DESIGN-020` (the user is
+told where they are and what to do next; plans are asked for, drafted and
+approved), `DESIGN-017` (structure checked before merge, meaning reviewed) and
+`DESIGN-021` (the suite runs whole once per merge). v4 consolidates to four
+Objectives, withdraws the roles Objective, and carries v3's storage tail as
+stretch under Objective 3. `~/proj/SkyTonight` is named as the first project
+planned from zero.
+
+> The key results under these objectives live in `okr.jsonl` and are read with
+> `perry-goals krs --level overall`, which prints the current version. They are
+> not written here: a fact with a schema lives in exactly one store (`ADR-019`,
+> `DESIGN-013 § 5.1`). The objectives themselves stay, because their headings
+> are what the KRs hang from.
+
+### Objective 1 — The user always knows where the project stands and what to do next
+
+### Objective 2 — The skill is the product: plans are asked for, drafted and approved
+
+### Objective 3 — Changing Perry stays cheap, and its architecture stays where the user put it
+
+### Objective 4 — Perry is used for real outside its own repository
+
+### Retro — v4     <!-- filled when the version closes; until then, leave empty -->
 
 —
 
@@ -129,3 +182,4 @@ one.
 | v1 | 2026-08-17 | First OKR. Perry had tracked itself with `work` only since `ADR-001`; goals were never set up. | The `goals` lane and `perry-goals/list/2.0` shipped, and nothing was exercising them — including the `linkage` path, which no project reaches. |
 | v2 | 2026-08-17 | Added Objective 5 — the runtime layer (roles + revisable domain knowledge, `DESIGN-006`). O1–O4 unchanged. | v1 covered no runtime-layer work; `DESIGN-006` resolved its user decisions the same day, and an unlinked implementation would be excluded from every KR roll-up. |
 | v3 | 2026-09-01 | Objective 3 replaced — "landed on three named real projects" → "the skill is the product". Mission's adoption clause dropped; one Operating Principle added. `O1-KR1` re-baselined off "real projects" to any live track; `O2-KR5` added for `ADR-011`'s remaining tiers. O4, O5 unchanged. `## v1` moved to `evidence/2026-09/okr-v1.md` for the tier-1 cap. | `USER-910` answered that Perry is never pointed at a foreign project and `perry-migrate` was deleted, so O3's three main KRs lost their vehicle. `DESIGN-014` then measured 35,033 lines of product Python against 9,810 of shipped prose and found the skill's own authoring surface — `DESIGN-011`, locked and unstarted — served by no KR at all. |
+| v4 | 2026-09-15 | Four Objectives replace five: the user is told where the project stands and what to do next (new O1); the skill is the product, with plans asked for, drafted and approved (v3 O3, widened); changing Perry stays cheap and its architecture stays where the user put it (new O3, carrying v3 O2's storage tail as stretch); Perry used for real outside its own repository (v3 O1 and O4, with `~/proj/SkyTonight`). Objective 5 withdrawn. The Mission gains a final clause. | When v3 closed, none of its 19 KRs carried a current value, Objective 3 had not moved and Objective 5 had declared zero roles. Phase 003 finished the storage work, and `DESIGN-020`, `DESIGN-017` and `DESIGN-021`, locked on 2026-09-14 and 2026-09-15, defined work v3 had no Objective for. |
