@@ -141,6 +141,31 @@ class TestDriftReconciliation(unittest.TestCase):
     the two unambiguous conditions.
     """
 
+    @staticmethod
+    def board_less(p: "Project") -> "Project":
+        """Delete the fixture's held `BOARD.md` after its import.
+
+        TASK-262 round 4a. `drift` over a held file is about that file
+        (`schema/task-list-contract.md § drift`, P6, round 4b's to retire),
+        and since 4a no write re-renders it, so on a held file every row a
+        write adds reads as orphaned. The held file is retired and may be
+        deleted; without it `drift` is reconciled against the task store,
+        which is the board-less reading these tests assert.
+        """
+        (p.root / "BOARD.md").unlink()
+        return p
+
+    def delete_record_by_hand(self, p: "Project", tid: str) -> None:
+        """The board-less form of "the row was deleted by hand": the record
+        leaves `tasks.jsonl` without a closing event."""
+        store = p.root / "tasks.jsonl"
+        kept = [l for l in store.read_text().splitlines()
+                if l.strip() and json.loads(l)["id"] != tid]
+        self.assertEqual(len(kept) + 1,
+                         len([l for l in store.read_text().splitlines()
+                              if l.strip()]), "control: one record removed")
+        store.write_text("".join(l + "\n" for l in kept))
+
     def _drift(self, p: "Project") -> dict:
         r = subprocess.run(
             ["python3", str(PERRY_HOME / "bin" / "perry-state"),
@@ -148,7 +173,7 @@ class TestDriftReconciliation(unittest.TestCase):
         return json.loads(r.stdout)["board"]["drift"]
 
     def test_a_board_the_tool_wrote_entirely_has_no_drift(self):
-        p = Project()
+        p = self.board_less(Project())
         p.run("add", "--title", "A", "--priority", "P0")
         p.run("add", "--title", "B", "--priority", "P0")
         d = self._drift(p)
@@ -158,13 +183,10 @@ class TestDriftReconciliation(unittest.TestCase):
     def test_an_event_whose_row_was_deleted_by_hand_is_reported(self):
         """The mutation did not land in the markdown — or someone removed it
         without closing it. Either way the two records disagree."""
-        p = Project()
+        p = self.board_less(Project())
         p.run("add", "--title", "A", "--priority", "P0")
         _, b = p.run("add", "--title", "B", "--priority", "P0")
-        board = p.root / "BOARD.md"
-        board.write_text("\n".join(
-            l for l in board.read_text().split("\n")
-            if not l.startswith(f"| {b['id']} |")))
+        self.delete_record_by_hand(p, b["id"])
         d = self._drift(p)
         self.assertEqual(d["drift"], 1)
         self.assertIn(b["id"], d["orphaned"])
@@ -199,6 +221,7 @@ class TestDriftReconciliation(unittest.TestCase):
             "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
             "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
             "| TASK-900 | written by hand | Coding Agent | not_started | — | — |\n\n## P1", 1))
+        self.board_less(p)
         p.run("add", "--title", "tool-written", "--priority", "P0")
         d = self._drift(p)
         self.assertEqual(d["drift"], 0, "a pre-tool row was counted as drift")
@@ -222,7 +245,7 @@ class TestDriftReconciliation(unittest.TestCase):
         tuple: the bug was that two readers disagreed about what creates a row,
         and only a written row can show that.
         """
-        p = Project(tracks=MODE_TRACKS)
+        p = self.board_less(Project(tracks=MODE_TRACKS))
         p.run("intake", "--title", "vendor spend reconciliation")
         code, r = p.run("route", "1", "--track", "ops")
         self.assertEqual(code, 0)
@@ -236,10 +259,7 @@ class TestDriftReconciliation(unittest.TestCase):
         # And the other half of the same tuple: deleting a routed row by hand
         # must still be caught. A fix that made `route` invisible to both loops
         # would pass the assertion above and lose the detection.
-        board = p.root / "BOARD.md"
-        board.write_text("\n".join(
-            l for l in board.read_text().split("\n")
-            if not l.startswith(f"| {r['id']} |")))
+        self.delete_record_by_hand(p, r["id"])
         d = self._drift(p)
         self.assertIn(r["id"], d["orphaned"],
                       "a routed row deleted by hand went undetected")
@@ -275,14 +295,24 @@ class TestDriftReconciliation(unittest.TestCase):
             f"a cadence row was reported as predating the log on a board the "
             f"tool wrote entirely, and no user action could ever clear it: {d}")
 
-    def test_drift_is_reported_and_a_write_repairs_from_the_store(self):
-        """Projection drift cannot discard store truth after TASK-090."""
+    def test_a_hand_edit_to_a_held_board_cannot_discard_store_truth(self):
+        """Projection drift cannot discard store truth after TASK-090.
+
+        **Since TASK-262 round 4a the edit does not reach the write at all.**
+        This asserted that a row deleted from the held `BOARD.md` was reported
+        in the next write's `projection.rows_not_on_board`. A write now builds
+        from the declared board, so the held file's edit is neither read nor
+        reported, and the record survives because nothing looked at the file:
+        the store keeps the row, the file keeps the hand edit byte for byte,
+        and the board a reader gets (`perry-tasks board`) carries the row.
+        """
         p = Project()
         _, a = p.run("add", "--title", "A", "--priority", "P0")
         board = p.root / "BOARD.md"
         board.write_text("\n".join(
             l for l in board.read_text().split("\n")
-            if not l.startswith(f"| {a['id']} |")))
+            if not l.startswith(f"| {a['id']} |")) + "\n<!-- edited by hand -->\n")
+        edited = board.read_bytes()
         r = subprocess.run(
             ["python3", str(PERRY_HOME / "bin" / "perry-state"),
              "--root", str(p.root), "--json"], capture_output=True, text=True)
@@ -293,7 +323,10 @@ class TestDriftReconciliation(unittest.TestCase):
                       (p.root / "tasks.jsonl").read_text().splitlines()
                       if line.strip()}
         self.assertIn(a["id"], stored_ids)
-        self.assertIn(a["id"], out["projection"]["rows_not_on_board"])
+        self.assertEqual(out["projection"]["rows_not_on_board"], [])
+        self.assertEqual(board.read_bytes(), edited,
+                         "a write rewrote the retired file")
+        self.assertIn(f"| {a['id']} |", p.board())
 
 
 class TestLaneProceduresCallTheTool(unittest.TestCase):
@@ -823,16 +856,6 @@ class TestFromAimarksProductionReport(unittest.TestCase):
             f"a row `list` printed could not be closed: {out}")
         self.assertNotIn("TASK-010", p.board())
 
-    def test_a_struck_through_id_is_still_findable(self):
-        """`~~DATA-007~~` is how a real board retires a row. The reader already
-        strips the emphasis; the writer has to match it."""
-        p = Project(board=BOARD.replace(
-            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
-            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
-            "| ~~TASK-900~~ | Retired | User | done | — | — |\n\n## P1", 1))
-        code, out = p.run("drop", "TASK-900", "--reason", "superseded")
-        self.assertEqual(code, 0, f"a struck-through id was unreachable: {out}")
-
     def test_evidence_is_split_and_resolved_rather_than_handed_over_raw(self):
         """One real cell: three comma-separated backticked paths, relative to
         the PROJECT root while the contract declared `state_root` — and the
@@ -1118,7 +1141,7 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         `{"id": "H", "title": "· Apple …", "severity": "watch"}`. Three defects,
         one cause — nothing told the parser the first token was a marker."""
         p = Project()
-        board = p.board().replace(
+        board = p.held_board().replace(
             "## Top risks\n\n- none",
             "## Top risks\n\n- H · Apple developer agreement expired")
         (p.root / "BOARD.md").write_text(board)
@@ -1133,7 +1156,7 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         project wrote is a second axis, and folding them into one is what made
         an H and an M display identically."""
         p = Project()
-        board = p.board().replace(
+        board = p.held_board().replace(
             "## Top risks\n\n- none",
             "## Top risks\n\n- H · certificate expired\n- L · docs are thin")
         (p.root / "BOARD.md").write_text(board)
@@ -1145,7 +1168,7 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         parser eat the first word of every unmarked sentence — which is what it
         used to do: `- Perry is half-adopted` reported `id: "Perry"`."""
         p = Project()
-        board = p.board().replace(
+        board = p.held_board().replace(
             "## Top risks\n\n- none",
             "## Top risks\n\n- Hostname resolution is flaky in CI")
         (p.root / "BOARD.md").write_text(board)
@@ -1159,7 +1182,7 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         first words. Removing the invention would have taken every bullet risk
         on every unmigrated project to zero."""
         p = Project()
-        board = p.board().replace(
+        board = p.held_board().replace(
             "## Top risks\n\n- none",
             "## Top risks\n\n- H · certificate expired\n- M · vendor is late")
         (p.root / "BOARD.md").write_text(board)

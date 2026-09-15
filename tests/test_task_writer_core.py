@@ -202,6 +202,9 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         is reported when it goes missing.
         """
         p = Project()
+        # Board-less, for the `drift` reading at the end: see
+        # `test_drift_is_clean_on_a_board_the_tool_wrote_in_chinese`.
+        (p.root / "BOARD.md").unlink()
         ev_dir = p.root / ".perry"
         (ev_dir / "events.jsonl").write_text("")
         mode = ev_dir.stat().st_mode
@@ -285,31 +288,16 @@ class TestALocalizedBoard(unittest.TestCase):
         self.assertEqual(self.row(p)[3], "in_progress",
                          "the event says in_progress and the board does not")
 
-    def test_a_new_column_joins_in_the_boards_own_language(self):
-        """Appending `Stage` beside `阶段序列` would leave a header in two
-        languages, which `perry-lint`'s localized match regexes then disagree
-        about."""
-        p = self.zh([track("blog", "pipeline", spine="commitments",
-                           stages="brief->draft", default_rung="V5")])
-        code, out = p.run("add", "--title", "文章", "--track", "blog", "--priority", "P0")
-        self.assertEqual(code, 0, out)
-        header = next(l for l in p.board().split("\n") if l.startswith("| 编号 |"))
-        self.assertIn("阶段", header, "the new column was added in English")
-        self.assertNotIn("Stage", header)
-
-    def test_an_unreadable_header_is_refused_not_blanked(self):
-        """A refusal names the header it could not read. A blank row names
-        nothing, and exits 0."""
-        p = Project(board=ZH_BOARD.replace("| 编号 | 标题 |", "| 甲 | 乙 |"))
-        code, out = p.run("add", "--title", "X", "--priority", "P0")
-        self.assertEqual(code, 1, f"an unresolvable header was written to: {out}")
-        self.assertIn("i18n.columns", str(out))
-        self.assertNotIn("TASK-001", p.board())
-
     def test_drift_is_clean_on_a_board_the_tool_wrote_in_chinese(self):
         """The end-to-end statement: the localized path produces no false
         signal in the detector either."""
         p = self.zh()
+        # **Board-less** (TASK-262 round 4a). `drift` over a held `BOARD.md`
+        # is about that file (`schema/task-list-contract.md § drift`, P6, 4b's
+        # to retire), and no write updates it any more, so a held file here
+        # would report the two tool-written rows as orphaned. The file is
+        # retired and may be deleted, so it is.
+        (p.root / "BOARD.md").unlink()
         p.run("add", "--title", "甲任务", "--priority", "P0")
         p.run("add", "--title", "乙任务", "--priority", "P1")
         r = subprocess.run(
@@ -635,12 +623,22 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
         self.assertIn("dropped", row)
         self.assertIn("handbook", row)
 
-    def test_a_queue_add_creates_the_intake_section(self):
+    def test_a_queue_add_creates_the_intake_register(self):
         """`triage` step 0 gated itself on the section existing, and only
-        `intake` created it — so the gate no-opped for every queue track."""
+        `intake` created it — so the gate no-opped for every queue track.
+
+        **The register is its store since TASK-237** and the section is what
+        `perry-tasks board` prints from it; TASK-262 round 4a stopped writes
+        touching a held `BOARD.md`. So what a queue `add` creates is
+        `intake.jsonl`, and the control is that the fixture did not have one.
+        """
         p = Project(tracks=MODE_TRACKS)
-        p.run("add", "--title", "X", "--track", "ops", "--priority", "P0")
-        self.assertIn("## Intake", p.board())
+        self.assertFalse((p.root / "intake.jsonl").exists(), "fixture drifted")
+        code, out = p.run("add", "--title", "X", "--track", "ops",
+                          "--priority", "P0")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((p.root / "intake.jsonl").exists(),
+                        "a queue add created no intake register")
 
     def test_add_honours_arrived_rather_than_silently_ignoring_it(self):
         """The flag was accepted and overwritten with today, writing a wrong
