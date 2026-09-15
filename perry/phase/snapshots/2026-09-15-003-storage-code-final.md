@@ -2,7 +2,7 @@
 
 > **Owner**: `goals` lane (only writer). `work` reads this every standup.
 > **Started**: 2026-08-28
-> **Status**: scored
+> **Status**: active
 > **Source**: `OKR.md` v2 (Objective 2 — every piece of state is queryable and writable by deterministic code)
 > **Predecessor**: `phase/002-fields-are-typed.md` (scored 2026-08-28, mean 0.89)
 > **Tier 1 hard cap**: ≤ 300 lines.
@@ -292,8 +292,48 @@ they name; pre-pivot state at
 
 ## Retro — phase scored     <!-- filled by `okr score-phase` when the phase closes -->
 
-Scored 2026-09-15 (each KR status the user's answer). O1 **1.0** (KR1–3
-achieved) · O2 **0.75** (KR1 achieved, KR2 dropped, KR3 partial 0.5) · O3
-**0.33** (KR2 partial, 20 of 60). DoD must-have 5 met only on the refusing-gate
-reading. Per-KR table, lessons and carry-overs: `evidence/2026-09/retro.md`;
-the pre-close copy with the full retro: `phase/snapshots/2026-09-15-003-storage-code-final.md`.
+Scored 2026-09-15. Each KR status is the user's answer at scoring, one question
+per KR. Evidence: `evidence/2026-09/2026-09-14-phase-003-readiness.md` and the
+paths below.
+
+| KR | final metric | status | score | evidence |
+|---|---|---|---|---|
+| P003-O1-KR1 | 6 of 6 | achieved | 1.0 | one `perry-lint --root .` prints every store's record count |
+| P003-O1-KR2 | 6 of 6 (7 of 7 on the honest reading: `linkage.jsonl` arrived mid-phase; the target stays 6) | achieved | 1.0 | readiness § DoD 1 |
+| P003-O1-KR3 | 6 of 6 | achieved | 1.0 | `evidence/2026-08/TASK-229-result.md` |
+| P003-O2-KR1 | 0 (baseline 4) | achieved | 1.0 | readiness § DoD 3 |
+| P003-O2-KR2 | — | dropped 2026-09-02 (`USER-911`) | not averaged | § Changes / Pivots |
+| P003-O2-KR3 | no numeric metric; one reading | partial | 0.5 (the PMO's number: the KR has no metric) | `evidence/2026-09/TASK-262-result.md § 3.5` |
+| P003-O3-KR2 | 33.3% (20 of 60) against 100%; 1 of 1 since the refusing gate | partial | 0.33 | readiness § `P003-O3-KR2`, broken down |
+
+**Objective scores** (mean of scored KRs): O1 **1.0** · O2 **0.75** · O3 **0.33**.
+
+**Definition of Done.**
+- Must-have 1–4: met, item 4 by its written branch.
+- Must-have 5: **met only on the refusing-gate reading** (1 of 1 since 2026-09-14). On the advisory reading it is 20 of 60. The user scored the KR partial, not achieved, so the retro does not claim the item met.
+- Nice-to-have 6 (`TASK-262`): delivered, and partial in effect (O2-KR3).
+- Nice-to-have 7 (`TASK-050`): met.
+
+### What went well
+- **Every declared store exists and one command checks them all** (O1 at 1.0).
+  The config store and the cadence store both arrived inside the phase.
+- **The board is not a file any more.** `TASK-237` deleted `BOARD.md`. `TASK-262` retired a `BOARD.md` a project still holds, across every reader, with three contract minors (`perry-task/list` 2.4, `perry-asks/list` 1.4, `perry-goals/list` 3.4). NN-2 was restated with the user.
+- **The suite ended the phase with no standing reds** (`TASK-335` removed the clock dependence).
+
+### What underperformed, and why
+- **O3-KR2, 0.33.** The `add`-time gate was advisory for most of the phase, so 40 rows were filed without an answer. Those rows cannot be repaired, because the clause is "in the same action as `add`". The refusing gate (`TASK-439`) landed on 2026-09-14, one day before scoring.
+- **O2-KR3, 0.5.** The `†` mark and the legend partly carried the distinction. The reader did not use the section's writer line to decide where to change a cell. The declaration-agreement numbers (6/6, 62/62) measure the declarations, not the reader.
+- **Scope grew inside rows rather than as new rows.** `TASK-262` ran six rounds, because retiring a held board turned out to touch three published contracts.
+
+### Lessons for the next phase
+- **A gate that warns does not move a KR phrased as "in the same action".** Land the refusing form first, or phrase the KR over the period after it lands.
+- **A property a reader must see needs a reading early, not only at close.** The writer line would have been reworded after one reading in round 1.
+- **Check the contract pages before a spec promises a behaviour change.** Round 3 stopped on pins that a grep at spec time would have found.
+- **Background agents were interrupted three times** (one stall, two API 403s). Committing after each coherent step is what saved the work.
+
+### Carry-overs proposed
+- **The 40 never-answered rows** (`TASK-381`, `384`–`393`, `395`, `406`–`433`) belong to phase 004, per DoD item 5's restatement. Re-declare them against the new phase's KRs, not blindly.
+- **O2-KR3's remaining gap:** a section line that tells a reader where to change a cell, re-read by a person.
+- **`R5`:** retire the `render` / `diff` / `verify` verbs once the consumer projects are upgraded. NN-2's new wording already assumes it.
+- **`OKR.md` v2 Objective 3** lost its vehicle (see § Not Doing) and needs `/perry goals revise`.
+- **From `TASK-262`'s findings, kept in evidence (no rows):** F16 blank-Arrived intake route, F21 `--group` refusal wording, F22 guards no command reaches, F30 a risks fallback to `PROJECT_STATE.md`, F35 two vacuous tests.
