@@ -2,8 +2,8 @@
 
 `TASK-262-spec.md § Amendment (2)`. Round 1's F1: all 27 mutating subcommands
 declared the one list `["tasks.jsonl", "BOARD.md", "journal/",
-".perry/events.jsonl"]`, while `REGISTER_EVENTS`, twelve hundred lines above
-it in the same file, said `ask` writes asks and `risk-add` writes risks.
+".perry/events.jsonl"]`, while `REGISTER_EVENTS`, 6,451 lines above it in
+the same file, said `ask` writes asks and `risk-add` writes risks.
 `perry-tasks board` derives its section lines from `writes`, so the Cadence,
 User Input Queue and Top risks lines said no writer was declared.
 
