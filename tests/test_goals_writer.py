@@ -1397,13 +1397,27 @@ class TestTheHandOffContract(WriterCase):
 class TestTheLockAndTheGate(WriterCase):
 
     def test_a_write_takes_the_same_project_lock_the_other_writers_take(self):
-        """DESIGN-005 § 5.4: one lock per project, not one per lane."""
+        """DESIGN-005 § 5.4: one lock per project, not one per lane.
+
+        **The wait is shortened, the lock is not replaced.** A refusal takes
+        the whole `timeout`, and `perry-goals § project_lock` defaults it to
+        10s, so this one test used to sit idle for 10 of the module's ~16s.
+        `perry-goals` runs in this process (`tests/inproc.py`), so its
+        `project_lock` is swapped for a call to the SAME function with a 0.3s
+        timeout: same `lib.project_lock`, same key, same file this test holds.
+        What the test asserts, that a goals write queues behind the lock the
+        other writers take, is unchanged."""
         import fcntl
         import hashlib
+        from unittest import mock
         p = self.project()
         key = hashlib.sha1(str(p.dir.resolve()).encode()).hexdigest()[:16]
         lock = pathlib.Path(tempfile.gettempdir()) / f"perry-task-{key}.lock"
-        with open(lock, "w") as fh:
+        goals = inproc.load("perry-goals")
+        real = goals.project_lock
+        with open(lock, "w") as fh, mock.patch.object(
+                goals, "project_lock",
+                lambda state_root, timeout=10.0: real(state_root, 0.3)):
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
                          "--due", "3d", expect=1)

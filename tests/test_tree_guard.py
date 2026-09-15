@@ -55,8 +55,12 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 
 #: A module the runner will discover in the copy. It writes into the root it
 #: finds — a `M` (an existing file changed) and a `+` (a file created), which
-#: are two of the three verdicts `compare` can reach. `perry/BOARD.md` is the
-#: file TASK-249's real defect moved.
+#: are two of the three verdicts `compare` can reach. `perry/intake.jsonl` is
+#: one of the four files TASK-249's real defect moved. It used to be
+#: `perry/BOARD.md`, until TASK-237 3c (bebba5d1) deleted that file: the plant's
+#: append then CREATED it, the guard truthfully reported `+`, and the `M`
+#: assertion below went red. Nobody saw it for a day because this module runs
+#: only under `--slow`. The `M` needs a file the fixture actually tracks.
 PLANT = '''"""Planted by tests/test_tree_guard.py. Writes into its own root on
 purpose — this module exists to be caught, and it only ever lives in a copy."""
 
@@ -70,7 +74,7 @@ class TestAModuleThatWritesIntoTheLiveRoot(unittest.TestCase):
     def test_the_write_itself_passes(self):
         """It passes. That is the point: the module is GREEN and the suite
         must still come back red, because the tree moved."""
-        with open(ROOT / "perry" / "BOARD.md", "a", encoding="utf-8") as fh:
+        with open(ROOT / "perry" / "intake.jsonl", "a", encoding="utf-8") as fh:
             fh.write("\\n<!-- planted by TASK-249's guard test -->\\n")
         (ROOT / ".perry" / "task-249-planted.txt").write_text("planted\\n")
         self.assertTrue((ROOT / ".perry" / "task-249-planted.txt").exists())
@@ -604,7 +608,7 @@ class TestThePlantedWrite(unittest.TestCase):
                 "the planted module wrote into the root and the suite came "
                 "back green — the guard is not wired into tests/run:\n" + out)
             self.assertIn("THE SUITE WROTE INTO THE TREE IT RAN IN", out)
-            self.assertIn("M perry/BOARD.md", out,
+            self.assertIn("M perry/intake.jsonl", out,
                           "the guard failed the suite but did not name the "
                           "file that changed:\n" + out)
             self.assertIn("+ .perry/task-249-planted.txt", out,
@@ -647,7 +651,7 @@ class TestThePlantedWrite(unittest.TestCase):
             # And the write really did happen, so the green above is the
             # guard's absence and not the plant failing to fire.
             self.assertIn("planted by TASK-249's guard test",
-                          (root / "perry" / "BOARD.md").read_text())
+                          (root / "perry" / "intake.jsonl").read_text())
 
     def test_a_module_that_stays_in_a_temp_root_is_green(self):
         """The control. Same runner, same `--only` path, no write to the root
