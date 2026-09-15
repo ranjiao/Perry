@@ -36,10 +36,10 @@ The same edit fixed the other lines this branch had made stale:
 - **§2 `reference/`**: it holds the rule table `bin/` evaluates.
 - **§4 read path**: a `--section next --lane / --after` edge and one sentence
   on the narrowed block.
-- **§7**: OQ-4 (`--compact` with `--section next`, for `TASK-443`), OQ-5 (the
-  contract registry and non-`/list` families) and OQ-6 (a section that is not
-  the payload's key), each marked *Proposed*. The KR-direction question was not
-  added: DESIGN-022 decided it (USER-937).
+- **§7**: three questions, each marked *Proposed*: `--compact` with
+  `--section next` (for `TASK-443`), the contract registry and non-`/list`
+  families, and a section that is not the payload's key. The KR-direction
+  question was not added: a separate KR design has already decided it.
 - **§8**: one entry in each document. Neither contains "User-confirmed".
 
 **§6 is not edited.** The patch script checked this with
