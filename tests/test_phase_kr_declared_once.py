@@ -45,6 +45,32 @@ STATE = ROOT / "bin" / "perry-state"
 LINT = ROOT / "bin" / "perry-lint"
 SAMPLE = ROOT / "tests" / "fixtures" / "sample-project"
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import pinned_phase  # noqa: E402
+
+#: The regression case's KR. It belongs to the scored phase the copy pins.
+REGRESSION_KR = "P003-O2-KR1"
+
+
+def own_project(phase: str = pinned_phase.SCORED_PHASE) -> pathlib.Path:
+    """This repository's project as a copy with `phase` current. TASK-441."""
+    return pinned_phase.pinned_copy(__name__, phase)
+
+
+def declared_krs(root: pathlib.Path, kr_id: str) -> list[dict]:
+    """Every row `perry-goals krs --json` declares under `kr_id` at `root`.
+
+    A payload with no `objectives` declares nothing, so it reads as `[]`.
+    At `7bffe58e` that case raised `KeyError: 'objectives'` instead, which
+    hid the actual finding: no phase was current.
+    """
+    proc = subprocess.run(
+        [sys.executable, str(GOALS), "krs", "--root", str(root), "--json"],
+        capture_output=True, text=True, cwd=ROOT)
+    payload = json.loads(proc.stdout) if proc.stdout.strip() else {}
+    return [k for o in payload.get("objectives") or [] for k in o["krs"]
+            if k["id"] == kr_id]
+
 #: A markdown table row whose first cell is a phase KR id.
 KR_TABLE_ROW = re.compile(r"^\|\s*P\d{3}-O\d+-KR\d+\s*\|")
 
@@ -300,22 +326,23 @@ class TestTheKrIsWrittenInExactlyOnePlace(Fixture):
         paragraph under Objective 2 is exactly the prose the document is for,
         and DESIGN-013 leaves prose where it is. What it may not do is declare
         the KR's fields a second time.
+
+        **Read from a copy with phase 003 current (TASK-441).** `perry-goals
+        krs` prints the CURRENT phase's register. After `score-phase 003`
+        cleared `phase/CURRENT`, it printed no objectives and this case raised
+        `KeyError`. `TestTheScoredPhaseIsLoadBearing` shows that.
         """
-        doc = (ROOT / "perry" / "phase" / "003-storage-code.md").read_text()
-        reg = (ROOT / "perry" / "linkage.jsonl").read_text()
-        self.assertIn("P003-O2-KR1", reg, "the store lost the KR")
-        self.assertIn("P003-O2-KR1", doc,
+        root = own_project()
+        doc = (root / "perry" / "phase" / "003-storage-code.md").read_text()
+        reg = (root / "perry" / "linkage.jsonl").read_text()
+        self.assertIn(REGRESSION_KR, reg, "the store lost the KR")
+        self.assertIn(REGRESSION_KR, doc,
                       "the narrative about this KR was deleted rather than "
                       "its duplicate declaration")
         self.assertEqual(kr_declaration_tables(doc), [],
                          "the phase document declares its KRs again")
         # The register's own words for this KR, in one file and one file only.
-        metric = json.loads(subprocess.run(
-            [sys.executable, str(GOALS), "krs", "--root", str(ROOT),
-             "--json"], capture_output=True, text=True,
-            cwd=ROOT).stdout)
-        kr = [k for o in metric["objectives"] for k in o["krs"]
-              if k["id"] == "P003-O2-KR1"]
+        kr = declared_krs(root, REGRESSION_KR)
         self.assertEqual(len(kr), 1, kr)
         # **A property, not a list of today's filenames.** `assertEqual(
         # carriers, ["003-linkage.md"])` reads live state and pins it to a
@@ -325,8 +352,8 @@ class TestTheKrIsWrittenInExactlyOnePlace(Fixture):
         # test is the cardinality — ONE file carries the metric — and that the
         # one is a register rather than a document.
         carriers = [q.name for q in
-                    sorted((ROOT / "perry" / "phase").glob("*.md"))
-                    + [ROOT / "perry" / "linkage.jsonl"]
+                    sorted((root / "perry" / "phase").glob("*.md"))
+                    + [root / "perry" / "linkage.jsonl"]
                     if kr[0]["metric"] in q.read_text()]
         self.assertEqual(len(carriers), 1, carriers)
         # `endswith`, not `assertEqual`, and the shape is inherited rather
@@ -690,6 +717,28 @@ class TestPlanPhaseNoLongerAuthorsTheBlock(unittest.TestCase):
         self.assertNotIn("linkage_TEMPLATE", text,
                          "the procedure still sends the author to a template "
                          "that does not exist")
+
+
+class TestThePinnedCopy(pinned_phase.ThePinnedCopyGuards, unittest.TestCase):
+    """TASK-441. The regression case reads a copy, not the checkout."""
+
+    OWNER = __name__
+
+
+class TestTheScoredPhaseIsLoadBearing(unittest.TestCase):
+    """TASK-441's control. `test_the_regression_case_carries_its_target_in_one_file`
+    finds exactly one `P003-O2-KR1` row because the copy has phase 003
+    current. In a copy pinned to `(none)`, `perry-goals krs` declares no row,
+    so the same `len(kr) == 1` fails there."""
+
+    def test_with_no_phase_current_the_kr_is_declared_nowhere(self):
+        unpinned = own_project(pinned_phase.NO_PHASE)
+        self.assertEqual(pinned_phase.NO_PHASE,
+                         pinned_phase.current_phase(unpinned))
+        self.assertEqual([], declared_krs(unpinned, REGRESSION_KR))
+
+    def test_with_the_scored_phase_pinned_it_is_declared_once(self):
+        self.assertEqual(1, len(declared_krs(own_project(), REGRESSION_KR)))
 
 
 if __name__ == "__main__":

@@ -46,6 +46,26 @@ import sys  # noqa: E402
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import lib  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pinned_phase  # noqa: E402
+
+
+def own_project(phase: str = pinned_phase.SCORED_PHASE) -> Path:
+    """This repository's own project, as a copy with `phase` current. TASK-441.
+
+    `TestBothOfTodaysWrongReadingsFlip` used to read the live checkout, so
+    `score-phase 003` clearing `phase/CURRENT` left it no asserted `current`
+    to check. `TestTheScoredPhaseIsLoadBearing` shows that with `(none)`.
+    """
+    return pinned_phase.pinned_copy(__name__, phase)
+
+
+def asserted_currents(payload: dict) -> list[dict]:
+    """The KRs whose `current` a payload reports as asserted. The anti-vacuity
+    check and its control both call this."""
+    return [k for k in payload["krs"]
+            if k["current_provenance"]["state"] == "asserted"]
+
 
 def goals(root: Path, *argv, tz: str = "") -> dict:
     """`perry-goals list --json`, optionally read in a named zone.
@@ -247,7 +267,7 @@ class TestBothOfTodaysWrongReadingsFlip(Fixture):
     """
 
     def own_repo(self) -> dict:
-        return goals(PERRY_HOME)
+        return goals(own_project())
 
     def test_no_asserted_current_claims_to_be_a_measurement(self):
         """The `P002-O2-KR2` reading. `target: 0` with `current: 0` read as MET; it
@@ -278,8 +298,7 @@ class TestBothOfTodaysWrongReadingsFlip(Fixture):
             self.assertNotEqual(
                 k["current_provenance"]["state"], "measured",
                 f"{k['id']}: state `measured` without `measured: true`")
-        asserted = [k for k in payload["krs"]
-                    if k["current_provenance"]["state"] == "asserted"]
+        asserted = asserted_currents(payload)
         self.assertTrue(asserted, "the register carries no asserted `current`")
         for k in asserted:
             self.assertEqual(k["current_provenance"]["source"],
@@ -772,6 +791,28 @@ class TestTheStatusVocabularyIsPinnedToTheSchema(unittest.TestCase):
         import perry_store
         self.assertEqual(set(perry_store.TERMINAL_STATUSES),
                          set(lib.CLOSED_STATUSES))
+
+
+class TestThePinnedCopy(pinned_phase.ThePinnedCopyGuards, unittest.TestCase):
+    """TASK-441. `own_repo` reads a copy, not the checkout."""
+
+    OWNER = __name__
+
+
+class TestTheScoredPhaseIsLoadBearing(unittest.TestCase):
+    """TASK-441's control. The anti-vacuity line of
+    `test_no_asserted_current_claims_to_be_a_measurement` holds because the
+    copy has a phase current. In a copy pinned to `(none)`, the register
+    publishes no asserted `current`, so the same predicate fails there."""
+
+    def test_with_no_phase_current_no_current_is_asserted(self):
+        unpinned = own_project(pinned_phase.NO_PHASE)
+        self.assertEqual(pinned_phase.NO_PHASE,
+                         pinned_phase.current_phase(unpinned))
+        self.assertEqual([], asserted_currents(goals(unpinned)))
+
+    def test_with_the_scored_phase_pinned_some_are(self):
+        self.assertTrue(asserted_currents(goals(own_project())))
 
 
 if __name__ == "__main__":
