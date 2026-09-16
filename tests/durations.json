@@ -568,6 +568,10 @@
     "test_work_modes.py": {
       "sec": 5.14,
       "source": "2026-09-09-085824"
+    },
+    "test_architecture_rules.py": {
+      "sec": 0.78,
+      "source": "2026-09-15-task453"
     }
   },
   "schema": 1,
@@ -683,6 +687,13 @@
       "ref": "eed48a88",
       "taken": "2026-09-15T12:45:00Z",
       "workers": 8
+    },
+    "2026-09-15-task453": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 -m unittest discover -s tests -p test_architecture_rules.py` at the ref and recorded at the median (1.11/0.78/0.77s, 32 tests), on the terms of the 2026-09-12-task439 entry: no neighbour was re-timed. `load1` is null because nothing sampled it.",
+      "ref": "9e3cf9d4",
+      "taken": "2026-09-15T12:29:00Z",
+      "workers": 1
     }
   }
 }
