@@ -33,8 +33,14 @@ COVERS = (
     "bin/perry-tasks",
     "viewer/tables.py",
     "tests/printed_board.py",
-    "perry/",
-    ".perry/",
+    "tests/live_stores.py",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    "perry/linkage.jsonl",
+    "perry/okr.jsonl",
+    ".perry/config.jsonl",
 )
 
 import json
@@ -54,6 +60,7 @@ import tables as T                                              # noqa: E402
 
 import inproc                                                   # noqa: E402
 from printed_board import put_printed_board                     # noqa: E402
+import live_stores  # noqa: E402
 
 #: The shapes measured on the second real project, in one board. Written by
 #: hand and NOT through `render_row`, because a fixture built by the writer
@@ -136,10 +143,11 @@ class Project:
     def perry(case) -> pathlib.Path:
         d = pathlib.Path(tempfile.mkdtemp())
         case.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        shutil.copytree(ROOT / "perry", d / "perry",
-                        ignore=shutil.ignore_patterns("*.lock"))
-        shutil.copytree(ROOT / ".perry", d / ".perry",
-                        ignore=shutil.ignore_patterns("*.lock"))
+        # USER-942: the stores and the anchor, not the whole state root.
+        # `render`, `diff` and `verify` read the stores, the config and the
+        # template; `evidence/`, `journal/` and `design/` were carried along by
+        # `copytree` and read by nothing here (`tests/live_stores.py`).
+        live_stores.copy_state(d, events=False)
         # TASK-237 3c: this repository holds no `BOARD.md`. The board a
         # project that still holds one would carry is the one its stores
         # print, so the copy gets that (`tests/printed_board.py`).
@@ -543,10 +551,7 @@ class TestItRendersAndNothingElse(unittest.TestCase):
         `split_row` with `render_row` and call it a proof."""
         d = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        shutil.copytree(ROOT / "perry", d / "perry",
-                        ignore=shutil.ignore_patterns("*.lock", "tasks.jsonl"))
-        shutil.copytree(ROOT / ".perry", d / ".perry",
-                        ignore=shutil.ignore_patterns("*.lock"))
+        live_stores.copy_state(d, skip=("tasks.jsonl",), events=False)
 # **`perry/tasks.jsonl` now EXISTS in this repository** — TASK-089 made
 # it the write target, so a fixture that copies `perry/` inherits a store
 # whether it wants one or not. A test about the NO-STORE case has to say

@@ -18,12 +18,7 @@ Run: python3 tests/parallel test_count_fields
 
 from __future__ import annotations
 
-COVERS = (
-    "bin/perry-task",
-    "schema/task-list-contract.md",
-    "perry/",
-    ".perry/",
-)
+COVERS = ("bin/perry-task", "schema/task-list-contract.md")
 
 import json
 import pathlib
@@ -36,9 +31,19 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-task"
 DOC = ROOT / "schema" / "task-list-contract.md"
 
+#: **The project these counts are read from, named rather than inherited**
+#: (`USER-942`). Every assertion here is about the payload counting ITSELF —
+#: `closed` counts the rows this payload carries — and it needs a board with
+#: both open and closed rows, not this repository's board in particular. It
+#: used to run with the cwd at the checkout and no `--root`, which made
+#: `perry-task` resolve Perry's own project and pulled the whole state root
+#: into what this module covers.
+PROJECT = ROOT / "tests" / "fixtures" / "sample-project"
+
 
 def payload(*flags):
-    proc = subprocess.run([sys.executable, str(TOOL), "list", *flags, "--json"],
+    proc = subprocess.run([sys.executable, str(TOOL), "list", *flags,
+                           "--root", str(PROJECT), "--json"],
                           capture_output=True, text=True, cwd=ROOT)
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout)
@@ -78,7 +83,7 @@ class TestTheHumanSummaryDescribesTheProject(unittest.TestCase):
             "closed": sum(1 for t in all_tasks if not t["open"]),
         }
         proc = subprocess.run(
-            [sys.executable, str(TOOL), "list"],
+            [sys.executable, str(TOOL), "list", "--root", str(PROJECT)],
             capture_output=True, text=True, cwd=ROOT,
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)

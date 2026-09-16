@@ -23,8 +23,16 @@ COVERS = (
     "bin/perry-lint",
     "viewer/",
     "tests/printed_board.py",
-    "perry/",
-    ".perry/",
+    "tests/live_stores.py",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    "perry/linkage.jsonl",
+    "perry/okr.jsonl",
+    "perry/OKR.md",
+    "perry/phase/",
+    ".perry/config.jsonl",
 )
 
 import json
@@ -36,6 +44,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+import live_stores  # noqa: E402
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 READERS = {
@@ -107,9 +116,13 @@ class TestDecorationIsInvisible(unittest.TestCase):
         """
         if cls._SNAPSHOT is None or not cls._SNAPSHOT.exists():
             tmp = tempfile.mkdtemp()
-            shutil.copytree(PERRY_HOME / "perry", Path(tmp) / "perry")
-            shutil.copytree(PERRY_HOME / ".perry", Path(tmp) / ".perry",
-                            ignore=shutil.ignore_patterns("events.jsonl"))
+            # USER-942: the stores and the documents a reader reads —
+            # `OKR.md` and `phase/` — not `evidence/`, `journal/`,
+            # `design/` or `decisions/`, which no reader below opens
+            # (`tests/live_stores.py`). The decoration under test is a
+            # header cell in a table, and the tables live in the parts
+            # copied here.
+            live_stores.copy_state(Path(tmp), documents=True, events=False)
             cls._SNAPSHOT = Path(tmp)
         return cls._SNAPSHOT
 

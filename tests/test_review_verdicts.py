@@ -22,8 +22,6 @@ COVERS = (
     "viewer/tables.py",
     "work/reference/review.md",
     "schema/state-schema.json",
-    "perry/",
-    ".perry/",
 )
 
 import importlib.machinery
@@ -455,14 +453,24 @@ class TestItReportsHowMuchItSaw(ReviewLintCase):
         self.assertEqual(out["verdict_blocks"], 1)
 
 
-class TestItIsOptIn(unittest.TestCase):
+class TestItIsOptIn(ReviewLintCase):
     def test_the_default_pass_does_not_run_it(self):
         """A project that predates the convention has its reviews in prose.
         Promoting those to errors in the default pass would retroactively
         condemn every review it ever ran — the same reason `--verification` is
-        opt-in."""
+        opt-in.
+
+        **The project is this fixture, not the checkout** (`USER-942`). The
+        assertion is about which rules the DEFAULT pass runs, and a project
+        that would trip all four under `--reviews` proves it better than a
+        project that happens to trip none: the row below is `done` at `V4`
+        with a review document carrying no verdict line at all.
+        """
+        self.board([self.row("TASK-001", "done")])
+        self.evidence("TASK-001-review.md", "# A review, in prose\n\n"
+                      "It looked fine to me.\n")
         proc = subprocess.run(
-            [sys.executable, str(LINT), "--json"],
+            [sys.executable, str(LINT), "--root", str(self.dir), "--json"],
             capture_output=True, text=True, cwd=ROOT)
         rules = {f["rule"] for f in json.loads(proc.stdout).get("findings", [])}
         for r in ("v4-close-without-verdict", "fail-verdict-left-at-review",

@@ -36,7 +36,7 @@ Run: python3 tests/parallel test_store_is_canonical
 
 from __future__ import annotations
 
-COVERS = ("bin/perry-lint", "bin/perry-tasks", "perry/", ".perry/")
+COVERS = ("bin/perry-lint", "bin/perry-tasks")
 
 import json
 import contextlib

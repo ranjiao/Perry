@@ -73,8 +73,8 @@
       "source": "2026-09-14-task237-d3a"
     },
     "test_board_render.py": {
-      "sec": 32.58,
-      "source": "2026-09-09-085824"
+      "sec": 1.24,
+      "source": "2026-09-16-task448-r3"
     },
     "test_cadence.py": {
       "sec": 9.5,
@@ -113,12 +113,12 @@
       "source": "2026-09-15-task441"
     },
     "test_contract_page_snippets.py": {
-      "sec": 4.79,
-      "source": "2026-09-15-unlisted-pair"
+      "sec": 1.24,
+      "source": "2026-09-16-task448-r3"
     },
     "test_count_fields.py": {
-      "sec": 1.88,
-      "source": "2026-09-09-085824"
+      "sec": 0.51,
+      "source": "2026-09-16-task448-r3"
     },
     "test_decide_status_enum.py": {
       "sec": 3.41,
@@ -129,8 +129,8 @@
       "source": "2026-09-09-085824"
     },
     "test_decoration_changes_nothing.py": {
-      "sec": 16.27,
-      "source": "2026-09-09-085824"
+      "sec": 4.51,
+      "source": "2026-09-16-task448-r3"
     },
     "test_design_handoff.py": {
       "sec": 2.95,
@@ -401,8 +401,8 @@
       "source": "2026-09-09-085824"
     },
     "test_review_verdicts.py": {
-      "sec": 10.68,
-      "source": "2026-09-09-085824"
+      "sec": 8.01,
+      "source": "2026-09-16-task448-r3"
     },
     "test_risks.py": {
       "sec": 4.24,
@@ -433,8 +433,8 @@
       "source": "2026-09-09-085824"
     },
     "test_rung_vocabulary.py": {
-      "sec": 5.86,
-      "source": "2026-09-09-085824"
+      "sec": 0.96,
+      "source": "2026-09-16-task448-r3"
     },
     "test_same_action_linkage.py": {
       "sec": 6.83,
@@ -482,8 +482,8 @@
       "source": "2026-09-09-085824"
     },
     "test_store_is_canonical.py": {
-      "sec": 21.59,
-      "source": "2026-09-09-085824"
+      "sec": 0.69,
+      "source": "2026-09-16-task448-r3"
     },
     "test_store_is_the_write_target.py": {
       "sec": 10.64,
@@ -502,8 +502,8 @@
       "source": "2026-09-09-085824"
     },
     "test_task_store.py": {
-      "sec": 18.64,
-      "source": "2026-09-09-085824"
+      "sec": 1.55,
+      "source": "2026-09-16-task448-r3"
     },
     "test_task_store_read_cutover.py": {
       "sec": 2.47,
@@ -693,6 +693,13 @@
       "note": "ONE module, timed alone three times with `python3 -m unittest discover -s tests -p test_architecture_rules.py` at the ref and recorded at the median (1.11/0.78/0.77s, 32 tests), on the terms of the 2026-09-12-task439 entry: no neighbour was re-timed. `load1` is null because nothing sampled it.",
       "ref": "9e3cf9d4",
       "taken": "2026-09-15T12:29:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task448-r3": {
+      "load1": 18.32,
+      "note": "EIGHT modules re-timed after TASK-448 round 3 (USER-942) took them off the live state root: seven copy named store and document files instead of the whole of perry/, or run their tool with --root at a fixture project, and test_store_is_canonical was not changed at all — its 21.59s was stale, taken before TASK-368 moved it in-process. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: board_render 1.24/1.41/1.20; task_store 1.42/1.55/1.64; decoration_changes_nothing 4.61/4.51/4.51; store_is_canonical 0.69/0.68/0.70; review_verdicts 8.01/8.51/7.58; rung_vocabulary 1.07/0.95/0.96; contract_page_snippets 1.24/1.26/1.09; count_fields 0.58/0.50/0.51. No neighbour was re-timed. load1 is the getloadavg sample taken right after the 24 runs, with other sessions' work on the same machine.",
+      "ref": "bf9bd4e3",
+      "taken": "2026-09-16T02:40:00Z",
       "workers": 1
     }
   }

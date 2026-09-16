@@ -42,13 +42,7 @@ Run: python3 tests/parallel test_contract_page_snippets
 
 from __future__ import annotations
 
-COVERS = (
-    "schema/task-list-contract.md",
-    "bin/perry-task",
-    "bin/README.md",
-    "perry/",
-    ".perry/",
-)
+COVERS = ("schema/task-list-contract.md", "bin/perry-task", "bin/README.md")
 
 import ast
 import builtins
@@ -76,14 +70,22 @@ REASONS = ("historical transcript",)
 #: Placeholders the page writes for a reader and this module substitutes to run
 #: the block. A placeholder NOT listed here fails the run rather than being
 #: quietly passed to a shell — see `test_no_undeclared_placeholder_survives`.
-PLACEHOLDERS = {"/path/to/project": str(ROOT)}
+#: **The project the blocks are run against** (`USER-942`). The page is about
+#: what `perry-task list --json` promises a consumer, not about Perry's own
+#: board, so the blocks run against the shipped fixture project. Substituting
+#: the checkout here made every block resolve Perry's own state root, which
+#: put the whole of it into what this module covers.
+PROJECT = ROOT / "tests" / "fixtures" / "sample-project"
+
+PLACEHOLDERS = {"/path/to/project": str(PROJECT)}
 
 
 def _live_payload(*flags):
     proc = subprocess.run(
         [sys.executable, str(TOOL), "list", *flags, "--json"],
         capture_output=True, text=True, cwd=str(ROOT),
-        env={**os.environ, "PERRY_HOME": str(ROOT), "PERRY_PROJECT": str(ROOT)})
+        env={**os.environ, "PERRY_HOME": str(ROOT),
+             "PERRY_PROJECT": str(PROJECT)})
     assert proc.returncode == 0, proc.stderr[-2000:]
     return json.loads(proc.stdout)
 
