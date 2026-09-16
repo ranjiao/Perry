@@ -233,7 +233,10 @@ class TestTheSweepIsTheGuard(unittest.TestCase):
             "in a `Frequency` cell `n/a` means APERIODIC -- a positive answer "
             "about a schedule. Teaching it the declared set would make a "
             "Chinese placeholder into a cadence.",
-        ("viewer/parsers.py", "resolve_state_root", ("-", "\u2014")):
+        # `state_root_for` since TASK-270 round 3, which moved the rule out of
+        # `resolve_state_root` so `perry-config set` can ask it of a value not
+        # yet written. Same site, same set, same reason.
+        ("viewer/parsers.py", "state_root_for", ("-", "\u2014")):
             "the `State root` PATH setting, whose set is dominated by `.` and "
             "`./`. Widening it would accept a path that means nothing.",
         # The `phase/CURRENT` pointer sentinel, three copies of one rule.
