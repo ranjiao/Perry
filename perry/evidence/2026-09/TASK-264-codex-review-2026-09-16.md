@@ -49,3 +49,31 @@ checked: pinned 4ea3178a; scratch writer and surface tests; five required mutati
 not-checked: affected tier unavailable in archive; full/slow suite and merge preview; human subjective verification
 proof: obsolete version accepted when OKR.md lags okr.jsonl; original journal requirement conflicts with HANDOFF; KR add/restate/withdraw absent
 === END VERDICT ===
+
+## Re-review — immutable `0fbe8d48`
+
+The same independent reviewer accepted **D1/D2 only** against the clarified
+ownership contract. Architecture review: **PASS** for those delivered paths.
+`refuse_closed_kr` uses `overall_kr_model(..., "current")`; no Markdown
+projection authorizes an old-version measurement.
+
+Fresh archive validation: 45 writer tests green. Restoring the old Markdown
+authority makes both new authority tests fail in four cases. The reviewer
+restored bytes against `git show 0fbe8d48:bin/perry-goals`, not its own backup.
+The real event-failure regression verifies both commands in human and JSON
+modes, including `written: true`, `event_written: false`, the warning, and no
+work-owned journal creation.
+
+No new actionable D1/D2 failures. Full/slow merged-tree validation remains the
+PMO gate. The full task still cannot pass: D3 is absent and human refusal-message
+verification has not occurred.
+
+=== VERDICT ===
+task: TASK-264
+rung: V4
+result: FAIL
+criteria: perry/evidence/2026-09/TASK-264-spec.md
+checked: 0fbe8d48; D1/D2 PASS; architecture PASS; 45 writer tests; authority mutation red in four cases; restore matched pinned ref
+not-checked: full/slow merged suite handled separately; human subjective verification; D3 unimplemented
+proof: COMMANDS has no KR add/restate/withdraw; full-task D3 remains unmet
+=== END VERDICT ===
