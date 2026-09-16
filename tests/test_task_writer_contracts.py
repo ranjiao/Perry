@@ -364,7 +364,7 @@ class TestLaneProceduresCallTheTool(unittest.TestCase):
     def test_add_task_calls_the_tool(self):
         s = self.section("add-task")
         self.assertIn("perry-task", s)
-        self.assertIn("add --title", s)
+        self.assertIn("add --actor <actor> --title", s)
 
     def test_close_task_calls_the_tool(self):
         s = self.section("close-task")

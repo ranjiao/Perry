@@ -160,7 +160,8 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         p = Project()
         n = 8
         procs = [subprocess.Popen(
-            ["python3", str(TOOL), "add", "--title", f"concurrent {i}",
+            ["python3", str(TOOL), "add", "--actor", "concurrent-writer-probe",
+             "--title", f"concurrent {i}",
              "--priority", "P0", *Project.ADD_DEFAULTS,
              # Spelled out because this call builds argv itself rather than
              # going through `Project.run`, which is where the injection lives.

@@ -412,7 +412,8 @@ class TestCanonicalRecovery(unittest.TestCase):
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 code = mod.main([
-                    "start", "TASK-001", "--root", str(p.root), "--json"
+                    "start", "TASK-001", "--actor", "recovery-boundary-probe",
+                    "--root", str(p.root), "--json"
                 ])
         finally:
             mod.replace_canonical_pair = real

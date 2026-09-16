@@ -1412,7 +1412,11 @@ class TestDescribeAnswersForEveryDeclaredTool(unittest.TestCase):
         Under-reporting was caught; over-reporting was not, and over-reporting
         is the one that sends a reader to a refusal.
         """
-        return set(re.findall(r"\[(--[a-z][a-z-]*)", text))
+        # Required flags are unbracketed; restrict extraction to the
+        # two-space command lines so summary prose cannot add a flag.
+        commands = "\n".join(line for line in text.splitlines()
+                             if line.startswith("  ") and not line.startswith("   "))
+        return set(re.findall(r"--[a-z][a-z-]*", commands))
 
     def test_a_subcommand_that_declares_help_keeps_it_out_of_its_usage_line(self):
         """The precedence fix, on a declaration that reaches it.
