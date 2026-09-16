@@ -58,8 +58,14 @@ class TestTheSplitIsTheDesign(unittest.TestCase):
         # derives FROM one, so it runs on a copy carrying the board the stores
         # print (`tests/printed_board.py`).
         cls.tmp = pathlib.Path(tempfile.mkdtemp())
-        # USER-942: the stores and the anchor (`tests/live_stores.py`).
-        live_stores.copy_state(cls.tmp)
+        # USER-942, and NO store. `build` reads the BOARD and the EVENT LOG
+        # (`bin/perry-tasks § build`) and opens no `*.jsonl` store, so the
+        # copied stores were read by nothing here; `events.jsonl` is kept
+        # because `build` does read it. Measured: copying no stores leaves
+        # both cases below green, and never copying the event log leaves them
+        # green too — they are insensitive to it, and it is copied because it
+        # is read, not because a case here would notice.
+        live_stores.copy_state(cls.tmp, stores=False)
         put_printed_board(cls.tmp / "perry")
 
     @classmethod
@@ -85,8 +91,16 @@ class TestTheStoreReproducesTheBoard(unittest.TestCase):
         # TASK-089 made it the write target — so copying `perry/` inherits one,
         # and a test about the no-store case silently became a with-store test.
         # Three of them failed the day it was tracked, which is the transition
-        # working rather than a regression.
-        live_stores.copy_state(d, skip=("tasks.jsonl",))
+        # working rather than a regression. `stores=False` says it, and drops
+        # the six others this case never read (it was `skip=("tasks.jsonl",)`,
+        # which left them behind).
+        #
+        # `.perry/events.jsonl` IS read here, and is the one part of this copy
+        # a case can feel: `write --from-board` recovers rows the board no
+        # longer carries from the event log, and
+        # `test_it_carries_closed_tasks_the_board_no_longer_holds` goes red
+        # without it (109 records, 109 board rows).
+        live_stores.copy_state(d, stores=False)
         # TASK-237 3c: this repository holds no `BOARD.md`; the copy gets the
         # board its stores print, which is what these imports would read on a
         # project that still holds one (`tests/printed_board.py`).
@@ -142,7 +156,13 @@ class TestItWritesNothingYet(unittest.TestCase):
     def test_build_and_verify_touch_no_file(self):
         d = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        live_stores.copy_state(d)
+        # **`tasks.jsonl` and no other store**, and this is the one site here
+        # that reads one: `verify` loads the store FROM DISK
+        # (`bin/perry-tasks § verify`), and with no store it exits 2 at the
+        # door — which would make "build and verify touch no file" true of a
+        # command that did nothing. The other six stores are opened by
+        # neither verb.
+        live_stores.copy_state(d, stores=("tasks",))
         before = {p: p.read_bytes() for p in d.rglob("*") if p.is_file()}
         run("build", root=d)
         run("verify", root=d)

@@ -19,6 +19,26 @@ read.** A module that genuinely reads the rest — `perry-task list` resolving a
 evidence cell against the tree, `perry-lint --claims` walking the claimed
 paths, a check whose subject is this repository's own conformance — must keep
 copying the whole thing, and several do. See `TASK-448-result.md`.
+
+**`stores=` is the second round of exactly that, and the first round left the
+work undone (TASK-448 cleanups).** Round 3 stopped copying `evidence/` and
+friends but kept copying all seven stores everywhere, and TASK-448's own
+mutation table records that `copy_state` copying NO stores left
+`test_board_render` and `test_task_store` green. The reason is
+`tests/printed_board.py`: those two modules put the board this repository's
+stores PRINT on disk and then run `write --from-board`, so the live rows reach
+them through the board and the copied `*.jsonl` files are opened by nothing, or
+opened and discarded. Each caller now names the stores it reads, and a caller
+that names none copies none:
+
+    stores=True            every store in `STORES` (the default)
+    stores=False           no store at all — the caller's rows arrive some
+                           other way, or it is the no-store case on purpose
+    stores=("tasks",)      exactly these, by store name
+
+`skip=` is gone with the same argument. It named store files to leave OUT, and
+its only two callers were the no-store cases, which say `stores=False` now; a
+parameter no caller passes is the dead weight this module exists to remove.
 """
 
 from __future__ import annotations
@@ -39,15 +59,17 @@ STORES = ("tasks", "asks", "risks", "intake", "cadence", "linkage", "okr")
 ANCHOR = ("config.jsonl", "events.jsonl")
 
 
-def copy_state(dest: pathlib.Path, *, skip: tuple[str, ...] = (),
+def copy_state(dest: pathlib.Path, *,
+               stores: bool | tuple[str, ...] = True,
                documents: bool = False, events: bool = True,
                root: pathlib.Path = ROOT) -> pathlib.Path:
     """Copy this repository's state root into `dest`, by parts.
 
-    `skip` names store files to leave out, by file name — the no-store cases
-    pass `("tasks.jsonl",)`, exactly as they passed it to `copytree`'s
-    `ignore_patterns` before. Returns the state directory inside `dest`.
+    `stores` is `True` for all of `STORES`, `False` for none, or a tuple of
+    store names (`("tasks",)`) for exactly those. Returns the state directory
+    inside `dest`.
     """
+    wanted = _wanted_stores(stores)
     state_root = _state_root(root)
     state = dest / state_root
     state.mkdir(parents=True, exist_ok=True)
@@ -57,23 +79,42 @@ def copy_state(dest: pathlib.Path, *, skip: tuple[str, ...] = (),
         if name == "events.jsonl" and not events:
             continue
         src = root / ".perry" / name
-        if src.exists() and name not in skip:
+        if src.exists():
             shutil.copy2(src, dest / ".perry" / name)
 
-    for store in STORES:
+    for store in wanted:
         name = f"{store}.jsonl"
         src = root / state_root / name
-        if src.exists() and name not in skip:
+        if src.exists():
             shutil.copy2(src, state / name)
 
     if documents:
         okr = root / state_root / "OKR.md"
-        if okr.exists() and "OKR.md" not in skip:
+        if okr.exists():
             shutil.copy2(okr, state / "OKR.md")
         phase = root / state_root / "phase"
-        if phase.is_dir() and "phase" not in skip:
+        if phase.is_dir():
             shutil.copytree(phase, state / "phase", dirs_exist_ok=True)
     return state
+
+
+def _wanted_stores(stores: bool | tuple[str, ...]) -> tuple[str, ...]:
+    """`stores=` resolved to store names, refusing a name that is not one.
+
+    A typo'd store name would otherwise copy nothing and look exactly like a
+    caller that asked for nothing — the silent half of the defect this whole
+    module is about.
+    """
+    if stores is True:
+        return STORES
+    if stores is False:
+        return ()
+    unknown = [s for s in stores if s not in STORES]
+    if unknown:
+        raise ValueError(
+            f"copy_state(stores=...): {unknown} name no store. The stores are "
+            f"{list(STORES)}, by store name and without the `.jsonl`.")
+    return tuple(stores)
 
 
 def _state_root(root: pathlib.Path) -> str:
