@@ -49,8 +49,8 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 4. **Render the headline + snapshot.** Two parts, in order:
 
    **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). The single most important thing about the design lane right now, in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. Examples:
-   - `TL;DR: DESIGN-002 is locked but has no implementation tasks yet — run handoff.`
-   - `TL;DR: DESIGN-003 has 3 open user decisions blocking lock — run decide.`
+   - `TL;DR: DESIGN-002 is locked and has no implementation tasks yet.`
+   - `TL;DR: DESIGN-003 has 3 open user decisions blocking lock.`
    - `TL;DR: Nothing in review — design lane is quiet.`
 
    **Part B — Snapshot** — fixed shape, no further preamble:
