@@ -79,6 +79,13 @@ GATED = {
     ("perry-okr", "migrate-ids"): ["migrate-ids"],
     ("perry-goals", "commit"): ["commit", "--track", "main", "--promise", "x"],
     ("perry-goals", "link"): ["link", "--unlinked", "TASK-001"],
+    # TASK-264: both append to `linkage.jsonl` and `.perry/events.jsonl`.
+    ("perry-goals", "measure"): ["measure", "P001-O1-KR1", "--check", "c",
+                                 "--value", "1", "--evidence", "e.md",
+                                 "--actor", "gate-test"],
+    ("perry-goals", "check"): ["check", "P001-O1-KR1", "--id", "c",
+                               "--direction", "done", "--target", "1",
+                               "--label", "x", "--actor", "gate-test"],
 }
 
 

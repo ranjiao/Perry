@@ -24,6 +24,10 @@
       "sec": 3.17,
       "source": "2026-09-09-085824"
     },
+    "test_architecture_rules.py": {
+      "sec": 0.78,
+      "source": "2026-09-15-task453"
+    },
     "test_ask_is_a_node.py": {
       "sec": 3.02,
       "source": "2026-09-09-085824"
@@ -195,6 +199,10 @@
     "test_goals_contract.py": {
       "sec": 2.05,
       "source": "2026-09-09-085824"
+    },
+    "test_goals_kr_writer.py": {
+      "sec": 5.17,
+      "source": "2026-09-16-task264"
     },
     "test_goals_writer.py": {
       "sec": 25.34,
@@ -596,10 +604,6 @@
     "test_work_modes.py": {
       "sec": 5.14,
       "source": "2026-09-09-085824"
-    },
-    "test_architecture_rules.py": {
-      "sec": 0.78,
-      "source": "2026-09-15-task453"
     }
   },
   "schema": 1,
@@ -720,7 +724,8 @@
       "load1": 12.64,
       "note": "ONE new module, test_selection (TASK-448), timed alone three times with `python3 tests/parallel test_selection` and recorded at the median of the runner's own wall line: 1.4/1.2/1.3s. No neighbour was re-timed, and no module that gained a COVERS declaration in the same row was re-timed: a module-level tuple moves nothing by 0.5s. load1 is the getloadavg sample taken right after the three runs.",
       "ref": "eed48a88",
-      "taken": "2026-09-15T12:45:00Z",      "workers": 8
+      "taken": "2026-09-15T12:45:00Z",
+      "workers": 8
     },
     "2026-09-15-task453": {
       "load1": null,
@@ -769,6 +774,13 @@
       "note": "TWO new modules, test_empty_declared_store (TASK-275) and test_tracks_source_documented (TASK-271), plus test_empty_config_store, which TASK-270 added without an entry and this branch edits. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 0.64/0.52/0.57 (6 tests), 2.25/2.41/2.98 (6 tests) and 16.11/22.70/23.61 (16 tests). No other neighbour was re-timed. load1 was 13.04 after the first two and 90.74 after the third, so the last figure is likely high rather than low.",
       "ref": "ca6b3506",
       "taken": "2026-09-16T08:24:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task264": {
+      "load1": 86.84,
+      "note": "ONE new module, test_goals_kr_writer (TASK-264), timed alone three times with `python3 tests/parallel -j 1 --times test_goals_kr_writer` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 6.41/4.76/5.17 (39 tests). No neighbour was re-timed: the two modules that gained a registry line (test_a_write_refuses_where_nothing_is_installed, test_okr_store_is_the_source) each gained one table entry, which moves nothing measurable. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine, so the figure is likely high rather than low.",
+      "ref": "ec5d5421",
+      "taken": "2026-09-16T08:50:00Z",
       "workers": 1
     }
   }

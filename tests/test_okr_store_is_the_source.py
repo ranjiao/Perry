@@ -413,7 +413,12 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
              # the same project lock, and both had to land or a reader could
              # catch the pair half-written. ADR-019 deleted the document, so
              # there is no pair.
-             'write_atomic(ctx["state_root"], reg.path, store_text)'],
+             'write_atomic(ctx["state_root"], reg.path, store_text)',
+             # `write_kr_writer_result` — `measure` and `check` (TASK-264).
+             # `linkage.jsonl`, never OKR.md, through this tool's own
+             # `write_atomic` and so behind `assert_owned`.
+             'write_atomic(ctx["state_root"], path, '
+             'append_linkage_records(ctx, [record]))'],
             "a write call site was added or moved; check it is gated")
 
 
