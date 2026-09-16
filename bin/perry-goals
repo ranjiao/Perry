@@ -3538,7 +3538,7 @@ def cmd_measure(args, ctx) -> dict:
             f"{', '.join(declared) or 'none'}. A value is measured against a "
             f"declared check: `perry-goals check {kr_flag_hint(kr, version)} "
             f"--id {check_id} --direction <D> --target <N> [--baseline <N>] "
-            f"--label \"…\"` declares it. Nothing was written")
+            f"--label \"…\" --actor <who>` declares it. Nothing was written")
     value = typed_number("--value", value_text)
     evidence = resolve_evidence(ctx, evidence_text)
 
