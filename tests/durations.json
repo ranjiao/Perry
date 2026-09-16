@@ -610,7 +610,7 @@
       "source": "2026-09-16-task289"
     },
     "test_release_core.py": {
-      "sec": 8.491,
+      "sec": 14.955,
       "source": "2026-09-16-task462"
     },
     "test_release_update.py": {
@@ -807,7 +807,7 @@
       "taken": "2026-09-16T11:06:49.318413+00:00",
       "workers": 1,
       "load1": 8.28564453125,
-      "note": "TASK-462 new modules only. Core 15 tests in 8.491 seconds run with clean PYTHONPATH/PERRY_PROJECT/PERRY_HOME; update author reports 20 tests in 13.604 seconds. No neighboring module re-timed."
+      "note": "TASK-462 new modules only. Core 15 tests in 8.491 seconds run with clean PYTHONPATH/PERRY_PROJECT/PERRY_HOME; update author reports 20 tests in 13.604 seconds. No neighboring module re-timed. Review follow-up: core now 16 tests measured in 14.955 seconds; clean HEAD/requested SHA mismatch coverage added, exact guard removal mutation fails."
     }
   }
 }

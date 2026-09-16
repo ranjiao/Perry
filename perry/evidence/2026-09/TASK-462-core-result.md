@@ -81,3 +81,19 @@ installation, and live update were not performed. No push or tag was created.
 
 Scope deviation: INSTALL.md was included with parent approval as a necessary
 correction to the old `git pull` consumer guidance. No other expansion.
+
+## Review follow-up — exact checked-out commit guard
+
+Reviewer found that removing the `HEAD == requested SHA` check survived the
+previous core suite. Added a clean checkout at a later commit while requesting
+the older release commit: both prepare and publish now explicitly assert refusal,
+and publisher asserts that no API request is made. Production behavior unchanged.
+
+- Clean-env core module: 16 tests PASS, 14.955s; duration registration updated.
+- Mutation removed only `commit(root, "HEAD") != sha or ` from prepare's guard.
+  The new targeted test failed with `AssertionError: Refused not raised`, exit 1
+  (one test, 0.805s). The mutation is killed, not merely detected by tree checks.
+- Restored `release/manage.py` byte-for-byte against `git show HEAD:release/manage.py`;
+  SHA-256 `7703018f84e639ba582d4fb7d8a6467d370dfa969b85676c249ae99d961e5e79`.
+- Re-ran the new targeted test after restoration: PASS. No production changes.
+  Parent must validate the new immutable head for the final merged gate.

@@ -196,6 +196,19 @@ class Release(unittest.TestCase):
         with self.assertRaisesRegex(manage.Refused, 'already exists'):
             manage.prepare(self.root, self.base, 'v0.1.0')
 
+    def test_clean_head_must_equal_requested_release_commit(self):
+        self.write('product.txt', 'later clean commit')
+        later = self.save()
+        self.assertNotEqual(later, self.base)
+        self.assertEqual(self.git('status', '--porcelain'), '')
+        self.git('update-ref', 'refs/remotes/origin/main', later)
+        with self.assertRaisesRegex(manage.Refused, 'exact version commit'):
+            manage.prepare(self.root, self.base, 'v0.1.0')
+        with patch.object(publisher, 'api') as api:
+            with self.assertRaisesRegex(manage.Refused, 'exact version commit'):
+                publisher.publish(self.root, 'owner/repo', 'token', self.base, 'v0.1.0', 'main')
+            api.assert_not_called()
+
     def test_publish_create_only_exact_sha_and_existing_release_refusal(self):
         self.git('update-ref', 'refs/remotes/origin/main', self.base)
         responses = [None, None, {'object': {'sha': self.base}}, {'tag_name': 'v0.1.0'}]
