@@ -54,8 +54,9 @@ break every reader; the loader does not look at them at all.
 
 ## Deactivating it
 
-A project whose tracks are all `pipeline`, `queue` or `inquiry` has no use for
-any of the above. Deactivating the pack removes the pack procedures from the
+A project with no applicable software-ops procedures can deactivate this pack;
+track mode alone does not decide that (a queue or pipeline can deliver software).
+Deactivating the pack removes the pack procedures from the
 lane index and the two `close-task` gates with them; nothing else in Perry
 depends on it. A knowledge base does not need to know what an architecture audit
 is, and before this extraction it carried all three files' names in the PMO lane

@@ -20,9 +20,10 @@ The policy must identify:
 
 - Components and repository roots, including independently released packages.
   Name their authority files, version/tag conventions and changelog outputs.
-- The chosen strategy per component, current accepted version, and baseline
-  mapping to its current phase/release history. Preserve historical identities;
-  adopting the procedure does not fabricate or renumber old releases.
+- The chosen strategy per component and baseline at adoption, mapped to its
+  phase/release history and authoritative source. Read each later accepted
+  version from that source/tool; do not maintain another current value in policy.
+  Preserve historical identities; adoption does not fabricate or renumber them.
 - What counts as a delivery, its stable identity and component scope; whether
   several deliveries can share a version and when a version is reserved/final.
 - The main integrator, coding and review responsibilities, actual allocation and

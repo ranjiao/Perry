@@ -25,13 +25,6 @@ Each role owns its own deliverable's commit. PMO never commits code; Coding neve
 
 If `.perry/config.jsonl` records `Repo layout: split` (PMO docs and code in separate repos), every delegation prompt MUST state which repo the work targets (absolute path), and evidence files MUST reference code via `<commit-SHA> path/to/file`. The split layout itself is documented in the top-level Perry SKILL.md; PMO is responsible for honoring it in delegation prompts and evidence files.
 
-## Optional release integration
-
-When an approved project release policy applies, the main integrator coordinates
-allocation and validation via `$PERRY_HOME/packs/software-ops/releases.md` before
-accepting a delivery. Coding owns product-file edits/commits; existing merge and
-push authority still applies. With no policy, this adds no version step.
-
 ## Time Estimation for Coding Agent Tasks
 
 Coding Agents are **30–100× faster** than human engineers. When PMO estimates time for delegated coding work, default to:
@@ -47,3 +40,10 @@ Inflated estimates ("this will take an hour") cause the user to plan around the 
 This calibration applies only to autonomous agent runs. Tasks delegated to humans (RM contact, professional consultations, manual external operations) keep human-pace estimates.
 
 If a project repeatedly observes cycle times outside these ranges, record the calibration in its hook block (e.g., "Coding Agent on this codebase averages ~3 min for medium due to slow test suite") and treat the hook value as the local override.
+
+## Optional release integration
+
+When an approved project release policy applies, the main integrator coordinates
+allocation and validation via `$PERRY_HOME/packs/software-ops/releases.md` before
+accepting a delivery. Coding owns product-file edits/commits; existing merge and
+push authority still applies. With no policy, this adds no version step.
