@@ -975,7 +975,8 @@ def append_event(project_root: Path, event: dict) -> bool:
             fh.write(json.dumps(event, ensure_ascii=False) + "\n")
         return True
     except OSError as exc:
-        print(f"perry-goals: warning — OKR.md was written, but the event could "
+        print(f"perry-goals: warning — {event.get('file') or 'canonical state'} "
+              f"was written, but the event could "
               f"not be appended to {ev}: {exc}. State is correct; this row will "
               f"read as unrecorded until the log is writable again.",
               file=sys.stderr)
@@ -3390,9 +3391,9 @@ def refuse_closed_kr(ctx, target: dict) -> None:
     Both read a typed field. A phase's status is the header block
     `parsers.parse_phase` reads (`**Status**: scored`, the line
     `score-phase` step 7 flips); the current OKR version is the one
-    `parsers.parse_okr` reads from `OKR.md`'s highest `## vN:` heading, which
-    is the version `perry-goals list` keys overall positions on — a value
-    measured against any other version would be written and never shown.
+    `overall_kr_model` selects from the canonical store for `krs --level
+    overall`. The markdown projection may lag or lead that store; it cannot
+    authorize a measurement against a past version.
     """
     if target["level"] == "phase":
         slug = target["phase"]
@@ -3408,14 +3409,13 @@ def refuse_closed_kr(ctx, target: dict) -> None:
                 f"Measure a KR of the current phase instead — `perry-goals "
                 f"krs` lists them. Nothing was written")
         return
-    okr_md = ctx["state_root"] / "OKR.md"
-    current = ""
-    if okr_md.is_file():
-        current = P.parse_okr(okr_md.read_text(encoding="utf-8")).version
+    versions, _order = overall_kr_model(
+        ctx["state_root"], ctx["project_root"], "current")
+    current = versions[0]["version"] if versions else ""
     if target["okr_version"] != current:
         raise Refused(
             f"OKR version {target['okr_version']!r} is not the current one "
-            f"({current!r}, from `OKR.md`'s latest `## vN:` heading). A value "
+            f"({current!r}, from the canonical `okr.jsonl` store). A value "
             f"measured against a past version is published by no reader. "
             f"Measure the current version's KR — `perry-goals krs --level "
             f"overall` lists them. Nothing was written")

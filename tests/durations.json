@@ -636,11 +636,11 @@
       "taken": "2026-09-12T15:20:00Z",
       "workers": 1
     },
-    "2026-09-14-asks": {
-      "load1": 11.94,
-      "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (4.19/4.09/3.94s), on the terms of the 2026-09-12-task439 entry. test_asks_list.py landed in f9143a3b (perry-task asks) without an entry, and tests/run has printed `not in durations.json` for it since. load1 is the uptime sample taken right after the three runs, with a dispatched agent's work on the same machine, so this is high rather than idle.",
-      "ref": "f9143a3b189b3cc8f9050fc41c464842061f5810",
-      "taken": "2026-09-14T03:32:00Z",
+    "2026-09-14-task335": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 tests/parallel test_contract_key_parity --times` on a git-archive copy of the ref and recorded at the median of the harness's own per-module seconds (7.03/6.14/6.00s, 40 tests). On the terms of the 2026-09-12-task439 entry: no neighbour was re-timed. The same procedure at b71d8ce5, before TASK-335, read 5.20/5.12/5.19s (35 tests), so the frozen copy costs about 0.95s. `load1` is null because nothing sampled it.",
+      "ref": "3ac11420",
+      "taken": "2026-09-14T11:50:00Z",
       "workers": 1
     },
     "2026-09-14-task237": {
@@ -648,6 +648,13 @@
       "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (0.79/0.89/0.8s), on the terms of the 2026-09-12-task439 entry: re-timing every neighbour to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it.",
       "ref": "1d30f84d3f88f7d211b6bbb764f4dfc42a61de7d",
       "taken": "2026-09-14T03:09:47Z",
+      "workers": 1
+    },
+    "2026-09-14-asks": {
+      "load1": 11.94,
+      "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (4.19/4.09/3.94s), on the terms of the 2026-09-12-task439 entry. test_asks_list.py landed in f9143a3b (perry-task asks) without an entry, and tests/run has printed `not in durations.json` for it since. load1 is the uptime sample taken right after the three runs, with a dispatched agent's work on the same machine, so this is high rather than idle.",
+      "ref": "f9143a3b189b3cc8f9050fc41c464842061f5810",
+      "taken": "2026-09-14T03:32:00Z",
       "workers": 1
     },
     "2026-09-14-task237-d1": {
@@ -673,23 +680,23 @@
     },
     "2026-09-14-task237-d3b-prime": {
       "load1": 11.53,
-      "note": "TWO modules added by TASK-237 deliverable 3b\u2032, each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_installed_is_one_predicate 1.57/1.53/1.57s, test_starts_write_the_config_store_first 1.57/1.58/1.54s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "note": "TWO modules added by TASK-237 deliverable 3b′, each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_installed_is_one_predicate 1.57/1.53/1.57s, test_starts_write_the_config_store_first 1.57/1.58/1.54s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
       "ref": "91610742",
       "taken": "2026-09-14T12:00:00Z",
       "workers": 1
     },
-    "2026-09-14-task262": {
-      "load1": 11.08,
-      "note": "TASK-262. ONE module added and ONE slowed, each timed alone three times with `python3 -m unittest discover -s tests -t . -p <module>` and recorded at the median: test_board_names_its_sources 0.79/0.64/0.57s; test_board_from_declarations 0.91/0.91/0.89s. The slowdown is measured, not assumed: the same module at the base 7f97d337, from a `git archive` copy, back to back at the same load, took 0.53/0.86/0.60s (median 0.60). Every `perry-tasks board` now also reads `bin/perry-task \u00a7 SURFACE` with `ast` (~0.03s a render). No other neighbour was re-timed. load1 is the getloadavg sample taken right after the nine runs.",
-      "ref": "7f97d337928a09fe6993f4891e2a5c3822fd3523",
-      "taken": "2026-09-14T15:00:00Z",
+    "2026-09-15-unlisted-pair": {
+      "load1": 21.08,
+      "note": "TWO modules that landed without an entry — test_contract_page_snippets (7ce9170b, TASK-412) and test_a_write_refuses_where_nothing_is_installed (b42fa3d7, TASK-237 round 2) — each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_contract_page_snippets 5.98/4.79/4.64s; test_a_write_refuses_where_nothing_is_installed 3.97/3.47/4.66s. test_durations_provenance was red over them on `--slow` while the default run, which defers that module, stayed green. No neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "ref": "282e6acb8ac4d285edff263eb781e7816f542d65",
+      "taken": "2026-09-15T02:10:00Z",
       "workers": 1
     },
-    "2026-09-14-task335": {
-      "load1": null,
-      "note": "ONE module, timed alone three times with `python3 tests/parallel test_contract_key_parity --times` on a git-archive copy of the ref and recorded at the median of the harness's own per-module seconds (7.03/6.14/6.00s, 40 tests). On the terms of the 2026-09-12-task439 entry: no neighbour was re-timed. The same procedure at b71d8ce5, before TASK-335, read 5.20/5.12/5.19s (35 tests), so the frozen copy costs about 0.95s. `load1` is null because nothing sampled it.",
-      "ref": "3ac11420",
-      "taken": "2026-09-14T11:50:00Z",
+    "2026-09-14-task262": {
+      "load1": 11.08,
+      "note": "TASK-262. ONE module added and ONE slowed, each timed alone three times with `python3 -m unittest discover -s tests -t . -p <module>` and recorded at the median: test_board_names_its_sources 0.79/0.64/0.57s; test_board_from_declarations 0.91/0.91/0.89s. The slowdown is measured, not assumed: the same module at the base 7f97d337, from a `git archive` copy, back to back at the same load, took 0.53/0.86/0.60s (median 0.60). Every `perry-tasks board` now also reads `bin/perry-task § SURFACE` with `ast` (~0.03s a render). No other neighbour was re-timed. load1 is the getloadavg sample taken right after the nine runs.",
+      "ref": "7f97d337928a09fe6993f4891e2a5c3822fd3523",
+      "taken": "2026-09-14T15:00:00Z",
       "workers": 1
     },
     "2026-09-15-task262-round2": {
@@ -727,18 +734,18 @@
       "taken": "2026-09-15T12:29:00Z",
       "workers": 1
     },
-    "2026-09-15-unlisted-pair": {
-      "load1": 21.08,
-      "note": "TWO modules that landed without an entry \u2014 test_contract_page_snippets (7ce9170b, TASK-412) and test_a_write_refuses_where_nothing_is_installed (b42fa3d7, TASK-237 round 2) \u2014 each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_contract_page_snippets 5.98/4.79/4.64s; test_a_write_refuses_where_nothing_is_installed 3.97/3.47/4.66s. test_durations_provenance was red over them on `--slow` while the default run, which defers that module, stayed green. No neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
-      "ref": "282e6acb8ac4d285edff263eb781e7816f542d65",
-      "taken": "2026-09-15T02:10:00Z",
+    "2026-09-16-task448-r3": {
+      "load1": 18.32,
+      "note": "EIGHT modules re-timed after TASK-448 round 3 (USER-942) took them off the live state root: seven copy named store and document files instead of the whole of perry/, or run their tool with --root at a fixture project, and test_store_is_canonical was not changed at all — its 21.59s was stale, taken before TASK-368 moved it in-process. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: board_render 1.24/1.41/1.20; task_store 1.42/1.55/1.64; decoration_changes_nothing 4.61/4.51/4.51; store_is_canonical 0.69/0.68/0.70; review_verdicts 8.01/8.51/7.58; rung_vocabulary 1.07/0.95/0.96; contract_page_snippets 1.24/1.26/1.09; count_fields 0.58/0.50/0.51. No neighbour was re-timed. load1 is the getloadavg sample taken right after the 24 runs, with other sessions' work on the same machine.",
+      "ref": "bf9bd4e3",
+      "taken": "2026-09-16T02:40:00Z",
       "workers": 1
     },
-    "2026-09-16-task264": {
-      "load1": 86.84,
-      "note": "ONE new module, test_goals_kr_writer (TASK-264), timed alone three times with `python3 tests/parallel -j 1 --times test_goals_kr_writer` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 6.41/4.76/5.17 (39 tests). No neighbour was re-timed: the two modules that gained a registry line (test_a_write_refuses_where_nothing_is_installed, test_okr_store_is_the_source) each gained one table entry, which moves nothing measurable. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine, so the figure is likely high rather than low.",
-      "ref": "ec5d5421",
-      "taken": "2026-09-16T08:50:00Z",
+    "2026-09-16-task449": {
+      "load1": 28.88,
+      "note": "ONE new module, test_tiers (TASK-449), timed alone three times with `python3 tests/parallel -j 1 --times test_tiers` and recorded at the median of the harness's own per-module seconds: 10.61/10.57/10.58s (40 tests). No neighbour was re-timed: the row adds a --tier entry to tests/run and tests/parallel, which no other module's work goes through. The module spends its time in ~20 subprocess runs of `bash tests/run` against a stub tree, which is what holds `bare run == --tier full` as a comparison of two runs rather than of two lines of source. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine.",
+      "ref": "c71e9585",
+      "taken": "2026-09-16T12:10:00Z",
       "workers": 1
     },
     "2026-09-16-task270": {
@@ -755,13 +762,6 @@
       "taken": "2026-09-16T08:36:00Z",
       "workers": 1
     },
-    "2026-09-16-task271-275": {
-      "load1": 90.74,
-      "note": "TWO new modules, test_empty_declared_store (TASK-275) and test_tracks_source_documented (TASK-271), plus test_empty_config_store, which TASK-270 added without an entry and this branch edits. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 0.64/0.52/0.57 (6 tests), 2.25/2.41/2.98 (6 tests) and 16.11/22.70/23.61 (16 tests). No other neighbour was re-timed. load1 was 13.04 after the first two and 90.74 after the third, so the last figure is likely high rather than low.",
-      "ref": "ca6b3506",
-      "taken": "2026-09-16T08:24:00Z",
-      "workers": 1
-    },
     "2026-09-16-task416": {
       "load1": 92.44,
       "note": "ONE new module, test_kr_checks (TASK-416), timed alone three times with `python3 tests/parallel -j 1 --times test_kr_checks` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 3.02/2.08/1.58 (48 tests). No neighbour was re-timed. The machine was heavily loaded (load1 92.44 taken just after the three runs), so the figure is likely high rather than low.",
@@ -769,18 +769,18 @@
       "taken": "2026-09-16T07:45:00Z",
       "workers": 1
     },
-    "2026-09-16-task448-r3": {
-      "load1": 18.32,
-      "note": "EIGHT modules re-timed after TASK-448 round 3 (USER-942) took them off the live state root: seven copy named store and document files instead of the whole of perry/, or run their tool with --root at a fixture project, and test_store_is_canonical was not changed at all \u2014 its 21.59s was stale, taken before TASK-368 moved it in-process. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: board_render 1.24/1.41/1.20; task_store 1.42/1.55/1.64; decoration_changes_nothing 4.61/4.51/4.51; store_is_canonical 0.69/0.68/0.70; review_verdicts 8.01/8.51/7.58; rung_vocabulary 1.07/0.95/0.96; contract_page_snippets 1.24/1.26/1.09; count_fields 0.58/0.50/0.51. No neighbour was re-timed. load1 is the getloadavg sample taken right after the 24 runs, with other sessions' work on the same machine.",
-      "ref": "bf9bd4e3",
-      "taken": "2026-09-16T02:40:00Z",
+    "2026-09-16-task271-275": {
+      "load1": 90.74,
+      "note": "TWO new modules, test_empty_declared_store (TASK-275) and test_tracks_source_documented (TASK-271), plus test_empty_config_store, which TASK-270 added without an entry and this branch edits. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 0.64/0.52/0.57 (6 tests), 2.25/2.41/2.98 (6 tests) and 16.11/22.70/23.61 (16 tests). No other neighbour was re-timed. load1 was 13.04 after the first two and 90.74 after the third, so the last figure is likely high rather than low.",
+      "ref": "ca6b3506",
+      "taken": "2026-09-16T08:24:00Z",
       "workers": 1
     },
-    "2026-09-16-task449": {
-      "load1": 28.88,
-      "note": "ONE new module, test_tiers (TASK-449), timed alone three times with `python3 tests/parallel -j 1 --times test_tiers` and recorded at the median of the harness's own per-module seconds: 10.61/10.57/10.58s (40 tests). No neighbour was re-timed: the row adds a --tier entry to tests/run and tests/parallel, which no other module's work goes through. The module spends its time in ~20 subprocess runs of `bash tests/run` against a stub tree, which is what holds `bare run == --tier full` as a comparison of two runs rather than of two lines of source. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine.",
-      "ref": "c71e9585",
-      "taken": "2026-09-16T12:10:00Z",
+    "2026-09-16-task264": {
+      "load1": 86.84,
+      "note": "ONE new module, test_goals_kr_writer (TASK-264), timed alone three times with `python3 tests/parallel -j 1 --times test_goals_kr_writer` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 6.41/4.76/5.17 (39 tests). No neighbour was re-timed: the two modules that gained a registry line (test_a_write_refuses_where_nothing_is_installed, test_okr_store_is_the_source) each gained one table entry, which moves nothing measurable. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine, so the figure is likely high rather than low.",
+      "ref": "ec5d5421",
+      "taken": "2026-09-16T08:50:00Z",
       "workers": 1
     }
   }

@@ -248,7 +248,9 @@ class TestMeasureWrites(Project):
     def test_the_measure_event_is_appended_with_the_record(self):
         """Mutation 2 — the record written without the event — is red here."""
         self.measure(1051)
-        [event] = [e for e in self.logged() if e.get("event") == "measure"]
+        events = [e for e in self.logged() if e.get("event") == "measure"]
+        self.assertEqual(len(events), 1, "the persisted measurement needs its event")
+        [event] = events
         self.assertEqual(
             {k: event.get(k) for k in ("actor", "file", "kr", "okr_version",
                                        "check", "value", "evidence")},
@@ -288,11 +290,59 @@ class TestMeasureWrites(Project):
         entries = lib.kr_checks(self.records("check") + [rec])[("O1-KR1", V4)]
         self.assertTrue(lib.kr_position(entries)["met"])
 
+    def test_the_store_current_version_is_writable_despite_projection_drift(self):
+        self.declare("O4-KR1", "n", direction="at_most", target="0",
+                     baseline=None)
+        for projection in (f"# OKR\n\n## {V3}\n", "# OKR\n\n## v5: 2026-10-01\n", None):
+            with self.subTest(projection=projection):
+                doc = self.root / "OKR.md"
+                if projection is None:
+                    doc.unlink()
+                else:
+                    doc.write_text(projection)
+                current = self.ok("krs", "--level", "overall")["versions"]
+                self.assertEqual(current[0]["version"], V4)
+                got = self.measure(0, "O4-KR1", "n")
+                self.assertEqual(got["record"]["okr_version"], V4)
+
     def test_a_unique_overall_id_needs_no_version(self):
         self.ok("check", "O4-KR1", "--id", "n", "--direction", "at_most",
                 "--target", "0", "--label", "issues")
         [rec] = [r for r in self.records("check") if r["kr"] == "O4-KR1"]
         self.assertEqual(rec["okr_version"], V4)
+
+
+class TestDerivedEventFailure(Project):
+    def test_an_event_failure_reports_the_persisted_record_without_a_journal(self):
+        self.declare()
+        self.events.unlink()
+        self.events.mkdir()  # portable append failure, including privileged users
+        for command in ("check", "measure"):
+            for json_mode in (False, True):
+                with self.subTest(command=command, json_mode=json_mode):
+                    args = (["check", "P004-O1-KR1", "--id", "p90",
+                             "--direction", "decrease", "--baseline", "1702",
+                             "--target", "400", "--label", "p90 length"]
+                            if command == "check" else
+                            ["measure", "P004-O1-KR1", "--check", "p90",
+                             "--value", "1051", "--evidence", "evidence/2026-09/m.md"])
+                    if json_mode:
+                        args.append("--json")
+                    before = self.store.read_bytes()
+                    got = self.goals(*args)
+                    self.assertEqual(got.returncode, 0, got.stderr)
+                    self.assertTrue(self.store.read_bytes().startswith(before))
+                    self.assertEqual(self.store.read_bytes()[len(before):].count(b"\n"), 1)
+                    self.assertIn("linkage.jsonl was written", got.stderr)
+                    self.assertIn("event could not be appended", got.stderr)
+                    self.assertNotIn("Nothing was written", got.stderr)
+                    if json_mode:
+                        result = json.loads(got.stdout)
+                        self.assertTrue(result["written"])
+                        self.assertFalse(result["event_written"])
+                    else:
+                        self.assertIn("record was written and the event was not", got.stderr)
+                    self.assertFalse((self.root / "journal").exists())
 
 
 class TestMeasureRefuses(Project):
@@ -356,6 +406,16 @@ class TestMeasureRefuses(Project):
             ["measure", "O3-KR1", "--check", "n", "--value", "0",
              "--evidence", "evidence/2026-09/m.md"],
             f"'{V3}' is not the current one", V4,
+            "perry-goals krs --level overall")
+
+    def test_a_lagging_projection_cannot_reopen_a_past_store_version(self):
+        self.ok("check", "O3-KR1", "--id", "n", "--direction", "at_most",
+                "--target", "0", "--label", "old")
+        (self.root / "OKR.md").write_text(f"# OKR\n\n## {V3}\n")
+        self.assertRefused(
+            ["measure", "O3-KR1", "--check", "n", "--value", "0",
+             "--evidence", "evidence/2026-09/m.md"],
+            f"'{V3}' is not the current one", V4, "okr.jsonl",
             "perry-goals krs --level overall")
 
     def test_a_bare_overall_id_two_versions_carry(self):

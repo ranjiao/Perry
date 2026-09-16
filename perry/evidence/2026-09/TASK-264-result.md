@@ -6,6 +6,82 @@
 > **Landed:** `perry-goals measure` (deliverable 1) and `perry-goals check` (deliverable 2), both requiring `--actor` (USER-950, added mid-row by the coordinator).
 > **Blocked:** deliverable 3, KR `add` / `restate` / `withdraw` at both levels — the append-only stores have no representation for a restated or withdrawn KR (§ 3 below). Nothing of it was built.
 
+## Round 2 — Codex takeover, 2026-09-16
+
+**Partial delivery only: check and measure are implemented; KR add/restate/
+withdraw remain blocked. This result does not claim full-task V4 or closure.**
+
+- Branch: `codex/task-264-round2`; original implementation pinned at `4ea3178a`.
+- Integration baseline: `d270935d` (includes the PMO clarification of Every
+  write); merged into this branch before the fixes. Implementation head is
+  the commit carrying this section (`git log -1 --format=%H -- bin/perry-goals`).
+- Scope: `bin/perry-goals`, writer regression tests, durations conflict
+  resolution, this result. No task-state writes, schema edits, journal writes,
+  live checks or live measurements were performed by this coding session.
+
+**Authority bug fixed.** `refuse_closed_kr` now reuses
+`overall_kr_model(..., "current")`, the same validated canonical store model
+`krs --level overall` uses. An `OKR.md` whose last heading is v3 can no longer
+reopen v3 when the store is at v4. Lagging, ahead and absent markdown all leave
+v4 writable. Regression tests assert refusal code, recovery wording and
+unchanged store/event bytes for the rejected stale version.
+
+**Event failures follow the clarified spec and ARCHITECTURE §4.** A committed
+record plus a failed derived event still returns exit 0 with `written: true`,
+`event_written: false`, and stderr explaining the failure. It is not an atomic
+record/event transaction, does not claim rollback, and must not be reported as
+“nothing written.” A directory at `.perry/events.jsonl` exercises the real
+append failure for both verbs and both human/JSON output; each call appends
+exactly one canonical record, warns, and creates no journal. The warning now
+names `event.file` (`linkage.jsonl` here), rather than falsely saying `OKR.md`
+was written. No automatic retry is promised or performed.
+
+**Independent D3 confirmation.** Fresh scratch projects show that appending a
+second phase KR with the same id produces two displayed KRs, even with an
+undeclared `status: withdrawn`; the parser appends all `kind: kr` records.
+The overall store refuses duplicate `version/objective/id` keys. Its
+`record_key` / `validate_records` contain no same-version supersession rule.
+Neither store declares a withdrawal representation. Options for a separately
+approved design are typed append-only supersession/tombstone semantics in both
+stores and readers, or explicitly relaxing the task's append-only requirement
+and defining rewrite/history behavior. A new overall OKR version can represent
+new wording today, but is not a same-version KR withdrawal command. No option
+was implemented, and add remains outside this round's scope.
+
+**Validation before this commit:**
+
+- Writer module: 45 tests passed (including projection drift and real event
+  failures). The only subsequent test change makes the missing-event mutation
+  fail by an explicit event-count assertion rather than an unpacking error.
+- Writer + durations provenance: 68 tests passed before the event-failure test
+  was added; 153 modules recorded / 153 on disk, no stale or unstamped sources.
+- Durations conflict: preserved all current-main entries/sources and the
+  original branch-only `test_goals_kr_writer.py` 5.17 s / source
+  `2026-09-16-task264`; historical timing provenance remains `ec5d5421` and is
+  not relabeled as a fresh measurement. Current-main existing timings win.
+- Fresh scratch end to end: check `decrease 1702 → 400`; measurements 1702,
+  1051, 400 yielded `(state, met, fraction)` of `(measured, false, 0.0)`,
+  `(measured, false, 0.5)`, `(measured, true, 1.0)`.
+- Six fresh-copy mutations red: computed KR accepted →
+  `test_a_computed_kr`; event omitted →
+  `test_the_measure_event_is_appended_with_the_record`; invalid decrease →
+  `test_decrease_with_target_not_below_baseline`; missing evidence accepted →
+  `test_a_missing_evidence_path`; ambiguous version accepted →
+  `test_a_bare_overall_id_two_versions_carry`; markdown authority restored →
+  `test_a_lagging_projection_cannot_reopen_a_past_store_version`.
+- `git diff --check` passed. Final affected-tier results are quoted in the
+  hand-off on this committed tree; full and slow merged-tree validation belong
+  to the coordinating session, not this partial result.
+
+Architecture compliance: NN-1 reuses the existing model without a second
+parser; NN-2 chooses the store over its projection; NN-3 distinguishes a
+persisted record from a missing event; NN-4 compares typed values only; NN-5
+all mutations and measurements use isolated scratch roots. Existing project
+lock and lane ownership remain intact. No confirmed architecture rule changes.
+
+The original implementation receipt follows for provenance; the updated
+write-policy wording above supersedes any earlier atomicity implication.
+
 ## 1. What landed, and where
 
 | File | Change |
