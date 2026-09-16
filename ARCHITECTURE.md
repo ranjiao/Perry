@@ -72,6 +72,14 @@ there is no cross-project registry).
   are the `SKILL.md` files'. These tools execute, compute and refuse.
 - **Module document**: [`bin/ARCHITECTURE.md`](bin/ARCHITECTURE.md)
 
+### `release/` — Perry product versions and releases
+- **Purpose**: maintain Perry's own product versions and verified release updates.
+- **Owns**: typed release records, deterministic VERSION/CHANGELOG projections,
+  integration checks and explicit publication of an exact tested commit.
+- **Doesn't own**: the versions or state of projects managed by Perry, the
+  meaning of authored change notes, or the user's decision to raise a major version.
+- **Procedure**: [`release/README.md`](release/README.md).
+
 ### `viewer/parsers.py` — the one reader
 - **Purpose**: parse every state file. 5,228 lines, one implementation.
 - **Owns**: `OKR.md`, phase, linkage, config and architecture parsing, and the
