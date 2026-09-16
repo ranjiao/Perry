@@ -454,6 +454,10 @@ class TestItReportsHowMuchItSaw(ReviewLintCase):
 
 
 class TestItIsOptIn(ReviewLintCase):
+    #: The four rules `--reviews` adds, which the default pass may not run.
+    OPT_IN_RULES = ("v4-close-without-verdict", "fail-verdict-left-at-review",
+                    "verdict-malformed", "fail-without-proof")
+
     def test_the_default_pass_does_not_run_it(self):
         """A project that predates the convention has its reviews in prose.
         Promoting those to errors in the default pass would retroactively
@@ -470,12 +474,25 @@ class TestItIsOptIn(ReviewLintCase):
         self.evidence("TASK-001-review.md", "# A review, in prose\n\n"
                       "It looked fine to me.\n")
         proc = subprocess.run(
-            [sys.executable, str(LINT), "--root", str(self.dir), "--json"],
+            [sys.executable, str(LINT), "--root", str(self.dir),
+             "--state-root", ".", "--json"],
             capture_output=True, text=True, cwd=ROOT)
         rules = {f["rule"] for f in json.loads(proc.stdout).get("findings", [])}
-        for r in ("v4-close-without-verdict", "fail-verdict-left-at-review",
-                  "verdict-malformed", "fail-without-proof"):
+        for r in self.OPT_IN_RULES:
             self.assertNotIn(r, rules)
+
+    def test_the_same_project_trips_one_of_them_under_reviews(self):
+        """**The control, and the reason the case above is a measurement.**
+
+        Absent rules prove nothing on a project that could never have produced
+        them — which is what the old version of this test risked, reading a
+        checkout whose reviews all carry verdicts. This asserts the fixture is
+        one the opt-in pass really does condemn.
+        """
+        self.board([self.row("TASK-001", "done")])
+        self.evidence("TASK-001-review.md", "# A review, in prose\n\n"
+                      "It looked fine to me.\n")
+        self.assertIn("v4-close-without-verdict", self.rules())
 
 
 
