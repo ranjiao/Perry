@@ -97,3 +97,19 @@ and publisher asserts that no API request is made. Production behavior unchanged
   SHA-256 `7703018f84e639ba582d4fb7d8a6467d370dfa969b85676c249ae99d961e5e79`.
 - Re-ran the new targeted test after restoration: PASS. No production changes.
   Parent must validate the new immutable head for the final merged gate.
+
+## Final review follow-up — canonical sequence negative tests
+
+Added handwritten JSONL patch records with version `0.1.2` (skip) and `0.0.9`
+(reverse) after baseline, and phase records repeating `004-guided` or reversing
+to `003-earlier`. These test canonical ingestion independently of the allocator's
+correct construction of sequences. Production code is unchanged.
+
+- Core module: 18 tests PASS, 10.128s; measured duration updated.
+- Replacing `if current != expected:` with `if False:`: new patch test fails
+  both cases with `Refused not raised`; exit 1, 0.258s.
+- Disabling the repeated/backwards phase conditional: new phase test fails
+  both cases with `Refused not raised`; exit 1, 0.277s.
+- Restored production bytes match Git and the same SHA-256 recorded above.
+  Post-restoration `-k canonical_` tests pass. These are two targeted killed
+  mutations; no claim of exhaustive mutation coverage.

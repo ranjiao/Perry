@@ -102,6 +102,24 @@ class Release(unittest.TestCase):
         with self.assertRaises(manage.Refused):
             manage.load(b'{broken')
 
+    def test_canonical_patch_versions_cannot_skip_or_go_backwards(self):
+        for invalid in ('0.1.2', '0.0.9'):
+            with self.subTest(version=invalid):
+                row = dict(BASELINE, kind='patch', version=invalid,
+                           delivery='handwritten-patch')
+                raw = ''.join(json.dumps(r) + '\n' for r in (BASELINE, row)).encode()
+                with self.assertRaisesRegex(manage.Refused, 'out-of-order version'):
+                    manage.load(raw)
+
+    def test_canonical_phase_cannot_repeat_or_go_backwards(self):
+        for invalid in ('004-guided', '003-earlier'):
+            with self.subTest(phase=invalid):
+                row = dict(BASELINE, kind='phase', version='0.2.0', phase=invalid,
+                           delivery='handwritten-phase')
+                raw = ''.join(json.dumps(r) + '\n' for r in (BASELINE, row)).encode()
+                with self.assertRaisesRegex(manage.Refused, 'phase must be new and move forwards'):
+                    manage.load(raw)
+
     def test_projection_drift_and_explicit_repair(self):
         self.write('VERSION', '9.9.9\n')
         with self.assertRaisesRegex(manage.Refused, 'projection drift'):
