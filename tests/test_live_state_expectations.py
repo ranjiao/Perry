@@ -76,8 +76,6 @@ COVERS = (
     "tests/test_",
     "bin/perry-state",
     "bin/perry-task",
-    "perry/tasks.jsonl",
-    ".perry/",
 )
 
 import ast

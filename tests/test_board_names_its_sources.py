@@ -27,8 +27,12 @@ COVERS = (
     "bin/perry-task",
     "schema/state-schema.json",
     "tests/board_sources.py",
-    "perry/",
-    ".perry/",
+    "work/state/BOARD_TEMPLATE.md",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    ".perry/config.jsonl",
 )
 
 import json

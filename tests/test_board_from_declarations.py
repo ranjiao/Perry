@@ -36,8 +36,11 @@ COVERS = (
     "viewer/tables.py",
     "work/state/BOARD_TEMPLATE.md",
     "schema/state-schema.json",
-    "perry/",
-    ".perry/",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    ".perry/config.jsonl",
 )
 
 import json

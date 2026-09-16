@@ -14,8 +14,9 @@ that compare paths and judge no meaning (`ARCHITECTURE.md § 6` NN-4).
 
 1. **Widening rules, checked first.** Each one selects the whole suite:
    a changed path under `bin/lib/`; `viewer/parsers.py`; a path under
-   `schema/`; a path under `tests/` that is not a `tests/test_*.py`; and any
-   changed path that no module's `COVERS` prefix matches.
+   `schema/`; a path under `tests/` that is not a `tests/test_*.py`, except
+   `tests/durations.json` (`STOPWATCH`, USER-940); and any changed path that no
+   module's `COVERS` prefix matches.
 2. A changed `tests/test_*.py` selects itself.
 3. A changed path that starts with a prefix in a module's `COVERS` selects that
    module. The match is a plain string prefix, so `bin/perry-task` also
@@ -103,6 +104,17 @@ WIDENING_KINDS = (BIN_LIB, PARSERS, SCHEMA, TESTS_HELPER, UNMATCHED)
 #: The selected share above which a change is reported as wide (§ 5.2).
 WIDE = 0.5
 
+#: The one `tests/` path that is NOT a helper (USER-940, 2026-09-16).
+#: `tests/durations.json` is a scheduling hint: `tests/parallel`'s own rule is
+#: that it "may reorder the work, never select it", so a wrong one costs a worse
+#: order and cannot change which modules run. TASK-448's first replay measured
+#: it widening 20 of 50 merges on its own, more than any other cause. It is
+#: matched through `COVERS` instead — `test_durations_provenance`,
+#: `test_parallel_runner` and `test_slow_selector` declare it — and if one day
+#: no module declares it, the unmatched rule below still widens on it rather
+#: than letting it select nothing.
+STOPWATCH = "tests/durations.json"
+
 
 class DeclarationError(ValueError):
     """A `COVERS` this module refuses to interpret."""
@@ -177,7 +189,8 @@ def widening(path: str, prefixes: Iterable[str]) -> str | None:
         return PARSERS
     if path.startswith("schema/"):
         return SCHEMA
-    if path.startswith("tests/") and not is_test_module(path):
+    if (path.startswith("tests/") and not is_test_module(path)
+            and path != STOPWATCH):
         return TESTS_HELPER
     if not is_test_module(path) and not any(path.startswith(p)
                                             for p in prefixes):

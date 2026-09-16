@@ -39,6 +39,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 DECLS = {
     "test_task.py": ("bin/perry-task",),
     "test_prose.py": ("SKILL.md", "reference/"),
+    "test_stopwatch.py": ("tests/durations.json",),
     "test_everything.py": S.ALL,
     "test_undeclared.py": None,
 }
@@ -76,6 +77,30 @@ class TestWideningRules(unittest.TestCase):
                          S.TESTS_HELPER)
         self.assert_full("tests/fixtures/test_like_a_module.py",
                          S.TESTS_HELPER)
+
+    def test_the_stopwatch_is_not_a_helper_and_selects_by_covers(self):
+        """USER-940. `tests/durations.json` may reorder the suite and may not
+        select it, so it is matched through COVERS like any other path."""
+        sel = picked(["tests/durations.json"])
+        self.assertFalse(sel.full, sel.widened)
+        self.assertEqual(sel.modules.get("test_stopwatch.py"),
+                         "covers tests/durations.json: tests/durations.json")
+        self.assertNotIn("test_task.py", sel.modules)
+
+    def test_the_stopwatch_still_widens_when_no_module_declares_it(self):
+        """The exemption may not turn into "selects nothing": with no
+        declaration left, the unmatched rule takes it."""
+        sel = picked(["tests/durations.json"],
+                     {k: v for k, v in DECLS.items() if k != "test_stopwatch.py"})
+        self.assertEqual(sel.widened, ((S.UNMATCHED, "tests/durations.json"),))
+
+    def test_every_other_tests_path_is_still_a_helper(self):
+        """The control on the exemption: it is one path, not a directory."""
+        for path in ("tests/durations.json.bak", "tests/inproc.py",
+                     "tests/fixtures/durations.json"):
+            with self.subTest(path=path):
+                self.assertEqual(S.widening(path, ["tests/durations.json"]),
+                                 S.TESTS_HELPER)
 
     def test_a_path_no_covers_matches_selects_the_full_suite(self):
         self.assert_full("packs/software-ops/architecture.md", S.UNMATCHED)
@@ -254,6 +279,14 @@ class TestTheLiveSuiteDeclares(unittest.TestCase):
                            if isinstance(d, tuple) for p in d
                            if not any(q.startswith(p) for q in paths)})
         self.assertEqual(dangling, [], "COVERS prefixes that name nothing")
+
+    def test_the_live_suite_declares_the_stopwatch(self):
+        """USER-940 rests on this: if no live module declared
+        `tests/durations.json`, exempting it from the helper rule would widen
+        every merge that touches it through the unmatched rule instead."""
+        sel = S.select(["tests/durations.json"], self.decls)
+        self.assertFalse(sel.full, sel.widened)
+        self.assertIn("test_durations_provenance.py", sel.modules)
 
     def test_every_covers_all_says_why_on_the_line_above(self):
         missing = []

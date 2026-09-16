@@ -9,8 +9,11 @@ COVERS = (
     "schema/task-list-contract.md",
     "work/state/BOARD_TEMPLATE.md",
     "tests/printed_board.py",
-    "perry/",
-    ".perry/",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    ".perry/config.jsonl",
 )
 
 import json

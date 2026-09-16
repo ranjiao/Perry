@@ -31,7 +31,14 @@ COVERS = (
     "bin/perry-state",
     "reference/version-compatibility.md",
     "schema/task-list-contract.md",
-    ".perry/",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    "perry/linkage.jsonl",
+    "perry/okr.jsonl",
+    ".perry/config.jsonl",
+    ".perry/events.jsonl",
 )
 
 import json

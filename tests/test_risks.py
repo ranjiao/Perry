@@ -33,8 +33,11 @@ COVERS = (
     "bin/perry-lint",
     "viewer/parsers.py",
     "tests/printed_board.py",
-    "perry/",
-    ".perry/",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    ".perry/config.jsonl",
 )
 
 import subprocess

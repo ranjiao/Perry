@@ -12,7 +12,7 @@ Run: python3 tests/parallel test_asks_list
 
 from __future__ import annotations
 
-COVERS = ("bin/perry-task", "perry/", ".perry/")
+COVERS = ("bin/perry-task", "perry/asks.jsonl", ".perry/config.jsonl")
 
 import json
 import pathlib
