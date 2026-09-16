@@ -135,31 +135,32 @@ class TestTheWritingSetIsDeclared(unittest.TestCase):
 
 class TestEveryWriterRefusesWithoutAnOwner(unittest.TestCase):
 
-    def assert_refused(self, name: str, argv: list[str], given: str):
-        p = BL.Project(board=None)
-        try:
-            before = snapshot(p.root)
-            out = p.task(argv)
-            self.assertEqual(out.returncode, 2, f"{argv}: {out.stderr[-400:]}")
-            self.assertIn("--actor", out.stderr)
-            self.assertIn(given, out.stderr)
-            self.assertIn("Nothing was written", out.stderr)
-            self.assertEqual(snapshot(p.root), before, f"{argv} changed the project")
-        finally:
-            p.close()
-
     def test_each_writer_refuses_absent_empty_and_blank(self):
+        """One project per writer: a refusal changes no byte, so the snapshot
+        taken before the first variant must still hold after the last."""
         names = sorted(writers())
         self.assertGreaterEqual(len(names), 27)
         for name in names:
             argv = argv_for(name)
-            for label, extra, given in (
-                    ("absent", [], "was not given"),
-                    ("empty", ["--actor", ""], "was given empty"),
-                    ("blank", ["--actor", "   "], "was given empty"),
-                    ("dry-run", ["--dry-run"], "was not given")):
-                with self.subTest(sub=name, actor=label):
-                    self.assert_refused(name, argv + extra, given)
+            p = BL.Project(board=None)
+            try:
+                before = snapshot(p.root)
+                for label, extra, given in (
+                        ("absent", [], "was not given"),
+                        ("empty", ["--actor", ""], "was given empty"),
+                        ("blank", ["--actor", "   "], "was given empty"),
+                        ("dry-run", ["--dry-run"], "was not given")):
+                    with self.subTest(sub=name, actor=label):
+                        out = p.task(argv + extra)
+                        self.assertEqual(out.returncode, 2,
+                                         f"{argv + extra}: {out.stderr[-400:]}")
+                        self.assertIn("--actor", out.stderr)
+                        self.assertIn(given, out.stderr)
+                        self.assertIn("Nothing was written", out.stderr)
+                        self.assertEqual(snapshot(p.root), before,
+                                         f"{argv + extra} changed the project")
+            finally:
+                p.close()
 
     def test_the_same_argv_writes_once_the_actor_is_given(self):
         """The refusal stands in front of a write that would land, not in front
