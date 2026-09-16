@@ -336,7 +336,7 @@ class TestEveryDocumentExampleCarriesTheActor(unittest.TestCase):
                 "perry-task status <ID> --status x \\\n    --actor a\n```\n"
                 "`perry-task status <ID> --status\n> review --actor b`\n")
         got = [(ln, has) for ln, _c, has in invocations(text, w)]
-        self.assertEqual(sorted(got), [(1, False), (4, False), (5, True), (7, True)])
+        self.assertEqual(sorted(got), [(1, False), (4, False), (5, True), (8, True)])
 
 
 if __name__ == "__main__":
