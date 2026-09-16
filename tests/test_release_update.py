@@ -141,6 +141,35 @@ class Repositories(unittest.TestCase):
         self.assertEqual(self.head(), head)
         self.assertEqual((self.source / "local").read_text(), "valuable work\n")
 
+    def test_local_version_bump_is_developer_work_on_main_and_detached(self):
+        (self.source / "VERSION").write_text("0.2.0\n")
+        (self.source / "local-work").write_text("valuable work\n")
+        git(self.source, "add", ".")
+        git(self.source, "commit", "-qm", "local version work")
+        head = self.head()
+        target = self.release("0.1.1")
+        for detached in (False, True):
+            with self.subTest(detached=detached):
+                if detached:
+                    git(self.source, "checkout", "--detach", head)
+                got = self.run_check(metadata("0.1.1"))
+                self.assertEqual(got[0], 0, got)
+                self.assertIn("dev mode", got[1])
+                self.assertIn("origin/main; report only", got[1])
+                self.assertEqual(git(self.source, "rev-parse", "origin/main"), target)
+                self.assertEqual(self.head(), head)
+                self.assertEqual((self.source / "local-work").read_text(), "valuable work\n")
+
+    def test_known_detached_release_validation_failure_does_not_fall_back(self):
+        git(self.source, "checkout", "--detach", self.a)
+        self.release("0.1.1")
+        git(self.remote, "tag", "-d", "v0.1.0")
+        got = self.run_check(metadata("0.1.1"))
+        self.assertEqual(got[0], 1, got)
+        self.assertNotIn("dev mode", got[1])
+        self.assertEqual(git(self.source, "rev-parse", "origin/main"), self.a)
+        self.assertEqual(self.head(), self.a)
+
     def test_dirty_and_feature_branch_stay_developer_even_when_explicit(self):
         self.release("0.1.1")
         (self.source / "payload").write_text("WIP")

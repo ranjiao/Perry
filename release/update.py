@@ -152,6 +152,17 @@ def developer(source: Path, reasons: list[str], log) -> None:
         log("To explicitly use verified releases: perry-update-check --force --channel release")
 
 
+def known_release_tag(source: Path) -> str | None:
+    """Local tag/cache association is a candidate, never remote verification."""
+    names = git(source, "for-each-ref", "--format=%(refname)", "--points-at=HEAD",
+                "refs/tags", "refs/perry/releases").stdout.splitlines()
+    for name in names:
+        tag = name.rsplit("/", 1)[-1]
+        if tag.startswith("v") and VERSION.fullmatch(tag[1:] + "\n"):
+            return tag
+    return None
+
+
 def check(source: Path, *, symlink=False, channel="auto", quiet=False, force=False) -> None:
     def log(text):
         if not quiet:
@@ -174,14 +185,17 @@ def check(source: Path, *, symlink=False, channel="auto", quiet=False, force=Fal
         return
     if not official_origin(origin(source)):
         raise Refused("release updates require the official ranjiao/Perry origin")
-    current_text = git(source, "show", "HEAD:VERSION", allowed=(0, 128)).stdout
-    current = version(current_text) if current_text else None
+    known_tag = known_release_tag(source)
     if not branch:
-        # A detached release is updateable, but an arbitrary detached commit
-        # remains developer work. Verify its current tag against origin too.
-        if not current or verified_tag(source, "v" + current_text.strip()) != head:
+        # Classify detached local work from the commit's ref association, not
+        # a self-declared VERSION whose corresponding remote tag may not exist.
+        if not known_tag:
             developer(source, ["detached local work"], log)
             return
+        if verified_tag(source, known_tag) != head:
+            raise Refused("detached checkout is not its verified release tag")
+    current_text = git(source, "show", "HEAD:VERSION", allowed=(0, 128)).stdout
+    current = version(current_text) if current_text else None
     data = latest_release()
     if data is None:
         log("Perry: no published stable GitHub Release; checkout unchanged (no main fallback).")
@@ -190,7 +204,7 @@ def check(source: Path, *, symlink=False, channel="auto", quiet=False, force=Fal
     tag, available, notes = release_metadata(data)
     log(f"Perry current: {current_text.strip() or 'unversioned'}; available: {tag[1:]}")
     log("Release changes:\n" + notes)
-    if current and available < current:
+    if known_tag and current and available < current:
         raise Refused("available release is older; refusing a downgrade")
     target = verified_tag(source, tag)
     if current == available and head != target:
@@ -202,6 +216,8 @@ def check(source: Path, *, symlink=False, channel="auto", quiet=False, force=Fal
             raise Refused("release has unrelated history; checkout unchanged")
         developer(source, ["local commits"], log)
         return
+    if current and available < current:
+        raise Refused("available release is older; refusing a downgrade")
     if target != head:
         # Recheck immediately before fast-forward. Never stash/reset/force;
         # Git also refuses an interfering concurrent edit when applying it.
