@@ -146,9 +146,23 @@ class TestDecorationIsInvisible(unittest.TestCase):
         root = Path(tmp.name).resolve() / "Perry"
         shutil.copytree(self.snapshot(), root, dirs_exist_ok=True)
         if bold:
+            decorated = 0
             for f in (root / "perry").rglob("*.md"):
-                f.write_text(bold_headers(f.read_text(errors="replace")),
-                             encoding="utf-8")
+                before = f.read_text(errors="replace")
+                after = bold_headers(before)
+                f.write_text(after, encoding="utf-8")
+                decorated += after != before
+            # **Anti-vacuity, and it is the whole of this module.** Every case
+            # here compares a plain project against a bolded one; if the
+            # fixture carries no document with a header cell to bold, the two
+            # are byte-identical and every assertion passes while checking
+            # nothing. Found by mutation in TASK-448 round 3: copying the
+            # state root without `OKR.md` and `phase/` left nothing to
+            # decorate and the module stayed green.
+            assert decorated, (
+                "nothing in the fixture was decorated, so the bolded and "
+                "plain projects are the same bytes and this module cannot "
+                "fail — check what live_stores.copy_state copied")
             # `.perry/config.md` was bolded here too, because it was a
             # markdown file every reader parsed. ADR-019 deleted it;
             # `.perry/config.jsonl` has no headers to decorate, which is the
