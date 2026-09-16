@@ -302,6 +302,7 @@ which is dropped; that edge is repointed to `TASK-264` at hand-off.
   measured twice until the duplication is observed to cost something.
 
 ## 9. Changes (append-only after lock)
+- 2026-09-16 — the two ordering rules live in `bin/lib/__init__.py § kr_checks`, not in `perry_store` as § 5.1 says — found by `TASK-416`, confirmed by its architecture review. `bin/perry_store.py` holds no linkage code, and `viewer/parsers.py` may import nothing from `bin/` (`ARCHITECTURE.md § 3`), so the rules sit beside `lib.ts_moment`, the one timestamp converter. `parsers.load_linkage_store` remains the one reader of the file; `lib` only orders the records it returns, so `NN-1` holds. A placement correction, not a design change.
 
 ## 10. References
 
