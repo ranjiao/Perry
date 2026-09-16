@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
 # perry-update-check — once-per-week background check that the Perry skill
-# folder is current with origin/main.
+# folder is current with the latest stable release (or reports dev main).
 #
-# - Throttled to 7 days via .update-check timestamp file inside the source.
-# - Skips silently if the source isn't a git repo.
-# - Detects "dev mode" (symlink install / dirty tree / non-main branch) and
-#   in that case ONLY fetches + reports; never pulls (won't trample WIP).
-# - "Consumer mode" (real directory, clean tree, on main) does ff-only pull.
-#
-# Designed to be invoked by the Perry skill standup ritual. Always exits 0
-# unless the user explicitly passed --strict.
+# Consumer checks use verified stable GitHub Releases; developers compare main.
+# Symlink installs are report-only unless --channel release is explicit.
+# Dirty/feature/local-work protections apply on either channel.
 set -e
 
 WEEK_SECS=$((7 * 24 * 60 * 60))
@@ -18,20 +13,31 @@ WEEK_SECS=$((7 * 24 * 60 * 60))
 QUIET=0
 FORCE=0   # bypass the 7-day throttle (for manual invocation)
 STRICT=0  # exit non-zero on any failure (for CI / debugging)
+CHANNEL=auto
 while [ $# -gt 0 ]; do
   case "$1" in
     --quiet)  QUIET=1; shift ;;
     --force)  FORCE=1; shift ;;
     --strict) STRICT=1; shift ;;
+    --channel)
+      case "${2:-}" in
+        auto|release) CHANNEL="$2"; shift 2 ;;
+        *) echo "--channel takes auto or release" >&2; exit 2 ;;
+      esac ;;
     -h|--help)
       cat <<'USAGE'
 perry-update-check — Perry skill auto-update probe (once per week).
 
-Usage: perry-update-check [--force] [--quiet] [--strict]
+Usage: perry-update-check [--force] [--quiet] [--strict] [--channel auto|release]
 
   --force   ignore the 7-day throttle; check now
   --quiet   suppress non-error output
   --strict  exit non-zero on any failure (default: always exit 0)
+  --channel release  explicitly choose verified releases for a clean symlink
+                     install; dirty/feature/local work remains report-only
+
+Consumers use the latest published stable GitHub Release, never unverified
+main. With no release or a failed validation, the checkout stays unchanged.
 
 The script is invoked from the Perry skill standup ritual. Manual run:
 
@@ -138,55 +144,16 @@ if [ "$FORCE" -eq 0 ] && [ -f "$CHECK_FILE" ]; then
   fi
 fi
 
-# ─── Detect dev-mode signals ──────────────────────────────────
-DIRTY=0
-if [ -n "$(git -C "$SRC" status --porcelain 2>/dev/null)" ]; then
-  DIRTY=1
+# Keep host lookup in this portable shell entry point. The stdlib helper owns
+# bounded network, release verification and the locked fast-forward decision.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+HELPER="$SCRIPT_DIR/../release/update.py"
+args=(--source "$SRC" --channel "$CHANNEL")
+[ "$IS_SYMLINK" -eq 1 ] && args+=(--symlink)
+[ "$QUIET" -eq 1 ] && args+=(--quiet)
+[ "$FORCE" -eq 1 ] && args+=(--force)
+[ "$STRICT" -eq 1 ] && args+=(--strict)
+if [ ! -f "$HELPER" ]; then
+  fail "perry-update-check: release helper is missing; checkout unchanged."
 fi
-
-BRANCH=$(git -C "$SRC" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-
-# Dev mode = any of: symlinked install, dirty tree, not on main
-DEV_MODE=0
-if [ "$IS_SYMLINK" -eq 1 ] || [ "$DIRTY" -eq 1 ] || [ "$BRANCH" != "main" ]; then
-  DEV_MODE=1
-fi
-
-# ─── Fetch origin/main ────────────────────────────────────────
-if ! git -C "$SRC" fetch origin main --quiet 2>/dev/null; then
-  fail "perry-update-check: git fetch failed (offline?). Will retry next time."
-fi
-
-BEHIND=$(git -C "$SRC" rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
-
-# Touch the timestamp regardless of outcome — we tried.
-touch "$CHECK_FILE"
-
-# ─── Report / act ─────────────────────────────────────────────
-if [ "$BEHIND" -eq 0 ]; then
-  # Up-to-date. Silent unless --quiet was NOT set AND we were forced
-  if [ "$FORCE" -eq 1 ]; then
-    log "🟢 Perry up-to-date (HEAD is on origin/main)."
-  fi
-  exit 0
-fi
-
-# We're behind.
-if [ "$DEV_MODE" -eq 1 ]; then
-  reason=""
-  [ "$IS_SYMLINK" -eq 1 ] && reason="${reason}symlink"
-  [ "$DIRTY" -eq 1 ]      && reason="${reason}${reason:+,}dirty"
-  [ "$BRANCH" != "main" ] && reason="${reason}${reason:+,}on $BRANCH"
-  log "🟡 Perry: $BEHIND new commit(s) on origin/main, but skipping pull (dev mode: $reason)."
-  log "   To update: cd $SRC && git pull"
-  exit 0
-fi
-
-# Consumer mode: clean main, real directory. Try ff-only pull.
-if git -C "$SRC" pull --ff-only origin main --quiet 2>/dev/null; then
-  NEW_SHA=$(git -C "$SRC" rev-parse --short HEAD)
-  log "🔄 Perry auto-updated: pulled $BEHIND commit(s); now at $NEW_SHA."
-else
-  warn "⚠️  Perry: $BEHIND new commit(s) on origin/main but ff-only pull failed."
-  warn "   Resolve manually: cd $SRC && git pull"
-fi
+exec python3 "$HELPER" "${args[@]}"
