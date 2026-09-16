@@ -1942,18 +1942,27 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
         heading_id = {(r["version"], r["heading"]): r["id"]
                       for r in records if r["kind"] == "objective"}
         krs = [r for r in records if r["kind"] == "kr"]
-        # TASK-459: not `len(krs) == 38`. The join is asserted TOTAL in both
-        # directions, off the store itself — every KR names an Objective
-        # record that exists, and every Objective record is named by at least
-        # one KR. That is the relation the count was standing in for, it is
-        # strictly stronger than the count, and no OKR revise moves it.
+        # TASK-459: not `len(krs) == 38`. The join is asserted TOTAL, off the
+        # store itself — every KR resolves to an objective record that exists
+        # — which is the relation the count was standing in for and which no
+        # OKR revise moves.
+        #
+        # **One direction only, and mutation is why.** The reverse — every
+        # objective record is named by at least one KR — was written here
+        # first, and appending a fifth Objective to a copy of the store
+        # reddened this case: an Objective lands in `OKR.md` and the store
+        # before its KRs are written, which is a legitimate intermediate
+        # state and precisely the revise this row exists to survive. A KR
+        # pointing at no Objective is a defect; an Objective with no KR yet
+        # is a Tuesday.
         self.assertTrue(krs, "the fixture carries no kr records, so the join "
                              "this case is about is never exercised")
         self.assertEqual(
-            {(kr["version"], kr["objective"]) for kr in krs},
-            set(heading_id),
-            "the kr records and the objective records do not name the same "
-            "set of (version, heading) pairs")
+            {(kr["version"], kr["objective"]) for kr in krs} - set(heading_id),
+            set(),
+            "a kr record names a (version, heading) pair that no objective "
+            "record carries, so its objective_id can only have been guessed "
+            "at")
         for kr in krs:
             with self.subTest(kr["id"], version=kr["version"]):
                 # Decision 4's first half: the title is still there, whole.
