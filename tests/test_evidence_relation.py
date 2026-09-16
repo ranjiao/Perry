@@ -42,6 +42,13 @@ Run: python3 tests/parallel test_evidence_relation
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-lint",
+    "schema/task-list-contract.md",
+    "reference/adoption.md",
+)
+
 import json
 import re
 import subprocess

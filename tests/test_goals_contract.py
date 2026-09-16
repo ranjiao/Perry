@@ -13,6 +13,8 @@ track with the linter calling it clean.
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-goals", "schema/goals-list-contract.md")
+
 import json
 import os
 import subprocess

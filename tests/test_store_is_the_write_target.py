@@ -21,6 +21,8 @@ Run: python3 tests/parallel test_store_is_the_write_target
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "bin/perry_store.py", "viewer/tables.py")
+
 import contextlib
 import io
 import json

@@ -28,6 +28,8 @@ below is here so that reading stays a decision and not an accident.
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-decide", "schema/", "decide/", "viewer/parsers.py")
+
 import json
 import os
 import re

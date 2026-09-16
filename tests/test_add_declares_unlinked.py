@@ -58,6 +58,13 @@ Run: python3 tests/parallel test_add_declares_unlinked
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-state",
+    "bin/perry_store.py",
+    "bin/lib/",
+)
+
 import json
 import pathlib
 import signal

@@ -25,6 +25,8 @@ Run: python3 tests/parallel test_scratch_is_per_agent
 
 from __future__ import annotations
 
+COVERS = ("work/reference/dispatch.md", "work/reference/review-constraints.md")
+
 import pathlib
 import re
 import subprocess

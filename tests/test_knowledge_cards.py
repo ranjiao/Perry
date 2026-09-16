@@ -13,6 +13,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-lint", "schema/state-schema.json", "perry/", ".perry/")
+
 import json
 import subprocess
 import sys

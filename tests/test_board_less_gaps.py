@@ -20,6 +20,8 @@ Run: python3 tests/parallel test_board_less_gaps
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-diagnose", "bin/perry-lint", "bin/perry-explain")
+
 import json
 import shutil
 import tempfile

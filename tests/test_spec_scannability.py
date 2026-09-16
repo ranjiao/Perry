@@ -58,6 +58,16 @@ Run: python3 tests/test_spec_scannability.py
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-lint",
+    "bin/perry-state",
+    "bin/perry-task",
+    "work/reference/",
+    "reference/diagnose.md",
+    "AGENTS.md",
+    "SKILL.md",
+)
+
 import hashlib
 import json
 import re

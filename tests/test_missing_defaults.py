@@ -14,6 +14,16 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-lint",
+    "bin/perry-state",
+    "modes/pipeline.md",
+    "modes/queue.md",
+    "schema/state-schema.json",
+    "work/reference/subcommands.md",
+    "SKILL.md",
+)
+
 import json
 import subprocess
 import sys

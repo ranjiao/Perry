@@ -63,6 +63,8 @@ Run: python3 tests/parallel test_durations_provenance
 
 from __future__ import annotations
 
+COVERS = ("tests/durations.json", "tests/parallel")
+
 import contextlib
 import importlib.machinery
 import importlib.util

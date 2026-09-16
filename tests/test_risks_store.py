@@ -24,6 +24,15 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-lint",
+    "bin/perry-state",
+    "bin/perry_store.py",
+    "reference/i18n.md",
+    "schema/state-schema.json",
+)
+
 import contextlib
 import io
 import json

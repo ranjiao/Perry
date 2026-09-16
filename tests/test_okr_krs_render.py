@@ -39,6 +39,14 @@ KR records must not render as a quiet success.
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-goals",
+    "bin/perry-okr",
+    "bin/perry_md_store.py",
+    "perry/okr.jsonl",
+    "perry/OKR.md",
+)
+
 import json
 import pathlib
 import sys

@@ -17,6 +17,17 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-diagnose",
+    "reference/diagnose.md",
+    "reference/project-archetypes.md",
+    "templates/",
+    "state/",
+    "modes/",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import subprocess
 

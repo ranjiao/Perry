@@ -25,6 +25,22 @@ Run: python3 tests/parallel test_board_less_reads_and_writes
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-lint",
+    "bin/perry-state",
+    "reference/version-compatibility.md",
+    "schema/task-list-contract.md",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    "perry/linkage.jsonl",
+    "perry/okr.jsonl",
+    ".perry/config.jsonl",
+    ".perry/events.jsonl",
+)
+
 import json
 import re
 import shutil

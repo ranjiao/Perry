@@ -18,6 +18,19 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-lint",
+    "bin/perry-state",
+    "bin/perry-explain",
+    "bin/perry-tasks",
+    "viewer/",
+    "reference/i18n.md",
+    "schema/state-schema.json",
+    "README_cn.md",
+    "SKILL.md",
+    "decide/reference/decisions.md",
+)
+
 import json
 import re
 import subprocess

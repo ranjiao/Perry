@@ -23,6 +23,18 @@ Run: python3 tests/parallel test_board_names_its_sources
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "schema/state-schema.json",
+    "tests/board_sources.py",
+    "work/state/BOARD_TEMPLATE.md",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    ".perry/config.jsonl",
+)
+
 import json
 import sys
 import unittest

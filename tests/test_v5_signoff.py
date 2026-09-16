@@ -27,6 +27,15 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "reference/host-capabilities.md",
+    "schema/state-schema.json",
+    "SKILL.md",
+    "perry/",
+    ".perry/",
+)
+
 import importlib.machinery
 import importlib.util
 import json

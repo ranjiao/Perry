@@ -30,6 +30,19 @@ Run: python3 tests/parallel test_board_from_declarations
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-tasks",
+    "bin/perry_store.py",
+    "viewer/tables.py",
+    "work/state/BOARD_TEMPLATE.md",
+    "schema/state-schema.json",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    ".perry/config.jsonl",
+)
+
 import json
 import os
 import re

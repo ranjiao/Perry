@@ -27,6 +27,19 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-state",
+    "bin/perry-lint",
+    "viewer/parsers.py",
+    "tests/printed_board.py",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    ".perry/config.jsonl",
+)
+
 import subprocess
 import sys
 import unittest

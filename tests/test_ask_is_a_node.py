@@ -39,6 +39,13 @@ Run: python3 tests/parallel test_ask_is_a_node
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-diagnose",
+    "bin/lib/",
+    "schema/task-list-contract.md",
+)
+
 import unittest
 
 from task_writer_support import PT, PERRY_HOME, Project

@@ -34,6 +34,8 @@ Run: python3 tests/parallel test_okr_store_is_the_source
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-goals", "bin/perry-okr", "bin/perry_md_store.py")
+
 import json
 import os
 import shutil

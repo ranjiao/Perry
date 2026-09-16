@@ -33,6 +33,16 @@ Run: python3 tests/parallel test_same_action_linkage
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-goals",
+    "bin/perry-state",
+    "bin/perry-task",
+    "bin/lib/",
+    "reference/okr-linkage.md",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import os
 import subprocess

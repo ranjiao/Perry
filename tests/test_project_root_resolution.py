@@ -40,6 +40,18 @@ Run: python3 tests/parallel -j 4 test_project_root_resolution
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/lib/",
+    "viewer/parsers.py",
+    "bin/perry-state",
+    "bin/perry-task",
+    "bin/perry-lint",
+    "bin/perry-diagnose",
+    "bin/perry-goals",
+    ".perry/config.jsonl",
+    "ARCHITECTURE.md",
+)
+
 import importlib
 import json
 import os

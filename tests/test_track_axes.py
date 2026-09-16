@@ -38,6 +38,12 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "modes/",
+    "perry/design/DESIGN-008-track-axes.md",
+    "schema/state-schema.json",
+)
+
 import re
 import unittest
 from pathlib import Path

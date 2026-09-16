@@ -100,6 +100,18 @@ Run: python3 tests/parallel test_procedures_call_the_tool
 
 from __future__ import annotations
 
+COVERS = (
+    "SKILL.md",
+    "reference/",
+    "work/",
+    "goals/",
+    "decide/",
+    "packs/",
+    "state/",
+    "bin/perry-task",
+    "bin/perry-goals",
+)
+
 import re
 import tempfile
 import unittest

@@ -25,6 +25,14 @@ Run: python3 tests/parallel test_cadence_store
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-state",
+    "bin/perry-lint",
+    "bin/perry_store.py",
+    "schema/state-schema.json",
+)
+
 import json
 import re
 import shutil

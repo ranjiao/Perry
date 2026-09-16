@@ -67,6 +67,16 @@ Run: python3 tests/parallel test_contract_invariance
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-goals",
+    "bin/perry-decide",
+    "schema/",
+    "reference/glossary.md",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import pathlib
 import re

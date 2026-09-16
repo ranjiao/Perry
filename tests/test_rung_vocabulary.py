@@ -19,6 +19,8 @@ Run: python3 tests/parallel test_rung_vocabulary
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-explain", "schema/state-schema.json")
+
 import json
 import pathlib
 import subprocess
@@ -30,8 +32,18 @@ EXPLAIN = ROOT / "bin" / "perry-explain"
 SCHEMA = json.loads((ROOT / "schema" / "state-schema.json").read_text())
 
 
+#: **A project that is not this one** (`USER-942`). This module's claim is
+#: that `V4` is answerable by "a session that has never seen this repository",
+#: and the vocabulary comes from `schema/state-schema.json`, not from any
+#: project's state. Running with the cwd at the checkout and no `--root` made
+#: `perry-explain` resolve Perry's own project and harvest its documents,
+#: which is the opposite of what the claim says.
+PROJECT = ROOT / "tests" / "fixtures" / "sample-project"
+
+
 def explain(token, *extra):
-    return subprocess.run([sys.executable, str(EXPLAIN), token, *extra],
+    return subprocess.run([sys.executable, str(EXPLAIN), token,
+                           "--root", str(PROJECT), *extra],
                           capture_output=True, text=True, cwd=ROOT)
 
 

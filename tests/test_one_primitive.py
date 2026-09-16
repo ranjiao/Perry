@@ -30,6 +30,8 @@ themselves to is a guard that stops meaning anything.
 
 from __future__ import annotations
 
+COVERS = ("bin/",)
+
 import re
 import unittest
 from pathlib import Path

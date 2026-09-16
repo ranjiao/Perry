@@ -41,6 +41,8 @@ Run: python3 tests/parallel test_stale_blocked
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task",)
+
 import unittest
 
 from task_writer_support import Project

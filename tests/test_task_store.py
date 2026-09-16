@@ -10,6 +10,20 @@ Run: python3 tests/parallel test_task_store
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-tasks",
+    "tests/printed_board.py",
+    "tests/live_stores.py",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    "perry/linkage.jsonl",
+    "perry/okr.jsonl",
+    ".perry/config.jsonl",
+    ".perry/events.jsonl",
+)
+
 import json
 import pathlib
 import shutil
@@ -22,6 +36,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-tasks"
 
 from printed_board import put_printed_board  # noqa: E402
+import live_stores  # noqa: E402
 
 #: Computable from the stored twenty plus the event log. Storing any of them
 #: is the "a stored value that is derived" defect, and keeping them computed is
@@ -43,9 +58,8 @@ class TestTheSplitIsTheDesign(unittest.TestCase):
         # derives FROM one, so it runs on a copy carrying the board the stores
         # print (`tests/printed_board.py`).
         cls.tmp = pathlib.Path(tempfile.mkdtemp())
-        shutil.copytree(ROOT / "perry", cls.tmp / "perry")
-        shutil.copytree(ROOT / ".perry", cls.tmp / ".perry",
-                        ignore=shutil.ignore_patterns("*.lock"))
+        # USER-942: the stores and the anchor (`tests/live_stores.py`).
+        live_stores.copy_state(cls.tmp)
         put_printed_board(cls.tmp / "perry")
 
     @classmethod
@@ -72,10 +86,7 @@ class TestTheStoreReproducesTheBoard(unittest.TestCase):
         # and a test about the no-store case silently became a with-store test.
         # Three of them failed the day it was tracked, which is the transition
         # working rather than a regression.
-        shutil.copytree(ROOT / "perry", d / "perry",
-                        ignore=shutil.ignore_patterns("tasks.jsonl"))
-        shutil.copytree(ROOT / ".perry", d / ".perry",
-                        ignore=shutil.ignore_patterns("*.lock"))
+        live_stores.copy_state(d, skip=("tasks.jsonl",))
         # TASK-237 3c: this repository holds no `BOARD.md`; the copy gets the
         # board its stores print, which is what these imports would read on a
         # project that still holds one (`tests/printed_board.py`).
@@ -131,9 +142,7 @@ class TestItWritesNothingYet(unittest.TestCase):
     def test_build_and_verify_touch_no_file(self):
         d = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        shutil.copytree(ROOT / "perry", d / "perry")
-        shutil.copytree(ROOT / ".perry", d / ".perry",
-                        ignore=shutil.ignore_patterns("*.lock"))
+        live_stores.copy_state(d)
         before = {p: p.read_bytes() for p in d.rglob("*") if p.is_file()}
         run("build", root=d)
         run("verify", root=d)

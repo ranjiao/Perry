@@ -17,6 +17,24 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-state",
+    "bin/perry-task",
+    "bin/perry-lint",
+    "viewer/",
+    "tests/printed_board.py",
+    "tests/live_stores.py",
+    "perry/tasks.jsonl",
+    "perry/asks.jsonl",
+    "perry/risks.jsonl",
+    "perry/intake.jsonl",
+    "perry/linkage.jsonl",
+    "perry/okr.jsonl",
+    "perry/OKR.md",
+    "perry/phase/",
+    ".perry/config.jsonl",
+)
+
 import json
 import re
 import shutil
@@ -26,6 +44,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+import live_stores  # noqa: E402
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 READERS = {
@@ -97,9 +116,13 @@ class TestDecorationIsInvisible(unittest.TestCase):
         """
         if cls._SNAPSHOT is None or not cls._SNAPSHOT.exists():
             tmp = tempfile.mkdtemp()
-            shutil.copytree(PERRY_HOME / "perry", Path(tmp) / "perry")
-            shutil.copytree(PERRY_HOME / ".perry", Path(tmp) / ".perry",
-                            ignore=shutil.ignore_patterns("events.jsonl"))
+            # USER-942: the stores and the documents a reader reads —
+            # `OKR.md` and `phase/` — not `evidence/`, `journal/`,
+            # `design/` or `decisions/`, which no reader below opens
+            # (`tests/live_stores.py`). The decoration under test is a
+            # header cell in a table, and the tables live in the parts
+            # copied here.
+            live_stores.copy_state(Path(tmp), documents=True, events=False)
             cls._SNAPSHOT = Path(tmp)
         return cls._SNAPSHOT
 
@@ -123,9 +146,23 @@ class TestDecorationIsInvisible(unittest.TestCase):
         root = Path(tmp.name).resolve() / "Perry"
         shutil.copytree(self.snapshot(), root, dirs_exist_ok=True)
         if bold:
+            decorated = 0
             for f in (root / "perry").rglob("*.md"):
-                f.write_text(bold_headers(f.read_text(errors="replace")),
-                             encoding="utf-8")
+                before = f.read_text(errors="replace")
+                after = bold_headers(before)
+                f.write_text(after, encoding="utf-8")
+                decorated += after != before
+            # **Anti-vacuity, and it is the whole of this module.** Every case
+            # here compares a plain project against a bolded one; if the
+            # fixture carries no document with a header cell to bold, the two
+            # are byte-identical and every assertion passes while checking
+            # nothing. Found by mutation in TASK-448 round 3: copying the
+            # state root without `OKR.md` and `phase/` left nothing to
+            # decorate and the module stayed green.
+            assert decorated, (
+                "nothing in the fixture was decorated, so the bolded and "
+                "plain projects are the same bytes and this module cannot "
+                "fail — check what live_stores.copy_state copied")
             # `.perry/config.md` was bolded here too, because it was a
             # markdown file every reader parsed. ADR-019 deleted it;
             # `.perry/config.jsonl` has no headers to decorate, which is the

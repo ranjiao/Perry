@@ -40,6 +40,8 @@ Run: python3 tests/parallel test_dispatch_limit_honesty
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-dispatch-limit",)
+
 import json
 import os
 import pathlib

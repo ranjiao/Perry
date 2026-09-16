@@ -20,6 +20,8 @@ Run: python3 tests/parallel test_reference_pages_are_reachable
 
 from __future__ import annotations
 
+COVERS = ("SKILL.md", "work/", "goals/", "decide/", "reference/")
+
 import pathlib
 import re
 import unittest

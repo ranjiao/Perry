@@ -21,6 +21,14 @@ Run: python3 tests/parallel test_track_attribution
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-diagnose",
+    "modes/project.md",
+    "schema/state-schema.json",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import pathlib
 import shutil

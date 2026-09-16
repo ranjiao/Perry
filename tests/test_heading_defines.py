@@ -28,6 +28,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-explain", "bin/perry-diagnose", "reference/diagnose.md")
+
 import importlib.util
 import json
 import subprocess

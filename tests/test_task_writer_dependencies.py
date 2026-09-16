@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "reference/i18n.md")
+
 import json
 import os
 import re

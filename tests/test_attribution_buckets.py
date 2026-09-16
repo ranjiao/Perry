@@ -42,6 +42,8 @@ Run: python3 tests/parallel test_attribution_buckets
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-state", "bin/perry-goals", "reference/okr-linkage.md")
+
 import json
 import pathlib
 import re

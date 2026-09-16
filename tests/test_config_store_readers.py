@@ -35,6 +35,20 @@ Run: python3 tests/parallel test_config_store_readers
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-config",
+    "bin/perry-state",
+    "bin/perry-diagnose",
+    "bin/perry-explain",
+    "bin/perry-goals",
+    "bin/perry-lint",
+    "viewer/parsers.py",
+    "reference/config.md",
+    "reference/adoption.md",
+    "SKILL.md",
+    "setup",
+)
+
 import json
 import os
 import pathlib

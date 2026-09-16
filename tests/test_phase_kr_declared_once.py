@@ -30,6 +30,16 @@ Run: python3 tests/parallel test_phase_kr_declared_once
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-goals",
+    "bin/perry-lint",
+    "bin/perry-state",
+    "goals/reference/phases.md",
+    "goals/state/",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import pathlib
 import re

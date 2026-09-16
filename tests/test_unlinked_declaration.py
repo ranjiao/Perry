@@ -37,6 +37,8 @@ Run: python3 tests/parallel test_unlinked_declaration
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-goals", "bin/perry-lint")
+
 import json
 import pathlib
 import re

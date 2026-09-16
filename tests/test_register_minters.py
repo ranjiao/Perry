@@ -41,6 +41,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task",)
+
 import json
 import tempfile
 import unittest

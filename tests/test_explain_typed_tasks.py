@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-explain",)
+
 import json
 import subprocess
 import sys

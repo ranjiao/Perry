@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-task", "bin/perry-lint", "modes/queue.md")
+
 import json
 import os
 import re

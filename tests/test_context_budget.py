@@ -19,6 +19,8 @@ Run: python3 tests/parallel test_context_budget
 
 from __future__ import annotations
 
+COVERS = ("bin/perry-context-budget",)
+
 import importlib.machinery
 import importlib.util
 import json

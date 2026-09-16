@@ -54,6 +54,15 @@ Run: python3 tests/parallel test_answered_ask_is_legible
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-diagnose",
+    "bin/perry-state",
+    "schema/task-list-contract.md",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import subprocess
 import sys

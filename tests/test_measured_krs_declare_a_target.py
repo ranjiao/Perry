@@ -31,6 +31,15 @@ Run: python3 tests/parallel test_measured_krs_declare_a_target
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-goals",
+    "bin/perry-state",
+    "bin/lib/",
+    "schema/goals-list-contract.md",
+    "perry/",
+    ".perry/",
+)
+
 import json
 import os
 import subprocess

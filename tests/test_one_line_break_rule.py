@@ -20,6 +20,8 @@ Run: python3 tests/parallel test_one_line_break_rule
 
 from __future__ import annotations
 
+COVERS = ("viewer/tables.py", "bin/perry-goals", "bin/perry-task")
+
 import json
 import pathlib
 import subprocess

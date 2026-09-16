@@ -18,6 +18,16 @@ that passes on a writer which reformatted everything around it.
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-goals",
+    "bin/perry_md_store.py",
+    "viewer/tables.py",
+    "goals/state/OKR_TEMPLATE.md",
+    "goals/reference/phases.md",
+    "schema/goals-list-contract.md",
+    "perry/OKR.md",
+)
+
 import contextlib
 import importlib.util
 import json

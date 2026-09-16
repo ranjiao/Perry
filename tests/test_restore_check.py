@@ -62,6 +62,14 @@ Run: python3 tests/parallel test_restore_check
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-restore-check",
+    "bin/README.md",
+    "README.md",
+    "work/reference/review.md",
+    "work/reference/review-constraints.md",
+)
+
 import hashlib
 import json
 import pathlib

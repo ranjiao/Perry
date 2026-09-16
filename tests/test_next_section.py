@@ -29,6 +29,18 @@ Run: python3 tests/parallel test_next_section
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-state",
+    "reference/next-rules.json",
+    "reference/next.md",
+    "reference/snapshot.md",
+    "schema/state-schema.json",
+    "SKILL.md",
+    "goals/SKILL.md",
+    "work/SKILL.md",
+    "decide/SKILL.md",
+)
+
 import copy
 import json
 import pathlib

@@ -75,6 +75,14 @@ closed while five ordinary spellings walked through it. All three are fixed
 here **and each fix has a control test beside it**, because the failure mode
 was never a missing fix — it was a claim nobody re-measured.
 """
+
+COVERS = (
+    "bin/",
+    "viewer/",
+    "templates/",
+    "perry/",
+    "work/reference/review-constraints.md",
+)
 import ast
 import contextlib
 import os

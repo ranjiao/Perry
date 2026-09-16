@@ -49,6 +49,8 @@ Run: python3 tests/parallel test_architecture_rules
 
 from __future__ import annotations
 
+COVERS = ("ARCHITECTURE.md", "bin/", "viewer/", "tests/run")
+
 import ast
 import hashlib
 import json

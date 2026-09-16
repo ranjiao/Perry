@@ -25,6 +25,11 @@ Run: python3 tests/parallel test_blank_cell_is_one_rule
 
 from __future__ import annotations
 
+from selection import ALL
+
+# ALL: one assertion reads every file git tracks for the dropped blank-cell spelling.
+COVERS = ALL
+
 import shutil
 import sys
 import tempfile

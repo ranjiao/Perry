@@ -17,6 +17,16 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/perry-task",
+    "bin/perry-state",
+    "bin/perry-lint",
+    "modes/queue.md",
+    "work/reference/subcommands.md",
+    "schema/task-list-contract.md",
+    "schema/README.md",
+)
+
 import importlib.machinery
 import importlib.util
 import json

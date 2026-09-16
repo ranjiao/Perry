@@ -28,6 +28,8 @@ Run: python3 tests/parallel test_kr_progress_provenance
 
 from __future__ import annotations
 
+COVERS = ("bin/", "viewer/", "perry/", ".perry/")
+
 import json
 import os
 import shutil

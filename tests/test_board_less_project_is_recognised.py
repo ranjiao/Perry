@@ -43,6 +43,17 @@ Run: python3 tests/parallel test_board_less_project_is_recognised
 
 from __future__ import annotations
 
+COVERS = (
+    "bin/lib/",
+    "bin/perry-lint",
+    "bin/perry-diagnose",
+    "bin/perry-explain",
+    "bin/perry-state",
+    "viewer/parsers.py",
+    "setup",
+    "work/SKILL.md",
+)
+
 import json
 import os
 import pathlib
