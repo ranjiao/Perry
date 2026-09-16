@@ -135,9 +135,18 @@ class Project(unittest.TestCase):
         self.store = self.root / "linkage.jsonl"
         self.events = self.root / ".perry" / "events.jsonl"
 
-    def goals(self, *argv):
+    #: The actor every `check` / `measure` call below passes unless it passes
+    #: its own. `--actor` is REQUIRED on both (USER-950); `TestActorIsRequired`
+    #: calls with `bare=True`, which adds nothing.
+    ACTOR = "pmo"
+
+    def goals(self, *argv, bare=False):
         # `--root` names the project, and `$PERRY_PROJECT` is unset for the
         # call so a caller's environment cannot point the write elsewhere.
+        argv = list(argv)
+        if (not bare and argv and argv[0] in ("check", "measure")
+                and "--actor" not in argv):
+            argv += ["--actor", self.ACTOR]
         return inproc.run("perry-goals", [*argv, "--root", str(self.root)],
                           env={"PERRY_PROJECT": None})
 
@@ -173,12 +182,12 @@ class Project(unittest.TestCase):
         krs = [k for o in self.ok("krs")["objectives"] for k in o["krs"]]
         return next(k for k in krs if k["id"] == kid)
 
-    def assertRefused(self, argv, *recovery, code=1):
+    def assertRefused(self, argv, *recovery, code=1, bare=False):
         """Exit `code`, not one byte of either file moved, and the message
         names each `recovery` fragment."""
         before = (self.store.read_bytes(),
                   self.events.read_bytes() if self.events.exists() else None)
-        got = self.goals(*argv)
+        got = self.goals(*argv, bare=bare)
         after = (self.store.read_bytes(),
                  self.events.read_bytes() if self.events.exists() else None)
         self.assertEqual(got.returncode, code, got.stdout + got.stderr)
@@ -186,7 +195,7 @@ class Project(unittest.TestCase):
         said = got.stdout + got.stderr
         for fragment in recovery:
             self.assertIn(fragment, said)
-        if code == 1:
+        if code == 1 or bare:
             self.assertIn("Nothing was written", said)
         return said
 
@@ -243,7 +252,7 @@ class TestMeasureWrites(Project):
         self.assertEqual(
             {k: event.get(k) for k in ("actor", "file", "kr", "okr_version",
                                        "check", "value", "evidence")},
-            {"actor": "agent", "file": "linkage.jsonl", "kr": "P004-O1-KR1",
+            {"actor": "pmo", "file": "linkage.jsonl", "kr": "P004-O1-KR1",
              "okr_version": "", "check": "p90", "value": 1051,
              "evidence": "evidence/2026-09/m.md"})
         self.assertIsNotNone(lib.ts_moment(event["ts"]))
@@ -401,7 +410,7 @@ class TestCheckWrites(Project):
             {k: rec[k] for k in rec if k != "declared_at"},
             {"kind": "check", "kr": "P004-O1-KR1", "okr_version": "",
              "id": "p90", "label": "p90 length", "direction": "decrease",
-             "target": 400, "baseline": 1702, "actor": "agent"})
+             "target": 400, "baseline": 1702, "actor": "pmo"})
         self.assertIsNotNone(lib.ts_moment(rec["declared_at"]))
         self.assertIsNone(got["supersedes"])
         [event] = [e for e in self.logged() if e.get("event") == "check"]
@@ -503,6 +512,43 @@ class TestCheckRefuses(Project):
     def test_a_target_that_is_not_a_number(self):
         self.assertRefused(self.check(direction="at_most", target="lots"),
                            "--target takes a number")
+
+
+class TestActorIsRequired(Project):
+    """USER-950 (2026-09-16): every write names who made it. A missing or an
+    empty `--actor` is a usage error — exit 2 — and nothing is written."""
+
+    ARGV = {
+        "measure": ["measure", "P004-O1-KR1", "--check", "p90", "--value",
+                    "3", "--evidence", "evidence/2026-09/m.md"],
+        "check": ["check", "P004-O1-KR1", "--id", "p90", "--direction",
+                  "done", "--target", "1", "--label", "x"],
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.declare()
+
+    def test_a_missing_actor_is_refused(self):
+        for verb, argv in self.ARGV.items():
+            with self.subTest(verb=verb):
+                self.assertRefused(argv, f"`{verb}` requires --actor <who>",
+                                   "was not given", code=2, bare=True)
+
+    def test_an_empty_actor_is_refused(self):
+        for verb, argv in self.ARGV.items():
+            for empty in ("", "   "):
+                with self.subTest(verb=verb, actor=empty):
+                    self.assertRefused([*argv, "--actor", empty],
+                                       f"`{verb}` requires --actor <who>",
+                                       "empty value", code=2, bare=True)
+
+    def test_the_given_actor_is_on_the_record_and_the_event(self):
+        self.goals(*self.ARGV["measure"], "--actor", "user:ran")
+        [rec] = self.records("measurement")
+        [event] = [e for e in self.logged() if e["event"] == "measure"]
+        self.assertEqual((rec["actor"], event["actor"]),
+                         ("user:ran", "user:ran"))
 
 
 class TestTheSurface(Project):

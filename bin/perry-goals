@@ -92,16 +92,16 @@ Usage:
   perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"
 
   perry-goals measure <KR-ID> [--okr-version V] --check S --value N
-                      --evidence <path>
+                      --evidence <path> --actor <who>
   perry-goals check <KR-ID> [--okr-version V] --id S --direction D
-                    --target N [--baseline N] --label "<words>"
+                    --target N [--baseline N] --label "<words>" --actor <who>
       DESIGN-022 § 5.3. Each appends ONE `measurement` / `check` record to
       `linkage.jsonl` and one `measure` / `check` event. A phase KR is named
       by its id; an overall KR by its id and, when more than one OKR version
       carries that id, `--okr-version "v4: 2026-09-15"` — the full label,
       matched exactly. `--okr-version ""` names the phase KR. D is one of
-      increase · decrease · at_least · at_most · done. Both take `--dry-run`
-      and `--actor`.
+      increase · decrease · at_least · at_most · done. Both take `--dry-run`,
+      and both REQUIRE `--actor <who>` (USER-950): without it, exit 2.
 
   `link` appends to `linkage.jsonl` for the CURRENT phase.
   <KR-ID> may also be a Project id or a registered alias, resolved in that
@@ -3237,9 +3237,10 @@ KR_WRITER_ONLY_FLAGS = frozenset(
 
 KR_WRITER_USAGE = {
     "measure": "perry-goals measure <KR-ID> [--okr-version V] --check S "
-               "--value N --evidence <path>",
+               "--value N --evidence <path> --actor <who>",
     "check": "perry-goals check <KR-ID> [--okr-version V] --id S "
-             "--direction D --target N [--baseline N] --label \"…\"",
+             "--direction D --target N [--baseline N] --label \"…\" "
+             "--actor <who>",
 }
 
 
@@ -3816,6 +3817,23 @@ def main(argv: list[str]) -> int:
                  f"; {', '.join(stray)} belong(s) to `measure` / `check`")
               + " (try --help)", file=sys.stderr)
         return 2
+    # **`--actor` is required on these two writes** (USER-950, 2026-09-16):
+    # every write names who made it, and a missing actor is refused rather
+    # than recorded as the default `"agent"`, which says nothing about who
+    # asserted a value. A usage error, so exit 2 and before any root, gate or
+    # lock. `commit` and `link` still default it; they move in TASK-289.
+    if args.cmd in KR_WRITER_FLAGS:
+        actor = args.actor if "--actor" in args.seen else None
+        if actor is None or not actor.strip() or "\n" in actor or "\r" in actor:
+            why = ("was not given" if actor is None
+                   else "was given an empty value" if not actor.strip()
+                   else "contains a line break")
+            print(f"perry-goals: `{args.cmd}` requires --actor <who>, and it "
+                  f"{why}. Every write names who made it (USER-950). Usage: "
+                  f"{KR_WRITER_USAGE[args.cmd]}. Nothing was "
+                  f"written", file=sys.stderr)
+            return 2
+        args.actor = actor.strip()
     try:
         if args.level and args.level not in ("overall", "phase"):
             raise Refused(f"--level {args.level!r} is not `overall` or `phase`")
