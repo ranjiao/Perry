@@ -244,6 +244,7 @@ whether the red is pre-existing, the candidate's, or an interaction. `DESIGN-017
 - Is 60 s the right `affected` budget? Phase A's replay sets it from data.
 
 ## 9. Changes (append-only after lock)
+- 2026-09-16 — § 5.2's selection rules gain two narrowings, and phase A's gate is re-measured before anything else moves — user decision `USER-940`, from `TASK-448`'s replay (median 100.0% of module-seconds against a 50% gate). (a) `tests/durations.json` is no longer a `tests/` helper that widens to `full`; it is a covered path, declared by the three modules that read it — it alone widened 20 of 50 merges. (b) A module declares the state files it actually reads rather than `perry/` or `.perry/` wholesale; 40 modules do the latter today, which is why an evidence-only merge still selects 33.7%. The 50% gate itself is unchanged, and moving those modules off the live state root is NOT decided: it waits for the new median.
 
 ## 10. References
 
