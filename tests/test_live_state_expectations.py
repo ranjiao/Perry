@@ -589,13 +589,28 @@ class TestTheLiveStoreSatisfiesItsOwnTypeGate(unittest.TestCase):
                 in (state / "tasks.jsonl").read_text(encoding="utf-8")
                 .split("\n") if l.strip()]
 
+    #: The finding this case is about, as `perry-lint` prints it, pinned to
+    #: the TASK store. **`store-badly-typed` alone is not that string.**
+    #: `bin/perry-lint` also emits `risk-store-badly-typed`,
+    #: `intake-store-badly-typed`, `ask-store-badly-typed`,
+    #: `cadence-store-badly-typed`, `config-store-badly-typed` and
+    #: `<doc>-store-badly-typed`, and every one of them CONTAINS
+    #: `store-badly-typed` — so a substring test is satisfied by a finding
+    #: about a different store. Measured: a copy whose task store is clean and
+    #: whose `.perry/config.jsonl` has a string `order` prints
+    #: `config-store-badly-typed`, and `"store-badly-typed" in out` is True on
+    #: it. The state root is read rather than written as `perry/`, which would
+    #: be a second declaration of it.
+    def finding(self) -> str:
+        return f"{live_stores_state_root()}/tasks.jsonl [store-badly-typed]"
+
     def test_every_live_record_survives_the_type_gate(self):
         """Not "most of them". The gate's first run excluded all 98 records
         because the table said `depends_on` was a string, and a check that
         reported the survivors without their total would have read clean."""
         root = self.copy()
         out = self.lint(root)
-        self.assertNotIn("store-badly-typed", out,
+        self.assertNotIn(self.finding(), out,
                          "Perry's own store must satisfy the type table — if "
                          "it does not, the table is wrong, not the store")
         self.assertIn(f"{len(self.records(root))} record(s)", out,
@@ -609,7 +624,12 @@ class TestTheLiveStoreSatisfiesItsOwnTypeGate(unittest.TestCase):
         matching a census line that says zero. This plants a bad `order` in the
         COPY and requires the gate to name it, which is the same mutation
         `test_a_wrong_typed_field_is_named_and_the_row_excluded` runs against a
-        fixture, run here against the live bytes."""
+        fixture, run here against the live bytes.
+
+        It asserts `self.finding()` and not `"store-badly-typed"`: the bare
+        token is a substring of five other stores' findings, so this case would
+        have been satisfied by a badly-typed `.perry/config.jsonl` — a store
+        the copy also carries — while the task-store gate was gone."""
         root = self.copy()
         state = root / live_stores_state_root()
         recs = self.records(root)
@@ -619,8 +639,11 @@ class TestTheLiveStoreSatisfiesItsOwnTypeGate(unittest.TestCase):
             "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in recs),
             encoding="utf-8")
         out = self.lint(root)
-        self.assertIn("store-badly-typed", out)
-        self.assertIn(recs[0]["id"], out)
+        self.assertIn(self.finding(), out,
+                      "the task store's own type gate did not fire on a "
+                      "record it must exclude")
+        self.assertIn(recs[0]["id"], out,
+                      "the gate fired and did not name the row")
 
 
 def live_stores_state_root() -> str:

@@ -33,11 +33,41 @@ discarded.
 
 | # | call site | what it runs | what it reads | was | is |
 |---|---|---|---|---|---|
-| A | `test_board_render.py § Project.perry` (~150) | `write --from-board`, then `render` / `diff` / `verify` | the board, the anchor, and the `tasks.jsonl` **it writes itself** | 7 stores + anchor | `stores=False, events=False` |
+| A | `test_board_render.py § Project.perry` (~150) | `write --from-board`, then `render` / `diff` / `verify` | the board, the anchor, and — see the correction below — the copied `tasks.jsonl`, **validated by `write` before it is replaced** | 7 stores + anchor | `stores=False, events=False` |
 | B | `test_board_render.py` (~554) `test_rendering_without_a_store_is_not_a_pass` | `render` on a project with no store | the anchor only — the case is the absence | 6 stores + anchor (`skip=("tasks.jsonl",)`) | `stores=False, events=False` |
 | C | `test_task_store.py § setUpClass` (~61) | `build` | `bin/perry-tasks § build` reads the BOARD and the EVENT LOG and opens no store | 7 stores + anchor + events | `stores=False` (events kept) |
 | D | `test_task_store.py § TestTheStoreReproducesTheBoard.copy()` (~89) | `write --from-board`, `verify` | the board, the anchor, and `.perry/events.jsonl` | 6 stores + anchor + events (`skip=("tasks.jsonl",)`) | `stores=False` (events kept) |
 | E | `test_task_store.py` (~145) `test_build_and_verify_touch_no_file` | `build`, `verify` | **`tasks.jsonl`** — `verify` loads the store from disk and exits 2 at the door without one | 7 stores + anchor + events | `stores=("tasks",)` |
+
+### Correction: site A's copy WAS read, and the first version of this file said it was not
+
+The first version of this row said the only store read at site A is "the
+`tasks.jsonl` it writes itself", and the comment in the module said a copied one
+"is overwritten before anything reads it". **Both were wrong**, and the review
+proved it against the code.
+
+`bin/perry-tasks § write` takes its `if dest.exists():` branch, `json.loads`es
+every line of the store already there and runs
+`perry_store.validate_records(on_disk)`, returning 2 when any record is
+malformed. That check is **not** gated on `--from-board` — only the
+`_would_discard` refusal below it is. `bin/perry-lint § _well_typed` (line
+3798) calls the same `perry_store.validate_records`. So `Project.perry`'s
+`assert run("write", "--from-board", root=d).returncode == 0` was an
+assertion that this repository's own `perry/tasks.jsonl` passes the same
+validator the type gate runs — an implicit, unnamed type check riding on an
+exit code, in a module whose subject is byte-identical board rendering.
+
+The change is still right, and the reason is sharper than the one first
+written: it **deleted an implicit guarantee and added it back explicitly,
+named, with an anti-vacuity case**. It did not delete a copy nothing read. The
+comment at `tests/test_board_render.py` now says that, and points at where the
+guarantee went.
+
+This also corrects § 2's claim that nothing else asserted the guarantee.
+Nothing else asserted it *legibly*: it was asserted at site A, by an exit code
+nobody reading that module would have recognised as a type check, and which
+would have gone red with a message about a board import. That is the reason to
+name it, not a reason to leave it where it was.
 
 Site E is the correction to a first reading of this task. Copying its store
 looks dead by the same test that made A–D dead — the module is green without
@@ -106,12 +136,14 @@ repository's own writer produced"*.
 
 ### The live half, rehomed
 
-Nothing else asserted it. `store-badly-typed` is asserted in six modules
-(`test_store_is_canonical`, `test_duplicate_ids_are_refused`,
+Nothing else asserted it **by name**. `store-badly-typed` is asserted in six
+modules (`test_store_is_canonical`, `test_duplicate_ids_are_refused`,
 `test_ns_collision`, `test_risks_store`, `test_store_drift`,
 `test_cadence_store`) and every one of them runs against a fixture.
 `test_bin_surface` is the only module that lints this repository itself, and it
-counts census lines, not types. So the guarantee was unchecked.
+counts census lines, not types. The one place the live store was actually
+gated was site A's exit code, described in § 1 — which is an argument for
+naming the guarantee, not for leaving it there.
 
 Added: `tests/test_live_state_expectations.py §
 TestTheLiveStoreSatisfiesItsOwnTypeGate`, two cases.
@@ -124,6 +156,37 @@ TestTheLiveStoreSatisfiesItsOwnTypeGate`, two cases.
 - `test_the_gate_is_reached_at_all` — the anti-vacuity half. Both assertions
   above are satisfied by a lint that never opened a store, so this plants a
   string `order` in the COPY and requires the gate to name the row.
+
+### Correction: the finding token was asserted as a substring
+
+Both cases first asserted the bare string `store-badly-typed`. `bin/perry-lint`
+emits six more ids that **contain** it — `risk-store-badly-typed`,
+`intake-store-badly-typed`, `ask-store-badly-typed`,
+`cadence-store-badly-typed`, `config-store-badly-typed` and
+`<doc>-store-badly-typed` — so the anti-vacuity case could pass on a finding
+about a different store, and only the accompanying record-id assertion held it
+to the task store at all. `.perry/config.jsonl` is in the copy, so this was not
+hypothetical.
+
+Measured, on a copy whose task store is clean and whose `.perry/config.jsonl`
+carries a string `order`:
+
+```
+  ⚠ .perry/config.jsonl [config-store-badly-typed] setting/document_language — `order` is str, …
+  "store-badly-typed" in out              → True
+  "tasks.jsonl [store-badly-typed]" in out → False
+```
+
+Both assertions now use `self.finding()`, which is
+`f"{state_root}/tasks.jsonl [store-badly-typed]"` — the form `perry-lint`
+actually prints:
+
+```
+  ⚠ perry/tasks.jsonl [store-badly-typed] 'TASK-001' — `order` is str, expected integer or null. …
+```
+
+The state root is read through `live_stores._state_root` rather than written as
+`perry/`, which would be a second declaration of it.
 
 **Why there.** The claim is about the live state, which is that module's
 subject. It is the read direction of that module's own guard: live state as the
@@ -159,8 +222,9 @@ the repository. Modules run: `test_board_render`, `test_task_store`,
 | **`copy_state` copies no stores** (`for store in ()`) — TASK-448's own mutation, re-run | `tests/live_stores.py` | **red**, named: `test_live_state_expectations.TestTheLiveStoreSatisfiesItsOwnTypeGate.test_every_live_record_survives_the_type_gate` and `.test_the_gate_is_reached_at_all` ("this fixture asked `live_stores.copy_state` for the task store and did not get one"). `test_board_render`, `test_task_store` and `test_store_is_canonical` are unchanged **by construction** — they ask for no store, so the mutation copies exactly what they already got. `test_decoration_changes_nothing` green — § 1's residual. |
 | **`copy_state` never copies `events.jsonl`** | `tests/live_stores.py` | **red**, named: `test_task_store.TestTheStoreReproducesTheBoard.test_it_carries_closed_tasks_the_board_no_longer_holds` (109 records, 109 board rows). Site D is the one site that can feel the event log; C and E are green, which is why their comments say the log is copied because it is read. |
 | **`copy_state` breaks a type in the store it copies** (`order` → `"3"` on the first record) | `tests/live_stores.py` | **red**, named: `test_live_state_expectations…test_every_live_record_survives_the_type_gate` — the § 2 case can fail — and `test_decoration_changes_nothing…test_every_reader_reports_the_same_thing_on_a_bolded_board` (`perry-task` exits 1), which is the proof that module's copied stores are read. |
-| **`copy_state` ignores `stores=`** (copies all seven regardless) | `tests/live_stores.py` | **red**, named: `test_board_render.TestItRendersAndNothingElse.test_rendering_without_a_store_is_not_a_pass` — site B's `stores=False` is load-bearing, not decoration. |
-| **the type gate is renamed out of the linter** (`store-badly-typed` → `store-typing-was-not-checked`) | `bin/perry-lint` | **red**, named: `test_live_state_expectations…test_the_gate_is_reached_at_all` and `test_store_is_canonical.ABadlyTypedStoreIsReportedNotFatal.test_a_wrong_typed_field_is_named_and_the_row_excluded`. Recorded because the first attempt at this mutation replaced the id with `store-badly-typed-DISABLED`, which still **contains** the original string, so every `assertIn` passed and the run came back green. A green mutation that is green because the mutation did nothing is not a finding. |
+| **`copy_state` ignores `stores=`** (copies all seven regardless) | `tests/live_stores.py` | **red**, named: `test_board_render.TestItRendersAndNothingElse.test_rendering_without_a_store_is_not_a_pass` and `test_task_store.TestTheStoreReproducesTheBoard.test_verifying_with_no_store_is_not_a_pass` — sites B and D's `stores=False` is load-bearing, not decoration. |
+| **the type gate is renamed out of the linter** (`store-badly-typed` → `store-typing-was-not-checked`, every store) | `bin/perry-lint` | **red**, named: `test_live_state_expectations…test_the_gate_is_reached_at_all` and `test_store_is_canonical.ABadlyTypedStoreIsReportedNotFatal.test_a_wrong_typed_field_is_named_and_the_row_excluded`. Recorded because the first attempt at this mutation replaced the id with `store-badly-typed-DISABLED`, which still **contains** the original string, so every `assertIn` passed and the run came back green. A green mutation that is green because the mutation did nothing is not a finding — and it is the same substring trap the assertions themselves fell into, one level up. |
+| **only the TASK store's gate is renamed** (`bin/perry-lint:3809`, the one emit whose id has no store prefix), risk / intake / ask / cadence / config keeping theirs | `bin/perry-lint` | **red**, named: `test_live_state_expectations…test_the_gate_is_reached_at_all` and `test_store_is_canonical…test_a_wrong_typed_field_is_named_and_the_row_excluded`. This is the mutation the tightened assertion exists for: it leaves five other `*-store-badly-typed` ids in the linter, so a case asserting the bare substring could be satisfied by one of them. |
 
 ---
 
@@ -170,7 +234,9 @@ the repository. Modules run: `test_board_render`, `test_task_store`,
   (23 tests), `test_board_render` (14), `test_task_store` (7),
   `test_store_is_canonical` (10).
 - `bash tests/run`, `PERRY_PROJECT` and `PERRY_HOME` unset, on the final
-  commit: all green, tree guard clean (*"nothing under … moved"*).
+  commit: **143 modules · 4050 tests**, all green, tree guard clean
+  (*"nothing under … moved"*). Run twice — once on `21c4052a`, and again on
+  the commit carrying the two review corrections in § 1 and § 2.
 - `tests/durations.json` **not** updated. Interleaved A/B, three rounds each,
   base tree vs branch tree in the same shell (medians):
 
@@ -189,7 +255,26 @@ the repository. Modules run: `test_board_render`, `test_task_store`,
   measured the same way. Quoted because a 5× on an unchanged module is what a
   wrong baseline looks like.
 
-## 5. Architecture
+## 5. Recorded, not repaired
+
+Three findings are left for whoever takes them next. None is touched here.
+
+1. **`COVERS` over-declares in the two cleaned modules.** `test_board_render`
+   and `test_task_store` still name `perry/asks.jsonl`, `risks.jsonl`,
+   `intake.jsonl`, `linkage.jsonl` and `okr.jsonl`, which they no longer open.
+   Those rows do still reach them through `printed_board()` — the board is
+   printed from all of them — so the declaration is not false; it is wider than
+   the read. Over-declaring only over-selects under `DESIGN-021 § 5.2`, so it
+   costs module-seconds and never correctness, which is why it is not urgent.
+2. **`tests/store_fixture.py § full_project` has no callers.** It is the
+   whole-state-root `copytree` those modules used before round 3.
+3. **`test_decoration_changes_nothing` passes silently under the `no-stores`
+   mutation**, as § 1 records. Its stores ARE read — `break-a-type` reddens it
+   — but bolding rewrites only `*.md`, so with no store at all both payloads
+   are equal and empty. Its anti-vacuity assert covers the documents half and
+   has no counterpart for the stores.
+
+## 6. Architecture
 
 No section of `ARCHITECTURE.md` changes. `NN-5` is respected in the new code
 and is the reason the § 2 case runs over a copy rather than over `ROOT`; `§ 2

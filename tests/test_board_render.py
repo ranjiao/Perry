@@ -143,12 +143,21 @@ class Project:
     def perry(case) -> pathlib.Path:
         d = pathlib.Path(tempfile.mkdtemp())
         case.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        # USER-942: the anchor, and NO store. `write --from-board` below
-        # mints `tasks.jsonl` from the board, so a copied one is overwritten
-        # before anything reads it, and the other six are never opened at all
-        # — TASK-448's own mutation table records that copying no stores left
-        # this module green. The live rows still reach the fixture, through
-        # the board `printed_board()` prints from them.
+        # USER-942: the anchor, and NO store. The six non-`tasks` stores were
+        # never opened here at all. `tasks.jsonl` is the one that was, and
+        # **not by anything in this module** — `bin/perry-tasks § write` takes
+        # its `if dest.exists():` branch, `json.loads`es every line and runs
+        # `perry_store.validate_records(on_disk)`, returning 2 on a malformed
+        # store. That check is NOT gated on `--from-board`, so the
+        # `assert … returncode == 0` below was an implicit assertion that this
+        # repository's own store passes the same validator
+        # `bin/perry-lint § _well_typed` calls — a type check nobody would
+        # have read as one, riding on an exit code in a byte-comparison
+        # module. It is asserted by name now, with an anti-vacuity case, in
+        # `tests/test_live_state_expectations.py §
+        # TestTheLiveStoreSatisfiesItsOwnTypeGate`, which is what licenses
+        # dropping it here. The rows this module renders still come from the
+        # live stores — through the board `printed_board()` prints from them.
         live_stores.copy_state(d, stores=False, events=False)
         # TASK-237 3c: this repository holds no `BOARD.md`. The board a
         # project that still holds one would carry is the one its stores
