@@ -1,0 +1,50 @@
+name: Publish product release
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full 40-character commit SHA already integrated into the default branch
+        required: true
+      tag:
+        description: Exact VERSION tag (vX.Y.Z)
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: product-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify exact version checkout
+        env:
+          RELEASE_SHA: ${{ inputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch origin "$DEFAULT_BRANCH"
+          git merge-base --is-ancestor "$RELEASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"
+          python3 release/manage.py prepare --ref "$RELEASE_SHA" --tag "$RELEASE_TAG"
+      - name: Test the exact release commit
+        run: |
+          env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME bash tests/run
+          env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME bash tests/run --slow
+      - name: Create tag and release without overwriting
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch origin "$DEFAULT_BRANCH"
+          python3 release/publish.py --commit "$RELEASE_SHA" --tag "$RELEASE_TAG" --repo "$RELEASE_REPO" --default-branch "$DEFAULT_BRANCH"

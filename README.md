@@ -41,7 +41,7 @@ Paste this into a fresh Claude Code, OpenCode, or Codex CLI session:
 Install the Perry skill from https://github.com/ranjiao/Perry.
 
 Steps:
-1. Run: git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup --yes-deps
+1. Choose a published tag from https://github.com/ranjiao/Perry/releases, clone it with git clone --branch <tag> https://github.com/ranjiao/Perry.git ~/perry, then run ~/perry/setup --yes-deps. If no release exists, report that; do not silently install main.
 2. Read setup's output. If it lists "Skipped installs" or asks for Xcode CLT / Homebrew, tell me — those need my permission.
 3. Confirm /perry is available.
 ```
@@ -49,14 +49,17 @@ Steps:
 Or install it yourself:
 
 ```bash
-git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup
+git clone --branch <published-tag> https://github.com/ranjiao/Perry.git ~/perry
+~/perry/setup
 ```
 
 `~/perry` is only a suggestion — any folder works.
 
 **Options:** `setup --claude`, `setup --opencode`, or `setup --codex` to force hosts; combine flags to install several. Add `--local` for a project-local Claude Code/OpenCode install.
 
-**Update:** `cd ~/perry && git pull` (Perry also reminds you about once a week).
+**Update:** from your clone, run `bash bin/perry-update-check --force --channel release`. The explicit channel supports setup’s symlink install and verifies the official release; local work remains protected. Automatic symlink checks are developer report-only. Before the first published release, this channel refuses rather than using main.
+
+Maintainers: read [Perry product version and release rules](release/README.md).
 
 Details, dependencies and host differences: **[INSTALL.md](INSTALL.md)**.
 

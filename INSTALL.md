@@ -4,10 +4,10 @@ Perry is **one skill** with three lanes: `goals`, `work`, and `decide`. It suppo
 
 ## Install
 
-Clone Perry anywhere. `setup` symlinks the source into each selected host's canonical skill directory.
+Choose a published tag from [GitHub Releases](https://github.com/ranjiao/Perry/releases) and clone Perry anywhere. Replace `<published-tag>` below with that tag. If none exists yet, release installation is not available; an explicit developer checkout of main is a separate choice. `setup` symlinks the source into each selected host's canonical skill directory.
 
 ```bash
-git clone https://github.com/ranjiao/Perry.git ~/perry
+git clone --branch <published-tag> https://github.com/ranjiao/Perry.git ~/perry
 ~/perry/setup
 ```
 
@@ -69,7 +69,9 @@ From a project directory, invoke `/perry`. New projects are guided through:
 
 ## Update and uninstall
 
-A symlink install tracks the clone, so update with `git pull` in the source directory. The weekly update check also searches the OpenCode global path.
+A symlink install tracks its source clone. For consumer updates, run `bash bin/perry-update-check --force --channel release` from that clone. This explicit channel verifies the latest published release from the official `ranjiao/Perry` origin and its VERSION/tag before updating. It refuses when no official release exists; it does not fall back to main. Dirty files, feature branches and local commits remain protected.
+
+Automatic checks for symlink/developer checkouts are report-only and suggest the explicit release command. Developers who intentionally track main manage their Git checkout themselves. The weekly check also searches the OpenCode global path. Product maintainers must read [release/README.md](release/README.md).
 
 Remove only the one skill link for each host you installed:
 
