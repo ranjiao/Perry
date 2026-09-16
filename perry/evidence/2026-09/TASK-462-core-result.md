@@ -161,3 +161,16 @@ was changed. It then merged authorization/spec main
 Architecture compliance update: the formerly pending §2 component inventory edit
 is now explicitly authorized and complete. All NN rules and ownership boundaries
 remain unchanged. Parent owns final full/slow checks on the pinned merged preview.
+
+## Final full-gate router size follow-up
+
+The parent approved-integration full run had one failure among 4,286 tests:
+`test_next_section.TestTheFiveSitesPointAtTheBlock.test_the_router_points_at_the_page_without_growing`.
+Its frozen 20,457-byte ceiling is stricter than the general router cap; the
+20,477-byte declaration exceeded it. Compressed only the carve-out sentence by
+27 bytes while retaining every enforced path and its exclusion from exemption.
+SKILL.md now measures 20,450 bytes. No test or budget changed.
+
+Clean-env `python3 tests/parallel test_next_section test_shipped_vocabulary
+test_router_budget`: 3 modules, 105 tests PASS, 2.2s. `git diff --check` passes.
+Parent will rerun final full/slow; this targeted pass does not replace that gate.
