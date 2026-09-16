@@ -31,6 +31,8 @@ Run: python3 tests/parallel test_empty_config_store
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-config",
     "bin/perry-goals",
@@ -92,7 +94,7 @@ def _env() -> dict:
 
 
 def run(tool: pathlib.Path, *argv: str) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, str(tool), *argv],
+    return subprocess.run(task_actor.command([sys.executable, str(tool), *argv], 'test_empty_config_store'),
                           capture_output=True, text=True, env=_env(),
                           cwd=tempfile.gettempdir())
 

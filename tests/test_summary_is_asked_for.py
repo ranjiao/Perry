@@ -14,6 +14,8 @@ project tried to recognise bad English and lost, and
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-lint",
@@ -46,8 +48,8 @@ GOOD = ("Perry ships two opposite orderings of the phase-close pipeline. "
 def add_raw(root: Path, *argv: str) -> subprocess.CompletedProcess:
     """`add` with NOTHING injected — the harness shims inject `--summary`."""
     return subprocess.run(
-        [sys.executable, str(TASK), "add", *argv, "--root", str(root),
-         "--json"], capture_output=True, text=True)
+        task_actor.command([sys.executable, str(TASK), "add", *argv, "--root", str(root),
+         "--json"], 'test_summary_is_asked_for'), capture_output=True, text=True)
 
 
 def lint(root: Path, *argv: str) -> tuple[int, str]:

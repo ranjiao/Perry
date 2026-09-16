@@ -33,6 +33,8 @@ Run: python3 tests/parallel test_same_action_linkage
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-goals",
     "bin/perry-state",
@@ -990,11 +992,11 @@ def _fixture_project(case: unittest.TestCase) -> Path:
 
 def _add(d: Path, title: str, *extra: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "add",
+        task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "add",
          "--root", str(d), "--title", title, "--deliverable", "an artifact",
          "--verification", "a falsifiable check somebody else can run",
          "--summary", "One sentence of plain language for a reader who was "
-                      "not in the conversation that filed it.", *extra],
+                      "not in the conversation that filed it.", *extra], 'test_same_action_linkage'),
         capture_output=True, text=True, cwd=str(PERRY_HOME))
 
 

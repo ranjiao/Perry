@@ -19,6 +19,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task", "perry/tasks.jsonl")
 
 import re
@@ -101,8 +103,8 @@ class Base(unittest.TestCase):
 
     def run_tool(self, *argv):
         env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
-        return subprocess.run([sys.executable, str(TOOL), *argv,
-                               "--root", str(self.root)],
+        return subprocess.run(task_actor.command([sys.executable, str(TOOL), *argv,
+                               "--root", str(self.root)], 'test_prioritize'),
                               capture_output=True, text=True, env=env)
 
     def payload(self):
@@ -260,11 +262,11 @@ class TestTheIndexIsCheckedBeforeAnythingIsDeleted(Base):
             "    orig(board, priority, group, values)\n"
             "    board.lines.insert(0, '')   # a widener that inserts\n"
             "t.widen_target_section = sneaky\n"
-            "sys.exit(t.main(['prioritize','TASK-002','--priority','P1',"
+            "sys.exit(t.main(['prioritize','--actor','prioritize-crash-probe','TASK-002','--priority','P1',"
             "'--root', %r]))\n"
         ) % (str(PERRY_HOME / "viewer"), str(PERRY_HOME / "bin"), str(TOOL),
              str(self.root))
-        out = subprocess.run([sys.executable, "-c", probe],
+        out = subprocess.run(task_actor.command([sys.executable, "-c", probe], 'test_prioritize'),
                              capture_output=True, text=True, env=env)
         self.assertIn("shifted under the write", out.stdout + out.stderr)
         self.assertEqual(self.read(), text, "a refusal wrote to the board")

@@ -35,6 +35,8 @@ Run: python3 tests/parallel test_linkage_store_readers
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-goals",
     "bin/perry-lint",
@@ -247,15 +249,15 @@ class Fixture(unittest.TestCase):
 
     def purge(self, d: pathlib.Path, tid: str) -> tuple[int, dict]:
         proc = subprocess.run(
-            [sys.executable, str(TASK), "purge", tid, "--reason",
-             "a fixture row", "--root", str(d), "--json"],
+            task_actor.command([sys.executable, str(TASK), "purge", tid, "--reason",
+             "a fixture row", "--root", str(d), "--json"], 'test_linkage_store_readers'),
             capture_output=True, text=True, cwd=ROOT)
         return proc.returncode, json.loads(proc.stdout or "{}")
 
     def drop(self, d: pathlib.Path, tid: str) -> None:
         subprocess.run(
-            [sys.executable, str(TASK), "drop", tid, "--reason",
-             "done with it", "--root", str(d)],
+            task_actor.command([sys.executable, str(TASK), "drop", tid, "--reason",
+             "done with it", "--root", str(d)], 'test_linkage_store_readers'),
             capture_output=True, text=True, cwd=ROOT)
 
     def rules(self, payload: dict, rule: str) -> list[dict]:

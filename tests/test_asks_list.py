@@ -12,6 +12,8 @@ Run: python3 tests/parallel test_asks_list
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task", "perry/asks.jsonl", ".perry/config.jsonl")
 
 import json
@@ -34,7 +36,7 @@ TASK = ROOT / "bin" / "perry-task"
 class Base(M.Fixture):
 
     def tool(self, d, *argv):
-        return subprocess.run([sys.executable, str(TASK), *argv, "--root", str(d)],
+        return subprocess.run(task_actor.command([sys.executable, str(TASK), *argv, "--root", str(d)], 'test_asks_list'),
                               capture_output=True, text=True, cwd=ROOT)
 
     def ask(self, d, needed, blocks="TASK-100"):

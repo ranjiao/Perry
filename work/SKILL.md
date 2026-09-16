@@ -308,7 +308,7 @@ On yes → read `reference/bootstrap.md` and follow the procedure (writes `.perr
 
 If the user does not respond to required inputs (User Input Queue items) for >5 calendar days:
 - Continue any task that does not depend on the missing input.
-- Flag affected tasks as `blocked` with the missing USER-id named — through the tool, which requires the name: `perry-task status <ID> --status blocked --reason "awaiting USER-<n>"`.
+- Flag affected tasks as `blocked` with the missing USER-id named — through the tool, which requires the name: `perry-task status <ID> --actor <actor> --status blocked --reason "awaiting USER-<n>"`.
 - In every status report, list paused tasks and the date of the original request.
 - Never substitute agent judgment for missing user constraints on production / external-action decisions.
 

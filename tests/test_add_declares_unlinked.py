@@ -58,6 +58,8 @@ Run: python3 tests/parallel test_add_declares_unlinked
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-state",
@@ -427,8 +429,8 @@ class TestUnlinkedBelongsToAddAlone(Fixture):
         refuses a no-op change, which would be a third refusal wearing the
         same exit code."""
         return subprocess.run(
-            [sys.executable, str(TASK), "next", "TASK-100", "--root", str(d),
-             "--next", "a different next action"] + list(extra),
+            task_actor.command([sys.executable, str(TASK), "next", "TASK-100", "--root", str(d),
+             "--next", "a different next action"] + list(extra), 'test_add_declares_unlinked'),
             capture_output=True, text=True, cwd=ROOT)
 
     def test_it_is_refused_on_another_subcommand(self):
@@ -592,7 +594,7 @@ elif MODE == "afterpair":
 else:
     raise SystemExit("unknown mode " + MODE)
 
-sys.exit(mod.main(["add", "--title", TITLE, "--root", ROOT,
+sys.exit(mod.main(["add", "--actor", "unlinked-crash-probe", "--title", TITLE, "--root", ROOT,
                    "--deliverable", "d", "--verification", "v",
                    "--unlinked", "--summary",
                    "Files a throwaway row so the writer reaches its writes."]))
@@ -605,8 +607,8 @@ sys.exit(mod.main(["add", "--title", TITLE, "--root", ROOT,
         child = d / "_declare_crash_child.py"
         child.write_text(self.CHILD)
         return subprocess.run(
-            [sys.executable, str(child), str(TASK), str(d), mode,
-             "an atomicity probe"],
+            task_actor.command([sys.executable, str(child), str(TASK), str(d), mode,
+             "an atomicity probe"], 'test_add_declares_unlinked'),
             capture_output=True, text=True, cwd=ROOT)
 
     def next_id(self, d: pathlib.Path) -> str:
@@ -623,10 +625,10 @@ sys.exit(mod.main(["add", "--title", TITLE, "--root", ROOT,
         line apart.
         """
         proc = subprocess.run(
-            [sys.executable, str(TASK), "add", "--title", "probe",
+            task_actor.command([sys.executable, str(TASK), "add", "--title", "probe",
              "--root", str(d), "--deliverable", "d", "--verification", "v",
              "--summary", "Reads back the id the next add will mint.",
-             "--unlinked", "--dry-run", "--json"],
+             "--unlinked", "--dry-run", "--json"], 'test_add_declares_unlinked'),
             capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return json.loads(proc.stdout)["id"]

@@ -1,13 +1,13 @@
 # `/pmo autopilot` — autonomous BOARD-driving loop
 
 > **Status changes go through `bin/perry-task`.** Autopilot always lands a row
-> at `review`, never at `done` — that is `perry-task status <ID> --status
+> at `review`, never at `done` — that is `perry-task status <ID> --actor <actor> --status
 > review`, not a hand edit. This file is loaded on its own, so the invariant in
 > `reference/subcommands.md` does not reach it; a loop that hand-edits rows
 > would generate one post-tool edit per dispatch and drown the drift signal in
 > output it produced itself.
 >
-> **Stage moves go through the tool too** — `perry-task stage <ID> --stage
+> **Stage moves go through the tool too** — `perry-task stage <ID> --actor <actor> --stage
 > <name>`, which re-stamps `Stage since` in the same write. On a `pipeline`- or
 > `queue`-mode track a completion often moves the stage as well as the status,
 > and the two are orthogonal: a `draft → review` stage move produces no status
@@ -225,9 +225,9 @@ Repeat:
 3. **Process completion**:
     - OpenCode native Task returns synchronously: release its slot and process its RESULT immediately. Do not wait for or promise a background notification.
     - Claude Code background calls use the runtime completion notification. OpenCode/Codex `codex` calls use the no-background-shell-tool fallback: poll `/tmp/perry-dispatch-<id>.log` and its PID every 30s; completion is `=== END RESULT ===` or process exit.
-   - For each completion, run the standard post-completion routine (see `dispatch.md` § "On completion"): release slot, parse RESULT, run objective verification, write evidence file, then move the row with `perry-task status <ID> --status review` — one call that updates the task record and appends the journal line. Do not do either by hand: an autopilot run that hand-edits the board on every completion drowns the drift signal in output it produced itself, which is the failure this file's own header warns about.
+   - For each completion, run the standard post-completion routine (see `dispatch.md` § "On completion"): release slot, parse RESULT, run objective verification, write evidence file, then move the row with `perry-task status <ID> --actor <actor> --status review` — one call that updates the task record and appends the journal line. Do not do either by hand: an autopilot run that hand-edits the board on every completion drowns the drift signal in output it produced itself, which is the failure this file's own header warns about.
    - Append result to the run summary's per-task table: completed at, status, evidence path.
-   - If completion was a failure (executor error / verification fail / scope creep) → `failures += 1`. Mark the task `review` with the failure named: `perry-task status <ID> --status review --reason "<what failed>"`. **Never auto-retry.**
+   - If completion was a failure (executor error / verification fail / scope creep) → `failures += 1`. Mark the task `review` with the failure named: `perry-task status <ID> --actor <actor> --status review --reason "<what failed>"`. **Never auto-retry.**
 
 4. If concurrency cap is fully occupied and no completion arrives within 10 min → log "stalled" + exit. (Likely a stuck background process; user investigates.)
 

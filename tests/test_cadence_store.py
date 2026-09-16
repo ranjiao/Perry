@@ -25,6 +25,8 @@ Run: python3 tests/parallel test_cadence_store
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-state",
@@ -135,7 +137,7 @@ class Project:
         return self.state / "BOARD.md"
 
     def task(self, argv):
-        return inproc.run("perry-task", list(argv) + ["--root", str(self.root)])
+        return inproc.run("perry-task", task_actor.owned(list(argv) + ["--root", str(self.root)], 'test_cadence_store'))
 
     def tasks(self, argv):
         return inproc.run("perry-tasks", list(argv) + ["--root", str(self.root)])

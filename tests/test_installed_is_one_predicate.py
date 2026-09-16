@@ -30,6 +30,8 @@ Run: python3 tests/parallel test_installed_is_one_predicate
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-goals",
@@ -95,8 +97,8 @@ def env() -> dict:
 
 def run(argv: tuple[str, ...], d: Path) -> subprocess.CompletedProcess:
     tool, *rest = argv
-    return subprocess.run([sys.executable, str(ROOT / "bin" / tool), *rest,
-                           "--root", str(d)],
+    return subprocess.run(task_actor.command([sys.executable, str(ROOT / "bin" / tool), *rest,
+                           "--root", str(d)], 'test_installed_is_one_predicate'),
                           capture_output=True, text=True, cwd=str(d), env=env())
 
 

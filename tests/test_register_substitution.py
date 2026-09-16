@@ -48,6 +48,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task", "bin/perry-lint", "bin/perry_store.py")
 
 import json
@@ -558,8 +560,8 @@ class TestTheLostRecordsAreRecoverable(Base):
         f, staged = stage(self, "asks", n=2)
         with the_write_mutates_the_held_board():
             r = inproc.run("perry-task",
-                           ["ask", "--needed", "an ordinary new question",
-                            "--json", "--root", str(f.root)])
+                           task_actor.owned(["ask", "--needed", "an ordinary new question",
+                            "--json", "--root", str(f.root)], 'test_register_substitution'))
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         payload = json.loads(r.stdout)["register_store"]
         self.assertEqual(len(payload["substituted"]), staged.n)

@@ -17,6 +17,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-state",
     "bin/perry-task",
@@ -75,8 +77,8 @@ def bold_headers(text: str) -> str:
 class TestDecorationIsInvisible(unittest.TestCase):
     def run_reader(self, name: str, root: Path):
         r = subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / name), *READERS[name],
-             "--root", str(root)],
+            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / name), *READERS[name],
+             "--root", str(root)], 'test_decoration_changes_nothing'),
             capture_output=True, text=True)
         # **A transient subprocess failure must not masquerade as a finding.**
         # This used to fall back to `{"rc": …, "stdout": …}` on a JSON error, a

@@ -138,7 +138,7 @@ the signal to split topics, not to raise the cap (DESIGN-006 § 5.4).
 ## Where each capture point differs
 
 **`close-task`** — one question, after the close is written. `--source` is the
-evidence citation handed to `perry-task done --evidence`; `--rung` is the rung
+evidence citation handed to `perry-task done`'s `--evidence`; `--rung` is the rung
 chosen at pre-close gate 3. This is the ordinary case and the only one that
 fires per task.
 

@@ -31,6 +31,8 @@ Run: python3 tests/parallel test_a_write_refuses_where_nothing_is_installed
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-goals",
@@ -174,7 +176,9 @@ class TestEveryWriteRefusesWhereNothingIsInstalled(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         self.assertFalse(P.installed(d), f"anti-vacuity: {shape} is installed")
         before = snapshot(d)
-        out = inproc.run(tool, argv + ["--root", str(d)])
+        out = inproc.run(tool, task_actor.owned(argv, "install-gate-probe")
+                         + ["--root", str(d)] if tool == "perry-task"
+                         else argv + ["--root", str(d)])
         self.assertEqual(out.returncode, 1, out.stdout[-300:] + out.stderr[-300:])
         self.assertIn(GATE, out.stderr + out.stdout)
         self.assertNotIn("Traceback", out.stderr)
@@ -215,8 +219,8 @@ class TestEveryWriteRefusesWhereNothingIsInstalled(unittest.TestCase):
         before = snapshot(d)
         env = {k: v for k, v in os.environ.items() if not k.startswith("PERRY_")}
         env["PERRY_HOME"] = str(ROOT)
-        out = subprocess.run([sys.executable, str(ROOT / "bin" / "perry-task"),
-                              "ask", "--needed", "f1 probe"],
+        out = subprocess.run(task_actor.command([sys.executable, str(ROOT / "bin" / "perry-task"),
+                              "ask", "--needed", "f1 probe"], 'test_a_write_refuses_where_nothing_is_installed'),
                              capture_output=True, text=True, cwd=d, env=env)
         self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
         self.assertIn(GATE, out.stderr)
@@ -238,13 +242,13 @@ class TestTheStartStillInstalls(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn(GATE, out.stderr)
         self.assertTrue(P.installed(d))
-        add = inproc.run("perry-task", ["add", "--title", "after the start",
+        add = inproc.run("perry-task", task_actor.owned(["add", "--title", "after the start",
                                         "--priority", "P1",
                                         "--deliverable", "d", "--verification",
                                         "v", "--summary",
                                         "A row written once the start has "
                                         "installed the project.",
-                                        "--root", str(d)])
+                                        "--root", str(d)], 'test_a_write_refuses_where_nothing_is_installed'))
         self.assertEqual(add.returncode, 0, add.stderr)
         self.assertTrue((d / "tasks.jsonl").is_file())
 
@@ -260,8 +264,8 @@ class TestTheStartStillInstalls(unittest.TestCase):
                                           "--root", str(d)])
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertTrue(P.installed(d))
-        ask = inproc.run("perry-task", ["ask", "--needed", "after the set?",
-                                        "--root", str(d)])
+        ask = inproc.run("perry-task", task_actor.owned(["ask", "--needed", "after the set?",
+                                        "--root", str(d)], 'test_a_write_refuses_where_nothing_is_installed'))
         self.assertEqual(ask.returncode, 0, ask.stderr)
         self.assertTrue((d / "perry" / "asks.jsonl").is_file())
         self.assertFalse((d / "asks.jsonl").exists(),
@@ -271,7 +275,7 @@ class TestTheStartStillInstalls(unittest.TestCase):
         d = self.fresh()
         for argv in (["list", "--json"], ["asks", "--json"], ["events", "--json"]):
             with self.subTest(read=argv[0]):
-                out = inproc.run("perry-task", argv + ["--root", str(d)])
+                out = inproc.run("perry-task", task_actor.owned(argv + ["--root", str(d)], 'test_a_write_refuses_where_nothing_is_installed'))
                 self.assertEqual(out.returncode, 0, out.stderr)
                 self.assertFalse(json.loads(out.stdout)["installed"])
         b = self.fresh("board-only")
@@ -352,8 +356,8 @@ class TestAWriteInAnUndeclaredGroup(unittest.TestCase):
                     self.assertEqual(self.section_of(d, "TASK-9500"), GROUP,
                                      "anti-vacuity: the board does not place "
                                      "the task under its group")
-                    out = inproc.run("perry-task", [name, "TASK-9500", *argv,
-                                                    "--root", str(d)])
+                    out = inproc.run("perry-task", task_actor.owned([name, "TASK-9500", *argv,
+                                                    "--root", str(d)], 'test_a_write_refuses_where_nothing_is_installed'))
                     self.assertNotIn("Traceback", out.stderr)
                     self.assertNotIn("KeyError", out.stderr)
                     self.assertEqual(out.returncode, 0, out.stderr[-600:])

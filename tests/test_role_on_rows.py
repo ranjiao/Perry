@@ -11,6 +11,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "modes/project.md",
@@ -89,11 +91,11 @@ class Base(unittest.TestCase):
     def add(self, root: Path, *extra):
         env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
         return subprocess.run(
-            [sys.executable, str(TOOL), "add", "--title", "t",
+            task_actor.command([sys.executable, str(TOOL), "add", "--title", "t",
              "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
              "--deliverable", "an artifact with a test",
              "--verification", "the test passes",
-             "--next", "n", *extra, "--root", str(root)],
+             "--next", "n", *extra, "--root", str(root)], 'test_role_on_rows'),
             capture_output=True, text=True, env=env)
 
     def payload(self, root: Path) -> dict:

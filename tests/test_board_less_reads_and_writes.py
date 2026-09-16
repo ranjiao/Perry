@@ -25,6 +25,8 @@ Run: python3 tests/parallel test_board_less_reads_and_writes
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-lint",
@@ -191,7 +193,7 @@ class Project:
         return self.state / "BOARD.md"
 
     def task(self, argv: list[str]):
-        return inproc.run("perry-task", argv + ["--root", str(self.root)])
+        return inproc.run("perry-task", task_actor.owned(argv + ["--root", str(self.root)], 'test_board_less_reads_and_writes'))
 
     def task_json(self, argv: list[str]) -> dict:
         out = self.task(argv + ["--json"])
@@ -469,7 +471,7 @@ class TestThisProjectsStoresWithNoBoard(unittest.TestCase):
                 shutil.copy2(src, cls.state / f"{name}.jsonl")
         cls.root = root
         run = lambda argv: json.loads(inproc.run(  # noqa: E731
-            "perry-task", argv + ["--root", str(root), "--json"]).stdout)
+            "perry-task", task_actor.owned(argv + ["--root", str(root), "--json"], 'test_board_less_reads_and_writes')).stdout)
         cls.asks = run(["asks", "--all"])
         cls.listed = run(["list", "--limit", "0"])
         cls.stored_asks = read_jsonl(cls.state / "asks.jsonl")

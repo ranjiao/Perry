@@ -71,7 +71,7 @@ complete.** An unlinked task is a User-Input-Queue item, not a rolled-up one.
 ## The linkage graph — `linkage.jsonl`
 
 **Owner: `perry`** — the store belongs to no lane, which is what lets `work`
-write an `edge` at `perry-task add --kr` and `goals` write one at `perry-goals
+write an `edge` at `perry-task add`'s `--kr` and `goals` write one at `perry-goals
 link` without either touching the other's directory. Within `goals`,
 `perry-goals link` is the only writer. **PMO reads it for roll-up + resolution.**
 

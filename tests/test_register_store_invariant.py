@@ -33,6 +33,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task", "bin/perry-lint", "bin/perry_store.py")
 
 import contextlib
@@ -249,7 +251,7 @@ class Fixture:
         held = self.hand_edited if held is None else held
         with (the_write_mutates_the_held_board() if held
               else contextlib.nullcontext()):
-            r = inproc.run("perry-task", [*argv, "--root", str(self.root)])
+            r = inproc.run("perry-task", task_actor.owned([*argv, "--root", str(self.root)], 'test_register_store_invariant'))
         return r.returncode, r.stdout + r.stderr
 
     def raw(self, name: str) -> bytes:

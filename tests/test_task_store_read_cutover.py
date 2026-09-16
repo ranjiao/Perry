@@ -5,6 +5,8 @@ Run: python3 tests/parallel test_task_store_read_cutover
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task",)
 
 import json
@@ -78,7 +80,7 @@ class Project:
 
     def run(self, *args: str) -> tuple[int, dict, str]:
         proc = subprocess.run(
-            [sys.executable, str(TASK), *args, "--root", str(self.root), "--json"],
+            task_actor.command([sys.executable, str(TASK), *args, "--root", str(self.root), "--json"], 'test_task_store_read_cutover'),
             capture_output=True, text=True)
         return proc.returncode, json.loads(proc.stdout or "{}"), proc.stderr
 

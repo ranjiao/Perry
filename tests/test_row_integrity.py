@@ -53,6 +53,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/", "viewer/")
 
 import contextlib
@@ -226,7 +228,7 @@ class TestTheWriterRefusesAndWritesNothing(unittest.TestCase):
     def run_add(self, next_action: str):
         env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
         return subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "add",
+            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "add",
              "--root", str(self.root), "--title", "probe", "--priority", "P0",
              "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
              "--deliverable", "a file that exists",
@@ -235,7 +237,7 @@ class TestTheWriterRefusesAndWritesNothing(unittest.TestCase):
              # "V2" — harmlessly, since it asserts nothing about the value —
              # until `add` learned to refuse a bare rung here.
              "--verification", "the row round-trips through split_row",
-             "--next", next_action],
+             "--next", next_action], 'test_row_integrity'),
             capture_output=True, text=True, env=env)
 
     def test_a_multi_line_next_action_is_refused(self):

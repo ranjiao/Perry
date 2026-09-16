@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry_store.py",
@@ -158,7 +160,8 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         p = Project()
         n = 8
         procs = [subprocess.Popen(
-            ["python3", str(TOOL), "add", "--title", f"concurrent {i}",
+            ["python3", str(TOOL), "add", "--actor", "concurrent-writer-probe",
+             "--title", f"concurrent {i}",
              "--priority", "P0", *Project.ADD_DEFAULTS,
              # Spelled out because this call builds argv itself rather than
              # going through `Project.run`, which is where the injection lives.
@@ -585,7 +588,7 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
         tool = str(PERRY_HOME / "bin" / "perry-task")
         for name in PT.COMMANDS:
             r = subprocess.run(
-                ["python3", tool, name, "--root", str(p.root)],
+                task_actor.command(["python3", tool, name, "--root", str(p.root)], 'test_task_writer_core'),
                 capture_output=True, text=True)
             self.assertNotEqual(
                 r.returncode, 2,
@@ -595,7 +598,7 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
                 f"{name!r} crashed instead of refusing:\n{r.stderr}")
 
         r = subprocess.run(
-            ["python3", tool, "nonesuch", "--root", str(p.root)],
+            task_actor.command(["python3", tool, "nonesuch", "--root", str(p.root)], 'test_task_writer_core'),
             capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
 

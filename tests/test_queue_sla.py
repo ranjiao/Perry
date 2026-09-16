@@ -30,6 +30,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-state",
     "bin/perry-task",
@@ -118,8 +120,8 @@ class Base(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def task(self, root: Path, *args: str) -> dict:
-        r = subprocess.run([sys.executable, str(TASK), *args,
-                            "--root", str(root), "--json"],
+        r = subprocess.run(task_actor.command([sys.executable, str(TASK), *args,
+                            "--root", str(root), "--json"], 'test_queue_sla'),
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         return json.loads(r.stdout)

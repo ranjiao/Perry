@@ -35,6 +35,8 @@ Run: python3 tests/parallel test_semantics_on_every_payload
 """
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "schema/",
     "bin/perry-task",
@@ -89,8 +91,8 @@ EMPTY_TODAY = ("perry-roles/list", "perry-next")
 def payload(argv: tuple[str, ...], root: pathlib.Path, subtree: str) -> dict:
     tool, *rest = argv
     proc = subprocess.run(
-        [sys.executable, str(ROOT / "bin" / tool), *rest,
-         "--root", str(root), "--json"],
+        task_actor.command([sys.executable, str(ROOT / "bin" / tool), *rest,
+         "--root", str(root), "--json"], 'test_semantics_on_every_payload'),
         capture_output=True, text=True, cwd=ROOT)
     if proc.returncode != 0:
         raise AssertionError(f"{argv} exited {proc.returncode}: "

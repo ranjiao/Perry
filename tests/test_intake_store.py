@@ -25,6 +25,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-lint",
@@ -762,9 +764,9 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
                          "control: the hand edit removed the first row")
         tool = PERRY_HOME / "bin" / "perry-task"
         out = subprocess.run(
-            [sys.executable, str(tool), "resolve-intake", "1",
+            task_actor.command([sys.executable, str(tool), "resolve-intake", "1",
              "--outcome", "dropped", "--reason", "a request we will not take",
-             "--root", str(p.root)], capture_output=True, text=True)
+             "--root", str(p.root)], 'test_intake_store'), capture_output=True, text=True)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         stored = [json.loads(l) for l in store.read_text().split("\n")
                   if l.strip()]
@@ -798,16 +800,16 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         before = numbering()
         for argv in (["resolve-intake", "2", "--outcome", "dropped",
                       "--reason", "folded in", "--json"],):
-            out = subprocess.run([sys.executable, str(task), *argv,
-                                  "--root", str(p.root)],
+            out = subprocess.run(task_actor.command([sys.executable, str(task), *argv,
+                                  "--root", str(p.root)], 'test_intake_store'),
                                  capture_output=True, text=True)
             self.assertEqual(out.returncode, 0, out.stderr)
         # **No re-import** (TASK-262 round 4a). It was here so the store knew
         # about the discharge, back when the held board was the layout a write
         # mutated; `resolve-intake` writes the store, and re-importing the held
         # file — which no write updates now — would overwrite that discharge.
-        out = subprocess.run([sys.executable, str(task), "intake-sweep",
-                              "--json", "--root", str(p.root)],
+        out = subprocess.run(task_actor.command([sys.executable, str(task), "intake-sweep",
+                              "--json", "--root", str(p.root)], 'test_intake_store'),
                              capture_output=True, text=True)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual(json.loads(out.stdout)["swept"], 2)
