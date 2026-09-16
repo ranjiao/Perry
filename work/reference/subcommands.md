@@ -787,6 +787,8 @@ Slug IDs are never reused or recycled across months.
 If the task needs a working artifact from day one (checklist, design ladder, subtasks), the working artifact lives at `evidence/<YYYY-MM>/<TASK-ID>-<slug>.md` (separate file from the spec).
 
 ### `close-task <id>`
+
+If an approved project release policy applies, read `$PERRY_HOME/packs/software-ops/releases.md` for delivery/publication receipts. Closing is not a version bump; partial delivery does not complete a task. Existing acceptance and close gates still decide. With no policy, continue without version intervention or an enablement question.
 Reject if no evidence path provided.
 
 **Pre-close gate 1 — `Touches architecture:` requires review agent PASS** (see `$PERRY_HOME/packs/software-ops/architecture.md § close-task gate`):
