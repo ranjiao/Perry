@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import task_actor
+
 import importlib.machinery
 import importlib.util
 import json
@@ -218,7 +220,7 @@ class Project:
         # sibling module, so none is root-dependent and sharing them across
         # calls with different roots is safe.
         r = inproc.run("perry-task",
-                       [*argv, "--root", str(self.root), "--json"])
+                       task_actor.owned([*argv, "--root", str(self.root), "--json"], 'task_writer_support'))
         try:
             return r.returncode, json.loads(r.stdout or "{}")
         except json.JSONDecodeError:

@@ -50,6 +50,8 @@ Run: python3 tests/parallel test_md_store
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry_md_store.py",
     "bin/perry_store.py",
@@ -129,7 +131,7 @@ def objective_lines(text: str) -> int:
 
 def run(tool: str, *args, root: pathlib.Path):
     return subprocess.run(
-        [sys.executable, str(ROOT / "bin" / tool), *args, "--root", str(root)],
+        task_actor.command([sys.executable, str(ROOT / "bin" / tool), *args, "--root", str(root)], 'test_md_store'),
         capture_output=True, text=True, cwd=str(ROOT))
 
 

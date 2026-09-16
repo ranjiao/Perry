@@ -25,6 +25,8 @@ Run: python3 tests/parallel test_state_root_unset
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-config",
     "viewer/parsers.py",
@@ -53,7 +55,7 @@ import parsers as P  # noqa: E402
 def run(tool: pathlib.Path, *argv: str) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items()
            if k not in ("PERRY_PROJECT", "PERRY_HOME")}
-    return subprocess.run([sys.executable, str(tool), *argv],
+    return subprocess.run(task_actor.command([sys.executable, str(tool), *argv], 'test_state_root_unset'),
                           capture_output=True, text=True, env=env,
                           cwd=tempfile.gettempdir())
 

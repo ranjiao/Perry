@@ -13,6 +13,8 @@ What the fixture states is unchanged; only the route to the reader moved.
 
 from __future__ import annotations
 
+import task_actor
+
 import pathlib
 
 import inproc
@@ -44,8 +46,8 @@ def import_board(root: pathlib.Path, *verbs: str, remove: bool = True) -> None:
                 and _BULLETS in said:
             # Step 3 of the procedure: a bullet `## Top risks` is converted
             # and stored by `perry-task risk-migrate`, not imported.
-            proc = inproc.run("perry-task", ["risk-migrate", "--root",
-                                             str(root)])
+            proc = inproc.run("perry-task", task_actor.owned(["risk-migrate", "--root",
+                                             str(root)], 'held_board'))
             said = proc.stdout + proc.stderr
         if proc.returncode != 0 and _NO_SECTION not in said:
             raise AssertionError(f"perry-tasks {verb} --from-board refused on "

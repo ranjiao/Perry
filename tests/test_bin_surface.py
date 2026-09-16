@@ -17,6 +17,8 @@ Run: python3 tests/parallel -j 4 test_bin_surface
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/", "README.md", "perry/", ".perry/")
 
 import ast
@@ -86,7 +88,7 @@ def _tools_with_a_surface() -> list[str]:
 def run(tool: str, *argv: str) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     env.pop("PERRY_PROJECT", None)
-    return subprocess.run([sys.executable, str(BIN / tool), *argv],
+    return subprocess.run(task_actor.command([sys.executable, str(BIN / tool), *argv], 'test_bin_surface'),
                           capture_output=True, text=True, env=env)
 
 
@@ -142,8 +144,8 @@ class TestDeclaredAndDispatchableAreTheSameSet(unittest.TestCase):
                 for sub in surface(tool).get("subcommands", ()):
                     with self.subTest(tool=tool, sub=sub["name"]):
                         out = subprocess.run(
-                            [sys.executable, str(BIN / tool), sub["name"],
-                             "--root", empty],
+                            task_actor.command([sys.executable, str(BIN / tool), sub["name"],
+                             "--root", empty], 'test_bin_surface'),
                             capture_output=True, text=True)
                         blob = out.stdout + out.stderr
                         self.assertNotIn("is not a subcommand", blob)
@@ -1367,8 +1369,8 @@ class TestDescribeAnswersForEveryDeclaredTool(unittest.TestCase):
             for sub in decl.get("subcommands", ()):
                 with self.subTest(tool=tool, sub=sub["name"]):
                     out = subprocess.run(
-                        [sys.executable, str(BIN / tool), sub["name"],
-                         "--describe", "--json"],
+                        task_actor.command([sys.executable, str(BIN / tool), sub["name"],
+                         "--describe", "--json"], 'test_bin_surface'),
                         capture_output=True, text=True)
                     self.assertEqual(out.returncode, 0, out.stderr)
                     payload = json.loads(out.stdout)

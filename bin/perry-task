@@ -2821,8 +2821,8 @@ def linkage_add_change(state_root: Path,
     # **No `"agent"` default** (USER-950, TASK-289). `main` refuses a write
     # with no actor before it gets here; this is defence in depth for a second
     # caller, which must not mint a record whose owner no session can claim.
-    actor = str(event.get("actor") or "").strip()
-    if not actor:
+    actor = str(event.get("actor") or "")
+    if not actor.strip():
         raise Refused(f"the {task} linkage record has no actor, and a record "
                       f"no session can claim is not written. Nothing was "
                       f"written.")

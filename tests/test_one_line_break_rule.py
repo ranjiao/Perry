@@ -20,6 +20,8 @@ Run: python3 tests/parallel test_one_line_break_rule
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("viewer/tables.py", "bin/perry-goals", "bin/perry-task")
 
 import json
@@ -152,8 +154,8 @@ class TestTheRefusalNamesTheFlag(unittest.TestCase):
 
     def run_task(self, *args):
         return subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-task"), *args,
-             "--root", str(self.root)],
+            task_actor.command([sys.executable, str(ROOT / "bin" / "perry-task"), *args,
+             "--root", str(self.root)], 'test_one_line_break_rule'),
             capture_output=True, text=True)
 
     def a_row(self) -> str:

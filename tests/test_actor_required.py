@@ -151,7 +151,7 @@ class TestEveryWriterRefusesWithoutAnOwner(unittest.TestCase):
                         ("blank", ["--actor", "   "], "was given empty"),
                         ("dry-run", ["--dry-run"], "was not given")):
                     with self.subTest(sub=name, actor=label):
-                        out = p.task(argv + extra)
+                        out = inproc.run("perry-task", argv + extra + ["--root", str(p.root)])
                         self.assertEqual(out.returncode, 2,
                                          f"{argv + extra}: {out.stderr[-400:]}")
                         self.assertIn("--actor", out.stderr)
@@ -205,6 +205,13 @@ class TestTheLinkageRecordHasNoDefault(EDGE.Fixture):
         edge = self.records(d)[-1]
         self.assertEqual((edge["task"], edge["actor"]), (tid, ACTOR))
 
+    def test_a_nonblank_actor_is_recorded_without_rewriting_it(self):
+        d = self.project()
+        actor = "  probe-agent  "
+        self.new_id(self.add(d, "an actor identity", self.STORE_KR,
+                             "--actor", actor))
+        self.assertEqual(self.records(d)[-1]["actor"], actor)
+
     def test_an_event_with_no_actor_is_refused_not_defaulted(self):
         """Defence in depth for a second caller of the writer: `main` refuses
         first, so only a direct call reaches this."""
@@ -236,7 +243,7 @@ class TestNoReadDemandsIt(unittest.TestCase):
                               f"a new read subcommand {name!r}: give it an argv here")
                 p = BL.Project(board=None)
                 try:
-                    out = p.task(self.READ_ARGV[name])
+                    out = inproc.run("perry-task", self.READ_ARGV[name] + ["--root", str(p.root)])
                     self.assertNotIn("--actor", out.stderr)
                     self.assertEqual(out.returncode, 0, out.stderr[-400:])
                 finally:

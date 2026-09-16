@@ -28,6 +28,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-state",
@@ -373,7 +375,7 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
         asserted too: reading the table would give `intake` no mode at all.
         """
         r = subprocess.run(
-            ["python3", str(PERRY_HOME / "bin" / "perry-task"), "add",
+            task_actor.command(["python3", str(PERRY_HOME / "bin" / "perry-task"), "add",
              "--root", str(self.root), "--title", "probe",
              "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
              "--deliverable", "d", "--verification", "v",
@@ -382,7 +384,7 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
              # is resolved — so without it this test would read a refusal about
              # linkage and report it as the projection beating the register.
              # Honest for a throwaway probe row, which serves no key result.
-             "--track", "intake", "--unlinked", "--dry-run", "--json"],
+             "--track", "intake", "--unlinked", "--dry-run", "--json"], 'test_work_modes'),
             capture_output=True, text=True)
         payload = json.loads(r.stdout)
         self.assertNotIn("refused", payload,
@@ -1255,14 +1257,14 @@ class TestVerificationSeesToolClosedWork(unittest.TestCase):
             "|---|---|---|---|---|---|\n\n## P2\n| ID | Title | Owner | Status | Next action | Evidence |\n"
             "|---|---|---|---|---|---|\n")
         tool = str(PERRY_HOME / "bin" / "perry-task")
-        subprocess.run(["python3", tool, "add", "--title", title,
+        subprocess.run(task_actor.command(["python3", tool, "add", "--title", title,
                         "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                         "--deliverable", "d", "--verification", "v",
-                        "--priority", "P0", "--root", str(root)],
+                        "--priority", "P0", "--root", str(root)], 'test_work_modes'),
                        capture_output=True, text=True)
-        subprocess.run(["python3", tool, "done", "TASK-001",
+        subprocess.run(task_actor.command(["python3", tool, "done", "TASK-001",
                         "--evidence", "e.md", "--rung", rung,
-                        "--root", str(root)], capture_output=True, text=True)
+                        "--root", str(root)], 'test_work_modes'), capture_output=True, text=True)
         return root
 
     def lint(self, root: Path) -> str:

@@ -34,6 +34,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-lint",
@@ -621,9 +623,9 @@ class TestDriftIsReportedRatherThanAbsorbed(unittest.TestCase):
         held = p.root / "BOARD.md"
         before = held.read_bytes()
         out = subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "answer",
+            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "answer",
              "USER-002", "--answer", "CSV, with a header row",
-             "--root", str(p.root), "--json"],
+             "--root", str(p.root), "--json"], 'test_asks_store'),
             capture_output=True, text=True)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         # **TASK-262 round 4a.** The write reaches the store and no longer

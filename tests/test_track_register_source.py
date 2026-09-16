@@ -60,6 +60,8 @@ Run: python3 tests/parallel test_track_register_source
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-config",
     "bin/perry-state",
@@ -520,7 +522,7 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
 
     def run_task(self, d: pathlib.Path, *argv):
         return subprocess.run(
-            [sys.executable, str(TASK), *argv, "--root", str(d)],
+            task_actor.command([sys.executable, str(TASK), *argv, "--root", str(d)], 'test_track_register_source'),
             capture_output=True, text=True, cwd=ROOT)
 
     def test_a_write_is_refused_when_the_store_is_present_and_unusable(self):

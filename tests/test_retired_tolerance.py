@@ -38,6 +38,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-lint",
     "bin/perry-state",
@@ -193,7 +195,7 @@ class Project:
         argv = [*argv, "--root", str(self.root)]
         if json_out:
             argv.append("--json")
-        r = subprocess.run([sys.executable, str(tool), *argv],
+        r = subprocess.run(task_actor.command([sys.executable, str(tool), *argv], 'test_retired_tolerance'),
                            capture_output=True, text=True)
         try:
             return r.returncode, json.loads(r.stdout or "{}"), r.stderr
