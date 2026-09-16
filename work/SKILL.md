@@ -233,6 +233,8 @@ After the standup, the user usually picks one of these. **Read the linked refere
 
 For navigation help at any time: `/pmo help` prints this entire index; `/pmo help <subcommand>` prints just that row plus reads the linked reference file (so the user gets the full procedure inline).
 
+For version/release setup requests, or an applicable approved project release policy, read `$PERRY_HOME/packs/software-ops/releases.md`. Pack activation alone does not enable it; no policy means no version intervention.
+
 | Subcommand | One-line | Reference |
 |---|---|---|
 | `plan-week` | Pick this ISO week's 3–5 P0 tasks; update BOARD + journal | `reference/subcommands.md` |
