@@ -4421,7 +4421,21 @@ def check_config_store(project_root: Path, state_root: Path) -> list["Finding"]:
             f"{who} — {issue['message']}. A store holding a record that does "
             f"not validate is refused whole by every writer, not per record."))
 
-    stats["comparison_performed"] = not issues
+    # **The census verdict is the writers' own predicate, not this function's
+    # reading of `issues`** (TASK-270). `comparison_performed` is what prints
+    # "all valid" or "every writer refuses", and while it was keyed on this
+    # file's own validation it said `0 record(s), all valid` about a store
+    # every writer refused. `parsers.config_store_unusable` is the call
+    # `perry-task` and `perry-goals` make; if it ever says unusable where the
+    # findings above named nothing, that is reported rather than printed clean.
+    unusable = P.config_store_unusable(Path(project_root))
+    if unusable and not issues:
+        findings.append(Finding(
+            "warn", rel_store, "config-store-badly-typed",
+            f"every writer refuses this store ({unusable}) and no record above "
+            f"was named — `parsers.config_store_unusable` and this check have "
+            f"come apart, which is a Perry defect to report"))
+    stats["comparison_performed"] = not unusable
     stats["records"] = len(good)
 
     seps = STAGE_SEPARATORS
@@ -5065,7 +5079,21 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
     # file Perry rewrites on EVERY mutating command is reported as foreign
     # against Perry's own claim, on every Perry project there is. What
     # identifies it is the record, not the name.
+    #
+    # **An EMPTY file at a claim anchored in `.perry/` is Perry's** (TASK-270).
+    # `looks_like_perry_record` reads the first record and an empty file has
+    # none, so `perry-config unset` of the last setting — a write Perry made —
+    # was reported as a file Perry did not write, with advice to relocate.
+    # The anchor is what makes this safe rather than a name match: `.perry/`
+    # is the directory Perry creates to hold its pointer, and the file claims
+    # anchored there (`.perry/config.jsonl`, `.perry/events.jsonl`) are
+    # Perry's by construction. An empty file there holds nothing a user could
+    # lose and nothing Perry could misread as broken —
+    # `parsers.config_store_unusable` answers usable for it. A state-root
+    # store is still judged by its first record.
     if path.suffix == ".jsonl":
+        if claim.get("anchor") == "project" and _holds_no_record(path):
+            return True
         return looks_like_perry_record(path, schema)
     stem = path.stem
     # Perry names its own artifacts: DESIGN-001-…, ADR-002-…, 001-slug, dates.
@@ -5125,6 +5153,16 @@ def _matches_a_declared_store(rec: dict, schema: dict) -> bool:
         if isinstance(shape, dict) and keys <= set(shape.get("fields") or {}):
             return True
     return False
+
+
+def _holds_no_record(path: Path) -> bool:
+    """True when `path` reads and has no non-blank line — the file
+    `perry_md_store.load_store` parses to `[]`. An unreadable file is not
+    empty; it is unknown, and stays with `looks_like_perry_record`."""
+    try:
+        return not path.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return False
 
 
 def looks_like_perry_record(path: Path, schema: dict | None = None) -> bool:
@@ -5992,6 +6030,14 @@ def main(argv: list[str]) -> int:
                 print(f"  · config store: {_cs['records']} valid record(s), "
                       "and at least one that is not — every writer refuses "
                       "the store whole")
+            elif not _cs["records"]:
+                # Empty is usable (`parsers.config_store_unusable`), and it is
+                # not the same news as "N record(s), all valid": every setting
+                # is at its default and the one track is DESIGN-003's `main`.
+                print("  · config store: empty — this project declares no "
+                      "settings and no tracks, so every writer uses the "
+                      "defaults (`perry-config set <label> <value>` or "
+                      "`perry-config track <name>` declares one)")
             else:
                 print(f"  · config store: {_cs['records']} record(s), all valid")
 

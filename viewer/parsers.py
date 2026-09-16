@@ -340,6 +340,8 @@ CONFIG_FROM_STORE = "store"
 
 #: The two that mean "a store is sitting right there and cannot be used", so a
 #: caller reading the markdown instead must say so rather than answer silently.
+#: `bin/perry-state § TRACKS_STORE_UNUSABLE` is this set, not a copy of it, and
+#: `config_store_unusable` is the predicate every writer and the linter ask.
 CONFIG_STORE_UNUSABLE = frozenset({CONFIG_STORE_UNREADABLE, CONFIG_STORE_INVALID})
 
 
@@ -382,13 +384,44 @@ def config_store_records(project_root: Path) -> tuple[list[dict] | None, str]:
         return None, CONFIG_STORE_UNREADABLE
     if findings:
         return None, CONFIG_STORE_INVALID
-    if not good:
-        # **An EMPTY store is broken.** A file that parsed to zero records has
-        # answered nothing, and an interrupted write does produce one. The
-        # classification is `bin/perry-state § _validated_config_records`'s and
-        # travelled here with it.
-        return None, CONFIG_STORE_INVALID
+    # **An EMPTY store is a store, and it is usable** (TASK-270). This branch
+    # used to return `invalid` for zero records, on two premises that were both
+    # false by 2026-09-16: that no Perry command produces one (`perry-config
+    # unset` of the last setting does, at exit 0), and that an interrupted write
+    # does (`lib.write_atomic` is `os.replace`, so a reader sees the old store
+    # or the new one, never a torn empty one). The rule is
+    # `config_store_unusable` below, and why is written there.
     return good, ""
+
+
+def config_store_unusable(project_root: Path) -> str:
+    """**The one rule for whether a writer may act on `.perry/config.jsonl`.**
+
+    `''` when it may; otherwise the reason, one of `CONFIG_STORE_UNUSABLE`.
+    The writers' refusal (`bin/perry-task § main`, `bin/perry-goals §
+    tracks_of`) and `bin/perry-lint § check_config_store`'s census verdict both
+    call THIS, so they cannot come to disagree again — which they did
+    (TASK-270): the writers refused a zero-record store as "records that do not
+    validate" while the linter printed `0 record(s), all valid`.
+
+    **The rule, from the refusal's own reason.** A writer refuses because
+    writing "would stamp DESIGN-003's implicit `main` over whatever this
+    project actually declares and lose that track's mode, stages, WIP and SLA".
+    That is true exactly when the store may hold a declaration the reader could
+    not see: bytes that did not parse (`unreadable`), or a record that did not
+    validate (`invalid`) — the reviewer's truncated `intake` line. It is false
+    for a store that parsed and validated in full, whatever it holds, because
+    every declaration in it was read. A settings-only store has been that case
+    since TASK-095 round 2; an EMPTY store is the same case with no settings
+    either: it declares nothing, so DESIGN-003's implicit `main` stamps over
+    nothing, and it is exactly the answer an absent store already gets.
+
+    So: **usable ⇔ every byte parsed and every record validated. Record count
+    is not part of the rule.** A non-empty store holding a record that does not
+    validate is refused exactly as before.
+    """
+    _records, why = config_store_records(project_root)
+    return why if why in CONFIG_STORE_UNUSABLE else ""
 
 
 def config_store_settings(project_root: Path) -> tuple[dict[str, str] | None, str]:
