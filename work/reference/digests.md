@@ -239,9 +239,9 @@ Dashboard line:
 📚 Knowledge : <active> active · <eternal> eternal · <stale> stale · <archived> archived
 ```
 
-When `inputs/` count > 0: include "drain inputs/ via /pmo digest" in the suggested next actions.
+When `inputs/` count > 0: the dashboard line above already says so, and that is where it stays. It does not go in the standup's next-step position, which is the next block's (`ARCHITECTURE.md` §2); no rule covers undigested inputs yet (`ARCHITECTURE.md` §7).
 
-When stale ≥ 3: include "run /pmo end-phase-retro to triage archive candidates" or `mid-phase-review` (whichever is sooner).
+When stale ≥ 3: the knowledge line above says so, and `end-phase-retro` or `mid-phase-review` triages the archive candidates when one runs. For the same reason as the line above, it does not go in the standup's next-step position; no rule covers stale digests yet.
 
 **Digests are NOT loaded into standup context** (per Q4). Only existence + counts. PMO Reads specific digests when the user's question or task makes them relevant.
 

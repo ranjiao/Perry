@@ -307,7 +307,7 @@ Projects that adopted Perry before this split still have a single-file `DECISION
 5. Print the hand-off line for `work` to journal, if the migration deserves one. This lane does not write `journal/` — see step 7 of the `adr` walk above.
 6. Commit. Git history preserves the original DECISIONS.md so the migration is recoverable.
 
-When a `/pmo` standup detects old-style format (no `decisions/` directory; `DECISIONS.md` contains `^## ADR-NNN — ` headers), surface the migration suggestion in the standup's "next actions" list; user kicks off the migration in chat. PMO walks the steps above, shows the user a diff summary before commit. **Do not** auto-migrate during standup — wait for explicit user confirmation.
+When a `/pmo` standup detects old-style format (no `decisions/` directory; `DECISIONS.md` contains `^## ADR-NNN — ` headers), tell the user in chat that the migration is available, and they kick it off there. It does not go in the standup's next-step position: that position is the next block's (`ARCHITECTURE.md` §2), and no rule covers this migration yet (`ARCHITECTURE.md` §7). PMO walks the steps above, shows the user a diff summary before commit. **Do not** auto-migrate during standup — wait for explicit user confirmation.
 
 ## Per-project hook overrides
 

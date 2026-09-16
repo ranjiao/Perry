@@ -143,7 +143,7 @@ Always run this before anything else, even if the user asked a specific question
 6. **Render the headline + dashboard.** Two parts, in order:
 
    **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). Name the single most important thing for the user to look at right now in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. The TL;DR is your synthesis of the dashboard below, not a duplicate of it. Examples (note: IDs only as parenthetical refs, not as the subject):
-   - `TL;DR: BOARD is 240 lines, over the 200-line cap — triage before adding new work.`
+   - `TL;DR: BOARD is 240 lines, over its 200-line cap.`
    - `TL;DR: The dashboard environment filter decision has been waiting on you for 6 days (USER-014).`
    - `TL;DR: Phase commit KRs are at 80% (#002).`
    - `TL;DR: A locked design from 3 days ago has no implementation tasks yet (DESIGN-002).`

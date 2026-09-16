@@ -324,13 +324,18 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   no value in `perry-state`'s payload dates the last snapshot, so the rule
   reports its fact unknown and never fires. Keeping it needs `perry-state` to
   compute that date; dropping it means deleting the rule.
-- **OQ-8 — What replaces the after-subcommand suggestions?** *Proposed*
-  (TASK-442). Two lane lines still suggest a command once a subcommand
-  finishes: `goals/SKILL.md`'s `score-phase` row and
+- **OQ-8 — What covers the lane lines that name a command with no rule
+  behind them?** *Proposed* (TASK-442). Two kinds are marked and waiting.
+  **After a subcommand**: `goals/SKILL.md`'s `score-phase` row and
   `goals/reference/phases.md` step 9, both naming `plan-phase`. They are the
-  proactive closing step `TASK-443` builds, and each now says so where it
-  sits. When that step ships it renders `--after score-phase`, and the two
-  lines go.
+  proactive closing step `TASK-443` builds; when it ships it renders
+  `--after score-phase` and the two lines go. **In a standup's next-step
+  position**: the ADR migration `decide/reference/decisions.md` detects, and
+  the undigested `inputs/` and stale digests `work/reference/digests.md`
+  counts. No rule in `reference/next-rules.json` covers those three states,
+  and none was invented for them, so each line now says where its information
+  goes instead. Each needs a fact `perry-state` computes before a rule can
+  exist.
 
 ## §8. Change log
 
@@ -355,8 +360,11 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
     procedural steps, a refusal's remediation, bootstrap and first-run
     prompts, and dashboard row hints. The user decided that in session on
     2026-09-15, after three review rounds each found a different lane line
-    that names a command legitimately. Six TL;DR examples in the three lanes
-    now describe state instead of naming a step.
+    that names a command legitimately. Five TL;DR examples in the three lanes
+    describe state instead of naming a step, and the `goals` bootstrap prompt
+    says it is outside the rule; a sixth TL;DR example and three standup
+    instructions followed when the next review read the lane documents
+    whole.
   - §1, §3, §5 and §6 are not edited.
 - 2026-09-15 · v1 · **User-confirmed** (NN-6), after TASK-262 rounds 4a and 4b
   retired a `BOARD.md` a project still holds:
