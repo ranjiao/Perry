@@ -766,8 +766,12 @@ TRACKS_STORE_NO_TRACK_RECORD = "no-track-record"
 # that shape — three of this repo's six configs at the time — telling the user
 # to repair a store every checker reported as clean. Round 1 failed this row
 # for collapsing four situations into one answer; this collapsed two.
-TRACKS_STORE_UNUSABLE = frozenset({
-    TRACKS_STORE_UNREADABLE, TRACKS_STORE_INVALID})
+#
+# **It is `parsers.CONFIG_STORE_UNUSABLE`, not a second set with the same two
+# strings** (TASK-270). The writers and `perry-lint` ask
+# `parsers.config_store_unusable`, whose answer is drawn from that set; a copy
+# here is one edit away from the two tools disagreeing again.
+TRACKS_STORE_UNUSABLE = P.CONFIG_STORE_UNUSABLE
 
 #: What to tell a human for each UNUSABLE source. Written once so the payload
 #: warning, the writers' refusals and the diagnosis cannot describe the same
@@ -807,13 +811,14 @@ def _validated_config_records(project_root: Path) -> tuple[list[dict] | None, st
     `parsers.CONFIG_STORE_*` spells, and `tests/test_config_store_readers.py`
     asserts that rather than leaving it to be noticed.
 
-    **An empty store is classified `invalid`.** The justification here used to
-    read "`perry-config write --from-file` never produces one"; that was false
-    and one command disproved it (round 3 review, finding 2), importing a
-    settings-less config into a zero-record store at exit 0 while every checker
-    reported zero drift. That importer is gone with ADR-019 and the
-    classification stays on its own merits: a file that parsed to zero records
-    has answered nothing, and an interrupted write still produces one.
+    **An empty store is usable, and answers DESIGN-003's defaults** (TASK-270).
+    It was classified `invalid` from TASK-095 round 3 until 2026-09-16, first on
+    "`perry-config write --from-file` never produces one" (false, and the
+    importer is gone with ADR-019) and then on "an interrupted write still
+    produces one" (false: `lib.write_atomic` renames). `perry-config unset`
+    of the last setting produced one at exit 0, after which every writer
+    refused it as records that do not validate while `perry-lint` called it
+    valid. The rule and its reason are `parsers.config_store_unusable`'s.
     """
     return P.config_store_records(project_root)
 
@@ -858,9 +863,10 @@ def stored_tracks(project_root: Path) -> tuple[list[dict] | None, str]:
         # declares no track, and a settings-only store is the ordinary shape of
         # a project that never wanted more than one.
         #
-        # An EMPTY or malformed store does not reach here: it exits above
-        # through `unreadable`/`invalid`. This branch is reached only by a
-        # store that parsed and validated.
+        # A malformed store does not reach here: it exits above through
+        # `unreadable`/`invalid`. This branch is reached only by a store that
+        # parsed and validated — an EMPTY one included (TASK-270), which
+        # declares no track exactly as a settings-only store does.
         return [dict(DEFAULT_TRACK)], TRACKS_STORE_DEFAULT
     # `order` is the record's position, and a record written before the field
     # existed sorts after the graded ones rather than at zero — the same rule

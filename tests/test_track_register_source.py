@@ -251,22 +251,26 @@ class TestTheFourSituationsAreDistinguished(Fixture):
         self.assertEqual(source, PS.TRACKS_STORE_INVALID)
         self.assertEqual([t["track"] for t in tracks], ["main"])
 
-    def test_an_empty_store_is_unusable_but_a_settings_only_store_is_not(self):
-        """The distinction the round 2 review drew, asserted as a pair.
+    def test_an_empty_store_answers_like_a_settings_only_store(self):
+        """**Reversed by TASK-270, on the refusal's own reason.**
 
-        A file that parsed to ZERO records has answered nothing — an
-        interrupted write produces one and `perry-config write --from-file`
-        never does. A store carrying settings and no track record HAS answered:
-        DESIGN-003 says that means one implicit `main`. Collapsing the two is
-        the same class of error as round 1's, one level down.
+        This asserted the pair the other way — empty unusable, settings-only
+        usable — on two premises: that an interrupted write produces an empty
+        store, and that `perry-config write --from-file` never does. The
+        importer is gone (ADR-019); `lib.write_atomic` renames, so a write is
+        never torn to zero bytes; and `perry-config unset` of the last setting
+        produces one at exit 0. The writers refuse a store that may hide a
+        declaration, and an empty store that parsed and validated hides none,
+        exactly like a settings-only one. `tests/test_empty_config_store.py`
+        holds the rest; the invalid and unreadable branches above are unchanged.
         """
-        self.assertIn(self.detail(self.project(""))[1],
-                      PS.TRACKS_STORE_UNUSABLE)
         setting = json.dumps({"kind": "setting", "key": "language",
                               "value": "English", "order": 0})
-        self.assertEqual(
-            self.detail(self.project(setting + "\n"))[1],
-            PS.TRACKS_STORE_DEFAULT)
+        for store in ("", setting + "\n"):
+            with self.subTest(store=store):
+                source = self.detail(self.project(store))[1]
+                self.assertEqual(source, PS.TRACKS_STORE_DEFAULT)
+                self.assertNotIn(source, PS.TRACKS_STORE_UNUSABLE)
 
     def test_a_store_with_no_track_record_HAS_ANSWERED(self):
         """**The round 2 regression, asserted in the direction that failed.**

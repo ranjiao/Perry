@@ -8818,7 +8818,7 @@ def main(argv: list[str]) -> int:
         config = {"tracks": []}
         if P.exists_or_unreadable(cfg_store):
             _ps = perry_state()
-            tracks, source = _ps.declared_tracks_detail(project_root)
+            tracks, _source = _ps.declared_tracks_detail(project_root)
             # **A writer does not act on a register it could not read**
             # (TASK-095, V4 round 1). `perry-state` may answer and warn — it is
             # the read-everything tool and must exit 0 on a broken project.
@@ -8841,11 +8841,17 @@ def main(argv: list[str]) -> int:
             # `tracks_the_register_contradicts` now raise rather than answer.
             # What is left is the condition that was never about the
             # projection: a store on disk that could not be read at all.
-            if source in _ps.TRACKS_STORE_UNUSABLE \
-                    and args.cmd not in READ_ONLY_COMMANDS:
+            #
+            # **Whether to refuse is `parsers.config_store_unusable`'s answer,
+            # the same call `perry-lint`'s census makes** (TASK-270). A
+            # zero-record store is usable: it declares nothing, so there is no
+            # track for the implicit `main` to stamp over. The two tools
+            # disagreed about exactly that store while each held its own rule.
+            _unusable = P.config_store_unusable(project_root)
+            if _unusable and args.cmd not in READ_ONLY_COMMANDS:
                 raise Refused(
                     f"the track register cannot be read: "
-                    f"{_ps.TRACKS_STORE_WHY[source]}. `.perry/config.jsonl` is "
+                    f"{_ps.TRACKS_STORE_WHY[_unusable]}. `.perry/config.jsonl` is "
                     f"the only register, so writing now would stamp "
                     f"DESIGN-003's implicit `main` over whatever this project "
                     f"actually declares and lose that track's mode, stages, "

@@ -1923,7 +1923,7 @@ def tracks_of(project_root: Path) -> list[dict]:
     if not (project_root / ".perry" / "config.jsonl").exists():
         return []
     ps = perry_state()
-    tracks, source = ps.declared_tracks_detail(project_root)
+    tracks, _source = ps.declared_tracks_detail(project_root)
     # **The store is present and unusable → refuse, do not answer.**
     # TASK-095's V4 round 1 review: this lane writes `phase/` and the linkage
     # register off the track list, so a register quietly missing a track lands
@@ -1934,9 +1934,14 @@ def tracks_of(project_root: Path) -> list[dict]:
     # The two comparisons that stood here — `tracks_the_register_cannot_place`
     # and `tracks_the_register_contradicts` — both had `## Tracks` as their
     # other side and are gone with it.
-    if source in ps.TRACKS_STORE_UNUSABLE:
+    #
+    # Whether to refuse is `parsers.config_store_unusable`'s answer — the one
+    # predicate `perry-task` and `perry-lint`'s census also call (TASK-270). A
+    # zero-record store is usable: it declares no track to lose.
+    unusable = P.config_store_unusable(project_root)
+    if unusable:
         raise Refused(
-            f"the track register cannot be read: {ps.TRACKS_STORE_WHY[source]}. "
+            f"the track register cannot be read: {ps.TRACKS_STORE_WHY[unusable]}. "
             f"`.perry/config.jsonl` is the only register, so writing now would "
             f"lay down `phase/` and the linkage register against DESIGN-003's "
             f"implicit `main` rather than this project's tracks. Nothing was "

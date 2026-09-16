@@ -128,6 +128,22 @@ def write(path: Path, records: list[dict], what: str, *,
     else:
         print(f"perry-config: {what} — {path} now holds {len(records)} "
               f"record(s)")
+    if not records:
+        # **Emptying the store is allowed and is never silent** (TASK-270).
+        # It used to leave a zero-record store at exit 0 with no word, after
+        # which every writer refused it with a false cause. An empty store is
+        # usable — `parsers.config_store_unusable` holds the rule and the
+        # reason — so this does not refuse; it says what the writers will now
+        # do, and how to declare something again. On stderr, so `--json`
+        # stays one parseable object.
+        lead = "this would leave" if dry_run else "this leaves"
+        print(f"perry-config: note — {lead} `.perry/config.jsonl` holding no "
+              f"records. The store stays usable: the project declares no "
+              f"settings and no tracks, so every setting reads its default "
+              f"(`State root` is the project root) and every writer works "
+              f"against DESIGN-003's one implicit track `main`, mode "
+              f"`project`. To declare one again: `perry-config set <label> "
+              f"<value>` or `perry-config track <name>`.", file=sys.stderr)
     return 0
 
 
