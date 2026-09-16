@@ -55,6 +55,13 @@ Subjective verification: none. User approved the preceding proposal in chat:
 
 ## Files in scope
 
+Authorization addendum (2026-09-16): after being told that the concrete
+release component entry and final validation remained before merge, the user
+said "好 把工作merge到main". This approves the exact entry in
+TASK-462-architecture-proposal.md for ARCHITECTURE.md section 2 and local
+main integration. No other architecture rules or remote publication are authorized.
+
+
 VERSION, CHANGELOG.md, release/; .github/workflows/ci.yml and a release workflow;
 bin/perry-update-check and its helper if necessary; README.md, AGENTS.md (keep
 under roughly 60 lines), release documentation, narrowly relevant maintenance
@@ -81,7 +88,7 @@ mechanical release checking; this task's result evidence.
 
 Live tags, pushes, GitHub Releases, branch-protection edits, host installation,
 automatic major decisions, generic project-state schema/claim changes,
-architecture document edits, TASK-264 remaining scope, unrelated cleanup.
+unapproved architecture changes, TASK-264 remaining scope, unrelated cleanup.
 
 ## Dispatch safety judgment
 
