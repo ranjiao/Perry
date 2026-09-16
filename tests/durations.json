@@ -153,8 +153,12 @@
       "source": "2026-09-09-085824"
     },
     "test_empty_config_store.py": {
-      "sec": 5.01,
-      "source": "2026-09-16-task270"
+      "sec": 22.7,
+      "source": "2026-09-16-task271-275"
+    },
+    "test_empty_declared_store.py": {
+      "sec": 0.57,
+      "source": "2026-09-16-task271-275"
     },
     "test_entrance.py": {
       "sec": 0.05,
@@ -569,6 +573,10 @@
       "sec": 2.44,
       "source": "2026-09-09-085824"
     },
+    "test_tracks_source_documented.py": {
+      "sec": 2.41,
+      "source": "2026-09-16-task271-275"
+    },
     "test_tree_guard.py": {
       "sec": 62.52,
       "source": "2026-09-09-085824"
@@ -754,6 +762,13 @@
       "note": "ONE new module, test_kr_checks (TASK-416), timed alone three times with `python3 tests/parallel -j 1 --times test_kr_checks` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 3.02/2.08/1.58 (48 tests). No neighbour was re-timed. The machine was heavily loaded (load1 92.44 taken just after the three runs), so the figure is likely high rather than low.",
       "ref": "162586f4",
       "taken": "2026-09-16T07:45:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task271-275": {
+      "load1": 90.74,
+      "note": "TWO new modules, test_empty_declared_store (TASK-275) and test_tracks_source_documented (TASK-271), plus test_empty_config_store, which TASK-270 added without an entry and this branch edits. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 0.64/0.52/0.57 (6 tests), 2.25/2.41/2.98 (6 tests) and 16.11/22.70/23.61 (16 tests). No other neighbour was re-timed. load1 was 13.04 after the first two and 90.74 after the third, so the last figure is likely high rather than low.",
+      "ref": "ca6b3506",
+      "taken": "2026-09-16T08:24:00Z",
       "workers": 1
     }
   }

@@ -242,8 +242,13 @@ class NamespaceCheck(_Project):
         self.assertTrue(self.ns01_lines(d), "a foreign-shaped file must still "
                         "be reported, or the test above measures nothing")
 
-    def test_an_empty_state_root_store_is_still_judged_by_its_record(self):
-        """Scope: only claims anchored in `.perry/` are excused when empty."""
+    def test_emptiness_is_what_is_excused_and_never_a_record(self):
+        """Scope. TASK-270 excused an empty file at a `.perry/`-anchored claim
+        only, and pinned an empty `tasks.jsonl` as still foreign. TASK-275
+        extended the same rule, in the same place, to the declared canonical
+        stores under the state root — so this now pins the half that did NOT
+        move: a record that is not Perry's is foreign at either kind of claim.
+        `tests/test_empty_declared_store.py` holds the state-root half."""
         lint = _load_lint()
         schema = json.loads(lint.SCHEMA_PATH.read_text())
         claims = {c["path"]: c for c in schema["claims"]}
@@ -251,10 +256,14 @@ class NamespaceCheck(_Project):
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         empty = d / "empty.jsonl"
         empty.write_text("")
-        self.assertTrue(lint.looks_like_perry_state(
-            empty, schema, claims[".perry/config.jsonl"]))
-        self.assertFalse(lint.looks_like_perry_state(
-            empty, schema, claims["tasks.jsonl"]))
+        foreign = d / "foreign.jsonl"
+        foreign.write_text(json.dumps({"not": "a perry record"}) + "\n")
+        for name in (".perry/config.jsonl", "tasks.jsonl"):
+            with self.subTest(name):
+                self.assertTrue(lint.looks_like_perry_state(
+                    empty, schema, claims[name]))
+                self.assertFalse(lint.looks_like_perry_state(
+                    foreign, schema, claims[name]))
 
 
 class UnsetSaysWhatItLeaves(_Project):

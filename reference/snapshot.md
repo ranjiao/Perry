@@ -121,6 +121,25 @@ still the contract `schema/` documents.
    before tracks existed therefore behaves identically, which is the property
    `tests/test_work_modes.py` protects.
 
+   **Which register the list came from — `tracks_source`.** It travels with
+   the list: `project.config.tracks_source` under `--json`,
+   `project.tracks_source` under `--compact`. The implicit `main` above is the
+   project's real answer for three of its values and a stand-in for two, and
+   the list alone cannot tell you which:
+
+   | `tracks_source` | `.perry/config.jsonl` | the track list is | what to do |
+   |---|---|---|---|
+   | `store` | present, usable, holds at least one track record | the project's register, in stored order | use it |
+   | `store-default` | present and usable (an empty store included), holds no track record | DESIGN-003's implicit `main`, and that is the project's answer | use it |
+   | `absent` | not there | the implicit `main`: nobody has configured this project | use it; this is not an error |
+   | `unreadable` | present, and could not be read: bytes that do not parse as JSONL, or a path Perry may not look at | the implicit `main` as a **stand-in**, not the project's register. Every track the store declares is missing | do not trust the list or anything keyed on a track. `warnings[]` says so, `perry-task` and `perry-goals` refuse writes, and `perry-lint` reports the store |
+   | `invalid` | present and parses, and holds a record that does not validate | the same stand-in as `unreadable` | the same as `unreadable` |
+
+   `bin/perry-state` still defines the name `no-track-record` and never emits
+   it: a usable store with no track record is `store-default`.
+   `tests/test_tracks_source_documented.py` holds this table to what the tool
+   emits, in both directions.
+
    Cost discipline: **one mode file per distinct mode, not per track.** Five
    pipeline tracks read `modes/pipeline.md` once. Modes are tier 1 and loaded
    on demand, exactly like `*/reference/*.md` — the router's own tier-0 cost is
