@@ -572,10 +572,21 @@ def installed(project_root: Path) -> bool:
     if not anchored:
         return False
     state_root = resolve_state_root(root)
-    # `None` (a directory that may not be searched) counts, on `configured`'s
-    # argument: saying no would hide a project that has real state.
-    return any(exists_or_unreadable(state_root / name) is not False
-               for name in canonical_store_names())
+    return bool(canonical_stores_under(state_root))
+
+
+def canonical_stores_under(state_root: Path) -> list[str]:
+    """**Does this root hold Perry state?** The canonical stores present under
+    `state_root`, by name, in `canonical_store_names()` order.
+
+    One test, three callers: `installed` above, and `bin/perry-config`'s
+    `unset "State root"` (USER-948) and `set "State root"` (USER-949)
+    refusals. The names come from the schema's claims, never from a list.
+    `None` (a directory that may not be searched) counts, on `configured`'s
+    argument: saying no would hide a project that has real state.
+    """
+    return [name for name in canonical_store_names()
+            if exists_or_unreadable(Path(state_root) / name) is not False]
 
 
 def installed_project_root(start: Path) -> Path | None:
@@ -621,6 +632,14 @@ def resolve_state_root(project_root: Path) -> Path:
     fully populated project. That is the same failure the six settings had, on
     the one setting every other read is relative to."""
     raw, _why = declared_state_root(project_root)
+    return state_root_for(project_root, raw)
+
+
+def state_root_for(project_root: Path, raw: str) -> Path:
+    """Where state resolves for a `State root` value of `raw` — the rule
+    `resolve_state_root` applies to the declared value, taken out so a writer
+    can ask what a value it has not written yet WOULD resolve to
+    (`bin/perry-config § set`, USER-949) without a second copy of the rule."""
     if not raw or raw in {".", "./", "—", "-"}:
         return project_root
     root = (project_root / raw).resolve()

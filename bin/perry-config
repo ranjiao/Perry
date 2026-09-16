@@ -147,6 +147,93 @@ def write(path: Path, records: list[dict], what: str, *,
     return 0
 
 
+#: The setting `parsers.resolve_state_root` reads (`declared_state_root`).
+STATE_ROOT_KEY = store.setting_key("State root")
+
+
+def refuse_unset_over_held_state(project_root: Path, state_root: Path) -> None:
+    """**`unset "State root"` refuses where the root it points at holds state**
+    (USER-948, 2026-09-16; TASK-270 round 2).
+
+    Without the setting, `resolve_state_root` answers the project root. On a
+    project whose state lives in `perry/`, removing it was exit 0 and silent,
+    and the next `perry-task add` wrote `TASK-001` into a new `./tasks.jsonl`
+    while every read lost the project's rows. `/perry relocate` is the
+    reversible way to move state — it `git mv`s every claimed path — so it is
+    the only way this names. There is no override, by the same decision.
+
+    A declared root that already IS the project root moves nothing, and a
+    declared root holding no store has nothing to strand; both proceed.
+    """
+    if state_root.resolve() == Path(project_root).resolve():
+        return
+    # `parsers.canonical_stores_under` — the one presence test, shared with
+    # `set` below and with `parsers.installed`.
+    held = P.canonical_stores_under(state_root)
+    if not held:
+        return
+    rel = Path(os.path.relpath(state_root.resolve(),
+                               Path(project_root).resolve())).as_posix()
+    raise Refused(
+        f"`State root` points at `{rel}/`, which holds Perry state "
+        f"({', '.join(held)}). Removing the setting would move every later "
+        f"read and write to the project root, where none of that state is: "
+        f"the next write would start a second, empty store there and every "
+        f"read would stop seeing these. Nothing was written. To move Perry's "
+        f"state, use `/perry relocate <path>` (`SKILL.md § /perry relocate`) "
+        f"— it moves every claimed path with `git mv` and is reversible; "
+        f"`/perry relocate .` moves it to the project root.")
+
+
+def _rel(path: Path, project_root: Path) -> str:
+    rel = Path(os.path.relpath(Path(path).resolve(),
+                               Path(project_root).resolve())).as_posix()
+    return "." if rel == "." else rel + "/"
+
+
+def refuse_set_that_strands_state(project_root: Path, state_root: Path,
+                                  value: str) -> None:
+    """**`set "State root" <other>` refuses where it would strand the project's
+    state** (USER-949, 2026-09-16; TASK-270 round 3).
+
+    Refuses when the value moves where state resolves, the root it resolves to
+    now holds a canonical store, and the root it would resolve to holds none.
+    Round 2 reproduced the hazard: `set "State root" elsewhere` on a project
+    whose state lives in `perry/` was exit 0, and the next `perry-task add`
+    wrote `TASK-001` into `elsewhere/tasks.jsonl` while every read lost the
+    project's rows.
+
+    **`/perry relocate` needs no bypass, and has none.** Its procedure
+    (`reference/router-subcommands.md § /perry relocate`, steps 5 then 6)
+    moves every claimed path first and calls this `set` after, so the target
+    already holds state when it runs. A user pointing back at a root that
+    already holds state is the same case, and so is a current root that holds
+    nothing — there is nothing to strand.
+
+    Presence is `parsers.canonical_stores_under` — the test `unset` and
+    `parsers.installed` use — and the target is `parsers.state_root_for`, the
+    rule `resolve_state_root` applies, asked of a value not yet written.
+    """
+    target = P.state_root_for(Path(project_root), store.stored_value(value))
+    if Path(target).resolve() == Path(state_root).resolve():
+        return
+    held = P.canonical_stores_under(state_root)
+    if not held:
+        return
+    if P.canonical_stores_under(target):
+        return
+    raise Refused(
+        f"`State root` resolves to `{_rel(state_root, project_root)}`, which "
+        f"holds Perry state ({', '.join(held)}), and {value!r} would resolve "
+        f"to `{_rel(target, project_root)}`, which holds none of it. Setting "
+        f"it would move every later read and write to a root with none of "
+        f"this project's state: the next write would start a second, empty "
+        f"store there and every read would stop seeing these. Nothing was "
+        f"written. To move Perry's state, use `/perry relocate <path>` "
+        f"(`SKILL.md § /perry relocate`) — it moves every claimed path first "
+        f"and sets `State root` after, and it is reversible.")
+
+
 def cmd_show(records: list[dict], as_json: bool) -> int:
     settings = {r["key"]: r.get("value", "") for r in records
                 if r.get("kind") == "setting"}
@@ -331,6 +418,9 @@ def main(argv: list[str]) -> int:
                 raise Refused(
                     f"`set` takes a label and a value: `perry-config set "
                     f"'Document language' English{lib.root_flag(root)}`")
+            if store.setting_key(rest[0]) == STATE_ROOT_KEY:
+                refuse_set_that_strands_state(root, state_root,
+                                              " ".join(rest[1:]))
             return write(path, cmd_set(records, rest[0], " ".join(rest[1:])),
                          f"set {rest[0]!r}", dry_run=dry_run,
                          as_json=as_json)
@@ -360,6 +450,8 @@ def main(argv: list[str]) -> int:
             if len(kept) == len(records):
                 raise Refused(f"{rest[0]!r} is not declared "
                               f"(key {key!r}); nothing was written.")
+            if key == STATE_ROOT_KEY:
+                refuse_unset_over_held_state(root, state_root)
             return write(path, kept, f"unset {rest[0]!r}", dry_run=dry_run,
                          as_json=as_json)
         if cmd == "untrack":
