@@ -68,3 +68,27 @@ checks are deterministic; release prose is displayed opaquely (NN-4). Tests
 write only temporary fixtures, not the tree running the suite (NN-5). No
 architecture document or confirmed contract edit (NN-6); shell help remains
 side-effect-free and undeclared arguments refuse (NN-B1/NN-B2).
+
+## Independent-review correction
+
+The initial `bd43fb92` candidate had a P2 behavior gap: a clean main local commit
+that raised VERSION to 0.2.0 was refused as a downgrade when latest was 0.1.1;
+the same detached local commit attempted to fetch nonexistent v0.2.0. Neither
+lost work, but both missed the required developer main comparison/report.
+
+Detached classification now uses an existing tag/cache association at HEAD to
+identify a release candidate, independently of self-declared VERSION. A
+candidate still requires remote tag/commit/VERSION verification; failures do
+not fall back. Unassociated detached commits report developer work. On main,
+a HEAD without a release association is compared against the verified target's
+ancestry before downgrade refusal, so diverged local version work reports main.
+Cached associations preserve the second detached release update. Stale
+origin/main is not used to classify local commits.
+
+Added both main/detached version-bump regressions and a known detached release
+whose remote tag disappears: the latter must refuse without updating origin/main.
+Final targeted command, with the same clean environment:
+`python3 -m unittest discover -s tests -p test_release_update.py` — 20 tests,
+13.604 seconds, PASS; `git diff --check` PASS. Updated suggested registration
+for test_release_update.py: 13.604 seconds. Parent still owns full/slow and the
+fresh independent delta verdict.
