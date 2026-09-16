@@ -49,8 +49,8 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 4. **Render the headline + snapshot.** Two parts, in order:
 
    **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). The single most important thing about the design lane right now, in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. Examples:
-   - `TL;DR: DESIGN-002 is locked but has no implementation tasks yet — run handoff.`
-   - `TL;DR: DESIGN-003 has 3 open user decisions blocking lock — run decide.`
+   - `TL;DR: DESIGN-002 is locked and has no implementation tasks yet.`
+   - `TL;DR: DESIGN-003 has 3 open user decisions blocking lock.`
    - `TL;DR: Nothing in review — design lane is quiet.`
 
    **Part B — Snapshot** — fixed shape, no further preamble:
@@ -70,10 +70,7 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 
    Use `—` for empty fields. Never fabricate.
 
-5. **Suggest 1–3 next actions**:
-   - "DESIGN-002 in_review for 8d → run `lock` or `revise`"
-   - "DESIGN-001 locked 5d ago, no impl tasks in the task store → run `handoff DESIGN-001`"
-   - "DESIGN-003 has 3 open user decisions → run `decide DESIGN-003`"
+5. **Next actions** — run `"$PERRY_HOME/bin/perry-state" --section next --lane decide` and render it per `$PERRY_HOME/reference/next.md § Rendering`. The command decides; never add, drop or reorder a recommendation.
 
 6. Then ask: **"What do you want to do?"**
 

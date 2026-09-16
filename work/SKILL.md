@@ -143,9 +143,9 @@ Always run this before anything else, even if the user asked a specific question
 6. **Render the headline + dashboard.** Two parts, in order:
 
    **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). Name the single most important thing for the user to look at right now in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. The TL;DR is your synthesis of the dashboard below, not a duplicate of it. Examples (note: IDs only as parenthetical refs, not as the subject):
-   - `TL;DR: BOARD is 240 lines, over the 200-line cap — triage before adding new work.`
+   - `TL;DR: BOARD is 240 lines, over its 200-line cap.`
    - `TL;DR: The dashboard environment filter decision has been waiting on you for 6 days (USER-014).`
-   - `TL;DR: Phase commit KRs hit 80% — time to consider closing the phase (#002).`
+   - `TL;DR: Phase commit KRs are at 80% (#002).`
    - `TL;DR: A locked design from 3 days ago has no implementation tasks yet (DESIGN-002).`
    - `TL;DR: Nothing urgent — pick from the suggestions below.`
 
@@ -174,18 +174,7 @@ Always run this before anything else, even if the user asked a specific question
 
    If a field is empty, print `—`. Never fabricate.
 
-7. **Suggest 1–3 next actions** tailored to the deltas. **Each bullet must lead with the semantic meaning in plain language; IDs go in parens only.** This is the same rule as `reference/conversational.md § Restate decisions in plain language` — examples below model the required shape:
-   - "A decision has been waiting on you for 6 days — surface it in chat (USER-014) → run `nudge`"
-   - "Coding task in progress 4 days with no evidence file yet (TASK-007) → ask the owning agent for status"
-   - "Today is Friday → run `friday-review`"
-   - "Current phase commit KRs are at 80% (#002) → consider `/okr score-phase` + `rollover`"
-   - "A locked design from 3 days ago has no implementation tasks yet (DESIGN-002) → run `/design handoff DESIGN-002`"
-   - "A `BOARD.md` this project still holds is 240 lines, over its 200-line cap → run `triage` to push detail into evidence and close stale rows"
-   - "3 tasks can't be attributed to a KR (names drifted / ambiguous) → surface the candidate KRs and ask the user; don't guess — see `$PERRY_HOME/reference/okr-linkage.md`"
-   - "2 board rows have no creating event → they predate the event log or were written by hand; nothing is wrong, but the record of how they got there is missing"
-   - "1 event opened a task that has no row and no close → the mutation did not land in `tasks.jsonl`; check what happened to it"
-   - "3 external docs sitting un-digested in `inputs/` (oldest 6d) → run `/pmo digest <oldest>`"
-   - "5 digests in `knowledge/` have gone stale → triage during next `mid-phase-review` or `end-phase-retro`"
+7. **Next actions** — run `"$PERRY_HOME/bin/perry-state" --section next --lane work` and render it per `$PERRY_HOME/reference/next.md § Rendering`. The command decides; never add, drop or reorder a recommendation. Its reasons already lead with the meaning in plain language and keep IDs inside the sentence — the rule `reference/conversational.md § Restate decisions in plain language` sets.
 
 8. Then ask: **"What do you want to do?"**
 

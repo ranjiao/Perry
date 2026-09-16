@@ -61,9 +61,15 @@ there is no cross-project registry).
 - **Purpose**: read and write project state. Twenty executables plus three shared
   libraries.
 - **Owns**: every write to a canonical store, every computed number the standup
-  prints, and the argument contract those calls are made through.
-- **Doesn't own**: what to do next. The `SKILL.md` files decide; these tools
-  execute and refuse.
+  prints, the argument contract those calls are made through, and the
+  **next-step recommendation**: `perry-state --section next` evaluates the
+  declared rule table `reference/next-rules.json` over the payload it already
+  computes, so the same state gives the same recommendation. The move is the
+  user's decision, `perry/design/DESIGN-020-guided-planning.md § 9`, the
+  2026-09-15 entry, confirmed by the user in session.
+- **Doesn't own**: the rules, which are declared in `reference/`, or the
+  procedure around a recommendation — when to show it and what to ask the user
+  are the `SKILL.md` files'. These tools execute, compute and refuse.
 - **Module document**: [`bin/ARCHITECTURE.md`](bin/ARCHITECTURE.md)
 
 ### `viewer/parsers.py` — the one reader
@@ -78,8 +84,8 @@ there is no cross-project registry).
 
 ### `schema/` — the declared shape
 - **Purpose**: `state-schema.json` (107KB) declares every file, heading, table,
-  enum, store and claim. Seven contract pages publish the payloads outside
-  consumers read.
+  enum, store and claim. Eight contract pages publish the payloads outside
+  consumers read; `next-contract.md` is the eighth.
 - **Owns**: what a file must look like, and what a payload promises.
 - **Doesn't own**: how a tool reaches that shape.
 
@@ -87,15 +93,30 @@ there is no cross-project registry).
 - **Purpose**: the router (222 lines, tier 0, read on every invocation) and
   three lane files loaded on demand.
 - **Owns**: procedure — what an agent does, in what order, and when it stops to
-  ask the user.
-- **Doesn't own**: any number. Every figure a lane prints comes from a `bin/`
-  call.
+  ask the user. A lane **renders** the next step `perry-state --section next`
+  returns: **in a standup's TL;DR and in its next-step position** it does not
+  add, drop or reorder a recommendation, and it may add one line marked as its
+  own note (`perry/design/DESIGN-020-guided-planning.md § 9`, the 2026-09-15
+  entry, confirmed by the user in session).
+- **Outside that rule**, and still the lane's own to write: a procedural step
+  inside a subcommand's instructions ("read this, then run that"); the
+  remediation a refusal names ("no current phase — run `plan-phase` first");
+  bootstrap and first-run prompts; and a hint in a rendered dashboard row.
+  First-time setup is the largest of them: on a directory with no Perry state
+  `R-setup` recommends only `/perry`, and the order setup recommends after
+  that is the router's own (`SKILL.md`, first-time setup step 5). The rule is
+  about the one position the next block owns, not about naming a command.
+- **Doesn't own**: any number, or which step to recommend. Every figure a lane
+  prints comes from a `bin/` call, and so does the recommendation.
 
 ### `modes/`, `packs/`, `reference/`, `templates/`
 - **Purpose**: the vocabulary a project can declare (four work modes), the
   domain pack (`software-ops`, which is where this discipline is defined),
   tier-1 reference pages loaded on demand, and the scaffolds a new project gets.
-- **Owns**: per-project variation. A track's mode, a pack's glossary.
+  `reference/` also holds `next-rules.json`, the rule table `bin/perry-state`
+  evaluates for the next step, and `next.md`, which explains each rule.
+- **Owns**: per-project variation. A track's mode, a pack's glossary. The
+  next-step rules, declared as data that `bin/` evaluates.
 
 ### `tests/` — 136 modules
 - **Purpose**: the contract, executable. Includes `tests/tree_guard.py`, which
@@ -170,9 +191,14 @@ flowchart LR
     P --> S["perry-state"]
     S -->|"--compact ≈ 11KB"| Standup["the standup, every session"]
     S -->|"--section &lt;name&gt;"| Detail["one key, in full"]
+    S -->|"--section next --lane / --after"| Next["the next block,<br/>narrowed"]
     S -->|"--json ≈ 174KB"| Whole["the whole payload"]
     T["perry-task list --json"] -->|"contract 2.4, bounded"| Outside([aiMark])
 ```
+
+`--section next` is the one section that is not always the payload's key as it
+stands. With `--lane` or `--after` it prints the block evaluated again over
+only that lane's or that subcommand's rules, plus the overlays (TASK-442).
 
 ## §5. Contracts
 
@@ -278,9 +304,74 @@ flowchart LR
   or what happens when it drifts from the code beside it.
 - **OQ-3 — Should `perry-lint` check mermaid?** `perry-state` already counts
   fenced mermaid blocks (`mermaid_count`) and nothing consumes the number.
+- **OQ-4 — May `--compact` be accepted with `--section next`?** *Proposed*
+  (TASK-442). `DESIGN-020 § 5.4`'s closing step runs
+  `perry-state --section next --after <subcommand> --compact`, and
+  `perry-state` refuses `--compact` together with `--section`. `TASK-443`
+  builds that step and needs one of the two to give way.
+- **OQ-5 — Should the contract registry recognise a family that is not
+  `/list`?** *Proposed* (TASK-442). `perry-next/1.0` is one object, not a list.
+  `tests/contract_key_parity.py § CONTRACT_ID` matches only a three-part id, so
+  the parity baseline keys `schema/next-contract.md` by its path, and two
+  registry tests had their `/list` assumption widened to take the page at all.
+- **OQ-6 — May `--section <name>` print something other than the payload's
+  key?** *Proposed* (TASK-442). §4 describes a section as one key in full.
+  `--section next` with `--lane` or `--after` prints a block evaluated over
+  fewer rules, which is not what `--json` carries under `next`.
+- **OQ-7 — Does the phase heartbeat survive the move to `--section next`?**
+  *Proposed* (TASK-442). `goals/SKILL.md` prompted a phase snapshot after
+  `phase_heartbeat_days`. That prompt is now the rule `R-phase-heartbeat`, but
+  no value in `perry-state`'s payload dates the last snapshot, so the rule
+  reports its fact unknown and never fires. Keeping it needs `perry-state` to
+  compute that date; dropping it means deleting the rule.
+- **OQ-8 — What covers the lane lines that name a command with no rule
+  behind them?** *Proposed* (TASK-442). Two kinds are marked and waiting.
+  **After a subcommand**: `goals/SKILL.md`'s `score-phase` row and
+  `goals/reference/phases.md` step 9, both naming `plan-phase`. They are the
+  proactive closing step `TASK-443` builds; when it ships it renders
+  `--after score-phase` and the two lines go. **In a standup's next-step
+  position**: an ADR whose sunset date has passed and the old-style
+  `DECISIONS.md` migration, both in `decide/reference/decisions.md`, and the
+  undigested `inputs/` and stale-digest counts in
+  `work/reference/digests.md`. `reference/next-rules.json` has a rule for none
+  of the four, and **the reason is the bound, not a missing fact**:
+  `DESIGN-020 § 5.3`'s table is what `TASK-442` was bounded to and names none
+  of them, so each is a later row's work. Two of the four already have their
+  fact — `decisions.expired_sunsets` for the sunset, and
+  `operations.inputs` with `operations.inputs_oldest` and
+  `operations.inputs_oldest_days` for the digests. Stale digests have no count
+  in the payload, only per-card staleness under `roles.cards[].knowledge[]`,
+  and the migration has no fact at all; those two need a fact as well as a
+  rule.
 
 ## §8. Change log
 
+- 2026-09-15 · v1 · TASK-442, descriptive (NN-6), on its branch:
+  - §2 `bin/` owns the next-step recommendation: `perry-state --section next`
+    evaluates `reference/next-rules.json` over its own payload, and the lanes
+    render what it returns. The move is the user's decision in
+    `perry/design/DESIGN-020-guided-planning.md § 9`, the 2026-09-15 entry,
+    confirmed by the user in session. `bin/ARCHITECTURE.md § 1` says the same.
+  - §2 `schema/`: eight contract pages. §2 `reference/`: it holds the rule
+    table `bin/` evaluates.
+  - §4's read path names the narrowed `--section next`.
+  - §2's lanes say first-time setup sits outside the next block.
+  - §7 gains five questions marked proposed. The fourth is the phase
+    heartbeat. `goals/SKILL.md`'s heartbeat prompt became the rule
+    `R-phase-heartbeat`, declared with its fact reported unknown, because
+    `perry-state` computes no date for the last snapshot. It sits after
+    `R-review-due`, because DESIGN-020's order has no place for it. The fifth
+    asks what replaces the two after-subcommand suggestions.
+  - §2's rule is narrowed to the position the next block owns — a standup's
+    TL;DR and its next-step position — and names what sits outside it:
+    procedural steps, a refusal's remediation, bootstrap and first-run
+    prompts, and dashboard row hints. The user decided that in session on
+    2026-09-15, after three review rounds each found a different lane line
+    that names a command legitimately. Five TL;DR examples in the three lanes
+    describe state instead of naming a step, and the `goals` bootstrap prompt
+    says it is outside the rule; a sixth TL;DR example and four standup
+    instructions followed when later reviews read the lane documents whole.
+  - §1, §3, §5 and §6 are not edited.
 - 2026-09-15 · v1 · **User-confirmed** (NN-6), after TASK-262 rounds 4a and 4b
   retired a `BOARD.md` a project still holds:
   - §6 NN-2 takes the wording proposed in

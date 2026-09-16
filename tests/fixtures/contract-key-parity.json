@@ -1,5 +1,5 @@
 {
-  "contract_files_discovered": 7,
+  "contract_files_discovered": 8,
   "contracts": {
     "perry-asks/list/1.4": {
       "collections_the_witness_filled": [],
@@ -157,6 +157,22 @@
         "`intake` \u2014 queue mode's inbox \u00a7 outcome",
         "`intake` \u2014 queue mode's inbox \u00a7 request"
       ],
+      "unparsed_sketches": [],
+      "witness": "tests/fixtures/witness-project"
+    },
+    "schema/next-contract.md": {
+      "collections_the_witness_filled": [],
+      "command": "perry-state --section next",
+      "contract": "",
+      "documented": 37,
+      "documented_not_emitted": [],
+      "emitted": 37,
+      "emitted_not_documented": [],
+      "file": "schema/next-contract.md",
+      "named_no_such_collection": [],
+      "not_observable": {},
+      "observed_in_witness": {},
+      "unassigned": [],
       "unparsed_sketches": [],
       "witness": "tests/fixtures/witness-project"
     }

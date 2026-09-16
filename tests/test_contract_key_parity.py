@@ -203,12 +203,17 @@ class TestThisREADMEAgreesWithTheGlob(unittest.TestCase):
         fact rather than a pin. A file-wide ban would forbid the project from
         describing its own history.
         """
+        # A row is one that names a contract page. It used to be one carrying
+        # `/list`, which every family did until `perry-next` (TASK-442) — a
+        # read contract that is one object and not a list, so the old
+        # predicate could not count its row and the table fell one short.
         rows = [l for l in self.readme.splitlines()
-                if l.startswith("| `perry-") and "/list" in l]
+                if l.startswith("| `perry-") and "-contract.md`" in l]
         self.assertEqual(len(rows), len(self.pages),
                          f"expected one table row per contract page, got "
                          f"{len(rows)} rows for {len(self.pages)} pages")
-        pinned = [l for l in rows if re.search(r"perry-[a-z]+/list/\d", l)]
+        pinned = [l for l in rows
+                  if re.search(r"perry-[a-z]+(?:/[a-z]+)?/\d", l)]
         self.assertEqual(
             pinned, [],
             "the contract table names a version again. The live version is the "
