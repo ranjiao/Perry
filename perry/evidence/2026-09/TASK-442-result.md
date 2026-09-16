@@ -10,7 +10,73 @@
 > Round 3: `08929751` the id fix · `eacba06c` the goals lane and the heartbeat
 > rule · `9db8d934` `ARCHITECTURE.md` · `58c73b86` the round-3 section.
 > Round 4: `99b03e9a` the narrowed §2 rule and the lines the review named ·
-> this section.
+> `6d819989` the round-4 section.
+> Round 5: `d449d9e4` merge of main (`d597fdbc`) · the three lines inside the
+> rule · this section.
+
+## Round 5 — three lines inside the narrowed rule, and one count
+
+The narrowed rule from round 4 stands. These three lines sit inside its scope —
+a standup's TL;DR, or its next-step position — and in none of its four
+carve-outs. The round-4 bound had been built by grep and missed them.
+
+### R5.1 The three lines, and what was chosen for each
+
+| Line | Choice | Now |
+|---|---|---|
+| `work/SKILL.md` TL;DR, board over cap | **fixed**: a rule already exists (`R-board-over-cap` recommends `/perry work triage` for this state) | `TL;DR: BOARD is 240 lines, over its 200-line cap.` |
+| `decide/reference/decisions.md`, the ADR migration | **marked, awaiting a rule** | the migration is offered in chat, where the user kicks it off; the line says the next-step position is the next block's and that no rule covers this migration yet |
+| `work/reference/digests.md`, undigested `inputs/` | **marked, awaiting a rule** | the dashboard line already carries the count and keeps it; the line says the next-step position is the next block's |
+| `work/reference/digests.md`, stale digests | **marked, awaiting a rule** | the knowledge line carries the counts, and `end-phase-retro` or `mid-phase-review` triages them when one runs |
+
+**Why marked and not fixed.** No fact in `perry-state`'s payload says an ADR
+migration is pending, how many files sit undigested in `inputs/`, or how many
+digests are stale. A rule needs a fact, and inventing one was out of scope, so
+each line says where its information goes instead of claiming the position.
+
+**The dashboard block above the digests lines was not touched.** It is a row
+hint, which §2 names as outside the rule.
+
+### R5.2 The §7 question now covers all of them
+
+The *Proposed* §7 entry was about the two after-subcommand suggestions. It now
+covers both kinds of waiting line: those two, which `TASK-443`'s closing step
+replaces, and the three standup instructions above, each of which needs a fact
+`perry-state` computes before a rule can exist.
+
+### R5.3 The count
+
+§2's §8 entry and R4.2 both said "six TL;DR examples". Five changed with the
+narrowing, plus the `goals` bootstrap-prompt annotation. Both now say that, and
+name the sixth — `work/SKILL.md`'s board line — as this round's.
+
+### R5.4 Merge of main
+
+`git merge main` (`d597fdbc`) made a clean merge with no conflict. Everything it
+brought is under `perry/`: PMO documents, stores, the week-38 report, and a
+dispatch record that had cited open questions by id.
+
+### R5.5 Checks
+
+- Eleven modules green alone: `test_architecture_rules` (32),
+  `test_router_budget` (9), `test_next_section` (43), `test_claims` (31),
+  `test_shipped_vocabulary` (52), `test_reference_pages_are_reachable` (6),
+  `test_pointers_resolve` (5), `test_diagnose` (158),
+  `test_procedures_call_the_tool` (22), `test_knowledge_cards` (15) and
+  `test_knowledge_promotion` (38).
+- Against main, every `ARCHITECTURE.md` hunk is in §2, §4, §7 or §8; §1, §3, §5
+  and §6 are byte-identical. It is 408 lines, under its 500-line cap;
+  `bin/ARCHITECTURE.md` is unchanged at 205.
+- `SKILL.md` is untouched: 20,457 bytes, as on main.
+- No file outside `ARCHITECTURE.md`'s own §7 headings cites an open question by
+  id, including this one.
+- Nothing in `bin/`, `reference/next-rules.json` or the tests changed this
+  round, so the mutations recorded in rounds 1 to 3 still stand.
+- The enumerated list from round 4 is untouched, and no further line inside the
+  rule's scope was found while making these edits.
+
+The full suite runs after this section is committed, on that commit, and its
+result is reported in the round-5 RESULT block rather than here.
 
 ## Round 4 — the §2 rule is narrowed to the position the next block owns
 
@@ -37,7 +103,9 @@ would add a lane rule to a module document that does not carry one.
 
 ### R4.2 The lines the review named
 
-Six examples now describe state, and name no step:
+Five TL;DR examples now describe state and name no step. The `goals` bootstrap
+prompt keeps its question and is annotated instead. A sixth example, in
+`work/SKILL.md`, was found by the next review and is in R5.2.
 
 | Line | Now |
 |---|---|
