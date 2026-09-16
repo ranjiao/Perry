@@ -91,6 +91,18 @@ Usage:
   perry-goals link --unlinked <TASK-ID>
   perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"
 
+  perry-goals measure <KR-ID> [--okr-version V] --check S --value N
+                      --evidence <path>
+  perry-goals check <KR-ID> [--okr-version V] --id S --direction D
+                    --target N [--baseline N] --label "<words>"
+      DESIGN-022 § 5.3. Each appends ONE `measurement` / `check` record to
+      `linkage.jsonl` and one `measure` / `check` event. A phase KR is named
+      by its id; an overall KR by its id and, when more than one OKR version
+      carries that id, `--okr-version "v4: 2026-09-15"` — the full label,
+      matched exactly. `--okr-version ""` names the phase KR. D is one of
+      increase · decrease · at_least · at_most · done. Both take `--dry-run`
+      and `--actor`.
+
   `link` appends to `linkage.jsonl` for the CURRENT phase.
   <KR-ID> may also be a Project id or a registered alias, resolved in that
   order; anything that does not resolve to exactly ONE KR is REFUSED with its
@@ -121,6 +133,7 @@ No LLM, no external dependencies (stdlib only). DESIGN-005.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import re
@@ -3185,8 +3198,460 @@ def render_overall_krs(result: dict) -> str:
     return "\n".join(out)
 
 
+# ── `measure` and `check` — DESIGN-022 § 5.3 (TASK-264) ─────────────────────
+#
+# **What these two write, and nothing else.** One `measurement` or one `check`
+# record, appended to `linkage.jsonl`, and one event. The shapes are
+# `schema/state-schema.json § stores.declared["linkage.jsonl"].records`, which
+# TASK-416 declared; nothing here adds a field. What a record MEANS — which
+# declaration is current, which value is current, whether it is met — is not
+# decided here either: `lib.kr_checks` holds both ordering rules and
+# `lib.kr_position` the derivation, and every reader calls them. A writer that
+# picked "the current check" by its own rule would be a second opinion about
+# the answer the readers publish.
+#
+# **Every refusal compares typed values** (NN-4). `--label` is prose and is
+# checked for one line only; `--evidence` is checked for EXISTENCE under the
+# project and nothing is read out of it.
+#
+# **The journal is not written**, and that is the lane's rule rather than an
+# omission: `journal/` belongs to `work` (`HANDOFF` above) and `assert_owned`
+# refuses it, as it does for `link` and `commit`. The record lands first and
+# the event is appended after it under the same project lock — `append_event`'s
+# failure direction, and `event_written` in the payload says whether it did.
+
+#: The flags each writer takes. `perry-goals` declares no `SURFACE`, so the
+#: rule `bin/ARCHITECTURE.md § NN-B2` states — a declared flag on a subcommand
+#: that does not list it exits 2 — is held here for the surface this row adds:
+#: these two subcommands refuse every flag not in their set, and every other
+#: subcommand refuses the flags only these two take.
+KR_WRITER_FLAGS = {
+    "measure": ("--root", "--json", "--dry-run", "--actor", "--okr-version",
+                "--check", "--value", "--evidence"),
+    "check": ("--root", "--json", "--dry-run", "--actor", "--okr-version",
+              "--id", "--direction", "--target", "--baseline", "--label"),
+}
+KR_WRITER_ONLY_FLAGS = frozenset(
+    {"--okr-version", "--check", "--value", "--evidence", "--direction",
+     "--target", "--baseline", "--label"})
+
+KR_WRITER_USAGE = {
+    "measure": "perry-goals measure <KR-ID> [--okr-version V] --check S "
+               "--value N --evidence <path>",
+    "check": "perry-goals check <KR-ID> [--okr-version V] --id S "
+             "--direction D --target N [--baseline N] --label \"…\"",
+}
+
+
+def linkage_record_spec(kind: str) -> dict:
+    """The schema's declaration of one `linkage.jsonl` record kind — read, not
+    restated, so the id and slug shapes refused here are `perry-lint`'s."""
+    spec = (load_schema().get("stores", {}).get("declared", {})
+            .get(P.LINKAGE_STORE, {}).get("records", {}).get(kind))
+    if not spec:
+        raise Refused(f"schema/state-schema.json declares no `{kind}` record "
+                      f"on {P.LINKAGE_STORE}; this tool cannot invent one. "
+                      f"Nothing was written")
+    return spec
+
+
+def typed_number(flag: str, text) -> "int | float":
+    """A JSON number from a flag's value, or a refusal naming the flag.
+
+    An integer stays an integer (`1702`, not `1702.0`), so the record says
+    what was typed. `nan` and `inf` are refused: JSON cannot carry them and
+    no comparison against a target means anything with one.
+    """
+    raw = str(text if text is not None else "").strip()
+    if re.fullmatch(r"[+-]?\d+", raw):
+        return int(raw)
+    try:
+        value = float(raw)
+    except ValueError:
+        value = None
+    if value is None or not math.isfinite(value):
+        raise Refused(f"{flag} takes a number; {raw!r} is not one. Nothing "
+                      f"was written")
+    return value
+
+
+def required_flag(args, attr: str, flag: str, cmd: str) -> str:
+    value = getattr(args, attr, None)
+    if value is None:
+        raise Refused(f"{flag} is required. Usage: {KR_WRITER_USAGE[cmd]}. "
+                      f"Nothing was written")
+    return value
+
+
+def kr_flag_hint(kr: str, okr_version: str) -> str:
+    """The `<KR-ID> [--okr-version "V"]` half of a recovery command."""
+    return (kr if not okr_version
+            else f"{kr} --okr-version {json.dumps(okr_version, ensure_ascii=False)}")
+
+
+def resolve_kr_for_writer(ctx, kr_id: str, okr_version) -> dict:
+    """`<KR-ID> [--okr-version V]` → exactly one KR, or a refusal.
+
+    Returns `{"kr", "okr_version", "level", "phase"}`. The key is the one
+    `lib.kr_checks` files records under: `(kr, "")` for a phase KR and
+    `(kr, <the okr.jsonl version label>)` for an overall KR.
+
+    - A **phase KR** is a `kind: "kr"` record of `linkage.jsonl`.
+    - An **overall KR** is a `kind: "kr"` record of `okr.jsonl`, read through
+      `overall_kr_model` — the reader `krs --level overall` prints from — and
+      its version is the record's `version` label, matched EXACTLY
+      (`TASK-416`'s readers key on the full `v4: 2026-09-15`).
+    - `--okr-version ""` names the phase KR; `--okr-version V` the overall one.
+    - Without `--okr-version`, the id must name one KR: an overall id carried
+      by two versions, or by a phase and a version, is refused with each
+      candidate named, because `O1-KR1` exists in v2, v3 and v4 of this
+      project's own store and a number filed under the wrong one is invisible
+      to every reader.
+    """
+    kr_id = check_writable(kr_id, "<KR-ID>")
+    records = P.load_linkage_store(ctx["state_root"])
+    store = linkage_store_path(ctx["state_root"])
+    if records is None:
+        if store.exists():
+            raise Refused(
+                f"{P.LINKAGE_STORE} cannot be read as JSONL, and a record "
+                f"appended to a store Perry cannot read is one no reader will "
+                f"see. `perry-lint{lib.root_flag(ctx['project_root'])}` names "
+                f"the line. Nothing was written")
+        raise Refused(
+            f"no {P.LINKAGE_STORE} at {store}. Checks and measurements are "
+            f"records in that store, beside the KRs `plan-phase` writes there "
+            f"(goals/reference/phases.md § plan-phase). Nothing was written")
+    phase_hits = [r for r in records if isinstance(r, dict)
+                  and r.get("kind") == "kr" and str(r.get("id") or "") == kr_id]
+
+    overall_versions: list[str] = []
+    okr_store = md_store.OKR.store_path(ctx["project_root"], ctx["state_root"])
+    if okr_store.exists() and okr_version != "":
+        versions, _order = overall_kr_model(
+            ctx["state_root"], ctx["project_root"], "all")
+        for block in versions:
+            if any(k.get("id") == kr_id for o in block["objectives"]
+                   for k in o["krs"]):
+                overall_versions.append(block["version"])
+
+    if okr_version == "":
+        if not phase_hits:
+            raise Refused(
+                f"{kr_id} is not a phase KR in {P.LINKAGE_STORE}, and "
+                f"`--okr-version \"\"` names a phase KR. `perry-goals krs` "
+                f"lists the current phase's KR ids; an overall KR is named "
+                f"with `--okr-version \"<version>\"` (`perry-goals krs --level "
+                f"overall --version all`). Nothing was written")
+        return {"kr": kr_id, "okr_version": "", "level": "phase",
+                "phase": str(phase_hits[-1].get("phase") or "")}
+
+    if okr_version is not None:
+        if okr_version not in overall_versions:
+            carried = (", ".join(json.dumps(v, ensure_ascii=False)
+                                 for v in overall_versions) or "none")
+            raise Refused(
+                f"no overall KR {kr_id} in OKR version {okr_version!r}. The "
+                f"version is matched exactly, as its full label. Versions "
+                f"carrying {kr_id}: {carried}. `perry-goals krs --level "
+                f"overall --version all` prints every version's KR ids. "
+                f"Nothing was written")
+        return {"kr": kr_id, "okr_version": okr_version, "level": "overall",
+                "phase": ""}
+
+    candidates = ([f"phase KR {kr_id} (`--okr-version \"\"`)"]
+                  if phase_hits else [])
+    candidates += [f"overall KR {kr_id} in "
+                   f"`--okr-version {json.dumps(v, ensure_ascii=False)}`"
+                   for v in overall_versions]
+    if len(candidates) > 1:
+        raise Refused(
+            f"{kr_id} names {len(candidates)} KRs: {'; '.join(candidates)}. "
+            f"A number filed under the wrong one is read by no reader of the "
+            f"other, so it is not guessed. Re-run with `--okr-version` naming "
+            f"one of them. Nothing was written")
+    if phase_hits:
+        return {"kr": kr_id, "okr_version": "", "level": "phase",
+                "phase": str(phase_hits[-1].get("phase") or "")}
+    if overall_versions:
+        return {"kr": kr_id, "okr_version": overall_versions[0],
+                "level": "overall", "phase": ""}
+    raise Refused(
+        f"{kr_id} resolves to no KR: it is not a `kr` record in "
+        f"{P.LINKAGE_STORE} or in {md_store.OKR.rel_store}. `perry-goals krs` "
+        f"lists the phase's KR ids and `perry-goals krs --level overall "
+        f"--version all` the OKR's. Nothing was written")
+
+
+def refuse_closed_kr(ctx, target: dict) -> None:
+    """`measure`'s two refusals about WHEN: a scored phase, a past OKR version.
+
+    Both read a typed field. A phase's status is the header block
+    `parsers.parse_phase` reads (`**Status**: scored`, the line
+    `score-phase` step 7 flips); the current OKR version is the one
+    `parsers.parse_okr` reads from `OKR.md`'s highest `## vN:` heading, which
+    is the version `perry-goals list` keys overall positions on — a value
+    measured against any other version would be written and never shown.
+    """
+    if target["level"] == "phase":
+        slug = target["phase"]
+        doc = ctx["state_root"] / "phase" / f"{slug}.md"
+        status = ""
+        if slug and doc.is_file():
+            status = P.parse_phase(slug, doc.read_text(encoding="utf-8")).status
+        if status.strip().lower() == "scored":
+            raise Refused(
+                f"{target['kr']} belongs to phase {slug}, which is scored "
+                f"(`phase/{slug}.md` **Status**). A scored phase's KRs are "
+                f"closed and a value measured now would re-open its score. "
+                f"Measure a KR of the current phase instead — `perry-goals "
+                f"krs` lists them. Nothing was written")
+        return
+    okr_md = ctx["state_root"] / "OKR.md"
+    current = ""
+    if okr_md.is_file():
+        current = P.parse_okr(okr_md.read_text(encoding="utf-8")).version
+    if target["okr_version"] != current:
+        raise Refused(
+            f"OKR version {target['okr_version']!r} is not the current one "
+            f"({current!r}, from `OKR.md`'s latest `## vN:` heading). A value "
+            f"measured against a past version is published by no reader. "
+            f"Measure the current version's KR — `perry-goals krs --level "
+            f"overall` lists them. Nothing was written")
+
+
+def resolve_evidence(ctx, text: str) -> str:
+    """`--evidence` → a path relative to the state root, or a refusal.
+
+    **Existence only** (NN-4): the file is not opened. A relative path is
+    looked for under the state root first — where `evidence/` lives — and
+    then under the project root; an absolute one is taken as given. Either
+    way it must be a FILE inside the project, because a measurement pointing
+    outside it points at something the project does not carry.
+    """
+    raw = check_writable(text, "--evidence")
+    project = ctx["project_root"].resolve()
+    state = ctx["state_root"].resolve()
+    given = Path(raw).expanduser()
+    tries = [given] if given.is_absolute() else [state / given, project / given]
+    for path in tries:
+        found = path.resolve()
+        if not found.is_file():
+            continue
+        if found != project and project not in found.parents:
+            continue
+        try:
+            return found.relative_to(state).as_posix()
+        except ValueError:
+            return found.relative_to(project).as_posix()
+    raise Refused(
+        f"--evidence {raw!r} does not exist under the project "
+        f"({project}). A measurement is asserted on a file that exists: "
+        f"write the evidence first (e.g. `evidence/<YYYY-MM>/<name>.md` under "
+        f"the state root), then re-run with its path. Nothing was written")
+
+
+def kr_writer_rest(args, cmd: str) -> str:
+    if len(args.rest) != 1:
+        raise Refused(
+            f"`{cmd}` takes exactly one <KR-ID>; {len(args.rest)} given"
+            f"{': ' + ' '.join(args.rest) if args.rest else ''}. Usage: "
+            f"{KR_WRITER_USAGE[cmd]}. Nothing was written")
+    return args.rest[0]
+
+
+def append_linkage_records(ctx, records: list[dict]) -> str:
+    """The store's new text: every existing byte, then the new lines.
+
+    **An append, byte for byte.** The prior text is kept exactly — no blank
+    line dropped, no record re-serialized — and the new records go on the end,
+    published through the atomic replace every store write uses, under the
+    project lock `main` holds.
+    """
+    path = linkage_store_path(ctx["state_root"])
+    text = path.read_text(encoding="utf-8")
+    if text and not text.endswith("\n"):
+        text += "\n"
+    return text + "".join(json.dumps(r, ensure_ascii=False) + "\n"
+                          for r in records)
+
+
+def write_kr_writer_result(args, ctx, cmd: str, record: dict, event: dict,
+                           result: dict) -> dict:
+    path = linkage_store_path(ctx["state_root"])
+    result.update({
+        "file": str(path), "record": record, "event": event,
+        "diff": [f"+{P.LINKAGE_STORE}  "
+                 f"{json.dumps(record, ensure_ascii=False)}"],
+    })
+    if args.dry_run:
+        result.update({"dry_run": True, "written": False,
+                       "event_written": False})
+        return result
+    write_atomic(ctx["state_root"], path, append_linkage_records(ctx, [record]))
+    result["written"] = True
+    result["event_written"] = append_event(ctx["project_root"], event)
+    return result
+
+
+def cmd_measure(args, ctx) -> dict:
+    """`measure` — one `measurement` record and one `measure` event.
+
+    DESIGN-022 § 5.3. The refusals, in the order they are asked, each naming
+    what would make the command pass:
+
+    1. the KR resolves to no KR, or to more than one (`resolve_kr_for_writer`);
+    2. the KR is in `lib.COMPUTED_KR_METRICS` — a computed value is never typed;
+    3. its phase is scored, or its OKR version is not current;
+    4. the check is not declared on it (`perry-goals check …`);
+    5. `--value` is not a number;
+    6. `--evidence` does not exist under the project.
+
+    `asserted_at` is this write's own moment, with its zone; `computed` is
+    `false` for every record this command writes.
+    """
+    kr_token = kr_writer_rest(args, "measure")
+    check_id = check_writable(required_flag(args, "check", "--check",
+                                            "measure"), "--check")
+    value_text = required_flag(args, "value", "--value", "measure")
+    evidence_text = required_flag(args, "evidence", "--evidence", "measure")
+
+    target = resolve_kr_for_writer(ctx, kr_token, args.okr_version)
+    kr, version = target["kr"], target["okr_version"]
+    if kr in lib.COMPUTED_KR_METRICS:
+        raise Refused(
+            f"{kr} is measured by code: `lib.COMPUTED_KR_METRICS` re-runs "
+            f"`{lib.COMPUTED_KR_METRICS[kr]}` on every read, and a computed "
+            f"value is never typed (DESIGN-022 § 5.4). There is nothing to "
+            f"write — `perry-goals krs` prints its current value. Nothing was "
+            f"written")
+    refuse_closed_kr(ctx, target)
+
+    entries = lib.kr_checks(P.load_linkage_store(ctx["state_root"])).get(
+        (kr, version), [])
+    declared = [str((e.get("check") or {}).get("id") or "") for e in entries]
+    if check_id not in declared:
+        raise Refused(
+            f"no check {check_id!r} is declared on {kr}"
+            f"{' (' + version + ')' if version else ''}; declared: "
+            f"{', '.join(declared) or 'none'}. A value is measured against a "
+            f"declared check: `perry-goals check {kr_flag_hint(kr, version)} "
+            f"--id {check_id} --direction <D> --target <N> [--baseline <N>] "
+            f"--label \"…\"` declares it. Nothing was written")
+    value = typed_number("--value", value_text)
+    evidence = resolve_evidence(ctx, evidence_text)
+
+    record = {"kind": "measurement", "kr": kr, "okr_version": version,
+              "check": check_id, "value": value,
+              "asserted_at": lib.register_stamp(), "evidence": evidence,
+              "computed": False, "actor": args.actor}
+    event = {"ts": lib.event_stamp(), "event": "measure", "actor": args.actor,
+             "file": P.LINKAGE_STORE, "kr": kr, "okr_version": version,
+             "check": check_id, "value": value, "evidence": evidence}
+    return write_kr_writer_result(args, ctx, "measure", record, event, {
+        "mode": "measure", "kr": kr, "okr_version": version,
+        "level": target["level"], "check": check_id, "value": value,
+        "evidence": evidence})
+
+
+def cmd_check(args, ctx) -> dict:
+    """`check` — one `check` record and one `check` event.
+
+    DESIGN-022 § 5.3 and the spec's § 2. Refused, writing nothing, when:
+
+    - the KR resolves to no KR, or to more than one;
+    - `--id` is not a slug (the schema's own pattern);
+    - `--direction` is not one of `lib.KR_CHECK_DIRECTIONS`;
+    - `increase` has `target <= baseline`, `decrease` has `target >=
+      baseline`, or either has no `--baseline`;
+    - `done` has a target other than 1;
+    - `at_least`, `at_most` or `done` carries a `--baseline`.
+
+    **Re-declaring the same `(kr, okr_version, id)` is allowed** and
+    supersedes from its `declared_at` — `lib.kr_checks`' first ordering rule,
+    which this command does not restate: it appends, and the reader decides.
+    """
+    kr_token = kr_writer_rest(args, "check")
+    check_id = check_writable(required_flag(args, "id", "--id", "check"),
+                              "--id")
+    direction = check_writable(required_flag(args, "direction",
+                                             "--direction", "check"),
+                               "--direction")
+    target_text = required_flag(args, "target", "--target", "check")
+    label = check_writable(required_flag(args, "label", "--label", "check"),
+                           "--label")
+
+    target = resolve_kr_for_writer(ctx, kr_token, args.okr_version)
+    kr, version = target["kr"], target["okr_version"]
+
+    slug = linkage_record_spec("check")["fields"]["id"]["pattern"]
+    if not re.fullmatch(slug, check_id):
+        raise Refused(
+            f"--id {check_id!r} is not a check slug (`{slug}`: lower-case "
+            f"letters, digits, `_` and `-`). Re-run with one, e.g. "
+            f"`--id {re.sub(r'[^a-z0-9_-]+', '-', check_id.lower()).strip('-_') or 'total'}`. "
+            f"Nothing was written")
+    if direction not in lib.KR_CHECK_DIRECTIONS:
+        raise Refused(
+            f"--direction {direction!r} is not one of "
+            f"{' · '.join(lib.KR_CHECK_DIRECTIONS)}. Re-run with one of them. "
+            f"Nothing was written")
+    goal = typed_number("--target", target_text)
+    baseline = (None if args.baseline is None
+                else typed_number("--baseline", args.baseline))
+
+    if direction in ("increase", "decrease"):
+        if baseline is None:
+            raise Refused(
+                f"`{direction}` moves from a baseline toward a target, and "
+                f"no --baseline was given. Re-run with `--baseline <N>`. "
+                f"Nothing was written")
+        if direction == "increase" and not goal > baseline:
+            raise Refused(
+                f"`increase` needs --target above --baseline; got target "
+                f"{goal} and baseline {baseline}. A count that must fall is "
+                f"`--direction decrease`; a floor is `at_least`. Nothing was "
+                f"written")
+        if direction == "decrease" and not goal < baseline:
+            raise Refused(
+                f"`decrease` needs --target below --baseline; got target "
+                f"{goal} and baseline {baseline}. A count that must rise is "
+                f"`--direction increase`; a ceiling is `at_most`. Nothing was "
+                f"written")
+    else:
+        if baseline is not None:
+            raise Refused(
+                f"`{direction}` takes no --baseline: a limit or a milestone "
+                f"is met or not, and draws no fraction from a starting point. "
+                f"Re-run without `--baseline`, or with `--direction "
+                f"increase`/`decrease` if it moves from one. Nothing was "
+                f"written")
+        if direction == "done" and goal != 1:
+            raise Refused(
+                f"`done` is a milestone valued 0 or 1 and targets 1; got "
+                f"--target {goal}. Re-run with `--target 1`. Nothing was "
+                f"written")
+
+    prior = [e for e in lib.kr_checks(P.load_linkage_store(ctx["state_root"]))
+             .get((kr, version), [])
+             if str((e.get("check") or {}).get("id") or "") == check_id]
+    record = {"kind": "check", "kr": kr, "okr_version": version,
+              "id": check_id, "label": label, "direction": direction,
+              "target": goal, "baseline": baseline,
+              "declared_at": lib.register_stamp(), "actor": args.actor}
+    event = {"ts": lib.event_stamp(), "event": "check", "actor": args.actor,
+             "file": P.LINKAGE_STORE, "kr": kr, "okr_version": version,
+             "id": check_id, "direction": direction, "target": goal,
+             "baseline": baseline}
+    return write_kr_writer_result(args, ctx, "check", record, event, {
+        "mode": "check", "kr": kr, "okr_version": version,
+        "level": target["level"], "id": check_id,
+        "supersedes": (str(prior[0]["check"].get("declared_at") or "")
+                       if prior else None)})
+
+
 COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link,
-            "krs": cmd_krs}
+            "krs": cmd_krs, "measure": cmd_measure, "check": cmd_check}
 
 
 class Args:
@@ -3208,16 +3673,28 @@ def parse(argv: list[str]) -> Args:
     #: instruction `tests/test_procedures_call_the_tool.py` exists to end.
     a.alias = a.unlinked = a.project = False
     a.rest = []
+    #: `measure` and `check` (TASK-264). `okr_version` stays `None` when the
+    #: flag is absent, because `--okr-version ""` is a value: the phase KR.
+    a.okr_version = a.check = a.value = a.evidence = None
+    a.direction = a.target = a.baseline = a.label = None
+    #: Every flag token seen, so the two KR writers can refuse a flag that is
+    #: not theirs at exit 2 — see `KR_WRITER_FLAGS`.
+    a.seen = set()
     flags = {"--root": "root", "--level": "level", "--id": "id",
              "--phase": "phase", "--version": "version",
              "--track": "track", "--promise": "promise", "--to": "to",
              "--due": "due", "--by-when-note": "by_when_note",
              "--close": "close", "--miss": "miss",
              "--reason": "reason", "--discharged-by": "discharged_by",
-             "--actor": "actor"}
+             "--actor": "actor", "--okr-version": "okr_version",
+             "--check": "check", "--value": "value", "--evidence": "evidence",
+             "--direction": "direction", "--target": "target",
+             "--baseline": "baseline", "--label": "label"}
     i = 0
     while i < len(argv):
         t = argv[i]
+        if t.startswith("--"):
+            a.seen.add(t)
         if t in ("-h", "--help"):
             print(__doc__.strip())
             sys.exit(0)
@@ -3328,6 +3805,17 @@ def main(argv: list[str]) -> int:
         print(f"perry-goals: expected one of {' / '.join(COMMANDS)} "
               f"(try --help)", file=sys.stderr)
         return 2
+    stray = (sorted(args.seen - set(KR_WRITER_FLAGS[args.cmd]))
+             if args.cmd in KR_WRITER_FLAGS
+             else sorted(args.seen & KR_WRITER_ONLY_FLAGS))
+    if stray:
+        legal = (" ".join(KR_WRITER_FLAGS[args.cmd])
+                 if args.cmd in KR_WRITER_FLAGS else "")
+        print(f"perry-goals: `{args.cmd}` does not take {', '.join(stray)}"
+              + (f"; it takes {legal}" if legal else
+                 f"; {', '.join(stray)} belong(s) to `measure` / `check`")
+              + " (try --help)", file=sys.stderr)
+        return 2
     try:
         if args.level and args.level not in ("overall", "phase"):
             raise Refused(f"--level {args.level!r} is not `overall` or `phase`")
@@ -3375,7 +3863,13 @@ def main(argv: list[str]) -> int:
                 phase_slug = current_phase(state_root)
             with project_lock(state_root):
                 ctx = {"project_root": project_root, "state_root": state_root}
-                if phase_slug is not None:
+                if args.cmd in KR_WRITER_FLAGS:
+                    # `measure` and `check` read the two KR stores and write
+                    # one; like `link`, they need no `OKR.md` model and no
+                    # track register. The lock spans the resolution, every
+                    # refusal and the append (`bin/ARCHITECTURE.md § 3`).
+                    pass
+                elif phase_slug is not None:
                     # `link` needs no `OKR.md` and no track register: it writes
                     # one file and reads one file, and requiring the other two
                     # would refuse an attribution on a project whose OKR is
@@ -3413,6 +3907,26 @@ def main(argv: list[str]) -> int:
     elif args.cmd == "krs":
         print(render_overall_krs(result) if result.get("level") == "overall"
               else render_krs(result))
+    elif args.cmd in KR_WRITER_FLAGS:
+        verb = "would write" if args.dry_run else "wrote"
+        where = (f" ({result['okr_version']})" if result.get("okr_version")
+                 else "")
+        if args.cmd == "measure":
+            what = (f"measurement {result['kr']}{where} · {result['check']} = "
+                    f"{result['value']} (evidence {result['evidence']})")
+        else:
+            what = f"check {result['kr']}{where} · {result['id']}"
+            if result.get("supersedes"):
+                what += (f" — supersedes the declaration of "
+                         f"{result['supersedes']}")
+        print(f"perry-goals: {verb} {P.LINKAGE_STORE} — {what}")
+        for line in result["diff"]:
+            print(f"  {line}")
+        if not args.dry_run and not result.get("event_written"):
+            print("  ⚠ the record was written and the event was not — see the "
+                  "warning above", file=sys.stderr)
+        print(f"  ↪ read: \"$PERRY_HOME/bin/perry-goals\" krs"
+              f"{' --level overall' if result.get('okr_version') else ''} --json")
     elif args.cmd == "commit" and result.get("migrated"):
         m = result["migrated"]
         verb = "would split" if args.dry_run else "split"
