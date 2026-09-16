@@ -330,12 +330,19 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   `goals/reference/phases.md` step 9, both naming `plan-phase`. They are the
   proactive closing step `TASK-443` builds; when it ships it renders
   `--after score-phase` and the two lines go. **In a standup's next-step
-  position**: the ADR migration `decide/reference/decisions.md` detects, and
-  the undigested `inputs/` and stale digests `work/reference/digests.md`
-  counts. No rule in `reference/next-rules.json` covers those three states,
-  and none was invented for them, so each line now says where its information
-  goes instead. Each needs a fact `perry-state` computes before a rule can
-  exist.
+  position**: an ADR whose sunset date has passed and the old-style
+  `DECISIONS.md` migration, both in `decide/reference/decisions.md`, and the
+  undigested `inputs/` and stale-digest counts in
+  `work/reference/digests.md`. `reference/next-rules.json` has a rule for none
+  of the four, and **the reason is the bound, not a missing fact**:
+  `DESIGN-020 § 5.3`'s table is what `TASK-442` was bounded to and names none
+  of them, so each is a later row's work. Two of the four already have their
+  fact — `decisions.expired_sunsets` for the sunset, and
+  `operations.inputs` with `operations.inputs_oldest` and
+  `operations.inputs_oldest_days` for the digests. Stale digests have no count
+  in the payload, only per-card staleness under `roles.cards[].knowledge[]`,
+  and the migration has no fact at all; those two need a fact as well as a
+  rule.
 
 ## §8. Change log
 
@@ -362,9 +369,8 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
     2026-09-15, after three review rounds each found a different lane line
     that names a command legitimately. Five TL;DR examples in the three lanes
     describe state instead of naming a step, and the `goals` bootstrap prompt
-    says it is outside the rule; a sixth TL;DR example and three standup
-    instructions followed when the next review read the lane documents
-    whole.
+    says it is outside the rule; a sixth TL;DR example and four standup
+    instructions followed when later reviews read the lane documents whole.
   - §1, §3, §5 and §6 are not edited.
 - 2026-09-15 · v1 · **User-confirmed** (NN-6), after TASK-262 rounds 4a and 4b
   retired a `BOARD.md` a project still holds:
