@@ -214,5 +214,36 @@ class Release(unittest.TestCase):
             api.assert_not_called()
 
 
+    def test_publish_remote_tag_and_partial_failure_never_overwrite(self):
+        self.git('update-ref', 'refs/remotes/origin/main', self.base)
+        with patch.object(publisher, 'api', side_effect=[None, {}]) as api:
+            with self.assertRaisesRegex(manage.Refused, 'remote tag already exists'):
+                publisher.publish(self.root, 'owner/repo', 'token', self.base, 'v0.1.0', 'main')
+            self.assertEqual(api.call_count, 2)
+        with patch.object(publisher, 'api', side_effect=[None, None,
+                {'object': {'sha': self.base}}, manage.Refused('network refused')]) as api:
+            with self.assertRaisesRegex(manage.Refused, 'network refused'):
+                publisher.publish(self.root, 'owner/repo', 'token', self.base, 'v0.1.0', 'main')
+            self.assertEqual(api.call_count, 4)
+            self.assertEqual(api.call_args_list[-1].args[2], '/releases')
+            self.assertEqual(api.call_args_list[-1].args[3]['make_latest'], 'legacy')
+
+    def test_authenticated_redirects_are_refused(self):
+        import urllib.request
+        request = urllib.request.Request('https://api.github.com/repos/owner/repo/releases',
+                                         headers={'Authorization': 'Bearer secret'})
+        handler = publisher.NoRedirect()
+        for code in (301, 302, 303, 307, 308):
+            self.assertIsNone(handler.redirect_request(request, None, code, 'redirect', {},
+                                                       'https://other.invalid/'))
+
+    def test_publish_refuses_unmerged_commit_without_network(self):
+        self.git('update-ref', 'refs/remotes/origin/main', self.pre)
+        with patch.object(publisher, 'api') as api:
+            with self.assertRaisesRegex(manage.Refused, 'not integrated'):
+                publisher.publish(self.root, 'owner/repo', 'token', self.base, 'v0.1.0', 'main')
+            api.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()
