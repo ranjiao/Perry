@@ -1,7 +1,7 @@
 # DESIGN-022: A KR is measured through declared checks, and only a command measures them
 
-> Status: draft
-> Date: 2026-09-15 · Locked: —
+> Status: locked
+> Date: 2026-09-15 · Locked: 2026-09-16
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: O2-KR3 (a deterministic writer per lane) / P004-O2-KR2
 > Supersedes: —   · Superseded by: —
@@ -39,7 +39,11 @@ appended without one, correctly, because nothing may write one:
 
 1. **`DESIGN-020 § 5.3` rule 4, `R-phase-closable`.** It fires on
    `phase.kr_progress.met / measured ≥ 0.8`. With 0 measured it can never fire.
-   `TASK-442`, in flight, computes `met` from `current` and `target` alone.
+   `TASK-442` (merged `fb64e30b`) computes it from `current` and `target` alone:
+   `bin/perry-state § next_kr_progress` counts a KR met when `current >= target`,
+   except that a target of `0` is met only at `0`. That rescues drive-to-zero
+   KRs and misreads **every non-zero ceiling**: `P004-O3-KR3` aims to take a
+   length from 1,702 down to ≤ 400, and `1702 >= 400` reads as met today.
 2. **`phase/004-guided.md § KR-progress trigger`.** At phase day 21
    (2026-10-06), fewer than half of the commit KRs carrying a measured `current`
    collapses Objective 3. Today it would collapse, whatever the work had done.
@@ -283,7 +287,7 @@ which is dropped; that edge is repointed to `TASK-264` at hand-off.
 |---|---|---|
 | A wrong `direction` makes `met` wrong while looking authoritative | `met` is rendered beside `metric` prose; `check` refuses inconsistent declarations | declarations are user-approved per Objective (§ 5.6) |
 | An invented value gets in through `measure` | `--evidence` must exist; the record and event name who and when | evidence reviews follow `ADR-018`; a computed check cannot be typed |
-| `TASK-442` ships `met` as `current >= target`, wrong for every drive-to-zero KR | phase C fixtures: `at_most 0` with value 0 is met, value 3 is not | phase C replaces the comparison with § 5.2's; raised in `TASK-442`'s review |
+| `TASK-442`'s shipped `met` (`current >= target`, zero only at zero) misreads every non-zero ceiling — `P004-O3-KR3` reads met at 1,702 against ≤ 400 | phase C fixtures: `decrease` 1702 → 400 is not met at 1702 and is met at 400; `at_most 0` is met at 0 and not at 3 | phase C replaces `next_kr_progress`'s comparison with § 5.2's, which reads the declared `direction` |
 | Two readers order measurements differently | fixture with two measurements out of file order | one ordering rule in `perry_store`, no reader sorts for itself |
 | A fraction confuses a consumer that read `2.0`'s removal | contract change log | `fraction` is a new key, null without a declared direction; `progress` is not reused |
 | Many checks per KR dilute the cap by other means | `perry-goals krs` prints check counts | § 5.6 declares at most 3 per KR; more is raised at `plan-phase`'s input-quality pass |
