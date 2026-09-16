@@ -1425,23 +1425,44 @@ class TestTheByteGateCanFail(unittest.TestCase):
         self.assertIs(out["every_line_and_cell_came_from_the_store"], True)
         self.assertEqual(out["lines_verbatim"], [])
         self.assertEqual(out["cells_verbatim"], {})
-        self.assertEqual(out["kinds"]["objective"], 10)
+        # TASK-459: the census `diff` prints is the STORE's own, so it is
+        # asserted against the store this Project copied rather than against a
+        # literal. Pinning `10` here is what reddened this module when OKR v4
+        # landed four more Objective records; the relation — the report and
+        # the file agree — is what the case was ever about.
+        objective_records = sum(1 for r in p.okr_records()
+                                if r.get("kind") == "objective")
+        self.assertTrue(objective_records,
+                        "the copied store carries no objective records, so "
+                        "this census is measuring nothing")
+        self.assertEqual(out["kinds"]["objective"], objective_records,
+                         "diff's census disagrees with the store on disk "
+                         "about how many objective records it holds")
 
     def test_removing_the_objective_records_fails_the_gate(self):
         """Deliverable 3 — **the control the row exists to add.**
 
         The exact subtraction the spec measured. `identical` is still `true`
         and that is correct and left alone: the bytes really do match, because
-        the ten headings were copied out of the file. What must move is the
-        second half of the answer and the exit code.
+        the Objective headings were copied out of the file. What must move is
+        the second half of the answer and the exit code.
         """
         p = Project(self).copy_the_real_stores()
         records = p.okr_records()
         kept = [r for r in records if r.get("kind") != "objective"]
         removed = len(records) - len(kept)
-        self.assertEqual(removed, 10,
-                         "the fixture no longer carries ten Objective "
-                         "records; this case measures a subtraction of ten")
+        # TASK-459: here the count IS the thing under test, so the subtraction
+        # stays EXACT — every objective record goes, and `removed` is what
+        # `lines_verbatim` is then measured against below. Only the number's
+        # SOURCE moves: the store, not a literal an OKR revise invalidates.
+        self.assertEqual(removed,
+                         sum(1 for r in records
+                             if r.get("kind") == "objective"),
+                         "the split dropped a record that is not an "
+                         "objective, or kept one that is")
+        self.assertTrue(removed,
+                        "the fixture carries no objective records, so this "
+                        "case removes nothing and gates on nothing")
         p.write_okr_records(kept)
 
         proc = p.okr("diff")
@@ -1573,6 +1594,16 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
     #: linkage records through `declared_at`.
     MINTED_FIELDS = ("id", "objective_id")
 
+    #: The synthetic version block `test_a_later_mint_…` appends, and it is
+    #: deliberately NOT `v<current + 1>`. That case was written as
+    #: `"v4: 2026-10-01"` while the store held `v3`; OKR v4 then landed for
+    #: real (`15369956`) and the synthetic block collided with the live one —
+    #: the breakage TASK-459 exists to undo. A version this repository will
+    #: not reach by revising its OKR keeps the fixture's block its own however
+    #: many revises land, which is the point: the case is about the mint's
+    #: arithmetic, not about which version number is next.
+    LATER_VERSION = "v99: 2099-10-01"
+
     def _unminted(self, project) -> list[dict]:
         """The store as step 2 left it: no Objective id, no `objective_id`."""
         records = project.okr_records()
@@ -1618,7 +1649,16 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
         self.assertEqual(out["cells_verbatim"], {})
         self.assertEqual(out["lines_verbatim"], [])
         self.assertEqual(out["records_not_in_the_file"], [])
-        self.assertEqual(out["kinds"]["objective"], 10)
+        # TASK-459: counted off the minted store rather than pinned, for the
+        # reason `TestTheByteGateCanFail` carries at the same assertion.
+        objective_records = sum(1 for r in p.okr_records()
+                                if r.get("kind") == "objective")
+        self.assertTrue(objective_records,
+                        "the minted store carries no objective records, so "
+                        "this census is measuring nothing")
+        self.assertEqual(out["kinds"]["objective"], objective_records,
+                         "diff's census disagrees with the minted store "
+                         "about how many objective records it holds")
 
         # And the render itself, byte for byte, out of the minted store.
         rendered = p.okr("render")
@@ -1645,9 +1685,19 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
                          "a minted id reached OKR.md")
         # The store, on the other hand, did change — otherwise the assertion
         # above passes on a command that did nothing at all.
+        # TASK-459: the shape of the mint's result, not its size. One
+        # contiguous run `O-1 … O-N`, one id per DISTINCT Objective title,
+        # with N read from the store. A mint that numbered per record, skipped
+        # a number, or restarted from `O-1` is still red here; an OKR revise
+        # that adds an Objective is not.
+        objectives = [r for r in p.okr_records() if r["kind"] == "objective"]
+        titles = {r["title"] for r in objectives}
+        self.assertTrue(titles, "the fixture carries no Objectives to mint")
         self.assertEqual(
-            {r["id"] for r in p.okr_records() if r["kind"] == "objective"},
-            {"O-1", "O-2", "O-3", "O-4", "O-5", "O-6"})
+            {r["id"] for r in objectives},
+            {f"O-{n}" for n in range(1, len(titles) + 1)},
+            "the mint did not hand out one contiguous run of ids, from O-1, "
+            "one per distinct Objective title")
 
     def test_only_the_two_id_fields_move(self):
         """The TASK-155 hazard: a store rewrite that re-dates what it touches.
@@ -1672,8 +1722,19 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
         self.assertEqual(sorted(moved), sorted(self.MINTED_FIELDS),
                          f"the mint moved a field it has no business in: "
                          f"{moved}")
-        self.assertEqual(moved["id"], 10)
-        self.assertEqual(moved["objective_id"], 38)
+        # TASK-459: counted off `before` — the unminted store this case built
+        # — rather than typed. The claim is unchanged and still exact: EVERY
+        # objective record gained an `id`, EVERY kr record gained an
+        # `objective_id`, so a mint that skipped one is still red.
+        self.assertEqual(moved["id"],
+                         sum(1 for r in before
+                             if r.get("kind") == "objective"),
+                         "the mint did not write an id onto every objective "
+                         "record")
+        self.assertEqual(moved["objective_id"],
+                         sum(1 for r in before if r.get("kind") == "kr"),
+                         "the mint did not write an objective_id onto every "
+                         "kr record")
 
     def test_running_it_twice_renumbers_nothing_and_duplicates_nothing(self):
         """§ 7 risk 1 — "the mint runs twice and an Objective gets two ids".
@@ -1723,9 +1784,10 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
         `test_running_it_twice_…` green, because pass two's own "this record
         has an id, skip it" guard is what makes a second run over an
         all-minted store a no-op. Pass one earns its keep on the store that is
-        PARTLY minted, which is the shape every future run has: `## v4` lands,
-        `perry-okr write --from-file` mints its `objective` records with empty
-        ids beside nine that are answered, and this command runs again.
+        PARTLY minted, which is the shape every future run has: a new `## v`
+        block lands, `perry-okr write --from-file` mints its `objective`
+        records with empty ids beside the ones already answered, and this
+        command runs again.
 
         Without pass one that run restarts at `O-1` — handing the new
         Objective an id another one already holds — and mints a second address
@@ -1735,19 +1797,27 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
         p = self._project()
         self.assertEqual(p.okr("migrate-ids").returncode, 0)
         first = self._titles_to_ids(p.okr_records())
-        self.assertEqual(len(first), 6, "the fixture moved")
+        # TASK-459: not `len(first) == 6`. What "the highest existing id and
+        # adds one" needs is that the ids already there ARE a contiguous run
+        # from `O-1`, so that its top is `len(first)` — which is the relation,
+        # and which no OKR revise moves. `highest` then comes from the store.
+        self.assertEqual(set(first.values()),
+                         {f"O-{n}" for n in range(1, len(first) + 1)},
+                         "the fixture's ids are not a contiguous run from "
+                         "O-1, so 'the highest plus one' names nothing here")
+        highest = len(first)
 
-        # A fourth version block: one Objective it repeats, one that is new.
+        # A later version block: one Objective it repeats, one that is new.
         records = p.okr_records()
         repeated = next(r for r in records if r["kind"] == "objective")
         order = max(r["order"] for r in records
                     if r["kind"] == "objective" and r["order"] is not None)
         records += [
-            {"kind": "objective", "id": "", "version": "v4: 2026-10-01",
+            {"kind": "objective", "id": "", "version": self.LATER_VERSION,
              "title": repeated["title"],
              "heading": f"Objective 1 — {repeated['title']}",
              "order": order + 1},
-            {"kind": "objective", "id": "", "version": "v4: 2026-10-01",
+            {"kind": "objective", "id": "", "version": self.LATER_VERSION,
              "title": "A goal no earlier version stated",
              "heading": "Objective 2 — A goal no earlier version stated",
              "order": order + 2},
@@ -1762,22 +1832,24 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
 
         # 1. Nothing that already had an id moved.
         for (version, title), ident in after.items():
-            if version != "v4: 2026-10-01":
+            if version != self.LATER_VERSION:
                 self.assertEqual(ident, first[title],
                                  f"{title!r} was renumbered by a later mint")
         # 2. The repeated Objective reuses the id it already has.
-        self.assertEqual(after[("v4: 2026-10-01", repeated["title"])],
+        self.assertEqual(after[(self.LATER_VERSION, repeated["title"])],
                          first[repeated["title"]],
                          "a repeated Objective was minted a SECOND id — "
                          "every link to it has now split")
         # 3. The new one continues the numbering rather than restarting it.
-        new = after[("v4: 2026-10-01", "A goal no earlier version stated")]
-        self.assertEqual(new, "O-7",
-                         f"the mint gave a new Objective {new!r}; it reads "
-                         f"the highest existing id and adds one")
+        new = after[(self.LATER_VERSION, "A goal no earlier version stated")]
+        continues = f"O-{highest + 1}"
+        self.assertEqual(new, continues,
+                         f"the mint gave a new Objective {new!r} rather than "
+                         f"{continues!r}; it reads the highest existing id "
+                         f"and adds one")
         self.assertNotIn(new, set(first.values()),
                          "a new Objective was minted an id another one holds")
-        self.assertEqual([m["id"] for m in report["minted"]], ["O-7"])
+        self.assertEqual([m["id"] for m in report["minted"]], [continues])
 
     def test_the_ids_follow_the_stores_own_order_not_the_line_order(self):
         """Deliverable 3 — "the ids are stable under the store's own ordering".
@@ -1808,8 +1880,9 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
     def test_one_objective_across_two_versions_is_one_id(self):
         """§ 5.2 — the id survives "a new `OKR.md` version that repeats it".
 
-        `perry/okr.jsonl` holds TEN `objective` records for six Objectives,
-        because `OKR.md` carries `## v2` and `## v3` side by side. The store
+        `perry/okr.jsonl` holds MORE `objective` records than there are
+        Objectives, because `OKR.md` carries its `## v` blocks side by side —
+        TASK-459 keeps both numbers read rather than typed. The store
         already works this way for the kind next door: `O4-KR1` is ONE id on
         two `kr` records, told apart by `version` — § 7 risk 3's "`version` is
         part of the record, not part of the id".
@@ -1823,7 +1896,18 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
         p = self._project()
         self.assertEqual(p.okr("migrate-ids").returncode, 0)
         objectives = [r for r in p.okr_records() if r["kind"] == "objective"]
-        self.assertEqual(len(objectives), 10, "the fixture moved")
+        titles = {r["title"] for r in objectives}
+        # The premise, off the store: some Objective really is repeated across
+        # version blocks, so there are more RECORDS than titles. And the claim
+        # this case is named for, as a relation between those two numbers: one
+        # id per Objective, never one per record.
+        self.assertGreater(len(objectives), len(titles),
+                           "no Objective title appears in two version blocks "
+                           "in this fixture, so this case measures nothing")
+        self.assertEqual(len({r["id"] for r in objectives}), len(titles),
+                         "the store holds a different number of Objective "
+                         "ids than Objective titles — the mint numbered per "
+                         "record rather than per Objective")
 
         by_title: dict[str, set] = {}
         for rec in objectives:
@@ -1850,7 +1934,7 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
 
         The join is asserted per record against the `objective` record it
         names, not against a count: a mint that wrote every KR the same id
-        would satisfy "all 38 answered" and be wrong for 30 of them.
+        would satisfy "every KR answered" and be wrong for nearly all of them.
         """
         p = self._project()
         self.assertEqual(p.okr("migrate-ids").returncode, 0)
@@ -1858,7 +1942,18 @@ class TestTheObjectiveIdIsMinted(unittest.TestCase):
         heading_id = {(r["version"], r["heading"]): r["id"]
                       for r in records if r["kind"] == "objective"}
         krs = [r for r in records if r["kind"] == "kr"]
-        self.assertEqual(len(krs), 38, "the fixture moved")
+        # TASK-459: not `len(krs) == 38`. The join is asserted TOTAL in both
+        # directions, off the store itself — every KR names an Objective
+        # record that exists, and every Objective record is named by at least
+        # one KR. That is the relation the count was standing in for, it is
+        # strictly stronger than the count, and no OKR revise moves it.
+        self.assertTrue(krs, "the fixture carries no kr records, so the join "
+                             "this case is about is never exercised")
+        self.assertEqual(
+            {(kr["version"], kr["objective"]) for kr in krs},
+            set(heading_id),
+            "the kr records and the objective records do not name the same "
+            "set of (version, heading) pairs")
         for kr in krs:
             with self.subTest(kr["id"], version=kr["version"]):
                 # Decision 4's first half: the title is still there, whole.
