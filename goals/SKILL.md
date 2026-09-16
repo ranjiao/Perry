@@ -38,9 +38,9 @@ When a subcommand fires, **read the matching reference file first**, then act.
 
 Agent-paced projects finish month-scoped KRs in week 1, then spend three weeks doing busy-work to fill the calendar. The "month" is a unit of human team cadence, not of project state. Perry's OKR replaces the monthly OKR with a **current phase OKR**: a tactical commitment scoped to a coherent piece of work, ended when its KRs are largely hit (not when a date arrives). Phases are numbered (`#001`, `#002`, ...) with a user-chosen slug for sortability + searchability.
 
-Two soft prompts replace calendar discipline:
-- **KR-progress prompt**: when ≥80% of commit KRs are achieved, OKR standup suggests `score-phase` and starting the next.
-- **Heartbeat prompt**: when ≥`phase_heartbeat_days` (default 14) have passed since the last snapshot, OKR standup suggests `/okr snapshot` to preserve the current state.
+Two soft prompts replace calendar discipline. Both are rules of `perry-state --section next` (`$PERRY_HOME/reference/next.md`), rendered at standup step 5; this lane does not evaluate them:
+- **KR-progress** — `R-phase-closable`: when at least 80% of the phase's measured commit KRs are met and none is unmeasured, the next block recommends `/perry work end-phase-retro`, then the close sequence.
+- **Heartbeat** — `R-phase-heartbeat`: declared to recommend `/perry goals snapshot` once `phase_heartbeat_days` (default 14) pass without a snapshot. `perry-state` computes no date for the last snapshot, so it never fires, and the next block lists that fact as one it cannot tell.
 
 Both are prompts, not enforcements. The user can ignore either.
 
@@ -73,8 +73,8 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 4. **Render the headline + snapshot.** Two parts, in order:
 
    **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). The single most important thing about goal progress right now, in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. Examples:
-   - `TL;DR: Phase #002 commit KRs hit 80% — time to score and start the next.`
-   - `TL;DR: No current phase — run /okr plan-phase to set the next tactical commitment.`
+   - `TL;DR: Phase #002 commit KRs are at 80%.`
+   - `TL;DR: No current phase is set.`
    - `TL;DR: Cost ceiling is doc-only and 70% spent — wire it or risk overrun.`
    - `TL;DR: On track — nothing needs a goal-level decision today.`
 
@@ -101,15 +101,9 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
    Use `✓` for KRs ≥1.0, `◐` for ≥0.7, `◑` for ≥0.4, `◯` below.
 
-   If no current phase exists: render only the overall OKR block, then suggest `/okr plan-phase <slug>`.
+   If no current phase exists: render only the overall OKR block. Starting a phase is recommended by the next block (`R-no-phase`).
 
-5. **Suggest 1–3 next actions** based on what's missing or behind. Two prompts fire automatically based on phase state:
-   - **KR-progress prompt** (auto): if ≥80% of `commit` KRs in the current phase are achieved (metric ≥ target) → "Phase #<NNN> commit KRs are <X>/<Y> done — ready to `/okr score-phase` and start the next?"
-   - **Heartbeat prompt** (auto): if days-since-last-snapshot ≥ `phase_heartbeat_days` (read from `.perry/config.jsonl`, default 14) → "It's been <N>d since the last snapshot — run `/okr snapshot` to preserve the current state."
-   - Other 1–2 suggestions based on what's missing/behind:
-     - "no current phase → run `/okr plan-phase <slug>`"
-     - "KR P<NNN>-O<n>-KR<n> at 30% with 80% of phase commits hit → consider `score-phase` carrying it forward"
-     - "scope-reduction trigger tripped (phase day ≥ N and USER-XXX still open) → apply scope cut"
+5. **Next actions** — run `"$PERRY_HOME/bin/perry-state" --section next --lane goals` and render it per `$PERRY_HOME/reference/next.md § Rendering`. The command decides; never add, drop or reorder a recommendation.
 
 6. Then ask: **"What do you want to do?"**
 
@@ -123,7 +117,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 | `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
 | `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `Due` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
 | `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the phase's `objective` and `kr` records in `linkage.jsonl`. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
-| `score-phase [<NNN>]` | End current phase: per-KR scoring; writes `phase/<NNN>-<slug>.md § Retro` and the `-final` snapshots. **Hands the retro summary to `work`; does not write `evidence/`** — see `reference/phases.md` step 5. Suggests next `plan-phase` | `reference/phases.md` |
+| `score-phase [<NNN>]` | End current phase: per-KR scoring; writes `phase/<NNN>-<slug>.md § Retro` and the `-final` snapshots. **Hands the retro summary to `work`; does not write `evidence/`** — see `reference/phases.md` step 5. Suggests next `plan-phase`, the after-subcommand suggestion `TASK-443`'s closing step replaces | `reference/phases.md` |
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
 | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |
 | `link <TASK-ID> <KR-ID>` / `--alias` / `--unlinked` / `--project` | Accept PMO's attribution hand-off and write it into `linkage.jsonl` (the only writer in this lane). **`bin/perry-goals link` does the write**, appending; it refuses anything that does not resolve to exactly one KR and names the candidates | `reference/linkage.md` |
@@ -181,6 +175,9 @@ If no `OKR.md`:
 
 If `OKR.md` exists but no current phase (no `phase/CURRENT` or it points at a phase already scored):
 > "Overall OKR found (v<N>), no current phase. Run `plan-phase <slug>`?"
+
+That is a bootstrap prompt, which sits outside the next block — the standup's
+TL;DR and next-step position are the next block's (`$PERRY_HOME/ARCHITECTURE.md § 2`).
 
 ## Style rules (do not violate)
 

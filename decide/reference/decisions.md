@@ -232,7 +232,12 @@ Use sparingly. Most retired ADRs should be `superseded` (have a successor) or `e
 
 At every standup, PMO scans active ADRs with `Sunset criteria` for any date-based trigger that has passed today's date. If any fired but Status is still `active`:
 - Surface in the dashboard as a 🚨 alert
-- Suggest action: "ADR-NNN sunset date passed; run `/perry decide adr --expire ADR-NNN` or take the required action."
+- The next step does not go here. `perry-state` already computes this state and
+  publishes it as `decisions.expired_sunsets`, so the fact a rule would need
+  exists — but `DESIGN-020 § 5.3`'s rule table is what `TASK-442` was bounded to, and it names no rule for this state, so a rule for it is a later row's
+  work (`ARCHITECTURE.md` §7). The standup's next-step position belongs to the
+  next block (`ARCHITECTURE.md` §2); `--expire ADR-NNN` stays the command the
+  user runs when they act on the alert.
 
 Metric-based and event-based triggers are NOT auto-checked (PMO can't reliably evaluate them without project-specific instrumentation). They are listed in the ADR for human reference; the user invokes `--expire` when they observe the trigger.
 
@@ -307,7 +312,7 @@ Projects that adopted Perry before this split still have a single-file `DECISION
 5. Print the hand-off line for `work` to journal, if the migration deserves one. This lane does not write `journal/` — see step 7 of the `adr` walk above.
 6. Commit. Git history preserves the original DECISIONS.md so the migration is recoverable.
 
-When a `/pmo` standup detects old-style format (no `decisions/` directory; `DECISIONS.md` contains `^## ADR-NNN — ` headers), surface the migration suggestion in the standup's "next actions" list; user kicks off the migration in chat. PMO walks the steps above, shows the user a diff summary before commit. **Do not** auto-migrate during standup — wait for explicit user confirmation.
+When a `/pmo` standup detects old-style format (no `decisions/` directory; `DECISIONS.md` contains `^## ADR-NNN — ` headers), tell the user in chat that the migration is available, and they kick it off there. It does not go in the standup's next-step position: that position is the next block's (`ARCHITECTURE.md` §2). No rule covers this migration, and here `perry-state` computes no fact for it either — this is the one of these states with no fact at all — so a rule needs both (`ARCHITECTURE.md` §7). PMO walks the steps above, shows the user a diff summary before commit. **Do not** auto-migrate during standup — wait for explicit user confirmation.
 
 ## Per-project hook overrides
 

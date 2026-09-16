@@ -58,10 +58,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: `perry-roles/list` is a subtree of `perry-state --json`, which is exactly
 #: how it was missed when this row was measured.
 #:
-#: Seven, and a hand-kept tuple is the shape of list this project keeps finding
+#: Eight, and a hand-kept tuple is the shape of list this project keeps finding
 #: rotted, so `TestTheListIsEveryContractOnDisk` counts it against the glob
 #: that discovers a contract page rather than trusting it. It did its job on
 #: 2026-09-13: `perry-asks/list` shipped a page and this tuple still said six.
+#: It did it again on 2026-09-15, when `perry-next` (TASK-442) shipped one.
 PAYLOADS = (
     ("perry-task/list", ("perry-task", "list", "--all"), ""),
     ("perry-events/list", ("perry-task", "events"), ""),
@@ -70,6 +71,7 @@ PAYLOADS = (
     ("perry-knowledge/list", ("perry-knowledge", "list"), ""),
     ("perry-roles/list", ("perry-state", "--section", "roles"), "roles"),
     ("perry-asks/list", ("perry-task", "asks", "--all"), ""),
+    ("perry-next", ("perry-state", "--section", "next"), "next"),
 )
 
 #: The three that carry `[]` today. Named so the assertions about them can be
@@ -80,7 +82,8 @@ PAYLOADS = (
 #: TASK-237 3b′: `perry-decide/list` 2.1 and `perry-knowledge/list` 1.2 each
 #: carry the `installed` entry the user decided every payload ships
 #: (Amendment (4) item 1), so one is left with nothing to say.
-EMPTY_TODAY = ("perry-roles/list",)
+#: `perry-next` shipped at 1.0 with nothing to say (TASK-442).
+EMPTY_TODAY = ("perry-roles/list", "perry-next")
 
 
 def payload(argv: tuple[str, ...], root: pathlib.Path, subtree: str) -> dict:
@@ -316,8 +319,12 @@ class TestTheListIsEveryContractOnDisk(unittest.TestCase):
     def test_each_page_names_the_version_its_tool_emits(self):
         for name, argv, sub in PAYLOADS:
             live = payload(argv, ROOT, sub)["contract"]
-            page = ROOT / "schema" / (name.split("/")[0].split("-", 1)[1]
-                                      + "-list-contract.md")
+            stem = name.split("/")[0].split("-", 1)[1]
+            # A list family's page is `<stem>-list-contract.md`; `perry-next`
+            # is one object, and its page is `next-contract.md` (TASK-442).
+            page = ROOT / "schema" / (f"{stem}-list-contract.md"
+                                      if name.endswith("/list")
+                                      else f"{stem}-contract.md")
             with self.subTest(contract=name):
                 self.assertTrue(page.exists(), f"no page at {page}")
                 self.assertIn(live, page.read_text(),
