@@ -188,6 +188,10 @@
       "sec": 2.05,
       "source": "2026-09-09-085824"
     },
+    "test_goals_kr_writer.py": {
+      "sec": 5.17,
+      "source": "2026-09-16-task264"
+    },
     "test_goals_writer.py": {
       "sec": 25.34,
       "source": "2026-09-09-085824"
@@ -732,6 +736,13 @@
       "note": "ONE new module, test_kr_checks (TASK-416), timed alone three times with `python3 tests/parallel -j 1 --times test_kr_checks` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 3.02/2.08/1.58 (48 tests). No neighbour was re-timed. The machine was heavily loaded (load1 92.44 taken just after the three runs), so the figure is likely high rather than low.",
       "ref": "162586f4",
       "taken": "2026-09-16T07:45:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task264": {
+      "load1": 86.84,
+      "note": "ONE new module, test_goals_kr_writer (TASK-264), timed alone three times with `python3 tests/parallel -j 1 --times test_goals_kr_writer` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 6.41/4.76/5.17 (39 tests). No neighbour was re-timed: the two modules that gained a registry line (test_a_write_refuses_where_nothing_is_installed, test_okr_store_is_the_source) each gained one table entry, which moves nothing measurable. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine, so the figure is likely high rather than low.",
+      "ref": "ec5d5421",
+      "taken": "2026-09-16T08:50:00Z",
       "workers": 1
     }
   }
