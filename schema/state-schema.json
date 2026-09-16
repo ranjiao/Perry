@@ -820,6 +820,14 @@
         "task"
       ],
       "note": "An open task in `review` whose last event is older than this is reported by `conformance.review_idle`. `review` waits on a human and no dependency edge can ever contradict it, so nothing else in the payload notices such a row: TASK-100, TASK-111, TASK-127 and TASK-133 all sat there after their PRs had merged. Calibrated, not a law — long enough that a verdict asked for on Friday is not nagged on Monday, short enough that a merged PR is not still waiting a week later."
+    },
+    "kr_measure_due_days": {
+      "value": 7,
+      "applies_to": [
+        "kr",
+        "check"
+      ],
+      "note": "A KR check whose latest `measurement.asserted_at` is older than this reports `state: \"due\"` rather than `measured` (DESIGN-022 § 5.2, `bin/lib/__init__.py § kr_check_position`). A week is the planning cadence: a value measured at one Friday review is due by the next. Added by TASK-416 under USER-937 decision 4, which authorizes the `check` and `measurement` kinds on `linkage.jsonl` and the one threshold that serves them. Calibrated, not a law."
     }
   },
   "stores": {
@@ -1095,6 +1103,113 @@
                 "type": "string",
                 "required": true,
                 "pattern": "^(add|link)$"
+              }
+            }
+          },
+          "check": {
+            "description": "One typed condition a KR is measured against - DESIGN-022 § 5.1, added by TASK-416 under USER-937 decision 4. A KR at either level may declare several (`P004-O4-KR1` carries three numbers). Appended, never rewritten: a re-declared check (same `kr`, `okr_version` and `id`) supersedes the earlier one from its `declared_at`, and that ordering rule is stated once, in `bin/lib/__init__.py § kr_checks`. Nothing here is a position: `met` and `fraction` are derived on read (`§ kr_position`) and never stored. Written by `goals` only (the `perry-goals check` verb, TASK-264); nothing writes one yet.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "check",
+                "required": true
+              },
+              "kr": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$"
+              },
+              "okr_version": {
+                "type": "string",
+                "required": true,
+                "note": "`\"\"` for a phase KR, whose id is unique. For an overall KR, the `version` its `kr` record carries in `okr.jsonl` (`v4: 2026-09-15`), because `O1-KR1` exists in v2, v3 and v4 and a check keyed by the bare id would be ambiguous."
+              },
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$",
+                "note": "A slug, unique within the KR (and `okr_version`)."
+              },
+              "label": {
+                "type": "string",
+                "required": true,
+                "note": "Prose, for display. Nothing derives anything from it (NN-4)."
+              },
+              "direction": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(increase|decrease|at_least|at_most|done)$",
+                "note": "`increase` / `decrease` move from `baseline` toward `target` and may draw a fraction. `at_least` / `at_most` are limits: met or not, never a fraction. `done` is a milestone valued 0 or 1. Met is `value >= target` for increase and at_least, `value <= target` for decrease and at_most, `value == 1` for done."
+              },
+              "target": {
+                "type": "number",
+                "required": true,
+                "note": "`done` targets 1."
+              },
+              "baseline": {
+                "type": "number",
+                "required": true,
+                "nullable": true,
+                "note": "Required as a number for `increase` / `decrease`, and `null` otherwise. A cross-field rule no field declaration can express; `perry-goals check` (TASK-264) refuses a declaration that breaks it, and a record that does anyway reads `fraction: null` rather than a guessed one."
+              },
+              "declared_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime"
+              },
+              "actor": {
+                "type": "string",
+                "required": true
+              }
+            }
+          },
+          "measurement": {
+            "description": "One value of one check, when it was asserted and on what evidence - DESIGN-022 § 5.1, added by TASK-416 under USER-937 decision 4. This is what makes 'someone measured 0' and 'nobody measured' two different things on disk: a check with no measurement reports `unmeasured`, never `0`. Appended, never rewritten: a check's current value is its measurement with the latest `asserted_at`, the second ordering rule stated once in `bin/lib/__init__.py § kr_checks`, whatever order the lines are in. Written by `goals` only (the `perry-goals measure` verb, TASK-264); nothing writes one yet.",
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "measurement",
+                "required": true
+              },
+              "kr": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$"
+              },
+              "okr_version": {
+                "type": "string",
+                "required": true,
+                "note": "Same value space as `check.okr_version`: `\"\"` for a phase KR, the `okr.jsonl` version for an overall KR."
+              },
+              "check": {
+                "type": "string",
+                "required": true,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$",
+                "note": "The `id` of the check this measures, within the same `kr` and `okr_version`."
+              },
+              "value": {
+                "type": "number",
+                "required": true
+              },
+              "asserted_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime",
+                "note": "When the value was arrived at. Full datetime with an offset. Older than `thresholds.kr_measure_due_days` reports the check `due`."
+              },
+              "evidence": {
+                "type": "string",
+                "required": false,
+                "note": "A path under `evidence/`. Required unless `computed` - a cross-field rule `perry-goals measure` (TASK-264) enforces, including that the path exists."
+              },
+              "computed": {
+                "type": "boolean",
+                "required": true,
+                "note": "`true` only when written by a `COMPUTED_KR_METRICS` function's recorder (DESIGN-022 § 5.4); a computed value is never typed."
+              },
+              "actor": {
+                "type": "string",
+                "required": true
               }
             }
           }

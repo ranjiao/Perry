@@ -4741,6 +4741,12 @@ def _linkage_record_findings(records: list, declared: dict,
                     bad.append(f"`{name}` is missing and is required")
                 continue
             value = rec[name]
+            # `nullable: true` — present, and `null` is a legal value.
+            # DESIGN-022 § 5.1's `check.baseline` is a number for `increase` /
+            # `decrease` and `null` otherwise; without this the design's own
+            # record shape would be malformed (TASK-416).
+            if value is None and spec.get("nullable"):
+                continue
             want = types.get(spec.get("type"))
             # `bool` is a subclass of `int` in Python and JSON `true` is not a
             # number. `perry_store.validate_records` makes the same exclusion

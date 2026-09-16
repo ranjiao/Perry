@@ -540,7 +540,14 @@ class Okr:
 # whose `current` is MEASURED carries a non-null `target` — which adds no key
 # either. Rule 2 is untouched in both halves: nothing is removed and nothing
 # is retyped.
-LIST_CONTRACT = "perry-goals/list/3.4"
+#
+# TASK-416 moves it to `3.5` (DESIGN-022 § 5.2): four keys on every KR —
+# `checks`, `state`, `met`, `fraction` — derived from `check` and
+# `measurement` records by `lib.kr_position`. Additive; `target` and `current`
+# keep their meaning. It carries a `semantics` entry as `3.2` did, because
+# `met` and `fraction` are the first keys since `2.0` removed `progress` that
+# say how far along a KR is, and a consumer must read `state` before them.
+LIST_CONTRACT = "perry-goals/list/3.5"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -630,6 +637,12 @@ LIST_SEMANTICS = [
                 "krs[].linked_task_completion.open",
                 "krs[].linked_task_completion.unknown"],
      "note": "A task's status comes from `tasks.jsonl` alone (TASK-262 Amendment (4), round 4b; the user's decision of 2026-09-15). Before 3.4 `lib.task_status_index` put the rows of a `BOARD.md` a project still held beneath the store, so a linked id that only the held file carried was counted by its file status. From 3.4 the file is retired and not read: such an id is counted from the event log's last state-moving event if it has one, and otherwise as `unknown`. On a project with no held board, and on one whose board rows are all in its store, every count is unchanged. No key was added, removed or retyped. A project whose tasks live only in a held board imports them first, by the task store's `--from-board` import (`reference/version-compatibility.md § Upgrading a project to G3`)."},
+    {"version": "3.5",
+     "fields": ["krs[].checks",
+                "krs[].state",
+                "krs[].met",
+                "krs[].fraction"],
+     "note": "Four keys are added (TASK-416, DESIGN-022 § 5.2), derived on every read from the `check` and `measurement` records of `linkage.jsonl` and from nothing else. `state` is `undeclared` (no check), `unmeasured` (a check with no measurement), `due` (a value older than `thresholds.kr_measure_due_days`, or a linked task moved after it) or `measured`, the worst of the KR's checks. `met` is `null` whenever `state` is `undeclared` or `unmeasured` — **never `false` and never `0` for a KR nobody declared or measured** — and `fraction` is non-null only for a KR with exactly one `increase` / `decrease` check, `0.0` and `1.0` reserved for the exact ends as in 3.1. No existing key changed: `target` and `current` still mean what the `kr` record carries, and a KR whose record has both but no check reads `state: \"undeclared\"`, `met: null`. A consumer must not compute `met` from `target` and `current`; that comparison cannot know which way a KR runs, which is why 2.0 removed `progress`."},
 ]
 
 _PERRY_STATE = None
@@ -1004,6 +1017,11 @@ def kr_rows(snap, events: list | None = None,
     # Raw store records for the one KR whose metric is re-run rather than read.
     # `state_root`, not `project_root`: the store sits beside the register.
     linkage_records = P.load_linkage_store(getattr(snap, "state_root", "."))
+    # DESIGN-022 § 5.1: the current checks and values, ordered once in
+    # `lib.kr_checks`. An overall KR is keyed by its OKR version too, because
+    # `O1-KR1` exists in more than one version of `okr.jsonl`.
+    checks_by_kr = lib.kr_checks(linkage_records)
+    okr_version = (getattr(getattr(snap, "okr", None), "version", "") or "")
 
     # **The phase's KRs come from the register, not from the phase document.**
     # TASK-157: they used to be declared in both, in full, with nothing
@@ -1060,6 +1078,16 @@ def kr_rows(snap, events: list | None = None,
                         computed=lib.computed_kr_current(
                             k.id, linkage_records=linkage_records,
                             events=events)),
+                    # 3.5 (TASK-416, DESIGN-022 § 5.2): `checks`, `state`,
+                    # `met`, `fraction`. Derived from `check` / `measurement`
+                    # records only — `target` and `current` above are not
+                    # read, so a KR with no check is `undeclared` with
+                    # `met: null` whatever numbers its record carries.
+                    **lib.kr_position(
+                        checks_by_kr.get(
+                            (k.id, okr_version if level == "overall" else ""),
+                            []),
+                        task_ids=r.get("tasks", []), events=events),
                 })
     return out
 
@@ -2838,6 +2866,9 @@ def cmd_krs(args, ctx) -> dict:
         # three publishers cannot drift by spelling a key differently.
         return computed.get("current")
 
+    # DESIGN-022 § 5.2, from the same function `perry-goals list` calls. A
+    # phase KR's checks carry `okr_version: ""`.
+    checks_by_kr = lib.kr_checks(linkage_records)
     objectives = []
     for obj in model.objectives:
         objectives.append({
@@ -2845,7 +2876,10 @@ def cmd_krs(args, ctx) -> dict:
             "krs": [{"id": k.id, "text": k.title,
                      "metric": P.kr_metric_cell(k), "linked": k.linked,
                      "target": k.target, "current": _current(k),
-                     "stretch": bool(k.stretch), "tasks": list(k.tasks or [])}
+                     "stretch": bool(k.stretch), "tasks": list(k.tasks or []),
+                     **lib.kr_position(checks_by_kr.get((k.id, ""), []),
+                                       task_ids=list(k.tasks or []),
+                                       events=events)}
                     for k in obj.krs],
         })
     return {"register": P.LINKAGE_STORE, "phase": model.phase,
