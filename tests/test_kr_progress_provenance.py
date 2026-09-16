@@ -28,8 +28,10 @@ Run: python3 tests/parallel test_kr_progress_provenance
 
 from __future__ import annotations
 
-COVERS = ("bin/", "viewer/", "perry/", ".perry/")
+COVERS = (
+    "tests/goals_actor.py","bin/", "viewer/", "perry/", ".perry/")
 
+import goals_actor
 import json
 import os
 import shutil
@@ -79,7 +81,7 @@ def goals(root: Path, *argv, tz: str = "") -> dict:
     """
     env = {**os.environ, "TZ": tz} if tz else None
     r = subprocess.run(
-        ["python3", str(GOALS), "list", *argv, "--root", str(root), "--json"],
+        goals_actor.command(["python3", str(GOALS), "list", *argv, "--root", str(root), "--json"]),
         capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stderr[-2000:]
     return json.loads(r.stdout)
@@ -701,9 +703,9 @@ class TestOneClockAcrossTheOffset(unittest.TestCase):
         across the lines that predate this — and the register keeps its `Z`."""
         def stamp(fn: str, tz: str) -> str:
             r = subprocess.run(
-                ["python3", "-c",
+                goals_actor.command(["python3", "-c",
                  "import sys; sys.path.insert(0, sys.argv[1]); import lib; "
-                 f"print(lib.{fn}())", str(PERRY_HOME / "bin")],
+                 f"print(lib.{fn}())", str(PERRY_HOME / "bin")]),
                 capture_output=True, text=True,
                 env={**os.environ, "TZ": tz})
             assert r.returncode == 0, r.stderr[-2000:]

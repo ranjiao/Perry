@@ -29,6 +29,8 @@ Run: python3 tests/parallel test_id_families
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-diagnose",
     "bin/perry-explain",
@@ -136,7 +138,7 @@ class Project:
 
     def _run(self, tool: Path, *argv) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [sys.executable, str(tool), *argv, "--root", str(self.root)],
+            task_actor.command([sys.executable, str(tool), *argv, "--root", str(self.root)], 'test_id_families'),
             capture_output=True, text=True, check=False)
 
     def write_next(self, prose: str) -> str:

@@ -45,6 +45,8 @@ Run: python3 tests/parallel test_add_writes_the_edge
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-state",
@@ -253,7 +255,7 @@ class Fixture(unittest.TestCase):
                 "--verification", "v", "--summary", "a summary sentence."]
         if kr:
             argv += ["--kr", kr]
-        return subprocess.run(argv + list(extra), capture_output=True,
+        return subprocess.run(task_actor.command(argv + list(extra), 'test_add_writes_the_edge'), capture_output=True,
                               text=True, cwd=ROOT)
 
     def attribution(self, d: pathlib.Path) -> dict:
@@ -529,8 +531,8 @@ class TestRouteAndIntakeInheritNeverAsked(Fixture):
         d = self.project()
         before = self.records(d)
         intake = subprocess.run(
-            [sys.executable, str(TASK), "intake", "--root", str(d),
-             "--arrived", "2026-09-05", "--title", "a request arrived"],
+            task_actor.command([sys.executable, str(TASK), "intake", "--root", str(d),
+             "--arrived", "2026-09-05", "--title", "a request arrived"], 'test_add_writes_the_edge'),
             capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(intake.returncode, 0, intake.stderr)
         self.assertEqual(len(self.records(d)), len(before),
@@ -540,8 +542,8 @@ class TestRouteAndIntakeInheritNeverAsked(Fixture):
         d = self.project()
         before = self.records(d)
         subprocess.run(
-            [sys.executable, str(TASK), "intake", "--root", str(d),
-             "--arrived", "2026-09-05", "--title", "a request arrived"],
+            task_actor.command([sys.executable, str(TASK), "intake", "--root", str(d),
+             "--arrived", "2026-09-05", "--title", "a request arrived"], 'test_add_writes_the_edge'),
             capture_output=True, text=True, cwd=ROOT)
         proc = subprocess.run(
             # `--title` and `--summary` are NOT passed: `route` takes the
@@ -549,9 +551,9 @@ class TestRouteAndIntakeInheritNeverAsked(Fixture):
             # summary, so both were accepted and dropped until DESIGN-016 goal
             # 12 made `SURFACE` the list of what each subcommand takes. The
             # refusal is the tool telling this test what it had been doing.
-            [sys.executable, str(TASK), "route", "1", "--root", str(d),
+            task_actor.command([sys.executable, str(TASK), "route", "1", "--root", str(d),
              "--owner", "Coding Agent", "--priority", "P1",
-             "--track", "intake"],
+             "--track", "intake"], 'test_add_writes_the_edge'),
             capture_output=True, text=True, cwd=ROOT)
         # Not skipped on refusal. A skip here would let the fixture drift out
         # of `route`'s preconditions and report nothing about the behaviour
@@ -598,15 +600,15 @@ argv = ["add", "--title", TITLE, "--root", ROOT, "--deliverable", "d",
         "Files a throwaway row so the writer reaches its canonical renames."]
 if KR:
     argv += ["--kr", KR]
-sys.exit(mod.main(argv))
+sys.exit(mod.main(argv + ["--actor", "edge-crash-probe"]))
 '''
 
     def crash_at(self, d: pathlib.Path, n: int, kr: str) -> subprocess.CompletedProcess:
         child = d / "_crash_child.py"
         child.write_text(self.CHILD)
         return subprocess.run(
-            [sys.executable, str(child), str(TASK), str(d), str(n),
-             "an atomicity probe", kr],
+            task_actor.command([sys.executable, str(child), str(TASK), str(d), str(n),
+             "an atomicity probe", kr], 'test_add_writes_the_edge'),
             capture_output=True, text=True, cwd=ROOT)
 
     def consistency(self, d: pathlib.Path, tid: str) -> tuple[bool, bool]:
@@ -630,10 +632,10 @@ sys.exit(mod.main(argv))
         under test are the same command line minus the crash.
         """
         proc = subprocess.run(
-            [sys.executable, str(TASK), "add", "--title", "probe",
+            task_actor.command([sys.executable, str(TASK), "add", "--title", "probe",
              "--root", str(d), "--deliverable", "d", "--verification", "v",
              "--summary", "Reads back the id the next add will mint.",
-             "--kr", self.STORE_KR, "--dry-run", "--json"],
+             "--kr", self.STORE_KR, "--dry-run", "--json"], 'test_add_writes_the_edge'),
             capture_output=True, text=True, cwd=ROOT)
         return json.loads(proc.stdout)["id"]
 

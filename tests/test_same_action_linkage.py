@@ -33,7 +33,11 @@ Run: python3 tests/parallel test_same_action_linkage
 
 from __future__ import annotations
 
+import goals_actor
+import task_actor
+
 COVERS = (
+    "tests/goals_actor.py",
     "bin/perry-goals",
     "bin/perry-state",
     "bin/perry-task",
@@ -461,7 +465,7 @@ class BothReadersPublishTheOneNumber(unittest.TestCase):
 
     @staticmethod
     def _run(argv: list[str]) -> dict:
-        r = subprocess.run(["python3", *argv], capture_output=True, text=True,
+        r = subprocess.run(goals_actor.command(["python3", *argv]), capture_output=True, text=True,
                            cwd=str(PERRY_HOME))
         if r.returncode != 0:
             raise AssertionError(f"{argv} exited {r.returncode}: {r.stderr[-800:]}")
@@ -990,11 +994,11 @@ def _fixture_project(case: unittest.TestCase) -> Path:
 
 def _add(d: Path, title: str, *extra: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "add",
+        task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "add",
          "--root", str(d), "--title", title, "--deliverable", "an artifact",
          "--verification", "a falsifiable check somebody else can run",
          "--summary", "One sentence of plain language for a reader who was "
-                      "not in the conversation that filed it.", *extra],
+                      "not in the conversation that filed it.", *extra], 'test_same_action_linkage'),
         capture_output=True, text=True, cwd=str(PERRY_HOME))
 
 
@@ -1118,7 +1122,7 @@ class EveryPublisherOfAComputedKrAgrees(unittest.TestCase):
 
     @staticmethod
     def _json(argv: list[str]) -> dict:
-        r = subprocess.run(["python3", *argv], capture_output=True, text=True,
+        r = subprocess.run(goals_actor.command(["python3", *argv]), capture_output=True, text=True,
                            cwd=str(PERRY_HOME))
         if r.returncode != 0:
             raise AssertionError(
@@ -1127,7 +1131,7 @@ class EveryPublisherOfAComputedKrAgrees(unittest.TestCase):
 
     @staticmethod
     def _text(argv: list[str]) -> str:
-        r = subprocess.run(["python3", *argv], capture_output=True, text=True,
+        r = subprocess.run(goals_actor.command(["python3", *argv]), capture_output=True, text=True,
                            cwd=str(PERRY_HOME))
         if r.returncode != 0:
             raise AssertionError(

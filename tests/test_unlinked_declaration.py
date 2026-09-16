@@ -37,8 +37,10 @@ Run: python3 tests/parallel test_unlinked_declaration
 
 from __future__ import annotations
 
-COVERS = ("bin/perry-goals", "bin/perry-lint")
+COVERS = (
+    "tests/goals_actor.py","bin/perry-goals", "bin/perry-lint")
 
+import goals_actor
 import json
 import pathlib
 import re
@@ -96,7 +98,7 @@ class Case(unittest.TestCase):
 
     def link(self, d: pathlib.Path, *argv) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [sys.executable, str(GOALS), "link", *argv, "--root", str(d)],
+            goals_actor.command([sys.executable, str(GOALS), "link", *argv, "--root", str(d)]),
             capture_output=True, text=True, cwd=ROOT)
 
     def lint(self, d: pathlib.Path) -> dict:

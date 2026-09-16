@@ -34,6 +34,8 @@ Run: python3 tests/parallel test_design_handoff
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task", "bin/perry_store.py")
 
 import importlib.machinery
@@ -341,7 +343,7 @@ class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
         # module. It shares `store_fixture.write_store`, which this row
         # converted, so these two sites go with it — a module left half on
         # `subprocess` is where TASK-402's shared-helper rounds went wrong.
-        proc = inproc.run("perry-task", [*argv, "--root", str(root)])
+        proc = inproc.run("perry-task", task_actor.owned([*argv, "--root", str(root)], 'test_design_handoff'))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         return proc
 

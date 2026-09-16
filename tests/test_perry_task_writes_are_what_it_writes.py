@@ -39,6 +39,8 @@ Run: python3 tests/parallel test_perry_task_writes_are_what_it_writes
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task", "tests/board_sources.py")
 
 import hashlib
@@ -151,13 +153,13 @@ class TestEachWriteChangesWhatItDeclares(unittest.TestCase):
     def record(cls, name, root: Path, state: str, argv, prereqs=(),
                held_board: bool = False):
         for pre in prereqs:
-            out = inproc.run("perry-task", list(pre) + ["--root", str(root)])
+            out = inproc.run("perry-task", task_actor.owned(list(pre) + ["--root", str(root)], 'test_perry_task_writes_are_what_it_writes'))
             if out.returncode != 0:
                 cls.failures.append(f"{name}: prerequisite {pre} exited "
                                     f"{out.returncode}: {out.stderr[-300:]}")
                 return
         before = snapshot(root)
-        out = inproc.run("perry-task", list(argv) + ["--root", str(root)])
+        out = inproc.run("perry-task", task_actor.owned(list(argv) + ["--root", str(root)], 'test_perry_task_writes_are_what_it_writes'))
         if out.returncode != 0:
             cls.failures.append(f"{name}: exited {out.returncode}"
                                 f"{' with a held board' if held_board else ''}: "

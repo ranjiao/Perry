@@ -27,6 +27,8 @@ Run: python3 tests/parallel -j 4 test_bin_argument_contract
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/",)
 
 import json
@@ -62,7 +64,7 @@ def run(tool: str, *argv: str, env: dict | None = None) -> subprocess.CompletedP
     e = dict(os.environ)
     e.pop("PERRY_PROJECT", None)
     e.update(env or {})
-    return subprocess.run([sys.executable, str(BIN / tool), *argv],
+    return subprocess.run(task_actor.command([sys.executable, str(BIN / tool), *argv], 'test_bin_argument_contract'),
                           capture_output=True, text=True, env=e)
 
 
@@ -1245,7 +1247,7 @@ class TestAFlagWithItsValueMissingIsRefused(unittest.TestCase):
             lead = self.LEAD.get(tool, ())
             with self.subTest(tool=tool):
                 out = subprocess.run(
-                    [str(BIN / tool), *lead, "--root", ""],
+                    task_actor.command([str(BIN / tool), *lead, "--root", ""], 'test_bin_argument_contract'),
                     capture_output=True, text=True, cwd=str(other.root),
                     env={k: v for k, v in os.environ.items()
                          if k != "PERRY_PROJECT"})

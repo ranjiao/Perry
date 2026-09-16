@@ -29,6 +29,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task", "bin/perry-state", "bin/perry-lint")
 
 import json
@@ -111,7 +113,7 @@ class Base(unittest.TestCase):
         # schema at `PERRY_HOME` or from a sibling, so none is root-dependent;
         # every test here builds its own temp root anyway.
         return inproc.run("perry-task",
-                          [*args, "--root", str(root), "--json"])
+                          task_actor.owned([*args, "--root", str(root), "--json"], 'test_track_move'))
 
     def ok(self, root: Path, *args: str) -> dict:
         r = self.cli(root, *args)

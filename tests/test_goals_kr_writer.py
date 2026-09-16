@@ -592,7 +592,7 @@ class TestActorIsRequired(Project):
     def test_a_missing_actor_is_refused(self):
         for verb, argv in self.ARGV.items():
             with self.subTest(verb=verb):
-                self.assertRefused(argv, f"`{verb}` requires --actor <who>",
+                self.assertRefused(argv, f"'{verb}' writes",
                                    "was not given", code=2, bare=True)
 
     def test_an_empty_actor_is_refused(self):
@@ -600,8 +600,8 @@ class TestActorIsRequired(Project):
             for empty in ("", "   "):
                 with self.subTest(verb=verb, actor=empty):
                     self.assertRefused([*argv, "--actor", empty],
-                                       f"`{verb}` requires --actor <who>",
-                                       "empty value", code=2, bare=True)
+                                       f"'{verb}' writes",
+                                       "was given empty", code=2, bare=True)
 
     def test_the_given_actor_is_on_the_record_and_the_event(self):
         self.goals(*self.ARGV["measure"], "--actor", "user:ran")

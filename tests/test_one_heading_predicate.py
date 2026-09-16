@@ -20,6 +20,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "viewer/parsers.py",
     "bin/perry-task",
@@ -180,8 +182,8 @@ class TestTheWriterDoesNotDuplicateTheSection(unittest.TestCase):
 
     def run_task(self, root: Path, *argv):
         env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
-        return subprocess.run([sys.executable, str(TASK), *argv,
-                               "--root", str(root)],
+        return subprocess.run(task_actor.command([sys.executable, str(TASK), *argv,
+                               "--root", str(root)], 'test_one_heading_predicate'),
                               capture_output=True, text=True, env=env)
 
     def risks_seen(self, root: Path) -> int:

@@ -105,7 +105,7 @@ perry-tasks write --root . --from-board
 
 # 3. Risks. A bullet-list `## Top risks` is converted AND stored by risk-migrate;
 #    a table is imported with risks-write.
-perry-task risk-migrate --root .              # bullets
+perry-task risk-migrate --actor <actor> --root .              # bullets
 perry-tasks risks-write --root . --from-board # a table
 
 # 4. The other registers. A section the board does not have is refused with
@@ -142,7 +142,7 @@ git rm perry/BOARD.md .perry/config.md
 - `perry-lint --root .` exits 0 with 0 errors. Measured warnings after the
   upgrade:
   - `summary-missing`, one per imported task, because rows imported from a board
-    carry no summary. Fill them with `perry-task summary <id> --summary "…"`.
+    carry no summary. Fill them with `perry-task summary <id> --actor <actor> --summary "…"`.
   - `NS-01` on files under `.perry/` that Perry did not write. Measured:
     `.perry/adoption/…-dossier.md`, left by the adoption workflow ADR-011 removed.
     Move it out, as the warning says.

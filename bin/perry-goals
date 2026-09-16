@@ -77,19 +77,19 @@ Usage:
       `--version "v2: 2026-08-17"` prints that one. The `### Objective N`
       headings stay in `OKR.md` — they are what these rows hang from.
 
-  perry-goals commit --track <t> --promise <text> --to <whom> --due <when>
+  perry-goals commit --actor <who> --track <t> --promise <text> --to <whom> --due <when>
                      [--by-when-note <prose>]
-  perry-goals commit --id <Id> [--due <when>] [--by-when-note <prose>]
+  perry-goals commit --actor <who> --id <Id> [--due <when>] [--by-when-note <prose>]
                                 [--promise <t>] [--to <whom>]
                                 [--discharged-by <text>]
-  perry-goals commit --close <Id> [--discharged-by <text>]
-  perry-goals commit --miss <Id> --reason <text>
-  perry-goals commit --migrate       split a pre-TASK-091 `By when` column
+  perry-goals commit --actor <who> --close <Id> [--discharged-by <text>]
+  perry-goals commit --actor <who> --miss <Id> --reason <text>
+  perry-goals commit --actor <who> --migrate       split a pre-TASK-091 `By when` column
 
-  perry-goals link <TASK-ID> <KR-ID>
-  perry-goals link --alias <PROJECT-ID> "<the other name>"
-  perry-goals link --unlinked <TASK-ID>
-  perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"
+  perry-goals link --actor <who> <TASK-ID> <KR-ID>
+  perry-goals link --actor <who> --alias <PROJECT-ID> "<the other name>"
+  perry-goals link --actor <who> --unlinked <TASK-ID>
+  perry-goals link --actor <who> --project <PROJECT-ID> <KR-ID> "<name>"
 
   perry-goals measure <KR-ID> [--okr-version V] --check S --value N
                       --evidence <path> --actor <who>
@@ -102,6 +102,8 @@ Usage:
       matched exactly. `--okr-version ""` names the phase KR. D is one of
       increase · decrease · at_least · at_most · done. Both take `--dry-run`,
       and both REQUIRE `--actor <who>` (USER-950): without it, exit 2.
+
+  Every writer requires a non-empty, single-line `--actor` (USER-950).
 
   `link` appends to `linkage.jsonl` for the CURRENT phase.
   <KR-ID> may also be a Project id or a registered alias, resolved in that
@@ -3655,6 +3657,28 @@ COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link,
             "krs": cmd_krs, "measure": cmd_measure, "check": cmd_check}
 
 
+# The existing dispatch has two reads; all other commands enter the write
+# gate below. Share the actor validator with perry-task without converting
+# this legacy parser to a full SURFACE in an actor-only change.
+READ_COMMANDS = frozenset(("list", "krs"))
+ACTOR_SURFACE = {
+    "name": "perry-goals",
+    "subcommands": [
+        {"name": name, "flags": ["--actor"],
+         "writes": [] if name in READ_COMMANDS else [
+             "OKR.md" if name == "commit" else "linkage.jsonl",
+             ".perry/events.jsonl"]}
+        for name in COMMANDS
+    ],
+}
+ACTOR_USAGE = {
+    **KR_WRITER_USAGE,
+    "commit": 'perry-goals commit --track main --promise "…" --to "…" '
+              '--due 2026-11-30 --actor goals',
+    "link": "perry-goals link <TASK-ID> <KR-ID> --actor goals",
+}
+
+
 class Args:
     pass
 
@@ -3664,7 +3688,7 @@ def parse(argv: list[str]) -> Args:
     a.cmd = a.root = a.level = a.phase = a.version = None
     a.id = a.track = a.promise = a.to = a.due = a.by_when_note = None
     a.close = a.miss = a.reason = a.discharged_by = None
-    a.actor = "agent"
+    a.actor = None
     a.as_json = a.dry_run = a.accept_hand_edit = a.migrate = False
     #: `link`'s three alternative shapes, and its positional arguments. They
     #: are collected rather than consumed by name because
@@ -3817,23 +3841,15 @@ def main(argv: list[str]) -> int:
                  f"; {', '.join(stray)} belong(s) to `measure` / `check`")
               + " (try --help)", file=sys.stderr)
         return 2
-    # **`--actor` is required on these two writes** (USER-950, 2026-09-16):
-    # every write names who made it, and a missing actor is refused rather
-    # than recorded as the default `"agent"`, which says nothing about who
-    # asserted a value. A usage error, so exit 2 and before any root, gate or
-    # lock. `commit` and `link` still default it; they move in TASK-289.
+    no_actor = lib.actor_refusal(ACTOR_SURFACE, args.cmd, args.actor,
+                                 single_line=True)
+    if no_actor:
+        print(f"{no_actor} Usage: {ACTOR_USAGE[args.cmd]}", file=sys.stderr)
+        return 2
     if args.cmd in KR_WRITER_FLAGS:
-        actor = args.actor if "--actor" in args.seen else None
-        if actor is None or not actor.strip() or "\n" in actor or "\r" in actor:
-            why = ("was not given" if actor is None
-                   else "was given an empty value" if not actor.strip()
-                   else "contains a line break")
-            print(f"perry-goals: `{args.cmd}` requires --actor <who>, and it "
-                  f"{why}. Every write names who made it (USER-950). Usage: "
-                  f"{KR_WRITER_USAGE[args.cmd]}. Nothing was "
-                  f"written", file=sys.stderr)
-            return 2
-        args.actor = actor.strip()
+        # Keep the existing KR writer normalization; commit/link transport
+        # their valid caller-supplied actor unchanged.
+        args.actor = args.actor.strip()
     try:
         if args.level and args.level not in ("overall", "phase"):
             raise Refused(f"--level {args.level!r} is not `overall` or `phase`")

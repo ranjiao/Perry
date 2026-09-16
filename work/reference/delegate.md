@@ -16,7 +16,7 @@ For automated end-to-end execution use `dispatch` instead (see `dispatch.md`).
 ## Record the delegation before rendering the prompt
 
 ```
-"$PERRY_HOME/bin/perry-task" status <TASK-ID> --status in_progress \
+"$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status in_progress \
     --next "delegated to <role>; awaiting paste-back"
 ```
 

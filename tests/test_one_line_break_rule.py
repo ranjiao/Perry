@@ -20,7 +20,11 @@ Run: python3 tests/parallel test_one_line_break_rule
 
 from __future__ import annotations
 
-COVERS = ("viewer/tables.py", "bin/perry-goals", "bin/perry-task")
+import goals_actor
+import task_actor
+
+COVERS = (
+    "tests/goals_actor.py","viewer/tables.py", "bin/perry-goals", "bin/perry-task")
 
 import json
 import pathlib
@@ -152,8 +156,8 @@ class TestTheRefusalNamesTheFlag(unittest.TestCase):
 
     def run_task(self, *args):
         return subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-task"), *args,
-             "--root", str(self.root)],
+            task_actor.command([sys.executable, str(ROOT / "bin" / "perry-task"), *args,
+             "--root", str(self.root)], 'test_one_line_break_rule'),
             capture_output=True, text=True)
 
     def a_row(self) -> str:
@@ -300,8 +304,8 @@ class TestPerryGoalsRefusalNamesTheFlagToo(unittest.TestCase):
 
     def goals(self, *argv):
         return subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-goals"), *argv,
-             "--root", str(self.root)],
+            goals_actor.command([sys.executable, str(ROOT / "bin" / "perry-goals"), *argv,
+             "--root", str(self.root)]),
             capture_output=True, text=True)
 
     #: Every flag of `commit` whose value becomes a markdown cell, with a
@@ -418,8 +422,8 @@ class TestTheIdThatIsNotARowNamesItsFlagToo(unittest.TestCase):
 
     def goals(self, *argv):
         return subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-goals"), *argv,
-             "--root", str(self.root)],
+            goals_actor.command([sys.executable, str(ROOT / "bin" / "perry-goals"), *argv,
+             "--root", str(self.root)]),
             capture_output=True, text=True)
 
     def test_each_id_carrying_flag_is_named(self):

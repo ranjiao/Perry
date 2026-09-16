@@ -2818,8 +2818,16 @@ def linkage_add_change(state_root: Path,
     # compared across records by every reader that orders them, and
     # `lib.event_stamp()`'s local-offset form would sort as text against the
     # 121 imported records and lose.
+    # **No `"agent"` default** (USER-950, TASK-289). `main` refuses a write
+    # with no actor before it gets here; this is defence in depth for a second
+    # caller, which must not mint a record whose owner no session can claim.
+    actor = str(event.get("actor") or "")
+    if not actor.strip():
+        raise Refused(f"the {task} linkage record has no actor, and a record "
+                      f"no session can claim is not written. Nothing was "
+                      f"written.")
     common = {"declared_at": lib.register_stamp(),
-              "actor": str(event.get("actor") or "agent"),
+              "actor": actor,
               "via": "add"}
     # **An `unlinked` record carries the phase it was declared under, and an
     # `edge` does not.** ADR-019 added `unlinked.phase` because the store now
@@ -8069,7 +8077,8 @@ def parse(argv: list[str]) -> Args:
     a.id = a.title = a.summary = a.track = a.owner = a.priority = None
     a.next = a.parent = a.commitment = a.stage = a.evidence = a.rung = None
     a.root = None
-    a.actor = "agent"
+    # No default (USER-950): `main` refuses a write whose actor is absent.
+    a.actor = None
     a.arrived = a.reason = a.outcome = a.status = None
     a.needed = a.blocks = a.answer = None
     a.frequency = a.on = None
@@ -8789,6 +8798,15 @@ def main(argv: list[str]) -> int:
     extra = refuse_extra_positionals(args)
     if extra is not None:
         return extra
+    # **A write names who is writing** (USER-950, TASK-289). Which subcommands
+    # write is `SURFACE`'s `writes`, read by `lib.required_flags`, not a list
+    # kept here. Before the schema, the install gate and the lock, so a write
+    # without an owner reads nothing for writing and `--dry-run` is refused
+    # the same way.
+    no_actor = lib.actor_refusal(SURFACE, args.cmd, args.actor)
+    if no_actor is not None:
+        print(no_actor, file=sys.stderr)
+        return 2
     # **`--unlinked` belongs to `add` alone** (TASK-394), and the guard that
     # said so by hand is gone: `SURFACE` lists it under `add` and nowhere else,
     # so `parse` refuses it on every other subcommand by the same rule that

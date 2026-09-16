@@ -27,6 +27,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "reference/host-capabilities.md",
@@ -109,7 +111,7 @@ class Project:
 
     def run(self, *argv) -> tuple[int, dict | str]:
         r = subprocess.run(
-            ["python3", str(TOOL), *argv, "--root", str(self.root), "--json"],
+            task_actor.command(["python3", str(TOOL), *argv, "--root", str(self.root), "--json"], 'test_v5_signoff'),
             capture_output=True, text=True)
         try:
             return r.returncode, json.loads(r.stdout or "{}")

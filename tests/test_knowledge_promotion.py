@@ -17,6 +17,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-knowledge",
     "bin/perry-lint",
@@ -410,9 +412,9 @@ class TestARealCloseProducesACard(Base):
     def test_close_then_promote_then_lint(self):
         root = self.project({"BOARD.md": self.BOARD})
         close = subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
+            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
              "TASK-001", "--evidence", SRC, "--rung", "V3",
-             "--root", str(root)], capture_output=True, text=True)
+             "--root", str(root)], 'test_knowledge_promotion'), capture_output=True, text=True)
         self.assertEqual(close.returncode, 0, close.stderr)
 
         prop = self.run_tool(root, "propose", "--source", SRC, "--rung", "V3",
@@ -445,9 +447,9 @@ class TestARealCloseProducesACard(Base):
         state root. Deriving one from the other is the bug this pins."""
         root = self.project({"BOARD.md": self.BOARD})
         subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
+            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
              "TASK-001", "--evidence", SRC, "--rung", "V3",
-             "--root", str(root)], capture_output=True, text=True, check=True)
+             "--root", str(root)], 'test_knowledge_promotion'), capture_output=True, text=True, check=True)
         # The printed board (TASK-262 round 4a); the held file is not
         # re-rendered by `done`.
         board = subprocess.run(
@@ -662,9 +664,9 @@ class TestTheProjectRootIsPassedNotDerived(Base):
             "BOARD.md": TestARealCloseProducesACard.BOARD,
             "knowledge/reporting/c.md": self.card("TASK-001")})
         subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
+            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
              "TASK-001", "--evidence", SRC, "--rung", "V3",
-             "--root", str(root)], capture_output=True, text=True, check=True)
+             "--root", str(root)], 'test_knowledge_promotion'), capture_output=True, text=True, check=True)
         self.assertNotIn(
             "card-source-dangling",
             {f["rule"] for f in self.knowledge_lint(root)["findings"]},

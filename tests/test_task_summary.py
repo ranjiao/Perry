@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-task",
     "bin/perry-explain",
@@ -168,8 +170,8 @@ class TaskSummaryContract(unittest.TestCase):
         project = Project(self)
 
         written = subprocess.run(
-            [sys.executable, str(TASK), "summary", "TASK-002", "--summary",
-             "ROUND-2 is prose here and must not be read as an identifier.", "--root", str(project.root)],
+            task_actor.command([sys.executable, str(TASK), "summary", "TASK-002", "--summary",
+             "ROUND-2 is prose here and must not be read as an identifier.", "--root", str(project.root)], 'test_task_summary'),
             capture_output=True, text=True)
 
         self.assertEqual(written.returncode, 0, written.stderr)

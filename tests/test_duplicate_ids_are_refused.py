@@ -42,6 +42,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task", "bin/perry-lint")
 
 import json
@@ -106,7 +108,7 @@ class Fixture:
 
     def run(self, *argv):
         return subprocess.run(
-            ["python3", str(TOOL), *argv, "--root", str(self.root)],
+            task_actor.command(["python3", str(TOOL), *argv, "--root", str(self.root)], 'test_duplicate_ids_are_refused'),
             capture_output=True, text=True)
 
     def store(self, name):

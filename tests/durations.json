@@ -604,6 +604,10 @@
     "test_work_modes.py": {
       "sec": 5.14,
       "source": "2026-09-09-085824"
+    },
+    "test_actor_required.py": {
+      "sec": 30.23,
+      "source": "2026-09-16-task289"
     }
   },
   "schema": 1,
@@ -782,6 +786,13 @@
       "ref": "ec5d5421",
       "taken": "2026-09-16T08:50:00Z",
       "workers": 1
+    },
+    "2026-09-16-task289": {
+      "ref": "aeb8cf5fb9e2a6e8c19cf46319ab8e81c88584a1",
+      "taken": "2026-09-16T09:46:00Z",
+      "workers": 1,
+      "load1": 49.48,
+      "note": "One new module, test_actor_required.py: 13 tests, measured with env -u PERRY_PROJECT -u PERRY_HOME python3 tests/parallel -j 1 --times test_actor_required. One measurement at this committed code ref while other suite runs were active; load1 captured just after measurement. No other module retimed."
     }
   }
 }

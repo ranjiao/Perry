@@ -55,9 +55,9 @@ options with their ID + text, plus "Other → none of these / new Project". Exam
 option label: `P<NNN>-O1-KR2 · streaming ingest latency`. The user picks the KR; record
 the result:
 - Add the task to that KR's `tasks[]` — handed to `okr`, which owns `phase/`
-  and writes it with `bin/perry-goals link <TASK-ID> <KR-ID>`.
+  and writes it with `bin/perry-goals link --actor goals <TASK-ID> <KR-ID>`.
 - If the progress arrived under a name not yet in the graph, hand the new
-  **alias** to `okr`, whose `bin/perry-goals link --alias <PROJECT-ID>
+  **alias** to `okr`, whose `bin/perry-goals link --actor goals --alias <PROJECT-ID>
   "<name>"` appends it to the project's `aliases[]` (PMO never writes
   `phase/` — same hand-off pattern as `plan-week`).
 
@@ -71,7 +71,7 @@ complete.** An unlinked task is a User-Input-Queue item, not a rolled-up one.
 ## The linkage graph — `linkage.jsonl`
 
 **Owner: `perry`** — the store belongs to no lane, which is what lets `work`
-write an `edge` at `perry-task add --kr` and `goals` write one at `perry-goals
+write an `edge` at `perry-task add`'s `--kr` and `goals` write one at `perry-goals
 link` without either touching the other's directory. Within `goals`,
 `perry-goals link` is the only writer. **PMO reads it for roll-up + resolution.**
 

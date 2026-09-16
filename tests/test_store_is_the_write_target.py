@@ -21,6 +21,8 @@ Run: python3 tests/parallel test_store_is_the_write_target
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = ("bin/perry-task", "bin/perry_store.py", "viewer/tables.py")
 
 import contextlib
@@ -109,8 +111,8 @@ class Project:
         if argv and argv[0] == "add" and "--summary" not in argv \
                 and "--title" in argv:
             argv = (*argv, *self.SUMMARY_DEFAULT)
-        r = subprocess.run([sys.executable, str(TASK), *argv,
-                            "--root", str(self.root), "--json"],
+        r = subprocess.run(task_actor.command([sys.executable, str(TASK), *argv,
+                            "--root", str(self.root), "--json"], 'test_store_is_the_write_target'),
                            capture_output=True, text=True)
         try:
             return r.returncode, json.loads(r.stdout or "{}")
@@ -410,7 +412,8 @@ class TestCanonicalRecovery(unittest.TestCase):
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 code = mod.main([
-                    "start", "TASK-001", "--root", str(p.root), "--json"
+                    "start", "TASK-001", "--actor", "recovery-boundary-probe",
+                    "--root", str(p.root), "--json"
                 ])
         finally:
             mod.replace_canonical_pair = real

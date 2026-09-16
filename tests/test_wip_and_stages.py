@@ -20,6 +20,8 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+import task_actor
+
 COVERS = (
     "bin/perry-state",
     "bin/perry-task",
@@ -81,8 +83,8 @@ class Base(unittest.TestCase):
                 self.state(root)["project"]["config"]["tracks"]}
 
     def task(self, root: Path, *args: str) -> dict:
-        r = subprocess.run([sys.executable, str(TASK), *args, "--root", str(root),
-                            "--json"],
+        r = subprocess.run(task_actor.command([sys.executable, str(TASK), *args, "--root", str(root),
+                            "--json"], 'test_wip_and_stages'),
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         return json.loads(r.stdout)
@@ -115,10 +117,10 @@ class TestTheReaderAndTheWriterAgreeAboutStages(Base):
     def test_the_writer_births_a_row_inside_what_the_reader_reports(self):
         """The property the disagreement broke, asserted across both tools."""
         root = self.project(self.ROW)
-        subprocess.run([sys.executable, str(TASK), "add", "--title", "t",
+        subprocess.run(task_actor.command([sys.executable, str(TASK), "add", "--title", "t",
                         "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
                         "--deliverable", "d with a test", "--verification", "v",
-                        "--next", "n", "--track", "ops", "--root", str(root)],
+                        "--next", "n", "--track", "ops", "--root", str(root)], 'test_wip_and_stages'),
                        capture_output=True, text=True)
         r = subprocess.run([sys.executable, str(TASK), "list", "--all",
                             "--json", "--root", str(root)],

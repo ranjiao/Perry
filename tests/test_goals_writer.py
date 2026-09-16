@@ -19,6 +19,7 @@ that passes on a writer which reformatted everything around it.
 from __future__ import annotations
 
 COVERS = (
+    "tests/goals_actor.py",
     "bin/perry-goals",
     "bin/perry_md_store.py",
     "viewer/tables.py",
@@ -28,6 +29,7 @@ COVERS = (
     "perry/OKR.md",
 )
 
+import goals_actor
 import contextlib
 import importlib.util
 import json
@@ -464,7 +466,7 @@ class Project:
         # two modules where this was measured and was the WRONG instrument.
         e = dict(PERRY_CONFORMANCE="advisory", PERRY_HOME=str(ROOT))
         e.update(env)
-        p = inproc.run("perry-goals",
+        p = goals_actor.run("perry-goals",
                        [*argv, "--root", str(self.dir)], env=e)
         if expect is not None:
             assert p.returncode == expect, (p.returncode, p.stdout, p.stderr)
