@@ -80,6 +80,17 @@ design note.
   came from main, it is outside this row's bound, and `test_diagnose` is green
   with it present — so a backticked id is tolerated where a bare one is not.
 - No other line inside the rule's scope was found while making these edits.
+- **A red this round's module list missed.** The first full run of round 6 was
+  red on `test_procedures_call_the_tool`
+  (`test_adoption_suppressions_are_observed_from_scan`), which pins the line
+  number of the one `adoption-document` suppression in
+  `decide/reference/decisions.md`. Marking the sunset auto-check added five
+  lines above it, so the pin moved from 292 to 297. It is red alone, so it is
+  this branch's and not an ordering effect. The pin is updated with a comment
+  saying why it moved; the suppression itself is unchanged. The module was
+  green when run alone earlier in the round because the loop that round swapped
+  it for `test_role_cards` — the modules to re-run are the ones that read the
+  edited page, not the ones the previous round happened to list.
 
 The full suite runs after this section is committed, on that commit, and its
 result is reported in the round-6 RESULT block rather than here.

@@ -683,7 +683,10 @@ class ProceduresCallTheTool(unittest.TestCase):
         self.assertEqual(
             (str(item.page.relative_to(PERRY_HOME)), item.line, item.section,
              item.target),
-            ("decide/reference/decisions.md", 292,
+            # The line moves when the page above it is edited: TASK-442 round 6
+            # marked the sunset auto-check, five lines further up, and this
+            # pin went 292 -> 297. The suppression itself is unchanged.
+            ("decide/reference/decisions.md", 297,
              "## Migration: old monolithic `DECISIONS.md`",
              "an ADR's typed header"),
             "the signed-off set is the suppressions scan actually performed")
