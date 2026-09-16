@@ -245,7 +245,10 @@ class Fixture(unittest.TestCase):
 
     def goals(self, d: pathlib.Path, *argv) -> tuple[int, dict]:
         proc = subprocess.run(
-            goals_actor.command([sys.executable, str(GOALS), *argv, "--root", str(d), "--json"]),
+            # Keep the fixture root visible at the subprocess boundary: the
+            # live-state sweep follows --root before considering cwd=ROOT.
+            [sys.executable, str(GOALS), *goals_actor.owned(argv),
+             "--root", str(d), "--json"],
             capture_output=True, text=True, cwd=ROOT)
         return proc.returncode, json.loads(proc.stdout or "{}")
 

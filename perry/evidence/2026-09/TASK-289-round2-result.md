@@ -94,3 +94,35 @@ writes outside the checkout. The shared helper avoids a second validator.
 No architecture rule, schema field, store shape, task-state record, journal
 ownership or derived-event failure policy changed. KR add/restate/withdraw
 remain outside scope. No push or merge to main was performed.
+
+## Combined validation follow-up
+
+The parent combined-preview full run against `5a2faa1d` was **not green**:
+151 modules / 4,247 tests / 137.3 seconds, with two failures in
+`test_live_state_expectations`. The sweep found five findings against the
+recorded floor of two. All three new findings were assertions in
+`test_linkage_store_readers` using its goals fixture helper.
+
+Cause: wrapping the entire argv in `goals_actor.command(...)` hid the explicit
+`--root <temporary fixture>` from the scanner's direct-list operand reader.
+It then correctly applied its fallback rule to `cwd=ROOT`, misclassifying this
+fixture helper's outputs as live. This was introduced by this round's fixture
+adaptation, not a reason to raise the baseline or suppress live reads.
+
+Repair: the subprocess call keeps executable and `--root` in its direct list;
+only the variable goals arguments go through `goals_actor.owned(argv)`. The
+scanner and its two-entry baseline are unchanged. A read-only source probe
+finds zero findings in the repaired module; changing only this helper's root
+from `str(d)` to `str(ROOT)` produces all three original new findings. Thus
+real live-state assertions through the helper remain visible.
+
+Clean-environment targeted verification (`PYTHONPATH`, `PERRY_PROJECT`,
+`PERRY_HOME` unset): `python3 tests/parallel test_actor_required
+ test_linkage_store_readers test_live_state_expectations` — **3 modules,
+77 tests, 7.7 seconds, exit 0**. `git diff --check` passes.
+
+The earlier round-2 runs were narrow selections, not an affected-tier receipt.
+To satisfy that separate gate, the hand-off reports the clean-environment
+`bash tests/run --tier affected --base a93ee34c` run on the commit containing
+this follow-up. Full and slow combined validation must be rerun by the parent;
+the previous failed full run is not counted as a success.
