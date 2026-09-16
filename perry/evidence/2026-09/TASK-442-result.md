@@ -8,7 +8,91 @@
 > Round 2: `9a3b7c10` merge of main (`ba11da7a`) · `905fb1bf` command pins ·
 > `81b6c43d` the architecture documents · `8c779cca` the round-2 section.
 > Round 3: `08929751` the id fix · `eacba06c` the goals lane and the heartbeat
-> rule · `9db8d934` `ARCHITECTURE.md` · this section.
+> rule · `9db8d934` `ARCHITECTURE.md` · `58c73b86` the round-3 section.
+> Round 4: `99b03e9a` the narrowed §2 rule and the lines the review named ·
+> this section.
+
+## Round 4 — the §2 rule is narrowed to the position the next block owns
+
+### R4.1 Why the rule kept failing
+
+§2 said a lane "never reorders, adds or drops a recommendation", without saying
+where. Lane documents name a command in roughly thirty places, and most are
+legitimate — a step inside a subcommand's own instructions, the remediation a
+refusal offers, a bootstrap prompt, a hint in a dashboard row. So each review
+round found a different line and the rule could not converge. The user narrowed
+it in session on 2026-09-15.
+
+**§2 now says** a lane renders `perry-state --section next` for the next step,
+and does not add, drop or reorder a recommendation **in a standup's TL;DR or in
+its next-step position**, and it names four kinds of line that sit outside the
+rule: procedural steps inside a subcommand, a refusal's remediation, bootstrap
+and first-run prompts, and dashboard row hints. First-time setup is the largest
+of them and keeps the sentence round 3 added.
+
+**`bin/ARCHITECTURE.md § 1` was not narrowed, because its sentence is not
+broader.** It says `perry-state` returns the recommendation "that the lanes
+render" and makes no claim about what a lane may otherwise print. Changing it
+would add a lane rule to a module document that does not carry one.
+
+### R4.2 The lines the review named
+
+Six examples now describe state, and name no step:
+
+| Line | Now |
+|---|---|
+| `goals/SKILL.md` TL;DR, KR progress | `TL;DR: Phase #002 commit KRs are at 80%.` |
+| `goals/SKILL.md` TL;DR, no phase | `TL;DR: No current phase is set.` |
+| `decide/SKILL.md` TL;DR, locked design | `TL;DR: DESIGN-002 is locked and has no implementation tasks yet.` |
+| `decide/SKILL.md` TL;DR, open decisions | `TL;DR: DESIGN-003 has 3 open user decisions blocking lock.` |
+| `work/SKILL.md` TL;DR, KR progress | `TL;DR: Phase commit KRs are at 80% (#002).` |
+
+`work/SKILL.md`'s line was checked as asked: it is a TL;DR example, so it was
+fixed the same way.
+
+The steps those lines used to name are what the next block recommends:
+`R-phase-closable` for the KR-progress case (which recommends
+`/perry work end-phase-retro`, not `score-phase`), `R-no-phase` for the missing
+phase, and `R-design-unhanded` for a locked design.
+
+**The goals bootstrap prompt** keeps its question and now says it is a bootstrap
+prompt, outside the next block, citing §2.
+
+### R4.3 Marked, not fixed
+
+Two lines suggest a command after a subcommand finishes:
+`goals/SKILL.md`'s `score-phase` row, and `goals/reference/phases.md` step 9.
+Both are the proactive closing step `TASK-443` builds. Each now names that task
+where it sits, and §7 gains a *Proposed* question saying the closing step
+replaces them, rendering `--after score-phase`.
+
+### R4.4 The bound was not swept
+
+The PMO enumerated every other `run` / `suggest` match across the router, the
+three lanes and their reference pages, and each falls into one of the four
+kinds §2 now names. None was edited, and `git diff` against main shows no change
+to any of those files. None of them contradicts the narrowed rule: every one is
+a procedural step, a refusal's remediation, a first-run prompt or a template
+line, and none writes a standup's TL;DR or its next-step position.
+
+### R4.5 Checks
+
+- Nine modules green alone on the working tree: `test_architecture_rules` (32),
+  `test_router_budget` (9), `test_next_section` (43), `test_claims` (31),
+  `test_shipped_vocabulary` (52), `test_reference_pages_are_reachable` (6),
+  `test_pointers_resolve` (5), `test_diagnose` (158) and
+  `test_procedures_call_the_tool` (22).
+- Against main, every `ARCHITECTURE.md` hunk is in §2, §4, §7 or §8; §1, §3, §5
+  and §6 are byte-identical. It is 400 lines, under its 500-line cap, and
+  `bin/ARCHITECTURE.md` is unchanged at 205.
+- `SKILL.md` is untouched: 20,457 bytes, as on main.
+- Lane sizes: `goals/SKILL.md` 21,385, `work/SKILL.md` 36,035,
+  `decide/SKILL.md` 23,633 — each under its budget.
+- No id is cited that does not exist on the branch. Nothing in `bin/`, the rule
+  file or the tests changed this round.
+
+The full suite runs after this section is committed, on that commit, and its
+result is reported in the round-4 RESULT block rather than here.
 
 ## Round 3 — the second review FAIL (§2 lanes) and the `test_diagnose` red
 
