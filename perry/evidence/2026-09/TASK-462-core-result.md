@@ -139,3 +139,25 @@ Clean-env targeted receipts:
 Parent full log:
 `/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/codex-task462-final-x6lsjgdq/full.log`.
 These targeted fixes do not constitute a new full/slow PASS.
+
+## Authorized architecture completion and current-main integration
+
+The user authorized the previously proposed component addition when requesting
+local integration. This coding branch merged main `22defd62`, preserving the
+complete TASK-463 skill work, then added only the proposal's exact fenced text
+as the release/ component in ARCHITECTURE §2 (commit `ca8318ef`). No existing rule
+was changed. It then merged authorization/spec main
+`0414eb23231e1ce62726c159e6e259f17b36264d`, yielding candidate code head
+`b9aad4c3197f2760f2f27ba39f159186489ec291`.
+
+- Clean-env `python3 tests/parallel test_architecture_rules test_release_core
+  test_release_update test_shipped_vocabulary test_router_budget
+  test_pointers_resolve`: 6 modules, 137 tests PASS, 15.7s on the architecture
+  addition with main 22defd62 integrated, before the authorization-only main delta.
+- After integrating 0414eb23, `release/manage.py check --base 0414eb23 --ref HEAD`
+  passed; version remains the single initialization baseline 0.1.0.
+- `git diff --check`: PASS. No conflicts, remote operations or hook edits.
+
+Architecture compliance update: the formerly pending §2 component inventory edit
+is now explicitly authorized and complete. All NN rules and ownership boundaries
+remain unchanged. Parent owns final full/slow checks on the pinned merged preview.
