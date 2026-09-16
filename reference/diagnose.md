@@ -91,6 +91,23 @@ Each entry is **two separate facts, and they are not merged**:
 | `declared_mode` + `declared` | what the register says, and whether anybody actually wrote it. `declared: false` is the implicit `main` track — a default, not a claim |
 | `mode` + `confidence` | what the observable work fits. `null` is a real value |
 
+**Which register those entries were read from is on the block, not the
+entries: `work_modes.tracks_source`.** Five of its values are the ones
+`perry-state` carries for the same store (`reference/snapshot.md`, step 3b),
+read through the same function. The sixth belongs to this scan:
+
+| `tracks_source` | means | what to do |
+|---|---|---|
+| `store` | `.perry/config.jsonl` is usable and declares at least one track; one entry per track | report per track |
+| `store-default` | the store is usable (an empty store included) and declares no track; one entry for DESIGN-003's implicit `main` | report the project as a whole |
+| `absent` | there is no config store; one entry for the implicit `main` | report the project as a whole; a project nobody has configured looks like this |
+| `unreadable` | a store is present and could not be read; the one entry is the implicit `main` as a **stand-in**, and every track the store declares went unscanned | say the register could not be read, send the user to `perry-lint`, and do not present the verdict as the project's per-track shape. The scan raises no finding for this, so the report has to |
+| `invalid` | a store is present, parses, and holds a record that does not validate; the same stand-in as `unreadable` | the same as `unreadable` |
+| `unavailable` | the work-mode scan itself could not run. `available` is `false`, `register_declared` is `false` and `tracks` is `[]` | say work mode was **not measured**. Never report it as "no tracks" or as the implicit `main` |
+
+`tests/test_tracks_source_documented.py` holds this table to what the scan
+emits, in both directions.
+
 **`null` is "cannot tell", and it is said out loud.** Three of the four modes
 are recognised off columns and files a project may simply not have — `Arrived`,
 `Stage since`, `Parent`, `## Intake`, an answer file. A scanner that fell back
