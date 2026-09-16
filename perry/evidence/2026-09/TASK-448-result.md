@@ -152,3 +152,130 @@ is green: 144 recorded, 144 on disk.
    was briefly written into `tests/` while the baseline suite ran, and moved to
    scratch before that run ended. The tree guard was green, and both baseline
    reds reproduce alone, so the baseline is not affected.
+
+---
+
+# TASK-448 — round 2 (USER-940, 2026-09-16)
+
+> Branch: `coding/task-448-covers-and-replay` · merged `main` at `ba11da7a`
+> Commits: `586eb127` (merge), `cac39be0` (the two levers), plus this file
+
+Round 1 above is unchanged and still describes what it measured. This section
+records what `USER-940` asked for, what it moved, and what it did not.
+
+## 1. What changed
+
+**Lever 1 — `tests/durations.json` stops counting as a `tests/` helper.**
+`tests/selection.py § STOPWATCH` exempts exactly that one path from the helper
+rule, with the reason beside it: `tests/parallel`'s own rule is that the
+stopwatch "may reorder the work, never select it", so a wrong one costs a worse
+order and cannot change which modules run. It is matched through `COVERS`
+instead — `test_durations_provenance`, `test_parallel_runner` and
+`test_slow_selector` declare it. The exemption is one path, not a directory:
+`tests/fixtures/durations.json` and `tests/durations.json.bak` are still
+helpers, and `test_every_other_tests_path_is_still_a_helper` holds that. If a
+day comes when no module declares the stopwatch, the unmatched rule widens on
+it rather than letting it select nothing
+(`test_the_stopwatch_still_widens_when_no_module_declares_it`).
+
+**Lever 2 — seven wholesale declarations narrowed to the files actually read.**
+
+| module | was | now reads, and declares |
+|---|---|---|
+| `test_asks_list` | `perry/`, `.perry/` | `perry/asks.jsonl`, `.perry/config.jsonl` — `perry-task asks --root <checkout>` |
+| `test_board_from_declarations` | `perry/`, `.perry/` | the four `REGISTERS` stores it copies, and `.perry/config.jsonl` |
+| `test_board_less_reads_and_writes` | `.perry/` | the six stores it copies, `.perry/config.jsonl`, `.perry/events.jsonl` |
+| `test_board_names_its_sources` | `perry/`, `.perry/` | the stores `perry-tasks board` prints from, and `.perry/config.jsonl` |
+| `test_live_state_expectations` | `perry/tasks.jsonl`, `.perry/` | nothing under `perry/` — every `perry/` path in it is inside a planted fixture source string, not a read |
+| `test_risks` | `perry/`, `.perry/` | the stores behind `printed_board()`, and `.perry/config.jsonl` |
+| `test_task_writer_core` | `perry/`, `.perry/` | the same store set behind `printed_board()` |
+
+`perry/cadence.jsonl` was dropped from three of these before landing: the store
+does not exist in this repository, and a prefix naming nothing fails
+`test_every_prefix_names_something_in_the_repository`.
+
+**Twenty-six modules kept the broad declaration.** Each reads the whole state
+root rather than a file of it, by one of four routes: a `pinned_phase` copy or
+`copy_of_perry`; a `copytree` of `perry/` and `.perry/`; a tool run at the
+checkout with no `--root` (`perry-task list`, `perry-lint --json`,
+`perry-explain`, `perry-diagnose`, `inproc.run`), which resolves paths across
+the whole project; or a whole-tree Python walk. `TASK-448-replay.md` lists all
+26 with the reason for each. Narrowing them is not a declaration change — it
+means moving a module off the live state root, pinning a copy, or giving a tool
+a `--root`, and `USER-940` holds all three. **That list is the measurement the
+next decision rests on.**
+
+**Also folded in.** `main` merged at `ba11da7a`, conflicting only in
+`tests/durations.json`'s sources block, where both stamps were kept.
+`tests/test_architecture_rules.py` (TASK-453) declares `ARCHITECTURE.md`,
+`bin/`, `viewer/` and `tests/run`: it reads the root and module architecture
+documents, walks `bin/` and `viewer/` for imports and shebangs, runs
+`bin/perry list --json`, and reads `tests/run` for S4. `tests/test_next_section.py`
+(TASK-442) is not in the tree and is not covered.
+
+## 2. The replay, re-run
+
+Same base, same 50 merges, same method and stopwatch.
+
+| | round 1 | round 2 |
+|---|---|---|
+| median share | 100.0% | **75.9%** |
+| mean share | 75.1% | 67.9% |
+| merges widening to `full` | 30 of 50 | 23 of 50 |
+| evidence-only floor | 32 modules · 33.7% | 27 modules · 31.6% |
+| verdict | FAIL | **FAIL** |
+
+Most frequent reasons, in merges: `tests/` helper 19 (was 27), `schema/` 10,
+`bin/lib/` 9, `viewer/parsers.py` 8. The helper rule now fires on
+`tests/fixtures/**` (9 merges) ahead of anything else; unlike the stopwatch,
+those are data modules genuinely read.
+
+**The gate is still not met**, so phase A still blocks `TASK-449`. The report's
+last section sets out what the remaining 25.9 points sit in: 23 merges are
+already `full` before any `COVERS` is consulted, and the rest sit near the
+31.6% floor that the 26 broad modules set.
+
+## 3. Verification
+
+- **`python3 -m unittest tests.test_selection`**: 38 tests, OK (34 in round 1
+  plus four for the stopwatch rule).
+- **Mutations**, each on a fresh `git archive HEAD` extraction under
+  `$PERRY_SCRATCH/mut2/`, never in the checkout:
+
+| Mutation | Result | Red on |
+|---|---|---|
+| control, unmutated | OK (38, 1 skipped: no `.git` in an archive) | — |
+| the stopwatch widens again (lever 1 removed) | FAILED (3) | `TestWideningRules.test_the_stopwatch_is_not_a_helper_and_selects_by_covers`, `…test_the_stopwatch_still_widens_when_no_module_declares_it`, `TestTheLiveSuiteDeclares.test_the_live_suite_declares_the_stopwatch` |
+| remove the `bin/lib/` widening rule (round-1 rule) | FAILED (1) | `TestWideningRules.test_a_path_under_bin_lib_selects_the_full_suite` |
+| a module without `COVERS` is not selected (round-1 rule) | FAILED (4) | `TestNarrowRules.test_a_module_with_no_covers_is_always_selected` and three others |
+
+  No mutation stayed green. Afterwards `git diff --quiet HEAD` exits 0 and
+  `git status` is empty in the checkout.
+- **The full suite** at `cac39be0`, `env -u PERRY_PROJECT -u PERRY_HOME bash tests/run`:
+  142 modules · 4004 tests · **1 module red, 8 tests failed**, tree guard
+  green. That module is `test_md_store`, which reproduces alone (8 of 76) and
+  asserts against this repository's live `perry/OKR.md`. It is the base red the
+  PMO predicted for this branch after `main` merged; `test_okr_krs_render`, red
+  in round 1, is green since main's `OKR.md` fix (`06e437ba`). Round 1 measured
+  the same module red at 9 of 76 on the older `OKR.md`.
+- **The dry run** at the round-2 tree: `bash tests/run --tier affected --base HEAD~1 --dry-run` at
+  `cac39be0` exited 0, ran no test, and printed
+  `widened to the full suite — tests/ helper: tests/selection.py` over 11 changed
+  paths: `selected 145 of 145 modules · 1056.4 of 1056.4 module-seconds (100.0%)`,
+  then `this change is wide` and `✓ selection printed — no test ran`. The selector
+  widening on its own source is the helper rule working: `tests/selection.py` is a
+  helper, and the stopwatch exemption is one path, not the directory.
+
+## 4. Findings
+
+1. **The two levers are worth 24.1 points of median and do not reach the gate.**
+   Lever 1 alone accounts for most of it; lever 2 moved the evidence-only floor
+   by 2.1 points, because 26 of the 33 broad modules could not be narrowed by
+   declaration.
+2. **The floor is now the binding constraint.** `perry/evidence/` changes in 46
+   of 50 merges, and it selects 27 modules through declarations that are
+   accurate: those modules really do read the whole state root. No further
+   honest narrowing is available without the decisions `USER-940` holds.
+3. **`tests/fixtures/**` is the next helper-rule question**, worth 9 of the 19
+   remaining helper widenings — but a fixture is read by the modules that use
+   it, so it has no "reorders but does not select" argument behind it.
