@@ -490,8 +490,8 @@
       "source": "2026-09-09-085824"
     },
     "test_state_root_unset.py": {
-      "sec": 2.31,
-      "source": "2026-09-16-task270"
+      "sec": 9.6,
+      "source": "2026-09-16-task270-r3"
     },
     "test_store_drift.py": {
       "sec": 20.42,
@@ -740,6 +740,13 @@
       "note": "TWO modules added by TASK-270, each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_empty_config_store 4.98/5.78/5.01s (16 tests, round 1, unmeasured since its merge), test_state_root_unset 2.42/2.31/2.28s (8 tests, round 2, USER-948). No neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
       "ref": "f6ec8281",
       "taken": "2026-09-16T08:14:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task270-r3": {
+      "load1": 152.71,
+      "note": "ONE module re-timed, test_state_root_unset, because TASK-270 round 3 (USER-949) grew it from 8 to 18 tests with the `set \"State root\"` class; the 2026-09-16-task270 figure (2.31s) measured the 8. Timed alone three times with `python3 tests/parallel -j 1 --times test_state_root_unset` and recorded at the median of the harness's own per-module seconds: 17.10/9.37/9.60. No neighbour was re-timed; test_empty_config_store keeps its task270 figure. The machine was heavily loaded (load1 152.71 just after the runs; test_empty_config_store, timed in the same window for comparison only, ran 18-22s against its recorded 5.01s), so the figure is likely high rather than low.",
+      "ref": "5e86c3db",
+      "taken": "2026-09-16T08:36:00Z",
       "workers": 1
     },
     "2026-09-16-task416": {
