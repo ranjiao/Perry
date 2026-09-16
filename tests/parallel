@@ -28,6 +28,7 @@ A module that stops loading is a red, not a smaller total.
     python3 tests/parallel --times      # + the ranked per-module wall times
     python3 tests/parallel --ids F      # + every test id and its outcome, to F
     python3 tests/parallel --record     # refresh tests/durations.json
+    python3 tests/parallel --tier affected --base <ref>   # one tier (§ 5.1)
 
 Exit status is 0 only if every module ran and every test passed.
 
@@ -200,6 +201,7 @@ import time
 # than printing a traceback and a `Ran 1` that the reader has to decode.
 # TASK-430.
 import module_run
+import selection
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DURATIONS = ROOT / "tests" / "durations.json"
@@ -750,6 +752,12 @@ def main() -> int:
     ap.add_argument("--slow", action="store_true",
                     help="also run the harness's own self-tests, which the "
                          "default run leaves out (see HARNESS_SELF_TESTS)")
+    ap.add_argument("--tier", choices=selection.TIERS,
+                    help="run one of DESIGN-021 § 5.1's four tiers; the module "
+                         "set is tests/selection.py's, not a second copy of it")
+    ap.add_argument("--base", metavar="REF",
+                    help="with --tier affected: the ref the change is "
+                         "diffed against")
     ap.add_argument("--alphabetical", action="store_true",
                     help="ignore the stopwatch and run modules in name order "
                          "— the pre-TASK-230 schedule, kept so the saving can "
@@ -757,6 +765,57 @@ def main() -> int:
     args = ap.parse_args()
 
     all_mods = sorted(p.name for p in (ROOT / "tests").glob("test_*.py"))
+
+    # ── the tiers (DESIGN-021 § 5.1, TASK-449) ──────────────────────────
+    # **The module set comes from `tests/selection.py` and is not recomputed
+    # here.** `tests/run --tier` shells out to this runner, so if the two
+    # disagreed about what a tier contains, the selection `tests/run` printed
+    # and the modules this process ran would be different sets — with nothing
+    # on screen saying so. That is the same shape as the defect in this file's
+    # own history: a number large enough to look right.
+    #
+    # `--tier` refuses to combine with the three flags that also decide the
+    # set, rather than picking a winner. `--record` runs the whole tree always
+    # (above), `--slow` is the spelling of `--tier slow`, and a positional
+    # prefix is a narrowing the caller typed by hand; silently letting one
+    # override a tier is the accepted-and-dropped defect DESIGN-016 goal 12
+    # names. `--base` without `--tier` is refused for the same reason.
+    tier_plan = None
+    if args.base and not args.tier:
+        print("--base is only read with --tier affected", file=sys.stderr)
+        return 2
+    if args.tier:
+        clash = [f for f, on in (("--slow", args.slow), ("--record", args.record),
+                                 ("a module prefix", bool(args.only))) if on]
+        if clash:
+            print(f"--tier {args.tier} decides which modules run; "
+                  f"{' and '.join(clash)} decides it too — pass one",
+                  file=sys.stderr)
+            return 2
+        if args.tier == selection.SMOKE:
+            # Accepting it would print "0 modules · 0 tests · ✓ all green",
+            # which is a green from a run that verified nothing — the one
+            # outcome this runner may not produce (NN-3).
+            print("the smoke tier runs no test module: its checks are "
+                  "`tests/run`'s steps 1 and 3 and the tree guard's hash "
+                  "check.\n  run `bash tests/run --tier smoke`", file=sys.stderr)
+            return 2
+        try:
+            tier_plan = selection.plan(args.tier, args.base, root=ROOT,
+                                       slow=HARNESS_SELF_TESTS)
+        except (selection.TierError, selection.GitError,
+                selection.DeclarationError) as e:
+            print(f"tests/parallel --tier {args.tier}: {e}", file=sys.stderr)
+            return 2
+        # Goal 6: every run prints what it selected and why, before it runs.
+        for line in selection.plan_lines(tier_plan, base=args.base, dry=False,
+                                         durations=load_durations(), root=ROOT):
+            print(line)
+        if not tier_plan.modules:
+            print(f"no test module is selected for --tier {args.tier}"
+                  + (f" --base {args.base}" if args.base else ""),
+                  file=sys.stderr)
+            return 2
     # **The self-test filter applies to the DEFAULT set only.** Naming a module
     # explicitly reaches it whether or not a plain run would have picked it up:
     # `--only test_tree_guard` means run that, and answering "no test module
@@ -764,7 +823,9 @@ def main() -> int:
     # `--only` did exactly that, and `test_parallel_runner`'s own cases caught
     # it — they drive `main()` with `mod: "test_parallel_runner.py"`, which is
     # in the set, and got exit 2 instead of 0.
-    if args.only:
+    if tier_plan is not None:
+        mods = list(tier_plan.modules)
+    elif args.only:
         mods = [m for m in all_mods
                 if any(m.startswith(p.removesuffix(".py")) for p in args.only)]
         if not mods:
@@ -889,6 +950,15 @@ def main() -> int:
         return 1
     if args.ids and short:
         return 1
+    if tier_plan is not None and args.tier == selection.AFFECTED:
+        # **`affected` may not print "all green".** The sentence a reviewer
+        # reads off a result is the last green line in it, and this run was 29
+        # of 146 modules. `full` and `slow` keep the plain banner: one is the
+        # suite minus the slow tier — what a bare run has always meant here —
+        # and the other is the whole tree. `smoke` never reaches this line.
+        print(f"\033[32m✓ green for --tier {args.tier} — this is NOT a green "
+              f"suite\033[0m")
+        return 0
     print("\033[32m✓ all green\033[0m")
     return 0
 

@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
 # tests/run — Perry's test suite. Python 3 stdlib only; no venv, no pip.
 #
-#   bash tests/run                # everything
+#   bash tests/run                # everything — the same run as --tier full
 #   bash tests/run --lint         # just the schema drift guard (fast)
 #   bash tests/run --serial       # step 2 one module at a time (ordering hunts)
 #   bash tests/run --only PREFIX  # steps 0-2 only, step 2 narrowed to PREFIX
+#   bash tests/run --slow         # + the harness self-tests (= --tier slow)
+#
+#   bash tests/run --tier smoke                    # steps 0, 1, 3 — ≤ 30 s
+#   bash tests/run --tier affected --base <ref>    # + what the change selects
+#   bash tests/run --tier full                     # what bare `tests/run` runs
+#   bash tests/run --tier slow                     # what `--slow` runs
+#   … --dry-run                                    # print the selection, run nothing
+#
+# A green `--tier affected` is a green for the modules it names. It is NOT a
+# green suite: the full run happens separately (DESIGN-021 § 5.1).
 #
 # What it covers:
 #   0. tests/tree_guard.py — the tree the suite starts in is the tree it ends
@@ -52,14 +62,30 @@ if [ "${1:-}" = "--slow" ]; then
   slow="--slow"
 fi
 
-# `--tier affected --base <ref> --dry-run` prints which test modules a change
-# selects, and the rule that selected each, and runs none of them
-# (DESIGN-021 § 5.2 phase A, TASK-448; the selector is `tests/selection.py`).
-# It is the only `--tier` spelling that exists yet — the tiers themselves, and
-# bare `tests/run` becoming `--tier full`, are TASK-449. Every other `--tier`
-# is REFUSED here, before anything runs. An unknown first argument otherwise
-# falls through to the whole suite, and a "dry run" that quietly ran every
-# module is the one outcome this flag promises not to have.
+# `--tier smoke|affected|full|slow [--base <ref>] [--dry-run]` — DESIGN-021
+# § 5.1, TASK-449. The four tiers:
+#
+#   smoke     step 1 + step 3 + step 0's hash check.      budget ≤ 30 s
+#   affected  smoke + the modules `tests/selection.py`    budget: median ≤ 60 s
+#             selects for `--base` (§ 5.2, TASK-448)
+#   full      today's bare run: steps 0-4, every module
+#             except `tests/parallel § HARNESS_SELF_TESTS`
+#   slow      today's `--slow`: the same steps, with the
+#             harness self-tests added back
+#
+# **`--tier full` and `--tier slow` change no variable this script branches on
+# except `slow`.** They are spellings, and the way to keep a spelling honest is
+# to give it the same code path rather than a parallel one that agrees today:
+# bare `tests/run` and `--tier full` reach step 2 through the same `else`, and
+# `--tier slow` through the same branch `--slow` reaches. `tests/test_tiers.py`
+# holds that as a trace comparison, because "identical" is a claim about two
+# runs and not about two lines of source.
+#
+# `--dry-run` keeps its phase-A meaning for EVERY tier: print the selection and
+# run nothing. An unknown tier, and `--tier affected` with no `--base`, exit 2
+# here — before the guard, before step 1, before anything. An unknown first
+# argument otherwise falls through to the whole suite, and a "dry run" that
+# quietly ran every module is the one outcome this flag promises not to have.
 tier=""
 tier_base=""
 tier_dry=""
@@ -73,10 +99,25 @@ if [ "${1:-}" = "--tier" ]; then
       *) echo "tests/run --tier: unknown argument '$1'" >&2; exit 2 ;;
     esac
   done
-  if [ "$tier" != "affected" ] || [ -z "$tier_base" ] || [ -z "$tier_dry" ]; then
-    echo "tests/run --tier: only '--tier affected --base <ref> --dry-run' exists yet" >&2
-    echo "  DESIGN-021 phase A prints a selection; running a tier is TASK-449" >&2
+  case "$tier" in
+    smoke|affected|full|slow) ;;
+    *)
+      echo "tests/run --tier: unknown tier '${tier}'" >&2
+      echo "  one of: smoke, affected, full, slow (DESIGN-021 § 5.1)" >&2
+      exit 2 ;;
+  esac
+  if [ "$tier" = "affected" ] && [ -z "$tier_base" ]; then
+    echo "tests/run --tier affected needs --base <ref>" >&2
+    echo "  the selection is a diff against a ref; there is no default" >&2
     exit 2
+  fi
+  if [ -n "$tier_base" ] && [ "$tier" != "affected" ]; then
+    echo "tests/run --tier $tier: --base is only read by --tier affected" >&2
+    exit 2
+  fi
+  # `slow` is a spelling of the flag, so it sets the flag and nothing else.
+  if [ "$tier" = "slow" ]; then
+    slow="--slow"
   fi
 fi
 
@@ -201,9 +242,14 @@ finish() {
   fi
   rm -f "$GUARD_MANIFEST"
   [ "$fail" = 0 ] || rc=1
-  if [ "$rc" = 0 ] && [ -n "$tier" ]; then
+  if [ "$rc" = 0 ] && [ -n "$tier_dry" ]; then
     # A dry run verified nothing but the tree, so it does not say "all green".
     printf '\n\033[32m✓ selection printed — no test ran\033[0m\n'
+  elif [ "$rc" = 0 ] && { [ "$tier" = "smoke" ] || [ "$tier" = "affected" ]; }; then
+    # **A tier that ran is green for that tier and for nothing else.** The
+    # banner says which, because "✓ all green" over a run that skipped 117 of
+    # 146 modules is the sentence a reviewer reads as "the suite passed".
+    printf '\n\033[32m✓ green for --tier %s — this is NOT a green suite\033[0m\n' "$tier"
   elif [ "$rc" = 0 ]; then
     printf '\n\033[32m✓ all green\033[0m\n'
   else
@@ -216,9 +262,13 @@ trap finish EXIT
 # The dry run sits inside the guard, after the snapshot and under the trap, so
 # step 0 covers this path as it covers `--lint` (NN-5), although it runs no
 # test: `tests/selection.py` only reads the diff and the modules' sources.
-if [ -n "$tier" ]; then
-  step "affected — what $tier_base...HEAD selects (dry run)"
-  python3 tests/selection.py --base "$tier_base" || fail=1
+if [ -n "$tier_dry" ]; then
+  step "$tier — what this tier would run (dry run)"
+  if [ "$tier" = "affected" ]; then
+    python3 tests/selection.py --tier affected --base "$tier_base" || fail=1
+  else
+    python3 tests/selection.py --tier "$tier" || fail=1
+  fi
   exit "$fail"
 fi
 
@@ -229,7 +279,12 @@ if [ "${1:-}" = "--lint" ]; then
   exit "$fail"
 fi
 
-step "2. parser / extractor / linter contract tests"
+# `smoke` and `affected` print their own step 2 below; every other path prints
+# the line it has always printed, unchanged.
+case "$tier" in
+  smoke|affected) ;;
+  *) step "2. parser / extractor / linter contract tests" ;;
+esac
 # Module-parallel. Measured 2026-08-30, same machine, same hour: 589.6s serial
 # → 133-285s across 8 workers, median 149.7s of seven runs; the spread is
 # machine load, not the runner (TASK-230). The former 115.5s task-writer floor
@@ -238,7 +293,23 @@ step "2. parser / extractor / linter contract tests"
 # projects in the same change.
 # `--serial` falls back to plain discover; use it when a failure looks like it
 # might be ordering-dependent, since parallel changes the order modules finish.
-if [ "${PERRY_TEST_SERIAL:-}" = "1" ] || [ "${1:-}" = "--serial" ]; then
+#
+# **`--tier smoke` and `--tier affected` are the only two that change this
+# step**, and they are the two that are not spellings of something that exists:
+# smoke runs no module at all, and affected runs the set `tests/selection.py`
+# picked. `full` and `slow` fall through to the same two branches bare
+# `tests/run` and `--slow` have always taken.
+if [ "$tier" = "smoke" ]; then
+  step "2. skipped — the smoke tier runs no test module"
+  echo "  · its checks are steps 1 and 3, and step 0's hash check"
+  echo "  · for the modules a change selects: --tier affected --base <ref>"
+elif [ "$tier" = "affected" ]; then
+  step "2. affected — the modules $tier_base...HEAD selects"
+  # The runner prints the selection and the rule that picked each module
+  # before it runs them (DESIGN-021 goal 6), and it reads the set from
+  # `tests/selection.py` — the same function the dry run above prints.
+  python3 tests/parallel --tier affected --base "$tier_base" || fail=1
+elif [ "${PERRY_TEST_SERIAL:-}" = "1" ] || [ "${1:-}" = "--serial" ]; then
   python3 -m unittest discover -s tests || fail=1
 elif [ -n "$only" ]; then
   python3 tests/parallel "$only" || fail=1
@@ -269,6 +340,16 @@ for f in bin/perry-detect-host bin/perry-update-check bin/perry-dispatch-limit \
   bash -n "$f" || { echo "  ✗ $f does not parse"; fail=1; }
 done
 [ "$fail" = 0 ] && echo "  ✓ all bin/ scripts OK"
+
+# **Step 4 is not in `smoke`, so it is not in `affected` either.** § 5.1 lists
+# three things in smoke and this is not one of them: it lints two fixture
+# projects end to end, which is the `full` tier's business. Saying it was
+# skipped beats a run that looks whole and was not — the same reason `--only`
+# says so three lines above.
+if [ "$tier" = "smoke" ] || [ "$tier" = "affected" ]; then
+  step "4. skipped — not in the smoke tier (--tier $tier)"
+  exit "$fail"
+fi
 
 step "4. sample projects lint clean (English and Chinese)"
 python3 bin/perry-lint --root tests/fixtures/sample-project || fail=1

@@ -537,6 +537,10 @@
       "sec": 7.48,
       "source": "2026-09-09-085824"
     },
+    "test_tiers.py": {
+      "sec": 10.58,
+      "source": "2026-09-16-task449"
+    },
     "test_track_attribution.py": {
       "sec": 8.85,
       "source": "2026-09-09-085824"
@@ -710,6 +714,13 @@
       "note": "EIGHT modules re-timed after TASK-448 round 3 (USER-942) took them off the live state root: seven copy named store and document files instead of the whole of perry/, or run their tool with --root at a fixture project, and test_store_is_canonical was not changed at all — its 21.59s was stale, taken before TASK-368 moved it in-process. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: board_render 1.24/1.41/1.20; task_store 1.42/1.55/1.64; decoration_changes_nothing 4.61/4.51/4.51; store_is_canonical 0.69/0.68/0.70; review_verdicts 8.01/8.51/7.58; rung_vocabulary 1.07/0.95/0.96; contract_page_snippets 1.24/1.26/1.09; count_fields 0.58/0.50/0.51. No neighbour was re-timed. load1 is the getloadavg sample taken right after the 24 runs, with other sessions' work on the same machine.",
       "ref": "bf9bd4e3",
       "taken": "2026-09-16T02:40:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task449": {
+      "load1": 28.88,
+      "note": "ONE new module, test_tiers (TASK-449), timed alone three times with `python3 tests/parallel -j 1 --times test_tiers` and recorded at the median of the harness's own per-module seconds: 10.61/10.57/10.58s (40 tests). No neighbour was re-timed: the row adds a --tier entry to tests/run and tests/parallel, which no other module's work goes through. The module spends its time in ~20 subprocess runs of `bash tests/run` against a stub tree, which is what holds `bare run == --tier full` as a comparison of two runs rather than of two lines of source. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine.",
+      "ref": "c71e9585",
+      "taken": "2026-09-16T12:10:00Z",
       "workers": 1
     }
   }

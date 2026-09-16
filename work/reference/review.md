@@ -290,6 +290,35 @@ found to discover a broken citation, and it found it four times.
 does not establish this" is not a FAIL — it is the pre-check, arriving late and
 costing a round.
 
+### What the reviewer runs (`DESIGN-021 § 5.5`)
+
+**The round runs `bash tests/run --tier affected --base <the same base SHA the
+author was pinned to>`, and its own mutations on top of that.** The same base,
+because a reviewer diffing against a different ref selects a different set and
+then reports a coverage gap that is an artifact of its own invocation.
+
+```
+bash tests/run --tier affected --base <base SHA>
+```
+
+It prints one line per selected module and the rule that selected it. **Check
+that block is in the author's result**, the way the base SHA is checked today:
+a result with no selection block did not run a tier, and what it ran is then
+unknown. A mutation round re-runs the tier after each mutation — that is the
+point of a 40-second loop — and a mutation that comes back green is a finding,
+rule 2, whatever the tier.
+
+**A red in `affected` is a red. A green in `affected` is not a green suite**,
+and a verdict may not say it is. It ran the modules the change selects; it says
+nothing about the other hundred. If the change the round is reviewing could
+break a module the selector did not pick, that is worth `--tier full` — and
+worth saying so under `not checked:`, which rule 4 requires anyway.
+
+**There is no merge gate yet.** `TASK-450` builds it. Until then the full suite
+runs in the primary checkout, by hand, on the merge result before the merge —
+so a reviewer that assumes something downstream will catch what `affected`
+missed is assuming a mechanism that does not exist.
+
 ## 3 · The verdict block — one per row, fixed shape
 
 Required at the end of the review document. Not a heading, not bold prose, not
