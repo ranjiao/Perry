@@ -220,18 +220,32 @@ class ABadlyTypedStoreIsReportedNotFatal(Fixture):
                 self.assertNotIn("TypeError", proc.stderr)
 
     def test_the_right_types_are_read_off_the_writer(self):
-        """`depends_on` is a LIST, and the live store proves it.
+        """`depends_on` is a LIST, and the store the WRITER produces proves it.
 
         The first version of the type table asserted from memory that every
         field but `order` is a string. `depends_on` is a list, so the gate
         excluded all 98 records on its first run. This test is the reason that
-        cannot happen quietly: the live store must pass its own gate.
+        cannot happen quietly: the table is read off what
+        `perry-tasks write --from-board` actually writes, and a table that
+        disagrees with the writer fails here.
+
+        **It used to say "the live store proves it", and it no longer does.**
+        The fixture was `shutil.copytree(ROOT / "perry")`, so the record this
+        gate ran over was this repository's own `perry/tasks.jsonl`; USER-942
+        took this module off the live state root in TASK-448 round 3 and
+        `self.project()` builds `tests/store_fixture.py § BOARD` instead. The
+        wording outlived the fixture by a round. The guarantee it described —
+        *Perry's own store passes its own gate* — is a claim about the live
+        state, so it is asserted where the live state is the subject:
+        `tests/test_live_state_expectations.py §
+        TestTheLiveStoreSatisfiesItsOwnTypeGate`.
         """
         d = self.project()
         out = self.sh(LINT, "--root", str(d)).stdout
         self.assertNotIn("store-badly-typed", out,
-                         "Perry's own store must satisfy the type table — if "
-                         "it does not, the table is wrong, not the store")
+                         "a store this repository's own writer produced must "
+                         "satisfy the type table — if it does not, the table "
+                         "is wrong, not the store")
         self.assertIn(f"{len(self.records(d))} record(s)", out,
                       "and every record must survive the gate, not merely "
                       "most of them")

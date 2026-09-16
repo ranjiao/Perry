@@ -143,11 +143,13 @@ class Project:
     def perry(case) -> pathlib.Path:
         d = pathlib.Path(tempfile.mkdtemp())
         case.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        # USER-942: the stores and the anchor, not the whole state root.
-        # `render`, `diff` and `verify` read the stores, the config and the
-        # template; `evidence/`, `journal/` and `design/` were carried along by
-        # `copytree` and read by nothing here (`tests/live_stores.py`).
-        live_stores.copy_state(d, events=False)
+        # USER-942: the anchor, and NO store. `write --from-board` below
+        # mints `tasks.jsonl` from the board, so a copied one is overwritten
+        # before anything reads it, and the other six are never opened at all
+        # — TASK-448's own mutation table records that copying no stores left
+        # this module green. The live rows still reach the fixture, through
+        # the board `printed_board()` prints from them.
+        live_stores.copy_state(d, stores=False, events=False)
         # TASK-237 3c: this repository holds no `BOARD.md`. The board a
         # project that still holds one would carry is the one its stores
         # print, so the copy gets that (`tests/printed_board.py`).
@@ -551,12 +553,14 @@ class TestItRendersAndNothingElse(unittest.TestCase):
         `split_row` with `render_row` and call it a proof."""
         d = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        live_stores.copy_state(d, skip=("tasks.jsonl",), events=False)
+        live_stores.copy_state(d, stores=False, events=False)
 # **`perry/tasks.jsonl` now EXISTS in this repository** — TASK-089 made
 # it the write target, so a fixture that copies `perry/` inherits a store
 # whether it wants one or not. A test about the NO-STORE case has to say
 # so; two of them failed the moment the store was tracked, which is the
-# transition working rather than a regression.
+# transition working rather than a regression. `stores=False` is that
+# sentence said once, and it also drops the six stores this case never
+# read (it was `skip=("tasks.jsonl",)`, which left them behind).
         proc = run("render", root=d)
         self.assertEqual(proc.returncode, 2)
         self.assertEqual(proc.stdout, "")

@@ -76,6 +76,13 @@ COVERS = (
     "tests/test_",
     "bin/perry-state",
     "bin/perry-task",
+    # `TestTheLiveStoreSatisfiesItsOwnTypeGate` reads these four, and declaring
+    # them is what makes `DESIGN-021 § 5.2` select this module when the live
+    # store changes — which is the only time that case can newly fail.
+    "bin/perry-lint",
+    "tests/live_stores.py",
+    "perry/tasks.jsonl",
+    ".perry/config.jsonl",
 )
 
 import ast
@@ -521,6 +528,105 @@ class TestTheFloorIsRecordedNotAssumed(unittest.TestCase):
                     f"because the guard stopped finding instances, not "
                     f"because there are none\n"
                     + "\n".join(str(f) for f in found))
+
+
+class TestTheLiveStoreSatisfiesItsOwnTypeGate(unittest.TestCase):
+    """`perry/tasks.jsonl` — this repository's own store — passes `perry-lint`.
+
+    **Rehomed, not new (TASK-448 cleanups).**
+    `tests/test_store_is_canonical.py §
+    test_the_right_types_are_read_off_the_writer` carried this claim in its
+    words — *"the live store proves it … the live store must pass its own
+    gate"* — and stopped carrying it in its assertions when USER-942 took that
+    module off the live state root in TASK-448 round 3. Its fixture is a
+    three-row synthetic board now, so what it gates is what the writer writes.
+    That is worth gating and it is a different claim, so the sentence there was
+    corrected and the live half moved here.
+
+    **Why here.** The claim is about the live state, which is this module's
+    subject, and a guarantee about the live state asserted from a fixture is
+    the exact substitution this module's own guard was written to catch. It is
+    the READ direction of that guard rather than an instance of it: live state
+    as the SUBJECT under test, not live state standing in for an expected
+    value some tempdir should have produced.
+
+    **Why the copy** (`NN-5`). `perry-lint` only reads, but the mutation that
+    proves this case can fail has to break a type in a store, and no test may
+    write into the tree it runs in. `live_stores.copy_state(stores=("tasks",))`
+    puts the live bytes in a tempdir, which is also the one call site that
+    asks that helper for a store it will actually read.
+    """
+
+    def lint(self, root: pathlib.Path) -> str:
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / "perry-lint"),
+             "--root", str(root)], capture_output=True, text=True)
+        self.assertIn(proc.returncode, (0, 1),
+                      f"perry-lint exited {proc.returncode}: "
+                      f"{proc.stderr[-400:]}")
+        return proc.stdout
+
+    def copy(self) -> pathlib.Path:
+        # Imported here and not at module level on purpose. This module's own
+        # docstring records what module-level binding of a repository reader
+        # did to the sweep — `test_config_store_readers` tainted nineteen
+        # values that way — and `live_stores` reads out of `ROOT`.
+        import live_stores
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        state = live_stores.copy_state(root, stores=("tasks",), events=False)
+        self.assertTrue(
+            (state / "tasks.jsonl").exists(),
+            "this fixture asked `live_stores.copy_state` for the task store "
+            "and did not get one — there is nothing here for the type gate "
+            "to run over, and both cases below would pass on the silence")
+        return root
+
+    def records(self, root: pathlib.Path) -> list[dict]:
+        state = root / live_stores_state_root()
+        return [json.loads(l) for l
+                in (state / "tasks.jsonl").read_text(encoding="utf-8")
+                .split("\n") if l.strip()]
+
+    def test_every_live_record_survives_the_type_gate(self):
+        """Not "most of them". The gate's first run excluded all 98 records
+        because the table said `depends_on` was a string, and a check that
+        reported the survivors without their total would have read clean."""
+        root = self.copy()
+        out = self.lint(root)
+        self.assertNotIn("store-badly-typed", out,
+                         "Perry's own store must satisfy the type table — if "
+                         "it does not, the table is wrong, not the store")
+        self.assertIn(f"{len(self.records(root))} record(s)", out,
+                      "the census counted fewer records than the store holds, "
+                      "so the gate excluded some and said so quietly")
+
+    def test_the_gate_is_reached_at_all(self):
+        """**Anti-vacuity, and it is the whole of the case above.** Both
+        assertions there are satisfied by a lint that never opened a store —
+        `assertNotIn` on a string nothing printed, and a count of zero records
+        matching a census line that says zero. This plants a bad `order` in the
+        COPY and requires the gate to name it, which is the same mutation
+        `test_a_wrong_typed_field_is_named_and_the_row_excluded` runs against a
+        fixture, run here against the live bytes."""
+        root = self.copy()
+        state = root / live_stores_state_root()
+        recs = self.records(root)
+        self.assertGreater(len(recs), 0, "the copy carries no store")
+        recs[0]["order"] = "3"
+        (state / "tasks.jsonl").write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in recs),
+            encoding="utf-8")
+        out = self.lint(root)
+        self.assertIn("store-badly-typed", out)
+        self.assertIn(recs[0]["id"], out)
+
+
+def live_stores_state_root() -> str:
+    """This repository's `state_root`, read the one way `live_stores` reads it."""
+    import live_stores
+    return live_stores._state_root(live_stores.ROOT)
 
 
 if __name__ == "__main__":
