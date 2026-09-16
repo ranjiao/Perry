@@ -95,12 +95,15 @@ def git(source: Path, *args: str, allowed=(0,)) -> subprocess.CompletedProcess:
     env.setdefault("GIT_SSH_COMMAND", "ssh -oBatchMode=yes -oConnectTimeout=5")
     try:
         out = subprocess.run(["git", "-C", str(source), "-c", "credential.interactive=never",
-                              *args], capture_output=True, text=True, errors="replace", env=env,
+                              *args], capture_output=True, env=env,
                              timeout=GIT_TIMEOUT)
     except subprocess.TimeoutExpired:
         raise Refused("git operation exceeded 30 seconds; no forced update was attempted") from None
     except OSError:
         raise Refused("git could not run; checkout unchanged") from None
+    # Preserve CRLF bytes: text=True would silently normalize invalid VERSION.
+    out.stdout = out.stdout.decode("utf-8", errors="replace")
+    out.stderr = out.stderr.decode("utf-8", errors="replace")
     if out.returncode not in allowed:
         raise Refused(f"git {args[0]} failed; no forced update was attempted")
     return out

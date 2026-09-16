@@ -199,6 +199,17 @@ class Repositories(unittest.TestCase):
         self.assertIn("disagree", got[2])
         self.assertEqual(self.head(), self.a)
 
+    def test_target_version_bytes_are_not_normalized(self):
+        for value in (b"0.1.1\r\n", b"0.1.1", b"\xef\xbb\xbf0.1.1\n"):
+            with self.subTest(value=value):
+                (self.remote / "VERSION").write_bytes(value)
+                git(self.remote, "commit", "-qam", "invalid version bytes")
+                git(self.remote, "tag", "-f", "v0.1.1")
+                got = self.run_check(metadata("0.1.1"))
+                self.assertEqual(got[0], 1, got)
+                self.assertIn("exactly ASCII", got[2])
+                self.assertEqual(self.head(), self.a)
+
     def test_missing_tag_and_unrelated_history_are_refused(self):
         self.assertEqual(self.run_check(metadata("0.1.1"))[0], 1)
         git(self.remote, "switch", "--orphan", "other")
