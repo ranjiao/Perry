@@ -82,9 +82,19 @@ ADR_019 = {
     "agent": {"kind", "phase", "id", "task", "declared_at", "actor", "via"},
 }
 
+#: DESIGN-022 § 5.1 (TASK-416, USER-937 decision 4): a KR's typed checks and
+#: their measured values. Two kinds, no field on any existing kind.
+DESIGN_022_5_1 = {
+    "check": {"kind", "kr", "okr_version", "id", "label", "direction",
+              "target", "baseline", "declared_at", "actor"},
+    "measurement": {"kind", "kr", "okr_version", "check", "value",
+                    "asserted_at", "evidence", "computed", "actor"},
+}
+
 EXPECTED = {
-    kind: DESIGN_015_5_1.get(kind, set()) | ADR_019.get(kind, set())
-    for kind in set(DESIGN_015_5_1) | set(ADR_019)
+    kind: (DESIGN_015_5_1.get(kind, set()) | ADR_019.get(kind, set())
+           | DESIGN_022_5_1.get(kind, set()))
+    for kind in set(DESIGN_015_5_1) | set(ADR_019) | set(DESIGN_022_5_1)
 }
 
 
@@ -209,10 +219,14 @@ class TestTheThreeRecordSchemas(unittest.TestCase):
         `perry-lint` reports as malformed on every run.
         """
         self.assertEqual(set(declared()["records"]), set(EXPECTED))
-        self.assertEqual(set(EXPECTED) - set(DESIGN_015_5_1),
+        self.assertEqual(set(ADR_019) - set(DESIGN_015_5_1),
                          {"objective", "project", "agent"},
                          "ADR-019 added exactly the three kinds the deleted "
                          "document was the only home for")
+        self.assertEqual(set(EXPECTED) - set(DESIGN_015_5_1) - set(ADR_019),
+                         {"check", "measurement"},
+                         "DESIGN-022 added exactly the two kinds USER-937 "
+                         "decision 4 authorized")
 
     def test_there_is_no_fourth_kind(self):
         """§ 5.2 — never-asked is DERIVED, not stored.

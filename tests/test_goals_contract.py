@@ -53,7 +53,10 @@ class TestShape(unittest.TestCase):
           # `2.1`, TASK-120. `current` is an author's assertion and the
           # payload now says so, says when a linked task moved after it, and
           # counts the closed edges separately — never folded into `current`.
-          "current_provenance", "current_staleness", "linked_task_completion"}
+          "current_provenance", "current_staleness", "linked_task_completion",
+          # `3.5`, TASK-416 (DESIGN-022 § 5.2). Derived from `check` and
+          # `measurement` records; `undeclared` / `null` without them.
+          "checks", "state", "met", "fraction"}
     CONF = {"okr_present", "phase_present", "linkage_present",
             "krs_without_metric", "krs_without_numbers",
             "krs_not_in_linkage", "duplicate_kr_ids",

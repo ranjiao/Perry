@@ -327,10 +327,19 @@ class TestBothOfTodaysWrongReadingsFlip(Fixture):
 
         The `2.0` contract removed `progress` for a related reason and this is
         the guard that the provenance work did not quietly reintroduce a
-        verdict under another name."""
+        verdict under another name.
+
+        **`met` is the one exception, and it is the user's.** DESIGN-022
+        decision 1 (USER-937, TASK-416) publishes `met` — but only from a
+        declared check, never from `target` and `current`. So the guard
+        narrows to what it protected: a KR with no measured check is never
+        reported met, or unmet — its `met` is `null`."""
         for k in self.own_repo()["krs"]:
-            for banned in ("progress", "met", "achieved", "percent", "ratio"):
+            for banned in ("progress", "achieved", "percent", "ratio"):
                 self.assertNotIn(banned, k, f"{k['id']}: `{banned}` came back")
+            if k.get("state") not in ("measured", "due"):
+                self.assertIsNone(k.get("met"),
+                                  f"{k['id']}: `met` without a measured check")
 
     def test_a_kr_reading_zero_with_every_task_closed_shows_both(self):
         """The `P002-O1-KR1` reading, reproduced on the fixture (whose own KR is

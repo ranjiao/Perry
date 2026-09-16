@@ -245,6 +245,10 @@
       "sec": 5.9,
       "source": "2026-09-09-085824"
     },
+    "test_kr_checks.py": {
+      "sec": 2.08,
+      "source": "2026-09-16-task416"
+    },
     "test_kr_progress_provenance.py": {
       "sec": 5.79,
       "source": "2026-09-15-task441"
@@ -721,6 +725,13 @@
       "note": "ONE new module, test_tiers (TASK-449), timed alone three times with `python3 tests/parallel -j 1 --times test_tiers` and recorded at the median of the harness's own per-module seconds: 10.61/10.57/10.58s (40 tests). No neighbour was re-timed: the row adds a --tier entry to tests/run and tests/parallel, which no other module's work goes through. The module spends its time in ~20 subprocess runs of `bash tests/run` against a stub tree, which is what holds `bare run == --tier full` as a comparison of two runs rather than of two lines of source. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine.",
       "ref": "c71e9585",
       "taken": "2026-09-16T12:10:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task416": {
+      "load1": 92.44,
+      "note": "ONE new module, test_kr_checks (TASK-416), timed alone three times with `python3 tests/parallel -j 1 --times test_kr_checks` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 3.02/2.08/1.58 (48 tests). No neighbour was re-timed. The machine was heavily loaded (load1 92.44 taken just after the three runs), so the figure is likely high rather than low.",
+      "ref": "162586f4",
+      "taken": "2026-09-16T07:45:00Z",
       "workers": 1
     }
   }
