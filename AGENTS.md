@@ -53,8 +53,8 @@ the live project state is rooted at `perry/` through `.perry/config.jsonl`.
   convenience.
 - Follow `work/reference/git-boundaries.md` for commit, push, PR, and merge
   authority. Never merge your own implementation.
+- Before starting a Perry phase or integrating product work, read [release rules](release/README.md).
 - Green on your own base is not green merged — `tests/merge-check --help`.
 - Calling a tool costs more than its output (52% of context vs 26%): cwd persists, so no `cd <repo> &&`; a long or repeated step goes in a scratchpad file, not the prompt. `perry-context-budget`. That file goes under `"${TMPDIR:-/tmp}/perry-scratch/$(basename "$(git rev-parse --show-toplevel)")"` — derived, never a shared directory you namespace inside; five clobbers in two days, one across two sessions. `work/reference/dispatch.md § Where the agent puts a scratch file`.
 
-Keep this file under roughly 60 lines. It is the always-loaded startup protocol,
-not a second copy of `SKILL.md`, the dashboard, or the architecture record.
+Keep this startup protocol under roughly 60 lines; do not duplicate skill or state records.

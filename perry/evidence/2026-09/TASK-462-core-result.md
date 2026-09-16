@@ -1,0 +1,176 @@
+# TASK-462 — product release core result
+
+Date: 2026-09-16. Author: Coding Agent. Branch:
+`codex/task-462-version-core`. Base:
+`bccc15f83d4f52c0c0c6ab737ac795597a0e0ae6`. Immutable joint code head:
+`fe48c3f4f8595d2123e1d38373ea7e30a807597e`.
+Core checkpoint: `f89370e5`. Updater author head integrated:
+`4c7311be65508e820d287f531e69700cbdc8bbe4` (see separate update result).
+The subsequent result commit changes only this evidence file.
+
+## Delivered
+
+- Canonical typed JSONL baseline 0.1.0 at phase 004, honestly summarizing current
+  capabilities and this delivery without inventing pre-version releases.
+- Stdlib allocation/check/render/notes commands, distinct delivery identities,
+  explicit major decision references, optimistic current-version check,
+  serialized writes and deterministic projections with explicit crash repair.
+- Explicit-base Git checks preserve integrated history and reject product changes
+  without entries; documented PMO-only paths do not require or justify patch
+  allocations. New CURRENT slug requires its matching phase entry; clearing it
+  does not. Initial baseline exception cannot reset deleted history.
+- CI compares actual event base using full history. Manual publication tests the
+  immutable integrated commit then creates its exact tag and notes, without
+  overwrite endpoints. Credential-bearing redirects refuse. Legacy latest
+  selection avoids forcing a historical release to latest. Partial remote tag /
+  Release failure is documented as non-atomic and requires maintainer recovery.
+- AGENTS remains 60 lines with a Perry-only mandatory maintenance link. README
+  and INSTALL explain published-release installs, explicit symlink release
+  updates, developer report-only behavior, and pre-first-release refusal.
+- Integrated updater in this same baseline rather than landing a second
+  unversioned product change. No generic project's state/version policy changed.
+
+## Verification receipts
+
+All Python/test commands used `env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME`.
+
+1. `python3 -m unittest discover -s tests -p test_release_core.py -q`:
+   15 tests PASS, 8.491s (final core code; temporary Git fixtures and mocked API).
+2. `python3 -m unittest discover -s tests -p 'test_release_*.py' -q`:
+   33 tests PASS, 20.758s before updater's final safe-checkout delta.
+3. Final updater author receipt: 20 tests PASS, 13.604s on `4c7311be`;
+   independently rerunning its unchanged tests is left to the parent joint gate.
+4. `python3 -m unittest discover -s tests -p test_durations_provenance.py -q`:
+   24 tests PASS, 1.114s. Both new modules registered with actual measured times.
+5. `python3 release/manage.py check --base bccc15f8 --ref HEAD` at joint code
+   head: PASS, one new version `0.1.0`, expected product-path list.
+6. `python3 release/manage.py prepare --ref fe48c3f4f8595d2123e1d38373ea7e30a807597e --tag v0.1.0`:
+   PASS in clean checkout, prints baseline notes; creates no tag or release.
+7. `git diff --check`: PASS. Worktree clean at joint code handoff.
+
+Tests exercise duplicate/stale allocations, same task repeated delivery, phase
+and major resets, missing authorization reference, malformed metadata/prose
+absence, projection drift, interrupted canonical/projection writes and repair,
+product no-bump/PMO-only/phase pointer boundaries, rewritten/deleted/reintroduced
+history, tag mismatch/reuse, dirty checkout, unmerged commit, redirect refusal,
+existing remote release/tag and partial-publication failure without overwrites.
+No mutation-testing pass is claimed; these are direct contract/refusal tests.
+
+Full and slow suites on the final merged preview and fresh-context architecture
+review belong to the parent integration gate and are not self-awarded here.
+GitHub Actions execution/publication, branch protection, remote permissions,
+installation, and live update were not performed. No push or tag was created.
+
+## ARCHITECTURE COMPLIANCE
+
+- Root §1/§2/§3: product-local release metadata lives under release/, outside the
+  generic project-state schema and reader. No schema or ARCHITECTURE file edit.
+- NN-1/NN-2: one release record loader and validator; VERSION/CHANGELOG are
+  projections, never competing authorities. Release records are not Perry
+  project-state files and do not introduce a second state-store reader.
+- NN-3: invalid allocations, mismatched projections, stale versions, unsafe
+  update/publication inputs and prior tag/release identities refuse. Multi-file
+  writes deliberately expose interrupted state as check failure with explicit
+  repair rather than pretending a cross-file/remote atomic transaction.
+- NN-4: all Python decisions use typed fields, paths, Git identity and numerical
+  versions. Notes and authorization meaning remain agent/human-owned opaque text.
+- NN-5: tests write only temporary Git repositories; publisher API is mocked.
+- NN-6: no architecture decisions edited. New questions: none required to ship
+  this bounded contract. Actual authorization quality and release-note quality
+  remain review responsibilities, not a proposed semantic parser.
+
+Scope deviation: INSTALL.md was included with parent approval as a necessary
+correction to the old `git pull` consumer guidance. No other expansion.
+
+## Review follow-up — exact checked-out commit guard
+
+Reviewer found that removing the `HEAD == requested SHA` check survived the
+previous core suite. Added a clean checkout at a later commit while requesting
+the older release commit: both prepare and publish now explicitly assert refusal,
+and publisher asserts that no API request is made. Production behavior unchanged.
+
+- Clean-env core module: 16 tests PASS, 14.955s; duration registration updated.
+- Mutation removed only `commit(root, "HEAD") != sha or ` from prepare's guard.
+  The new targeted test failed with `AssertionError: Refused not raised`, exit 1
+  (one test, 0.805s). The mutation is killed, not merely detected by tree checks.
+- Restored `release/manage.py` byte-for-byte against `git show HEAD:release/manage.py`;
+  SHA-256 `7703018f84e639ba582d4fb7d8a6467d370dfa969b85676c249ae99d961e5e79`.
+- Re-ran the new targeted test after restoration: PASS. No production changes.
+  Parent must validate the new immutable head for the final merged gate.
+
+## Final review follow-up — canonical sequence negative tests
+
+Added handwritten JSONL patch records with version `0.1.2` (skip) and `0.0.9`
+(reverse) after baseline, and phase records repeating `004-guided` or reversing
+to `003-earlier`. These test canonical ingestion independently of the allocator's
+correct construction of sequences. Production code is unchanged.
+
+- Core module: 18 tests PASS, 10.128s; measured duration updated.
+- Replacing `if current != expected:` with `if False:`: new patch test fails
+  both cases with `Refused not raised`; exit 1, 0.258s.
+- Disabling the repeated/backwards phase conditional: new phase test fails
+  both cases with `Refused not raised`; exit 1, 0.277s.
+- Restored production bytes match Git and the same SHA-256 recorded above.
+  Post-restoration `-k canonical_` tests pass. These are two targeted killed
+  mutations; no claim of exhaustive mutation coverage.
+
+## Parent full-gate integration follow-up
+
+The parent full gate on `fe48c3f4` failed three integration contracts: the core
+module's single-quoted main guard was invisible to TestNoTestFileEndsEarly;
+CHANGELOG/release documentation was absent from the shipped-vocabulary partition;
+and release/ was absent from ARCHITECTURE's component inventory.
+
+This follow-up fixes the first two only. The test entry uses the existing
+repository double-quoted convention. CHANGELOG.md and release/ are enforced
+surfaces, with real withdrawn-command checks over release Markdown, JSONL and
+Python source, COVERS registration and SKILL's carve-out declaration synchronized.
+No exemption was added. The declaration was compressed to retain the router's
+existing byte cap (initial local check found 23 bytes over; final size is within
+20480). Architecture edits remain outside this agent's authorization pending the
+parent's explicit user approval; its failing test is not bypassed.
+
+Clean-env targeted receipts:
+- `test_claims.py -k TestNoTestFileEndsEarly`: 2 tests PASS, 10.933s.
+- `test_shipped_vocabulary.py`: 53 tests PASS, 7.034s.
+- `test_router_budget.py`: 9 tests PASS, 0.141s after declaration compression.
+- `git diff --check`: PASS.
+
+Parent full log:
+`/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/codex-task462-final-x6lsjgdq/full.log`.
+These targeted fixes do not constitute a new full/slow PASS.
+
+## Authorized architecture completion and current-main integration
+
+The user authorized the previously proposed component addition when requesting
+local integration. This coding branch merged main `22defd62`, preserving the
+complete TASK-463 skill work, then added only the proposal's exact fenced text
+as the release/ component in ARCHITECTURE §2 (commit `ca8318ef`). No existing rule
+was changed. It then merged authorization/spec main
+`0414eb23231e1ce62726c159e6e259f17b36264d`, yielding candidate code head
+`b9aad4c3197f2760f2f27ba39f159186489ec291`.
+
+- Clean-env `python3 tests/parallel test_architecture_rules test_release_core
+  test_release_update test_shipped_vocabulary test_router_budget
+  test_pointers_resolve`: 6 modules, 137 tests PASS, 15.7s on the architecture
+  addition with main 22defd62 integrated, before the authorization-only main delta.
+- After integrating 0414eb23, `release/manage.py check --base 0414eb23 --ref HEAD`
+  passed; version remains the single initialization baseline 0.1.0.
+- `git diff --check`: PASS. No conflicts, remote operations or hook edits.
+
+Architecture compliance update: the formerly pending §2 component inventory edit
+is now explicitly authorized and complete. All NN rules and ownership boundaries
+remain unchanged. Parent owns final full/slow checks on the pinned merged preview.
+
+## Final full-gate router size follow-up
+
+The parent approved-integration full run had one failure among 4,286 tests:
+`test_next_section.TestTheFiveSitesPointAtTheBlock.test_the_router_points_at_the_page_without_growing`.
+Its frozen 20,457-byte ceiling is stricter than the general router cap; the
+20,477-byte declaration exceeded it. Compressed only the carve-out sentence by
+27 bytes while retaining every enforced path and its exclusion from exemption.
+SKILL.md now measures 20,450 bytes. No test or budget changed.
+
+Clean-env `python3 tests/parallel test_next_section test_shipped_vocabulary
+test_router_budget`: 3 modules, 105 tests PASS, 2.2s. `git diff --check` passes.
+Parent will rerun final full/slow; this targeted pass does not replace that gate.

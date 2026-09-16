@@ -15,9 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Check product release record against event base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 release/manage.py check --base "$BASE_SHA" --ref HEAD
       # No dependencies to install — Perry's scripts and tests are stdlib only,
       # with no exception since TASK-178 deleted the web viewer (its Flask,
       # markdown and jinja2 were the only non-stdlib packages Perry ever named).

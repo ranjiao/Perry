@@ -608,6 +608,14 @@
     "test_actor_required.py": {
       "sec": 30.23,
       "source": "2026-09-16-task289"
+    },
+    "test_release_core.py": {
+      "sec": 10.128,
+      "source": "2026-09-16-task462"
+    },
+    "test_release_update.py": {
+      "sec": 13.604,
+      "source": "2026-09-16-task462"
     }
   },
   "schema": 1,
@@ -793,6 +801,13 @@
       "workers": 1,
       "load1": 49.48,
       "note": "One new module, test_actor_required.py: 13 tests, measured with env -u PERRY_PROJECT -u PERRY_HOME python3 tests/parallel -j 1 --times test_actor_required. One measurement at this committed code ref while other suite runs were active; load1 captured just after measurement. No other module retimed."
+    },
+    "2026-09-16-task462": {
+      "ref": "d37dc377292daf2d29a4ab0a1c7d15ba345d9a00",
+      "taken": "2026-09-16T11:06:49.318413+00:00",
+      "workers": 1,
+      "load1": 8.28564453125,
+      "note": "TASK-462 new modules only. Core 15 tests in 8.491 seconds run with clean PYTHONPATH/PERRY_PROJECT/PERRY_HOME; update author reports 20 tests in 13.604 seconds. No neighboring module re-timed. Review follow-up: core now 16 tests measured in 14.955 seconds; clean HEAD/requested SHA mismatch coverage added, exact guard removal mutation fails. Final review follow-up: core 18 tests in 10.128 seconds, adding handwritten invalid canonical version/phase sequences; both guard-removal mutations fail."
     }
   }
 }
