@@ -64,7 +64,7 @@ performs the write.
 ### 1. Resolved → append the edge
 
 ```
-"$PERRY_HOME/bin/perry-goals" link --root . <TASK-ID> <KR-ID>
+"$PERRY_HOME/bin/perry-goals" link --actor goals --root . <TASK-ID> <KR-ID>
 ```
 
 Appends one `edge` record. `<KR-ID>` may also be an **exact**
@@ -84,7 +84,7 @@ the only place this tool removes a record rather than appending one.
 ### 2. A name was confirmed as an existing Project → append the alias
 
 ```
-"$PERRY_HOME/bin/perry-goals" link --root . --alias <PROJECT-ID> "<the other name>"
+"$PERRY_HOME/bin/perry-goals" link --actor goals --root . --alias <PROJECT-ID> "<the other name>"
 ```
 
 Appends a second `project` record for that id, carrying the full alias list;
@@ -101,7 +101,7 @@ alike; that is the fuzzy match the whole gate forbids.
 ### 3. Unresolved → declare it unlinked
 
 ```
-"$PERRY_HOME/bin/perry-goals" link --root . --unlinked <TASK-ID>
+"$PERRY_HOME/bin/perry-goals" link --actor goals --root . --unlinked <TASK-ID>
 ```
 
 Appends one `unlinked` record, carrying the phase it was declared against —
@@ -119,7 +119,7 @@ make a number look complete.
 ### 4. A new Project appeared mid-phase
 
 ```
-"$PERRY_HOME/bin/perry-goals" link --root . --project <PROJECT-ID> <KR-ID> "<name>"
+"$PERRY_HOME/bin/perry-goals" link --actor goals --root . --project <PROJECT-ID> <KR-ID> "<name>"
 ```
 
 Appends one `project` record. `objective` is DERIVED from the KR id

@@ -55,9 +55,9 @@ options with their ID + text, plus "Other → none of these / new Project". Exam
 option label: `P<NNN>-O1-KR2 · streaming ingest latency`. The user picks the KR; record
 the result:
 - Add the task to that KR's `tasks[]` — handed to `okr`, which owns `phase/`
-  and writes it with `bin/perry-goals link <TASK-ID> <KR-ID>`.
+  and writes it with `bin/perry-goals link --actor goals <TASK-ID> <KR-ID>`.
 - If the progress arrived under a name not yet in the graph, hand the new
-  **alias** to `okr`, whose `bin/perry-goals link --alias <PROJECT-ID>
+  **alias** to `okr`, whose `bin/perry-goals link --actor goals --alias <PROJECT-ID>
   "<name>"` appends it to the project's `aliases[]` (PMO never writes
   `phase/` — same hand-off pattern as `plan-week`).
 

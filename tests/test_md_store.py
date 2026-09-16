@@ -50,9 +50,11 @@ Run: python3 tests/parallel test_md_store
 
 from __future__ import annotations
 
+import goals_actor
 import task_actor
 
 COVERS = (
+    "tests/goals_actor.py",
     "bin/perry_md_store.py",
     "bin/perry_store.py",
     "bin/perry-okr",
@@ -131,7 +133,7 @@ def objective_lines(text: str) -> int:
 
 def run(tool: str, *args, root: pathlib.Path):
     return subprocess.run(
-        task_actor.command([sys.executable, str(ROOT / "bin" / tool), *args, "--root", str(root)], 'test_md_store'),
+        goals_actor.command(task_actor.command([sys.executable, str(ROOT / "bin" / tool), *args, "--root", str(root)], 'test_md_store')),
         capture_output=True, text=True, cwd=str(ROOT))
 
 
@@ -927,7 +929,7 @@ class TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave(
         self.assertEqual(p.okr("write", "--from-file").returncode, 0)
 
         def git(*args):
-            return subprocess.run(["git", *args], cwd=str(p.root),
+            return subprocess.run(goals_actor.command(["git", *args]), cwd=str(p.root),
                                   capture_output=True, text=True)
 
         git("init", "-q")

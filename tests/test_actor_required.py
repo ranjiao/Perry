@@ -35,6 +35,7 @@ from __future__ import annotations
 
 COVERS = (
     "bin/perry-task",
+    "bin/perry-goals",
     "bin/lib/",
     "SKILL.md",
     "goals/",
@@ -345,6 +346,118 @@ class TestEveryDocumentExampleCarriesTheActor(unittest.TestCase):
                 "`perry-task status <ID> --status\n> review --actor b`\n")
         got = [(ln, has) for ln, _c, has in invocations(text, w)]
         self.assertEqual(sorted(got), [(1, False), (4, False), (5, True), (8, True)])
+
+
+
+
+class TestGoalsActorContract(unittest.TestCase):
+    """Round 2: all existing goals write modes, with the raw runner."""
+
+    def cases(self):
+        import test_goals_writer as GW
+        import test_linkage_writer as LW
+        import test_goals_kr_writer as KW
+        for mode, tail in (
+                ("create", ["--track", "ops", "--promise", "new", "--to", "ops", "--due", "3d"]),
+                ("amend", ["--id", "ops/1", "--promise", "amended"]),
+                ("close", ["--close", "ops/1", "--discharged-by", "fixture delivered"]),
+                ("miss", ["--miss", "ops/1", "--reason", "fixture"]),
+                ("migrate", ["--migrate"])):
+            p = GW.Project(GW.PRE_SPLIT if mode == "migrate" else GW.BARE_OKR)
+            self.addCleanup(shutil.rmtree, p.dir, ignore_errors=True)
+            if mode in ("amend", "close", "miss"):
+                result = inproc.run("perry-goals", ["commit", "--track", "ops",
+                    "--promise", "old", "--to", "ops", "--due", "3d",
+                    "--actor", "setup", "--root", str(p.dir)])
+                self.assertEqual(result.returncode, 0, result.stderr)
+            yield "commit/" + mode, p.dir, ["commit", *tail]
+        for mode, tail in (
+                ("edge", ["ZZZ-001", "P002-O1-KR1"]),
+                ("alias", ["--alias", "PROJ-001", "fresh-name"]),
+                ("unlinked", ["--unlinked", "ZZZ-001"]),
+                ("project", ["--project", "PROJ-002", "P002-O1-KR1", "new project"])):
+            p = LW.Project(LW.SYNTHETIC, "002-synthetic")
+            self.addCleanup(p.cleanup)
+            yield "link/" + mode, p.dir, ["link", *tail]
+        for verb in ("check", "measure"):
+            tmp = Path(tempfile.mkdtemp(prefix="goals-actor-"))
+            self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+            root = KW.make_project(tmp / "p")
+            check = ["check", "P004-O1-KR1", "--id", "n", "--direction",
+                     "done", "--target", "1", "--label", "done"]
+            if verb == "measure":
+                result = inproc.run("perry-goals", [*check, "--actor", "setup", "--root", str(root)])
+                self.assertEqual(result.returncode, 0, result.stderr)
+            yield verb, root, (check if verb == "check" else [
+                "measure", "P004-O1-KR1", "--check", "n", "--value", "1",
+                "--evidence", "evidence/2026-09/m.md"])
+
+    def test_every_mode_refuses_absent_empty_blank_and_multiline_before_writing(self):
+        seen = set()
+        for mode, root, argv in self.cases():
+            seen.add(argv[0])
+            before = snapshot(root)
+            for actor in (None, "", " ", "a\nb", "a\rb"):
+                for dry in (False, True):
+                    with self.subTest(mode=mode, actor=actor, dry=dry):
+                        extra = [] if actor is None else ["--actor", actor]
+                        got = inproc.run("perry-goals", [*argv, *extra,
+                            *(["--dry-run"] if dry else []), "--root", str(root)])
+                        self.assertEqual(got.returncode, 2, got.stdout + got.stderr)
+                        self.assertIn("--actor", got.stderr)
+                        self.assertIn("Usage: perry-goals", got.stderr)
+                        self.assertIn("Nothing was written", got.stderr)
+                        self.assertEqual(snapshot(root), before)
+        mod = inproc.load("perry-goals")
+        self.assertEqual(seen, set(mod.COMMANDS) - mod.READ_COMMANDS)
+        self.assertEqual(seen, {s["name"] for s in mod.ACTOR_SURFACE["subcommands"]
+                               if "--actor" in lib.required_flags(mod.ACTOR_SURFACE, s)})
+
+    def test_each_mode_records_its_explicit_actor(self):
+        for mode, root, argv in self.cases():
+            with self.subTest(mode=mode):
+                actor = " lane:fixture " if argv[0] in ("commit", "link") else "lane:fixture"
+                got = inproc.run("perry-goals", [*argv, "--actor", actor,
+                                                "--root", str(root), "--json"])
+                self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+                events = [json.loads(line) for line in (root / ".perry/events.jsonl").read_text().splitlines()]
+                self.assertEqual(events[-1]["actor"], actor)
+                if argv[0] in ("link", "check", "measure"):
+                    record = json.loads((root / "linkage.jsonl").read_text().splitlines()[-1])
+                    self.assertEqual(record["actor"], actor)
+
+    def test_every_reader_stays_actor_free(self):
+        import test_goals_kr_writer as KW
+        tmp = Path(tempfile.mkdtemp(prefix="goals-actor-read-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        root = KW.make_project(tmp / "p")
+        mod = inproc.load("perry-goals")
+        self.assertEqual(mod.READ_COMMANDS, {"list", "krs"})
+        for name in mod.READ_COMMANDS:
+            with self.subTest(reader=name):
+                before = snapshot(root)
+                got = inproc.run("perry-goals", [name, "--root", str(root), "--json"])
+                self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+                self.assertEqual(snapshot(root), before)
+
+    def test_single_line_validation_is_shared_and_opt_in(self):
+        mod = inproc.load("perry-goals")
+        self.assertIsNotNone(lib.actor_refusal(mod.ACTOR_SURFACE, "commit", "a\nb", single_line=True))
+        self.assertIsNone(lib.actor_refusal(mod.ACTOR_SURFACE, "commit", "a\nb"))
+        self.assertIsNone(lib.actor_refusal(mod.ACTOR_SURFACE, "list", None, single_line=True))
+
+    def test_goals_executable_examples_name_an_actor(self):
+        from unittest.mock import patch
+        matcher = re.compile(r"""perry-goals["']?[ \t]+([a-z][a-z-]*)""")
+        missing, seen = [], 0
+        with patch.dict(globals(), CMD=matcher):
+            for path in shipped_documents():
+                for ln, command, has in invocations(path.read_text(), {"commit", "link", "check", "measure"}):
+                    seen += 1
+                    if not has:
+                        missing.append(f"{path.relative_to(ROOT)}:{ln}: {command}")
+        self.assertGreaterEqual(seen, 12)
+        self.assertEqual(missing, [])
 
 
 if __name__ == "__main__":

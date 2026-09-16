@@ -34,8 +34,10 @@ Run: python3 tests/parallel test_okr_store_is_the_source
 
 from __future__ import annotations
 
-COVERS = ("bin/perry-goals", "bin/perry-okr", "bin/perry_md_store.py")
+COVERS = (
+    "tests/goals_actor.py","bin/perry-goals", "bin/perry-okr", "bin/perry_md_store.py")
 
+import goals_actor
 import json
 import os
 import shutil
@@ -115,7 +117,7 @@ class Project:
         env = dict(os.environ, PERRY_HOME=str(ROOT), PERRY_CONFORMANCE="advisory")
         env.pop("PERRY_PROJECT", None)
         return subprocess.run(
-            [sys.executable, str(tool), *argv, "--root", str(self.root)],
+            goals_actor.command([sys.executable, str(tool), *argv, "--root", str(self.root)]),
             capture_output=True, text=True, env=env)
 
     def import_store(self) -> None:

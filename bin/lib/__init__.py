@@ -581,7 +581,8 @@ def required_flags(surface: dict, sub: str | dict | None) -> set[str]:
     return {ACTOR_FLAG} & set(declared.get("flags") or ())
 
 
-def actor_refusal(surface: dict, sub: str | None, actor) -> str | None:
+def actor_refusal(surface: dict, sub: str | None, actor, *,
+                  single_line: bool = False) -> str | None:
     """The refusal for a write with no owner, or None when there is one.
 
     **There is no default** (USER-950). `perry-task` recorded an absent actor
@@ -589,13 +590,18 @@ def actor_refusal(surface: dict, sub: str | None, actor) -> str | None:
     linkage edges the session that filed it could not account for. An empty
     or blank value is the same absence spelled differently, so it is refused
     by the same message. The caller exits with the usage code, before anything
-    is read for writing.
+    is read for writing. `single_line` preserves goals' existing one-line
+    contract without changing other callers' accepted values. Validation never
+    rewrites a supplied actor.
     """
     if ACTOR_FLAG not in required_flags(surface, sub):
         return None
     if actor is not None and str(actor).strip():
-        return None
-    given = "was not given" if actor is None else "was given empty"
+        if not single_line or not any(c in str(actor) for c in ("\n", "\r")):
+            return None
+        given = "contains a line break"
+    else:
+        given = "was not given" if actor is None else "was given empty"
     return (f"{surface['name']}: {sub!r} writes, and {ACTOR_FLAG} {given}. "
             f"Every write needs {ACTOR_FLAG} <value>: the session or lane "
             f"that is writing, e.g. `pmo-agent`, `goals`, `coding-agent`. It "

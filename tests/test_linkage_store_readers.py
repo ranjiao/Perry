@@ -35,9 +35,11 @@ Run: python3 tests/parallel test_linkage_store_readers
 
 from __future__ import annotations
 
+import goals_actor
 import task_actor
 
 COVERS = (
+    "tests/goals_actor.py",
     "bin/perry-goals",
     "bin/perry-lint",
     "bin/perry-state",
@@ -243,7 +245,7 @@ class Fixture(unittest.TestCase):
 
     def goals(self, d: pathlib.Path, *argv) -> tuple[int, dict]:
         proc = subprocess.run(
-            [sys.executable, str(GOALS), *argv, "--root", str(d), "--json"],
+            goals_actor.command([sys.executable, str(GOALS), *argv, "--root", str(d), "--json"]),
             capture_output=True, text=True, cwd=ROOT)
         return proc.returncode, json.loads(proc.stdout or "{}")
 

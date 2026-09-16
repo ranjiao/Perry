@@ -38,8 +38,10 @@ Run: python3 tests/parallel -j 4 test_store_population_agrees
 
 from __future__ import annotations
 
-COVERS = ("bin/", "viewer/parsers.py")
+COVERS = (
+    "tests/goals_actor.py","bin/", "viewer/parsers.py")
 
+import goals_actor
 import json
 import os
 import re
@@ -272,7 +274,7 @@ def expected_tally(population: dict[str, str], ids: list[str]) -> dict:
 
 def goals_krs(root: Path) -> dict[str, dict]:
     r = subprocess.run(
-        ["python3", str(GOALS), "list", "--root", str(root), "--json"],
+        goals_actor.command(["python3", str(GOALS), "list", "--root", str(root), "--json"]),
         capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-2000:]
     return {k["id"]: k for k in json.loads(r.stdout)["krs"]}

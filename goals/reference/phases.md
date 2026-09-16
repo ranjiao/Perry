@@ -23,20 +23,20 @@ board row carrying it at a different promise.
 
 ```bash
 # create
-"$PERRY_HOME/bin/perry-goals" commit --root . \
+"$PERRY_HOME/bin/perry-goals" commit --actor goals --root . \
     --track ops --promise "Vendor invoices reconciled" \
     --to Finance --due 3d --by-when-note "within the track SLA"
 
 # amend
-"$PERRY_HOME/bin/perry-goals" commit --root . --id ops/1 --due 2026-11-30
+"$PERRY_HOME/bin/perry-goals" commit --actor goals --root . --id ops/1 --due 2026-11-30
 
 # split a register written before TASK-091 (once, per project)
-"$PERRY_HOME/bin/perry-goals" commit --root . --migrate
+"$PERRY_HOME/bin/perry-goals" commit --actor goals --root . --migrate
 
 # end
-"$PERRY_HOME/bin/perry-goals" commit --root . --close ops/1 \
+"$PERRY_HOME/bin/perry-goals" commit --actor goals --root . --close ops/1 \
     --discharged-by "routed intake, worked oldest-first"
-"$PERRY_HOME/bin/perry-goals" commit --root . --miss rel/1 \
+"$PERRY_HOME/bin/perry-goals" commit --actor goals --root . --miss rel/1 \
     --reason "the vendor went quiet in October"
 ```
 
@@ -88,7 +88,7 @@ including the event that was appended.
 
    **A register written before the split** — one `By when` column holding both
    — is refused on every write path with the command that fixes it:
-   `perry-goals commit --migrate`. That moves each cell into the field its
+   `perry-goals commit --actor goals --migrate`. That moves each cell into the field its
    value belongs to, drops nothing, and reports the before/after count.
 
 5. **The row is written** with `Status: active` and `Discharged by` empty.
@@ -209,7 +209,7 @@ Then confirm with the user and write `phase/<NNN>-<slug>.md` from `state/phase_T
 
 After write:
 1. Update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>`).
-2. **Write the linkage graph**: append records to `linkage.jsonl` — one JSON object per line, shapes declared in `schema/state-schema.json § stores.declared["linkage.jsonl"]`. One `kind: objective` record per phase Objective (`phase`, `id`, `title`; file order is objective order), then one `kind: kr` record per Key Result. **This is where the KRs are declared** — `id`, `title`, `metric`, `target`, and `linked` (the overall KR this one serves). Nothing else in the project holds them, so a KR left out here is a KR the phase does not have. Check what you wrote with `bin/perry-goals krs`, which prints the table the phase document used to carry. Every Project is then `bin/perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"`, one per Project defined above; every task edge afterwards is `bin/perry-goals link`, and nothing in this store is edited by hand once it exists (`reference/linkage.md`).
+2. **Write the linkage graph**: append records to `linkage.jsonl` — one JSON object per line, shapes declared in `schema/state-schema.json § stores.declared["linkage.jsonl"]`. One `kind: objective` record per phase Objective (`phase`, `id`, `title`; file order is objective order), then one `kind: kr` record per Key Result. **This is where the KRs are declared** — `id`, `title`, `metric`, `target`, and `linked` (the overall KR this one serves). Nothing else in the project holds them, so a KR left out here is a KR the phase does not have. Check what you wrote with `bin/perry-goals krs`, which prints the table the phase document used to carry. Every Project is then `bin/perry-goals link --actor goals --project <PROJECT-ID> <KR-ID> "<name>"`, one per Project defined above; every task edge afterwards is `bin/perry-goals link`, and nothing in this store is edited by hand once it exists (`reference/linkage.md`).
 
    **These records lived in a per-phase register document until ADR-019** (2026-09-08), authored from a shipped template. That document's 61 lines of frontmatter duplicated the store record for record and its 30 lines of prose carried four claims that were false when they were counted, so it and its template were deleted. What changed for this step is the FORMAT, not the fact that an agent authors it: `plan-phase` has never had a deterministic writer for the KRs themselves, here or before, which is why the step below is exempt from ADR-007 rule 3 exactly as instantiating the template was.
 

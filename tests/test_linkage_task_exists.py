@@ -45,8 +45,10 @@ Run: python3 tests/parallel test_linkage_task_exists
 
 from __future__ import annotations
 
-COVERS = ("bin/perry-lint", "bin/perry-goals", "bin/lib/", "viewer/parsers.py")
+COVERS = (
+    "tests/goals_actor.py","bin/perry-lint", "bin/perry-goals", "bin/lib/", "viewer/parsers.py")
 
+import goals_actor
 import json
 import pathlib
 import shutil
@@ -462,8 +464,8 @@ class TestTheShippedWriterCanProduceThisState(Fixture):
         (d / ".perry" / "config.md").write_text(
             CONFIG + "- Conformance gate: advisory\n")
         proc = subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-goals"), "link",
-             "TASK-999", "P002-O1-KR1", "--root", str(d)],
+            goals_actor.command([sys.executable, str(ROOT / "bin" / "perry-goals"), "link",
+             "TASK-999", "P002-O1-KR1", "--root", str(d)]),
             capture_output=True, text=True, cwd=ROOT)
         if proc.returncode != 0:
             self.skipTest(f"perry-goals link now refuses an unresolvable "

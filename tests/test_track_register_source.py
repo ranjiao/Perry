@@ -60,9 +60,11 @@ Run: python3 tests/parallel test_track_register_source
 
 from __future__ import annotations
 
+import goals_actor
 import task_actor
 
 COVERS = (
+    "tests/goals_actor.py",
     "bin/perry-config",
     "bin/perry-state",
     "bin/perry-diagnose",
@@ -626,7 +628,7 @@ class TestTheGoalsLaneRefusesToo(Fixture):
 
     def run_goals(self, d: pathlib.Path, *argv):
         return subprocess.run(
-            [sys.executable, str(GOALS), *argv, "--root", str(d)],
+            goals_actor.command([sys.executable, str(GOALS), *argv, "--root", str(d)]),
             capture_output=True, text=True, cwd=ROOT)
 
     #: `list` does not read the track register; `commit` does (bin/perry-goals

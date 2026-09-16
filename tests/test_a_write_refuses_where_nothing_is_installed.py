@@ -31,9 +31,11 @@ Run: python3 tests/parallel test_a_write_refuses_where_nothing_is_installed
 
 from __future__ import annotations
 
+import goals_actor
 import task_actor
 
 COVERS = (
+    "tests/goals_actor.py",
     "bin/perry-task",
     "bin/perry-goals",
     "bin/perry-okr",
@@ -176,7 +178,7 @@ class TestEveryWriteRefusesWhereNothingIsInstalled(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         self.assertFalse(P.installed(d), f"anti-vacuity: {shape} is installed")
         before = snapshot(d)
-        out = inproc.run(tool, task_actor.owned(argv, "install-gate-probe")
+        out = goals_actor.run(tool, task_actor.owned(argv, "install-gate-probe")
                          + ["--root", str(d)] if tool == "perry-task"
                          else argv + ["--root", str(d)])
         self.assertEqual(out.returncode, 1, out.stdout[-300:] + out.stderr[-300:])

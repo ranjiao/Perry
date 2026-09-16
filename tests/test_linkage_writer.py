@@ -34,12 +34,14 @@ What survives is everything the writer was FOR, and it survives sharper:
 from __future__ import annotations
 
 COVERS = (
+    "tests/goals_actor.py",
     "bin/perry-goals",
     "goals/SKILL.md",
     "goals/reference/linkage.md",
     "perry/linkage.jsonl",
 )
 
+import goals_actor
 import importlib.machinery
 import importlib.util
 import json
@@ -161,7 +163,7 @@ class Project:
     def run(self, *argv, expect=None, **env):
         e = dict(os.environ, PERRY_CONFORMANCE="advisory", PERRY_HOME=str(ROOT))
         e.update(env)
-        p = subprocess.run([sys.executable, str(GOALS), *argv, "--root", str(self.dir)],
+        p = subprocess.run(goals_actor.command([sys.executable, str(GOALS), *argv, "--root", str(self.dir)]),
                            capture_output=True, text=True, env=e)
         if expect is not None:
             assert p.returncode == expect, (p.returncode, p.stdout, p.stderr)
@@ -465,8 +467,8 @@ class TestNoInventedCurrent(Case):
         ]))
         e = dict(os.environ, PERRY_CONFORMANCE="advisory", PERRY_HOME=str(ROOT))
         run = subprocess.run(
-            [sys.executable, str(GOALS), "link", "ZZZ-001", "P002-O1-KR1",
-             "--root", str(root)], capture_output=True, text=True, env=e)
+            goals_actor.command([sys.executable, str(GOALS), "link", "ZZZ-001", "P002-O1-KR1",
+             "--root", str(root)]), capture_output=True, text=True, env=e)
         self.assertEqual(run.returncode, 0, run.stderr)
         out = json.loads(subprocess.run(
             [sys.executable, str(STATE), "--json", "--section", "linkage",
@@ -527,8 +529,8 @@ class TestPerryReadsWhatTheWriterWrote(Case):
 
     def tool(self, tool: pathlib.Path, *argv):
         e = dict(os.environ, PERRY_CONFORMANCE="advisory", PERRY_HOME=str(ROOT))
-        return subprocess.run([sys.executable, str(tool), *argv,
-                               "--root", str(self.root)],
+        return subprocess.run(goals_actor.command([sys.executable, str(tool), *argv,
+                               "--root", str(self.root)]),
                               capture_output=True, text=True, env=e)
 
     def test_the_edge_the_writer_wrote_is_the_edge_perry_reports(self):
