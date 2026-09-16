@@ -5,3 +5,7 @@
 {"kind": "edge", "task": "WIT-002", "kr": "O1-KR1", "declared_at": "2026-08-05T00:00:00Z", "actor": "goals", "via": "link"}
 {"kind": "edge", "task": "WIT-001", "kr": "P001-O1-KR1", "declared_at": "2026-08-05T00:00:00Z", "actor": "goals", "via": "link"}
 {"kind": "edge", "task": "WIT-002", "kr": "P001-O1-KR1", "declared_at": "2026-08-05T00:00:00Z", "actor": "goals", "via": "link"}
+{"kind": "check", "kr": "O1-KR1", "okr_version": "v1: 2026-06-01", "id": "collections", "label": "collections a live board leaves empty, held open", "direction": "increase", "target": 4, "baseline": 0, "declared_at": "2026-08-05T00:00:00Z", "actor": "goals"}
+{"kind": "measurement", "kr": "O1-KR1", "okr_version": "v1: 2026-06-01", "check": "collections", "value": 2, "asserted_at": "2026-08-05T00:00:00Z", "evidence": "README.md", "computed": false, "actor": "goals"}
+{"kind": "check", "kr": "P001-O1-KR1", "okr_version": "", "id": "collections", "label": "collections a live board leaves empty, held open", "direction": "increase", "target": 4, "baseline": 0, "declared_at": "2026-08-05T00:00:00Z", "actor": "goals"}
+{"kind": "measurement", "kr": "P001-O1-KR1", "okr_version": "", "check": "collections", "value": 2, "asserted_at": "2026-08-05T00:00:00Z", "evidence": "README.md", "computed": false, "actor": "goals"}

@@ -1,6 +1,6 @@
 # `perry-goals list --json` — the goals contract
 
-> Contract: **`perry-goals/list/3.4`**
+> Contract: **`perry-goals/list/3.5`**
 > Locked by `tests/test_goals_contract.py`.
 > DESIGN-005 § 6 step 2.
 
@@ -33,7 +33,7 @@ Perry's tests cannot reach.
 
 ```jsonc
 {
-  "contract":     "perry-goals/list/3.4",
+  "contract":     "perry-goals/list/3.5",
   "installed":    true,                    // false: not a Perry project — schema/README.md § installed
   "semantics":    [ /* below */ ],         // meaning changes, oldest minor first
   "project_root": "/abs/path",
@@ -58,7 +58,16 @@ Perry's tests cannot reach.
         "moved_tasks": [ { "id": "TASK-094", "from": "review", "to": "done",
                            "at": "2026-08-21T09:10:00Z" } ] },
       "linked_task_completion": {
-        "total": 2, "done": 1, "dropped": 0, "open": 1, "unknown": 0 }
+        "total": 2, "done": 1, "dropped": 0, "open": 1, "unknown": 0 },
+      "checks": [ {                        // 3.5 — declared checks, [] when none
+        "id": "p90", "label": "p90 next-action length", "direction": "decrease",
+        "target": 400, "baseline": 1702, "declared_at": "2026-09-16T10:00:00Z",
+        "measurement": { "value": 1051, "asserted_at": "2026-09-16T11:00:00Z",
+                         "evidence": "evidence/2026-09/….md", "computed": false },
+        "state": "measured", "met": false, "fraction": 0.5 } ],
+      "state": "measured",                 // undeclared | unmeasured | due | measured
+      "met": false,                        // null when undeclared or unmeasured
+      "fraction": 0.5                      // null unless exactly one increase/decrease check
   } ],
   "answered_by":  "linkage",               // linkage | prose | none
   "unlinked_task_ids": ["REL-009"],        // DECLARED, never inferred
@@ -121,6 +130,10 @@ is — a consumer checks before it looks. Same shape as
 | `current_provenance` | object | who asserted `current` and when |
 | `current_staleness` | object | whether a linked task has moved since |
 | `linked_task_completion` | object | how many linked tasks are closed. **Not progress** |
+| `checks` | array | `3.5`. The KR's declared checks, each with its current value — see *A KR's position* below. `[]` when none is declared |
+| `state` | string | `3.5`. `undeclared`, `unmeasured`, `due` or `measured` — the worst of its checks |
+| `met` | bool \| null | `3.5`. `true` when every check is met. **`null` when `state` is `undeclared` or `unmeasured`, never `false`** |
+| `fraction` | number \| null | `3.5`. Between `0.0` and `1.0`, only for a KR with exactly one `increase` / `decrease` check |
 
 ### `current` is an assertion unless it says it was measured, and these three blocks say which
 
@@ -257,6 +270,58 @@ wrong side of it — `stale: true` for a move that predated the number on a
 positive offset, and `stale: false` for a real one on a negative offset. A
 date-only `updated` still errs toward reporting staleness on purpose: a false
 *recheck this* costs a look, a false *this number is fine* costs the number.
+
+### A KR's position — `checks`, `state`, `met`, `fraction`
+
+Added in `3.5` (TASK-416, DESIGN-022 § 5.2). **Derived on every read, never
+stored**, by `bin/lib § kr_position`, from two record kinds on `linkage.jsonl`:
+a `check` declares a typed condition — `direction`, `target` and, for
+`increase` / `decrease`, a `baseline` — and a `measurement` records one value
+of one check, when it was asserted and on what evidence. `metric` prose is
+never read, and neither are the `kr` record's `target` and `current`: a KR
+whose record carries both numbers and declares no check is `undeclared` with
+`met: null`, so phases 001–003 read exactly as they did at `3.4`.
+
+**This is not `progress` back.** `2.0` removed `progress` because Perry could
+not tell which way a KR runs. A check declares the direction, so `met` and
+`fraction` exist only where the project has said it; where it has not, both
+are `null`. `at_least` and `at_most` are limits and never draw a fraction.
+
+**The two ordering rules**, stated once in `bin/lib § kr_checks` and followed
+by every reader: a re-declared check (same `kr`, `okr_version`, `id`)
+supersedes the earlier one from its `declared_at`; a check's value is its
+measurement with the latest `asserted_at`, whatever order the lines are in.
+Both compare timestamps through `bin/lib § ts_moment`, never as text. An
+overall KR's checks carry its `okr.jsonl` version as `okr_version`, so
+`O1-KR1` in `v3` and in `v4` never share a check.
+
+| Key | Type | Notes |
+|---|---|---|
+| `checks[].id` | string | the check's slug, unique within the KR |
+| `checks[].label` | string | prose, for display |
+| `checks[].direction` | string | `increase`, `decrease`, `at_least`, `at_most` or `done` |
+| `checks[].target` | number | as declared; `done` targets `1` |
+| `checks[].baseline` | number \| null | as declared; a number for `increase` / `decrease`, `null` otherwise |
+| `checks[].declared_at` | string | the current declaration's `declared_at`, as written |
+| `checks[].measurement` | object \| null | the current value, or **`null` when nobody has measured the check** — never a `0` |
+| `checks[].state` | string | `unmeasured` (no measurement); `due` (the value is older than `thresholds.kr_measure_due_days`, 7, its `asserted_at` does not read as a time, or a task linked to the KR changed state after it); `measured` otherwise |
+| `checks[].met` | bool \| null | `value >= target` for `increase` / `at_least`; `value <= target` for `decrease` / `at_most`; `value == 1` for `done`. `null` when unmeasured |
+| `checks[].fraction` | number \| null | `increase` / `decrease` only: `(value − baseline) / (target − baseline)`, clamped to `0`–`1`, `null` when the declaration runs the wrong way. Three decimal places; **`0.0` and `1.0` are reserved for the exact ends**, as `3.1` reserves them for a measured `current` |
+
+| Key | Type | Notes |
+|---|---|---|
+| `checks[].measurement.value` | number | the measured value, as recorded |
+| `checks[].measurement.asserted_at` | string | when it was arrived at, as written |
+| `checks[].measurement.evidence` | string | the evidence path, `""` for a computed value |
+| `checks[].measurement.computed` | bool | `true` only when Perry's own code recorded it |
+
+The KR-level keys fold the checks without averaging anything. `state` is the
+worst check's (`undeclared < unmeasured < due < measured`; a KR with no check
+is `undeclared`). `met` is `true` when every check is met, `null` when any is
+unmeasured, and `false` otherwise. `fraction` is the one check's fraction when
+there is exactly one check, and `null` otherwise. **An Objective has no
+fraction either**: `bin/lib § objective_kr_summary` counts commit KRs measured
+of total and met of total, stretch excluded, and never takes a mean.
 
 ### The phase
 
@@ -400,6 +465,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `3.2` | 2026-09-14 | **additive, TASK-237 3b′.** One key added, none removed or retyped: top-level `installed`, `true` exactly when `schema/README.md § installed` holds. On a directory that is not a Perry project this payload answered its empty shape at exit 0 — `okr.present` false, `krs` empty, `phase` null — which a consumer could not tell from a project with nothing in it. `semantics` carries a `3.2` entry for it, at the user's decision (Amendment (4) item 1), although a key addition is normally a changelog row only. |
 | `3.3` | 2026-09-14 | **no key added, one value's meaning changed, TASK-237 3c.** `installed` is narrower (Amendment (7), the user's decision): at `3.2` a canonical store under the state root counted on its own, so a folder holding only another tool's `tasks.jsonl` read `installed: true`. From `3.3` a store counts only with a `.perry/` directory at the project root beside it (`schema/README.md § installed`); such a directory now answers `installed: false` with the empty shape at exit 0. `semantics` carries a `3.3` entry. A narrowed meaning is not a removal or a retype, so this is a minor. |
 | `3.4` | 2026-09-15 | **no key added, one value's meaning changed, TASK-262 round 4b.** A held `BOARD.md` is retired (Amendment (4), the user's decision): `lib.task_status_index` reads `tasks.jsonl` alone and no longer puts a held board's rows beneath the store. A linked id that only the held file carried is now counted from the event log's last state-moving event, or as `unknown` when the log has none, in `krs[].linked_task_completion`. Unchanged on a project with no held board and on one whose board rows are all stored. `semantics` carries a `3.4` entry. |
+| `3.5` | 2026-09-16 | **additive, TASK-416 (DESIGN-022 § 5.2, USER-937).** Four keys added on every KR, none removed or retyped: `krs[].checks`, `krs[].state`, `krs[].met` and `krs[].fraction`, derived on read by `bin/lib § kr_position` from the new `check` and `measurement` records of `linkage.jsonl`. A KR with no check reads `state: "undeclared"`, `met: null`, `fraction: null`; a check with no measurement reads `unmeasured`, `met: null` — absent is never `0` and never `false`. `target` and `current` keep their meaning and are not read by the derivation, so phases 001–003 publish exactly what `3.4` published. `semantics` carries a `3.5` entry, as `3.2` did for an added key, because these are the first keys since `2.0` that say how far along a KR is. |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a
 deterministic writer and still has no deterministic *reader* — a consumer that

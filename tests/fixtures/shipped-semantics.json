@@ -215,6 +215,15 @@
           "krs[].linked_task_completion.open",
           "krs[].linked_task_completion.unknown"
         ]
+      },
+      {
+        "version": "3.5",
+        "fields": [
+          "krs[].checks",
+          "krs[].state",
+          "krs[].met",
+          "krs[].fraction"
+        ]
       }
     ],
     "perry-decide/list": [

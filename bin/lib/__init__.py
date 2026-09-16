@@ -1671,6 +1671,32 @@ def computed_kr_current(kr_id: str, *, linkage_records=None, events=None):
     return globals()[name](linkage_records, events)
 
 
+def tasks_moved_since(task_ids, events, since: str) -> list[dict]:
+    """The linked tasks that changed state after `since`, in `task_ids` order.
+
+    `since` is a `ts_key` string. Each entry is `{id, from, to, at}`, the last
+    move of that task winning, so a task that moved twice is named once with
+    where it ended up. **One implementation for two questions**:
+    `kr_progress_provenance`'s `current_staleness` (has a task moved since a
+    KR's `current` was asserted?) and `kr_check_position`'s `due` (has one
+    moved since a check was last measured? DESIGN-022 § 5.2). A second loop
+    is how the two would come to disagree about the same move.
+    """
+    ids = [str(t) for t in (task_ids or [])]
+    wanted = set(ids)
+    moved: dict[str, dict] = {}
+    for event in (events or []):
+        tid = str(event.get("id") or "")
+        if tid not in wanted or not _is_state_move(event):
+            continue
+        at = ts_key(event.get("ts", ""))
+        if not at or at <= since:
+            continue
+        moved[tid] = {"id": tid, "from": str(event.get("from") or ""),
+                      "to": str(event["to"]), "at": at}
+    return [moved[t] for t in ids if t in moved]
+
+
 def kr_progress_provenance(current, task_ids, *, asserted_at: str = "",
                            status_by_id: dict | None = None,
                            events: list | None = None,
@@ -1812,20 +1838,8 @@ def kr_progress_provenance(current, task_ids, *, asserted_at: str = "",
         staleness["reason"] = "the register links no task to this KR"
     else:
         staleness["evaluated"] = True
-        wanted = set(ids)
-        moved: dict[str, dict] = {}
-        for event in events:
-            tid = str(event.get("id") or "")
-            if tid not in wanted or not _is_state_move(event):
-                continue
-            at = ts_key(event.get("ts", ""))
-            if not at or at <= since:
-                continue
-            # Last move wins, so a task that moved twice is named once with
-            # where it ended up.
-            moved[tid] = {"id": tid, "from": str(event.get("from") or ""),
-                          "to": str(event["to"]), "at": at}
-        staleness["moved_tasks"] = [moved[t] for t in ids if t in moved]
+        staleness["moved_tasks"] = tasks_moved_since(ids, events, since)
+        moved = staleness["moved_tasks"]
         if moved:
             staleness["stale"] = True
             named = ", ".join(
@@ -1854,6 +1868,281 @@ def kr_progress_provenance(current, task_ids, *, asserted_at: str = "",
         out["current_measurement"] = {
             k: v for k, v in computed.items() if k != "current"}
     return out
+
+
+# ── KR checks and measurements — DESIGN-022 § 5.1 and § 5.2 ──────────────
+#
+# TASK-416. A hand-measured `current: 0` and a template `0` nobody touched were
+# byte-identical, and Perry could not say which way any KR runs. DESIGN-022
+# answers both with two appended record kinds on `linkage.jsonl` — `check`
+# (a typed condition: direction, target, baseline) and `measurement` (a value,
+# when it was asserted, and its evidence) — and a position DERIVED here on
+# every read. Nothing below is stored, and nothing below reads `metric` prose
+# (NN-4): every comparison is between typed fields.
+#
+# **Absent is never zero and never false.** A KR with no declared check is
+# `undeclared` with `met: null`; a check with no measurement is `unmeasured`
+# with `met: null`. The `kr` record's own `target` / `current` are not read
+# here at all, so phases 001–003 publish exactly what they published before.
+#
+# **The two ordering rules live here, and only here.** DESIGN-022 § 5.1 names
+# `perry_store` as their home; `bin/perry_store.py` holds no linkage code, and
+# `viewer/parsers.py` — the store's one reader — imports nothing from `bin/`,
+# so it cannot reach `ts_moment`, the one clock converter. Ordering by the
+# timestamps' TEXT would be TASK-144's defect again (two offsets compared as
+# strings). So `parsers.load_linkage_store` reads the lines, and
+# `kr_checks` below is the one place that decides which declaration and
+# which measurement are current. No reader sorts for itself.
+
+#: `schema/state-schema.json § stores.declared["linkage.jsonl"].records.check
+#: .fields.direction`. `increase` / `decrease` move from a baseline toward a
+#: target and may draw a fraction; `at_least` / `at_most` are limits, met or
+#: not; `done` is a milestone valued 0 or 1.
+KR_CHECK_DIRECTIONS = ("increase", "decrease", "at_least", "at_most", "done")
+
+#: Worst first. A KR's state is the worst of its checks'; a KR with no check
+#: is `undeclared`, which is worse than any check can be.
+KR_POSITION_STATES = ("undeclared", "unmeasured", "due", "measured")
+
+#: Places a `fraction` is published to: one decimal of a percentage, the
+#: precision `MEASURED_PERCENT_PLACES` gives `perry-goals/list/3.1`.
+KR_FRACTION_PLACES = MEASURED_PERCENT_PLACES + 2
+
+
+def kr_measure_due_days() -> float:
+    """`thresholds.kr_measure_due_days`, read from the schema.
+
+    A reading tool does not crash on an unreadable schema (`load_schema`'s
+    docstring names the read-side contract), so the declared value's own
+    default stands in; `tests/test_kr_checks.py` pins the two to each other.
+    """
+    try:
+        entry = ((json.loads(SCHEMA_PATH.read_text()).get("thresholds") or {})
+                 .get("kr_measure_due_days") or {})
+    except (OSError, ValueError):
+        entry = {}
+    value = entry.get("value")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return 7.0
+
+
+def _kr_number(value):
+    """A JSON number, or `None`. `true` is not `1`; `"400"` is not `400`."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
+def _latest_by(records: list, field: str):
+    """**The ordering rule**: the record whose `field` is the latest moment.
+
+    Compared through `ts_moment`, never as text. A record whose timestamp does
+    not read ranks BELOW every record whose timestamp does — `ts_moment`'s own
+    rule that an unplaceable time must not sort against placeable ones — and
+    among equal moments the later line in the file wins, because the store
+    only appends. File position is a tie-break, never the rule.
+    """
+    best, best_key = None, None
+    for position, record in enumerate(records):
+        moment = ts_moment(record.get(field))
+        key = (moment is not None,
+               moment or _datetime.min.replace(tzinfo=_timezone.utc),
+               position)
+        if best_key is None or key > best_key:
+            best, best_key = record, key
+    return best
+
+
+def kr_checks(linkage_records) -> dict:
+    """`(kr, okr_version)` → the KR's current checks, each with its value.
+
+    Both of DESIGN-022 § 5.1's ordering rules, stated once:
+
+    1. **A re-declared check supersedes the earlier one from its
+       `declared_at`.** Same `kr`, `okr_version` and `id`: the declaration
+       with the latest `declared_at` is the check.
+    2. **A check's current value is its measurement with the latest
+       `asserted_at`**, whatever order the lines are in.
+
+    `okr_version` is part of the key because an overall KR id is not unique:
+    `O1-KR1` exists in v2, v3 and v4 of `okr.jsonl`. A phase KR carries `""`.
+    A measurement is matched to its check by the same key plus `check`; one
+    naming no declared check belongs to nothing and is not shown.
+
+    Each entry is `{"check": <record>, "measurement": <record or None>}`, in
+    the order each check id was FIRST declared, so a re-declaration does not
+    reorder a KR's checks.
+    """
+    declared: dict[tuple, dict[str, list]] = {}
+    measured: dict[tuple, list] = {}
+    for record in (linkage_records or []):
+        if not isinstance(record, dict):
+            continue
+        key = (str(record.get("kr") or ""), str(record.get("okr_version") or ""))
+        if record.get("kind") == "check":
+            cid = str(record.get("id") or "")
+            if key[0] and cid:
+                declared.setdefault(key, {}).setdefault(cid, []).append(record)
+        elif record.get("kind") == "measurement":
+            cid = str(record.get("check") or "")
+            if key[0] and cid:
+                measured.setdefault(key + (cid,), []).append(record)
+    out: dict[tuple, list] = {}
+    for key, by_id in declared.items():
+        out[key] = [{"check": _latest_by(versions, "declared_at"),
+                     "measurement": _latest_by(measured.get(key + (cid,), []),
+                                               "asserted_at")}
+                    for cid, versions in by_id.items()]
+    return out
+
+
+def _kr_check_fraction(direction, value, target, baseline):
+    """`clamp((value - baseline) / (target - baseline), 0, 1)`, or `None`.
+
+    `increase` / `decrease` only. `None` when either end is missing or the
+    declaration runs the wrong way (`increase` with `target <= baseline`),
+    because a fraction of a condition that cannot be approached is not a
+    number. **The ends are reserved as in `perry-goals/list/3.1`**: `0.0`
+    only at or behind the baseline, `1.0` only at or past the target, and a
+    value strictly between is never published at an end.
+    """
+    if direction not in ("increase", "decrease"):
+        return None
+    if None in (value, target, baseline):
+        return None
+    if direction == "increase" and not target > baseline:
+        return None
+    if direction == "decrease" and not target < baseline:
+        return None
+    raw = (value - baseline) / (target - baseline)
+    if raw <= 0:
+        return 0.0
+    if raw >= 1:
+        return 1.0
+    step = 10.0 ** -KR_FRACTION_PLACES
+    return min(max(round(raw, KR_FRACTION_PLACES), step), 1.0 - step)
+
+
+def kr_check_position(entry: dict, *, task_ids=(), events=None,
+                      now=None, due_days: float | None = None) -> dict:
+    """One check's published entry: its declaration, value, `state`, `met`
+    and `fraction` — DESIGN-022 § 5.2, per check.
+
+    - `state` — `unmeasured` with no measurement; `due` when the latest
+      `asserted_at` is older than `thresholds.kr_measure_due_days`, does not
+      read as a time, or a linked task changed state after it; `measured`
+      otherwise.
+    - `met` — `value >= target` for `increase` / `at_least`, `value <= target`
+      for `decrease` / `at_most`, `value == 1` for `done`; `null` when
+      unmeasured, and `null` when a typed field it needs is not a number or
+      the direction is not one of the five.
+    - `fraction` — `_kr_check_fraction`.
+    """
+    check = entry.get("check") or {}
+    measurement = entry.get("measurement")
+    direction = str(check.get("direction") or "")
+    target = _kr_number(check.get("target"))
+    baseline = _kr_number(check.get("baseline"))
+    out = {
+        "id": str(check.get("id") or ""),
+        "label": str(check.get("label") or ""),
+        "direction": direction,
+        "target": check.get("target"),
+        "baseline": check.get("baseline"),
+        "declared_at": str(check.get("declared_at") or ""),
+        "measurement": None,
+        "state": "unmeasured",
+        "met": None,
+        "fraction": None,
+    }
+    if measurement is None:
+        return out
+    value = _kr_number(measurement.get("value"))
+    asserted_at = str(measurement.get("asserted_at") or "")
+    out["measurement"] = {
+        "value": measurement.get("value"),
+        "asserted_at": asserted_at,
+        "evidence": str(measurement.get("evidence") or ""),
+        "computed": bool(measurement.get("computed")),
+    }
+
+    moment = ts_moment(asserted_at)
+    now = ts_moment(now) if now is not None else _datetime.now(_timezone.utc)
+    limit = kr_measure_due_days() if due_days is None else float(due_days)
+    if moment is None:
+        out["state"] = "due"
+    elif (now - moment).total_seconds() > limit * 86400:
+        out["state"] = "due"
+    elif tasks_moved_since(task_ids, events, ts_key(moment)):
+        out["state"] = "due"
+    else:
+        out["state"] = "measured"
+
+    if value is not None:
+        if direction == "done":
+            out["met"] = value == 1
+        elif target is not None and direction in ("increase", "at_least"):
+            out["met"] = value >= target
+        elif target is not None and direction in ("decrease", "at_most"):
+            out["met"] = value <= target
+    out["fraction"] = _kr_check_fraction(direction, value, target, baseline)
+    return out
+
+
+def kr_position(entries, *, task_ids=(), events=None, now=None,
+                due_days: float | None = None) -> dict:
+    """A KR's `checks`, `state`, `met` and `fraction` — DESIGN-022 § 5.2, per KR.
+
+    `entries` is one value of `kr_checks(...)`, or `[]` for a KR that
+    declares no check.
+
+    - `state` — the worst of its checks' (`undeclared < unmeasured < due <
+      measured`); `undeclared` when it has none.
+    - `met` — `true` when every check is met; `null` when it has no check or
+      any check's `met` is `null` (an unmeasured check is one); `false`
+      otherwise. **Never `false` for a KR nobody declared a check on.**
+    - `fraction` — the one check's fraction when there is exactly one check;
+      `null` otherwise. Fractions of different checks are never combined.
+    """
+    checks = [kr_check_position(e, task_ids=task_ids, events=events, now=now,
+                                due_days=due_days)
+              for e in (entries or [])]
+    if not checks:
+        return {"checks": [], "state": "undeclared", "met": None,
+                "fraction": None}
+    state = min((c["state"] for c in checks), key=KR_POSITION_STATES.index)
+    mets = [c["met"] for c in checks]
+    met = None if any(m is None for m in mets) else all(mets)
+    return {"checks": checks, "state": state, "met": met,
+            "fraction": checks[0]["fraction"] if len(checks) == 1 else None}
+
+
+def objective_kr_summary(krs) -> dict:
+    """An Objective's KRs as COUNTS — DESIGN-022 § 5.2, per Objective.
+
+    `krs` are KR positions, each carrying `stretch`, `state` and `met`.
+    Stretch KRs are excluded from every count. `measured` counts the commit
+    KRs every one of whose checks carries a value (`state` `measured` or
+    `due` — a due value is old, not absent); `met` counts those whose `met`
+    is `true`; `by_state` counts each state.
+
+    **There is no mean, and no fraction.** `perry-goals/list/2.0` removed
+    `progress` because averaging positions of KRs that run in different
+    directions reports a risk budget as partly achieved; `met of total` is
+    the only aggregate that cannot.
+    """
+    commit = [k for k in (krs or []) if not k.get("stretch")]
+    by_state = {state: 0 for state in KR_POSITION_STATES}
+    for k in commit:
+        by_state[k.get("state") if k.get("state") in by_state
+                 else "undeclared"] += 1
+    return {
+        "total": len(commit),
+        "measured": by_state["measured"] + by_state["due"],
+        "met": sum(1 for k in commit if k.get("met") is True),
+        "by_state": by_state,
+    }
 
 
 # ── the one question a dashboard asks ─────────────────────────────────────
