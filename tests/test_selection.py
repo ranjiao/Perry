@@ -364,10 +364,18 @@ class TestTheRunEntry(unittest.TestCase):
         proc, ran = self.run_it("--only", "test_probe")
         self.assertTrue(ran, proc.stdout + proc.stderr)
 
-    def test_a_tier_without_dry_run_is_refused_and_runs_nothing(self):
-        for flags in (("--tier", "affected", "--base", "HEAD~1"),
-                      ("--tier", "full"),
-                      ("--tier", "affected", "--dry-run")):
+    def test_a_tier_that_cannot_be_planned_is_refused_and_runs_nothing(self):
+        """Phase A refused every `--tier` but the dry run; TASK-449 runs the
+        four tiers, so what is left to refuse is a tier that cannot be planned
+        — an unknown name, and `affected` with nothing to diff against. Both
+        exit 2 before the guard, and neither runs the probe.
+
+        The two spellings this case used to refuse, `--tier affected --base
+        HEAD~1` and `--tier full`, now RUN; `tests/test_tiers.py` holds what
+        each of them runs."""
+        for flags in (("--tier", "affected", "--dry-run"),
+                      ("--tier", "affected",),
+                      ("--tier", "quick", "--dry-run")):
             with self.subTest(flags=flags):
                 proc, ran = self.run_it(*flags)
                 self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)

@@ -346,6 +346,51 @@ output".
 - Capture stdout to a temp file; on completion, parse for the RESULT block.
 - If the long-running codex call fails (non-0 exit / no RESULT block / timeout), per the failure handling below, mark task `review` and surface raw output. Pre-flight is the cheap pre-check; this is the post-check.
 
+## What the executor runs each round (`DESIGN-021 § 5.5`)
+
+> **The brief tells the agent to run `bash tests/run --tier affected --base <the
+> pinned base SHA>` at the end of every round, and to paste the printed
+> selection block into its result.** Not the whole suite: the whole suite is
+> 964 module-seconds, and an executor that pays it on every round pays it four
+> or five times for a change that touches a handful of modules.
+
+**The sentence that goes in the prompt, and it goes in whole:**
+
+```
+Run `bash tests/run --tier affected --base <base SHA>` at the end of every
+round. It runs the smoke checks — the schema drift guard, every shipped script
+compiling and answering --help, and the tree guard — plus the test modules
+your change selects, and it prints which modules it selected and the rule that
+selected each. Paste that selection block into your RESULT.
+
+A red in `affected` is a red: fix it before you report.
+A green in `affected` is NOT a green suite. It ran the modules your change
+selects and nothing else, so it cannot tell you that the rest of the suite
+still passes. Say "green for --tier affected" in your result, never "the suite
+is green", and quote the module count you actually ran.
+```
+
+**The other three names**, for a round that wants them: `--tier smoke` (the
+cheap checks alone, ≤ 30 s), `--tier full` (every module except the harness
+self-tests — exactly what bare `tests/run` has always run), and `--tier slow`
+(the harness self-tests too, the old `--slow`). Bare `tests/run` is unchanged
+and still means `--tier full`; `--lint`, `--serial`, `--only` and `--slow` all
+keep their meaning. Add `--dry-run` to any of them to print the selection and
+run nothing.
+
+**Where the full suite runs today, stated plainly because the alternative is a
+gap nobody is watching.** There is **no automatic merge gate**: `TASK-450`
+builds it and it is not built. Until it lands, **the primary checkout runs
+`bash tests/run` itself on the merge result, before `git merge --no-ff`**, and
+that run — not the agent's `affected` run — is what says the suite is green.
+An agent's green `affected` is a reason to merge-check, never a substitute for
+it.
+
+**What this asks of whoever merges**: when a `--tier affected` result comes
+back green and the full run on the merge result goes red, the miss is a
+`COVERS` entry that was not there. Add it in the same change (`DESIGN-021 § 7`,
+first row) rather than widening the tier.
+
 ## Architecture preamble (prepended to every dispatched agent's prompt)
 
 ```
@@ -513,3 +558,11 @@ Cycle time: <minutes>
 Notes: <anything unusual>
 === END RESULT ===
 ```
+
+**On `Tests:` when the round ran a tier.** Write the command as it was typed —
+`bash tests/run --tier affected --base <sha>` — and put the printed selection
+block in `Notes:` or in the result document. The count on that line is then the
+count of what ran, which for `affected` is a subset: name it as
+`green for --tier affected (N of M modules)`, not as a green suite. A result
+that says "the suite is green" over a 29-module run is the sentence this whole
+tier arrangement has to avoid producing (`DESIGN-021 § 5.5`).

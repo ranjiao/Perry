@@ -41,9 +41,33 @@ module-level set-up, and a module that fails to import would silently have no
 declaration. A `COVERS` that is not a non-empty tuple of relative path strings
 or the name `ALL` is refused rather than guessed at.
 
+## The four tiers (§ 5.1, TASK-449)
+
+`plan()` turns a tier name into the module set that tier runs, so that
+`tests/run` and `tests/parallel` cannot disagree about what a tier means —
+there is one implementation of it and both read it.
+
+| tier | modules |
+|---|---|
+| `smoke` | none. Its checks are `tests/run`'s steps 1 and 3 plus the tree guard's hash check, none of which is a `unittest` module |
+| `affected` | what `select()` picked, minus the slow tier's modules |
+| `full` | every module on disk except the slow tier's — today's bare `tests/run` |
+| `slow` | every module on disk — today's `tests/run --slow` |
+
+The slow tier's membership is `tests/parallel § HARNESS_SELF_TESTS`, imported
+rather than re-declared here; widening it is phase E's row, not this module's.
+**`affected` subtracts it**, and names what it subtracted on its own line,
+because `select()` reads every module on disk: a change that widens to the full
+suite would otherwise make `affected` run MORE than `full` does — the 62.5 s
+`test_tree_guard.py` included — and a tier that is a superset of the tier above
+it is not a tier. Dropping them silently is the other half of that: a printed
+selection that names a module the run then skipped is exactly the divergence
+this file exists to make impossible, so the drop is a printed line.
+
 ## What prints
 
     python3 tests/selection.py --base <ref> [--head <ref>]
+    python3 tests/selection.py --tier <name> [--base <ref>] [--head <ref>]
     python3 tests/selection.py --replay 50 --base <ref>
 
 The first is what `bash tests/run --tier affected --base <ref> --dry-run`
@@ -52,7 +76,11 @@ selected share of module-seconds (`tests/durations.json`, read through
 `tests/parallel § load_durations` — not a second reader of it), and
 `this change is wide` when that share is over half. It runs no test.
 
-The second replays the last N merges reachable by first parent from `--base`
+The second prints the same for any tier, and is what a dry run of a tier other
+than `affected` prints. Neither runs a test; running one is `tests/run`'s and
+`tests/parallel`'s job.
+
+The third replays the last N merges reachable by first parent from `--base`
 through the same selector, each merge's changed paths being `M^1..M`, against
 the declarations in the working tree. It reads git and writes nothing.
 """
@@ -103,6 +131,11 @@ WIDENING_KINDS = (BIN_LIB, PARSERS, SCHEMA, TESTS_HELPER, UNMATCHED)
 
 #: The selected share above which a change is reported as wide (§ 5.2).
 WIDE = 0.5
+
+#: The four tiers of § 5.1, in the order they widen. `tests/run` and
+#: `tests/parallel` both accept exactly these names and no others.
+SMOKE, AFFECTED, FULL, SLOW = "smoke", "affected", "full", "slow"
+TIERS = (SMOKE, AFFECTED, FULL, SLOW)
 
 #: The one `tests/` path that is NOT a helper (USER-940, 2026-09-16).
 #: `tests/durations.json` is a scheduling hint: `tests/parallel`'s own rule is
@@ -227,6 +260,76 @@ def select(changed: Iterable[str],
     return Selection(picked, ())
 
 
+class TierError(ValueError):
+    """A tier this module refuses to plan: an unknown name, or a missing base."""
+
+
+@dataclass(frozen=True)
+class Plan:
+    """What one tier runs, for one base. `modules` is what the runner runs."""
+
+    tier: str
+    #: module file names, in name order — the set handed to the runner
+    modules: tuple
+    #: the `Selection` behind `affected`, or None for the other three
+    selection: "Selection | None" = None
+    #: selected modules held back because they are the slow tier's
+    deferred: tuple = ()
+    #: the changed paths `affected` was computed from
+    changed: tuple = ()
+
+
+def tier_modules(tier: str, on_disk: Iterable[str], slow: Iterable[str],
+                 sel: "Selection | None" = None) -> tuple[tuple, tuple]:
+    """(modules this tier runs, modules it held back). Pure; no I/O.
+
+    `slow` is `tests/parallel § HARNESS_SELF_TESTS`, passed in rather than
+    imported here so the one declaration stays that module's.
+    """
+    on_disk, slow = sorted(set(on_disk)), frozenset(slow)
+    fast = tuple(m for m in on_disk if m not in slow)
+    if tier == SMOKE:
+        return (), ()
+    if tier == FULL:
+        return fast, ()
+    if tier == SLOW:
+        return tuple(on_disk), ()
+    if tier == AFFECTED:
+        if sel is None:
+            raise TierError("the affected tier needs a selection")
+        chosen = sorted(set(sel.modules) & set(on_disk))
+        return (tuple(m for m in chosen if m not in slow),
+                tuple(m for m in chosen if m in slow))
+    raise TierError(f"unknown tier {tier!r} — one of {', '.join(TIERS)}")
+
+
+def harness_self_tests(root: pathlib.Path = ROOT) -> frozenset:
+    """`tests/parallel § HARNESS_SELF_TESTS`, imported, never re-declared."""
+    return frozenset(_parallel(root).HARNESS_SELF_TESTS)
+
+
+def modules_on_disk(root: pathlib.Path = ROOT) -> list[str]:
+    return sorted(p.name for p in (root / "tests").glob("test_*.py"))
+
+
+def plan(tier: str, base: str | None = None, head: str = "HEAD",
+         root: pathlib.Path = ROOT, slow: Iterable[str] | None = None,
+         decls: Mapping[str, Declaration] | None = None) -> Plan:
+    """The `Plan` for `tier`. Reads git only for `affected`."""
+    if tier not in TIERS:
+        raise TierError(f"unknown tier {tier!r} — one of {', '.join(TIERS)}")
+    if tier == AFFECTED and not base:
+        raise TierError("the affected tier needs --base <ref>")
+    slow = harness_self_tests(root) if slow is None else slow
+    sel, changed = None, []
+    if tier == AFFECTED:
+        decls = declarations(root) if decls is None else decls
+        changed = changed_paths(base, head, root)
+        sel = select(changed, decls)
+    modules, deferred = tier_modules(tier, modules_on_disk(root), slow, sel)
+    return Plan(tier, modules, sel, deferred, tuple(changed))
+
+
 def share(sel: Selection, decls: Mapping[str, Declaration],
           durations: Mapping[str, float]) -> tuple[float, float]:
     """(selected module-seconds, suite module-seconds). Unmeasured count 0."""
@@ -265,27 +368,48 @@ def recent_merges(base: str, count: int,
     return [tuple(line.split("\t", 2)) for line in out.splitlines() if line]
 
 
+_PARALLEL: dict[str, object] = {}
+
+
+def _parallel(root: pathlib.Path = ROOT):
+    """`tests/parallel` as a module. Loaded once per root, by path.
+
+    It has no `.py` extension, and importing it by name would depend on
+    whatever `sys.path` the caller happened to start with. Cached because two
+    callers now want something out of it — the stopwatch and the slow tier's
+    membership — and exec'ing the file twice to read two constants is waste
+    that shows up in `smoke`'s budget.
+    """
+    key = str(root)
+    if key not in _PARALLEL:
+        sys.dont_write_bytecode = True
+        runner = root / "tests" / "parallel"
+        loader = importlib.machinery.SourceFileLoader(
+            "perry_tests_parallel_sel", str(runner))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        mod = importlib.util.module_from_spec(spec)
+        loader.exec_module(mod)
+        _PARALLEL[key] = mod
+    return _PARALLEL[key]
+
+
 def load_durations(root: pathlib.Path = ROOT) -> dict[str, float]:
     """`tests/parallel § load_durations`, imported rather than re-implemented."""
-    sys.dont_write_bytecode = True
-    runner = root / "tests" / "parallel"
-    loader = importlib.machinery.SourceFileLoader("perry_tests_parallel_sel",
-                                                  str(runner))
-    spec = importlib.util.spec_from_loader(loader.name, loader)
-    mod = importlib.util.module_from_spec(spec)
-    loader.exec_module(mod)
-    return mod.load_durations()
+    return _parallel(root).load_durations()
 
 
 # ── output ───────────────────────────────────────────────────────────────
 
 def dry_run_lines(base: str, head: str, changed: list[str], sel: Selection,
                   decls: Mapping[str, Declaration],
-                  durations: Mapping[str, float]) -> list[str]:
+                  durations: Mapping[str, float],
+                  dry: bool = True,
+                  deferred: Iterable[str] = ()) -> list[str]:
     chosen, total = share(sel, decls, durations)
     pct = 100.0 * chosen / total if total else 0.0
     out = [f"tier affected · {base}...{head} · {len(changed)} changed "
-           f"path(s) · dry run, no test runs"]
+           f"path(s) · " + ("dry run, no test runs" if dry else
+                            "running the modules below")]
     for kind, path in sel.widened:
         out.append(f"  widened to the full suite — {kind}: {path}")
     width = max((len(m) for m in sel.modules), default=0)
@@ -293,9 +417,45 @@ def dry_run_lines(base: str, head: str, changed: list[str], sel: Selection,
         out.append(f"  {m:<{width}}  {sel.modules[m]}")
     out.append(f"selected {len(sel.modules)} of {len(decls)} modules · "
                f"{chosen:.1f} of {total:.1f} module-seconds ({pct:.1f}%)")
+    for m in sorted(deferred):
+        out.append(f"  held back — {m} is the slow tier's "
+                   f"(tests/parallel § HARNESS_SELF_TESTS): "
+                   f"run `bash tests/run --tier slow`")
     if total and chosen / total > WIDE:
         out.append("this change is wide")
     return out
+
+
+def plan_lines(p: Plan, decls: Mapping[str, Declaration] | None = None,
+               durations: Mapping[str, float] | None = None,
+               base: str | None = None, head: str = "HEAD",
+               dry: bool = True, root: pathlib.Path = ROOT) -> list[str]:
+    """What `p` would run, printed. One line per module for `affected`.
+
+    `full` and `slow` print a count rather than 143 lines: their membership is
+    "everything on disk", which no reader needs enumerated to check.
+    """
+    if p.tier == AFFECTED:
+        decls = declarations(root) if decls is None else decls
+        durations = load_durations(root) if durations is None else durations
+        return dry_run_lines(base or "?", head, list(p.changed), p.selection,
+                             decls, durations, dry=dry, deferred=p.deferred)
+    durations = load_durations(root) if durations is None else durations
+    on_disk = modules_on_disk(root)
+    total = sum(durations.get(m, 0.0) for m in on_disk)
+    chosen = sum(durations.get(m, 0.0) for m in p.modules)
+    pct = 100.0 * chosen / total if total else 0.0
+    if p.tier == SMOKE:
+        return ["tier smoke · no test module · "
+                + ("nothing runs (dry run)" if dry else
+                   "perry-lint --templates, every shipped script compiles and "
+                   "answers --help, and the tree guard's hash check"),
+                f"  0 of {len(on_disk)} modules · 0.0 of {total:.1f} "
+                f"module-seconds (0.0%)"]
+    return [f"tier {p.tier} · "
+            + ("nothing runs (dry run)" if dry else "running every module below"),
+            f"  {len(p.modules)} of {len(on_disk)} modules · {chosen:.1f} of "
+            f"{total:.1f} module-seconds ({pct:.1f}%)"]
 
 
 def replay(base: str, count: int, root: pathlib.Path = ROOT) -> list[str]:
@@ -360,21 +520,23 @@ def replay(base: str, count: int, root: pathlib.Path = ROOT) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--base", required=True, help="the ref to diff against")
+    ap.add_argument("--base", help="the ref to diff against")
     ap.add_argument("--head", default="HEAD")
+    ap.add_argument("--tier", choices=TIERS,
+                    help="print what this tier would run (default: affected)")
     ap.add_argument("--replay", type=int, metavar="N",
                     help="replay the last N first-parent merges from --base")
     args = ap.parse_args(argv)
+    tier = args.tier or AFFECTED
+    if args.base is None and (args.replay or tier == AFFECTED):
+        ap.error("--base is required for --replay and for --tier affected")
     try:
         if args.replay:
             print("\n".join(replay(args.base, args.replay)))
             return 0
-        decls = declarations()
-        changed = changed_paths(args.base, args.head)
-        sel = select(changed, decls)
-        print("\n".join(dry_run_lines(args.base, args.head, changed, sel,
-                                      decls, load_durations())))
-    except (GitError, DeclarationError) as e:
+        p = plan(tier, args.base, args.head)
+        print("\n".join(plan_lines(p, base=args.base, head=args.head)))
+    except (GitError, DeclarationError, TierError) as e:
         print(f"tests/selection.py: {e}", file=sys.stderr)
         return 2
     return 0
