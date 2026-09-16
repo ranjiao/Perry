@@ -14,6 +14,7 @@ and every entry they report here is **derived** from the files below:
 |---|---|
 | `perry-decide` → `expired_sunsets` | `decisions/ADR-001-sunset-that-passed.md` is `active` with `Sunset: 2026-06-30` |
 | `perry-goals` → `krs[].current_staleness.moved_tasks` | `linkage.jsonl` asserts each KR's `current` at 2026-08-05 (`asserted_at`); both linked rows moved on 2026-08-06 |
+| `perry-goals` → `krs[].checks`, `krs[].checks[].measurement` (3.5) | `linkage.jsonl` declares one `increase` check on the overall `O1-KR1` (keyed by `okr_version: "v1: 2026-06-01"`) and on `P001-O1-KR1`, each measured once at 2026-08-05 |
 | `perry-task` → `conformance.depends_on_unknown` | `WIT-002` depends on `WIT-404`, an id no register here carries |
 | `perry-task` → `conformance.in_progress_with_no_live_run` | `WIT-001` is `in_progress`, holds no dispatch slot, and nothing has moved it since 2026-08-06 |
 | `perry-task` → `conformance.review_idle` | `WIT-003` has been in `review` since 2026-08-06 and nobody has ruled on it |
