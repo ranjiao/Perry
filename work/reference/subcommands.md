@@ -5,7 +5,7 @@ The standup ritual + dispatch + delegate live in SKILL.md / `dispatch.md` / `del
 ## Planning
 
 ### `plan-week`
-Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `perry-task list --json` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user. **Both halves of that go through the tool** — `"$PERRY_HOME/bin/perry-task" add --priority P0` for a new row, `"$PERRY_HOME/bin/perry-task" prioritize <ID> --priority P0 [--reason "…"]` to move an existing one, which keeps its id and every cell. This line used to say the second was "still a hand edit" because "the tool has no `priority` subcommand yet"; `prioritize` closed that, and a procedure that keeps teaching the hand path after the tool path exists is how a row acquires a post-tool edit for no reason. Writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes` — prose, and the one part of this that is genuinely yours. Drafts the week's row in `weekly/<YYYY-WW>.md`.
+Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `perry-task list --json` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user. **Both halves of that go through the tool** — `"$PERRY_HOME/bin/perry-task" add --actor <actor> --priority P0` for a new row, `"$PERRY_HOME/bin/perry-task" prioritize <ID> --actor <actor> --priority P0 [--reason "…"]` to move an existing one, which keeps its id and every cell. This line used to say the second was "still a hand edit" because "the tool has no `priority` subcommand yet"; `prioritize` closed that, and a procedure that keeps teaching the hand path after the tool path exists is how a row acquires a post-tool edit for no reason. Writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes` — prose, and the one part of this that is genuinely yours. Drafts the week's row in `weekly/<YYYY-WW>.md`.
 
 ### `triage`
 
@@ -23,7 +23,7 @@ per row, `undischarged`, and `oldest_undischarged` to start from.
 **At the end of a review period, sweep:**
 
 ```
-"$PERRY_HOME/bin/perry-task" intake-sweep
+"$PERRY_HOME/bin/perry-task" intake-sweep --actor <actor>
 ```
 
 Discharged rows move to today's journal with their `Outcome` intact. This rule
@@ -33,8 +33,8 @@ same file rests its overflow argument on it: intake pressure is supposed to mean
 
 **Step 0 — drain the intake register (`## Intake` in `perry-tasks board`), before anything else.** Applies to every queue-mode track. If the track exists and the section does not, it is created by the first `perry-task add` on a queue track or by `perry-task intake`; do not hand-write it, and do not skip the step — a self-skipping step is indistinguishable from a step that has nothing to do. Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
 
-- **Routed** to a track → `"$PERRY_HOME/bin/perry-task" route <n> --track <track> [--priority P1 | --group "<heading>"]`, where `<n>` is the intake row's position. `--group` names the project's own heading on a board that does not use `P0`/`P1`/`P2` — the same flag, and the same meaning, as on `add`. The tool carries `Arrived` onto the new row, sets `Stage` to the track's first post-intake stage, and writes the destination back into the intake row's `Outcome` so the request's record is complete. Carrying `Arrived` is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`). It was dropped, by this procedure, until the tool did it structurally.
-- **Dropped** → `"$PERRY_HOME/bin/perry-task" resolve-intake <n> --outcome dropped --reason "…"`. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked. The tool writes the `Outcome` cell, the journal line and the event, so a declined request is as visible as a routed one.
+- **Routed** to a track → `"$PERRY_HOME/bin/perry-task" route <n> --actor <actor> --track <track> [--priority P1 | --group "<heading>"]`, where `<n>` is the intake row's position. `--group` names the project's own heading on a board that does not use `P0`/`P1`/`P2` — the same flag, and the same meaning, as on `add`. The tool carries `Arrived` onto the new row, sets `Stage` to the track's first post-intake stage, and writes the destination back into the intake row's `Outcome` so the request's record is complete. Carrying `Arrived` is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`). It was dropped, by this procedure, until the tool did it structurally.
+- **Dropped** → `"$PERRY_HOME/bin/perry-task" resolve-intake <n> --actor <actor> --outcome dropped --reason "…"`. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked. The tool writes the `Outcome` cell, the journal line and the event, so a declined request is as visible as a routed one.
 - **Deferred** → same command with `--outcome deferred --reason "<the named condition>"` — never a bare "later".
 
 **Recording an arrival is a separate act from draining one.** A request that
@@ -42,7 +42,7 @@ reaches you between triages — in chat, from a colleague, out of a meeting — 
 written down when it arrives, not remembered until the next walk:
 
 ```
-"$PERRY_HOME/bin/perry-task" intake --title "<the request, in the asker's words>" \
+"$PERRY_HOME/bin/perry-task" intake --actor <actor> --title "<the request, in the asker's words>" \
     [--arrived YYYY-MM-DD]
 ```
 
@@ -133,7 +133,7 @@ triage-shaped question the old walk had no way to ask:
 Then walk the rows the payload returned. For each open row:
 - Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d, measured from `updated`) → flag. **A row in `conformance.rows_with_no_computable_age` has no age**: no event, and the six standard board columns carry no date. Do not treat it as fresh — that is what the old rule did to two thirds of Perry's own board. Ask instead: *"this row has no recorded age; is it still live?"*
 - Same dependency cited in ≥2 rows? → structural blocker
-- `done` claim without evidence file in `evidence/<YYYY-MM>/` → `"$PERRY_HOME/bin/perry-task" status <ID> --status review --next "needs an evidence file before it can close"`
+- `done` claim without evidence file in `evidence/<YYYY-MM>/` → `"$PERRY_HOME/bin/perry-task" status <ID> --actor <actor> --status review --next "needs an evidence file before it can close"`
 - Owner is an agent and the row is still `not_started`? → flag. **Read the row, not the chat**: `delegate` now writes `in_progress` with `delegated to <agent>; awaiting paste-back` in `Next action`, so a delegated task is visible in state. This check used to look for "a recent delegation prompt in chat", which is not a surface any tool can read and not a record that survives the session.
 - Row inflated (long inline notes leaking into the board) → propose moving detail to `evidence/<YYYY-MM>/<TASK-ID>-*.md`, leaving only Status + Next action + Evidence path on the board.
 - Spec has `Deployed: yes`, status `review`, but no `Runbook:` field or runbook file missing → flag with "blocks close" annotation (see `$PERRY_HOME/packs/software-ops/runbooks.md`).
@@ -145,7 +145,7 @@ Then walk the rows the payload returned. For each open row:
 **Every stage move goes through the tool — this is a global invariant, not a triage rule.**
 
 ```
-"$PERRY_HOME/bin/perry-task" stage <TASK-ID> --stage <name>
+"$PERRY_HOME/bin/perry-task" stage <TASK-ID> --actor <actor> --stage <name>
 ```
 
 It re-stamps `Stage since` in the same write and refuses a stage outside the track's declared vocabulary. The rule applies wherever `Stage` changes. `close-task` is in this same file and does load it; `dispatch` and `autopilot` are not, so the invariant is restated in `reference/dispatch.md` and `reference/autopilot.md` rather than relying on this one. Hand-editing the cell leaves the clock reading from whenever the row was created, and pipeline triage's first question then measures nothing. Changing a row's `Stage` sets `Stage since` to today **in the same edit**, and writes the move into today's journal `## Status changes` line alongside any `Status` change. This is the rule that makes dwell time real: `Stage` and `Status` are orthogonal by design, so a `draft → review` move produces no `Status` change and would otherwise leave no trace anywhere. A stage moved without its timestamp is a clock that reads whatever it read last.
@@ -153,8 +153,8 @@ It re-stamps `Stage since` in the same write and refuses a stage outside the tra
 **Asking the user something, and recording their answer, go through the tool.**
 
 ```
-"$PERRY_HOME/bin/perry-task" ask --needed "<the question>" [--blocks <TASK-ID>]
-"$PERRY_HOME/bin/perry-task" answer <USER-ID> --answer "<what they decided>"
+"$PERRY_HOME/bin/perry-task" ask --actor <actor> --needed "<the question>" [--blocks <TASK-ID>]
+"$PERRY_HOME/bin/perry-task" answer <USER-ID> --actor <actor> --answer "<what they decided>"
 ```
 
 `ask` mints the `USER-NNN`, stamps **`Asked`** — a date — and creates
@@ -162,7 +162,7 @@ It re-stamps `Stage since` in the same write and refuses a stage outside the tra
 the `Asked` column to a section that predates it.
 
 **An ask is a node in the dependency graph, so declare the edge both ways.**
-`--blocks <TASK-ID>` writes the queue side; `perry-task depends <TASK-ID> --on
+`--blocks <TASK-ID>` writes the queue side; `perry-task depends <TASK-ID> --actor <actor> --on
 <USER-ID>` writes the task side, and from contract 1.14 the reader resolves it:
 a `pending` ask keeps the row in `blocked_by` exactly as an open task does, and
 an **answered** one satisfies the edge exactly as a closed task does — at which
@@ -193,9 +193,9 @@ what is being asked, and what was decided, are written by whoever knows.
 **Registering a recurrence, and recording that it ran, go through the tool.**
 
 ```
-"$PERRY_HOME/bin/perry-task" cadence-add  --title "<what recurs>" \
+"$PERRY_HOME/bin/perry-task" cadence-add --actor <actor>  --title "<what recurs>" \
     --frequency <weekly|monthly|quarterly|Nd|…> [--owner O] [--on YYYY-MM-DD]
-"$PERRY_HOME/bin/perry-task" cadence-done <CAD-ID> --evidence <path> \
+"$PERRY_HOME/bin/perry-task" cadence-done <CAD-ID> --actor <actor> --evidence <path> \
     [--on YYYY-MM-DD] [--frequency F]
 ```
 
@@ -235,7 +235,7 @@ the escape hatch when a row's existing cell is prose the tool cannot read.
 **A wrong `Next action` is corrected with its own subcommand.**
 
 ```
-"$PERRY_HOME/bin/perry-task" next <TASK-ID> --next "<the real next step>"
+"$PERRY_HOME/bin/perry-task" next <TASK-ID> --actor <actor> --next "<the real next step>"
 ```
 
 The most common thing a triage does, and it had no tool path until TASK-041:
@@ -253,7 +253,7 @@ log.
 **A wrong `Title` is corrected the same way.**
 
 ```
-"$PERRY_HOME/bin/perry-task" retitle <TASK-ID> --title "<what this row is now>"
+"$PERRY_HOME/bin/perry-task" retitle <TASK-ID> --actor <actor> --title "<what this row is now>"
 ```
 
 The same gap, one column over. A row filed as two pieces of work whose second
@@ -268,10 +268,10 @@ title. That is also why there is no subcommand for changing an id.
 **Four cells are correctable in place, each with its own subcommand.**
 
 ```
-"$PERRY_HOME/bin/perry-task" next     <ID> --next "…"
-"$PERRY_HOME/bin/perry-task" retitle  <ID> --title "…"
-"$PERRY_HOME/bin/perry-task" rung     <ID> --rung V1..V6
-"$PERRY_HOME/bin/perry-task" evidence <ID> --evidence "…"
+"$PERRY_HOME/bin/perry-task" next     <ID> --actor <actor> --next "…"
+"$PERRY_HOME/bin/perry-task" retitle  <ID> --actor <actor> --title "…"
+"$PERRY_HOME/bin/perry-task" rung     <ID> --actor <actor> --rung V1..V6
+"$PERRY_HOME/bin/perry-task" evidence <ID> --actor <actor> --evidence "…"
 ```
 
 They are one implementation with four configurations — they were three copies
@@ -303,8 +303,8 @@ re-stating what was checked, which is a re-review, not a repair.
 **A rung is set when the row is opened, and corrected the same way.**
 
 ```
-"$PERRY_HOME/bin/perry-task" add   --title "…" --rung V4
-"$PERRY_HOME/bin/perry-task" rung  <TASK-ID> --rung V4
+"$PERRY_HOME/bin/perry-task" add --actor <actor>   --title "…" --rung V4
+"$PERRY_HOME/bin/perry-task" rung  <TASK-ID> --actor <actor> --rung V4
 ```
 
 `--rung` used to exist only on `done`, which is far too late to argue about
@@ -322,7 +322,7 @@ hand edit is one nobody corrects.
 **Every status change that is not a close goes through the tool too.**
 
 ```
-"$PERRY_HOME/bin/perry-task" status <TASK-ID> --status blocked|review|not_started|in_progress \
+"$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status blocked|review|not_started|in_progress \
     [--reason "<why>"] [--next "<next action>"]
 ```
 
@@ -432,9 +432,9 @@ The migration for a pre-Perry project that keeps all its ADRs in one file moved 
 **Raising a risk and clearing one both go through the tool.**
 
 ```bash
-"$PERRY_HOME/bin/perry-task" risk-add   --title "<the risk, in your words>" [--opened YYYY-MM-DD]
-"$PERRY_HOME/bin/perry-task" risk-clear <RX-ID> --reason "<why it is over>"
-"$PERRY_HOME/bin/perry-task" risk-migrate            # bullets → the table, once
+"$PERRY_HOME/bin/perry-task" risk-add --actor <actor>   --title "<the risk, in your words>" [--opened YYYY-MM-DD]
+"$PERRY_HOME/bin/perry-task" risk-clear <RX-ID> --actor <actor> --reason "<why it is over>"
+"$PERRY_HOME/bin/perry-task" risk-migrate --actor <actor>            # bullets → the table, once
 ```
 
 `## Top risks`, as `perry-tasks board` prints it from `risks.jsonl`, is a table
@@ -587,7 +587,7 @@ Two or three sentences of plain language: *why this row exists* and *what is tru
 
 **Then, the KR-attribution gate** (`$PERRY_HOME/reference/okr-linkage.md`) — hard, not advisory: resolve the task's KR by stable ID through `linkage.jsonl` (explicit `kr:` → Project ID → registered alias). If it resolves to exactly one KR, set `kr:` and continue. If it resolves to zero or many — a drifted/ambiguous name, or a Project no registry row claims — **do NOT fuzzy-match**: ask the user (`AskUserQuestion`, header `"KR attribution"`, options = the candidate KR IDs + text, plus "Other → new/none"). Record the chosen KR in the spec, then **hand the result to `okr`**, which is the only writer of `phase/` (`goals/reference/linkage.md`):
 
-- resolved → `/perry goals link <TASK-ID> <KR-ID>` (appends the edge to that KR's `tasks[]`), and pass the same id to `perry-task add --kr <KR-ID>` below
+- resolved → `/perry goals link <TASK-ID> <KR-ID>` (appends the edge to that KR's `tasks[]`), and pass the same id to `perry-task add --actor <actor> --kr <KR-ID>` below
 - a name confirmed as an existing Project → `/perry goals link --alias <PROJECT-ID> "<name>"`
 - unresolved, or the user is unavailable → pass **`--unlinked` on the `perry-task add` below**, which declares in the row's own creating action that it serves no key result. **Do not omit both flags: `add` refuses a row that answers neither** (TASK-439), and omitting `--kr` was what this bullet used to say — it filed the row behind a warning and left it in `never_answered` permanently, because a later `perry-goals link` writes `via: "link"`, which `P003-O3-KR2` excludes by design. Declaring at `add` is the only form the KR counts. `/perry goals link --unlinked <TASK-ID>` remains the path for a row that is *already* filed. The tool records `KR linkage: unlinked` in the definition block itself, which is what keeps the row out of every KR roll-up until the standup surfaces it. **`--unlinked` is a declaration to mean, not a way past the refusal** — if the KR simply has not been looked up yet, look it up and pass `--kr`; `reference/okr-linkage.md` forbids guessing one, and the record `--unlinked` writes cannot be withdrawn by any `perry-task` command. (This sentence also claimed the declaration stays VISIBLE — naming `perry-lint`, then `perry-state § attribution`. Both were measured false and the claim was deleted under `USER-928` answer C: `linkage-unlinked-exists` warns only on an id that is **not** a row in `tasks.jsonl`, and `attribution.declared_unlinked` is scoped to `phase/CURRENT` — 143 standing declarations on Perry's own board, 116 reported. No reader reports a healthy standing declaration from a past phase.) This bullet used to say "write the BOARD row with `attribution: unlinked`" — there is no such column in `schema/state-schema.json` and there never was, so the instruction produced either a cell nothing reads or a widened board nobody asked for.
 
@@ -608,14 +608,14 @@ Print the exact command — **in its `/perry <lane> …` form**, since this stri
 
 A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-mode board must carry `Stage` and `Arrived`. They are optional in the schema so that no pre-DESIGN-003 board is invalidated, **not** so a mode track can skip them — a track that does is missing the clock its own triage reads.
 
-**An existing row changes track with `perry-task track <ID> --track <track>`, never by hand.** The table above is about creation, and for a long time creation and `route` were the only two entrances a track had — so a project that declared a second track started it empty and had no tool path for the work already on the board. Moving a row is one command and it re-stamps the destination's clock in the same write: onto a `queue` track it sets `Stage` to the first post-intake stage and `Arrived` (carrying an existing one rather than restamping it, so a move cannot erase an in-flight breach); onto a staged non-queue track it sets `Stage` and `Stage since`; onto a track that reads neither it **clears** `Stage` / `Stage since` / `Arrived` and writes what they held into the journal line and the event. A track with no record in `.perry/config.jsonl` (`perry-config show`) is refused by name, with the declared ones listed — the tool does not create a track, because a typo that invented one would be counted as real by every reader afterwards. Editing the `Track` cell by hand instead drops the clock, which is the same defect this section records for `Arrived` one paragraph up.
+**An existing row changes track with `perry-task track <ID> --actor <actor> --track <track>`, never by hand.** The table above is about creation, and for a long time creation and `route` were the only two entrances a track had — so a project that declared a second track started it empty and had no tool path for the work already on the board. Moving a row is one command and it re-stamps the destination's clock in the same write: onto a `queue` track it sets `Stage` to the first post-intake stage and `Arrived` (carrying an existing one rather than restamping it, so a move cannot erase an in-flight breach); onto a staged non-queue track it sets `Stage` and `Stage since`; onto a track that reads neither it **clears** `Stage` / `Stage since` / `Arrived` and writes what they held into the journal line and the event. A track with no record in `.perry/config.jsonl` (`perry-config show`) is refused by name, with the declared ones listed — the tool does not create a track, because a typo that invented one would be counted as real by every reader afterwards. Editing the `Track` cell by hand instead drops the clock, which is the same defect this section records for `Arrived` one paragraph up.
 
 **Creating a queue-mode row also creates the intake register, `intake.jsonl`, if it is absent** — printed by `perry-tasks board` as `## Intake`, with its three columns (`Arrived`, `Request`, `Outcome`). Intake is the organ queue mode is built on and the first thing `triage` walks; a register nothing creates means step 0 no-ops forever, and `modes/queue.md`'s warning about a track "whose intake is always empty while work is clearly happening" would describe the guaranteed default rather than a risk.
 
 1. **Create the row with the tool, not by hand.**
 
    ```
-   "$PERRY_HOME/bin/perry-task" add --title "<title>" --owner "<owner>" \
+   "$PERRY_HOME/bin/perry-task" add --actor <actor> --title "<title>" --owner "<owner>" \
        --summary "<why this row exists, for a reader who was not here>" \
        --deliverable "<the artifact>" --verification "<the falsifiable check>" \
        --priority <P0|P1|P2> [--track <track>] [--next "<next action>"] \
@@ -654,7 +654,7 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    such a board is visibly Perry's and claims nothing.
 
    ```
-   "$PERRY_HOME/bin/perry-task" add --title "…" --deliverable "…" \
+   "$PERRY_HOME/bin/perry-task" add --actor <actor> --title "…" --deliverable "…" \
        --verification "…" --prefix AIM
    ```
 
@@ -679,7 +679,7 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    heading instead:
 
    ```
-   "$PERRY_HOME/bin/perry-task" add --title "…" --deliverable "…" \
+   "$PERRY_HOME/bin/perry-task" add --actor <actor> --title "…" --deliverable "…" \
        --verification "…" --group "Open — 工程线"
    ```
 
@@ -708,7 +708,7 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
 2. **The full definition comes from the same call — pass the fields, don't retype the block.**
 
    ```
-   "$PERRY_HOME/bin/perry-task" add --title "…" --owner "…" --priority <P> \
+   "$PERRY_HOME/bin/perry-task" add --actor <actor> --title "…" --owner "…" --priority <P> \
        --deliverable "…" --verification "…" \
        [--depends "TASK-050, TASK-051"] [--out-of-scope "…"] [--kr <KR-ID>]
    ```
@@ -813,7 +813,7 @@ Two rules override the default, and neither is optional:
 - **Consequence beats mode.** If the task matches `.perry/hook.md § High-stakes operations` — outward-facing, irreversible, or carrying money, legal or safety exposure — the rung is **V5 minimum** whatever the mode default says. `perry-lint --verification` reports the mismatch as `consequence-needs-signoff`, so a close below V5 on a high-stakes row will surface at the next standup regardless.
 - **V4 needs a rubric, V5 needs a signature.** A `V4` close must cite the acceptance-criteria file the reviewer scored against, and that reviewer must not have seen the reasoning that produced the artifact. A `V5` close must record **name, date, and what was checked** — "reviewed" is not what was checked. At V5 the signature is *selected* rather than composed; the procedure is the next block.
 
-**Choose** the rung here and hand it to `perry-task done --rung`. Do not write it into the row or the journal yourself — the tool writes both, and doing it here as well produces a duplicate journal line and an edit to a row the next command removes. **Advisory this release** by DESIGN-003 § 4 decision 4: a missing or unsatisfiable rung is reported, never refused, because a hard gate on day one would retroactively invalidate every `done` row written before rungs existed. The number to watch is `unrated` in `perry-state`'s `board.verification` — it is what should shrink before the gate hardens.
+**Choose** the rung here and hand it to `perry-task done`'s `--rung`. Do not write it into the row or the journal yourself — the tool writes both, and doing it here as well produces a duplicate journal line and an edit to a row the next command removes. **Advisory this release** by DESIGN-003 § 4 decision 4: a missing or unsatisfiable rung is reported, never refused, because a hard gate on day one would retroactively invalidate every `done` row written before rungs existed. The number to watch is `unrated` in `perry-state`'s `board.verification` — it is what should shrink before the gate hardens.
 
 **Pre-close gate 3, second half — at V5 the signature is SELECTED from what Perry measured, never composed from memory** (TASK-109). Rungs V1–V4 stop at the paragraph above; only a V5 close continues here.
 
@@ -836,7 +836,7 @@ Render the payload's `options` with **`AskUserQuestion`** (`multiSelect: true`, 
 Hand the answer to the same call that closes the row — this is one tool call, not a close plus a write:
 
 ```bash
-"$PERRY_HOME/bin/perry-task" done <TASK-ID> --evidence "<path>" --rung V5 \
+"$PERRY_HOME/bin/perry-task" done <TASK-ID> --actor <actor> --evidence "<path>" --rung V5 \
     --measured "…" --restated "…" \
     --checked "1,3" \
     [--not-looked-at "4"] \
@@ -861,7 +861,7 @@ If the task spec lists `Subjective verification` items, **use `AskUserQuestion`*
 1. **Close it with the tool, not by hand.**
 
    ```
-   "$PERRY_HOME/bin/perry-task" done <TASK-ID> --evidence "<path or citation>" --rung <V1..V6>
+   "$PERRY_HOME/bin/perry-task" done <TASK-ID> --actor <actor> --evidence "<path or citation>" --rung <V1..V6>
    ```
 
    It removes the board row, writes the journal status-change line with the rung
@@ -898,7 +898,7 @@ To find a closed task later: `grep "TASK-007" journal/` returns its creation ent
 Symmetric to `close-task`, and like it, tool-written:
 
 ```
-"$PERRY_HOME/bin/perry-task" drop <ID> --reason "<reason>"
+"$PERRY_HOME/bin/perry-task" drop <ID> --actor <actor> --reason "<reason>"
 ```
 
 `--reason` is required and the tool refuses without it — a dropped row that
@@ -940,7 +940,7 @@ Runs when a phase has been scored via `okr score-phase` and the user is ready to
 1. Confirm `evidence/<YYYY-MM>/retro.md` exists — **this lane's own file, written by `end-phase-retro`**, not by `okr score-phase`, which hands over a summary and does not write `evidence/` (`goals/reference/phases.md` step 5). If it is absent, prompt to run `end-phase-retro`; prompting for `score-phase` cannot produce it.
 2. **Calendar-month directories** — `journal/<YYYY-MM>/` and `evidence/<YYYY-MM>/` are calendar-bound; create new month dirs only if the calendar month rolled (most rollovers do NOT need this — phases can span multiple calendar months OR fit inside one).
 3. **The task store is left alone.** Open carry-forward tasks already live there; no "carry forward" step is needed because the board never had a phase boundary in the first place. If a row's task ID encodes a date or phase prefix, leave it untouched — it's the canonical handle.
-4. For each unresolved task on BOARD: **use `AskUserQuestion`** (header = TASK-ID, options = `Carry forward (Recommended) | Drop with reason`). Batch up to 4 per call. For "Drop with reason", follow up with a free-text prompt for the reason, then run `perry-task drop <ID> --reason "<reason>"` — the reason the user just gave, verbatim, not a paraphrase.
+4. For each unresolved task on BOARD: **use `AskUserQuestion`** (header = TASK-ID, options = `Carry forward (Recommended) | Drop with reason`). Batch up to 4 per call. For "Drop with reason", follow up with a free-text prompt for the reason, then run `perry-task drop <ID> --actor <actor> --reason "<reason>"` — the reason the user just gave, verbatim, not a paraphrase.
 5. Hand off to OKR: print "OKR `plan-phase <new-slug>` is needed — pick the next phase's slug." Do **not** create the new phase file yourself — that's OKR's lane.
 6. Append a `## Notes` entry to today's journal: "rollover from phase #<old-NNN>-<old-slug>; <n> rows carried; see evidence/<YYYY-MM>/retro.md".
 

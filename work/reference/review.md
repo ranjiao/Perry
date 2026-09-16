@@ -410,8 +410,8 @@ Each verdict block drives exactly one call, and a FAIL never leaves the row at
 `review`:
 
 ```
-PASS → "$PERRY_HOME/bin/perry-task" done <ID> --evidence <review-doc> --rung V4
-FAIL → "$PERRY_HOME/bin/perry-task" status <ID> --status in_progress \
+PASS → "$PERRY_HOME/bin/perry-task" done <ID> --actor <actor> --evidence <review-doc> --rung V4
+FAIL → "$PERRY_HOME/bin/perry-task" status <ID> --actor <actor> --status in_progress \
            --next "<what the FAIL said, and what would make it pass>"
 ```
 
@@ -454,7 +454,7 @@ means the category is not a category — it is a fork nobody has taken.** The
 deliverable is no longer a fix, it is the choice:
 
 ```
-"$PERRY_HOME/bin/perry-task" ask --needed "<A vs B, and which you recommend>" \
+"$PERRY_HOME/bin/perry-task" ask --actor <actor> --needed "<A vs B, and which you recommend>" \
                                  --blocks <TASK-ID>
 ```
 

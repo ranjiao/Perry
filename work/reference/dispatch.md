@@ -471,11 +471,11 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
    step 6 is the same call. The annotation is passed as flags, not typed into
    a cell: `--next` is what shows on the board, `--reason` is what lands in the
    journal line and the event's `reason` field.
-   - `PASS` → continue to the normal flow: `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --status review …`.
+   - `PASS` → continue to the normal flow: `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status review …`.
    - `FAIL: <ref>` →
 
      ```
-     "$PERRY_HOME/bin/perry-task" status <TASK-ID> --status review \
+     "$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status review \
          --reason "architecture-failed: <ref>" \
          --next "architecture review FAILed at <ref> — re-dispatch or override"
      ```
@@ -491,7 +491,7 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 
 ## Common (post-dispatch, before completion)
 
-- **Every executor makes the in-flight state visible before it starts.** If the row is `not_started`, run `perry-task start`; if it is `blocked` or `review`, run `perry-task status <ID> --status in_progress`; if it is already `in_progress`, run `perry-task next`. In every case set `Next action` to `dispatched <time> via <executor>; awaiting completion`. This happens after the slot is registered and before invoking the executor, including synchronous OpenCode Task. A crashed parent then leaves an honest in-progress row plus a stale-cleanable slot rather than a task that still says `not_started`.
+- **Every executor makes the in-flight state visible before it starts.** If the row is `not_started`, run `perry-task start`; if it is `blocked` or `review`, run `perry-task status <ID> --actor <actor> --status in_progress`; if it is already `in_progress`, run `perry-task next`. In every case set `Next action` to `dispatched <time> via <executor>; awaiting completion`. This happens after the slot is registered and before invoking the executor, including synchronous OpenCode Task. A crashed parent then leaves an honest in-progress row plus a stale-cleanable slot rather than a task that still says `not_started`.
 - For OpenCode native Task, call Task synchronously after that transition, then process completion in the same turn. Do not promise a later notification.
 - For asynchronous executors, reply `Dispatched <TASK-X> via <executor>. Will report when done.` OpenCode native dispatch instead reports the verified result after synchronous completion.
 
@@ -511,7 +511,7 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
    - All objective verifications pass + no scope violation + RESULT block has all required fields → status `review` (NEVER auto-`done`; subjective verification is the user's, per the project's standing rule).
    - Anything fails → status `review` with failure annotation; no auto-retry, no auto-rollback.
    - **On a `pipeline`- or `queue`-mode track, the stage usually moves too, and
-     it goes through the tool**: `perry-task stage <ID> --stage <name>`, which
+     it goes through the tool**: `perry-task stage <ID> --actor <actor> --stage <name>`, which
      re-stamps `Stage since` in the same write and refuses a stage outside the
      track's declared vocabulary. `Stage` and `Status` are orthogonal, so a
      stage move produces no status change and would otherwise leave no trace
@@ -524,7 +524,7 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
    - Objective verification commands + their outputs
    - Subjective verification items (copied from spec, marked `[user-verify]`)
    - PR URL + branch + commit SHA
-6. `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --status review --next "user verifies subjective items: <…>"` — row, journal line and event together. Then record the evidence path, executor and cycle time in the dispatch evidence file, which is where per-run detail belongs.
+6. `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status review --next "user verifies subjective items: <…>"` — row, journal line and event together. Then record the evidence path, executor and cycle time in the dispatch evidence file, which is where per-run detail belongs.
 7. Surface to user: pass/fail summary + 1-line subjective verification ask.
 
 ## Failure handling (mark `review`, no auto-retry)

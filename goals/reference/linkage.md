@@ -5,7 +5,7 @@ Loaded when `/okr link` fires, or whenever PMO hands over an attribution result.
 The linkage graph is machine-written and machine-read on both sides: Perry
 resolves KR attribution through it, and the frontend draws the project's
 O→KR→task chain from it. In the `goals` lane `okr` is its **only writer** — PMO
-reads it and hands changes over. (`bin/perry-task add --kr` writes an `edge` in
+reads it and hands changes over. (`bin/perry-task add`'s `--kr` writes an `edge` in
 the same action as the row it opens, which is the one write this lane does not
 make; the store is `owner: perry` for exactly that reason.)
 
