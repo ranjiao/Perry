@@ -495,6 +495,14 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 - For OpenCode native Task, call Task synchronously after that transition, then process completion in the same turn. Do not promise a later notification.
 - For asynchronous executors, reply `Dispatched <TASK-X> via <executor>. Will report when done.` OpenCode native dispatch instead reports the verified result after synchronous completion.
 
+## Optional delivery integration
+
+Before integrating completed work, if the project has an applicable approved
+release policy, read `$PERRY_HOME/packs/software-ops/releases.md` and coordinate
+its allocation/checks through the main integrator. Preserve delivery identity and
+report integrated versus published accurately. No policy adds no version step;
+this does not change dispatch safety or automatically close the task.
+
 ## On completion (notification arrives)
 
 0. **Release the concurrency slot first thing**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`. Do this BEFORE any verification work, so a slow verification step doesn't keep blocking other dispatches. (Stale markers auto-clean after `PERRY_DISPATCH_STALE_TTL` seconds — **default 4h**, raised from 1h by TASK-160 because the sweep was reaping markers 72 minutes into live runs and the cap silently stopped being the cap — covering the case where PMO crashed mid-completion. **Every reap now prints `⚠️  Reaped dispatch slot: <marker>` on stderr.** If you see that line while the agent it names is still running, the cap is short by one for the rest of that run: treat it as a real event, not noise, and raise `PERRY_DISPATCH_STALE_TTL` for the session rather than dispatching into the gap.)

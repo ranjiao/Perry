@@ -40,3 +40,10 @@ Inflated estimates ("this will take an hour") cause the user to plan around the 
 This calibration applies only to autonomous agent runs. Tasks delegated to humans (RM contact, professional consultations, manual external operations) keep human-pace estimates.
 
 If a project repeatedly observes cycle times outside these ranges, record the calibration in its hook block (e.g., "Coding Agent on this codebase averages ~3 min for medium due to slow test suite") and treat the hook value as the local override.
+
+## Optional release integration
+
+When an approved project release policy applies, the main integrator coordinates
+allocation and validation via `$PERRY_HOME/packs/software-ops/releases.md` before
+accepting a delivery. Coding owns product-file edits/commits; existing merge and
+push authority still applies. With no policy, this adds no version step.

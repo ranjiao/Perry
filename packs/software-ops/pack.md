@@ -14,11 +14,18 @@ display glossary. Perry supplies the office; a pack supplies the practice.
 |---|---|
 | **Default mode** | `project` |
 | **Applies when** | The track produces software — a codebase, a service, an installed tool |
-| **Procedures** | `architecture.md`, `runbooks.md`, `incidents.md` |
+| **Procedures** | `architecture.md`, `runbooks.md`, `incidents.md`, opt-in `releases.md` |
 | **Subcommands** | `architecture init / review / diff`, `architecture-audit`, `runbook-check`, `incident <slug> / close / list / archive` |
 | **State it introduces** | `ARCHITECTURE.md`, `architecture/audit-history/`, `runbook/`, `incidents/` — all lazily created, none claimed unless used |
 | **Gates it adds** | `close-task` gate 1 (`Touches architecture:` → review agent PASS), gate 2 (`Deployed: yes` → runbook exists) |
 | **Default rungs** | Inherits `project` mode's V3. Anything `Deployed: yes` is outward-facing and takes V5 by the consequence rule |
+
+## Optional release policy
+
+For version/release setup requests, read `$PERRY_HOME/packs/software-ops/releases.md`.
+For phase starts, integration or close, load it only when the project has an
+approved release policy in `.perry/hook.md` or its approved reference. The pack
+being active does not enable version management or authorize publication.
 
 ## Glossary
 
@@ -47,8 +54,9 @@ break every reader; the loader does not look at them at all.
 
 ## Deactivating it
 
-A project whose tracks are all `pipeline`, `queue` or `inquiry` has no use for
-any of the above. Deactivating the pack removes the three procedures from the
+A project with no applicable software-ops procedures can deactivate this pack;
+track mode alone does not decide that (a queue or pipeline can deliver software).
+Deactivating the pack removes the pack procedures from the
 lane index and the two `close-task` gates with them; nothing else in Perry
 depends on it. A knowledge base does not need to know what an architecture audit
 is, and before this extraction it carried all three files' names in the PMO lane
