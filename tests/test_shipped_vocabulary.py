@@ -56,6 +56,8 @@ COVERS = (
     "AGENTS.md",
     "README",
     "INSTALL.md",
+    "CHANGELOG.md",
+    "release/",
     "ARCHITECTURE.md",
     "work/",
     "goals/",
@@ -554,7 +556,8 @@ class TestTheCarveOutSaysWhatThisFileEnforces(unittest.TestCase):
         without being declared there, the carve-out is over-claiming again."""
         note = self.carve_out()
         for enforced in ("`bin/`", "`setup`", "description:", "SKILL.md",
-                         "reference/host-capabilities.md", "_TEMPLATE.md"):
+                         "reference/host-capabilities.md", "_TEMPLATE.md",
+                         "`CHANGELOG.md`", "`release/`"):
             self.assertIn(
                 enforced, note,
                 f"the carve-out note never says {enforced} is outside it, "
@@ -1210,6 +1213,23 @@ class TestTheReadmesNameTheFourModes(unittest.TestCase):
 
 
 
+class TestReleaseProseUsesShippedVocabulary(unittest.TestCase):
+    """Release notes and maintenance surfaces have no agent translation step."""
+
+    def test_release_files_do_not_name_withdrawn_commands(self):
+        files = [PERRY_HOME / "CHANGELOG.md"]
+        files.extend(sorted(path for path in (PERRY_HOME / "release").rglob("*")
+                            if path.is_file() and path.suffix in (".md", ".jsonl", ".py")))
+        self.assertIn(PERRY_HOME / "release" / "records.jsonl", files)
+        self.assertIn(PERRY_HOME / "release" / "README.md", files)
+        offenders = []
+        for path in files:
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if withdrawn_hits(line):
+                    offenders.append(f"{path.relative_to(PERRY_HOME)}:{number}: {line}")
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+
 class TestTheTwoListsCoverTheTree(unittest.TestCase):
     """**Nothing checked that exempt ∪ enforced is the whole tree.**
 
@@ -1259,7 +1279,7 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
         exempt = {m.strip("`/*").split("/")[0]
                   for m in re.findall(r"`([^`]+)`", note)}
         enforced = {"work", "goals", "decide", "modes", "SKILL.md", "AGENTS.md",
-                    "README.md", "README_cn.md", "INSTALL.md",
+                    "README.md", "README_cn.md", "INSTALL.md", "CHANGELOG.md", "release",
                     # The user reads this one directly and no agent re-renders
                     # it before they do, which is what puts it on the enforced
                     # side of the carve-out rather than the exempt side.

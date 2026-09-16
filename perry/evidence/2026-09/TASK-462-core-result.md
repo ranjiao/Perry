@@ -113,3 +113,29 @@ correct construction of sequences. Production code is unchanged.
 - Restored production bytes match Git and the same SHA-256 recorded above.
   Post-restoration `-k canonical_` tests pass. These are two targeted killed
   mutations; no claim of exhaustive mutation coverage.
+
+## Parent full-gate integration follow-up
+
+The parent full gate on `fe48c3f4` failed three integration contracts: the core
+module's single-quoted main guard was invisible to TestNoTestFileEndsEarly;
+CHANGELOG/release documentation was absent from the shipped-vocabulary partition;
+and release/ was absent from ARCHITECTURE's component inventory.
+
+This follow-up fixes the first two only. The test entry uses the existing
+repository double-quoted convention. CHANGELOG.md and release/ are enforced
+surfaces, with real withdrawn-command checks over release Markdown, JSONL and
+Python source, COVERS registration and SKILL's carve-out declaration synchronized.
+No exemption was added. The declaration was compressed to retain the router's
+existing byte cap (initial local check found 23 bytes over; final size is within
+20480). Architecture edits remain outside this agent's authorization pending the
+parent's explicit user approval; its failing test is not bypassed.
+
+Clean-env targeted receipts:
+- `test_claims.py -k TestNoTestFileEndsEarly`: 2 tests PASS, 10.933s.
+- `test_shipped_vocabulary.py`: 53 tests PASS, 7.034s.
+- `test_router_budget.py`: 9 tests PASS, 0.141s after declaration compression.
+- `git diff --check`: PASS.
+
+Parent full log:
+`/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/codex-task462-final-x6lsjgdq/full.log`.
+These targeted fixes do not constitute a new full/slow PASS.
