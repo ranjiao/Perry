@@ -11,8 +11,78 @@
 > rule · `9db8d934` `ARCHITECTURE.md` · `58c73b86` the round-3 section.
 > Round 4: `99b03e9a` the narrowed §2 rule and the lines the review named ·
 > `6d819989` the round-4 section.
-> Round 5: `d449d9e4` merge of main (`d597fdbc`) · the three lines inside the
-> rule · this section.
+> Round 5: `d449d9e4` merge of main (`d597fdbc`) · `5d053662` the three lines
+> inside the rule · `c585b252` the round-5 section.
+> Round 6: `0bffadac` merge of main (`1c23b9d3`) · the sunset line, the
+> corrected reason and the digests contradiction · this section.
+
+## Round 6 — one more line, and the reason the markings give
+
+### R6.1 The sunset suggestion was missed
+
+`decide/reference/decisions.md § Sunset / expiration auto-check` tells the
+standup to suggest `/perry decide adr --expire ADR-NNN` when a sunset date has
+passed. That is a next-step recommendation, in none of §2's carve-outs, about
+seventy lines above the line round 5 edited in the same file. It is now marked
+like the others. Its dashboard alert bullet above it is a row hint and stays.
+
+### R6.2 The reason those markings gave was wrong
+
+Round 5 said no fact existed for these states. That is false for two of them,
+and the branch's own payload shows it:
+
+| State | Fact | Why there is no rule |
+|---|---|---|
+| an ADR's sunset date has passed | **exists**: `decisions.expired_sunsets`, computed by `bin/perry-state § expired_sunsets` and published under `decisions` | `DESIGN-020 § 5.3`'s table names no rule for it |
+| undigested files in `inputs/` | **exists**: `operations.inputs`, `operations.inputs_oldest`, `operations.inputs_oldest_days` | the same |
+| stale digests | **no count**: `operations.knowledge_index` is the index file's header line; the only staleness computed is per role card, `roles.cards[].knowledge[]` | the same, and a fact is needed too |
+| the old-style `DECISIONS.md` migration | **none** | the same, and a fact is needed too |
+
+**The right reason is this row's bound.** `DESIGN-020 § 5.3`'s rule table is the
+enumeration `TASK-442` was bounded to, and the spec puts rules it does not name
+out of scope. So no rule was added for any of the four, and each marking now
+says which fact exists, so the next person does not have to rediscover it. §7
+carries the same correction.
+
+The first two rows were verified by running `perry-state --section decisions`
+and `--section operations` on this repository. The third was read from
+`bin/perry-state` rather than from a payload, because this project declares no
+role cards, so `roles.cards[]` is empty here.
+
+### R6.3 The contradiction in `work/reference/digests.md`
+
+Its standup-integration bullet still said "surface in dashboard + suggest
+`digest`", ten lines above the paragraph round 5 rewrote to say the next-step
+position is not its own. The dashboard row stays; the suggestion is gone, and
+the bullet points at the paragraph that gives the reason.
+
+### R6.4 Merge of main
+
+`git merge main` (`1c23b9d3`) was clean. Everything it brought is under
+`perry/`: dispatch records, the board and asks stores, a journal day and a
+design note.
+
+### R6.5 Checks, and one finding
+
+- Eleven modules green alone: `test_architecture_rules` (32),
+  `test_router_budget` (9), `test_next_section` (43), `test_claims` (31),
+  `test_shipped_vocabulary` (52), `test_reference_pages_are_reachable` (6),
+  `test_pointers_resolve` (5), `test_diagnose` (158), `test_knowledge_cards`
+  (15), `test_knowledge_promotion` (38) and `test_role_cards` (20).
+- Against main, every `ARCHITECTURE.md` hunk is in §2, §4, §7 or §8; §1, §3, §5
+  and §6 are byte-identical. It is 414 lines, under its 500-line cap, and
+  `bin/ARCHITECTURE.md` is unchanged at 205.
+- `SKILL.md` is untouched: 20,457 bytes, as on main.
+- Nothing in `bin/`, `reference/next-rules.json` or the tests changed, so the
+  mutation evidence from rounds 1 to 3 still stands.
+- **Finding, not edited**: `perry/evidence/2026-09/TASK-442-dispatch-2026-09-15-2101.md`
+  cites open questions by id inside backticks, in the quoted review text. It
+  came from main, it is outside this row's bound, and `test_diagnose` is green
+  with it present — so a backticked id is tolerated where a bare one is not.
+- No other line inside the rule's scope was found while making these edits.
+
+The full suite runs after this section is committed, on that commit, and its
+result is reported in the round-6 RESULT block rather than here.
 
 ## Round 5 — three lines inside the narrowed rule, and one count
 
@@ -29,10 +99,10 @@ carve-outs. The round-4 bound had been built by grep and missed them.
 | `work/reference/digests.md`, undigested `inputs/` | **marked, awaiting a rule** | the dashboard line already carries the count and keeps it; the line says the next-step position is the next block's |
 | `work/reference/digests.md`, stale digests | **marked, awaiting a rule** | the knowledge line carries the counts, and `end-phase-retro` or `mid-phase-review` triages them when one runs |
 
-**Why marked and not fixed.** No fact in `perry-state`'s payload says an ADR
-migration is pending, how many files sit undigested in `inputs/`, or how many
-digests are stale. A rule needs a fact, and inventing one was out of scope, so
-each line says where its information goes instead of claiming the position.
+**Why marked and not fixed.** `DESIGN-020 § 5.3`'s rule table is what this row
+was bounded to, and it names no rule for any of these states, so each is a
+later row's work. **The reason first written here — that no fact exists — was
+wrong for the `inputs/` count, and R6.2 corrects it with the fact names.**
 
 **The dashboard block above the digests lines was not touched.** It is a row
 hint, which §2 names as outside the rule.
