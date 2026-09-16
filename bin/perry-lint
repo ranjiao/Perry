@@ -5095,10 +5095,21 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
     # anchored there (`.perry/config.jsonl`, `.perry/events.jsonl`) are
     # Perry's by construction. An empty file there holds nothing a user could
     # lose and nothing Perry could misread as broken —
-    # `parsers.config_store_unusable` answers usable for it. A state-root
-    # store is still judged by its first record.
+    # `parsers.config_store_unusable` answers usable for it.
+    #
+    # **So is an EMPTY file at a declared canonical store** (TASK-275).
+    # `intake-sweep` empties `intake.jsonl` when it discharges the last row,
+    # and the next lint run called Perry's own store foreign beside its own
+    # census line `intake store: 0 record(s)`. The criterion is
+    # `parsers.canonical_store_names` — the one reading of `claims[]` that
+    # `installed` also asks — not a list here, so a store claimed later is
+    # covered with no edit. An empty file carries no record that could be
+    # misread as Perry's, so this excuses nothing foreign. A NON-empty file at
+    # the same path is still judged by its first record, exactly as before.
     if path.suffix == ".jsonl":
-        if claim.get("anchor") == "project" and _holds_no_record(path):
+        if _holds_no_record(path) and (
+                claim.get("anchor") == "project"
+                or claim.get("path") in P.canonical_store_names()):
             return True
         return looks_like_perry_record(path, schema)
     stem = path.stem
