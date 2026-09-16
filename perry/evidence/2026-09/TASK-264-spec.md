@@ -71,8 +71,11 @@ land 1 and 2 and report 3 as blocked; do not hold the critical path for it.
 
 ### Every write
 
-- goes through the store module and the existing commit path, with the journal
-  line and the event in the same write (`NN-3`);
+- follows the existing goals ownership and commit path: canonical store first,
+  then the derived event under the project lock. An event failure is reported
+  as such, never as an event successfully written. `goals` does not write the
+  work-owned journal; any PMO history is a separate work-lane hand-off
+  (`SKILL.md` hand-off contract; `ARCHITECTURE.md` §4);
 - is refused with exit code and message per `bin/ARCHITECTURE.md`, writing nothing;
 - supports `--dry-run`, which writes nothing and says what it would write;
 - takes `--actor`.
@@ -139,3 +142,13 @@ Last element: withdraw of an overall KR
 ## Out of scope
 
 `TASK-460`, `TASK-461`, DESIGN-022 phase E (declaring phase 004's checks), and any change to how KRs are read.
+
+## Spec clarification — 2026-09-16
+
+The original Every write bullet incorrectly required goals to write the
+work-owned journal and treated the derived event as part of an atomic write.
+The existing hand-off contract and architecture take precedence. The corrected
+bullet above changes neither ownership nor event durability; it prevents the
+implementation from breaking those contracts to satisfy a contradictory brief.
+An independent review found this conflict during the Codex takeover (USER-951).
+The KR add/restate/withdraw boundary and the no-schema-change rule are unchanged.
