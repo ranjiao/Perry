@@ -279,3 +279,137 @@ already `full` before any `COVERS` is consulted, and the rest sit near the
 3. **`tests/fixtures/**` is the next helper-rule question**, worth 9 of the 19
    remaining helper widenings — but a fixture is read by the modules that use
    it, so it has no "reorders but does not select" argument behind it.
+
+---
+
+# TASK-448 — round 3 (USER-942, 2026-09-16)
+
+> Branch: `coding/task-448-covers-and-replay` · merged `main` at `1c23b9d3`
+> Commits: `955ee5b4` (the eight conversions), `05f3b17a` (merge), `e8f0452f`
+> and `c890d8d6` (two guards found by mutation), plus this file
+
+## 1. The ranking, and what was done with it
+
+`USER-942` asked for the 8–10 heaviest of round 2's 26 broad modules to come off
+the live state root. Ranked by `tests/durations.json`, the 26 ran from
+`test_header_rule_harness` at 40.30 s down to `test_count_fields` at 1.88 s,
+333.7 s in total. **Eight were converted, 112.29 s of that**; the ranking and
+each conversion are in `TASK-448-replay.md § What changed in round 3`.
+
+Two of the top four were not converted, and both are the case `USER-942` named:
+`test_header_rule_harness` (40.30 s) walks every Python reader in the tree, and
+`test_diagnose` (39.02 s) carries
+`test_the_queue_register_reconciles_with_the_queue_on_this_repository`. Their
+subject IS the live tree. Converting either would have made the test lie, so
+they were left and the next modules down the ranking were taken instead.
+
+**The means, per module.** Five copy named parts of the state root through the
+new `tests/live_stores.py` helper, or run their tool with `--root` at the
+shipped fixture project; one needed no code at all. The full list, with before
+and after times, is in the replay report.
+
+## 2. The cost
+
+- **Eight modules converted**, of which one (`test_store_is_canonical`) was a
+  declaration fix with no code change.
+- **124 insertions, 67 deletions** across the eight modules and
+  `tests/durations.json`, plus `tests/live_stores.py` at 97 lines — the shared
+  copy helper, which is most of the new code.
+- **Two further commits** for guards that mutation found (§ 4).
+- **No module lost coverage, and one gained some.** Every converted module runs
+  the same cases against the same tools; what changed is which bytes the fixture
+  carries. `test_review_verdicts`'s opt-in case is stronger than it was: it now
+  runs on a project that trips all four `--reviews` rules, where before it read a
+  checkout whose reviews all carry verdicts.
+- **What the conversions give up**, stated plainly: those eight modules would no
+  longer notice a defect that appears only when this repository's own
+  `evidence/`, `journal/`, `design/` or `decisions/` are present. Nothing in
+  them read those directories — the mutations in § 4 measure which parts are
+  load-bearing — but the possibility is real and is the price of the floor
+  falling from 31.6% to 23.0%.
+- **Nothing was converted outside the ranked eight**, the 50% gate is untouched,
+  and `tests/fixtures/**` is still a helper.
+
+## 3. The replay, third run
+
+Same base, same 50 merges, same method. The stopwatch moved, because the eight
+converted modules were re-timed.
+
+| | round 1 | round 2 | round 3 |
+|---|---|---|---|
+| median share | 100.0% | 75.9% | **73.3%** |
+| mean share | 75.1% | 67.9% | 64.6% |
+| merges widening to `full` | 30 | 23 | 23 |
+| merges at or above 50% | 33 | 30 | 28 |
+| evidence-only floor | 32 mods · 33.7% | 27 mods · 31.6% | **19 mods · 23.0%** |
+| verdict | FAIL | FAIL | **FAIL** |
+
+Most frequent reasons, in merges: `tests/` helper 19, `schema/` 10, `bin/lib/` 9,
+`viewer/parsers.py` 8 — unchanged by this round, because they are not
+declarations.
+
+**The finding this round produces, and it is the one the next decision needs.**
+A median at or below 50% requires at least 26 of the 50 merges at or below 50%.
+Today 22 are, 16 of them below 25%. Of the 28 that are not, 23 select the full
+suite by a widening rule and 5 more exceed half without one. Declarations decide
+none of those 23. **Phase A's gate cannot be reached by declaring coverage more
+precisely; only the widening rules can reach it**, and all four of them are held
+by `USER-940` and `USER-942`.
+
+## 4. Verification
+
+- **The full suite** at `c890d8d6`, `env -u PERRY_PROJECT -u PERRY_HOME bash tests/run`:
+  142 modules · 4005 tests · **1 module red, 8 tests failed**, tree guard
+  green. That module is `test_md_store`, which reproduces alone (8 of 76) and
+  asserts against this repository's live `perry/OKR.md`; it is TASK-459's
+  expected base red, and the PMO predicted exactly these 8 for this branch.
+  Round 2 measured the same 8. Every other module is green, including all
+  eight converted ones run alone by name.
+- **`python3 -m unittest tests.test_selection`**: 38 tests, OK. The selector is
+  unchanged this round; round 2's mutations of its rules still apply.
+- **Every converted module green alone**, run by name: all eight, plus
+  `test_selection` and `test_durations_provenance`.
+- **Mutations, one per behaviour changed**, each on a fresh `git archive HEAD`
+  extraction under `$PERRY_SCRATCH`, never in the checkout:
+
+| Mutation | Result | Red on |
+|---|---|---|
+| control, unmutated | green | — |
+| `copy_state` copies no anchor | 2 of 3 modules red | 7 cases in `test_board_render`, 5 in `test_task_store`, including `TestTheBytesMatch.test_perrys_own_board` |
+| `copy_state` ignores `documents=True` | red | `test_decoration_changes_nothing.TestDecorationIsInvisible.test_every_reader_reports_the_same_thing_on_a_bolded_board` |
+| `test_count_fields` points at a directory that is not a project | red | `TestTheCountsDescribeThePayload.test_all_carries_them_and_counts_them`, `TestTheHumanSummaryDescribesTheProject...` |
+| the opt-in fixture no longer trips the rules | red | `test_review_verdicts.TestItIsOptIn.test_the_same_project_trips_one_of_them_under_reviews` |
+
+- **Two mutations came back GREEN, and both are findings.** They are reported
+  here rather than quietly re-aimed:
+  1. **`copy_state` copying no stores left `test_board_render` and
+     `test_task_store` green.** `Project.perry` runs `write --from-board` after
+     copying, so the store is rebuilt from the board that `printed_board()`
+     prints — the copied store files are never read. The live dependency in
+     those two modules runs through `printed_board()`, which reads this
+     repository through `perry-tasks board`, which is why they still declare
+     the stores. The copy of the stores is dead weight; it was left in place
+     rather than removed at the end of a round, and it is a small cleanup
+     somebody should take.
+  2. **`copy_state` ignoring `documents=True` left
+     `test_decoration_changes_nothing` green.** With no document in the copy
+     there is nothing to bold, so the plain and bolded projects were the same
+     bytes and all three cases passed while checking nothing. **This weakness
+     predates the conversion** — it would have fired the same way on a
+     `perry/` with no markdown — and it is now closed: the fixture asserts it
+     decorated something (`c890d8d6`), and the mutation is red.
+- **One conversion defect caught by its own test**, before any of this: copying
+  the state root without `.perry/events.jsonl` made
+  `test_it_carries_closed_tasks_the_board_no_longer_holds` fail, because
+  `write --from-board` recovers closed rows from the event log. `test_task_store`
+  copies the log.
+- **A vacuity risk caught while converting**: the opt-in case in
+  `test_review_verdicts` first ran without `--state-root`, so the four rules
+  might have been absent because no store was found. It names the state root now
+  and carries the control described above (`e8f0452f`).
+- **`tests/durations.json`**: eight modules re-timed alone, three runs each,
+  under the stamped source `2026-09-16-task448-r3`; no neighbour re-timed.
+  `test_durations_provenance` green, 145 recorded against 145 on disk. The suite
+  total falls from 1,056.4 s to 962.8 s.
+- Restores: after every mutation run, `git diff --quiet HEAD` exits 0 and
+  `git status` is empty.
