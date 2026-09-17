@@ -146,7 +146,7 @@ is not.
 5. Spec contains a `Subjective verification:` section (may be `(none)`); items there will be surfaced to the user at completion, never auto-validated.
 5a. **Pack eligibility first**: read `$PERRY_HOME/reference/config.md § Pack
     capabilities and controls`. Steps 5a/5b's software checks, architecture prompt
-    blocks for every executor, the compliance RESULT block and independent
+    blocks for every executor and independent
     architecture review below apply only when software-ops is selected and
     present, or an explicit project requirement independently requires that
     check. Name the requirement when retained under a disabled pack. Otherwise
@@ -154,11 +154,11 @@ is not.
     hook safety and Git constraints still apply. No enablement question.
 
     **Architecture compliance pre-flight** (see `$PERRY_HOME/packs/software-ops/architecture.md § Dispatch integration`):
-    - Read `ARCHITECTURE.md` at project root (full text). If `Status: draft` → log a warning but don't refuse (draft window allows iteration). If file missing AND spec's `Touches architecture:` is non-empty → refuse (spec claims sections that don't exist).
+    - Read root `ARCHITECTURE.md` §1, §3 and §6, plus touched module documents selected as in § Architecture preamble below. Existing documents are binding, including legacy `Status: draft`. If the file is missing and the spec claims sections, refuse; expose missing context rather than assuming compliance.
     - Read spec's `Touches architecture:` field. For every section ref listed (`§N`, `§N.NN-M`), verify it exists in the doc. Refuse on mismatch (malformed spec).
     - For each touched non-negotiable in §6 marked `Severity: hard` → use `AskUserQuestion` (header = `NN-N`, options): `Proceed — change is reviewed (Recommended only with reason) | Refuse — revise spec | Refuse — escalate to manual delegate`. "Proceed" requires a written one-line justification copied into the dispatch evidence file's header.
     - For soft non-negotiables → single `AskUserQuestion` (header = `Architecture`, multiSelect) listing each soft NN as an option with description = the rule text. Selection = acknowledgement.
-    - `Touches architecture: (none)` → no friction at this stage, but the review agent still runs after completion (§ Architecture review below).
+    - `Touches architecture: (none)` → no friction at this stage, but integration still evaluates the diff triggers (§ Architecture review below).
 5b. **Deployed-task pre-check**: if spec has `Deployed: yes`, verify the spec contains a non-empty `## Observability` section (Success signal / Failure diagnosis / Runbook path). If missing → refuse and ask user to fix the spec first. The runbook file itself is not required to exist yet at dispatch time (often the dispatched task creates it) — only the observability spec field is mandatory.
 6. **Concurrency check**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" register <task-id> <executor>`. Exit 0 = slot reserved, proceed. Exit 1 = limit hit; stderr lists what's currently in flight. On limit-hit, use the host-native choice UI: `Wait — show in-flight (Recommended) | Switch to another host-valid executor | Fall back to /perry work delegate`. Defaults are 2 per automated executor and 3 total; overrides are `PERRY_MAX_DISPATCH_CODEX`, `PERRY_MAX_DISPATCH_SUBAGENT`, `PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT`, and `PERRY_MAX_DISPATCH_TOTAL`. On Codex the cap is advisory across separate sessions.
 
@@ -328,7 +328,7 @@ output".
 
 - **Host gate**: requires `$HOST = claude-code`. On OpenCode or Codex this executor is unavailable — refuse per the strict matrix in `../../reference/host-capabilities.md`.
 - Use the `Agent` tool with `subagent_type: general-purpose`.
-- Build prompt = **`ARCHITECTURE.md` full text + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + RESULT format including the mandatory `ARCHITECTURE COMPLIANCE` block (see § Architecture compliance RESULT).
+- Build prompt = **bounded architecture context + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + standard RESULT format. The author reports implementation facts, not an architecture verdict.
 - Async-ness from spec's size hint: `Estimated cycle: small` → `run_in_background: false`; `medium | large` → `run_in_background: true`.
 - **Pass `isolation: "worktree"`. It is not optional** — see § The tree the agent works in, below.
 - **Include the `perry-scratch-derivation` block verbatim** — see § Where the agent puts a scratch file. A prompt that hands out a shared directory and asks the agent to namespace inside it is the defect that section exists to remove; it has been observed five times.
@@ -338,8 +338,8 @@ output".
 
 - **Host gate**: requires `$HOST = opencode`; refuse on Claude Code or Codex CLI.
 - Use the `Task` tool with `subagent_type: general`.
-- Build the same complete prompt as `claude-subagent`: architecture text/preamble + spec + safety constraints + git expectation + RESULT and ARCHITECTURE COMPLIANCE contracts.
-- The call is always synchronous. On return, release the slot and continue directly to objective verification and architecture review. Do not rely on a background notification or write an awaiting-completion message after Task has returned.
+- Build the same complete prompt as `claude-subagent`: bounded architecture context/preamble + spec + safety constraints + git expectation + standard RESULT contract (no author compliance block).
+- The call is always synchronous. On return, release the slot and continue directly to objective verification; architecture review belongs to integration. Do not rely on a background notification or write an awaiting-completion message after Task has returned.
 - Task shares the project context. For split repos, retain the explicit absolute code-repo path and `git -C` instruction.
 
 ### `Executor: codex`
@@ -351,7 +351,7 @@ output".
   The script: (a) `codex --version` ≥ `PERRY_CODEX_MIN_VERSION` (default `0.100.0`); (b) smoke test (`codex exec "Reply with just: PERRY_OK"`, 60s timeout if `timeout` / `gtimeout` is installed). Cached 6h at `~/.cache/perry/codex-smoke-pass`. Exit non-0 → **refuse + surface stderr verbatim + fall back to delegate**. Catches stuck CLI / broken auth / version-rejected-by-API BEFORE we fire async dispatch that would silently hang.
 - Then: Bash → `cd <code-repo-path> && codex exec "<prompt>"`.
 - Always async (codex is its own session). On Claude Code, pass `run_in_background: true`. On OpenCode or Codex CLI, use shell backgrounding with log + PID; see `../../reference/host-capabilities.md § No-background-shell-tool fallback`.
-- Prompt MUST be self-contained (codex doesn't see the journal, BOARD, or any prior context). Include: **`ARCHITECTURE.md` full text + architecture preamble** + spec full text + relevant project hook excerpts + git expectation + RESULT format including mandatory `ARCHITECTURE COMPLIANCE` block + the explicit list of files codex can read for context + **the `perry-scratch-derivation` block verbatim** (§ Where the agent puts a scratch file). Self-contained means this one too: a codex session reads no startup page, so the scratch rule reaches it only if the prompt carries it.
+- Prompt MUST be self-contained (codex doesn't see the journal, BOARD, or any prior context). Include: **bounded architecture context + architecture preamble** + spec full text + relevant project hook excerpts + git expectation + standard RESULT format (no author compliance block) + the explicit list of files codex can read for context + **the `perry-scratch-derivation` block verbatim** (§ Where the agent puts a scratch file). Self-contained means this one too: a codex session reads no startup page, so the scratch rule reaches it only if the prompt carries it.
 - Capture stdout to a temp file; on completion, parse for the RESULT block.
 - If the long-running codex call fails (non-0 exit / no RESULT block / timeout), per the failure handling below, mark task `review` and surface raw output. Pre-flight is the cheap pre-check; this is the post-check.
 
@@ -429,6 +429,8 @@ before the authorized merge, recheck the receipt and exact base/candidate refs;
 merge only the verified integration branch/tree. Neither command merges or writes
 main, and local checks do not install remote branch protection. Existing release
 record rules still apply; an agent's green `affected` is never this acceptance.
+Also complete § Architecture review on the exact final integration candidate;
+the test receipt does not supply the independent architecture judgment.
 
 **What this asks of whoever merges**: when a `--tier affected` result comes
 back green and the full run on the merge result goes red, the miss is a
@@ -437,104 +439,78 @@ first row) rather than widening the tier.
 
 ## Architecture preamble (prepended to every dispatched agent's prompt)
 
-```
-You are working in a project with a frozen architecture. The document below
-is the single source of truth for system design — read it before changing
-any code. Your task spec follows after the document.
-
-Your RESULT block MUST include an `ARCHITECTURE COMPLIANCE` section listing:
-- Which §-sections of the architecture document your change touches.
-- For each touched section, one sentence explaining why your change is
-  consistent with what the section says.
-- Any new entries you believe should be added to §7 (Open questions) — i.e.,
-  decisions the user needs to make that arose from your work.
-
-A separate review agent will independently verify your attestation by reading
-the same architecture document, your diff, and your compliance block. It can
-fail your task. Do not paper over inconsistencies — if your change deviates
-from the document, surface it explicitly and let the user resolve.
-
-=== BEGIN ARCHITECTURE.md ===
-<full file contents>
-=== END ARCHITECTURE.md ===
-```
-
-## Architecture compliance RESULT block (required from primary executor)
-
-In addition to the standard `=== RESULT ===` block, every dispatched agent appends:
+Apply pre-flight 5a's eligibility. The dispatcher uses the root architecture's
+confirmed §2 component list to select each touched component's module document;
+it records the mapping and any missing document or unconfirmed component.
+Inject root §1, §3 and §6 with source paths/line numbers and those module documents.
+Read §2, §4, §5 and §8 only on demand; do not inject the full root document.
+Unknown context is explicit and must be resolved before claiming the gate passed.
+Manual handoffs through `delegate.md` use the same bounded context and standard
+RESULT; manual authors cannot provide their own fresh-review verdict either.
 
 ```
-=== ARCHITECTURE COMPLIANCE ===
-Touched sections: §2 (component X added), §3 (new dep X → Y), §6.NN-3
-Compliance check:
-- §2: <one-sentence justification per section>
-- §3: <one-sentence justification per section>
-- §6.NN-3: <one-sentence justification per section>
-New §7 questions opened: (none) | - <question> — recommended USER-id
-=== END COMPLIANCE ===
-```
+Read the supplied root architecture §1, §3 and §6 and touched module documents
+before editing. Existing architecture is binding. Surface contradictions and
+missing context; a decided-section contradiction needs the existing user
+decision gate before it can land. Return the standard RESULT with your exact
+base/head, paths and verification evidence. Do not certify your own architecture
+compliance: the integration reviewer owns that judgment in a fresh context.
 
-If this block is missing or empty, dispatch treats it as **executor failure** — task goes to `review` with `compliance-missing` annotation. No auto-retry.
+=== BEGIN ARCHITECTURE CONTEXT ===
+<root §1/§3/§6 and agent-selected touched module documents, with line citations>
+=== END ARCHITECTURE CONTEXT ===
+```
 
 ## Architecture review (the independent gate)
 
-Apply the eligibility decision from step 5a; an inactive pack alone adds no
-review agent. A project-required review is still required, with its source named.
+Apply pre-flight 5a's eligibility; name any independent project requirement.
+After objective verification, **before accepting the exact integration candidate**,
+the integrator records immutable base/head SHAs, `git diff --name-status
+<base> <head>`, `git diff --summary <base> <head>` and the full
+`git diff <base> <head>`. Compare both trees (including old/new rename paths,
+file modes and version declarations), not the spec's claimed touched sections.
+Evaluate and record all six trigger classes as true / false / unknown with facts:
 
-After the primary executor's RESULT is parsed AND objective verification (§ "On completion" step 2) passes, BUT before flipping the BOARD row to `review`, dispatch fires a second agent — the **architecture review agent**.
+| Trigger | Typed facts to inspect |
+|---|---|
+| Listed boundary paths | `viewer/parsers.py`, `bin/lib/`, `schema/` (including `schema/*-contract.md`), root or lane `SKILL.md` (`goals/`, `work/`, `decide/`) changed |
+| New top-level directory | A top-level directory exists at head but not base |
+| New bin executable | A `bin/` executable is added, renamed in, or gains executable mode relative to base |
+| Contract-version change | Base/head version declarations differ; read the relevant declarations on demand, including root §5 |
+| Root architecture edit | Root `ARCHITECTURE.md` changed, added, removed or renamed |
+| Module architecture edit | A component module document changed, added, removed or renamed, using the confirmed §2 index from both trees |
 
-1. **Executor selection**:
-   - On Claude Code (`$HOST = claude-code`): `Agent(subagent_type: general-purpose, run_in_background: false)` — small task, sync.
+All false → record `Architecture trigger: none` with the six facts in merge
+evidence, and run no architecture reviewer or COMPLIANCE block. A diff confined
+to `perry/` (including `perry/evidence/`) has no trigger. Any true → fresh review.
+Any unknown → record what is missing and resolve it before acceptance; unknown
+is never false. Missing root/module context or an unconfirmed component cannot
+silently produce a pass. A spec saying `(none)` cannot suppress a diff trigger.
+
+1. **Executor selection** (unchanged host eligibility):
+   - On Claude Code (`$HOST = claude-code`): `Agent(subagent_type: general-purpose, run_in_background: false)`.
    - On OpenCode (`$HOST = opencode`): `Task(subagent_type: general)` — synchronous.
-   - On Codex (`$HOST = codex-cli`): `codex exec` (sync, ~60s).
-   - Per-project hook may pin `Review agent executor:` to a host-valid value (`codex | claude-subagent | opencode-subagent | (auto)`). A host-mismatched pin is refused, not rerouted.
-
-2. **Prompt**: full `ARCHITECTURE.md` + the diff (`git diff <base>..<head>` from the primary's PR, captured with `gh pr diff <pr>` or `git diff` for direct-push) + the primary's `ARCHITECTURE COMPLIANCE` block + the literal instruction:
-
-   ```
-   Your job is to adversarially review the diff against the architecture
-   document. Do not trust the primary agent's attestation.
-
-   Independently identify any place in the diff that:
-   1. Crosses a boundary forbidden by §3.
-   2. Adds state ownership not declared in §2.
-   3. Implements a contract incompatible with §5.
-   4. Violates any §6 non-negotiable.
-   5. Should have updated §7 (created new open questions the user hasn't seen).
-
-   Output exactly one of:
-   - `PASS` followed by 1–3 sentences summarizing what you verified.
-   - `FAIL: <section ref>` followed by the specific issue, the diff lines that
-     prove it, and what the agent would need to do to make it pass.
-
-   Use only the architecture document as your authority. If the document is
-   silent on something, that's not a violation — it's a §7 candidate.
-   ```
-
-3. **Capture output**. Append to the dispatch evidence file under `## Architecture review` section verbatim, with header (executor, timestamp).
-
-4. **Status decision.** Both outcomes land through `perry-task status`, which
-   writes the row, the journal line and the event together — § "On completion"
-   step 6 is the same call. The annotation is passed as flags, not typed into
-   a cell: `--next` is what shows on the board, `--reason` is what lands in the
-   journal line and the event's `reason` field.
-   - `PASS` → continue to the normal flow: `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status review …`.
-   - `FAIL: <ref>` →
-
-     ```
-     "$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status review \
-         --reason "architecture-failed: <ref>" \
-         --next "architecture review FAILed at <ref> — re-dispatch or override"
-     ```
-
-     Then surface the FAIL message to the user; `close-task` will refuse until this is resolved (re-dispatch or explicit override).
-
-5. **Skip conditions** (review agent does NOT run):
-   - Spec's `Touches architecture: (none)` AND primary's `ARCHITECTURE COMPLIANCE` Touched sections is empty → skip (no architecture-relevant change). Note: if primary self-attests touching sections despite `(none)` in spec, run the review — primary is admitting scope drift.
-   - `ARCHITECTURE.md` is `Status: draft` → run the review but mark its output `advisory`; FAIL does not block close.
-   - Primary executor itself failed (objective verification failed, RESULT block malformed) → skip (no point reviewing a broken result).
-
-6. **Cost note**: this is one extra small subagent / codex call per dispatch. Project hooks declaring tight quota may set `Skip review agent for: P2, soft-§-only` exemptions; the default is to always run.
+   - On Codex (`$HOST = codex-cli`): `codex exec` — synchronous.
+   - A hook's `Review agent executor:` pin must be host-valid (`codex | claude-subagent | opencode-subagent | (auto)`); refuse a mismatched pin, never reroute it.
+2. **Fresh brief**: use `review.md § Integration architecture reviewer brief`.
+   Supply exact base/head/diff and trigger facts, root §1/§3/§6 with line numbers,
+   and module documents selected by the agent from the confirmed component list.
+   Supply §2's selection mapping; other root sections are read on demand.
+   The reviewer did not implement the candidate and receives no author compliance
+   attestation or inherited implementation conversation. The author cannot award
+   this gate, V4 or V5.
+3. **Evidence and disposition**: preserve the reviewer's `ARCHITECTURE COMPLIANCE`
+   block verbatim in merge evidence with reviewer identity and timestamp. A
+   decided-section contradiction stops acceptance and goes to the existing user
+   decision gate (DESIGN-017 decision 2); never auto-override it. A described
+   section drift needs correction and re-review, not an invented architecture
+   rule. A missing/unknown verdict blocks acceptance. Task RESULT and task status
+   processing remain separate; this gate grants neither task closure nor merge
+   authority. Existing high-stakes screening, verification and no-self-merge stay.
+4. **Candidate binding**: immediately before merge recheck base/head and diff
+   against the evidence. Any candidate change, including integration adjustments,
+   invalidates the prior selection/review; repeat on the new exact candidate.
+   An executor's branch review is not review of a different integration tree.
 
 ## Common (post-dispatch, before completion)
 
