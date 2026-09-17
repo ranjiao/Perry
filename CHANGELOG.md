@@ -2,6 +2,63 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.12 — 2026-09-17
+
+patch · phase 004-guided · TASK-194 · delivery TASK-194-discussion-20260917
+
+### Changes
+
+Phase planning reuses the shared response-sensitive interview and approved overall wording or prior learning to produce a ten-section phase draft. Approval of the current phase draft is separate from overall approval and from activation. The procedure discloses the unavailable phase writer and forbids manual phase, pointer or KR-store writes to bypass that boundary.
+
+
+### Upgrade notes
+
+This local allocation supplies discussion instructions only. Planning-draft persistence and full overall/phase writers are not supplied; there is no automatic finalize, phase activation or week start. Overall and phase drafts remain unfinalized until the owning approval/persistence/writer flow supports the requested operation. The existing commitment writer is usable only for supported explicitly approved operations with required terms. This allocation does not accept a real-user interview or constitute a public release.
+
+
+### Breaking changes
+
+None.
+
+
+## 0.1.11 — 2026-09-17
+
+patch · phase 004-guided · TASK-193 · delivery TASK-193-discussion-20260917
+
+### Changes
+
+Goal discussions propagate user corrections into dependent proposals, review meaningful premises against the current draft, and preserve accepted intent, rejected suggestions and unknowns. The bounded refusal escape offers only the remaining consequential questions within budget and yields an incomplete draft on a second refusal. Premise review, draft edits and approval remain separate; the advisory rubric is unchanged.
+
+
+### Upgrade notes
+
+This local allocation supplies discussion instructions only. Planning-draft persistence and full overall/phase writers are not supplied; there is no automatic finalize, phase activation or week start. Overall and phase drafts remain unfinalized until the owning approval/persistence/writer flow supports the requested operation. The existing commitment writer is usable only for supported explicitly approved operations with required terms. This allocation does not accept a real-user interview or constitute a public release.
+
+
+### Breaking changes
+
+None.
+
+
+## 0.1.10 — 2026-09-17
+
+patch · phase 004-guided · TASK-192 · delivery TASK-192-discussion-20260917
+
+### Changes
+
+Goal discussions route by the requested horizon and declared track spine, reusing explicit answers and accepted wording with their sources. First-OKR, revision, phase and commitment routes share the question bank with bounded question budgets. Commitment handoff asks only for missing or changed terms: already supplied To whom and Due are reused, and an explicit complete create/amend instruction can already authorize the existing commitment writer.
+
+
+### Upgrade notes
+
+This local allocation supplies discussion instructions only. Planning-draft persistence and full overall/phase writers are not supplied; there is no automatic finalize, phase activation or week start. Overall and phase drafts remain unfinalized until the owning approval/persistence/writer flow supports the requested operation. The existing commitment writer is usable only for supported explicitly approved operations with required terms. This allocation does not accept a real-user interview or constitute a public release.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.9 — 2026-09-17
 
 patch · phase 004-guided · TASK-466 · delivery TASK-466-first-okr-response-propagation-20260917
