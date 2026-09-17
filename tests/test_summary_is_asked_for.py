@@ -244,6 +244,23 @@ class TestTheLinterReportsWhatTheWriterRefuses(unittest.TestCase):
         self.assertTrue(ours, r.stdout)
         self.assertEqual({f["severity"] for f in ours}, {"warn"})
 
+    def test_next_action_400_401_unicode_character_boundary(self):
+        """TASK-447: ASCII and Chinese share the same advisory boundary."""
+        for char, count in (("a", 400), ("a", 401), ("中", 400), ("中", 401)):
+            with self.subTest(char=char, count=count):
+                self.project.root.joinpath("tasks.jsonl").write_text(
+                    json.dumps({"id": "TASK-900", "title": "t", "summary": GOOD,
+                                "status": "not_started", "next_action": char * count})
+                    + "\n", encoding="utf-8")
+                _, txt = lint(self.project.root, "--json")
+                ours = [f for f in json.loads(txt)["findings"]
+                        if f["rule"] == "next-action-oversized"]
+                self.assertEqual(len(ours), int(count > 400), txt)
+                if ours:
+                    self.assertEqual(ours[0]["severity"], "warn")
+                    self.assertIn("401 Unicode characters", str(ours[0]))
+                    self.assertIn("400-character cell guide", str(ours[0]))
+
     def test_a_missing_store_reports_unchecked_rather_than_clean(self):
         """A census that did not happen must not print like a clean one."""
         store = self.project.root / "tasks.jsonl"

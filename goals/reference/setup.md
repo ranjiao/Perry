@@ -20,10 +20,12 @@ Run when `OKR.md` doesn't exist.
 Then use `$PERRY_HOME/goals/reference/elicitation.md` for the **first-OKR question
 bank**. Read it before asking; do not turn the fields below into another form.
 
-1. Propose grounded answers from the user's context, then ask one question at a
-   time. Default to one objective and at most three KRs; the normal short path is
-   four to five questions, with eight total before a visible draft (including
-   clarification/push questions). Keep unsupported facts explicitly unknown.
+1. Follow the bank's **Use the bank** response handling: propagate corrections
+   through dependent proposals and choose the next consequential unresolved gap.
+   Ask one question, then wait; Q1–Q4 guide coverage, not a fixed sequence.
+   Default to one objective and at most three KRs, with eight questions total
+   before a visible draft (including every clarification/push question).
+   Keep unsupported facts explicitly unknown and unaccepted targets proposed.
 2. Show the compact first-OKR draft in chat, with source/assumption distinctions,
    boundaries and remaining unknowns. This delivery does not persist a planning
    draft or provide resume/finalize machinery; do not claim those operations ran.
