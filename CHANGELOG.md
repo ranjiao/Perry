@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.9 — 2026-09-17
+
+patch · phase 004-guided · TASK-466 · delivery TASK-466-first-okr-response-propagation-20260917
+
+### Changes
+
+First-OKR conversations now carry user corrections through dependent KR, threshold and commitment proposals, preserve accepted facts and rejected suggestions, and choose the next consequential unresolved gap. Replacement targets remain proposals until accepted, within the existing eight-question draft budget.
+
+
+### Upgrade notes
+
+None.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.8 — 2026-09-17
 
 patch · phase 004-guided · TASK-446 · delivery TASK-446-one-screen-snapshot-20260917
