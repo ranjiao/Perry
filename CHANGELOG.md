@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.5 — 2026-09-17
+
+patch · phase 004-guided · TASK-460 · delivery TASK-460-typed-position-20260917
+
+### Changes
+
+Derive KR progress counts from declared typed checks, fix ceiling direction comparisons, and keep undeclared checks unmeasured.
+
+
+### Upgrade notes
+
+No data migration is required. Users may see unmeasured progress until checks are declared.
+
+
+### Breaking changes
+
+No breaking CLI changes.
+
+
 ## 0.1.4 — 2026-09-17
 
 patch · phase 004-guided · TASK-450 · delivery TASK450-merge-gate
