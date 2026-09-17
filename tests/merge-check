@@ -2,6 +2,8 @@
 """tests/merge-check — run the suite on the MERGED result of several open
 changes, and name the pair that disagrees.
 
+    python3 tests/merge-check --base main delivery=<branch> --tier full --record <new-external-dir>
+    python3 tests/merge-check --verify-receipt <new-external-dir>/receipt.json
     python3 tests/merge-check --base feat/work-modes --all-open -j 4
     python3 tests/merge-check --base feat/work-modes --pr 14 --pr 15
     python3 tests/merge-check --base <ref> a=<ref> b=<ref> --checks test_state_cost.py
@@ -66,17 +68,23 @@ their diffs touch the same files. #14 touched `schema/state-schema.json` and
 overlap.** Any "do these changes touch the same files" shortcut misses exactly
 the failure this script was written for.
 
-What this does not cover
-------------------------
-The sweep is `tests/parallel` plus the two `bin/perry-lint` gates — steps 2, 1
-and 4 of `tests/run`. Step 3 (every shipped script compiles and answers
-`--help`) is **not** mirrored here, because mirroring it means copying the list
-of scripts out of `tests/run`, and a copied list that silently stops matching
-its original is the defect this repository keeps finding in itself. The two
-lint gates are already a mirror of that kind and are kept only because
-attribution needs a per-check verdict, which `tests/run` does not expose. If
-step 3 ever starts catching things a pair broke, the fix is to make `tests/run`
-report per-step so this can call it — not to grow the copy.
+Full acceptance and recording
+-----------------------------
+Bare invocation and --tier full run bash tests/run --tier full, including its
+syntax/help stage and tree guard. --tier slow also includes harness self-tests.
+--checks is selected-check diagnosis only, never full acceptance. Any red full
+suite, including a pre-existing failure, refuses acceptance. Attribution may
+replay the full suite when a stage cannot be isolated to a module.
+
+--record DIR emits an external receipt.json and durations.json after a green
+run. It does not modify the caller, stage files, create a product commit or merge.
+New modules first register sec/source as null in the existing inventory; no
+manual retiming is needed. Full refreshes only measured modules; slow entries retain their prior
+provenance. The coding/integration role imports the artifact on the exact tested
+code tree, commits only that artifact, then runs --verify-receipt DIR/receipt.json
+and the separate slow gate. Verification requires unchanged input refs, identical
+code outside durations.json and the exact emitted artifact. A moved input ref
+invalidates the receipt. No future merge commit identity is invented.
 
 Limits, stated rather than discovered later
 -------------------------------------------
@@ -104,7 +112,11 @@ is safe to run from a worktree somebody else is working in.
 from __future__ import annotations
 
 import argparse
+import datetime
+import hashlib
+import os
 import itertools
+import math
 import json
 import pathlib
 import re
@@ -134,7 +146,8 @@ LINT_CHECKS = {
 
 
 def sh(args, cwd=None, check=True):
-    p = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+    p = subprocess.run(args, cwd=cwd, capture_output=True, text=True,
+                       env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
     if check and p.returncode != 0:
         raise RuntimeError(
             f"{' '.join(args)} failed ({p.returncode})\n{p.stdout}\n{p.stderr}")
@@ -194,8 +207,14 @@ class Scratch:
 
     def __init__(self, repo: pathlib.Path, work_dir=None, keep=False):
         self.repo, self.keep = repo, keep
-        self.tmp = pathlib.Path(work_dir) if work_dir else pathlib.Path(
-            tempfile.mkdtemp(prefix="merge-check-"))
+        scratch = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "perry-scratch" / repo.name
+        scratch.mkdir(parents=True, exist_ok=True)
+        self.tmp = pathlib.Path(work_dir).resolve() if work_dir else pathlib.Path(
+            tempfile.mkdtemp(prefix="merge-check-", dir=scratch))
+        if self.tmp == repo or repo in self.tmp.parents:
+            raise RuntimeError("scratch must be outside the caller checkout")
+        if work_dir and self.tmp.exists():
+            raise RuntimeError("--work-dir must be a new private directory")
         self.dir = self.tmp / "tree"
 
     def __enter__(self):
@@ -272,6 +291,10 @@ class Scratch:
 
 def run_check(scr: Scratch, name: str, j: int):
     """(verdict, detail lines) for one check on whatever is checked out."""
+    if name in ("suite:full", "suite:slow"):
+        tier = name.partition(":")[2]
+        p = sh(["bash", "tests/run", "--tier", tier], cwd=scr.dir, check=False)
+        return (GREEN if p.returncode == 0 else RED), plain(p.stdout + p.stderr).splitlines()[-15:]
     if name in LINT_CHECKS:
         cmd, needs = LINT_CHECKS[name]
         if not (scr.dir / needs).exists():
@@ -303,20 +326,105 @@ def sweep(scr: Scratch, j: int, only=None):
         red = []
         for name in only:
             verdict, _ = run_check(scr, name, j)
-            if verdict == RED:
+            if verdict != GREEN:
                 red.append(name)
         return red, False
 
-    p = sh(["python3", "tests/parallel", "-j", str(j)], cwd=scr.dir, check=False)
-    text = plain(p.stdout + p.stderr)
-    red = [m.group(1) for line in text.splitlines()
-           if (m := RED_MODULE.match(line.strip()))]
-    unattributable = p.returncode != 0 and not red
-    for name in LINT_CHECKS:
-        verdict, _ = run_check(scr, name, j)
-        if verdict == RED:
-            red.append(name)
-    return red, unattributable
+    return full_sweep(scr, "full", None)
+
+
+def full_sweep(scr, tier, results, j=4):
+    command = ["bash", "tests/run", "--tier", tier, "--workers", str(j)]
+    if results is not None:
+        command += ["--results", str(results)]
+    p = sh(command, cwd=scr.dir, check=False)
+    print(p.stdout, end="")
+    print(p.stderr, end="", file=sys.stderr)
+    if p.returncode == 0:
+        return [], False
+    # The stage authority is tests/run. Replay it for attribution rather than
+    # pretending named unittest failures account for every failed shell stage.
+    return ["suite:" + tier], False
+
+
+def resolve_local(repo, ref):
+    p = sh(["git", "rev-parse", "--verify", ref + "^{commit}"], cwd=repo, check=False)
+    return p.stdout.strip() if p.returncode == 0 else None
+
+
+def code_identity(repo):
+    raw = sh(["git", "ls-tree", "-rz", "HEAD"], cwd=repo).stdout
+    entries = [item for item in raw.split("\0") if item and
+               item.partition("\t")[2] != "tests/durations.json"]
+    return hashlib.sha256("\0".join(entries).encode()).hexdigest()
+
+
+def inputs_current(repo, receipt):
+    return all(resolve_local(repo, item["ref"]) == item["sha"]
+               for item in [receipt["base"], *receipt["candidates"]])
+
+
+def record_artifact(scr, output, results, receipt):
+    data = json.loads(results.read_text())
+    if data.get("schema") != 1 or not data.get("modules"):
+        raise RuntimeError("missing module timing transport; no record accepted")
+    rows = data["modules"]
+    if any(r["rc"] != 0 or r["ran"] <= 0 or not isinstance(r["sec"], (int, float))
+           or not math.isfinite(r["sec"]) or r["sec"] < 0 for r in rows):
+        raise RuntimeError("invalid or failing module timings; no record accepted")
+    doc = json.loads((scr.dir / "tests/durations.json").read_text())
+    live = {p.name for p in (scr.dir / "tests").glob("test_*.py")}
+    names = [r["mod"] for r in rows]
+    if len(set(names)) != len(names) or sorted(names) != data.get("selected"):
+        raise RuntimeError("timing transport omitted or duplicated selected modules")
+    if set(names) | set(data.get("deferred", [])) != live:
+        raise RuntimeError("timing transport does not account for every module")
+    if set(doc["modules"]) != live or any(r["mod"] not in live for r in rows):
+        raise RuntimeError("duration module inventory differs from tested tree")
+    stamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    source = "merge-" + receipt["tree"][:12] + "-" + stamp
+    doc["sources"][source] = {"kind": "merge-result", "ref": receipt["candidates"][0]["sha"],
+        "base": receipt["base"]["sha"], "tree": receipt["tree"], "taken": stamp,
+        "workers": data["workers"], "tier": receipt["tier"],
+        "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."}
+    for row in rows:
+        doc["modules"][row["mod"]] = {"sec": round(row["sec"], 3), "source": source}
+    artifact = (json.dumps(doc, indent=2, ensure_ascii=False) + "\n").encode()
+    (output / "durations.json").write_bytes(artifact)
+    receipt["artifact_sha256"] = hashlib.sha256(artifact).hexdigest()
+    receipt["measured_modules"] = [r["mod"] for r in rows]
+    receipt["unmeasured_modules"] = sorted(live - set(receipt["measured_modules"]))
+    receipt["artifact_verified"] = False  # import + verify is a separate real operation
+
+
+def verify_receipt(repo, path):
+    receipt = json.loads(path.read_text())
+    if receipt.get("status") != "green" or receipt.get("tier") not in ("full", "slow"):
+        raise RuntimeError("receipt is not a successful full/slow gate")
+    if not inputs_current(repo, receipt):
+        raise RuntimeError("base or candidate moved; rerun the merge gate")
+    if sh(["git", "status", "--porcelain"], cwd=repo).stdout.strip():
+        raise RuntimeError("receipt verification requires a clean committed integration checkout")
+    if code_identity(repo) != receipt["code_identity"]:
+        raise RuntimeError("integration code differs from tested code outside durations.json")
+    artifact = (repo / "tests/durations.json").read_bytes()
+    if hashlib.sha256(artifact).hexdigest() != receipt.get("artifact_sha256"):
+        raise RuntimeError("recorded duration artifact differs from emitted bytes")
+    command = ["python3", "tests/parallel", "test_durations_provenance"]
+    p = sh(command, cwd=repo, check=False)
+    print(p.stdout + p.stderr)
+    if p.returncode:
+        raise RuntimeError("imported artifact failed duration provenance checks")
+    if not inputs_current(repo, receipt):
+        raise RuntimeError("base or candidate moved during artifact verification")
+    if (sh(["git", "status", "--porcelain"], cwd=repo).stdout.strip()
+            or code_identity(repo) != receipt["code_identity"]
+            or hashlib.sha256((repo / "tests/durations.json").read_bytes()).hexdigest()
+            != receipt["artifact_sha256"]):
+        raise RuntimeError("integration checkout changed during artifact verification")
+    print("VERIFIED recorded artifact on " + resolve_local(repo, "HEAD") +
+          "; run/check the slow gate separately before acceptance")
+    return 0
 
 
 # --------------------------------------------------------------------------
@@ -329,6 +437,9 @@ def main() -> int:
         epilog="\n".join(__doc__.splitlines()[1:]))
     ap.add_argument("candidates", nargs="*", metavar="NAME=REF",
                     help="a change to include, e.g. a=origin/coding/task-100")
+    ap.add_argument("--tier", choices=("full", "slow"), default="full")
+    ap.add_argument("--record", type=pathlib.Path, help="new external artifact directory (one local candidate)")
+    ap.add_argument("--verify-receipt", type=pathlib.Path, help="verify an imported committed duration artifact")
     ap.add_argument("--base", default=None,
                     help="branch or ref every candidate is merged onto "
                          "(default: the current branch)")
@@ -347,6 +458,19 @@ def main() -> int:
     sys.stdout.reconfigure(line_buffering=True)
 
     repo = pathlib.Path(sh(["git", "rev-parse", "--show-toplevel"]).stdout.strip())
+    if args.verify_receipt:
+        if args.record or args.candidates or args.pr or args.all_open or args.checks is not None:
+            ap.error("--verify-receipt cannot also run a candidate or record")
+        return verify_receipt(repo, args.verify_receipt.resolve())
+    if args.checks is not None and not args.checks:
+        ap.error("--checks needs at least one check")
+    if args.record and (args.checks is not None or args.pr or args.all_open or len(args.candidates) != 1):
+        ap.error("--record requires one local candidate and the full/slow tier")
+    output = args.record.resolve() if args.record else None
+    if output:
+        if output == repo or repo in output.parents:
+            ap.error("--record output must be outside the checkout")
+        output.mkdir(parents=True, exist_ok=False)
     base_ref = args.base or sh(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo).stdout.strip()
 
@@ -362,6 +486,8 @@ def main() -> int:
     if args.all_open:
         cands.extend(open_prs(repo, base_ref))
 
+    if len({c.name for c in cands}) != len(cands):
+        ap.error("candidate names must be unique")
     if len(cands) < 1:
         print("nothing to check: give candidates, --pr, or --all-open")
         return 0
@@ -401,6 +527,12 @@ def main() -> int:
                 return 2
             c.sha = sha
 
+        receipt = {"schema": 1, "tier": args.tier, "status": "pending",
+                   "base": {"ref": base_ref, "sha": base_sha},
+                   "candidates": [{"name": c.name, "ref": c.ref, "sha": c.sha} for c in cands]}
+        if args.record and not inputs_current(repo, receipt):
+            raise RuntimeError("recording requires locally resolvable exact input refs")
+        print("INPUTS " + json.dumps(receipt, sort_keys=True))
         print(f"merge-check · base {base_ref} @ {base_sha[:8]}")
         for c in cands:
             print(f"  {c.name:<8} {c.sha[:8]}  {c.title}")
@@ -415,16 +547,29 @@ def main() -> int:
                   f"{others}. git reports this one; nothing semantic was run.")
             return 1
 
-        note("running the suite on the merged result")
-        red, unattributable = sweep(scr, args.j, args.checks)
+        receipt["tree"] = sh(["git", "rev-parse", "HEAD^{tree}"], cwd=scr.dir).stdout.strip()
+        receipt["code_identity"] = code_identity(scr.dir)
+        receipt["scratch_commit"] = combined
+        print("TESTED TREE " + receipt["tree"])
+        note("running " + ("selected diagnosis" if args.checks else args.tier) + " on the merged result")
+        results = scr.tmp / "module-results.json" if output else None
+        red, unattributable = (sweep(scr, args.j, args.checks) if args.checks else
+                               full_sweep(scr, args.tier, results, args.j))
+        if not args.pr and not args.all_open and not inputs_current(repo, receipt):
+            print("STALE — base or candidate moved during the run; acceptance refused")
+            return 1
         if unattributable:
             print("the runner failed on the combined tree without naming a "
                   "module — cannot attribute; read the run above.")
             return 1
         if not red:
-            n = len(cands)
-            print(f"✓ the merged result of {n} change(s) is green — "
-                  f"no pair disagrees.")
+            receipt["status"] = "diagnosis-only" if args.checks else "green"
+            if output:
+                record_artifact(scr, output, results, receipt)
+                (output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
+            print("RECEIPT " + json.dumps(receipt, sort_keys=True))
+            print("✓ selected checks passed — NOT full acceptance" if args.checks else
+                  "✓ exact merged tree passed " + args.tier + "; recheck refs before merge")
             return 0
 
         # Subtract what was already broken. Without this every pair is guilty.
@@ -443,7 +588,7 @@ def main() -> int:
         if not live:
             print("✓ nothing new is red on the merged result — every "
                   "failure above was already red on the base.")
-            return 0
+            return 0 if args.checks else 1
 
         # Solo, then pairs. One merge per tree, every live check on it — the
         # merge is cheap but the checks are not, and re-merging per check
@@ -520,4 +665,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (RuntimeError, OSError, ValueError, KeyError) as exc:
+        print("merge-check refused: " + str(exc), file=sys.stderr)
+        sys.exit(1)

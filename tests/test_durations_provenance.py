@@ -147,6 +147,11 @@ class TestTheFileIsAboutThisTree(unittest.TestCase):
             "by accident rather than by decision. Add an entry — `sec: null` "
             "is a valid one and means exactly 'not measured'.")
 
+    def test_merge_result_sources_declare_existing_inputs_and_tested_tree(self):
+        mods, doc = _live()
+        self.assertEqual(_audit(mods, doc)["invalid_sources"], [],
+                         "merge-result stamps need full input SHAs, tested tree and full/slow tier")
+
     def test_every_entry_names_a_source_the_file_defines(self):
         """Provenance that cannot be dereferenced is not provenance."""
         mods, doc = _live()
@@ -241,6 +246,26 @@ class TestStalenessIsDistinguishableFromCurrent(unittest.TestCase):
         return {"schema": 1, "legacy": False, "unreadable": None,
                 "sources": {"s": {"ref": ref}},
                 "modules": {"test_a.py": {"sec": 1.0, "source": "s"}}}
+
+    def test_merge_result_needs_both_existing_input_ancestors(self):
+        doc = self._doc("a" * 40)
+        doc["sources"]["s"].update(kind="merge-result", base="b" * 40,
+                                   tree="c" * 40, tier="full")
+        current = P.audit(["test_a.py"], doc, ancestor=lambda ref: True)
+        self.assertEqual(len(current["current"]), 1)
+        stale = P.audit(["test_a.py"], doc, ancestor=lambda ref: ref != "b" * 40)
+        self.assertEqual(len(stale["stale"]), 1)
+        self.assertEqual(stale["current"], [])
+
+    def test_merge_result_requires_tree_and_full_or_slow_scope(self):
+        doc = self._doc("a" * 40)
+        doc["sources"]["s"].update(kind="merge-result", base="b" * 40,
+                                   tree="not-a-tree", tier="full")
+        report = P.audit(["test_a.py"], doc, ancestor=lambda ref: True)
+        self.assertTrue(P.drift(report))
+        doc["sources"]["s"].update(tree="c" * 40, tier="affected")
+        report = P.audit(["test_a.py"], doc, ancestor=lambda ref: True)
+        self.assertTrue(P.drift(report))
 
     def test_a_figure_at_an_ancestor_ref_is_current(self):
         r = P.audit(["test_a.py"], self._doc("abc"), ancestor=lambda ref: True)

@@ -89,6 +89,7 @@ fi
 tier=""
 tier_base=""
 tier_dry=""
+results_args=()
 if [ "${1:-}" = "--tier" ]; then
   tier="${2:-}"
   shift 2 2>/dev/null || shift $#
@@ -96,6 +97,8 @@ if [ "${1:-}" = "--tier" ]; then
     case "$1" in
       --base) tier_base="${2:-}"; shift 2 2>/dev/null || shift $# ;;
       --dry-run) tier_dry=1; shift ;;
+      --workers) results_args+=(-j "${2:?--workers needs a count}"); shift 2 ;;
+      --results) results_args+=(--results "${2:?--results needs an external path}"); shift 2 ;;
       *) echo "tests/run --tier: unknown argument '$1'" >&2; exit 2 ;;
     esac
   done
@@ -113,6 +116,10 @@ if [ "${1:-}" = "--tier" ]; then
   fi
   if [ -n "$tier_base" ] && [ "$tier" != "affected" ]; then
     echo "tests/run --tier $tier: --base is only read by --tier affected" >&2
+    exit 2
+  fi
+  if [ "${#results_args[@]}" -gt 0 ] && { [ "$tier" != "full" ] && [ "$tier" != "slow" ]; }; then
+    echo "--results/--workers transport requires --tier full or slow" >&2
     exit 2
   fi
   # `slow` is a spelling of the flag, so it sets the flag and nothing else.
@@ -314,9 +321,9 @@ elif [ "${PERRY_TEST_SERIAL:-}" = "1" ] || [ "${1:-}" = "--serial" ]; then
 elif [ -n "$only" ]; then
   python3 tests/parallel "$only" || fail=1
 elif [ -n "$slow" ]; then
-  python3 tests/parallel --slow || fail=1
+  python3 tests/parallel --slow "${results_args[@]}" || fail=1
 else
-  python3 tests/parallel || fail=1
+  python3 tests/parallel "${results_args[@]}" || fail=1
 fi
 
 if [ -n "$only" ]; then

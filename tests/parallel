@@ -362,7 +362,7 @@ def audit(mods: list[str], doc: dict, ancestor=git_ancestor) -> dict:
               "unlisted": sorted(on_disk - set(recorded)),
               "phantom": sorted(set(recorded) - on_disk),
               "dangling": [], "unmeasured": [], "unstamped": [],
-              "stale": [], "unverifiable": [], "current": [],
+              "stale": [], "unverifiable": [], "current": [], "invalid_sources": [],
               "unreadable": doc["unreadable"], "legacy": doc["legacy"]}
 
     verdicts: dict[str, bool | None] = {}
@@ -376,13 +376,24 @@ def audit(mods: list[str], doc: dict, ancestor=git_ancestor) -> dict:
             report["unmeasured"].append(name)
             continue
         ref = (src or {}).get("ref")
+        if (src or {}).get("kind") == "merge-result":
+            if any(not isinstance(src.get(k), str) or not re.fullmatch(r"[0-9a-f]{40}", src[k])
+                   for k in ("ref", "base", "tree")) or src.get("tier") not in ("full", "slow"):
+                report["invalid_sources"].append((name, src_id))
+                continue
         if not isinstance(ref, str) or not ref:
             report["unstamped"].append(name)
             continue
-        if ref not in verdicts:
-            verdicts[ref] = ancestor(ref)
+        refs = [ref]
+        if (src or {}).get("kind") == "merge-result":
+            refs.append(src["base"])
+        for item in refs:
+            if item not in verdicts:
+                verdicts[item] = ancestor(item)
+        values = [verdicts[item] for item in refs]
+        result = False if False in values else None if None in values else True
         {True: report["current"], False: report["stale"],
-         None: report["unverifiable"]}[verdicts[ref]].append((name, ref))
+         None: report["unverifiable"]}[result].append((name, ref))
     return report
 
 
@@ -420,6 +431,8 @@ def drift(report: dict) -> list[str]:
     for m, src_id in report["dangling"]:
         lines.append(f"undefined source {src_id!r}: {m} — a stamp that "
                      f"cannot be read is not a stamp")
+    for name, source in report.get("invalid_sources", []):
+        lines.append(f"invalid merge-result provenance {source!r}: {name}")
     return lines
 
 
@@ -731,6 +744,7 @@ def run_module(name: str) -> dict:
 #:
 #: Run them with `bash tests/run --slow` or `python3 tests/parallel --slow`.
 HARNESS_SELF_TESTS = frozenset({
+    "test_merge_gate.py",
     "test_tree_guard.py",
     "test_parallel_runner.py",
     "test_durations_provenance.py",
@@ -747,6 +761,7 @@ def main() -> int:
                     help="print the ranked per-module wall times")
     ap.add_argument("--ids", metavar="FILE",
                     help="write every test id and its outcome to FILE")
+    ap.add_argument("--results", help="write machine-readable module results outside the checkout")
     ap.add_argument("--record", action="store_true",
                     help="refresh tests/durations.json from this run")
     ap.add_argument("--slow", action="store_true",
@@ -868,6 +883,16 @@ def main() -> int:
         print(f"\n\033[31m✗ {r['mod']} ran zero tests\033[0m — it loaded "
               f"without error and contributed nothing. A module that stops "
               f"running is a failure, not a smaller total.")
+
+    if args.results:
+        target = pathlib.Path(args.results).resolve()
+        if target == ROOT or ROOT in target.parents:
+            raise SystemExit("--results must be outside the checkout")
+        with target.open("x") as stream:
+            json.dump({"schema": 1, "workers": args.j, "wall": wall, "selected": sorted(mods),
+                       "deferred": sorted(set(all_mods) - set(mods)),
+                       "modules": [{k: r[k] for k in ("mod", "sec", "rc", "ran")}
+                                   for r in results]}, stream)
 
     if args.times:
         # The recorded column is the one that makes a drifted figure visible

@@ -616,6 +616,10 @@
     "test_release_update.py": {
       "sec": 13.604,
       "source": "2026-09-16-task462"
+    },
+    "test_merge_gate.py": {
+      "sec": null,
+      "source": null
     }
   },
   "schema": 1,
