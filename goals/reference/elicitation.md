@@ -1,9 +1,10 @@
 # Shared goal discussion and question bank
 
-Loaded through `goals/SKILL.md` for first OKR, revision and commitments.
+Loaded through `goals/SKILL.md` for first OKR, revision, phase and commitments.
 The deliverable is a useful draft for review, not a claim that planning
 persistence or finalize writers exist. Keep `reference/input-quality.md` as the
-unchanged quality authority. Phase and week procedures live at their own entrances.
+unchanged quality authority. `phases.md` maps phase sections to this same bank;
+the week procedure remains at its own entrance.
 
 ## Route and reuse
 
@@ -21,6 +22,7 @@ wait. Count it in the chosen route's budget; switching labels never resets it.
 |---|---|---|---|
 | First OKR | Overall goals requested, no existing OKR confirmed | 8 | Q1 mission/horizon; Q2 focus; Q3 evidence; Q4 boundaries → first overall draft |
 | Revision | Existing OKR and a requested material change or pivot | 5 | Q9 change/affected goals, then affected Q1–Q8 gaps → proposed new version with change reasons |
+| Phase | Existing accepted overall OKR, no active phase, phase planning requested | 5 | Q2 focus/end state; Q3 evidence/DoD; Q4 exclusions; Q7 appetite; Q9 prior learning → ten-section phase draft |
 | Commitments | Selected pipeline/queue spine or explicit `commit` request | 3 | Q10 promise terms, Q3 resolution evidence or Q5 arrival/baseline gap → proposed commitment row and operational unknowns |
 
 For each turn identify the selected route and the next unanswered consequential
@@ -28,6 +30,9 @@ gap with its draft destination, in plain language. If none remains, draft now.
 Selecting a route never starts a phase or week, revises other tracks, or creates
 a commitment. `init` with an existing OKR offers revision only if change is wanted;
 `revise` without one reports that mismatch instead of inventing an old version.
+An active phase is not silently closed or replaced: `plan-phase` surfaces that
+state and pauses the new-phase route for an explicit lifecycle choice. Overall
+approval alone never authorizes a first or subsequent phase.
 
 Reuse explicit opening answers and accepted existing wording with provenance:
 name the message, or document/version/section that supplied each carried answer.
@@ -226,7 +231,7 @@ Ask: “I read the change as [before → after, reason and affected goals]. What
 Push until you hear: A concrete change and its consequence for the selected horizon, or an explicit unresolved impact to carry into the draft.
 Red flags: Re-interviewing the whole mission; rewriting unrelated accepted KRs; treating old approval as permission for new thresholds.
 Produces: Revision reason and affected goal sections; the dependent scorecard gaps to address through Q3/Q5/Q6/Q7.
-Skip when: The change, its scope and affected goals are already explicit; propagate it directly and ask only about unresolved consequences.
+Skip when: The change, its scope and affected goals are already explicit; propagate it directly and ask only about unresolved consequences. For a subsequent phase, reuse the scored retro's learning as context, not automatic approval of carry-overs.
 
 ## Q10 · What promise is being made?
 
@@ -250,6 +255,8 @@ extra KRs merely to fill slots. Keep the summary to at most 12 lines; show the
 relevant section in full when editing it. For revision, include change reasons and affected
 goals with unchanged wording preserved. For commitments, show the proposed row
 and remaining operational unknowns, without an objectives cascade.
+For a phase, use `phases.md`'s ten sections and a clearly proposed KR scorecard;
+carry approved overall wording as context, never approval of new phase thresholds.
 
 ### Premises, edits and approval
 
@@ -288,7 +295,8 @@ stop with a reviewable draft, even if the user says “approved.” Approval nev
 manufactures a writer. The explicit commitment writer remains available for
 supported, explicitly authorized terms, subject to its refusals.
 
-Run `$PERRY_HOME/reference/input-quality.md § 1` once against this actual draft
+Run `$PERRY_HOME/reference/input-quality.md § 2` for a phase, otherwise § 1,
+once against this actual draft
 where applicable; for a commitments-only draft state which Objective/KR checks
 are inapplicable rather than inventing an OKR or a replacement rubric.
 The entries' `Produces` fields map all eight checks; coverage is not a passing
