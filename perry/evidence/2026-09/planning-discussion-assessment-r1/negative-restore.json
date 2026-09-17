@@ -1,0 +1,9 @@
+{
+  "copy": "/private/tmp/perry-scratch/planning-acceptance/20260917/tmp/procedure-comparison-ipp4u7zi/goals/reference/setup.md",
+  "reverted_ref": "9051a43f78bb4e2f892c678c9b4ab54df8bfa376",
+  "restored_ref": "bc0c9e6779d4b3d843417941c48d2bd0484a1175",
+  "restored_equals_fresh_git_show": true,
+  "source_equals_fresh_git_show": true,
+  "restored_sha256": "f30c4588891ce7f405a055a4fb83bf1322c620f587b0fb03bf49c8a731e97eb1",
+  "negative_execution": "No tool writes or test rerun; semantic procedure comparison only."
+}

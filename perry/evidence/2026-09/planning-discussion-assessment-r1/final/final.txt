@@ -1,0 +1,7 @@
+Saved [final/assessment.md](/private/tmp/perry-scratch/planning-acceptance/20260917/final/assessment.md).
+
+- F1/F2 resolved at `ded43b71`; all three tasks’ bounded criteria supported.
+- Smoke and affected checks passed: 595 tests, four workers; tree guards passed.
+- Architecture: PASS for the exact final candidate.
+
+First assessment preserved. No V4/V5 award or live project writes.

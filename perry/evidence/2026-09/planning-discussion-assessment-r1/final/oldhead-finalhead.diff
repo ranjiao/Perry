@@ -1,0 +1,44 @@
+diff --git a/goals/reference/phases.md b/goals/reference/phases.md
+index 25e5bbd0..f84b8e4d 100644
+--- a/goals/reference/phases.md
++++ b/goals/reference/phases.md
+@@ -60,10 +60,19 @@ including the event that was appended.
+    — a row created by the tool and later deleted by hand is gone from the file
+    and still in the log, and its number stays spent.
+
+-3. **`To whom` and `Due` have no defaults.** Ask for both — one
+-   `AskUserQuestion`, both fields — before running the command. A promise with
+-   no named party is a KR, and belongs under an Objective instead; the tool
+-   refuses `--to` with that sentence rather than filing a commitment to nobody.
++3. **`To whom` and `Due` have no defaults.** Follow `elicitation.md`'s
++   **Route and reuse** for intake: reuse explicitly supplied, unchanged terms
++   without asking again. Ask only missing consequential terms, one question
++   at a time, then wait. The same three-question commitment cap includes
++   routing, follow-ups and pushes; this handoff never resets it. At the cap,
++   show the draft without another intake question. Unknown required fields
++   remain unknown and prevent writes, even if the user requests a commit.
++   An exact, complete explicit `commit` instruction already authorizes that
++   supported writer operation, subject to its existing refusals. Reusing an
++   earlier policy or accepting an interview answer/draft edit does not supply
++   new consent. A promise with no named party is a KR, and belongs under an
++   Objective instead; the tool refuses `--to` with that sentence rather than
++   filing a commitment to nobody.
+
+ 4. **The clock is two fields, and only one of them is checked.**
+
+@@ -292,10 +301,11 @@ even after the user approves the draft. Do not hand-write a phase document or
+ file to a generic import/render command, or use `perry-goals link` as a KR-creation
+ substitute. A writer refusal stops with its actual message; no fallback writes.
+
+-The eventual supported target remains the existing contract, not a second copy:
+-phase prose with ten sections; `linkage.jsonl` Objective records (`phase`, `id`,
+-`title`) and KR records (`id`, `title`, `metric`, `target`, `linked` overall KR);
+-`phase/CURRENT` naming the activated phase. `target` / `current` are numbers or
++The eventual writer's returned result must identify the ten-section phase prose
++and the activated phase pointer. Its Objective fields are `phase`, `id`, `title`;
++its KR fields are `id`, `title`, `metric`, `target`, and `linked` overall KR.
++Their canonical authority is `linkage.jsonl`, with no duplicate KR table in the
++phase document. `target` / `current` are numbers or
+ omitted; prose limits remain in `metric`. Unknown current is never zero, and
+ `kr.asserted_at` accompanies only an asserted current, dated to its measurement.
+ There is no file-level `updated:`. Projects and edges use `perry-goals link`

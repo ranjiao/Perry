@@ -1,0 +1,5 @@
+已新增提交 `ded43b71ac085039f9bb0124551297f6780e999e`，仅修正 commitment intake 第 3 步，保留 F2 修正。
+
+145 项定向检查、smoke、affected 595 项检查通过；工作区干净。
+
+[修正报告、场景及日志](/private/tmp/perry-scratch/planning-discussion/20260917/fix/result.md) 已保存。未修改 PMO 状态，未合并或发布。

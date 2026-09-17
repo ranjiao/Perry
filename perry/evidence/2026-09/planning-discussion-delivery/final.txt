@@ -7,4 +7,3 @@
 最终 HEAD 的 smoke 和 affected 595 项检查通过；工作区干净，rubric 未变。未推送、合并或修改 PMO 状态。
 
 [交付报告、场景与日志](/private/tmp/perry-scratch/planning-discussion/20260917/result.md) 已齐备。独立评审待进行；TASK-191 仍未完成。
-

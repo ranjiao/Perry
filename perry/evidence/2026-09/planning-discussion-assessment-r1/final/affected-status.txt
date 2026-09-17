@@ -1,0 +1,2 @@
+affected_exit=0
+guard_exit=0

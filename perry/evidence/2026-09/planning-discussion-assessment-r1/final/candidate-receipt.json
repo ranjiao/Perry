@@ -1,0 +1,164 @@
+{
+  "time_utc": "2026-09-17T11:40:14.522412+00:00",
+  "base": "9051a43f78bb4e2f892c678c9b4ab54df8bfa376",
+  "prior_head": "bc0c9e6779d4b3d843417941c48d2bd0484a1175",
+  "intermediate_head": "1867c7d54651d51f07b82b58933a019b1581270f",
+  "final_head": "ded43b71ac085039f9bb0124551297f6780e999e",
+  "actual_head": "ded43b71ac085039f9bb0124551297f6780e999e",
+  "status": "",
+  "base_final_raw": ":100644 100644 57a1cfc3 56f7fdc2 M\tgoals/SKILL.md\n:100644 100644 92e5eb27 b75835c3 M\tgoals/reference/elicitation.md\n:100644 100644 80bd1e29 f84b8e4d M\tgoals/reference/phases.md\n:100644 100644 6979d1c3 e467902c M\tgoals/reference/setup.md\n",
+  "base_final_summary": "",
+  "old_final_raw": ":100644 100644 25e5bbd0 f84b8e4d M\tgoals/reference/phases.md\n",
+  "intermediate_parent": "3a01c057515d1a5e9d993b0ec5dd23b1d1446d40",
+  "final_parent": "1867c7d54651d51f07b82b58933a019b1581270f",
+  "top_level_base": [
+    ".github",
+    ".perry",
+    ".vscode",
+    "bin",
+    "decide",
+    "goals",
+    "modes",
+    "packs",
+    "perry",
+    "reference",
+    "release",
+    "schema",
+    "state",
+    "templates",
+    "tests",
+    "viewer",
+    "work"
+  ],
+  "top_level_final": [
+    ".github",
+    ".perry",
+    ".vscode",
+    "bin",
+    "decide",
+    "goals",
+    "modes",
+    "packs",
+    "perry",
+    "reference",
+    "release",
+    "schema",
+    "state",
+    "templates",
+    "tests",
+    "viewer",
+    "work"
+  ],
+  "unchanged_trees_base_final": {
+    "bin": true,
+    "schema": true,
+    "tests": true
+  },
+  "files": {
+    "goals/SKILL.md": {
+      "base_final_equal": false,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 22049,
+      "final_sha256": "d8485667c22a99cb10a4deabd96a60eeb44580074c09328ae9ae0b1c22e59bf9"
+    },
+    "goals/reference/elicitation.md": {
+      "base_final_equal": false,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 25388,
+      "final_sha256": "3aba42a730144020ea52819756474b6bbf804824c3b41b50668f5cf3db612d6a"
+    },
+    "goals/reference/phases.md": {
+      "base_final_equal": false,
+      "old_final_equal": false,
+      "live_equals_final": true,
+      "final_bytes": 28389,
+      "final_sha256": "f8ecdbb2d9848061052dee18d6a81b4d206eb206b1330e01c13a6adabedec31b"
+    },
+    "goals/reference/setup.md": {
+      "base_final_equal": false,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 5922,
+      "final_sha256": "f30c4588891ce7f405a055a4fb83bf1322c620f587b0fb03bf49c8a731e97eb1"
+    },
+    "reference/input-quality.md": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 9389,
+      "final_sha256": "399cdb615d6ae7b87c5a82f5a2e26e82d9951607b0e39ac9d5bce50465a74e88"
+    },
+    "ARCHITECTURE.md": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 23979,
+      "final_sha256": "9ec42ef11570db157b309dd2c6dc1a880ebb2bd51858ac0d9cd86e3e749ae561"
+    },
+    "perry/design/DESIGN-017-the-architecture-document-is-written-by-the-agent.md": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 26743,
+      "final_sha256": "e423d287bd2f4625775b8bf7930db1dfe61c25c015905fc07550e4590454b9e9"
+    },
+    "perry/design/DESIGN-011-the-okr-is-elicited-not-collected.md": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 12874,
+      "final_sha256": "380d767ddb234783512936719bce1808dea340914cc1038c84216d341fc75488"
+    },
+    "perry/design/DESIGN-020-guided-planning.md": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 34734,
+      "final_sha256": "97b0743597e1267bb0fd53cef003d647258f728ee3b53a18118119b4458dd397"
+    },
+    "work/reference/review.md": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 28646,
+      "final_sha256": "178374bd631513099908adcb28ed87649d90279b79ce2a9c4130a19987f79205"
+    },
+    "work/reference/dispatch.md": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 49922,
+      "final_sha256": "440a4d3b905b937a08619f3acae6a6049161e7e2b04e74ea9d79b8631752003a"
+    },
+    "tests/run": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 18521,
+      "final_sha256": "0458e992b20c19663a66723ecc42dcafde031ea59a29e301da00ce050daafd84"
+    },
+    "tests/parallel": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 50939,
+      "final_sha256": "9829515d357852e751b5abefe020cd5000d3b8ad3f4f6deae5aec12234c464bd"
+    },
+    "tests/tree_guard.py": {
+      "base_final_equal": true,
+      "old_final_equal": true,
+      "live_equals_final": true,
+      "final_bytes": 15869,
+      "final_sha256": "414a0d5f496d2aa72a30ae8ffb3ac0cd660082620485c7c7699570ccb61dbc80"
+    }
+  },
+  "unchanged_phase_regions": {
+    "before_commit_step3": true,
+    "after_commit_step3_before_inventory": true,
+    "after_inventory": true
+  },
+  "prior_assessment_sha256": "9fcaee8f5130cdad9412047aaea197d1f9c9a8dd84cc290c6b1f66a6389b2cc6",
+  "updated_spec_sha256": "e82c31f771b643322c84872396157941b0fd47c772c02b5690acf102ac2507a7"
+}

@@ -1,0 +1,25 @@
+{
+  "timestamp_utc": "2026-09-17T11:44:27.424809+00:00",
+  "head": "ded43b71ac085039f9bb0124551297f6780e999e",
+  "status": "",
+  "source_equals_final": {
+    "goals/SKILL.md": true,
+    "goals/reference/elicitation.md": true,
+    "goals/reference/phases.md": true,
+    "goals/reference/setup.md": true,
+    "reference/input-quality.md": true,
+    "ARCHITECTURE.md": true,
+    "perry/design/DESIGN-017-the-architecture-document-is-written-by-the-agent.md": true,
+    "perry/design/DESIGN-011-the-okr-is-elicited-not-collected.md": true,
+    "perry/design/DESIGN-020-guided-planning.md": true,
+    "work/reference/review.md": true,
+    "work/reference/dispatch.md": true,
+    "tests/run": true,
+    "tests/parallel": true,
+    "tests/tree_guard.py": true
+  },
+  "prior_assessment_sha256_before": "9fcaee8f5130cdad9412047aaea197d1f9c9a8dd84cc290c6b1f66a6389b2cc6",
+  "prior_assessment_sha256_after": "9fcaee8f5130cdad9412047aaea197d1f9c9a8dd84cc290c6b1f66a6389b2cc6",
+  "prior_assessment_unchanged": true,
+  "final_assessment_sha256": "2fff6a70fd63a2a4f9147ff82c8fbe57cb15c23938d5a303ea5cfd91cb930d67"
+}
