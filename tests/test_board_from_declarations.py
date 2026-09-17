@@ -20,7 +20,7 @@ The output is read back with `viewer/tables.py § split_row`, the one reader,
 which undoes the one escaping rule (`\\|`).
 
 Two projects. `Fixture` holds every shape the render has to carry: a pipe in a
-cell, a 2,500-byte cell, an empty and a two-item list, a null, a closed task,
+cell, a >2,500-byte Unicode cell, an empty and a two-item list, a null, a closed task,
 a task in an undeclared group, a record with no `order`, an intake row. The
 LIVE STORES are copied from this checkout into a temp project with no
 `BOARD.md`, so the longest real next action is checked whole.
@@ -165,7 +165,7 @@ def board(root: Path):
 
 
 LONG = ("Re-measure the whole board with the file gone | then compare every cell "
-        "against its store value, not against a file. ") * 25
+        "against its store value, not against a file. 全文核对。 ") * 25
 
 
 def task(tid, order, group="P1", status="not_started", **kw):
@@ -327,6 +327,20 @@ class TestAFixtureProject(CellWhole, unittest.TestCase):
         self.root, self.state = self.fx.root, self.fx.state
         self.addCleanup(self.fx.close)
 
+    def test_the_longest_next_action_is_whole(self):
+        """The deterministic fixture keeps the long-cell proof non-vacuous."""
+        stores = read_stores(self.state)
+        open_tasks = [r for r in stores["tasks"] if r.get("status") not in TERMINAL]
+        longest = max(open_tasks, key=lambda r: len((r.get("next_action") or "").encode()))
+        want = expected_cell(longest, "next_action")
+        self.assertGreaterEqual(len(want.encode()), 1000,
+                                "the fixture has no long next action to check")
+        got = [row for s in sections(self.render()) for row in s["rows"]
+               if row and row[0] == longest["id"]]
+        self.assertEqual(len(got), 1)
+        cols = declared_columns(table_spec("tasks"))
+        self.assertEqual(got[0][cols.index("Next action")], want)
+
     def test_the_fixture_carries_every_shape(self):
         """Anti-vacuity: the cases above are only as strong as these shapes."""
         stores = read_stores(self.state)
@@ -385,22 +399,6 @@ class TestThisProjectsStores(CellWhole, unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
-
-    def test_the_longest_next_action_is_whole(self):
-        """TASK-391's was 2,218 bytes at 5fa66a7f. The row is not named here, so the
-        case survives it closing; the length floor keeps it from going vacuous."""
-        stores = read_stores(self.state)
-        open_tasks = [r for r in stores["tasks"] if r.get("status") not in TERMINAL]
-        longest = max(open_tasks, key=lambda r: len((r.get("next_action") or "").encode()))
-        want = expected_cell(longest, "next_action")
-        self.assertGreaterEqual(len(want.encode()), 1000,
-                                "the live store has no long next action to check")
-        got = [row for s in sections(self.render()) for row in s["rows"]
-               if row and row[0] == longest["id"]]
-        self.assertEqual(len(got), 1)
-        cols = declared_columns(table_spec("tasks"))
-        self.assertEqual(got[0][cols.index("Next action")], want)
-
 
 #: Runs the tool with every file open logged, and any open of a `BOARD.md`
 #: refused. Imports go through `io.open_code`, which is not patched, so the log
