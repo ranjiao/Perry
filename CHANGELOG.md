@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.4 — 2026-09-17
+
+patch · phase 004-guided · TASK-450 · delivery TASK450-merge-gate
+
+### Changes
+
+Run full merge acceptance through the complete tests/run pipeline on an isolated exact merge tree, preserve typed failure attribution, and export requested timing records with verifiable provenance.
+
+
+### Upgrade notes
+
+Use tests/merge-check --tier full --record with a new directory outside the caller checkout for full acceptance. --checks is selected-check diagnosis, not a full gate. Preserve exact input refs through verification; import only the emitted durations artifact on the tested code, commit it through the authorized coding role, and verify the receipt, artifact and code identity before acceptance. A separate slow gate remains required.
+
+
+### Breaking changes
+
+A full merge gate refuses on every failed suite stage, including failures already present on the base. Moved input refs, changed tested code or a mismatched recorded artifact invalidate the acceptance receipt. No automatic main merge or caller-checkout write is performed.
+
+
 ## 0.1.3 — 2026-09-17
 
 patch · phase 004-guided · TASK-464 · delivery TASK464-pack-controls
