@@ -20,6 +20,12 @@ Voice: terse, numerate, file-first, evidence-required. Perry-the-PMO does not na
 
 ## How this file is organized
 
+**Pack eligibility:** apply `$PERRY_HOME/reference/config.md § Pack capabilities
+and controls` before loading software-ops references or rendering its help rows.
+Only selected, present packs supply optional routes/gates. Explicit project
+requirements remain binding when a pack is disabled; name their source. Do not
+offer inactive pack commands as active or ask to enable them during routine work.
+
 This `SKILL.md` is intentionally lean. It contains what's run on **every** invocation: the standup ritual, status / owner / evidence models, state-file inventory, bootstrap, and a one-line index of subcommands. Each subcommand's full procedure lives under `reference/`, loaded only when that subcommand fires.
 
 | Reference file | Loaded when running |
@@ -226,6 +232,8 @@ A status update of `done` requires evidence. Every status update line MUST inclu
 - A recommendation without user constraints
 
 If a task moves to `done` without acceptable evidence, refuse the move and flag the gap.
+
+Completed write procedures share [$PERRY_HOME/reference/next.md § Closing step](../reference/next.md#closing-step); its inventory separates read-only paths.
 
 ## Subcommand index
 

@@ -45,7 +45,7 @@ Document language: <English | 中文 | ...>
 Chat language: <follow user | English | 中文 | ...>
 Repo layout: <single | split>
 State root: <. | relative path>
-Packs: <comma-separated pack names, or absent for software-ops>
+Packs: <comma-separated pack names; empty disables all; absent defaults to software-ops>
 Review rounds before escalation: <N>    (optional; default 2)
 Session context ceiling: <200k | N>     (optional; default 200k)
 PMO repo path: <absolute path>
@@ -142,3 +142,112 @@ whether a file matches the schema — that half was never the gate.
 
 History: a `- Conformance gate:` line left in a pre-ADR-019 `.perry/config.md` is inert.
 Nothing reads it and nothing reports it.
+
+## Proactive next steps
+
+`Proactive next steps` is an optional exact `on | off` setting; absent means
+`on`. It controls only [the closing step](next.md#closing-step), not standup
+recommendations, safety questions, or questions inside an active planning flow.
+
+```bash
+"$PERRY_HOME/bin/perry-config" set --root . "Proactive next steps" off
+"$PERRY_HOME/bin/perry-config" set --root . "Proactive next steps" on
+"$PERRY_HOME/bin/perry-config" unset --root . "Proactive next steps"
+"$PERRY_HOME/bin/perry-config" show --root . --json
+```
+
+`show` returns the declared string under `settings.proactive_next_steps`;
+absence selects the documented default. Invalid values are refused by the
+writer; readers report invalid legacy/manual values rather than guessing.
+This uses the existing project setting record, with no new namespace or file.
+
+## Pack capabilities and controls
+
+Use this procedure for “what else can Perry help with?”, “show optional
+features”, “turn off software checks” or “enable release support”; the user
+need not know the word *pack*. `/perry help` also points here. This is a
+project-scoped configuration operation, not a marketplace or host installation.
+Discovery reads only; routine work never asks whether to enable a pack.
+
+### Discover and explain
+
+1. Resolve the project root normally. Read `perry-config show --root <project>
+   --json` and `perry-state --root <project> --section project`. Under the latter,
+   use `project.config.settings_source` and `project.config.packs[]`; the compact
+   snapshot instead puts the list at `project.packs[]`. An invalid/unreadable
+   config is unknown, not confirmation of the default: report the refusal or
+   source error before offering a change. Do not repair it during discovery.
+2. Read the installed `$PERRY_HOME/packs/*/pack.md` descriptions. Perry bundles
+   `software-ops`: architecture review, deployed-component runbooks, incident
+   learning, and optional release-policy guidance. Explain these purposes in
+   the user's words, not just filenames. Do not invent other installed packs.
+3. Distinguish **available** (installed description), **active** (selected by
+   config/default AND loader entry `present: true`), and **configured capability**
+   (its project policy/artifacts/tooling are actually ready). A selected entry
+   with `present: false` is unavailable, never active; name it and retain its
+   configuration until the user requests a change. A present pack does not
+   prove that any runbook, architecture document or release adapter exists.
+4. Show the source of selection and the concrete effects. An absent `packs` key
+   in `show.settings` selects `software-ops` by default; a present empty value
+   explicitly selects none. An explicit list selects only those names. A `—`
+   value is normalized to empty by the existing writer. `unset Packs` restores
+   the default; it is **not** disable. No second current-value register is kept.
+
+### Apply an explicit request
+
+Read the project's hook, relevant task acceptance and existing approved policies
+before a change. Explain which optional routes/checks will stop or start and which
+project obligations remain. A stored artifact alone does not re-enable its pack;
+an explicit project requirement remains binding independently. For example,
+“turn off all architecture review” conflicts with a hook requiring it: explain
+the actual requirement and obtain a separate decision to change that rule, or
+apply only the requested pack-default change with the rule still enforced.
+Do not silently waive a requirement or reinterpret disable as unset.
+
+Preserve other selected names when changing one pack. Starting from defaults,
+materialize the resulting explicit list. Show the exact project and proposed
+selection before writing; the user's explicit enable/disable request authorizes
+that change, so do not ask again unless scope or an unresolved conflict needs a
+decision. Use the existing writer, with the resolved project root:
+
+```bash
+# The bundled pack enabled explicitly:
+"$PERRY_HOME/bin/perry-config" set --root <project> Packs software-ops
+# Explicitly disable all packs (keep the empty argument):
+"$PERRY_HOME/bin/perry-config" set --root <project> Packs ""
+# Only when the user asks to restore defaults, not to disable:
+"$PERRY_HOME/bin/perry-config" unset --root <project> Packs
+```
+
+Use `--dry-run` when preview is useful, then re-read both tools after a write.
+Report the effective loaded selection, not merely command success. If a requested
+pack is missing, say it cannot be activated here; no implied install or automatic
+substitution. Enabling/disabling changes only the setting. Do not delete or rewrite
+architecture, runbooks, incidents, release records, hook policies, task criteria,
+tracks, or verification history. Re-enabling resumes applicable guidance from
+those preserved facts; it does not reset them or allocate a version.
+
+### Conditional consumers
+
+Before loading a pack route or applying its defaults, use the active test above.
+Work help hides inactive pack commands from its executable index; discovery may
+still describe them as available/inactive. Direct requests for an inactive route
+explain its state and the control procedure, without silently enabling it. In
+routine work, skip disabled optional checks without an enablement question.
+
+For `software-ops`, this covers dispatch architecture pre-flight/compliance/review,
+deployed-spec observability, close-task architecture/runbook gates, health-check's
+architecture/runbook/incident scans, triage's matching software checks, eager
+bootstrap from pack defaults and goals' architecture-drift phase gate. Preserve
+core task verification, high-stakes rules, Git ownership and explicit project
+requirements. If a project independently requires one of these procedures, invoke
+that requirement's procedure and name its source; this does not reactivate other
+pack defaults. Never treat stored files alone as authorization for new writes.
+
+Release support has a second boundary: even an active `software-ops` pack does
+not configure version allocation. On an explicit release-setup request use
+`$PERRY_HOME/packs/software-ops/releases.md`; during routine phase/integration/close
+work load it only for an applicable approved project release policy. An existing
+policy survives pack disable and still governs its project. Verify the adapter
+before calling the capability ready; absent tooling stays pending under that
+procedure. Do not turn off an approved release policy by changing `Packs`.

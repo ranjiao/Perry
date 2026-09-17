@@ -156,7 +156,7 @@ Start a new phase. `<slug>` is user-chosen (short, hyphenated). OKR assigns `#<N
 - **`ARCHITECTURE.md`** (if it exists at project root) — full text, with focus on:
   - `§7 Open questions` — surface any idle ≥30 days as User Input Queue candidates the new phase OKR should resolve.
   - `§8 Change log` since the last `plan-phase` — summarise as part of `Phase Focus` narrative (what changed in system design).
-- **`architecture/audit-history/<latest>.md`** — **software-ops pack only.** See `$PERRY_HOME/packs/software-ops/architecture.md § OKR integration`. When the pack is active and the file exists, every unresolved drift item must appear in the new phase OKR as one of: a KR/Project that resolves it, an `ARCHITECTURE.md` edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. If none of these covers an open item → refuse to write the phase file until the user picks a response.
+- **`architecture/audit-history/<latest>.md`** — apply `$PERRY_HOME/reference/config.md § Pack capabilities and controls`: selected and present software-ops, or an independent project requirement for this gate. Existing files alone do not enable it. See `$PERRY_HOME/packs/software-ops/architecture.md § OKR integration`. When applicable and the file exists, every unresolved drift item must appear in the new phase OKR as one of: a KR/Project that resolves it, an `ARCHITECTURE.md` edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. If none of these covers an open item → refuse to write the phase file until the user picks a response. Disabled optional gates are skipped without an enablement question.
 
   **The refusal is conditional, and that is a correction, not a softening.** It used to be unconditional — a hard gate in the goals lane keyed on `ARCHITECTURE.md`, a file only software projects have. A content pipeline or a research vault has no architecture and no audit history, so the gate could never fire there; it simply sat in the procedure as software's assumptions wearing the goals lane's clothes. TASK-024's extraction is what surfaced it. The gate is unchanged where it applies.
 - **Carry-forward metrics from prior phase** (if present in `evidence/<YYYY-MM>/retro.md § Health metrics`): incident feedback-loop ratio, audit drift trend, runbook coverage gap. These inform whether the new phase needs an operability-focused Objective.
@@ -283,7 +283,7 @@ Attribute each done task to its KR **by ID through `linkage.jsonl`**, per `$PERR
    The scored phase's records stay in `linkage.jsonl` and are never rewritten. Every record names its phase, so the next `plan-phase` appends its own and nothing is overwritten. **Carry forward** into the new phase: any Project still `active` (as a new `kind: project` record for the new phase, with its aliases intact — a carried-over Project's old names must keep resolving), and any task the retro moved to the next phase, as a new `edge` under whichever new KR it now serves. Do **not** carry the `unlinked` declarations forward blindly: re-declare them against the new phase's KRs, since work that served no KR last phase may well serve one now.
 7. Flip the phase header to `**Status**: scored`, then clear `phase/CURRENT` (delete the file or write `(none)` until the next `plan-phase`).
 8. If the overall period closed: append **Retro** to `OKR.md` for the relevant version.
-9. Suggest `/okr plan-phase <new-slug>` for the next phase. This is an after-subcommand suggestion: `TASK-443`'s closing step renders `perry-state --section next --after score-phase` in its place.
+9. Follow the shared [Closing step](../../reference/next.md#closing-step) with `--after score-phase`; render its returned recommendation only.
 
 ## `snapshot`
 
@@ -295,3 +295,8 @@ Preserve the current state of `phase/<current>.md` without ending the phase.
 4. Print: "Snapshot written: `phase/snapshots/<filename>`."
 
 Use cases: manual heartbeat (user runs ad-hoc); end-of-week milestone; before a risky pivot; before `okr revise` that might invalidate phase assumptions.
+
+## Completion routing
+
+After completed writes from `commit`, `plan-phase`, `score-phase`, `snapshot`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: goals commit --> <!-- next-close: goals plan-phase --> <!-- next-close: goals score-phase --> <!-- next-close: goals snapshot -->

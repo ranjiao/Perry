@@ -130,6 +130,11 @@ triage-shaped question the old walk had no way to ask:
 | `rows_with_no_computable_age` | No age exists for these. Every staleness rule below is an age comparison, so they were being read as fresh forever. Ask about each rather than skipping it. |
 | `has_event_log: false` | The project predates the writer. `created` / `updated` / `timeline` are empty for every row and **that is not an error** — fall back to the row's own date cells. |
 
+The software-ops triage checks below (architecture review, runbook and incident
+attention) follow `$PERRY_HOME/reference/config.md § Pack capabilities and
+controls`: run only for an active pack or an independent project requirement.
+Disabled pack defaults never add attention items or an enablement question.
+
 Then walk the rows the payload returned. For each open row:
 - Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d, measured from `updated`) → flag. **A row in `conformance.rows_with_no_computable_age` has no age**: no event, and the six standard board columns carry no date. Do not treat it as fresh — that is what the old rule did to two thirds of Perry's own board. Ask instead: *"this row has no recorded age; is it still live?"*
 - Same dependency cited in ≥2 rows? → structural blocker
@@ -746,6 +751,12 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    **This step used to say the spec "contains the same schema" as the journal block, and that sentence is what produced the 45.** `bin/perry-task § cmd_add` renders the journal definition block as bullets, and that is correct *there*: the block sits under `### <ID> — <title>` inside `## New tasks added`, so a `## Deliverable` in it would close the section it lives in and cut one day's journal in half. The journal keeps its bullets; the spec takes `## ` headings. Same fields, two shapes, because the two files have two readers — a person scrolling a day, and a safety gate matching sections. "The same schema" was read as "the same shape", which is the only reading the rendered block supports, and following it disarmed the gate. Do not copy the journal block into a spec; write the sections.
 
    **Required header fields in every spec file** (used by `dispatch` and `close-task`):
+   The software-ops `Touches architecture`, `Deployed`, `Runbook` and
+   Observability requirements below follow the pack eligibility rule in
+   `$PERRY_HOME/reference/config.md § Pack capabilities and controls`. With
+   inactive software-ops, impose them only where the project independently
+   requires them; do not delete existing task commitments or relax high-stakes
+   verification. Other dispatch fields remain required.
    ```
    > Dispatch mode: auto | manual               # default 'manual'; 'auto' is explicit opt-in
    > Executor: claude-subagent | opencode-subagent | codex | manual # only consulted when Dispatch mode = auto
@@ -787,6 +798,11 @@ Slug IDs are never reused or recycled across months.
 If the task needs a working artifact from day one (checklist, design ladder, subtasks), the working artifact lives at `evidence/<YYYY-MM>/<TASK-ID>-<slug>.md` (separate file from the spec).
 
 ### `close-task <id>`
+
+Apply `$PERRY_HOME/reference/config.md § Pack capabilities and controls` before
+gates 1 and 2: software-ops must be selected and present, unless an independent
+project requirement mandates the specific check. Preserve and name that source
+when the pack is disabled. All other acceptance/verification/safety gates remain.
 
 If an approved project release policy applies, read `$PERRY_HOME/packs/software-ops/releases.md` for delivery/publication receipts. Closing is not a version bump; partial delivery does not complete a task. Existing acceptance and close gates still decide. With no policy, continue without version intervention or an enablement question.
 Reject if no evidence path provided.
@@ -947,3 +963,8 @@ Runs when a phase has been scored via `okr score-phase` and the user is ready to
 6. Append a `## Notes` entry to today's journal: "rollover from phase #<old-NNN>-<old-slug>; <n> rows carried; see evidence/<YYYY-MM>/retro.md".
 
 `git log -- journal/` shows the full history per day; `git log -- tasks.jsonl` shows the task store's evolution; `git log -- phase/` shows phase progression.
+
+## Completion routing
+
+After completed writes from `plan-week`, `triage`, `status`, `friday-review`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`, `risk`, `add-task`, `close-task`, `drop-task`, `coordinate`, `handoff`, `rollover`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work plan-week --> <!-- next-close: work triage --> <!-- next-close: work status --> <!-- next-close: work friday-review --> <!-- next-close: work monday-plan --> <!-- next-close: work midweek-check --> <!-- next-close: work mid-phase-review --> <!-- next-close: work end-phase-retro --> <!-- next-close: work risk --> <!-- next-close: work add-task --> <!-- next-close: work close-task --> <!-- next-close: work drop-task --> <!-- next-close: work coordinate --> <!-- next-close: work handoff --> <!-- next-close: work rollover -->

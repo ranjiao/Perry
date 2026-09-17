@@ -474,3 +474,8 @@ genuinely converges by accretion; `1` makes every FAIL a decision point.
 
 A `review-rounds-exhausted` finding is never cleared by running the round
 anyway.
+
+## Completion routing
+
+After completed writes from `review`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work review -->

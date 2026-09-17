@@ -316,3 +316,8 @@ When `/pmo` bootstraps a new project (per `SKILL.md § First-time setup`), also 
 - **No automatic top-K injection**: digests are loaded into context only when the model decides they're relevant — same way a human consults their notes.
 
 If a project's knowledge needs grow past ~50 active digests, the design has hit its scope and a different tool is needed (true RAG, dedicated KB system, etc.). At that point, raise it as a Perry skill design question — don't pile more digests in.
+
+## Completion routing
+
+After completed writes from `digest`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work digest -->

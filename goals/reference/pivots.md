@@ -25,3 +25,8 @@ Detailed view, not just the snapshot. Start from `"$PERRY_HOME/bin/perry-state" 
 - Operating Principles still in force, Anti-Goals still in force
 
 For a rich visual version, point the user at the frontend — aiMark — rather than growing this text output.
+
+## Completion routing
+
+After completed writes from `pivot`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: goals pivot -->

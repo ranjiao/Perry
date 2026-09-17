@@ -290,3 +290,8 @@ A grep-based invariant catches `import psycopg2`. It cannot catch:
 - A change consistent with each individual rule but cumulatively drifting the system away from §1 mission.
 
 The independent review agent's job is exactly to catch those. Giving it the FULL architecture doc + the diff + the primary's attestation, and asking it to find inconsistencies, is the cheapest available approximation of "an architect reviews every PR." It's not perfect, but it's the strongest gate we can install without making every dispatch a manual review.
+
+## Completion routing
+
+After completed writes from `architecture init`, `architecture review`, `architecture-audit`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work architecture init --> <!-- next-close: work architecture review --> <!-- next-close: work architecture-audit -->

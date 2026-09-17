@@ -177,3 +177,8 @@ one.
   tool and by nothing else, so a record typed in by hand is a record no rule
   was applied to. `perry-lint` catches a shape it can name; it cannot catch an
   attribution somebody guessed.
+
+## Completion routing
+
+After completed writes from `link`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: goals link -->

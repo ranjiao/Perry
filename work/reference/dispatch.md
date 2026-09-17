@@ -144,7 +144,16 @@ is not.
    **`ask` is a real outcome and the honest one when you are unsure.** In interactive dispatch it is a question to the user in chat. Under `/pmo autopilot` it is a **skip** — see `autopilot.md` pre-flight step 0 and the `Skipped — high-stakes` disposition; autopilot runs unattended, so an unsure judgement there resolves in the safe direction without asking.
 
 5. Spec contains a `Subjective verification:` section (may be `(none)`); items there will be surfaced to the user at completion, never auto-validated.
-5a. **Architecture compliance pre-flight** (see `$PERRY_HOME/packs/software-ops/architecture.md § Dispatch integration`):
+5a. **Pack eligibility first**: read `$PERRY_HOME/reference/config.md § Pack
+    capabilities and controls`. Steps 5a/5b's software checks, architecture prompt
+    blocks for every executor, the compliance RESULT block and independent
+    architecture review below apply only when software-ops is selected and
+    present, or an explicit project requirement independently requires that
+    check. Name the requirement when retained under a disabled pack. Otherwise
+    skip those optional blocks/gates; ordinary RESULT, acceptance verification,
+    hook safety and Git constraints still apply. No enablement question.
+
+    **Architecture compliance pre-flight** (see `$PERRY_HOME/packs/software-ops/architecture.md § Dispatch integration`):
     - Read `ARCHITECTURE.md` at project root (full text). If `Status: draft` → log a warning but don't refuse (draft window allows iteration). If file missing AND spec's `Touches architecture:` is non-empty → refuse (spec claims sections that don't exist).
     - Read spec's `Touches architecture:` field. For every section ref listed (`§N`, `§N.NN-M`), verify it exists in the doc. Refuse on mismatch (malformed spec).
     - For each touched non-negotiable in §6 marked `Severity: hard` → use `AskUserQuestion` (header = `NN-N`, options): `Proceed — change is reviewed (Recommended only with reason) | Refuse — revise spec | Refuse — escalate to manual delegate`. "Proceed" requires a written one-line justification copied into the dispatch evidence file's header.
@@ -378,13 +387,48 @@ and still means `--tier full`; `--lint`, `--serial`, `--only` and `--slow` all
 keep their meaning. Add `--dry-run` to any of them to print the selection and
 run nothing.
 
-**Where the full suite runs today, stated plainly because the alternative is a
-gap nobody is watching.** There is **no automatic merge gate**: `TASK-450`
-builds it and it is not built. Until it lands, **the primary checkout runs
-`bash tests/run` itself on the merge result, before `git merge --no-ff`**, and
-that run — not the agent's `affected` run — is what says the suite is green.
-An agent's green `affected` is a reason to merge-check, never a substitute for
-it.
+**Full merge acceptance runs on an isolated candidate.** From the primary
+checkout, resolve the current base and candidate, then run the supported gate:
+
+```bash
+env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME python3 tests/merge-check \
+  --base main delivery=<candidate-branch> --tier full --record <new-external-dir>
+```
+
+Use a unique scratch directory outside the checkout (the scratch rule above),
+not a shared name. This invokes every `tests/run` full stage, including syntax/help
+and the tree guard. `--checks` is diagnosis only. Any full failure refuses
+acceptance, including a pre-existing base failure; attribution explains it but
+does not excuse it. Full timings update measured modules only; deferred slow
+modules keep their prior source. A new test module is initially registered as
+`sec: null, source: null` in the existing duration inventory; the coding task need
+not measure it by hand. The gate records measurements, not inventory discovery.
+`--tier slow` is the full run plus harness tests,
+not an automatic side effect of requesting a record.
+
+The record directory holds exact input refs/SHAs, tested tree, outcome and emitted
+`durations.json` hash. The main integrator coordinates its import on the tested
+integration tree; the authorized Coding Agent commits that product artifact on
+an integration branch. PMO does not write product files in the primary checkout.
+Do not invent a future merge SHA: timing provenance cites existing base/candidate
+commits and the tested tree. Keep the named input refs unchanged during this step.
+
+After that artifact-only commit, in the clean integration checkout run:
+
+```bash
+python3 tests/merge-check --verify-receipt <new-external-dir>/receipt.json
+env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME bash tests/run --tier slow
+```
+
+Receipt verification requires the same code tree except for the exact recorded
+artifact, checks current input refs and runs duration provenance validation.
+The separate slow gate verifies the final recorded artifact and harness; retain
+both receipts. If either input ref moves, any other code changes, or a check
+fails, regenerate/revalidate the affected candidate before acceptance. Immediately
+before the authorized merge, recheck the receipt and exact base/candidate refs;
+merge only the verified integration branch/tree. Neither command merges or writes
+main, and local checks do not install remote branch protection. Existing release
+record rules still apply; an agent's green `affected` is never this acceptance.
 
 **What this asks of whoever merges**: when a `--tier affected` result comes
 back green and the full run on the merge result goes red, the miss is a
@@ -433,6 +477,9 @@ New §7 questions opened: (none) | - <question> — recommended USER-id
 If this block is missing or empty, dispatch treats it as **executor failure** — task goes to `review` with `compliance-missing` annotation. No auto-retry.
 
 ## Architecture review (the independent gate)
+
+Apply the eligibility decision from step 5a; an inactive pack alone adds no
+review agent. A project-required review is still required, with its source named.
 
 After the primary executor's RESULT is parsed AND objective verification (§ "On completion" step 2) passes, BUT before flipping the BOARD row to `review`, dispatch fires a second agent — the **architecture review agent**.
 
@@ -574,3 +621,8 @@ count of what ran, which for `affected` is a subset: name it as
 `green for --tier affected (N of M modules)`, not as a green suite. A result
 that says "the suite is green" over a 29-module run is the sentence this whole
 tier arrangement has to avoid producing (`DESIGN-021 § 5.5`).
+
+## Completion routing
+
+After completed writes from `dispatch`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work dispatch -->

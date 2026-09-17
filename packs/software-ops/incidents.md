@@ -165,3 +165,8 @@ An incident without derived changes is a fix-and-forget. Fix-and-forget is how t
 > "I'm closing this incident WITHOUT updating ARCHITECTURE.md because <reason>."
 
 That recorded "without" is what makes the next mid-phase review honest. If the same root cause shows up 4 incidents in a row and the user keeps skipping ARCHITECTURE edits with "too narrow", the pattern is visible — and PMO will say so in the review.
+
+## Completion routing
+
+After completed writes from `incident`, `incident close`, `incident archive`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work incident --> <!-- next-close: work incident close --> <!-- next-close: work incident archive -->

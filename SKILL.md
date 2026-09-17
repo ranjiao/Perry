@@ -15,7 +15,7 @@ Activate on `/perry`, on the word "Perry", on a session wanting a "where are we"
 
 **Perry registers exactly one skill: `perry`.** The lanes live under `$PERRY_HOME/<lane>/SKILL.md`, are **loaded on demand by this router**, and are not separately invocable commands. Read a lane's SKILL.md in full before acting on it.
 
-Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design` worked directly. That was withdrawn: the shared host namespace collides with design tools and lark-okr. Perry claims no common name it does not own; see `## Configuration`. `setup` removes stale upgrade links.
+Legacy sibling skills were withdrawn to avoid host namespace collisions; `setup` removes their stale links.
 
 ### Command surface
 
@@ -189,11 +189,13 @@ Handled here, not in a lane. `adopt` and `diagnose` span all three lanes, so the
 
 Moves every path Perry claims under a new state root and sets `State root` with `perry-config set`; `.perry/` never moves, because it holds the pointer. It **refuses on a dirty tree** — the `git mv` set is the only thing making the move reversible — and computes the moves from `schema/state-schema.json § claims[]`, never a hand-written list. It confirms every `from → to` first, never moves a file it did not put there, and never deletes. `NS-01` (`reference/diagnose.md § Finding catalog`) recommends it.
 
+Setup and relocate finish with [the closing step](reference/next.md#closing-step) after writes. <!-- next-close: router setup --> <!-- next-close: router relocate -->
+
 ## Configuration
 
 `.perry/config.jsonl` holds the settings (`perry-config set`); prose belongs in `.perry/hook.md`. Setup writes the store first. Field **names** stay English in every language, because this file declares the language and must be readable before it is known. An optional `## Tracks` table turns on `pipeline` / `queue` / `inquiry` mode; absent means one implicit `main` track, mode `project`.
 
-The field list and the three subjects with consequences worth reading before you change them are `reference/config.md`: **repo layout** (single, or the two-repo PMO ↔ code split), **state root** (`perry` is what setup writes; the *code* fallback is still the project root and must stay that way), and **tracks**. The ADR-004 **conformance gate** was a fourth; it is deleted (`TASK-261`) — nothing refuses a write now.
+Read `reference/config.md` for repo layout, state root, tracks, and pack controls. For “what else can Perry do?” or enabling/disabling optional capabilities, use its discovery procedure. Absent Packs selects software-ops; explicit empty disables it. Pack activation does not configure release automation.
 
 ## Style rules
 

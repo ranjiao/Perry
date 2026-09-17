@@ -54,13 +54,17 @@ break every reader; the loader does not look at them at all.
 
 ## Deactivating it
 
-A project with no applicable software-ops procedures can deactivate this pack;
-track mode alone does not decide that (a queue or pipeline can deliver software).
-Deactivating the pack removes the pack procedures from the
-lane index and the two `close-task` gates with them; nothing else in Perry
-depends on it. A knowledge base does not need to know what an architecture audit
-is, and before this extraction it carried all three files' names in the PMO lane
-index regardless.
+Use `$PERRY_HOME/reference/config.md § Pack capabilities and controls` to discover,
+enable or disable it with the existing project writer. Explicit empty disables;
+removing the setting restores the software-ops default. Track mode alone does
+not decide applicability (a queue or pipeline can deliver software).
+
+Disabling removes its optional lane routes, dispatch/close checks, health scans
+and goals drift gate. It preserves artifacts and independently approved project
+requirements, including release policy and safety rules. Explain such retained
+requirements by their source; do not silently waive them. Re-enabling restores
+guidance without recreating records. Pack presence alone never means releases
+are configured or an adapter is ready.
 
 ## What the extraction found
 

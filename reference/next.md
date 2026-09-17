@@ -18,8 +18,8 @@ page enforces: **the command decides, the agent renders.**
 Neither call writes anything, so both are safe on every standup.
 
 `--after <subcommand>` keeps only the rules that may fire after that subcommand.
-It belongs to the closing step of a state-changing command, and `TASK-443`
-builds that step. It is not built here.
+It belongs to the shared closing step below. Read-only commands keep their
+existing output and do not run that step.
 
 ## Rendering
 
@@ -63,7 +63,7 @@ them as they are. Translate them only when the chat language is not English.
 - **Do not count, compare or judge state to build the block.** If a
   recommendation looks wrong, the fix is a fact or a rule, not a different
   sentence.
-- **`rule_errors` non-empty** means the rule file could not be used as
+- **`conformance.rule_errors` non-empty** means the rule file could not be used as
   declared. Say so in one line after the block. It is a defect to fix, not a
   reason to guess.
 
@@ -234,3 +234,117 @@ follows from it. Hand-off prints the tasks for `work` to add.
 The board is longer than its cap. Past the cap it stops being read, and triage
 pushes detail into evidence. No board file is measured any more, so
 `board.lines` is `0` and this rule is quiet on every store-backed project.
+
+## Closing step
+
+This is the one proactive closing procedure (DESIGN-020 UD 3/8). It is an
+agent instruction, not a new recommendation engine or automatic command runner.
+
+1. **Complete first.** Run once after the outer user-invoked state-changing
+   procedure has completed its writes and reported its result. Skip read-only,
+   dry-run, refused and cancelled paths. Nested helpers return to their caller;
+   they do not ask a second next-step question. Skip **dispatched agent sessions**
+   and **planning in progress**, including a first-init interview or chat draft
+   still awaiting approval: their existing flow owns the next question. Session
+   context supplies these facts; do not parse prose or create a hidden flag.
+2. Read `"$PERRY_HOME/bin/perry-config" show --root . --json`. The existing
+   `settings.proactive_next_steps` is the exact enum `on | off`; absent means
+   `on`. `off` skips this closing block and question, not passive standups or
+   safety gates. An unexpected value or failed read is a configuration error:
+   report it and ask no next-step question; never infer the user's preference.
+3. Run `"$PERRY_HOME/bin/perry-state" --root . --section next --after <subcommand>`
+   using the actual outer subcommand token from the inventory below. Do not
+   alias `status` to `friday-review` to obtain a different recommendation. The
+   existing CLI forbids `--compact` with `--section`; this legal invocation
+   intentionally omits the combination printed in DESIGN-020 §5.4. No CLI or
+   payload contract is changed. If it fails, report the failure, do not guess.
+4. Read the returned `next`. Nonempty `conformance.rule_errors` means report the defect and
+   ask nothing. Otherwise render at most three recommendation lines in chat
+   language: `✓ <what actually finished>. Next: <primary.command> — <primary.reason>`;
+   then each `alternates[]` entry in returned order, with its command and reason.
+   Do not add, substitute, reorder or drop recommendations. Unknown facts are
+   not permission to invent advice. `primary: null` means `✓ <finished>. Nothing
+   is due.` and **no question**; the successful result still stands.
+5. If there is a primary, use the host choice UI: `Run <primary.command> now
+   (Recommended)`, each returned alternate, and `Not now`. If the host has too
+   few choice slots, present the same complete numbered set in chat and wait
+   for the user's explicit selection; no silent truncation or automatic choice.
+   A selection routes the exact returned command through the normal router,
+   preserving its own gates. `Not now`, no response, or dismissal ends here.
+   Do not execute a recommendation merely because it was returned.
+
+### Procedure inventory
+
+Bound: the currently shipped user-facing router/lane procedures and their
+pack extensions, inspected for actual writes (including reports and config).
+Each row is a completion-capable procedure, not a claim that every invocation
+writes. The pointer in that procedure applies only after its write path.
+`setup`/`bootstrap` name successful first-time procedures, not new CLI verbs.
+Nested knowledge promotion, ADR bootstrap/migration and tool writer calls close
+through their outer procedure; they do not mint new skill commands. Multiword
+operations keep their literal first subcommand token for `--after`; options and
+IDs are not recommendation-rule names. Rules may yield no result for a listed
+command: changing the rule table is outside this task.
+
+| Lane | Procedure | Source | After token |
+|---|---|---|---|
+| `router` | `setup` | `SKILL.md` | `setup` |
+| `router` | `relocate` | `SKILL.md` | `relocate` |
+| `router` | `adopt` | `reference/adoption.md` | `adopt` |
+| `router` | `diagnose` | `reference/diagnose.md` | `diagnose` |
+| `goals` | `init` | `goals/reference/setup.md` | `init` |
+| `goals` | `revise` | `goals/reference/setup.md` | `revise` |
+| `goals` | `commit` | `goals/reference/phases.md` | `commit` |
+| `goals` | `plan-phase` | `goals/reference/phases.md` | `plan-phase` |
+| `goals` | `score-phase` | `goals/reference/phases.md` | `score-phase` |
+| `goals` | `snapshot` | `goals/reference/phases.md` | `snapshot` |
+| `goals` | `plan-week` | `goals/reference/weekly.md` | `plan-week` |
+| `goals` | `link` | `goals/reference/linkage.md` | `link` |
+| `goals` | `pivot` | `goals/reference/pivots.md` | `pivot` |
+| `decide` | `init` | `decide/SKILL.md` | `init` |
+| `decide` | `new` | `decide/SKILL.md` | `new` |
+| `decide` | `resolve` | `decide/SKILL.md` | `resolve` |
+| `decide` | `lock` | `decide/SKILL.md` | `lock` |
+| `decide` | `revise` | `decide/SKILL.md` | `revise` |
+| `decide` | `supersede` | `decide/SKILL.md` | `supersede` |
+| `decide` | `drop` | `decide/SKILL.md` | `drop` |
+| `decide` | `adr` | `decide/reference/decisions.md` | `adr` |
+| `work` | `bootstrap` | `work/reference/bootstrap.md` | `bootstrap` |
+| `work` | `plan-week` | `work/reference/subcommands.md` | `plan-week` |
+| `work` | `triage` | `work/reference/subcommands.md` | `triage` |
+| `work` | `status` | `work/reference/subcommands.md` | `status` |
+| `work` | `friday-review` | `work/reference/subcommands.md` | `friday-review` |
+| `work` | `monday-plan` | `work/reference/subcommands.md` | `monday-plan` |
+| `work` | `midweek-check` | `work/reference/subcommands.md` | `midweek-check` |
+| `work` | `mid-phase-review` | `work/reference/subcommands.md` | `mid-phase-review` |
+| `work` | `end-phase-retro` | `work/reference/subcommands.md` | `end-phase-retro` |
+| `work` | `risk` | `work/reference/subcommands.md` | `risk` |
+| `work` | `add-task` | `work/reference/subcommands.md` | `add-task` |
+| `work` | `close-task` | `work/reference/subcommands.md` | `close-task` |
+| `work` | `drop-task` | `work/reference/subcommands.md` | `drop-task` |
+| `work` | `coordinate` | `work/reference/subcommands.md` | `coordinate` |
+| `work` | `handoff` | `work/reference/subcommands.md` | `handoff` |
+| `work` | `rollover` | `work/reference/subcommands.md` | `rollover` |
+| `work` | `delegate` | `work/reference/delegate.md` | `delegate` |
+| `work` | `dispatch` | `work/reference/dispatch.md` | `dispatch` |
+| `work` | `autopilot` | `work/reference/autopilot.md` | `autopilot` |
+| `work` | `digest` | `work/reference/digests.md` | `digest` |
+| `work` | `review` | `work/reference/review.md` | `review` |
+| `work` | `health-check` | `work/reference/health-check.md` | `health-check` |
+| `work` | `architecture init` | `packs/software-ops/architecture.md` | `architecture` |
+| `work` | `architecture review` | `packs/software-ops/architecture.md` | `architecture` |
+| `work` | `architecture-audit` | `packs/software-ops/architecture.md` | `architecture-audit` |
+| `work` | `incident` | `packs/software-ops/incidents.md` | `incident` |
+| `work` | `incident close` | `packs/software-ops/incidents.md` | `incident` |
+| `work` | `incident archive` | `packs/software-ops/incidents.md` | `incident` |
+| `work` | `runbook-check` | `packs/software-ops/runbooks.md` | `runbook-check` |
+
+Read-only exclusions: router/lane standups and help; goals `krs`, `dashboard`;
+decide `status`, `handoff` (reprints only); work `nudge`, `architecture diff`,
+`incident list`. Conditional writes include triage, risk, diagnose/adopt dossier
+work, audit/report writers and config preferences; pure inspection paths skip.
+Alias routes inherit the canonical procedure, but keep the user's actual
+subcommand token. Setting/unsetting silence via the existing config tool is a
+preference change, not an invitation to immediately ask a next-step question.
+When adding a procedure, explicitly classify it here and add its completion
+pointer; the inventory guard checks declared routing, not prose meaning.
