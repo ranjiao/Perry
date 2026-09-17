@@ -1,0 +1,29 @@
+FFF
+======================================================================
+FAIL: test_mixed_status_totals_are_counted_before_truncation (test_bin_argument_contract.TestListIsBounded.test_mixed_status_totals_are_counted_before_truncation) (limit='1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw/tests/test_bin_argument_contract.py", line 704, in test_mixed_status_totals_are_counted_before_truncation
+    self.assertEqual(payload["bound"]["open_total"], 4)
+AssertionError: 6 != 4
+
+======================================================================
+FAIL: test_mixed_status_totals_are_counted_before_truncation (test_bin_argument_contract.TestListIsBounded.test_mixed_status_totals_are_counted_before_truncation) (limit='3')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw/tests/test_bin_argument_contract.py", line 704, in test_mixed_status_totals_are_counted_before_truncation
+    self.assertEqual(payload["bound"]["open_total"], 4)
+AssertionError: 6 != 4
+
+======================================================================
+FAIL: test_mixed_status_totals_are_counted_before_truncation (test_bin_argument_contract.TestListIsBounded.test_mixed_status_totals_are_counted_before_truncation) (limit='0')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw/tests/test_bin_argument_contract.py", line 704, in test_mixed_status_totals_are_counted_before_truncation
+    self.assertEqual(payload["bound"]["open_total"], 4)
+AssertionError: 6 != 4
+
+----------------------------------------------------------------------
+Ran 1 test in 0.580s
+
+FAILED (failures=3)

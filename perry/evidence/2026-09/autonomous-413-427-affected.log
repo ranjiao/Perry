@@ -1,0 +1,28 @@
+
+[1m0. tree guard — recording /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw[0m
+  · recorded
+
+[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+perry-lint · templates in /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw
+  ✓ clean — every state file matches schema/state-schema.json
+
+[1m2. affected — the modules edf6b143a1b6cf8de3f2d84c53bc5e5d9cebf41e...HEAD selects[0m
+tier affected · edf6b143a1b6cf8de3f2d84c53bc5e5d9cebf41e...HEAD · 0 changed path(s) · running the modules below
+  test_blank_cell_is_one_rule.py  COVERS = ALL
+selected 1 of 158 modules · 4.1 of 1617.1 module-seconds (0.3%)
+
+1 modules · 40 tests · 3.4s · 8 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ green for --tier affected — this is NOT a green suite[0m
+
+[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+  ✓ all bin/ scripts OK
+
+[1m4. skipped — not in the smoke tier (--tier affected)[0m
+
+[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+  ✓ nothing under /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw moved
+
+[32m✓ green for --tier affected — this is NOT a green suite[0m

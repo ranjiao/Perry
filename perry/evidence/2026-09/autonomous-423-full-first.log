@@ -1,0 +1,89 @@
+
+[1m0. tree guard — recording /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw-423[0m
+  · recorded
+
+[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+perry-lint · templates in /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw-423
+  ✓ clean — every state file matches schema/state-schema.json
+
+[1m2. parser / extractor / linter contract tests[0m
+
+[31m✗ test_okr_krs_render.py[0m — 1 of 40 test(s) failed
+    FAIL   test_okr_krs_render.TestTheSurfaceRefusesRatherThanPrintingAShortTable.test_a_positional_argument_is_refused
+  [33m… 54 earlier line(s) elided of 79; the last 25 follow — re-run this module alone for all of it[0m
+test_every_stored_kr_reaches_the_render (test_okr_krs_render.TestTheShippedOkr.test_every_stored_kr_reaches_the_render) ... ok
+test_the_objective_headings_stay (test_okr_krs_render.TestTheShippedOkr.test_the_objective_headings_stay)
+The Bound's remainder: the headings are what the KRs hang from and ... ok
+test_the_shipped_okr_md_carries_no_kr_table_rows (test_okr_krs_render.TestTheShippedOkr.test_the_shipped_okr_md_carries_no_kr_table_rows)
+The deletion itself, asserted where it would be noticed if ... ok
+test_a_badly_typed_record_is_refused_not_skipped (test_okr_krs_render.TestTheSurfaceRefusesRatherThanPrintingAShortTable.test_a_badly_typed_record_is_refused_not_skipped)
+Printing the readable rows and dropping the rest is how a reader ... ok
+test_a_duplicate_kr_key_is_refused_rather_than_collapsed (test_okr_krs_render.TestTheSurfaceRefusesRatherThanPrintingAShortTable.test_a_duplicate_kr_key_is_refused_rather_than_collapsed)
+Two records for one `(version, objective, id)` render as one row, ... ok
+test_a_positional_argument_is_refused (test_okr_krs_render.TestTheSurfaceRefusesRatherThanPrintingAShortTable.test_a_positional_argument_is_refused) ... FAIL
+test_a_project_with_no_store_is_refused (test_okr_krs_render.TestTheSurfaceRefusesRatherThanPrintingAShortTable.test_a_project_with_no_store_is_refused) ... ok
+test_an_unknown_version_names_the_ones_that_exist (test_okr_krs_render.TestTheSurfaceRefusesRatherThanPrintingAShortTable.test_an_unknown_version_names_the_ones_that_exist) ... ok
+
+======================================================================
+FAIL: test_a_positional_argument_is_refused (test_okr_krs_render.TestTheSurfaceRefusesRatherThanPrintingAShortTable.test_a_positional_argument_is_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw-423/tests/test_okr_krs_render.py", line 388, in test_a_positional_argument_is_refused
+    self.assertEqual(res.returncode, 1)
+AssertionError: 2 != 1
+
+----------------------------------------------------------------------
+Ran 40 tests in 0.512s
+
+FAILED (failures=1)
+
+154 modules · 4301 tests · 84.4s · 8 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[31m✗ 1 of 154 MODULE(S) red[0m
+[31m✗ 1 of 4301 TEST(S) failed[0m
+
+[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+
+[1m4. sample projects lint clean (English and Chinese)[0m
+perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw-423/tests/fixtures/sample-project
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Architecture (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Implementation plan (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Risks & mitigations (not yet blocking at Status: in_review; required at locked)
+  ⚠ evidence [NS-01] `evidence/` holds 2 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `evidence/`. Both are reversible; the first is one command. Evidence: evidence/2026-08/REL-001-spec.md, evidence/2026-08/REL-002-spec.md
+  ⚠ inputs [NS-01] `inputs/` holds 1 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `inputs/`. Both are reversible; the first is one command. Evidence: inputs/vendor-api.md
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+
+  0 error(s), 9 warning(s)
+  · tasks store: 4 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 5 record(s), all valid
+  · linkage store: 13 record(s), 0 malformed
+  · specs: 2 of 2 declare no scope for `dispatch.md` step 4.2 to read — nobody can say those rows were screened (`perry-lint --specs --json` names every one)
+  · bounds: 2 of 2 spec(s) carry no `## Bound` — a round against those has no finite set to check and no last element (`perry-lint --specs --json` names every one)
+  · summaries: all 3 open row(s) carry one that is not just the title again
+perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw-423/tests/fixtures/sample-project-zh
+  ✓ clean — every state file matches schema/state-schema.json
+  · tasks store: 3 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 7 record(s), all valid
+  · no `linkage.jsonl` — the linkage store is unchecked, not clean
+  · no `*-spec.md` under evidence/ — the dispatch pre-flight has nothing to read here
+  · summaries: all 3 open row(s) carry one that is not just the title again
+
+[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+  ✓ nothing under /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-autonomous-h21ewziw/perry-review-fixes-h21ewziw-423 moved
+
+[31m✗ failures above[0m
