@@ -27,6 +27,7 @@ This `SKILL.md` is intentionally lean: it holds what runs on **every** invocatio
 | Reference file | Loaded when running |
 |---|---|
 | `reference/setup.md` | `init`, `revise` (overall `OKR.md` creation + versioning) |
+| `reference/elicitation.md` | `init` only: first-OKR interview questions, drafted answers and visible draft; no persistence/finalize claim |
 | `reference/phases.md` | `plan-phase`, `score-phase`, `snapshot` (the phase cadence + the ten mandatory sections) |
 | `reference/weekly.md` | `plan-week` (the PMO hand-off) |
 | `reference/linkage.md` | `link` — owning `linkage.jsonl`: accepting PMO's attribution hand-off, aliases, unlinked |
