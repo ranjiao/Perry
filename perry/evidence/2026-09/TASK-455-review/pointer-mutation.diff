@@ -1,0 +1,13 @@
+diff --git a/work/reference/dispatch.md b/work/reference/dispatch.md
+index ad47dd16..88bc566e 100644
+--- a/work/reference/dispatch.md
++++ b/work/reference/dispatch.md
+@@ -492,7 +492,7 @@ silently produce a pass. A spec saying `(none)` cannot suppress a diff trigger.
+    - On OpenCode (`$HOST = opencode`): `Task(subagent_type: general)` — synchronous.
+    - On Codex (`$HOST = codex-cli`): `codex exec` — synchronous.
+    - A hook's `Review agent executor:` pin must be host-valid (`codex | claude-subagent | opencode-subagent | (auto)`); refuse a mismatched pin, never reroute it.
+-2. **Fresh brief**: use `review.md § Integration architecture reviewer brief`.
++2. **Fresh brief**: review the candidate.
+    Supply exact base/head/diff and trigger facts, root §1/§3/§6 with line numbers,
+    and module documents selected by the agent from the confirmed component list.
+    Supply §2's selection mapping; other root sections are read on demand.

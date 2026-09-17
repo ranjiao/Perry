@@ -1,0 +1,7 @@
+diff --git a/perry/evidence/2026-09/architecture-walkthrough.md b/perry/evidence/2026-09/architecture-walkthrough.md
+new file mode 100644
+index 00000000..47e7ff0c
+--- /dev/null
++++ b/perry/evidence/2026-09/architecture-walkthrough.md
+@@ -0,0 +1 @@
++Synthetic architecture selection fixture only.

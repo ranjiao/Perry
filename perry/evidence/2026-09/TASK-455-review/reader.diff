@@ -1,0 +1,10 @@
+diff --git a/viewer/parsers.py b/viewer/parsers.py
+index a8d0ee32..749139fc 100644
+--- a/viewer/parsers.py
++++ b/viewer/parsers.py
+@@ -5338,3 +5338,5 @@ if __name__ == "__main__":
+     print(f"Design docs: {len(s.design)}")
+     for d in s.design:
+         print(f"  · {d.id:<10} [{d.status:<10}] refs={d.impl_refs} {d.date or '----------'} {d.title[:50]}")
++
++# Architecture walkthrough: comment-only reader change.

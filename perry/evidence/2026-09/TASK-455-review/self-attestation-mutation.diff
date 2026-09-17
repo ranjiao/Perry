@@ -1,0 +1,13 @@
+diff --git a/work/reference/dispatch.md b/work/reference/dispatch.md
+index ad47dd16..7b4ba102 100644
+--- a/work/reference/dispatch.md
++++ b/work/reference/dispatch.md
+@@ -328,7 +328,7 @@ output".
+
+ - **Host gate**: requires `$HOST = claude-code`. On OpenCode or Codex this executor is unavailable — refuse per the strict matrix in `../../reference/host-capabilities.md`.
+ - Use the `Agent` tool with `subagent_type: general-purpose`.
+-- Build prompt = **bounded architecture context + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + standard RESULT format. The author reports implementation facts, not an architecture verdict.
++- Build prompt = **`ARCHITECTURE.md` full text + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + RESULT format including the mandatory `ARCHITECTURE COMPLIANCE` block (see § Architecture compliance RESULT).
+ - Async-ness from spec's size hint: `Estimated cycle: small` → `run_in_background: false`; `medium | large` → `run_in_background: true`.
+ - **Pass `isolation: "worktree"`. It is not optional** — see § The tree the agent works in, below.
+ - **Include the `perry-scratch-derivation` block verbatim** — see § Where the agent puts a scratch file. A prompt that hands out a shared directory and asks the agent to namespace inside it is the defect that section exists to remove; it has been observed five times.
