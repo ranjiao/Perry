@@ -354,7 +354,7 @@ class TestLaneProceduresCallTheTool(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.proc = (PERRY_HOME / "work" / "reference" / "subcommands.md").read_text()
+        cls.proc = "\n".join((PERRY_HOME / "work/reference" / n).read_text() for n in ("planning.md", "decisions-risk.md", "add-task.md", "subcommands.md"))
 
     def section(self, name: str) -> str:
         i = self.proc.index(f"### `{name}")

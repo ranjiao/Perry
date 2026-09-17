@@ -166,7 +166,7 @@ class TestTheThreeClaimsAreNowTrue(unittest.TestCase):
     """Each document says triage reports it. The procedure must say how."""
 
     def test_the_triage_procedure_reads_the_field(self):
-        doc = (PERRY_HOME / "work" / "reference" / "subcommands.md").read_text()
+        doc = (PERRY_HOME / "work" / "reference" / "planning.md").read_text()
         self.assertIn("missing_defaults", doc,
                       "the triage procedure still has nothing to read")
 

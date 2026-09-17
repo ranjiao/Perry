@@ -39,7 +39,7 @@ COVERS = (
     "bin/perry-diagnose",
     "viewer/parsers.py",
     "reference/snapshot.md",
-    "reference/diagnose.md",
+    "reference/diagnose-explanations.md",
 )
 
 import importlib.machinery
@@ -60,7 +60,7 @@ DIAGNOSE = ROOT / "bin" / "perry-diagnose"
 
 #: The page that documents each payload's `tracks_source`.
 STATE_PAGE = ROOT / "reference" / "snapshot.md"
-DIAGNOSE_PAGE = ROOT / "reference" / "diagnose.md"
+DIAGNOSE_PAGE = ROOT / "reference" / "diagnose-explanations.md"
 
 #: The header cell that marks a page's `tracks_source` table.
 TABLE_KEY = "`tracks_source`"
