@@ -23,6 +23,12 @@ existing output and do not run that step.
 
 ## Rendering
 
+For the combined `/perry` snapshot, use `reference/snapshot.md § Step 4`'s
+initial-screen budget and single detail view: position and primary initially,
+all returned alternates and unknown causes behind its explicit detail pointer.
+This changes placement only. A null primary never suppresses unknowns. Lane
+standups and the closing step retain their existing rendering and procedure.
+
 Render the block in the chat language, in this shape:
 
 ```
