@@ -10,7 +10,7 @@ Date: 2026-09-17. Owner: Coding Agent. Priority: P1. Required verification: V4, 
 
 ## Readiness and authorization
 
-Locked DESIGN-020 decision 5 already consents to plans/ under state root; no repeated namespace consent is required. User prioritizes this experience. TASK-191 and TASK-264 remain dependencies until the explicitly requested implementation-sequence adjustment is answered. Preparation is not permission to bypass them. Missing KR writers and first-phase/overall creation writers must be inventoried rather than assumed supplied by import commands.
+Locked DESIGN-020 decision 5 already consents to plans/ under state root; no repeated namespace consent is required. User prioritizes this experience. USER-959 permits isolated implementation before TASK-191; the real interview remains release acceptance through TASK-465. TASK-264 still blocks complete finalization. A bounded draft-only child may implement persistence independently, without closing this parent or claiming unsupported canonical writers. Missing KR writers and first-phase/overall creation writers must be inventoried rather than assumed supplied by import commands.
 
 ## Acceptance criteria
 

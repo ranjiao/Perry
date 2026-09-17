@@ -10,7 +10,7 @@ Date: 2026-09-17. Owner: Coding Agent. Priority: P1. Verification: V3 plus indep
 
 ## Readiness
 
-Prepared; implementation awaits TASK-191 or an explicit change to the locked implementation sequence. Do not call preparation completion of TASK-191.
+USER-959 records the user authorization on 2026-09-17 to implement downstream flows in isolated branches before the real interview. TASK-466 is the implemented question-bank prerequisite. TASK-191 remains a release acceptance gate through TASK-465. Do not claim the real interview completed, integrate this batch into main or publish it under this implementation-only authorization.
 
 ## Acceptance criteria
 
@@ -26,6 +26,6 @@ goals/SKILL.md; goals/reference/setup.md; goals/reference/elicitation.md; a narr
 
 ## Shared boundaries
 
-User approved prioritizing constructive interactive OKR design on 2026-09-17. This is a bounded written implementation specification, not evidence of delivery. Locked DESIGN-020 section 5.5 and retained DESIGN-011 govern the behavior. Keep reference/input-quality.md byte-identical. Interpret prose with the agent; Python must not infer meaning or judge conversation quality. Do not fabricate real-user transcript evidence, change live SkyTonight files, auto-finalize goals, change architecture decisions or publish. Preserve all dependency gates until an explicit sequencing decision is recorded.
+User approved prioritizing constructive interactive OKR design on 2026-09-17. This is a bounded written implementation specification, not evidence of delivery. Locked DESIGN-020 section 5.5 and retained DESIGN-011 govern the behavior. Keep reference/input-quality.md byte-identical. Interpret prose with the agent; Python must not infer meaning or judge conversation quality. Do not fabricate real-user transcript evidence, change live SkyTonight files, auto-finalize goals, change architecture decisions or publish. USER-959 changes only implementation sequencing; preserve all other acceptance and human-signoff boundaries.
 
 Use isolated Coding worktree and exact scoped commits. Run relevant pointer, ownership, budget and routing tests; committed affected selection and independent scenario review. Scenarios are hypothetical regression cases, never the TASK-191 real interview. Net Python/test lines must remain <=0 under the current phase constraint. No wording-mirror tests as a substitute for conversational evidence.
