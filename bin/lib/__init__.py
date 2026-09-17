@@ -939,7 +939,15 @@ def parse_surface(surface: dict, argv: list[str]) -> dict:
                     got[token] = argv[i + 1]
                 i += 1
         elif token.startswith("-"):
-            out["error"] = f"unknown argument {token!r} (try --help)"
+            if out["sub"] in subs:
+                flags = subcommand_flags(surface, subs[out["sub"]])
+                label = "Accepted flags"
+            else:
+                flags = sorted(declared)
+                label = ("Declared flags (select a subcommand for its accepted set)"
+                         if subs else "Accepted flags")
+            out["error"] = (f"unknown argument {token!r}. "
+                            f"{label}: {', '.join(sorted(set(flags) | {'-h'}))}")
             return out
         elif out["sub"] is None and subs:
             out["sub"] = token
@@ -1113,8 +1121,10 @@ def scan_argv(argv: list[str], *, bools: tuple[str, ...] = (),
             got[token] = argv[i + 1]
             i += 1
         elif token.startswith("-"):
+            flags = sorted(set(bools) | set(values) | {"--help", "-h"})
             return (positionals, seen, got,
-                    f"unknown argument {token!r} (try --help)")
+                    f"unknown argument {token!r}. "
+                    f"Accepted flags: {', '.join(flags)}")
         else:
             positionals.append(token)
         i += 1
