@@ -1,0 +1,44 @@
+[
+  {
+    "path": "before.txt",
+    "lines": 30,
+    "unicode_characters": 2423,
+    "utf8_bytes": 2513,
+    "within_budget": false
+  },
+  {
+    "path": "normal.initial.txt",
+    "lines": 7,
+    "unicode_characters": 676,
+    "utf8_bytes": 703,
+    "within_budget": true
+  },
+  {
+    "path": "busy.initial.txt",
+    "lines": 8,
+    "unicode_characters": 432,
+    "utf8_bytes": 449,
+    "within_budget": true
+  },
+  {
+    "path": "unknown.initial.txt",
+    "lines": 8,
+    "unicode_characters": 438,
+    "utf8_bytes": 453,
+    "within_budget": true
+  },
+  {
+    "path": "safety.initial.txt",
+    "lines": 5,
+    "unicode_characters": 328,
+    "utf8_bytes": 334,
+    "within_budget": true
+  },
+  {
+    "path": "mutations/oversized.initial.txt",
+    "lines": 87,
+    "unicode_characters": 2036,
+    "utf8_bytes": 2063,
+    "within_budget": false
+  }
+]

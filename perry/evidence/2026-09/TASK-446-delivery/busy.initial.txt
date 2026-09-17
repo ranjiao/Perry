@@ -1,0 +1,8 @@
+Perry · Atlas · 2026-09-17
+You are here: Goals v2 ✓ · Phase 007 day 8 ✓ · Week plan ? · Weekly review late
+Progress: unknown; 18 phase KRs, measured 0.
+Open tasks: 120 · P0=1 · P1=80 · P2=39 · blocked=9
+Pending user decisions: 6.
+Next: /perry work triage — 9 tasks are blocked
+Details: [snapshot details](busy.details.md) — full objectives, all pending decisions, both alternates, unknown causes and source.
+What do you want to do?

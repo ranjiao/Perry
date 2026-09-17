@@ -1,0 +1,6 @@
+TASK-444  —  DESIGN-020 phase D — a planning draft survives interruption and is finalized through tools
+  kind       Task
+  status     not_started
+  summary    DESIGN-020 § 5.5. A plan goes straight into its final file today, and an interview interrupted halfway is lost. This row adds a draft file under plans/ that the user edits and approves, resumes at its next unanswered question, and is finalized only through the lanes' writers.
+  defined    perry/tasks.jsonl:410
+  mentioned  nowhere else

@@ -1,0 +1,12 @@
+DESIGN-013  —  A fact with a schema lives in the store; a document holds what has none
+  kind       document
+  defined    perry/design/DESIGN-013-one-place-per-fact.md:1
+  mentioned  bin/README.md:220
+             decide/SKILL.md:172
+             decide/SKILL.md:229
+             decide/reference/decisions.md:22
+             goals/SKILL.md:131
+             goals/reference/phases.md:194
+             goals/reference/phases.md:250
+             goals/state/phase_TEMPLATE.md:70
+             … and 32 more

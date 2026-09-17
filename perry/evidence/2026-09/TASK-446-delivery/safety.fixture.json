@@ -1,0 +1,1 @@
+{"synthetic":true,"project":"Recovery lab","recovery":{"blocking":true,"pending_transactions":[],"malformed_dossiers":[{"path":"/fixture/.perry/adopt/run.md","error":"invalid stage"}]},"interrupted":"not read: recovery blocks further state reads"}

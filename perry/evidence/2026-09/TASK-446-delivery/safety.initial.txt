@@ -1,0 +1,5 @@
+Perry · Recovery lab · startup blocked
+Recovery: /fixture/.perry/adopt/run.md — invalid stage
+Stop: repair the malformed dossier before further project-state reads or mutation.
+Interrupted-run state has not been read; no run has been resumed.
+Details: [safety details](safety.details.md) — exact captured gate facts and source.

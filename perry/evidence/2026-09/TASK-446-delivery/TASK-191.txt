@@ -1,0 +1,6 @@
+TASK-191  —  DESIGN-020 phase C — the SkyTonight interview, scored by the unchanged rubric
+  kind       Task
+  status     blocked
+  summary    DESIGN-011's gate. Run the bank against a project that has no OKR.md and score the transcript with the rubric, which stays unchanged so the score cannot be negotiated. The design's third goal is measured here or it is not measured at all: if a bank-produced OKR still trips three rubric checks, the questions are wrong and steps 3 to 5 are decoration.
+  defined    perry/tasks.jsonl:418
+  mentioned  nowhere else

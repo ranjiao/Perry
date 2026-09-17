@@ -1,0 +1,5 @@
+TASK-026  —  Rewrite `SKILL.md § The hand-off contract` — goals/work/decide ownership, both moves, 3 refusal cases — **V5**
+  kind       Task
+  status     done
+  defined    perry/tasks.jsonl:23
+  mentioned  nowhere else

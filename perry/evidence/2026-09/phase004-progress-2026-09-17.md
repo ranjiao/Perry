@@ -56,3 +56,13 @@ TASK-460 is done at V4 and merged locally as 0.1.5 in 609abd02f71d1b82a965f48622
 TASK-451 at 232c3e928b7f1468396795e6fb4cff21971aa940 has independent V4 and architecture PASS, 4,299 affected tests, failing schema-revert mutation, and restored 52 targeted tests. USER-958 requests the concrete V5 disposition, distinguishing personally checked from accepted on report. Implementation is complete; main integration and TASK-452 wait for that disposition.
 
 Next prepared work is TASK-455 (merge-time independent architecture review) and TASK-447 (400-character Next action guide plus preservation/migration). TASK-447 initial task-list measurement: 100 open rows at capture, 33 over 400 characters, nearest-rank p90 1,672, maximum 2,218. The full original accounts and hashes are captured externally before any replacement.
+
+## Further accepted evidence, integration pending
+
+TASK-447 coding cf4b49cd is independently inspected by PMO at V3 with 2,144 affected tests, four Unicode boundary cases and the threshold reversion proof. All 33 oversized actions were semantically reviewed, exact-current-compared and rewritten via perry-task. Live complete 99-row nearest-rank p90 is 344 characters, maximum 377; verbatim accounts, original hashes and all writer receipts are retained. This is a measured live migration, not yet an integrated product delivery or declared KR score.
+
+TASK-455 coding 779e7467 has fresh V4 and architecture PASS. Independent affected 569 tests pass, the old author-self-attestation mutation makes one fail, and restored 111 targeted tests pass with clean immutable hashes. Exact combined candidate/full/slow validation remains outstanding.
+
+TASK-446 now has a bounded four-example spec and is implementing the 12-line/1,200-character initial snapshot. TASK-445 now has a bounded four-scenario spec for the <=600-character decision card and reuse of recorded user authority. TASK-445 requires V5 format acceptance after fresh V4; the human question stays queued behind USER-952/955/958, not submitted as a fourth open decision. Both coding deliveries use isolated branches and cannot write PMO state.
+
+The proposed twelve-KR check decomposition is retained in phase004-checks-proposal.md. It is explicitly unapproved and no check/measurement command has run. Per-Objective approval and the S2 target restatement remain separate goal decisions.

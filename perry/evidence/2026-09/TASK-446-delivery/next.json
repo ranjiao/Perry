@@ -1,0 +1,126 @@
+{
+  "next": {
+    "contract": "perry-next/1.0",
+    "semantics": [],
+    "position": [
+      {
+        "step": "goals",
+        "state": "done",
+        "label": "OKR v4: 2026-09-15"
+      },
+      {
+        "step": "phase",
+        "state": "done",
+        "label": "Phase 004, day 3"
+      },
+      {
+        "step": "week",
+        "state": "unknown",
+        "label": "2026-W38 plan: cannot tell"
+      },
+      {
+        "step": "review",
+        "state": "done",
+        "label": "last weekly 2026-W38"
+      }
+    ],
+    "primary": {
+      "rule": "R-sla-breach",
+      "lane": "work",
+      "command": "/perry work triage",
+      "reason": "2 queue item(s) are past their SLA, the longest-waiting being TASK-270",
+      "facts": [
+        "installed=true",
+        "queue.sla_breaches=2"
+      ]
+    },
+    "alternates": [
+      {
+        "rule": "R-design-unhanded",
+        "lane": "decide",
+        "command": "/perry decide handoff DESIGN-013",
+        "reason": "DESIGN-013 is a locked design with no implementation tasks yet (9 such design(s))",
+        "facts": [
+          "installed=true",
+          "design.pending_handoff_count=9"
+        ]
+      }
+    ],
+    "unknown": [
+      {
+        "fact": "drafts.drafted",
+        "reason": "plan drafts have no source until TASK-444 builds them",
+        "rules": [
+          "R-draft-waiting"
+        ]
+      },
+      {
+        "fact": "phase.kr_progress.met_ratio",
+        "reason": "12 of 12 commit key results in phase 004 lack declared checks or required check measurements",
+        "rules": [
+          "R-phase-closable"
+        ]
+      },
+      {
+        "fact": "week.planned",
+        "reason": "week plans have no source until TASK-444 records a finalized week",
+        "rules": [
+          "R-week-unplanned"
+        ]
+      },
+      {
+        "fact": "commitments.due",
+        "reason": "perry-state does not compute which commitments are due",
+        "rules": [
+          "R-queue-commitment-due"
+        ]
+      },
+      {
+        "fact": "phase.days_since_snapshot",
+        "reason": "perry-state computes no date for the last phase snapshot",
+        "rules": [
+          "R-phase-heartbeat"
+        ]
+      }
+    ],
+    "conformance": {
+      "rules_file": "reference/next-rules.json",
+      "rules_declared": 18,
+      "rules_eligible": 16,
+      "rules_fired": 2,
+      "filters": {
+        "after": "",
+        "lane": ""
+      },
+      "today": "2026-09-17",
+      "thresholds": [
+        {
+          "name": "asks_waiting_days",
+          "value": 5,
+          "source": "rule-file"
+        },
+        {
+          "name": "handoff_stale_days",
+          "value": 7,
+          "source": "rule-file"
+        },
+        {
+          "name": "phase_closable_ratio",
+          "value": 0.8,
+          "source": "rule-file"
+        },
+        {
+          "name": "phase_heartbeat_days",
+          "value": 14,
+          "source": "rule-file"
+        },
+        {
+          "name": "weekly_late_weeks",
+          "value": 2,
+          "source": "rule-file"
+        }
+      ],
+      "rule_errors": []
+    }
+  }
+}
