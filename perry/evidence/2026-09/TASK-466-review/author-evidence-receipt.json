@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/tmp/perry-scratch/task-466/phase004/result.md",
+    "sha256": "b898045755438b1cc6ec65963a33c33f85b8e3446c77a35d768114f6f9f139d3",
+    "bytes": 16661
+  },
+  {
+    "path": "/tmp/perry-scratch/task-466/phase004/job.json",
+    "sha256": "9ab1b8d8565e48c92428e67cc5f6be60fea8685519d661aea2f71d46c6cc1bbc",
+    "bytes": 252
+  },
+  {
+    "path": "/tmp/perry-scratch/task-466/phase004/scenarios.md",
+    "sha256": "bd94dfc5ed93f27526a1a5fd02fb2d9969566b3882f483aa4791eaa0f6ccfc7c",
+    "bytes": 9441
+  },
+  {
+    "path": "/tmp/perry-scratch/task-466/phase004/smoke.log",
+    "sha256": "4dc211153c42b65301009de93846746cce43e7012387c28b644d12a30b2c0ccb",
+    "bytes": 911
+  },
+  {
+    "path": "/tmp/perry-scratch/task-466/phase004/affected.log",
+    "sha256": "430a4afb5f4a5278b6bee8aecb27ffee786921d607a76b0b8d8d02037ffac5dc",
+    "bytes": 1551
+  },
+  {
+    "path": "/tmp/perry-scratch/task-466/phase004/mutation.log",
+    "sha256": "b72ecf078c7dce8e4e27d00f64353db99be250b02b3e582a0f39e6029a81c3b3",
+    "bytes": 1123
+  }
+]

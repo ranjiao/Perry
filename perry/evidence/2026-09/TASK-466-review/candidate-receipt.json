@@ -1,0 +1,52 @@
+{
+  "base": "83e5afb95823fbcc5d288897f39143623d466bb4",
+  "tested_sha": "33c88200590b991765dc0a98fb32be0d98585c7c",
+  "environment": {
+    "PERRY_HOME": "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-task-466",
+    "PERRY_PROJECT": null,
+    "TMPDIR": "/tmp/perry-scratch/review-task-466/phase004/tmp"
+  },
+  "changed_paths": [
+    "goals/reference/elicitation.md",
+    "goals/reference/setup.md"
+  ],
+  "numstat": "23\t4\tgoals/reference/elicitation.md\n6\t4\tgoals/reference/setup.md\n",
+  "python_test_net_lines": 0,
+  "rubric_base_head_equal": true,
+  "files": [
+    {
+      "path": "goals/reference/elicitation.md",
+      "expected_sha256": "57f4a62c97f2389e10d02e4f82bcafa2bbb1fa1d2e652240847f44296064aaba",
+      "actual_sha256": "57f4a62c97f2389e10d02e4f82bcafa2bbb1fa1d2e652240847f44296064aaba",
+      "matches": true,
+      "bytes": 14107,
+      "lines": 168
+    },
+    {
+      "path": "goals/reference/setup.md",
+      "expected_sha256": "0854f7ffce318ec56f670c14477ab5fd050d5925325542c87075bf2895dfede4",
+      "actual_sha256": "0854f7ffce318ec56f670c14477ab5fd050d5925325542c87075bf2895dfede4",
+      "matches": true,
+      "bytes": 4546,
+      "lines": 74
+    },
+    {
+      "path": "reference/input-quality.md",
+      "expected_sha256": "399cdb615d6ae7b87c5a82f5a2e26e82d9951607b0e39ac9d5bce50465a74e88",
+      "actual_sha256": "399cdb615d6ae7b87c5a82f5a2e26e82d9951607b0e39ac9d5bce50465a74e88",
+      "matches": true,
+      "bytes": 9389,
+      "lines": 101
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "expected_sha256": "9ec42ef11570db157b309dd2c6dc1a880ebb2bd51858ac0d9cd86e3e749ae561",
+      "actual_sha256": "9ec42ef11570db157b309dd2c6dc1a880ebb2bd51858ac0d9cd86e3e749ae561",
+      "matches": true,
+      "bytes": 23979,
+      "lines": 422
+    }
+  ],
+  "criteria_path": "/Users/bytedance/proj/Perry/perry/evidence/2026-09/TASK-466-spec.md",
+  "criteria_sha256": "517a831b979781f56626cb8e239d2174cea4af897d774844e1761221f2f57b27"
+}

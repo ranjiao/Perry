@@ -1,0 +1,17 @@
+Candidate: 33c88200590b991765dc0a98fb32be0d98585c7c Base: 83e5afb95823fbcc5d288897f39143623d466bb4
+Reverted: goals/reference/elicitation.md sha256 c1f6b375d0e75a84cb5174cf20d2c6339d474c8d0c3c99b274d412aa78dfae5e
+Reverted: goals/reference/setup.md sha256 b37b8730d0d3541b744f4dd51656e9f2919896dde4405e87507ae7cbcd674daf
+ goals/reference/elicitation.md | 27 ++++-----------------------
+ goals/reference/setup.md       | 10 ++++------
+ 2 files changed, 8 insertions(+), 29 deletions(-)
+Command: python3 tests/parallel test_pointers_resolve test_router_budget test_ownership test_shipped_vocabulary -j 4
+
+4 modules · 94 tests · 3.3s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ all green[0m
+Reverted structural check exit: 0
+Restored: goals/reference/elicitation.md sha256 57f4a62c97f2389e10d02e4f82bcafa2bbb1fa1d2e652240847f44296064aaba
+Restored: goals/reference/setup.md sha256 0854f7ffce318ec56f670c14477ab5fd050d5925325542c87075bf2895dfede4
+Restored candidate bytes; worktree clean.

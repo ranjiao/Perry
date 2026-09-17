@@ -1,0 +1,137 @@
+{
+  "method": "Deterministic transport and measurement of reviewer-authored UTF-8 utterances. Questions and verdicts are assigned by reviewer reasoning; punctuation, row counts, byte counts and hashes prove neither meaning nor quality. No screen budget is invented for TASK-466.",
+  "cases": [
+    {
+      "id": "S1",
+      "response_unicode_characters": 674,
+      "response_utf8_bytes": 682,
+      "response_lines": 1,
+      "response_sha256": "299c3a0d1a521f39de9d3c4a0aa5788c34678b037e88d107583946d962da910b",
+      "ascii_question_marks": 1,
+      "table_data_rows": 0,
+      "reviewer_assigned_independent_questions": 1,
+      "questions_before": null,
+      "questions_after": null
+    },
+    {
+      "id": "S2",
+      "response_unicode_characters": 687,
+      "response_utf8_bytes": 691,
+      "response_lines": 1,
+      "response_sha256": "037f1d24932ac4981f6176d4e66d7a81a1bd6df98424252086442b28cbc9387d",
+      "ascii_question_marks": 1,
+      "table_data_rows": 0,
+      "reviewer_assigned_independent_questions": 1,
+      "questions_before": null,
+      "questions_after": null
+    },
+    {
+      "id": "S3",
+      "response_unicode_characters": 563,
+      "response_utf8_bytes": 567,
+      "response_lines": 1,
+      "response_sha256": "1f3b750c2346142f4a248c3000be95a0053a6bcf110e290912e242f24ade2082",
+      "ascii_question_marks": 1,
+      "table_data_rows": 0,
+      "reviewer_assigned_independent_questions": 1,
+      "questions_before": null,
+      "questions_after": null
+    },
+    {
+      "id": "S4",
+      "response_unicode_characters": 1142,
+      "response_utf8_bytes": 1158,
+      "response_lines": 10,
+      "response_sha256": "37b737af842be44181377b46d78c4b3106e710cc8d0bf76f63da5468cc6c76d3",
+      "ascii_question_marks": 0,
+      "table_data_rows": 1,
+      "reviewer_assigned_independent_questions": 0,
+      "questions_before": null,
+      "questions_after": null
+    },
+    {
+      "id": "S5",
+      "response_unicode_characters": 458,
+      "response_utf8_bytes": 458,
+      "response_lines": 1,
+      "response_sha256": "b63a910ce80fbff72e0fdb9ade52d5e775e3137df680d98352c422e2c7366c64",
+      "ascii_question_marks": 1,
+      "table_data_rows": 0,
+      "reviewer_assigned_independent_questions": 1,
+      "questions_before": 7,
+      "questions_after": 8
+    },
+    {
+      "id": "B1",
+      "response_unicode_characters": 449,
+      "response_utf8_bytes": 449,
+      "response_lines": 1,
+      "response_sha256": "ecbf5d2156e79a3a40296620294e92e3ed9d97feb95ecaa266ac3623e86ccc52",
+      "ascii_question_marks": 1,
+      "table_data_rows": 0,
+      "reviewer_assigned_independent_questions": 1,
+      "questions_before": null,
+      "questions_after": null
+    },
+    {
+      "id": "B2",
+      "response_unicode_characters": 445,
+      "response_utf8_bytes": 453,
+      "response_lines": 1,
+      "response_sha256": "1b3fce2fe55f177fd99090f81f7a5bbe1732842b3f8966041120045aaa00b1ab",
+      "ascii_question_marks": 1,
+      "table_data_rows": 0,
+      "reviewer_assigned_independent_questions": 1,
+      "questions_before": null,
+      "questions_after": null
+    },
+    {
+      "id": "B3",
+      "response_unicode_characters": 1013,
+      "response_utf8_bytes": 1023,
+      "response_lines": 10,
+      "response_sha256": "70b189d57d69d902ac24b82d62a9bb8a7c8f1822a348c1fe0a85a0f91704baef",
+      "ascii_question_marks": 0,
+      "table_data_rows": 1,
+      "reviewer_assigned_independent_questions": 0,
+      "questions_before": 8,
+      "questions_after": 8
+    },
+    {
+      "id": "B4",
+      "response_unicode_characters": 0,
+      "response_utf8_bytes": 0,
+      "response_lines": 0,
+      "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ascii_question_marks": 0,
+      "table_data_rows": 0,
+      "reviewer_assigned_independent_questions": 0,
+      "questions_before": null,
+      "questions_after": null
+    },
+    {
+      "id": "B5",
+      "response_unicode_characters": 249,
+      "response_utf8_bytes": 249,
+      "response_lines": 1,
+      "response_sha256": "ee12fbadd4f26f1f86841d2a2eb4169e0fbfb07fb15bf4fbcd7df6f738340e26",
+      "ascii_question_marks": 0,
+      "table_data_rows": 0,
+      "reviewer_assigned_independent_questions": 0,
+      "questions_before": null,
+      "questions_after": null
+    },
+    {
+      "id": "M1",
+      "response_unicode_characters": 371,
+      "response_utf8_bytes": 371,
+      "response_lines": 6,
+      "response_sha256": "550035d4d946b485293929adc596e12149c083c245821c5d9682b384037e42cf",
+      "ascii_question_marks": 1,
+      "table_data_rows": 2,
+      "reviewer_assigned_independent_questions": 1,
+      "questions_before": null,
+      "questions_after": null
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "head": "33c88200590b991765dc0a98fb32be0d98585c7c",
+  "mutation": "whole-file restoration to pinned BASE for precisely the two changed files",
+  "removed_candidate_lines": {
+    "goals/reference/elicitation.md": "24-58 (changed spans within this range)",
+    "goals/reference/setup.md": "23-28"
+  },
+  "cache_dirs_removed": 5,
+  "wait_seconds": 1.1,
+  "files": [
+    {
+      "path": "goals/reference/elicitation.md",
+      "expected_sha256": "c1f6b375d0e75a84cb5174cf20d2c6339d474c8d0c3c99b274d412aa78dfae5e",
+      "actual_sha256": "c1f6b375d0e75a84cb5174cf20d2c6339d474c8d0c3c99b274d412aa78dfae5e",
+      "matches": true,
+      "bytes": 12766,
+      "lines": 149
+    },
+    {
+      "path": "goals/reference/setup.md",
+      "expected_sha256": "b37b8730d0d3541b744f4dd51656e9f2919896dde4405e87507ae7cbcd674daf",
+      "actual_sha256": "b37b8730d0d3541b744f4dd51656e9f2919896dde4405e87507ae7cbcd674daf",
+      "matches": true,
+      "bytes": 4396,
+      "lines": 72
+    },
+    {
+      "path": "reference/input-quality.md",
+      "expected_sha256": "399cdb615d6ae7b87c5a82f5a2e26e82d9951607b0e39ac9d5bce50465a74e88",
+      "actual_sha256": "399cdb615d6ae7b87c5a82f5a2e26e82d9951607b0e39ac9d5bce50465a74e88",
+      "matches": true,
+      "bytes": 9389,
+      "lines": 101
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "expected_sha256": "9ec42ef11570db157b309dd2c6dc1a880ebb2bd51858ac0d9cd86e3e749ae561",
+      "actual_sha256": "9ec42ef11570db157b309dd2c6dc1a880ebb2bd51858ac0d9cd86e3e749ae561",
+      "matches": true,
+      "bytes": 23979,
+      "lines": 422
+    }
+  ],
+  "status": " M goals/reference/elicitation.md\n M goals/reference/setup.md\n"
+}
