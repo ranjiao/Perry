@@ -177,44 +177,83 @@ still the contract `schema/` documents.
 
 ## Step 4 — render the combined dashboard
 
-4. **Render the combined dashboard** — exactly this shape, no preamble:
+4. **Render the combined dashboard** — no preamble. Steps 4–6 together are
+   one initial screen: **at most 12 visible lines and 1,200 Unicode characters**.
+   Count all text, whitespace, links, blank lines, the next block and any
+   question or agent note. This bounds authored text, not wrapping at an
+   unknown UI width. The agent authors the words; a deterministic counter may
+   measure lines/characters/bytes, never interpret prose or select facts.
+
+   Use this compact shape, applying the active-pack glossary from step 3c:
 
    ```
-   🅿  Perry · <project name> · <today's date>
-
-   🎯 OKR (vN, <period>) · <days_elapsed>/<days_total>d
-      O1 · <title> ............ <%>
-      O2 · <title> ............ <%>
-      O3 · <title> ............ <%>          (omit unused Os)
-
-   🌀 Current phase #<NNN> <slug> · day <N> · cost <spent>/<ceiling>
-      P-O1 · <title> .......... <KRs done>/<KRs total>
-      P-O2 · <title> .......... <KRs done>/<KRs total>
-
-   📋 Open tasks  : P0=<n>(<done>/<total>) · P1=<n> · P2=<n> · blocked=<n>
-   ⏳ User Input Q: <pending count> · oldest: <USER-id> "<title>" @ <days idle>d
-   🚧 Top risk    : <risk title, ≤80 chars>
-   📝 Last decision: <ADR-id> "<title>" (<date>)
-   📅 Last weekly : <YYYY-WW>, <days>d ago · last handoff: <date>, <days>d ago
+   🅿 Perry · <project name> · <date>
+   You are here: <position[] in returned order and states>
+   Progress: <declared measurements, or unknown/absent/stale explicitly>
+   Open tasks: <open> · P0=<n> · P1=<n> · P2=<n> · blocked=<n>
+   Pending user decisions: <count> · <brief oldest topic and age, if known>
+   Next: <primary.command> — <primary.reason>
+   Details: <explicit link or “ask for snapshot details”> — objectives, pending decisions, alternates, unknown causes and sources.
    ```
 
-   Use `—` for empty fields. Never fabricate values.
+   Project/current phase position, honest progress, open/blocked counts,
+   pending decisions and the selector's primary stay on the initial screen.
+   Use payload figures only: task closures and KR links are not measured KR
+   progress. Missing current values or checks mean unknown, never zero or done;
+   absent goals/phase/measurements and stale values must be named as such.
+   Use `—` for empty fields. Never fabricate values. A missing pending count
+   means unknown, not no decisions. Do not count rows to fill a missing field.
 
-   **Every ID printed here carries its title**, per `## Style rules` — a
-   dashboard line naming `USER-014` and nothing else tells the user they are
-   blocked and not what on. If the payload has an ID but no title for it, run
-   `bash "$PERRY_HOME/bin/perry-explain" <ID>` rather than printing the bare ID
-   or inventing a name.
+   **One detail level, no loss of facts.** Prepare a single detail view from
+   the same capture, reachable by the explicit pointer above (a linked artifact,
+   supported collapsed view, or “ask for snapshot details”; not another new
+   command). Do not append expanded details to the initial screen. Preserve
+   overall/phase objective titles and supplied measures, period/day/cost facts,
+   all pending user decisions with their full requests and blocking references,
+   top risk, last decision, weekly/handoff facts, and every returned alternate
+   and unknown cause. Preserve absent/unknown values there too. Keep all
+   recommendations in returned order across initial and detail views; moving
+   an alternate is not deleting it. Details must not require another drill-down
+   to see the retained facts. Cite the capture's project root, generated time
+   and calls (`--compact`, `--section next`, plus any targeted reads); never
+   present an old capture as current. Resolve missing detail through the
+   existing section/explain reads, not a parallel reader of state files.
+
+   **Every ID printed here carries its title**, in either view, per
+   `## Style rules`. If the payload has an ID but no title, run
+   `bash "$PERRY_HOME/bin/perry-explain" <ID>` rather than inventing a name.
+   Long objective/pending titles belong in details; the initial summary may
+   name a short topic without an ID. Keep selector reasons unchanged (apart
+   from chat-language translation); attach titles for IDs they contain.
+
+   Measure the authored initial text before sending. Move secondary facts to
+   details, remove optional prose and shorten topic summaries until it fits;
+   never remove pending decisions, unknowns or recommendations from both views.
+   If mandatory selector text alone cannot fit, disclose the budget exception
+   and preserve it; do not silently truncate or claim a passing measurement.
+
+   **Safety takes precedence.** A blocking recovery or interrupted-run gate
+   replaces the normal dashboard with its existing stop/card and required
+   paths/errors/choice. Do not read further state, auto-resume, or imply normal
+   startup. Fit the safety card when possible; never hide a required error or
+   choice to claim the budget. Steps before 4 and their gates are unchanged.
 
 ## Step 5 — render the next block, and step 6 — ask
 
 5. **Render the next block.** Run `"$PERRY_HOME/bin/perry-state" --section next`
-   and render it as `reference/next.md § Rendering` says: the *you are here*
-   line, the primary, at most two alternates, and what could not be told. The
-   command decides. Never reorder, add or drop a recommendation, and never build
-   one from the dashboard's numbers. One line marked as your own note is allowed
-   (`reference/next.md § What the agent may and may not do`).
+   and follow `reference/next.md § Rendering`: the *you are here* line and
+   primary stay on the initial screen; the at most two returned alternates
+   and every `unknown[]` fact/reason appear in the single detail view, in
+   returned order. Signal unknowns on the initial screen with the detail
+   pointer even when `primary` is null (`Nothing is due.` is not “all known”).
+   The command decides. Never reorder, add or drop a recommendation, and never
+   build one from dashboard numbers. One line marked as your own note is
+   allowed; it counts toward the budget and cannot replace the recommendation.
 
-6. Then ask: **"What do you want to do?"**
+6. For an unscoped `/perry` invocation, ask **"What do you want to do?"** within
+   the same budget. During already authorized work, retain that choice/autonomy
+   and continue the requested scope; do not demand a new question or execute
+   the selector's recommendation merely because it appeared. Startup safety
+   questions still apply. This does not change the shared closing procedure.
 
 If the user picks an OKR-flavored action (plan, score, pivot, revise), read `$PERRY_HOME/goals/SKILL.md` and follow it. A work-flavored action (triage, status, delegate, handoff, rollover, risk) → `$PERRY_HOME/work/SKILL.md`. Recording a decision (`adr`) is the `decide` lane, not this one. A design-flavored action (RFC, architecture, lock, supersede) → `$PERRY_HOME/decide/SKILL.md`. If unclear, ask which, then route. **Read the lane file in full before acting on it** — it is loaded on demand precisely so it can be complete.

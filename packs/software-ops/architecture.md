@@ -1,6 +1,6 @@
 # Architecture — single source of truth, agent-enforced
 
-The most powerful anti-drift tool isn't a list of rules — it's a single, user-controlled architecture document that every coding agent must read, declare touched sections of, and pass an independent compliance review against before any task can close.
+The most powerful anti-drift tool isn't a list of rules — it's a single, user-controlled architecture document that every coding agent reads, with independent compliance review selected from the exact integration diff.
 
 This is the **`ARCHITECTURE.md`** discipline. The user writes it. Agents read it. The PMO enforces it.
 
@@ -84,9 +84,9 @@ Interactive bootstrap when `ARCHITECTURE.md` doesn't exist. Walks the user throu
 Procedure:
 1. Detect `OKR.md` / existing code structure / `decisions/` to pre-fill §1 (Mission, drawn from OKR) and seed §2 (Components, drawn from top-level code directories).
 2. For each section, prompt the user with the section's question. Capture answers via free-text (no AskUserQuestion — these are essay answers, not multiple choice).
-3. Write the draft. Status starts as `draft`; doesn't gate dispatch yet.
+3. Write the draft. A legacy `draft` label does not suspend existing architecture rules.
 4. **Tier 1 cap check** — verify the draft ≤ 500 lines. If exceeds, AskUserQuestion (header `"ARCH cap"`, options): `Split — move §3+§4+§5 detail to architecture/sections/§<N>-<topic>.md and keep TOC + summaries in main (Recommended) | Trim sections in place | Override with logged reason`. Refuse the write on Override unless reason is provided.
-5. Print: "Edit `ARCHITECTURE.md` to finish. Flip `Status: active` when ready. `Status: active` enables the dispatch compliance gate."
+5. Print: "Edit `ARCHITECTURE.md` to finish. Flip `Status: active` when ready. Existing architecture already binds the integration gate."
 6. Append journal entry `## Notes`: `architecture init — draft created`.
 
 ### `/pmo architecture review`
@@ -110,7 +110,7 @@ Drift detection — replaces the older `audit` name. Two layers:
 
 The review agent answers ONE question: *"What does the code currently do that `ARCHITECTURE.md` doesn't describe, or describes differently?"* Output structured drift items: `<section reference> | <what code does> | <what doc says> | <severity>`.
 
-The complete executor enum is `claude-subagent | opencode-subagent | codex | manual`. `manual` means render the review prompt for a human-run session. Automated architecture audit and post-primary review enforce the normal host matrix; no native executor is silently translated to another host.
+The complete executor enum is `claude-subagent | opencode-subagent | codex | manual`. `manual` means render the review prompt for a human-run session. Automated architecture audit and integration review enforce the normal host matrix; no native executor is silently translated to another host.
 
 **Write the report** at `architecture/audit-history/<YYYY-MM-DD>.md` with both layers' findings.
 
@@ -127,74 +127,26 @@ Quick read-only: show `git diff` of `ARCHITECTURE.md` since last standup. Useful
 
 ## Dispatch integration — the enforcement loop
 
-See `$PERRY_HOME/work/reference/dispatch.md § Pre-flight` and `§ Architecture compliance` for the wire-level detail. Summary here:
+The procedure lives in `$PERRY_HOME/work/reference/dispatch.md § Architecture review`;
+the reviewer brief is `$PERRY_HOME/work/reference/review.md § Integration architecture reviewer brief`.
 
-### Pre-flight — inject the doc
+Dispatch keeps its existing high-stakes and hard-NN pre-flight gates. It injects
+root §1/§3/§6 plus touched module documents selected from the confirmed §2 list,
+not the full root architecture. Every executor, including manual handoffs,
+returns the standard RESULT without an author compliance attestation.
 
-Before any executor runs, the dispatch flow:
-1. Reads `ARCHITECTURE.md` (full text).
-2. Reads the spec's `Touches architecture:` field — comma-separated section refs (`§2, §3, §6.NN-3`) or `(none)`.
-3. **Injects the FULL `ARCHITECTURE.md` text into the agent's system prompt / context** with this preamble:
+At integration the six diff trigger classes select a fresh reviewer of the
+exact base/head candidate. A no-trigger result is recorded in merge evidence without a
+review block; unknown facts block acceptance until resolved. A triggered review
+records per-rule holds / contradicts / not touched with rule-line citations in
+an `ARCHITECTURE COMPLIANCE` block in merge evidence. Existing documents are
+binding regardless of legacy draft labels. Decided contradictions go to the
+existing user decision gate. Task authors cannot award this gate or V4/V5.
 
-   > **You are working in a project with a frozen architecture. The document below is the single source of truth for system design. Before changing any code, verify your plan against the relevant sections. Your RESULT block must include an `ARCHITECTURE COMPLIANCE` section attesting to which sections you touched and why your change is consistent with them. A separate review agent will independently verify your attestation before the task can close.**
-
-4. If the spec's `Touches architecture:` claims a section that doesn't exist in `ARCHITECTURE.md` → refuse dispatch (spec is malformed).
-5. If §6 includes hard non-negotiables in the touched list → `AskUserQuestion` (header = `NN-N`, options): `Proceed — change is reviewed (with reason) | Refuse — revise spec | Refuse — escalate to manual delegate`. "Proceed" requires a written justification copied into the dispatch evidence.
-
-### Agent self-attestation
-
-The agent's `=== RESULT ===` block gains a mandatory section:
-
-```
-=== ARCHITECTURE COMPLIANCE ===
-Touched sections: §2 (component X), §3 (new dependency X → Y), §6.NN-3 (rate-limit)
-Compliance check:
-- §2: Added component X with stated Purpose ("..."), Owns ("..."), Doesn't own ("..."). Consistent with §1 mission.
-- §3: New dependency X → Y respects §3's "downstream-only" rule. No upstream call introduced.
-- §6.NN-3: Rate-limit raised from 5/s to 10/s. NN-3 doesn't specify the limit value, so no violation.
-New §7 questions opened: (none)
-=== END COMPLIANCE ===
-```
-
-Missing or empty ARCHITECTURE COMPLIANCE block → executor fails with stderr "agent did not attest". Status goes to `review` with a failure annotation; no auto-retry.
-
-### Independent review agent (the gate)
-
-After the executor returns and objective verification passes, but BEFORE the BOARD row flips to `review`, dispatch launches a SECOND agent (the **architecture review agent**):
-
-- **Executor**: host matrix applies. Claude Code uses synchronous `claude-subagent`, OpenCode uses synchronous `Task(subagent_type: general)` as `opencode-subagent`, and Codex CLI uses synchronous `codex`; `codex` remains available as an explicit override on every host.
-- **Estimated cycle**: always `small` (it's a read + judgment task, no code changes).
-- **Prompt**: full `ARCHITECTURE.md` + the diff (`git diff <base>..<head>`) + the primary agent's ARCHITECTURE COMPLIANCE block + this instruction:
-
-  > **Your job is to adversarially review the diff against the architecture document. Do not trust the primary agent's attestation. Independently identify any place in the diff that:**
-  > 1. Crosses a boundary forbidden by §3.
-  > 2. Adds state ownership not declared in §2.
-  > 3. Implements a contract incompatible with §5.
-  > 4. Violates any §6 non-negotiable.
-  > 5. Should have updated §7 (created new open questions the user hasn't seen).
-  >
-  > **Output exactly one of:**
-  > - `PASS` followed by 1–3 sentences summarizing what you verified.
-  > - `FAIL: <section ref>` followed by the specific issue, the diff lines that prove it, and what the agent would need to do to make it pass.
-
-- **Cost**: one extra small subagent / codex call per dispatch. User has explicitly accepted this cost — it's the price of the guarantee.
-
-- **Status decision**:
-  - Primary executor PASS + review agent PASS → status `review` (subjective verification still pending; user closes).
-  - Primary executor PASS + review agent FAIL → status `review` with `architecture-failed` annotation; surfaced to user with the FAIL reason; `close-task` is refused until either the code is fixed (re-dispatch) or the user explicitly overrides.
-  - Primary executor FAIL → status `review` with the executor's failure; review agent does NOT run (no point).
-
-The review agent's output is appended to the dispatch evidence file under `## Architecture review` section.
-
-### close-task gate
-
-`close-task` (see `$PERRY_HOME/work/reference/subcommands.md § close-task`) gains one more check, BEFORE the runbook gate:
-
-> If the spec has `Touches architecture:` non-empty, the latest dispatch's evidence file must contain an `## Architecture review` section ending in `PASS`. If `FAIL` or missing, refuse close. Override path exists (same shape as runbook override) — written reason, journal-logged.
-
-This is the actual guarantee: an architecture-touching task cannot close without passing the review gate.
-
-## Spec contract — `Touches architecture:` field
+Task closure retains its verification and human-signoff requirements; it does
+not demand a superseded dispatch-time author attestation or review. Integration
+acceptance requires the exact candidate's trigger record and, when triggered,
+its independent review, in addition to the existing test and release gates.
 
 The `add-task` spec gets one new field (replacing the older `Touches invariants:`):
 
@@ -210,8 +162,9 @@ Empty field → spec is malformed; `add-task` refuses to write.
 
 `autopilot` (see `$PERRY_HOME/work/reference/autopilot.md`):
 - A spec with hard non-negotiables in `Touches architecture:` is **skipped — high-stakes** (cannot be auto-dispatched).
-- A spec with only soft sections touched runs through the same pre-flight + review agent gate; autopilot doesn't get to bypass.
-- Cost note: every autopilot dispatch now includes the review agent call → roughly 2x token consumption per task. Per-project `## Autopilot defaults` hook may tighten `max_dispatches` accordingly.
+- A spec with only soft sections touched keeps the same pre-flight; integration
+  applies the same diff-triggered fresh review. Autopilot cannot bypass it.
+- Review cost occurs for triggered integration candidates, not every dispatch.
 
 ## OKR integration
 
@@ -235,9 +188,9 @@ PMO does NOT create `ARCHITECTURE.md` at project bootstrap by default. Trigger c
 - `.perry/hook.md` declares an `## Architecture profile` block — in that case bootstrap eagerly creates `ARCHITECTURE.md` from template and seeds §2 (Components) from the hook.
 
 When lazily created, `Status: draft` for the first 7 days. During draft window:
-- Dispatch warns but does not refuse for missing/inconsistent sections.
+- Legacy draft status does not waive dispatch context or integration review.
 - `architecture-audit` runs but defers decision flow.
-- After 7 days, PMO surfaces a P0 nudge: "ARCHITECTURE.md still draft; flip to `active` to enable dispatch gate."
+- After 7 days, PMO surfaces a P0 nudge: "ARCHITECTURE.md still draft; finish the architecture document; existing rules already bind."
 
 ## What this REPLACES from the previous (pre-rework) design
 
@@ -247,7 +200,7 @@ When lazily created, `Status: draft` for the first 7 days. During draft window:
 | `/pmo invariant add/supersede/retire/check` | **Removed.** User edits §6 directly. PMO doesn't gatekeep section edits. |
 | `/pmo audit` mechanical-only scan | **Replaced** by `/pmo architecture-audit` with the two-layer scan (mechanical §6 checks + LLM consistency scan). |
 | Spec field `Touches invariants:` | **Replaced** by `Touches architecture:` referencing §-sections. |
-| Dispatch invariant pre-check (severity-based AskUserQuestion) | **Replaced** by ARCHITECTURE.md prompt injection + agent attestation + independent review agent + hard NN gate. |
+| Dispatch invariant pre-check (severity-based AskUserQuestion) | **Replaced** by bounded architecture context + independent integration review + existing hard NN gate. |
 | OKR `plan-month` reading audit-history | **Replaced** by `okr plan-phase`; now also reads §7 and §8 of `ARCHITECTURE.md`. |
 
 `runbooks.md` and `incidents.md` are NOT changed — they're orthogonal (operability ≠ design). The only cross-link change: the incident close 3-question gate's "Invariant" question becomes "Architecture section" (does this incident reveal that ARCHITECTURE.md is wrong/incomplete?).
@@ -289,7 +242,7 @@ A grep-based invariant catches `import psycopg2`. It cannot catch:
 - An interface that "almost" matches §5 but loses a guarantee.
 - A change consistent with each individual rule but cumulatively drifting the system away from §1 mission.
 
-The independent review agent's job is exactly to catch those. Giving it the FULL architecture doc + the diff + the primary's attestation, and asking it to find inconsistencies, is the cheapest available approximation of "an architect reviews every PR." It's not perfect, but it's the strongest gate we can install without making every dispatch a manual review.
+The independent review agent's job is exactly to catch those. It receives bounded architecture context and the exact integration diff when a trigger fires. The author supplies implementation facts; the fresh reviewer supplies the judgment.
 
 ## Completion routing
 
