@@ -2,38 +2,11 @@
 """
 perry-context-budget — how much context this session is paying for, per turn.
 
-**The number this exists for.** Measured across 25 Perry sessions and 18,941
-turns: 8.43 billion tokens, of which 99.1% is `cache_read` — the accumulated
-context, re-read on every single turn. Output was 0.3%. The largest session ran
-8,174 turns at a mean context of 504,651 tokens and touched 997,717 at its
-peak, compacting 15 times.
-
-So the cost of a long run is not what it loads. It is:
-
-    cost  ≈  Σ over turns ( context size at that turn )
-
-Both factors grow together inside one session, which makes a five-hour run
-superlinear rather than five times a one-hour run. Capping the second factor is
-the single largest lever available without changing what Perry does: on the
-measured sessions, holding context at 200k would have cost 58.3% less, and 300k
-42.3% less, for the same turns.
-
-`autopilot` reads this as a stop check. A run that crosses the ceiling writes a
-handoff and exits, and the next session resumes from the handoff at a fresh
-baseline — which is the whole reason `handoff/` exists.
-
-**It measures; it does not estimate.** The figure is the host's own accounting
-from the session transcript — `cache_read_input_tokens` plus
-`cache_creation_input_tokens` plus `input_tokens` on the most recent turn that
-reported usage. The transcript path and its mtime are printed with every
-answer, so the number is one somebody else can re-derive.
-
-**Read-only.** It opens one transcript and prints. It writes nothing anywhere.
-
-**When it cannot measure, it says so and does not gate.** Only `claude-code`
-keeps a transcript in a known place. On another host the verdict is `unknown`
-and the exit status is 0 — a gate that silently passes is worse than no gate,
-so this one announces that it abstained rather than reporting a clean bill.
+Session cost is accumulated context re-read per turn. The default gate uses
+host transcript accounting: cache-read + cache-creation + input tokens on the
+last measured turn. Only Claude Code has a known transcript location; other
+hosts report unknown and abstain. The transcript path and age are reported.
+Read-only: session modes read transcripts; bills read declared skill files.
 
 Usage:
   perry-context-budget [--ceiling N] [--session <path>] [--json]
@@ -50,6 +23,12 @@ Usage:
                  of, by block type and by the biggest repeated shell commands.
                  This is the diagnosis; the default mode is the gate.
   --json         machine-readable.
+  --bill NAME    static declared byte bill: snapshot, add-task, close-task,
+                 dispatch, plan-phase, or all. No session/project reads.
+  --bill-skill-root PATH  bill-only fixture root; default is this installation.
+                 Bill mode excludes conditional/transitive context; --root,
+                 --session, --composition and --ceiling are incompatible.
+                 Exit 0 within cap (inclusive), 1 over cap, 2 error/unknown.
 
 Exit status:
   0  under the ceiling, or could not measure (verdict `unknown`)
@@ -67,18 +46,10 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import lib  # noqa: E402
-
-#: Fallback when the schema cannot be read. The schema is the one place this
-#: number is declared; this constant exists so a project vendoring the tool
-#: without the schema still gates rather than crashing.
+# Schema fallback for installations missing the schema.
 DEFAULT_CEILING = 200_000
 
-#: How far back from the end of the transcript to look for the last turn that
-#: reported usage. A single record is a few KB; a turn with a large tool result
-#: can be much bigger, and 4 MB has covered every transcript measured. Nothing
-#: breaks past it — the reader falls back to a full scan and says it did.
+# Read the tail first; fall back to a full scan if it has no usage.
 TAIL_BYTES = 4 << 20
 
 
@@ -93,37 +64,17 @@ def parse_size(text: str) -> int:
     return int(float(t) * mult)
 
 
-#: The store key `- Session context ceiling: 200k` mints, per the same
-#: label->key rule every other setting follows.
+# Store setting key follows the label-to-key convention.
 CEILING_SETTING_KEY = "session_context_ceiling"
 
 
 def declared_ceiling(project_root: Path) -> tuple[str | None, str]:
-    """The project's own ceiling and WHICH register answered, or (None, _).
-
-    **`.perry/config.jsonl` is the only register** (ADR-019). This used to read
-    the store first and fall back to `.perry/config.md`, which was the
-    arrangement TASK-233 settled while the markdown still existed; the
-    projection is gone, so the fallback has no subject. A usable store that does
-    not carry the key is an ANSWER — the key is simply not declared — and that
-    was already true before the second register went away.
-
-    The register name still travels with the value, for the reason it always
-    did: a budget that stops a run has to name the file a reader can edit to
-    argue with it.
-
-    Read directly rather than through `viewer.parsers` on purpose: this tool
-    answers a question about the SESSION and must keep working in a directory
-    that is not a Perry project at all.
-    """
+    """The project's own ceiling and WHICH register answered, or (None, _)."""
     store = project_root / ".perry" / "config.jsonl"
     try:
         present = store.exists()
     except OSError:
-        # Unsearchable parent: `Path.exists()` raises instead of answering.
-        # The docstring above says this tool must keep working in a directory
-        # that is not a Perry project, and a directory it may not look inside
-        # is the same answer as one with no store — the defaults stand.
+        # An inaccessible project uses defaults.
         present = False
     if present:
         for raw in store.read_text(errors="replace").split("\n"):
@@ -138,25 +89,12 @@ def declared_ceiling(project_root: Path) -> tuple[str | None, str]:
                     and rec.get("key") == CEILING_SETTING_KEY):
                 value = str(rec.get("value") or "").strip()
                 return (value or None), ".perry/config.jsonl"
-        # The store answered and does not carry the key: nothing is declared,
-        # and the register name would be dead information — the caller only
-        # reads it when there IS a value. Said once here rather than returned
-        # as a string no test can distinguish.
-        return None, ""
     return None, ""
 
 
 def resolve_ceiling(perry_home: Path, project_root: Path,
                     flag: str | None) -> tuple[int, str]:
-    """The ceiling and WHERE it came from, most specific first.
-
-    `--ceiling` beats env `PERRY_CONTEXT_CEILING` beats the project's declared
-    `Session context ceiling` beats the shipped default in
-    `schema § thresholds`. The source travels with the number because a gate
-    that stops a run without saying which register set it is a gate nobody can
-    argue with — and this one stops long runs, which is exactly when somebody
-    will want to.
-    """
+    """The ceiling and WHERE it came from, most specific first."""
     if flag:
         try:
             return parse_size(flag), "--ceiling"
@@ -184,22 +122,13 @@ def resolve_ceiling(perry_home: Path, project_root: Path,
 
 
 def transcript_dir(project_root: Path) -> Path:
-    """Where claude-code keeps this project's transcripts.
-
-    The directory is the project's absolute path with every separator turned
-    into a dash — `/Users/x/proj/Perry` becomes `-Users-x-proj-Perry`.
-    """
+    """Where claude-code keeps this project's transcripts."""
     slug = str(project_root.resolve()).replace(os.sep, "-")
     return Path.home() / ".claude" / "projects" / slug
 
 
 def newest_transcript(project_root: Path) -> Path | None:
-    """The most recently written transcript, which is the live session.
-
-    A session that is running is a session being appended to, so mtime picks it
-    out. This is a heuristic and the report never hides that: the chosen path
-    and its age are printed, and `--session` overrides it.
-    """
+    """The most recently written transcript, which is the live session."""
     d = transcript_dir(project_root)
     if not d.is_dir():
         return None
@@ -213,51 +142,25 @@ def _usage_of(record: dict) -> dict | None:
 
 
 def context_of(usage: dict) -> int:
-    """What the model was charged to read on this turn.
-
-    All three are input-side. `cache_read` dominates by two orders of magnitude
-    and is the one that scales with turns, but a turn right after a compaction
-    carries its context as `cache_creation` instead — summing is the only way
-    the figure does not drop to near zero exactly when the context is largest.
-    """
+    """What the model was charged to read on this turn."""
     return (usage.get("cache_read_input_tokens", 0)
             + usage.get("cache_creation_input_tokens", 0)
             + usage.get("input_tokens", 0))
 
 
 def last_usage(path: Path) -> tuple[dict | None, bool]:
-    """The most recent turn's usage, read from the END of the file.
-
-    Transcripts reach tens of megabytes; a 41 MB file was measured on this
-    project. Reading one from the top to answer a question about its last line
-    is the kind of cost this tool exists to complain about, so it seeks.
-
-    Returns `(usage, scanned_whole_file)` — the second half is reported, not
-    hidden, because a full scan means the tail heuristic did not hold.
-    """
-    size = path.stat().st_size
+    """The most recent turn's usage, read from the END of the file."""
     with path.open("rb") as fh:
-        if size > TAIL_BYTES:
-            fh.seek(size - TAIL_BYTES)
+        if path.stat().st_size > TAIL_BYTES:
+            fh.seek(-TAIL_BYTES, os.SEEK_END)
             fh.readline()          # discard the partial line the seek landed in
             whole = False
         else:
             whole = True
         blob = fh.read()
 
-    found = None
-    for raw in blob.split(b"\n"):
-        if b'"usage"' not in raw:
-            continue
-        try:
-            usage = _usage_of(json.loads(raw))
-        except (ValueError, TypeError):
-            continue
-        if usage:
-            found = usage
-    if found is None and not whole:
-        # The tail carried no usage record. Fall back rather than report zero.
-        for raw in path.read_bytes().split(b"\n"):
+    while True:
+        for raw in reversed(blob.split(b"\n")):
             if b'"usage"' not in raw:
                 continue
             try:
@@ -265,25 +168,15 @@ def last_usage(path: Path) -> tuple[dict | None, bool]:
             except (ValueError, TypeError):
                 continue
             if usage:
-                found = usage
-        whole = True
-    return found, whole
+                return usage, whole
+        if whole:
+            return None, whole
+        # The tail carried no usage record. Fall back rather than report zero.
+        blob, whole = path.read_bytes(), True
 
 
 def composition(path: Path) -> dict:
-    """What the context is MADE of, over the whole transcript.
-
-    The default mode says how big the bill is. This says which line item, and
-    the answer on this project was not the one anybody guessed: across the
-    three largest sessions, `tool_use` INPUT — what the agent types to CALL a
-    tool — was 52% of everything accumulated, twice the 26% its results took.
-    Bash results averaged 202 tokens a call; the commands invoking them
-    averaged 353. The CLI was never the expensive half.
-
-    Bytes are reported as bytes and as an approximate token count at 4 bytes a
-    token, which is a rule of thumb and is labelled as one everywhere it is
-    printed.
-    """
+    """What the context is MADE of, over the whole transcript."""
     blocks = collections.Counter()
     counts = collections.Counter()
     shell = collections.Counter()
@@ -331,22 +224,123 @@ def composition(path: Path) -> dict:
             blocks[key] += size
             counts[key] += 1
 
-    return {
-        "blocks": [
-            {"kind": k, "count": counts[k], "bytes": v,
-             "approx_tokens": v // 4,
-             "approx_tokens_each": v // 4 // max(1, counts[k])}
-            for k, v in blocks.most_common()
-        ],
-        "top_shell": [
-            {"command": k, "calls": shell_n[k], "bytes": v,
-             "approx_tokens": v // 4,
-             "approx_tokens_each": v // 4 // max(1, shell_n[k])}
-            for k, v in shell.most_common(12)
-        ],
-        "total_bytes": sum(blocks.values()),
-        "total_approx_tokens": sum(blocks.values()) // 4,
-    }
+    def ranked(totals, frequencies, name, count, limit=None):
+        return [{name: k, count: frequencies[k], "bytes": v,
+                 "approx_tokens": v // 4,
+                 "approx_tokens_each": v // 4 // max(1, frequencies[k])}
+                for k, v in totals.most_common(limit)]
+
+    return {"blocks": ranked(blocks, counts, "kind", "count"),
+            "top_shell": ranked(shell, shell_n, "command", "calls", 12),
+            "total_bytes": sum(blocks.values()),
+            "total_approx_tokens": sum(blocks.values()) // 4}
+
+
+# Caps are rounded up from the post-split declared byte totals (2026-09-17).
+BILL_BUDGETS = {"snapshot": 80_000, "add-task": 100_000, "close-task": 95_000,
+                "dispatch": 115_000, "plan-phase": 80_000}
+BILL_SCOPE = ("Static declared L0 + L1 + L2 UTF-8 file bytes, not runtime "
+              "transcript usage or tokens. Excludes non-L2 references, rows "
+              "without an explicit matching command, transitive reads and "
+              "conditional/project-specific context (modes, packs, hooks, state).")
+
+
+def command_token(token: str, lane: str) -> str:
+    """Recognize only index command tokens and the shipped CLI prefixes."""
+    words = token.split()
+    if words and words[0].startswith("/") and words[0][1:] in ("pmo", "okr", "perry"):
+        words = words[1:]
+        if words[:1] == [lane]:
+            words = words[1:]
+    return words[0] if words else ""
+
+
+def declared_bill(root: Path, command: str) -> dict:
+    root = root.resolve()
+    lane = "" if command == "snapshot" else "goals" if command == "plan-phase" else "work"
+    files, declarations, excluded = {}, [], []
+
+    def source(path, reference=False):
+        path = path.resolve()
+        relative = path.relative_to(root)  # Reject traversal and symlink escapes before reading.
+        if not path.is_file():
+            raise ValueError(f"missing file: {path}")
+        blob = b"" if reference and not re.fullmatch(r"(?:[^/]+/)?reference/[^/]+\.md", relative.as_posix()) else path.read_bytes()
+        blob.decode("utf-8")
+        return relative.as_posix(), blob
+
+    for path in [root / "SKILL.md"] + ([root / lane / "SKILL.md"] if lane else []):
+        relative, blob = source(path)
+        files[relative] = len(blob)
+    index = root / lane / "SKILL.md"
+    primary = 0
+    columns = None
+    for number, line in enumerate(index.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.startswith("|"):
+            columns = None
+            continue
+        cells = [cell.strip() for cell in re.split(r"(?<!\\)\|", line)[1:-1]]
+        if "Subcommand" in cells and "Reference" in cells:
+            columns = (cells.index("Subcommand"), cells.index("Reference"), True)
+            continue
+        if cells == ["Reference file", "Loaded when running"]:
+            columns = (1, 0, False)
+            continue
+        if columns is None:
+            continue
+        match_col, ref_col, is_primary = columns
+        if len(cells) <= max(match_col, ref_col):
+            raise ValueError(f"malformed index: {index}:{number}")
+        tokens = re.findall(r"`([^`]+)`", cells[match_col])
+        if command not in [command_token(token, lane) for token in tokens]:
+            continue
+        primary += is_primary
+        refs = re.findall(r"`([^`]+)`", cells[ref_col].split(" (", 1)[0])
+        if not refs:
+            raise ValueError(f"missing reference declaration: {index}:{number}")
+        declarations.append({"index": index.relative_to(root).as_posix(),
+                             "line": number, "references": refs})
+        for ref in refs:
+            target = root / ref[len("$PERRY_HOME/"):] if ref.startswith("$PERRY_HOME/") else index.parent / ref
+            relative, blob = source(target, reference=True)
+            if re.fullmatch(r"(?:[^/]+/)?reference/[^/]+\.md", relative):
+                files[relative] = len(blob)
+            else:
+                excluded.append({"path": relative, "reason": "non-L2"})
+    if primary != 1:
+        raise ValueError(f"{command}: expected one Subcommand/Reference row, found {primary}")
+    total, budget = sum(files.values()), BILL_BUDGETS[command]
+    return {"command": command, "files": [{"path": p, "bytes": n} for p, n in files.items()],
+            "total_bytes": total, "budget_bytes": budget,
+            "status": "over" if total > budget else "within",
+            "declarations": declarations, "excluded": excluded}
+
+
+def print_bills(args, root: Path) -> int:
+    report = {"mode": "bill", "skill_root": str(root.resolve()), "scope": BILL_SCOPE, "bills": []}
+    for command in BILL_BUDGETS if args.bill == "all" else [args.bill]:
+        try:
+            bill = declared_bill(root, command)
+        except (OSError, ValueError, RuntimeError) as error:
+            bill = {"command": command, "status": "unknown", "error": str(error)}
+        report["bills"].append(bill)
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(BILL_SCOPE)
+        print(f"skill root: {report['skill_root']}")
+        for bill in report["bills"]:
+            print(f"\n{bill['command']}: {bill['status']}")
+            if "error" in bill:
+                print(bill["error"])
+                continue
+            for item in bill["files"]:
+                print(f"  {item['bytes']:>8} bytes  {item['path']}")
+            print(f"  total {bill['total_bytes']} bytes / budget {bill['budget_bytes']} bytes")
+            for item in bill["excluded"]:
+                print(f"  excluded {item['path']}: {item['reason']}")
+    statuses = {bill["status"] for bill in report["bills"]}
+    return 2 if "unknown" in statuses else int("over" in statuses)
 
 
 def main(argv=None) -> int:
@@ -357,18 +351,26 @@ def main(argv=None) -> int:
     ap.add_argument("--composition", action="store_true")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("-h", "--help", action="store_true")
+    ap.add_argument("--bill", choices=[*BILL_BUDGETS, "all"])
+    ap.add_argument("--bill-skill-root")
     args = ap.parse_args(argv)
 
     if args.help:
         print(__doc__.strip())
         return 0
 
-    # **`--root ""` is a bad invocation, not a default.** `args.root or
-    # $PERRY_PROJECT or cwd` below tests truthiness, so an empty value — the
-    # shape an unset shell variable produces — silently moved this gate onto
-    # whichever project the caller was standing in. The rule and its sentence
-    # live in `lib.empty_root_error`, which is where the other thirteen
-    # `--root` readers ask too.
+    if args.bill:
+        if args.session is not None or args.composition or args.ceiling is not None or args.root is not None:
+            ap.error("--bill cannot combine with --session, --composition, --ceiling or --root")
+        if args.bill_skill_root == "":
+            ap.error("--bill-skill-root must not be empty")
+        return print_bills(args, Path(args.bill_skill_root or Path(__file__).resolve().parent.parent))
+    if args.bill_skill_root is not None:
+        ap.error("--bill-skill-root requires --bill")
+
+    # Empty explicit roots must not fall through to cwd.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import lib
     bad = lib.empty_root_error("--root", args.root)
     if bad is not None:
         print(f"perry-context-budget: {bad}", file=sys.stderr)
@@ -380,20 +382,19 @@ def main(argv=None) -> int:
     ceiling, ceiling_from = resolve_ceiling(perry_home, project_root,
                                             args.ceiling)
 
-    path = Path(args.session) if args.session else newest_transcript(project_root)
-
-    if path is None or not path.exists():
-        report = {
-            "verdict": "unknown", "context": None, "ceiling": ceiling,
-            "ceiling_from": ceiling_from, "transcript": None,
-            "why": ("no transcript for this project — either the host is not "
-                    "claude-code, or this project has no session history. "
-                    "Not gating: a gate that passes silently is worse than "
-                    "none, so this one says it abstained."),
-        }
+    def unknown(path, why):
+        report = {"verdict": "unknown", "context": None, "ceiling": ceiling,
+                  "ceiling_from": ceiling_from, "transcript": str(path) if path else None, "why": why}
         print(json.dumps(report, indent=2) if args.json else
-              f"context  : unknown\nverdict  : UNKNOWN — not gating\nwhy      : {report['why']}")
+              f"context  : unknown\nverdict  : UNKNOWN — not gating\nwhy      : {why}")
         return 0
+
+    path = Path(args.session) if args.session else newest_transcript(project_root)
+    if path is None or not path.exists():
+        return unknown(None, "no transcript for this project — either the host is not "
+                       "claude-code, or this project has no session history. "
+                       "Not gating: a gate that passes silently is worse than "
+                       "none, so this one says it abstained.")
 
     age_min = (time.time() - path.stat().st_mtime) / 60
 
@@ -421,19 +422,7 @@ def main(argv=None) -> int:
 
     usage, whole = last_usage(path)
     if usage is None:
-        # `--json` means JSON on every path, including this one. The first cut
-        # printed prose here, so a caller parsing the output crashed on the one
-        # branch it most needed to read — the branch that says "I did not
-        # measure anything". Found by mutation, not by review.
-        why = f"{path} carries no usage record yet"
-        report = {
-            "verdict": "unknown", "context": None, "ceiling": ceiling,
-            "ceiling_from": ceiling_from, "transcript": str(path), "why": why,
-        }
-        print(json.dumps(report, indent=2) if args.json else
-              f"context  : unknown\nverdict  : UNKNOWN — not gating\n"
-              f"why      : {why}")
-        return 0
+        return unknown(path, f"{path} carries no usage record yet")
 
     context = context_of(usage)
     over = context >= ceiling

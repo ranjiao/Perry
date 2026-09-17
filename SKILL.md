@@ -177,11 +177,12 @@ When `/perry` runs in a project with no Perry state files at all **and step 2 fo
 
 Handled here, not in a lane. `adopt` and `diagnose` span all three lanes, so they are orchestrated here and materialized through the lanes' own subcommands — neither is a fourth writer. Procedures: `reference/router-subcommands.md`
 
-| Subcommand | The rule that governs it |
-|---|---|
-| `/perry adopt [--depth=quick\|standard\|deep] [--only=…] [--resume] [--recheck]` | **Evidence proposes, the user declares.** Five resumable stages: scan, harvest, infer, confirm, commit. Writes one file of its own, `.perry/adoption/<YYYY-MM-DD>-dossier.md`. **Read `reference/adoption.md` first**; sources and trust tiers are `reference/adoption-sources.md`. |
-| `/perry diagnose [--depth=…] [--only=…] [--dry-run] [--resume] [--recheck]` | `adopt` converts a project **into** Perry; `diagnose` asks whether its working structure is sound at all, on any folder. **Every prescription traces to a finding, and every finding to a measurement or an answer the user gave.** Six stages: scan, read, interview, prescribe, execute, recheck. **Zero findings** and pure **subtraction** are first-class. **Read `reference/diagnose.md` first.** |
-| `/perry help [<lane>]` | The three lanes and when to use each. With a lane name or alias, render that lane's own `help`. Does **NOT** trigger the snapshot ritual. |
+| Subcommand | Rule | Reference |
+|---|---|---|
+| `snapshot` | Default. | `reference/snapshot.md` + `reference/host-capabilities.md` + `reference/i18n.md` + `reference/next.md` |
+| `/perry adopt [--depth=quick\|standard\|deep] [--only=…] [--resume] [--recheck]` | **Evidence proposes, the user declares.** Five resumable stages: scan, harvest, infer, confirm, commit. Writes one file of its own, `.perry/adoption/<YYYY-MM-DD>-dossier.md`. Read references first. | `reference/adoption.md` + `reference/adoption-sources.md` |
+| `/perry diagnose [--depth=…] [--only=…] [--dry-run] [--resume] [--recheck]` | `adopt` converts a project **into** Perry; `diagnose` asks whether its working structure is sound at all, on any folder. **Every prescription traces to a finding, and every finding to a measurement or an answer the user gave.** Six stages: scan, read, interview, prescribe, execute, recheck. **Zero findings** and pure **subtraction** are first-class. Read reference first. | `reference/diagnose.md` |
+| `/perry help [<lane>]` | The three lanes and when to use each. With a lane name or alias, render that lane's own `help`. Does **NOT** trigger the snapshot ritual. | (handled here) |
 
 ### `/perry relocate <path>` — moving Perry's state root
 
