@@ -1,0 +1,18 @@
+missing-pointer line 495 restored bytes match git show 779e74675515a6d669e4c8317c3f583201d86ff2
+self-attestation line 331 restored bytes match git show 779e74675515a6d669e4c8317c3f583201d86ff2
+[
+  {
+    "name": "reader",
+    "base": "779e74675515a6d669e4c8317c3f583201d86ff2",
+    "head": "2c3ab714d6cbec8af5fbde77719a5464278144af",
+    "path": "viewer/parsers.py",
+    "diff": "/private/tmp/perry-scratch/task-455/phase004/reader.diff"
+  },
+  {
+    "name": "evidence",
+    "base": "779e74675515a6d669e4c8317c3f583201d86ff2",
+    "head": "3e39fbdb30af44d20edf24ce3ea9cd616e7164c9",
+    "path": "perry/evidence/2026-09/architecture-walkthrough.md",
+    "diff": "/private/tmp/perry-scratch/task-455/phase004/evidence.diff"
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "packs/software-ops/architecture.md": {
+    "git_sha256": "861d25f68347974982920403e8c776e5768e678e24acbc2d609fa110029b1250",
+    "file_sha256": "861d25f68347974982920403e8c776e5768e678e24acbc2d609fa110029b1250",
+    "equal": true
+  },
+  "tests/test_spec_scannability.py": {
+    "git_sha256": "a35635f3bffb4c97729414c5a2187b37560cfcbbb41c55f5d7f7d49ad481d9a7",
+    "file_sha256": "a35635f3bffb4c97729414c5a2187b37560cfcbbb41c55f5d7f7d49ad481d9a7",
+    "equal": true
+  },
+  "work/reference/dispatch.md": {
+    "git_sha256": "440a4d3b905b937a08619f3acae6a6049161e7e2b04e74ea9d79b8631752003a",
+    "file_sha256": "440a4d3b905b937a08619f3acae6a6049161e7e2b04e74ea9d79b8631752003a",
+    "equal": true
+  },
+  "work/reference/review.md": {
+    "git_sha256": "178374bd631513099908adcb28ed87649d90279b79ce2a9c4130a19987f79205",
+    "file_sha256": "178374bd631513099908adcb28ed87649d90279b79ce2a9c4130a19987f79205",
+    "equal": true
+  }
+}

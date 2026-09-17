@@ -1,0 +1,9 @@
+{
+  "ARCHITECTURE.md": "9ec42ef11570db157b309dd2c6dc1a880ebb2bd51858ac0d9cd86e3e749ae561",
+  "bin/ARCHITECTURE.md": "95584527bd1644c6950a66fe82415bddae1dc2773449c7752b68a03dfea8e473",
+  "reference/host-capabilities.md": "c8e068c63a24486cf107474e068ee8b8b1612252ce4be41b342083efbc00b10c",
+  "work/reference/git-boundaries.md": "ac47d379109884a1ace569273be66f2b279ff3a5ac3aa70751da8ad3818ce917",
+  "schema/state-schema.json": "8357997aad8c49e24710eeadd97be29e0072281fd69aefcfbe906a07cc6f05ba",
+  "preflight-4": "fe7032e937613d79df0d36c11c1de4891e635946a36ee9948611e41420a9cb8b",
+  "scratch-isolation": "12e880bf0f86bbf7ea42b4e39e1413a96c17df0bee710177ad889324c143d644"
+}

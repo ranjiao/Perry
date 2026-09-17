@@ -1,0 +1,61 @@
+tier affected · 3034c249b8f116c5e1ae975685bbf9358a4471b2...HEAD · 4 changed path(s) · running the modules below
+  test_actor_required.py                       covers work/: work/reference/dispatch.md
+  test_blank_cell_is_one_rule.py               COVERS = ALL
+  test_claims.py                               covers tests/test_: tests/test_spec_scannability.py
+  test_escalation_boundaries.py                covers work/reference/dispatch.md: work/reference/dispatch.md
+  test_host_support.py                         covers packs/software-ops/architecture.md: packs/software-ops/architecture.md
+  test_live_state_expectations.py              covers tests/test_: tests/test_spec_scannability.py
+  test_merge_gate.py                           covers work/reference/dispatch.md: work/reference/dispatch.md
+  test_module_run_guard.py                     covers tests/: tests/test_spec_scannability.py
+  test_next_closing.py                         covers packs/software-ops/: packs/software-ops/architecture.md
+  test_ownership.py                            covers packs/: packs/software-ops/architecture.md
+  test_pointers_resolve.py                     covers packs/: packs/software-ops/architecture.md
+  test_procedures_call_the_tool.py             covers packs/: packs/software-ops/architecture.md
+  test_procedures_read_the_contract.py         covers packs/: packs/software-ops/architecture.md
+  test_reference_pages_are_reachable.py        covers work/: work/reference/dispatch.md
+  test_restore_check.py                        covers work/reference/review.md: work/reference/review.md
+  test_review_verdicts.py                      covers work/reference/review.md: work/reference/review.md
+  test_role_cards.py                           covers packs/software-ops/: packs/software-ops/architecture.md
+  test_router_budget.py                        covers packs/: packs/software-ops/architecture.md
+  test_scratch_is_per_agent.py                 covers work/reference/dispatch.md: work/reference/dispatch.md
+  test_shipped_vocabulary.py                   covers packs/: packs/software-ops/architecture.md
+  test_spec_scannability.py                    changed: tests/test_spec_scannability.py
+  test_starts_write_the_config_store_first.py  covers work/: work/reference/dispatch.md
+selected 22 of 158 modules · 210.0 of 1723.3 module-seconds (12.2%)
+  held back — test_merge_gate.py is the slow tier's (tests/parallel § HARNESS_SELF_TESTS): run `bash tests/run --tier slow`
+
+[31m✗ test_spec_scannability.py[0m — 1 of 71 test(s) failed
+    FAIL   test_spec_scannability.TestTheAgentGetsItsOwnTree.test_the_governed_regions_are_pinned
+  [33m… 255 earlier line(s) elided of 280; the last 25 follow — re-run this module alone for all of it[0m
+paragraph, plus the whole of § `Executor: claude-subagent` below, is pinned
+byte-for-byte by `tests/test_spec_scannability.py::TestTheAgentGetsItsOwnTree`:
+a sentence added, removed or reworded anywhere in it reddens a named test, and
+re-pinning is a deliberate second edit in the same commit. Everything from the
+next heading to the end of this section is **rationale, and deliberately not
+pinned**, so the two observed failures and the argument can be improved without
+touching a test. Nothing there grants an exception — a sentence in it that reads
+like one is a defect, not a rule. Normative text goes above this paragraph.
+
+### Why it is a rule and not a preference
+### `Executor: claude-subagent` (Claude Code only)
+
+- **Host gate**: requires `$HOST = claude-code`. On OpenCode or Codex this executor is unavailable — refuse per the strict matrix in `../../reference/host-capabilities.md`.
+- Use the `Agent` tool with `subagent_type: general-purpose`.
+- Build prompt = **`ARCHITECTURE.md` full text + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + RESULT format including the mandatory `ARCHITECTURE COMPLIANCE` block (see § Architecture compliance RESULT).
+- Async-ness from spec's size hint: `Estimated cycle: small` → `run_in_background: false`; `medium | large` → `run_in_background: true`.
+- **Pass `isolation: "worktree"`. It is not optional** — see § The tree the agent works in, below.
+- **Include the `perry-scratch-derivation` block verbatim** — see § Where the agent puts a scratch file. A prompt that hands out a shared directory and asks the agent to namespace inside it is the defect that section exists to remove; it has been observed five times.
+- Sub-agent shares parent cwd, and that is a fact about the *process*, not a licence for the *tree*: without `isolation`, the agent's `git checkout -b` moves the shared working tree, and every other lane's writes land on its branch. For split-repo projects: instruct sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
+
+
+----------------------------------------------------------------------
+Ran 71 tests in 5.166s
+
+FAILED (failures=1)
+
+21 modules · 569 tests · 25.2s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[31m✗ 1 of 21 MODULE(S) red[0m
+[31m✗ 1 of 569 TEST(S) failed[0m

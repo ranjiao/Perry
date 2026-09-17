@@ -1,0 +1,21 @@
+
+[1m0. tree guard — recording /private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-455[0m
+  · recorded
+
+[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+perry-lint · templates in /private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-455
+  ✓ clean — every state file matches schema/state-schema.json
+
+[1m2. skipped — the smoke tier runs no test module[0m
+  · its checks are steps 1 and 3, and step 0's hash check
+  · for the modules a change selects: --tier affected --base <ref>
+
+[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+  ✓ all bin/ scripts OK
+
+[1m4. skipped — not in the smoke tier (--tier smoke)[0m
+
+[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+  ✓ nothing under /private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-455 moved
+
+[32m✓ green for --tier smoke — this is NOT a green suite[0m

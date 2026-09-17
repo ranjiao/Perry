@@ -1,0 +1,7 @@
+missing-pointer.md PASS failures=0 errors=0
+missing-pointer.restored.md PASS failures=0 errors=0
+Restoration independently matches committed source.
+self-attestation.md FAIL failures=1 errors=0
+self-attestation.restored.md PASS failures=0 errors=0
+Restoration independently matches committed source.
+Missing-pointer mutation is outside the existing pinned region: requires fresh semantic reviewer, not a claimed structural detection.

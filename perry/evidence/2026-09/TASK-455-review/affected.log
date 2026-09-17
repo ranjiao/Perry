@@ -1,0 +1,31 @@
+tier affected · 3034c249b8f116c5e1ae975685bbf9358a4471b2...HEAD · 4 changed path(s) · running the modules below
+  test_actor_required.py                       covers work/: work/reference/dispatch.md
+  test_blank_cell_is_one_rule.py               COVERS = ALL
+  test_claims.py                               covers tests/test_: tests/test_spec_scannability.py
+  test_escalation_boundaries.py                covers work/reference/dispatch.md: work/reference/dispatch.md
+  test_host_support.py                         covers packs/software-ops/architecture.md: packs/software-ops/architecture.md
+  test_live_state_expectations.py              covers tests/test_: tests/test_spec_scannability.py
+  test_merge_gate.py                           covers work/reference/dispatch.md: work/reference/dispatch.md
+  test_module_run_guard.py                     covers tests/: tests/test_spec_scannability.py
+  test_next_closing.py                         covers packs/software-ops/: packs/software-ops/architecture.md
+  test_ownership.py                            covers packs/: packs/software-ops/architecture.md
+  test_pointers_resolve.py                     covers packs/: packs/software-ops/architecture.md
+  test_procedures_call_the_tool.py             covers packs/: packs/software-ops/architecture.md
+  test_procedures_read_the_contract.py         covers packs/: packs/software-ops/architecture.md
+  test_reference_pages_are_reachable.py        covers work/: work/reference/dispatch.md
+  test_restore_check.py                        covers work/reference/review.md: work/reference/review.md
+  test_review_verdicts.py                      covers work/reference/review.md: work/reference/review.md
+  test_role_cards.py                           covers packs/software-ops/: packs/software-ops/architecture.md
+  test_router_budget.py                        covers packs/: packs/software-ops/architecture.md
+  test_scratch_is_per_agent.py                 covers work/reference/dispatch.md: work/reference/dispatch.md
+  test_shipped_vocabulary.py                   covers packs/: packs/software-ops/architecture.md
+  test_spec_scannability.py                    changed: tests/test_spec_scannability.py
+  test_starts_write_the_config_store_first.py  covers work/: work/reference/dispatch.md
+selected 22 of 158 modules · 210.0 of 1723.3 module-seconds (12.2%)
+  held back — test_merge_gate.py is the slow tier's (tests/parallel § HARNESS_SELF_TESTS): run `bash tests/run --tier slow`
+
+21 modules · 569 tests · 32.5s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ green for --tier affected — this is NOT a green suite[0m
