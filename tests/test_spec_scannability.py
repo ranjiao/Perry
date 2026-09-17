@@ -856,17 +856,17 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
     #: that re-pinning is a copy of a value you have just read the diff for and
     #: not a script you can run without looking.
     GOVERNED_SHA = {
-        # Re-pinned by TASK-381, which replaced the `State the worktree's
+        # TASK-455 re-pins only Claude brief context/RESULT; scratch/isolation unchanged.
+        # TASK-381 replaced the `State the worktree's
         # branch point` bullet with the full protocol: the brief PINS the base
         # SHA, the agent ASSERTS it, fast-forwards its own branch only, and
         # reports what it found either way. **The diff was read before this
         # digest was pasted** — 6 lines out, 36 in, one bullet, nothing else in
         # the file moved, and the 2026-09-02 incident sentence was restored
         # after a first draft dropped it: the record accumulates rather than
-        # being swapped. Previous pin, TASK-421:
         # 3780eb88a43b3d0aede6306e42f8580cc65998f7cf43a6438e4ccb8f1f2f641c
         "dispatch.md § the tree + § Executor: claude-subagent":
-            "0338efa0df46fc8d09a6a8938e4c85eeb2388ef7161607c7c40c390a6ca79f3c",
+            "eadb199709db6f5ac79902af3aa432c2bda2d230c3d6bdd883e410cf4a9198fe",
         # Re-pinned by TASK-237 3d: the PMO row's work-docs list named
         # `BOARD.md`, which TASK-237 3c deleted, and now names `tasks.jsonl`
         # (the signed hand-off contract's `work` row, V5 2026-09-14); the
