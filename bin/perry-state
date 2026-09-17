@@ -1566,26 +1566,11 @@ def encode_risk(r):
 
 
 def encode_linkage_objective(obj, *, status_by_id, events,
-                             events_present, linkage_records=None):
-    """One objective from the store, with each KR's `current` carrying the
-    provenance the record cannot state for itself.
+                             events_present, linkage_records=None, checks_by_kr=None):
+    """Attach shared current provenance and DESIGN-022 typed check positions.
 
-    **`updated` is gone from this signature, and that is TASK-155's fix.** It
-    was `phase/<NNN>-linkage.md`'s one file-level stamp, passed in here and
-    used as the assertion date of every KR in the phase. Each KR now carries
-    its own `asserted_at`, read off its own `kr` record.
-
-    Same rule as `encode_risk` one function up: the register STORES a number
-    and the thing a reader needs — whether it can still be trusted — is derived
-    at read time, because a stored verdict is stale the morning after it is
-    written. `target` and `current` are untouched; what is added beside them is
-    who asserted `current` and when, whether a linked task has moved since, and
-    a separate count of how many of those tasks are closed.
-
-    **The count is not the number.** `bin/lib § kr_progress_provenance` carries
-    the argument in full; the short version is that "TASK-091 is closed" does
-    not establish that the regex that task deleted now occurs zero times, and
-    only re-running the count does.
+    Legacy current/target remain independent of declared checks. Task closure
+    is provenance, never a substitute for a check measurement (TASK-155).
     """
     out = encode(obj)
     for encoded, kr in zip(out.get("krs") or [], getattr(obj, "krs", []) or []):
@@ -1593,11 +1578,11 @@ def encode_linkage_objective(obj, *, status_by_id, events,
             kr.current, kr.tasks, asserted_at=getattr(kr, "asserted_at", ""),
             status_by_id=status_by_id, events=events,
             events_present=events_present,
-            # DESIGN-015 § 6 row F. `None` for every KR but the one the
-            # dispatch table names, and for that one the returned mapping
-            # carries `current` and replaces the register's.
+            # DESIGN-015 §6 F: only dispatched metrics override current.
             computed=lib.computed_kr_current(
                 kr.id, linkage_records=linkage_records, events=events)))
+        encoded.update(lib.kr_position((checks_by_kr or {}).get((kr.id, ""), []),
+                                       task_ids=kr.tasks or [], events=events))
     return out
 
 
@@ -1962,11 +1947,13 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # and the store have been folded together, and the measurement needs the
     # raw records: `via` is a record field with no counterpart on `Linkage`.
     _linkage_records = P.load_linkage_store(root)
+    _checks_by_kr = lib.kr_checks(_linkage_records)
     linkage_objectives = [
         encode_linkage_objective(o,
                                  status_by_id=_status_by_id, events=_events,
                                  events_present=_events_present,
-                                 linkage_records=_linkage_records)
+                                 linkage_records=_linkage_records,
+                                 checks_by_kr=_checks_by_kr)
         for o in link.objectives] if link.ok else []
     _kr_rows = [k for o in linkage_objectives for k in (o.get("krs") or [])]
     stale_krs = [k["id"] for k in _kr_rows if k["current_staleness"]["stale"]]
@@ -2385,19 +2372,11 @@ def _number(value) -> bool:
 
 
 def next_kr_progress(payload: dict) -> tuple[dict, str]:
-    """The current phase's commit key results: measured, met, unmeasured.
+    """Count commit KRs from shared typed positions; due values remain measured.
 
-    Read from `linkage.objectives[].krs[]` — the `current` and `target` this
-    payload already carries — and nothing else. A commit KR is one whose
-    `stretch` is not `true`. It is **measured** when both numbers are present,
-    and **met** when `current >= target`, except that a target of `0` is met
-    only at `0`: a key result aiming at zero drives a count down, and reading
-    `current >= 0` as met would call every such KR met before its work starts
-    (`bin/lib § kr_progress_provenance` names that failure). No `metric` prose
-    is read to decide a direction.
-
-    Returns `(counts, why)`. `why` is non-empty when the counts themselves
-    cannot be told."""
+    No legacy numeric pair or metric prose supplies a declaration. Return an
+    explanation when linkage cannot establish the current phase's counts.
+    """
     phase = payload.get("phase")
     if not phase:
         return {}, ""
@@ -2409,15 +2388,11 @@ def next_kr_progress(payload: dict) -> tuple[dict, str]:
         return {}, (f"the linkage store describes phase "
                     f"{linkage.get('phase') or '(none)'}, not the current phase "
                     f"{phase.get('slug')}")
-    commit = [kr for o in linkage.get("objectives") or []
-              for kr in (o.get("krs") or []) if kr.get("stretch") is not True]
-    measured = [kr for kr in commit
-                if _number(kr.get("current")) and _number(kr.get("target"))]
-    met = [kr for kr in measured
-           if (kr["current"] <= 0 if kr["target"] == 0
-               else kr["current"] >= kr["target"])]
-    return {"commit_total": len(commit), "measured": len(measured),
-            "met": len(met), "unmeasured": len(commit) - len(measured)}, ""
+    counts = lib.objective_kr_summary([
+        kr for o in linkage.get("objectives") or [] for kr in o.get("krs") or []])
+    return {"commit_total": counts["total"], "measured": counts["measured"],
+            "met": counts["met"],
+            "unmeasured": counts["total"] - counts["measured"]}, ""
 
 
 def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
@@ -2478,7 +2453,7 @@ def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
     elif counts["unmeasured"]:
         unknown[ratio] = (f"{counts['unmeasured']} of {counts['commit_total']} "
                           f"commit key results in phase {facts['phase.number']} "
-                          f"have no current value or no target")
+                          f"lack declared checks or required check measurements")
     else:
         facts[ratio] = counts["met"] / counts["measured"]
 
