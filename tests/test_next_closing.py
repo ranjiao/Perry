@@ -138,5 +138,5 @@ class PayloadScenarios(unittest.TestCase):
         self.assertEqual(block['alternates'], [])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

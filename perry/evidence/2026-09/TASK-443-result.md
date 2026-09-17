@@ -84,3 +84,9 @@ Refused config changes do not write (NN-3). Recommendation selection stays in
 perry-state; agents only render and route an explicit choice (NN-4). Fixtures
 write temporary projects, never the running tree (NN-5). No architecture or
 contract changes (NN-6). No cross-lane state ownership change.
+
+Independent review found the new test's single-quoted main guard conflicts with
+the existing test_claims whole-file guard. Changed only its quote spelling to
+that guard's supported double-quoted form. Clean-env targeted rerun:
+`python3 tests/parallel test_next_closing test_claims` — 2 modules, 38 tests,
+11.8 seconds, PASS. Product behavior is unchanged.
