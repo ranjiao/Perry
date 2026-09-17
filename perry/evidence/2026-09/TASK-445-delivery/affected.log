@@ -1,0 +1,32 @@
+tier affected · 5b9f72d903e233ab06ad854f4b3774e2d68b2bd5...HEAD · 3 changed path(s) · running the modules below
+  test_actor_required.py                       covers reference/: reference/user-load.md
+  test_add_refuses_without_an_answer.py        covers work/reference/subcommands.md: work/reference/subcommands.md
+  test_blank_cell_is_one_rule.py               COVERS = ALL
+  test_cadence.py                              covers work/reference/subcommands.md: work/reference/subcommands.md
+  test_claims.py                               covers reference/: reference/user-load.md
+  test_heading_title.py                        covers reference/user-load.md: reference/user-load.md
+  test_host_support.py                         covers work/reference/: work/reference/review.md
+  test_intake_signal.py                        covers work/reference/subcommands.md: work/reference/subcommands.md
+  test_missing_defaults.py                     covers work/reference/subcommands.md: work/reference/subcommands.md
+  test_next_closing.py                         covers work/reference/: work/reference/review.md
+  test_ownership.py                            covers reference/: reference/user-load.md
+  test_pointers_resolve.py                     covers reference/: reference/user-load.md
+  test_procedures_call_the_tool.py             covers reference/: reference/user-load.md
+  test_procedures_read_the_contract.py         covers reference/: reference/user-load.md
+  test_reference_pages_are_reachable.py        covers reference/: reference/user-load.md
+  test_restore_check.py                        covers work/reference/review.md: work/reference/review.md
+  test_review_verdicts.py                      covers work/reference/review.md: work/reference/review.md
+  test_router_budget.py                        covers reference/: reference/user-load.md
+  test_shipped_vocabulary.py                   covers reference/: reference/user-load.md
+  test_spec_scannability.py                    covers work/reference/: work/reference/review.md
+  test_starts_write_the_config_store_first.py  covers work/: work/reference/review.md
+  test_stranded_rows.py                        covers work/reference/subcommands.md: work/reference/subcommands.md
+  test_task_writer_contracts.py                covers reference/user-load.md: reference/user-load.md
+  test_work_modes.py                           covers work/reference/subcommands.md: work/reference/subcommands.md
+selected 24 of 158 modules · 253.1 of 1723.3 module-seconds (14.7%)
+
+24 modules · 811 tests · 30.2s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ green for --tier affected — this is NOT a green suite[0m

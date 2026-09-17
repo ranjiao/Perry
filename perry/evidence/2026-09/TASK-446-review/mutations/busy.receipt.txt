@@ -1,0 +1,2 @@
+Deleted exact line 16: - USER-006 “Choose language”: Choose English or Chinese.
+Reviewer judgment: REJECT; this source fact is absent in both views.

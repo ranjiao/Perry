@@ -1,0 +1,4 @@
+USER-101 — Save location · pending
+For you: local files work offline; shared storage lets teammates read them.
+Recommend: local for solo work. Options: local/offline; shared/team access.
+Details: examples.md#save-location

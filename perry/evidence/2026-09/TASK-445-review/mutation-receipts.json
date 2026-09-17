@@ -1,0 +1,39 @@
+[
+  {
+    "path": "reference/user-load.md",
+    "mutation": "exact base blob (reverting complete bounded fix)",
+    "mutant_sha256": "7b98b2fb74bb649702579dc93aa73f95338fcbe5f94165d722a4944b2063f328"
+  },
+  {
+    "path": "work/reference/subcommands.md",
+    "mutation": "exact base blob (reverting complete bounded fix)",
+    "mutant_sha256": "dd3eaa0b5720053679dcbf24fe6958ac45173a4bd7b9259c15397035bb925b28"
+  },
+  {
+    "path": "work/reference/review.md",
+    "mutation": "exact base blob (reverting complete bounded fix)",
+    "mutant_sha256": "2ffff9502fff99bd43cf8d7244d9883df82dc3753c50e8bb520db9538776fe7f"
+  },
+  {
+    "mutation_tier_exit": 0,
+    "interpretation": "mechanical tier only; reviewer semantic judgment in scenarios.md"
+  },
+  {
+    "path": "reference/user-load.md",
+    "restored_sha256": "8545972f8c697312003b9bc4f86bd9345dd4fd35a160e2e4ea7df40135dd49ff",
+    "head_blob_sha256": "8545972f8c697312003b9bc4f86bd9345dd4fd35a160e2e4ea7df40135dd49ff",
+    "exact_match": true
+  },
+  {
+    "path": "work/reference/subcommands.md",
+    "restored_sha256": "1935b5f0ceeca889e9ca34bf8dca41f97afb6c8b87474f3f0fba6de7ecde44cc",
+    "head_blob_sha256": "1935b5f0ceeca889e9ca34bf8dca41f97afb6c8b87474f3f0fba6de7ecde44cc",
+    "exact_match": true
+  },
+  {
+    "path": "work/reference/review.md",
+    "restored_sha256": "607c9cbd240cf986b75f4808b495b1a5cd722eb00871f176f0702767866baeb4",
+    "head_blob_sha256": "607c9cbd240cf986b75f4808b495b1a5cd722eb00871f176f0702767866baeb4",
+    "exact_match": true
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "head": "eeb986975ee21d63840f84f6c91b3312e260fff3",
+  "reviewer_card_counts": [
+    254,
+    252,
+    267,
+    269
+  ],
+  "author_card_counts": [
+    221,
+    228,
+    274,
+    244
+  ],
+  "length_boundary": {
+    "600": "ACCEPT",
+    "601": "REJECT",
+    "restored": 254,
+    "truncated": false
+  },
+  "spec_sha256": "0411076e20c838eb5dea49a5cfabea2da1527d57bf58135961a5512f2377f3b7"
+}

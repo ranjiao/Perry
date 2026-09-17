@@ -1,0 +1,4 @@
+<USER-ID> — Export delivery · pending
+For you: download keeps the export on your laptop; email sends it outside the app.
+Recommend: download to avoid sending it accidentally. Options: download/local; email/external delivery.
+Details: scenarios.md#pending

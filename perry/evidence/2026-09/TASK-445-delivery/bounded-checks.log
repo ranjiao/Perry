@@ -1,0 +1,10 @@
+Card 1: 221 <= 600 PASS
+Card 2: 228 <= 600 PASS
+Card 3: 274 <= 600 PASS
+Card 4: 244 <= 600 PASS
+REJECT: 601 exceeds 600 Unicode code points
+Revert: original card restored byte-for-byte; <=600 PASS
+Semantic mutation: remove ask/answer from immediately-answered scenario; implement CSV before any USER record.
+Implementer semantic verdict: REJECT under Record before action; explicit conversation alone does not supply the required record.
+Revert: restore ask -> returned USER-102 -> answer Use CSV -> action. Implementer semantic verdict: PASS.
+Independent reviewer must verify the semantic verdict; this script counts text only, not meaning.

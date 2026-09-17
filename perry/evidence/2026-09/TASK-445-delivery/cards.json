@@ -1,0 +1,6 @@
+[
+  "USER-101 — Save location · pending\nFor you: local files work offline; shared storage lets teammates read them.\nRecommend: local for solo work. Options: local/offline; shared/team access.\nDetails: examples.md#save-location",
+  "USER-102 — Export format · answered\nFor you: CSV opens in your spreadsheet; JSON keeps nested fields.\nRecommend: CSV for your sheet. Options: CSV/table; JSON/structured data.\nAnswer: “Use CSV.”\nDetails: examples.md#export-format",
+  "USER-103 — Offline export scope · prior authority\nFor you: the spec now states exports work without a network.\nRecorded answer: “Include offline CSV export.” Recommend: apply that requirement; keeping network-only export conflicts with it.\nDetails: examples.md#offline-scope",
+  "Agent-decided — Preview spacing\nFor you: more rows fit on screen.\nRecommend/selected: compact spacing. Alternative: roomy spacing for easier reading.\nRevisit: restore roomy spacing if reading becomes harder.\nDetails: examples.md#preview-spacing"
+]

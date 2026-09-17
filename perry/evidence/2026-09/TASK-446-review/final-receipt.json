@@ -1,0 +1,9 @@
+{
+  "head": "1ea193f8b22b9f7e15825a35d8c13134bc032903",
+  "status": "",
+  "diff_check_exit": 0,
+  "hashes": {
+    "reference/snapshot.md": "a115a2bae533f6781d3c2cd791d64b9c7ea88790be163f403abffd32bea191e6",
+    "reference/next.md": "b701dab0432eb8e4cbcdc6cb618502fee845fd9725bd846b3c2059c4a952348f"
+  }
+}

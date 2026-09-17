@@ -1,0 +1,16 @@
+{
+  "tested_sha": "eeb986975ee21d63840f84f6c91b3312e260fff3",
+  "base": "5b9f72d903e233ab06ad854f4b3774e2d68b2bd5",
+  "PERRY_HOME": "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-task-445",
+  "PERRY_PROJECT": null,
+  "TMPDIR": "/tmp/perry-scratch/review-task-445/phase004/tmp",
+  "clean_status": true,
+  "diff_check": true,
+  "exact_head_hashes_verified": true,
+  "changed_paths": [
+    "reference/user-load.md",
+    "work/reference/review.md",
+    "work/reference/subcommands.md"
+  ],
+  "python_test_net_lines": 0
+}

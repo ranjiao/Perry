@@ -1,0 +1,113 @@
+diff --git a/reference/user-load.md b/reference/user-load.md
+index 55a4c906..419fea79 100644
+--- a/reference/user-load.md
++++ b/reference/user-load.md
+@@ -85,6 +85,63 @@ project's equivalent — and marked as agent-decided, with what would trigger a
+ revisit. The user must be able to find, later, every call that was made without
+ them. Silent autonomy is a worse failure than over-asking.
+
++## Decision card and recorded authority
++
++Use one visible card per user decision, **at most 600 Unicode code points**
++including its ID/title, spaces, line breaks and any link text and target.
++Measure the complete authored card before presenting it (for example, Python
++`len(card)` on the exact Unicode string); a 601-character card must be rewritten.
++Do not silently truncate it. Keep the full technical explanation in evidence,
++one link away, and retain that pointer in the card when details are needed.
++
++```text
++<USER-ID> — <plain-language title> · <pending / answered / prior authority>
++For you: <concrete consequence of the choice>.
++Recommend: <answer and why>. Options: <A and consequence>; <B and consequence>.
++Details: <evidence path or link, when needed>.
++```
++
++For an answered card, label the actual answer separately from the recommendation.
++For prior authority, state the recorded answer and the action it covers. Both
++still fit the same cap. Present at most three open decisions at a time; queue
++the rest explicitly. A details link is not a substitute for stating the user
++consequence in the card, and opening or receiving evidence is not approval.
++
++### Record before action
++
++The **agent judges** whether an utterance is a user decision and what its scope
++is; tools transport typed records only. Before acting on a new user decision,
++PMO uses the existing `perry-task ask` and `perry-task answer` writers (see
++[ask/answer instructions](../work/reference/subcommands.md#user-input-queue)).
++Use the ID returned by `ask`, never an invented ID. A pending question stays
++unanswered and its dependent action waits. If the user already gave an explicit
++answer in the conversation, create the ask and record that actual answer
++immediately, **before** the dependent action; do not ask it again merely to
++complete the record. A dispatched executor hands missing records to PMO and
++waits for them rather than writing a foreign or copied store.
++
++First check existing recorded authority. If it covers this action, cite and
++reuse its actual USER ID without re-asking or broadening its scope. A spec
++amendment states the change and cites the USER ID authorizing it; an implementing
++commit cites its actual authorizing USER ID in the commit message. If authority
++does not cover the amendment, obtain and record a new decision before changing
++the spec or implementing it. A citation alone does not establish scope.
++
++Never manufacture a user answer from elapsed time, ambiguous assent, an agent's
++choice, or an unread report. Clarify an ambiguous decision before dependent
++action. Preserve the user's original scope and all existing named-human and
++high-stakes requirements; the escape hatch above cannot discharge those gates.
++
++Reversible choices made under the autonomy guidance above remain explicitly
++**agent-decided**, with a reason and revisit trigger in the project's decision
++log. They are not user decisions and do not acquire a USER answer. If the user
++delegates a choice, record the actual delegation; label the resulting agent
++selection as agent-decided, not as the user's selection.
++
++Length is a deterministic check. Whether an answer is explicit, an authority
++covers an action, or a choice belongs to the agent is a semantic review against
++the conversation and records, not Python natural-language classification.
++
+ ## Failure 2 · Identifiers the user cannot resolve
+
+ Stable IDs are genuinely good: precise, greppable, survive renames, keep a
+diff --git a/work/reference/review.md b/work/reference/review.md
+index 5a6d8f78..825544fc 100644
+--- a/work/reference/review.md
++++ b/work/reference/review.md
+@@ -124,6 +124,11 @@ to infer the bar; an inferred bar is the failure mode above.
+ The criteria are written **by the author, before the round**. Criteria written
+ after a FAIL are a negotiation with the result.
+
++For a spec amendment, follow the shared [decision card and recorded authority](../../reference/user-load.md#decision-card-and-recorded-authority)
++procedure: cite the actual USER ID authorizing the change before applying it,
++and carry the actual authorizing USER ID into the implementing commit. Reuse
++recorded authority only within its scope; a review finding is not user approval.
++
+ ### The criteria must be bounded
+
+ A criterion is bounded when the author can name, **before the round**, the
+@@ -458,7 +463,9 @@ deliverable is no longer a fix, it is the choice:
+                                  --blocks <TASK-ID>
+ ```
+
+-Write it the way USER-905 was written, because that is the one that worked:
++Present this ask using the shared [decision card](../../reference/user-load.md#decision-card-and-recorded-authority),
++with the full technical comparison in linked evidence. In that evidence,
++write it the way USER-905 was written, because that is the one that worked:
+ state the two readings so each is defensible **applied consistently**, show
+ that the current code holds both, name your recommendation with its reason,
+ and say what is already true (which tool computes the rule today, what is
+diff --git a/work/reference/subcommands.md b/work/reference/subcommands.md
+index a334e9de..855015ee 100644
+--- a/work/reference/subcommands.md
++++ b/work/reference/subcommands.md
+@@ -155,7 +155,13 @@ Then walk the rows the payload returned. For each open row:
+
+ It re-stamps `Stage since` in the same write and refuses a stage outside the track's declared vocabulary. The rule applies wherever `Stage` changes. `close-task` is in this same file and does load it; `dispatch` and `autopilot` are not, so the invariant is restated in `reference/dispatch.md` and `reference/autopilot.md` rather than relying on this one. Hand-editing the cell leaves the clock reading from whenever the row was created, and pipeline triage's first question then measures nothing. Changing a row's `Stage` sets `Stage since` to today **in the same edit**, and writes the move into today's journal `## Status changes` line alongside any `Status` change. This is the rule that makes dwell time real: `Stage` and `Status` are orthogonal by design, so a `draft → review` move produces no `Status` change and would otherwise leave no trace anywhere. A stage moved without its timestamp is a clock that reads whatever it read last.
+
++<a id="user-input-queue"></a>
++
+ **Asking the user something, and recording their answer, go through the tool.**
++Use the shared [decision card and recorded authority](../../reference/user-load.md#decision-card-and-recorded-authority)
++procedure for presentation, immediate answers, reuse of authority and recording
++before action. PMO owns these writes; a tool accepting a record does not certify
++that the user authorized the action.
+
+ ```
+ "$PERRY_HOME/bin/perry-task" ask --actor <actor> --needed "<the question>" [--blocks <TASK-ID>]

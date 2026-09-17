@@ -1,0 +1,12 @@
+DESIGN-017  —  The architecture document is written by the agent and decided by the user
+  kind       document
+  defined    perry/design/DESIGN-017-the-architecture-document-is-written-by-the-agent.md:1
+  mentioned  ARCHITECTURE.md:12
+             ARCHITECTURE.md:295
+             perry/evidence/2026-09/TASK-451-review/review.md:14
+             perry/evidence/2026-09/TASK-451-review/review.md:16
+             perry/evidence/2026-09/TASK-451-review/review.md:36
+             perry/evidence/2026-09/TASK-451-review/review.md:40
+             perry/evidence/2026-09/TASK-451-review/review.md:45
+             perry/evidence/2026-09/TASK-451-review/review.md:49
+             … and 32 more

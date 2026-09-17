@@ -1,0 +1,82 @@
+[
+  {
+    "path": "/tmp/perry-scratch/task-446/phase004/before.txt",
+    "lines": 30,
+    "unicode_characters": 2423,
+    "utf8_bytes": 2513,
+    "within_budget": false,
+    "sha256": "bfb77b5cafd24623d84235364c1086180d2dba40630b627ef5d7c47df9e6ed14"
+  },
+  {
+    "path": "/tmp/perry-scratch/task-446/phase004/normal.initial.txt",
+    "lines": 7,
+    "unicode_characters": 676,
+    "utf8_bytes": 703,
+    "within_budget": true,
+    "sha256": "0886a5f537adf563a3852f8104d3ced0c8f2aec0e34d01227e9308d42b10ff78"
+  },
+  {
+    "path": "/tmp/perry-scratch/task-446/phase004/busy.initial.txt",
+    "lines": 8,
+    "unicode_characters": 432,
+    "utf8_bytes": 449,
+    "within_budget": true,
+    "sha256": "19d3a8863395cecda65d3f8ffa323c8158c1705540ba29f7a8f5d098130d82e4"
+  },
+  {
+    "path": "/tmp/perry-scratch/task-446/phase004/unknown.initial.txt",
+    "lines": 8,
+    "unicode_characters": 438,
+    "utf8_bytes": 453,
+    "within_budget": true,
+    "sha256": "563d6d5651e1863600c6949ae36ef7da11b1fe506c7d8b467b7f9631cf9915a4"
+  },
+  {
+    "path": "/tmp/perry-scratch/task-446/phase004/safety.initial.txt",
+    "lines": 5,
+    "unicode_characters": 328,
+    "utf8_bytes": 334,
+    "within_budget": true,
+    "sha256": "3721167fdcb24eb3d472db655cf74aa4cdaa81ba5763bff06619a2696831e400"
+  },
+  {
+    "path": "/tmp/perry-scratch/review-task-446/phase004/normal.review.initial.txt",
+    "lines": 7,
+    "unicode_characters": 694,
+    "utf8_bytes": 717,
+    "within_budget": true,
+    "sha256": "91ff2fcd5acd4d93d7f833fcc85af30118f06a8b08b26160522e3bf607326fa6"
+  },
+  {
+    "path": "/tmp/perry-scratch/review-task-446/phase004/busy.review.initial.txt",
+    "lines": 8,
+    "unicode_characters": 437,
+    "utf8_bytes": 454,
+    "within_budget": true,
+    "sha256": "55af5a5189aea9a073866994cb4f9b67aa8876ad75d83f418878ade0c6c2260d"
+  },
+  {
+    "path": "/tmp/perry-scratch/review-task-446/phase004/unknown.review.initial.txt",
+    "lines": 8,
+    "unicode_characters": 423,
+    "utf8_bytes": 438,
+    "within_budget": true,
+    "sha256": "5fc5576dd51270a94073db5f22eeb120751ca93d7734671b5a20079efbcf80c6"
+  },
+  {
+    "path": "/tmp/perry-scratch/review-task-446/phase004/safety.review.initial.txt",
+    "lines": 5,
+    "unicode_characters": 309,
+    "utf8_bytes": 313,
+    "within_budget": true,
+    "sha256": "5751e48d39a833734eb45ded01dba969ca71e74e8d998773e9983b7974fd6fd9"
+  },
+  {
+    "path": "/tmp/perry-scratch/task-446/phase004/mutations/oversized.initial.txt",
+    "lines": 87,
+    "unicode_characters": 2036,
+    "utf8_bytes": 2063,
+    "within_budget": false,
+    "sha256": "6682449bffd0a1231bd49f7063d4b2ab194f6ab545e3213fc42320eae5762f07"
+  }
+]

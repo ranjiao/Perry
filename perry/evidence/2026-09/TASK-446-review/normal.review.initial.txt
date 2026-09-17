@@ -1,0 +1,7 @@
+Perry · review-task-446 · 2026-09-17
+You are here: OKR v4: 2026-09-15 ✓ · Phase 004, day 3 ✓ · 2026-W38 plan ? · last weekly 2026-W38 ✓
+Progress unknown: 12 phase KR currents unasserted; measured 0.
+Open tasks: 99 · P0=0 · P1=64 · P2=35 · blocked=2
+Pending user decisions: 3; oldest concerns KR revision scope, waiting 1 day.
+Next: /perry work triage — 2 queue item(s) are past their SLA, the longest-waiting being TASK-270 “perry-config unset can empty the config store at exit 0, after which every writer refuses with a false cause and perry-lint calls the store valid”
+Details: [snapshot details](normal.details.md) — objectives, all pending requests, alternate, unknown causes and sources.

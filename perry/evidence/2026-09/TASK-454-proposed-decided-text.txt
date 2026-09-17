@@ -1,0 +1,77 @@
+## §1
+Perry is a project office for solo and small projects, run by agents and read by
+one human. It keeps goals, work and decisions as files in the project's own
+repository, and it computes every number it reports rather than eyeballing it.
+
+It runs as a **skill** on three hosts — Claude Code, OpenCode and Codex CLI —
+with no install step and no service. The `bin/` tools are stdlib-only Python 3
+and POSIX-ish bash, invoked by the skill's own procedures.
+
+It deliberately does **not**: run unattended (every write is a command an agent
+was asked to make), judge what a document means in code (that is an agent's job,
+`DESIGN-014`), or hold state outside the project it is pointed at (`ADR-002` —
+there is no cross-project registry).
+## §3 Forbidden
+- **A second reader of any state file.** `bin/` never re-implements a parse.
+- **A lane computing a number.** If a figure is not in a payload, the tool grows
+  the field; the procedure does not count rows.
+- **A tool reaching another project.** Roots come from `--root`, then
+  `$PERRY_PROJECT`, then the walk up — `ADR-002`, and `bin/lib § resolve_project_root`
+  is the one implementation.
+- **An agent changing a decided architecture section without user confirmation.**
+  Descriptive edits follow §6 NN-6; decided changes require a recorded user answer.
+## §6
+### NN-1 — One reader per state file
+- **Severity**: hard
+- **Rule**: exactly one implementation parses any given state file, and it lives
+  in `viewer/parsers.py`. A `bin/` tool that needs a fact imports it.
+- **Rationale**: two parsers of `BOARD.md` disagreed in production twice, and
+  the disagreement was invisible until a round-trip test one project later.
+- **Check**: `grep -rn "def parse_" bin/ | grep -v perry_store | grep -v _md_store`
+
+### NN-2 — The store is truth; the projection is rendered
+- **Severity**: hard
+- **Rule**: a mutating command writes the record first. Every reading of it — a
+  payload and `perry-tasks board` — is derived from the record. No command
+  reads, renders or creates a board file; a `BOARD.md` a project still holds is
+  retired, is read only by the import verbs that upgrade the project, and every
+  tool that sees one says it can be deleted. A projection edited by hand is not
+  absorbed: the store is what every reading reports.
+- **Rationale**: `ADR-007`. Absorbing a hand edit destroys the canonical value;
+  overwriting it destroys the human's intent. Both must be visible.
+
+### NN-3 — A write that cannot do what it claims refuses
+- **Severity**: hard
+- **Rule**: no command reports a write it did not perform. A render that cannot
+  place every stored record exits non-zero and names what it could not place.
+- **Rationale**: `DESIGN-016 § 1.5`. The documented recovery command reported
+  `rendered … from 399 stored record(s)`, exit 0, having restored none of 151
+  deleted rows.
+
+### NN-4 — Deterministic tools decide nothing about meaning
+- **Severity**: hard
+- **Rule**: `bin/` makes only mechanical judgements. Whether a summary reads
+  like prose, whether a spec's scope is adequate, whether an ADR applies — all
+  belong to an agent or the user.
+- **Rationale**: `DESIGN-014`. Five rounds of regex lost to a full stop.
+- **Known exceptions**: `perry-codex-preflight` shells out to `codex exec` to
+  check the CLI is alive. It judges nothing; it pings.
+
+### NN-5 — The suite never writes into the tree it runs in
+- **Severity**: hard
+- **Rule**: every test writes to a temporary root. `tests/tree_guard.py` runs on
+  every exit path and fails the suite otherwise.
+- **Rationale**: an un-rooted `perry-task` call once discharged real board rows
+  on every run for months, invisibly, because the sweep is idempotent.
+
+### NN-6 — An agent may describe this file, and may not decide it
+- **Severity**: hard
+- **Rule**: an agent writes and rewrites the descriptive sections (§2, §4, §5's
+  shapes, §8) freely. It may ADD to §6 and §7, marked `proposed`, and may
+  delete from neither. Changing §1, a `Forbidden` line in §3, a contract
+  version in §5, or a confirmed rule in §6 is a question for the user, asked
+  before the change lands.
+- **Rationale**: the agent doing the typing is what makes this document
+  affordable, and the agent being unable to overrule it is what keeps it from
+  becoming a mirror. A description follows the code and can refuse nothing;
+  this file has to be able to refuse. DESIGN-017 carries the argument.

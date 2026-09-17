@@ -1,0 +1,6 @@
+TASK-270  —  perry-config unset can empty the config store at exit 0, after which every writer refuses with a false cause and perry-lint calls the store valid
+  kind       Task
+  status     review
+  summary    Re-measured 2026-09-16 before dispatch (evidence/2026-09/TASK-270-reproduction-2026-09-16.md). The original trigger, perry-config write --from-file, was removed by DESIGN-016, and 'refused forever' no longer holds: perry-config set recovers. What remains is reproduced: unsetting every setting leaves .perry/config.jsonl with zero records, exit 0 throughout; perry-task add then refuses saying the store 'holds records that do not validate' and tells the user to find them with perry-lint; perry-lint says '0 record(s), all valid' and also reports the Perry-written file as NS-01 foreign state. None of the three messages names the recovery. The writer and the linter disagree about whether an empty store is usable, and two of the messages are false.
+  defined    perry/tasks.jsonl:401
+  mentioned  nowhere else

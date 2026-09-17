@@ -1,0 +1,2 @@
+Deleted exact line 9: Unknown history.latest_weekly — Report source unavailable
+Reviewer judgment: REJECT; this source fact is absent in both views.

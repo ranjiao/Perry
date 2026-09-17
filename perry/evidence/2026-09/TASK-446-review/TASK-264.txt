@@ -1,0 +1,6 @@
+TASK-264  —  DESIGN-022 B — goals writes KR records, their checks and their measurements
+  kind       Task
+  status     blocked
+  summary    DESIGN-022 phase B, widening this row. Its original scope stands — a writer for KR records at both levels, overall in okr.jsonl and phase in linkage.jsonl, covering add, restate and withdraw — and gains perry-goals check <KR> (declares a typed check; refuses increase with target <= baseline, decrease with target >= baseline, done with a target other than 1, and a baseline on a limit) and perry-goals measure <KR> --check S --value N --evidence <path> (appends one measurement record and one measure event; refuses an undeclared check, a KR in COMPUTED_KR_METRICS, a missing evidence path, a scored phase or a non-current OKR version, and a bare overall id that names more than one version). Every refusal names the command that would make it pass. TASK-231 closes with this row.
+  defined    perry/tasks.jsonl:403
+  mentioned  nowhere else

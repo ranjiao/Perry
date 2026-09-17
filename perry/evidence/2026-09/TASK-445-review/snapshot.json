@@ -1,0 +1,563 @@
+{
+  "schema": 1,
+  "generated_at": "2026-09-17T16:47:47",
+  "installed": true,
+  "recovery": {
+    "blocking": false,
+    "pending_transactions": [],
+    "malformed_dossiers": []
+  },
+  "interrupted": 0,
+  "project": {
+    "root": "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-task-445/perry",
+    "name": "review-task-445",
+    "tracks": [
+      {
+        "track": "main",
+        "mode": "project",
+        "stage_list": [],
+        "stages_declared": false,
+        "wip": "—",
+        "sla": "—",
+        "cycle": "—",
+        "default_rung": "V3",
+        "declared": true
+      },
+      {
+        "track": "intake",
+        "mode": "queue",
+        "stage_list": [
+          "new",
+          "triaged",
+          "in_progress",
+          "resolved"
+        ],
+        "stages_declared": true,
+        "wip": "6",
+        "sla": "5d",
+        "cycle": "weekly",
+        "default_rung": "V3",
+        "declared": true
+      }
+    ],
+    "tracks_source": "store",
+    "packs": [
+      {
+        "name": "software-ops",
+        "present": true,
+        "glossary": {
+          "Board": "Board",
+          "Phase": "Phase",
+          "Commitment": "Key result"
+        }
+      }
+    ],
+    "state_root": "perry",
+    "language": "English"
+  },
+  "okr": {
+    "present": true,
+    "version": "v4: 2026-09-15",
+    "objectives": [
+      {
+        "title": "The user always knows where the project stands and what to do next",
+        "krs": [
+          {
+            "id": "O1-KR1",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "O1-KR2",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "O1-KR3",
+            "linked": "",
+            "stretch": false
+          }
+        ]
+      },
+      {
+        "title": "The skill is the product: plans are asked for, drafted and approved",
+        "krs": [
+          {
+            "id": "O2-KR1",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "O2-KR2",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "O2-KR3",
+            "linked": "",
+            "stretch": false
+          }
+        ]
+      },
+      {
+        "title": "Changing Perry stays cheap, and its architecture stays where the user put it",
+        "krs": [
+          {
+            "id": "O3-KR1",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "O3-KR2",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "O3-KR3",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "O3-KR4",
+            "linked": "",
+            "stretch": true
+          },
+          {
+            "id": "O3-KR5",
+            "linked": "",
+            "stretch": true
+          }
+        ]
+      },
+      {
+        "title": "Perry is used for real outside its own repository",
+        "krs": [
+          {
+            "id": "O4-KR1",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "O4-KR2",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "O4-KR3",
+            "linked": "",
+            "stretch": true
+          }
+        ]
+      }
+    ],
+    "anti_goals": 6,
+    "operating_principles": 10
+  },
+  "phase": {
+    "number": "004",
+    "slug": "004-guided",
+    "status": "active",
+    "started": "2026-09-15",
+    "day": 3,
+    "kr_total": 12,
+    "focus_present": true,
+    "cost_ceiling": [
+      "Spend cap: **$0** in new paid APIs, models or infra. Perry stays stdlib Python.",
+      "Wiring status: **doc-only** ⚠ — nothing in code refuses an import. Open risk,",
+      "The cost this phase does measure is iteration time: `tests/durations.json`"
+    ],
+    "objectives": [
+      {
+        "title": "The user always knows where they are and what to do next",
+        "krs": [
+          {
+            "id": "P004-O1-KR1",
+            "linked": "O1-KR1",
+            "stretch": false
+          },
+          {
+            "id": "P004-O1-KR2",
+            "linked": "O1-KR1",
+            "stretch": false
+          },
+          {
+            "id": "P004-O1-KR3",
+            "linked": "O1-KR3",
+            "stretch": false
+          }
+        ]
+      },
+      {
+        "title": "Plans are asked for, drafted and approved",
+        "krs": [
+          {
+            "id": "P004-O2-KR1",
+            "linked": "O2-KR2",
+            "stretch": false
+          },
+          {
+            "id": "P004-O2-KR2",
+            "linked": "O2-KR3",
+            "stretch": false
+          },
+          {
+            "id": "P004-O2-KR3",
+            "linked": "O2-KR1",
+            "stretch": false
+          }
+        ]
+      },
+      {
+        "title": "What the user reads and decides fits on one screen, and is recorded",
+        "krs": [
+          {
+            "id": "P004-O3-KR1",
+            "linked": "",
+            "stretch": false
+          },
+          {
+            "id": "P004-O3-KR2",
+            "linked": "O1-KR2",
+            "stretch": false
+          },
+          {
+            "id": "P004-O3-KR3",
+            "linked": "",
+            "stretch": false
+          }
+        ]
+      },
+      {
+        "title": "Changing Perry gets cheaper, and its architecture holds",
+        "krs": [
+          {
+            "id": "P004-O4-KR1",
+            "linked": "O3-KR1",
+            "stretch": false
+          },
+          {
+            "id": "P004-O4-KR2",
+            "linked": "O3-KR2",
+            "stretch": false
+          },
+          {
+            "id": "P004-O4-KR3",
+            "linked": "O3-KR3",
+            "stretch": false
+          }
+        ]
+      }
+    ],
+    "scope_triggers": 2
+  },
+  "linkage": {
+    "phase": "004-guided",
+    "objectives": [
+      {
+        "id": "O1",
+        "title": "The user always knows where they are and what to do next",
+        "krs": [
+          {
+            "id": "P004-O1-KR1",
+            "title": "Fixture states for which `perry-state --section next` yields the expected primary rule",
+            "current": null,
+            "target": 5.0,
+            "stretch": false
+          },
+          {
+            "id": "P004-O1-KR2",
+            "title": "State-changing subcommands whose procedure carries the closing step, as a guard enumerates them",
+            "current": null,
+            "target": null,
+            "stretch": false
+          },
+          {
+            "id": "P004-O1-KR3",
+            "title": "Cadence lag on this repository while phase 004 is active",
+            "current": null,
+            "target": null,
+            "stretch": false
+          }
+        ]
+      },
+      {
+        "id": "O2",
+        "title": "Plans are asked for, drafted and approved",
+        "krs": [
+          {
+            "id": "P004-O2-KR1",
+            "title": "Issues `reference/input-quality.md § 1` surfaces on the OKR produced by the first-OKR interview on `~/proj/SkyTonight`",
+            "current": null,
+            "target": 0.0,
+            "stretch": false
+          },
+          {
+            "id": "P004-O2-KR2",
+            "title": "Hand appends to `okr.jsonl` or `linkage.jsonl` after the `goals` KR writer lands",
+            "current": null,
+            "target": 0.0,
+            "stretch": false
+          },
+          {
+            "id": "P004-O2-KR3",
+            "title": "Planning-draft behaviours shown on a fixture",
+            "current": null,
+            "target": 2.0,
+            "stretch": false
+          }
+        ]
+      },
+      {
+        "id": "O3",
+        "title": "What the user reads and decides fits on one screen, and is recorded",
+        "krs": [
+          {
+            "id": "P004-O3-KR1",
+            "title": "Size of the rendered `/perry` snapshot",
+            "current": null,
+            "target": null,
+            "stretch": false
+          },
+          {
+            "id": "P004-O3-KR2",
+            "title": "User decisions made during phase 004 that have a `USER-` record in `asks.jsonl`",
+            "current": null,
+            "target": null,
+            "stretch": false
+          },
+          {
+            "id": "P004-O3-KR3",
+            "title": "90th-percentile length of an open row's Next action",
+            "current": null,
+            "target": 400.0,
+            "stretch": false
+          }
+        ]
+      },
+      {
+        "id": "O4",
+        "title": "Changing Perry gets cheaper, and its architecture holds",
+        "krs": [
+          {
+            "id": "P004-O4-KR1",
+            "title": "Test time per executor round, and the suite's total",
+            "current": null,
+            "target": null,
+            "stretch": false
+          },
+          {
+            "id": "P004-O4-KR2",
+            "title": "`DESIGN-017` structural rules running before merge, each shown red under its mutation",
+            "current": null,
+            "target": 7.0,
+            "stretch": false
+          },
+          {
+            "id": "P004-O4-KR3",
+            "title": "L2 reference pages over the 32,768-byte tier budget",
+            "current": null,
+            "target": 0.0,
+            "stretch": false
+          }
+        ]
+      }
+    ],
+    "unlinked": 88
+  },
+  "attribution": {
+    "kr_currents": {
+      "total": 12,
+      "asserted": 0,
+      "unasserted": 12,
+      "measured": 0,
+      "stale": 0,
+      "stale_ids": []
+    },
+    "linked": 19,
+    "unlinked": 0,
+    "declared_unlinked": 88
+  },
+  "board": {
+    "lines": 0,
+    "cap": 200,
+    "last_updated": "",
+    "p0": {
+      "total": 0,
+      "by_status": {}
+    },
+    "p1": {
+      "total": 64,
+      "by_status": {
+        "not_started": 59,
+        "blocked": 2,
+        "review": 3
+      }
+    },
+    "p2": {
+      "total": 35,
+      "by_status": {
+        "not_started": 30,
+        "review": 4,
+        "in_progress": 1
+      }
+    },
+    "cadence": 0,
+    "blocked": 2,
+    "open": 99,
+    "verification": {
+      "closed": 285,
+      "by_rung": {
+        "V2": 14,
+        "V3": 196,
+        "V4": 68,
+        "V5": 7
+      },
+      "unrated": 0
+    },
+    "drift": {
+      "checked": true,
+      "drift": 0,
+      "unrecorded": 0
+    },
+    "tasks": 99
+  },
+  "intake": {
+    "rows": 0,
+    "undischarged": 0,
+    "oldest_undischarged": null
+  },
+  "user_input_queue": {
+    "count": 3,
+    "oldest": {
+      "id": "USER-952",
+      "asked": "2026-09-16",
+      "idle_days": 1,
+      "needed": "TASK-264 D3 has no append-only KR supersession/withdrawal representation. Land check/measure and leave D3 blocked for separate design, or authorize this round to design and implement typed KR revisions/withdrawals with the required schema and reader changes?",
+      "idle": "",
+      "blocks": "TASK-264"
+    },
+    "items": [
+      {
+        "id": "USER-952",
+        "needed_from_user": "TASK-264 D3 has no append-only KR supersession/withdrawal representation. Land check/measure and leave D3 blocked for separate design, or authorize this round to design and implement typed KR revisions/withdrawals with the required schema and reader changes?",
+        "blocks": "TASK-264",
+        "idle": "",
+        "status": "pending",
+        "priority": "P2",
+        "asked": "2026-09-16"
+      },
+      {
+        "id": "USER-955",
+        "needed_from_user": "TASK-191 assumed SkyTonight had no OKR, but doc/perry/OKR.md is active. Choose another no-OKR real project for the interview or allow isolated fixtures first while retaining the real interview as incomplete.",
+        "blocks": "TASK-191",
+        "idle": "",
+        "status": "pending",
+        "priority": "P2",
+        "asked": "2026-09-17"
+      },
+      {
+        "id": "USER-958",
+        "needed_from_user": "V5 sign-off for reviewed TASK-451 candidate 232c3e92: code-root architecture claim, explicit module cap 600, shared lint/cost resolver. V4 and architecture PASS; 4299 affected tests and mutation proof pass. See TASK-451-delivery/candidate.diff and TASK-451-review/review.md. Accept on report, specify items personally checked, or defer. Full/slow merged acceptance remains required before integration.",
+        "blocks": "TASK-451",
+        "idle": "",
+        "status": "pending",
+        "priority": "P2",
+        "asked": "2026-09-17"
+      }
+    ]
+  },
+  "cadence": {
+    "count": 0,
+    "overdue": [],
+    "undated": [],
+    "unreadable_frequency": [],
+    "items": []
+  },
+  "risks": {
+    "top": {
+      "id": "RX-003",
+      "title": "The V4 review found `OKR.md § Commitments` is written by two modes that disclaim the goals cascade, with no declared owner. That is a hand-off-contract question, so TASK-026 now blocks phase D as well as phase G.",
+      "severity": "watch",
+      "meta": "The V4 review found `OKR.md § Commitments` is written by two modes that disclaim the goals cascade, with no declared owner. That is a hand-off-contract question, so TASK-026 now blocks phase D as well as phase G.",
+      "value": null,
+      "threshold": null,
+      "max1": null,
+      "max2": null,
+      "source": "table",
+      "opened": "",
+      "status": "open",
+      "cleared_on": "",
+      "severity_text": "",
+      "severity_rank": "",
+      "age_days": null
+    },
+    "count": 2,
+    "cleared": 2
+  },
+  "decisions": {
+    "count": 18,
+    "last": {
+      "id": "ADR-021",
+      "title": "OKR v4 consolidates to four Objectives and withdraws the roles Objective",
+      "date": "2026-09-15"
+    },
+    "expired_sunsets": []
+  },
+  "design": {
+    "total": 21,
+    "locked": 19,
+    "by_status": {
+      "locked": 19,
+      "superseded": 1,
+      "draft": 1
+    },
+    "pending_handoff": 9
+  },
+  "history": {
+    "journal_days": 26,
+    "latest_journal": "journal/2026-09/2026-09-17.md",
+    "latest_journal_days": 0,
+    "latest_weekly": "2026-W38",
+    "latest_handoff": "2026-09-15",
+    "latest_handoff_days": 2,
+    "evidence_files": 735
+  },
+  "operations": {
+    "inputs": 0,
+    "inputs_oldest": "",
+    "inputs_oldest_days": null,
+    "knowledge_index": "Last updated: 2026-08-30",
+    "runbook_index": "",
+    "incidents_index": "",
+    "tier1_caps": [
+      {
+        "file": "OKR.md",
+        "lines": 174,
+        "cap": 200,
+        "over": false
+      },
+      {
+        "file": "phase/004-guided.md",
+        "lines": 238,
+        "cap": 300,
+        "over": false
+      }
+    ]
+  },
+  "architecture": {
+    "exists": false,
+    "version": "",
+    "last_reviewed": "",
+    "status": "",
+    "section_count": 0,
+    "open_questions": 0,
+    "mermaid_count": 0
+  },
+  "roles": {
+    "contract": "perry-roles/list/1.1",
+    "semantics": [],
+    "declared": 0,
+    "cards": []
+  },
+  "warnings": []
+}

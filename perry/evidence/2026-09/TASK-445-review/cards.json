@@ -1,0 +1,6 @@
+[
+  "<USER-ID> — Export delivery · pending\nFor you: download keeps the export on your laptop; email sends it outside the app.\nRecommend: download to avoid sending it accidentally. Options: download/local; email/external delivery.\nDetails: scenarios.md#pending",
+  "<USER-ID> — Export columns · answered\nFor you: only name and total appear in the CSV.\nRecommend: those two columns for your stated report. Options: two/report only; all/extra fields.\nAnswer: “Export only name and total.”\nDetails: scenarios.md#immediate",
+  "<USER-ID> — Local export scope · prior authority\nFor you: acceptance now requires CSV export with no network.\nRecorded answer: “Add offline CSV export; keep JSON out of scope.”\nRecommend: amend the CSV criterion; retain the JSON exclusion.\nDetails: scenarios.md#reuse",
+  "Agent-decided — Preview row height\nFor you: compact rows show more of the preview.\nRecommend/selected: compact rows for scanning. Alternative: roomy rows for readability.\nRevisit: restore roomy rows if clipping or reading difficulty appears.\nDetails: scenarios.md#agent"
+]
