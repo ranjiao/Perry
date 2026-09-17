@@ -1,0 +1,4 @@
+{"mutation": "replace only next_kr_progress from base", "candidate_lines": [2374, 2395], "base_lines": [2387, 2420], "head": "cb310d87587e4c4fb841620d38209b2394e0e618", "base": "7ffcc6337bc5c8b31d2e8992c251e23299bff1ea"}
+mutation_affected_exit=1
+{"restored_sha256": "0b5b82ad9a861a47b49a9c3360989bc8a9cf2a241bd9a733f759237422403b25", "git_show_sha256": "0b5b82ad9a861a47b49a9c3360989bc8a9cf2a241bd9a733f759237422403b25"}
+restored_targeted_exit=0

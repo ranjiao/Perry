@@ -1,0 +1,21 @@
+{
+  "head": "cb310d87587e4c4fb841620d38209b2394e0e618",
+  "base": "7ffcc6337bc5c8b31d2e8992c251e23299bff1ea",
+  "files": {
+    "bin/perry-state": {
+      "actual_sha256": "0b5b82ad9a861a47b49a9c3360989bc8a9cf2a241bd9a733f759237422403b25",
+      "git_show_sha256": "0b5b82ad9a861a47b49a9c3360989bc8a9cf2a241bd9a733f759237422403b25"
+    },
+    "tests/test_next_section.py": {
+      "actual_sha256": "ec1ed0540e5e0ee93953b7d1fdcbefd292bed82f019f18e8fa810e1136044e95",
+      "git_show_sha256": "ec1ed0540e5e0ee93953b7d1fdcbefd292bed82f019f18e8fa810e1136044e95"
+    }
+  },
+  "clean_status": true,
+  "diff_check_exit": 0,
+  "environment": {
+    "PERRY_HOME": "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-task-460",
+    "PERRY_PROJECT": "unset",
+    "TMPDIR": "/tmp/perry-scratch/review-task-460/phase004/tmp"
+  }
+}

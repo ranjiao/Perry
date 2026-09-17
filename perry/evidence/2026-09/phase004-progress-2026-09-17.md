@@ -30,3 +30,15 @@ USER-952 and USER-955 were surfaced asynchronously in this continuation; depende
 ## Dependency probe and bounded continuation
 
 Both initial executors returned precise scope blockers, with no code commits. TASK-451 proved the old anchor switch maps `code` to the state root and a module glob also selects foreign directories. TASK-460 proved state output lacks the shared position published by goals. Specs now include the necessary existing-consumer wiring before a second implementation round. This is implementation scope under USER-933/957, not a new architectural decision. Module selection stays agent-owned; Python must not interpret the component-list prose. The runner help probe unexpectedly started full tests and was cancelled; neither executor claims it passed. Later runs read runner source and use isolated temporary directories.
+
+## Review exhibit precheck
+
+The repository-wide `perry-lint --reviews --strict --json` exits 1 on 26 existing warnings (older malformed verdicts, older V4 closes without verdicts, and TASK-270 without a rung). Neither selected task has a finding. The isolated current exhibit at `/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-exhibit`, containing the two exact specs under the same relative paths, passes `--reviews --strict` with 0 findings. `--specs` on the live repository finds no TASK-451/460 issue. This is a scoped exhibit pass, not a clean historical review corpus claim.
+
+The initial executor sandbox permitted code writes but omitted shared Git metadata, so committing in either worktree failed with index.lock permission errors. The parent corrected the follow-up launch permissions to the host's authorized scope; the Coding role remains responsible for product commits. Earlier zero-change affected selections are explicitly excluded as acceptance evidence.
+
+## Independent acceptance, before integration
+
+TASK-460 at cb310d87587e4c4fb841620d38209b2394e0e618 has fresh V4 PASS and architecture PASS. Independent public-CLI fixtures cover 36 cases; affected 66 modules / 2,037 tests pass, the reverting mutation turns the same tier red, and restored 90 targeted tests plus immutable hashes pass. Main integration and its release/full/slow receipts remain outstanding.
+
+TASK-451 closure requires V5 because review.md applies that rung to claim-surface operations on the high-stakes list. USER-933 permits the implementation; a named human must still inspect the reviewed delivery before final acceptance. Its independent V4 preparation continues, with a concrete sign-off offer only after the implementation and review are ready.

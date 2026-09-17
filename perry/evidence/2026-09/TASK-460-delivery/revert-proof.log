@@ -1,0 +1,374 @@
+FFFFFFFFFFFFFFFFFFFF
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='decrease', values=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='decrease', values=[400])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='decrease', values=[1702, 400])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '')
+?                                            ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                            ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='at_most', values=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='at_most', values=[400])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='at_most', values=[1702, 400])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '')
+?                                            ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                            ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='at_most', values=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='at_most', values=[0])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='at_most', values=[1702, 0])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '')
+?                                            ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                            ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='increase', values=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='increase', values=[400])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='increase', values=[0, 400])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '')
+?                                            ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                            ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='at_least', values=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='at_least', values=[400])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='at_least', values=[0, 400])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '')
+?                                            ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                            ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='done', values=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 0, 'met': 0, 'unmeasured': 2}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='done', values=[1])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 1, 'met': 1, 'unmeasured': 1}, '')
+?                                  ^         ^                ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                  ^         ^                ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='done', values=[1702, 1])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '')
+?                                            ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                            ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure) (direction='done', values=[0, 1])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 715, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual((dict(commit_total=2, measured=measured,
+AssertionError: Tuples differ: ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '') != ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+
+First differing element 0:
+{'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}
+{'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}
+
+- ({'commit_total': 2, 'measured': 2, 'met': 1, 'unmeasured': 0}, '')
+?                                            ^
+
++ ({'commit_total': 2, 'measured': 2, 'met': 2, 'unmeasured': 0}, '')
+?                                            ^
+
+
+======================================================================
+FAIL: test_typed_positions_drive_counts_and_closure (test_next_section.TestKrProgress.test_typed_positions_drive_counts_and_closure)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-460/tests/test_next_section.py", line 728, in test_typed_positions_drive_counts_and_closure
+    self.assertEqual(measured, STATE.next_kr_progress(payload)[0]["measured"])
+AssertionError: 0 != 2
+
+----------------------------------------------------------------------
+Ran 1 test in 0.314s
+
+FAILED (failures=20)

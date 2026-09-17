@@ -1,0 +1,36 @@
+{"case": "legacy_only", "counts": {"commit_total": 2, "measured": 0, "met": 0, "unmeasured": 2}, "states": [["undeclared", null], ["undeclared", null], ["undeclared", null]], "closable": false}
+{"case": "zero_measured", "counts": {"commit_total": 2, "measured": 0, "met": 0, "unmeasured": 2}, "states": [["unmeasured", null], ["unmeasured", null], ["undeclared", null]], "closable": false}
+{"case": "half_measured", "counts": {"commit_total": 2, "measured": 1, "met": 1, "unmeasured": 1}, "states": [["measured", true], ["unmeasured", null], ["undeclared", null]], "closable": false}
+{"case": "all_met_with_due_and_unmeasured_stretch", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["due", true], ["unmeasured", null]], "closable": true}
+{"case": "at_most_1702", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "at_most_400", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "at_most_399", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "at_most_1", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "at_most_0", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "decrease_1702", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "decrease_400", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "decrease_399", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "decrease_1", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "decrease_0", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "at_least_1702", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "at_least_400", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "at_least_399", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "at_least_1", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "at_least_0", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "increase_1702", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "increase_400", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "increase_399", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "increase_1", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "increase_0", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "done_1702", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "done_400", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "done_399", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "done_1", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "done_0", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "missing_required_check_with_other_KR_met", "counts": {"commit_total": 2, "measured": 1, "met": 1, "unmeasured": 1}, "states": [["unmeasured", null], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "one_failed_check", "counts": {"commit_total": 2, "measured": 2, "met": 1, "unmeasured": 0}, "states": [["measured", false], ["measured", true], ["undeclared", null]], "closable": false}
+{"case": "all_checks_met", "counts": {"commit_total": 2, "measured": 2, "met": 2, "unmeasured": 0}, "states": [["measured", true], ["measured", true], ["undeclared", null]], "closable": true}
+{"case": "invalid_json", "exit": 0, "counts": [{}, "the linkage store could not be read, so no key result of this phase is visible"]}
+{"case": "missing_store", "exit": 0, "counts": [{}, "the linkage store could not be read, so no key result of this phase is visible"]}
+{"case": "wrong_phase", "exit": 0, "counts": [{}, "the linkage store could not be read, so no key result of this phase is visible"]}
+{"case": "no_phase", "exit": 0, "counts": [{}, ""]}

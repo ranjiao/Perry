@@ -1,0 +1,36 @@
+[
+  {
+    "direction": "at_most",
+    "value": 1702,
+    "target": 400,
+    "candidate": {
+      "commit_total": 1,
+      "measured": 1,
+      "met": 0,
+      "unmeasured": 0
+    },
+    "reverted_function": {
+      "commit_total": 1,
+      "measured": 1,
+      "met": 1,
+      "unmeasured": 0
+    }
+  },
+  {
+    "direction": "decrease",
+    "value": 1702,
+    "target": 400,
+    "candidate": {
+      "commit_total": 1,
+      "measured": 1,
+      "met": 0,
+      "unmeasured": 0
+    },
+    "reverted_function": {
+      "commit_total": 1,
+      "measured": 1,
+      "met": 1,
+      "unmeasured": 0
+    }
+  }
+]
