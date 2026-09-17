@@ -1,0 +1,62 @@
+
+VARIANT: candidate
+test_architecture_declarations_and_selected_components (test_claims.TestClaimsCoverFiles.test_architecture_declarations_and_selected_components) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.328s
+
+OK
+
+VARIANT: reverted-code-anchor
+test_architecture_declarations_and_selected_components (test_claims.TestClaimsCoverFiles.test_architecture_declarations_and_selected_components) ... FAIL
+
+======================================================================
+FAIL: test_architecture_declarations_and_selected_components (test_claims.TestClaimsCoverFiles.test_architecture_declarations_and_selected_components)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-451/tests/test_claims.py", line 108, in test_architecture_declarations_and_selected_components
+    self.assertEqual((spec["anchor"], spec["cap"], spec["cap_kind"]),
+AssertionError: Tuples differ: ('state', 500, 'hard') != ('code', 500, 'hard')
+
+First differing element 0:
+'state'
+'code'
+
+- ('state', 500, 'hard')
+?   ^^^^
+
++ ('code', 500, 'hard')
+?   ^^^
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+FAILED (failures=1)
+
+VARIANT: reverted-schema
+test_architecture_declarations_and_selected_components (test_claims.TestClaimsCoverFiles.test_architecture_declarations_and_selected_components) ... ERROR
+
+======================================================================
+ERROR: test_architecture_declarations_and_selected_components (test_claims.TestClaimsCoverFiles.test_architecture_declarations_and_selected_components)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-451/tests/test_claims.py", line 105, in test_architecture_declarations_and_selected_components
+    root_spec, module = [next(f for f in SCHEMA["files"] if f["id"] == kind)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-451/tests/test_claims.py", line 105, in <listcomp>
+    root_spec, module = [next(f for f in SCHEMA["files"] if f["id"] == kind)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+SPLIT CLI: ['--architecture-module', 'component/ARCHITECTURE.md', '--json'] exit 0
+SPLIT CLI: ['--architecture-module', 'escape/ARCHITECTURE.md'] exit 2
+SPLIT CLI: ['--architecture-module', 'missing/ARCHITECTURE.md'] exit 2
+SPLIT CLI: ['--architecture-module', ''] exit 2
+SPLIT CLI: ['--architecture-module'] exit 2
+SPLIT CLI: ['--architecture-module', 'component/ARCHITECTURE.md', '--templates'] exit 2
+Candidate, expected failing mutations, split anchor and CLI checks verified.

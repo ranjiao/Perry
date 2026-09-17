@@ -1,0 +1,152 @@
+[
+  {
+    "args": [
+      "--claims",
+      "--json"
+    ],
+    "exit": 0,
+    "stdout": "{\n  \"project_root\": \"/private/tmp/perry-scratch/review-task-451/phase004/tmp/boundary-b0lvt84v/pmo\",\n  \"state_root\": \".\",\n  \"claimed\": 26,\n  \"collisions\": 0,\n  \"suggested_state_root\": null,\n  \"paths\": [\n    {\n      \"path\": \".perry/\",\n      \"state\": \"free\",\n      \"owner\": \"perry\",\n      \"detail\": \"exists but empty\"\n    },\n    {\n      \"path\": \".perry/events.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"perry\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"OKR.md\",\n      \"state\": \"free\",\n      \"owner\": \"goals\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"phase/\",\n      \"state\": \"free\",\n      \"owner\": \"goals\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"BOARD.md\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"tasks.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"okr.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"goals\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"risks.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"intake.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"asks.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"cadence.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"linkage.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"perry\",\n      \"detail\": null\n    },\n    {\n      \"path\": \".perry/config.jsonl\",\n      \"state\": \"perry\",\n      \"owner\": \"perry\",\n      \"detail\": \"1 existing Perry file(s)\"\n    },\n    {\n      \"path\": \"PROJECT_STATE.md\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"ARCHITECTURE.md\",\n      \"state\": \"perry\",\n      \"owner\": \"perry\",\n      \"detail\": \"1 existing Perry file(s)\"\n    },\n    {\n      \"path\": \"architecture/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"incidents/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"decisions/\",\n      \"state\": \"free\",\n      \"owner\": \"decide\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"journal/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"evidence/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"weekly/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"handoff/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"knowledge/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"inputs/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"runbook/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"design/\",\n      \"state\": \"free\",\n      \"owner\": \"decide\",\n      \"detail\": null\n    }\n  ]\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "module/ARCHITECTURE.md",
+      "--architecture-module",
+      "second/ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 0,
+    "stdout": "{\n  \"target\": \"/private/tmp/perry-scratch/review-task-451/phase004/tmp/boundary-b0lvt84v/pmo\",\n  \"errors\": 0,\n  \"warnings\": 1,\n  \"findings\": [\n    {\n      \"severity\": \"warn\",\n      \"file\": \".perry/hook.md\",\n      \"rule\": \"hook-high-stakes-armed\",\n      \"message\": \"no high-stakes operations list \u2014 /perry work dispatch's safety re-validation and /perry work autopilot's safety scan have nothing to match against\",\n      \"line\": null\n    }\n  ],\n  \"store_drift\": {\n    \"store_present\": false,\n    \"log_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": null\n  },\n  \"risk_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"intake_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"ask_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"cadence_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"okr_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"linkage_store\": {\n    \"store_present\": false,\n    \"records\": 0,\n    \"malformed\": 0\n  },\n  \"config_store_drift\": {\n    \"store_present\": true,\n    \"comparison_performed\": true,\n    \"records\": 1,\n    \"drifted\": 0\n  },\n  \"specs\": {\n    \"specs\": 0,\n    \"unscannable\": 0,\n    \"unbounded\": 0,\n    \"checked\": true\n  },\n  \"summaries\": {\n    \"store_present\": false,\n    \"open_rows\": 0,\n    \"oversized_cells\": 0,\n    \"carrying\": 0,\n    \"blank\": 0,\n    \"shape_findings\": 0\n  }\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "--claims",
+      "--json"
+    ],
+    "exit": 0,
+    "stdout": "{\n  \"project_root\": \"/private/tmp/perry-scratch/review-task-451/phase004/tmp/boundary-b0lvt84v/pmo\",\n  \"state_root\": \".\",\n  \"claimed\": 26,\n  \"collisions\": 0,\n  \"suggested_state_root\": null,\n  \"paths\": [\n    {\n      \"path\": \".perry/\",\n      \"state\": \"free\",\n      \"owner\": \"perry\",\n      \"detail\": \"exists but empty\"\n    },\n    {\n      \"path\": \".perry/events.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"perry\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"OKR.md\",\n      \"state\": \"free\",\n      \"owner\": \"goals\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"phase/\",\n      \"state\": \"free\",\n      \"owner\": \"goals\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"BOARD.md\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"tasks.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"okr.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"goals\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"risks.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"intake.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"asks.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"cadence.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"linkage.jsonl\",\n      \"state\": \"free\",\n      \"owner\": \"perry\",\n      \"detail\": null\n    },\n    {\n      \"path\": \".perry/config.jsonl\",\n      \"state\": \"perry\",\n      \"owner\": \"perry\",\n      \"detail\": \"1 existing Perry file(s)\"\n    },\n    {\n      \"path\": \"PROJECT_STATE.md\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"ARCHITECTURE.md\",\n      \"state\": \"perry\",\n      \"owner\": \"perry\",\n      \"detail\": \"1 existing Perry file(s)\"\n    },\n    {\n      \"path\": \"architecture/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"incidents/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"decisions/\",\n      \"state\": \"free\",\n      \"owner\": \"decide\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"journal/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"evidence/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"weekly/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"handoff/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"knowledge/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"inputs/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"runbook/\",\n      \"state\": \"free\",\n      \"owner\": \"work\",\n      \"detail\": null\n    },\n    {\n      \"path\": \"design/\",\n      \"state\": \"free\",\n      \"owner\": \"decide\",\n      \"detail\": null\n    }\n  ]\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "module/ARCHITECTURE.md",
+      "--architecture-module",
+      "second/ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 0,
+    "stdout": "{\n  \"target\": \"/private/tmp/perry-scratch/review-task-451/phase004/tmp/boundary-b0lvt84v/pmo\",\n  \"errors\": 0,\n  \"warnings\": 1,\n  \"findings\": [\n    {\n      \"severity\": \"warn\",\n      \"file\": \".perry/hook.md\",\n      \"rule\": \"hook-high-stakes-armed\",\n      \"message\": \"no high-stakes operations list \u2014 /perry work dispatch's safety re-validation and /perry work autopilot's safety scan have nothing to match against\",\n      \"line\": null\n    }\n  ],\n  \"store_drift\": {\n    \"store_present\": false,\n    \"log_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": null\n  },\n  \"risk_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"intake_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"ask_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"cadence_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"okr_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"linkage_store\": {\n    \"store_present\": false,\n    \"records\": 0,\n    \"malformed\": 0\n  },\n  \"config_store_drift\": {\n    \"store_present\": true,\n    \"comparison_performed\": true,\n    \"records\": 1,\n    \"drifted\": 0\n  },\n  \"specs\": {\n    \"specs\": 0,\n    \"unscannable\": 0,\n    \"unbounded\": 0,\n    \"checked\": true\n  },\n  \"summaries\": {\n    \"store_present\": false,\n    \"open_rows\": 0,\n    \"oversized_cells\": 0,\n    \"carrying\": 0,\n    \"blank\": 0,\n    \"shape_findings\": 0\n  }\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "",
+      "--json"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderr": "perry-lint: ValueError: invalid component architecture path: ''\n"
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "../pmo/ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderr": "perry-lint: ValueError: invalid component architecture path: '../pmo/ARCHITECTURE.md'\n"
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderr": "perry-lint: ValueError: invalid component architecture path: 'ARCHITECTURE.md'\n"
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "missing/ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderr": "perry-lint: ValueError: invalid component architecture path: 'missing/ARCHITECTURE.md'\n"
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "escape/ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderr": "perry-lint: ValueError: invalid component architecture path: 'escape/ARCHITECTURE.md'\n"
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "/tmp/perry-scratch/review-task-451/phase004/tmp/boundary-b0lvt84v/code/module/ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderr": "perry-lint: ValueError: invalid component architecture path: '/tmp/perry-scratch/review-task-451/phase004/tmp/boundary-b0lvt84v/code/module/ARCHITECTURE.md'\n"
+  },
+  {
+    "args": [
+      "--architecture-module"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderr": "perry-lint: --architecture-module takes a value\n"
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "module/ARCHITECTURE.md",
+      "--claims"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderr": "perry-lint: --architecture-module requires project lint\n"
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "module/ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 0,
+    "stdout": "{\n  \"target\": \"/private/tmp/perry-scratch/review-task-451/phase004/tmp/boundary-b0lvt84v/unadopted \u2014 not a Perry project yet\",\n  \"errors\": 0,\n  \"warnings\": 0,\n  \"findings\": [],\n  \"store_drift\": {\n    \"store_present\": false,\n    \"log_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": null\n  },\n  \"risk_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"intake_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"ask_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"cadence_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"okr_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"linkage_store\": {\n    \"store_present\": false,\n    \"records\": 0,\n    \"malformed\": 0\n  },\n  \"config_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"specs\": {\n    \"specs\": 0,\n    \"unscannable\": 0,\n    \"unbounded\": 0,\n    \"checked\": false\n  },\n  \"summaries\": {\n    \"store_present\": false,\n    \"open_rows\": 0,\n    \"carrying\": 0,\n    \"blank\": 0,\n    \"shape_findings\": 0\n  }\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "module/ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 0,
+    "stdout": "{\n  \"target\": \"/private/tmp/perry-scratch/review-task-451/phase004/tmp/boundary-b0lvt84v/unadopted \u2014 not a Perry project yet\",\n  \"errors\": 0,\n  \"warnings\": 0,\n  \"findings\": [],\n  \"store_drift\": {\n    \"store_present\": false,\n    \"log_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": null\n  },\n  \"risk_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"intake_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"ask_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"cadence_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"okr_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"linkage_store\": {\n    \"store_present\": false,\n    \"records\": 0,\n    \"malformed\": 0\n  },\n  \"config_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"specs\": {\n    \"specs\": 0,\n    \"unscannable\": 0,\n    \"unbounded\": 0,\n    \"checked\": false\n  },\n  \"summaries\": {\n    \"store_present\": false,\n    \"open_rows\": 0,\n    \"carrying\": 0,\n    \"blank\": 0,\n    \"shape_findings\": 0\n  }\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "--architecture-module",
+      "module/ARCHITECTURE.md",
+      "--json"
+    ],
+    "exit": 1,
+    "stdout": "{\n  \"target\": \"/private/tmp/perry-scratch/review-task-451/phase004/tmp/boundary-b0lvt84v/unadopted \u2014 not a Perry project yet\",\n  \"errors\": 1,\n  \"warnings\": 0,\n  \"findings\": [\n    {\n      \"severity\": \"error\",\n      \"file\": \"module/ARCHITECTURE.md\",\n      \"rule\": \"size-cap\",\n      \"message\": \"601 lines, over the tier-1 cap of 600. Split the overflow into a sibling file rather than writing past it.\",\n      \"line\": null\n    }\n  ],\n  \"store_drift\": {\n    \"store_present\": false,\n    \"log_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": null\n  },\n  \"risk_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"intake_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"ask_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"cadence_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"okr_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"linkage_store\": {\n    \"store_present\": false,\n    \"records\": 0,\n    \"malformed\": 0\n  },\n  \"config_store_drift\": {\n    \"store_present\": false,\n    \"comparison_performed\": false,\n    \"records\": 0,\n    \"drifted\": 0\n  },\n  \"specs\": {\n    \"specs\": 0,\n    \"unscannable\": 0,\n    \"unbounded\": 0,\n    \"checked\": false\n  },\n  \"summaries\": {\n    \"store_present\": false,\n    \"open_rows\": 0,\n    \"carrying\": 0,\n    \"blank\": 0,\n    \"shape_findings\": 0\n  }\n}\n",
+    "stderr": ""
+  }
+]

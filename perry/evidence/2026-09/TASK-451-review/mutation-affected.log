@@ -1,0 +1,233 @@
+tier affected · 7ffcc6337bc5c8b31d2e8992c251e23299bff1ea...HEAD · 6 changed path(s) · running the modules below
+  widened to the full suite — bin/lib/: bin/lib/__init__.py
+  widened to the full suite — schema/: schema/state-schema.json
+  test_a_write_refuses_where_nothing_is_installed.py  full — bin/lib/: bin/lib/__init__.py
+  test_actor_required.py                              full — bin/lib/: bin/lib/__init__.py
+  test_add_declares_unlinked.py                       full — bin/lib/: bin/lib/__init__.py
+  test_add_refuses_without_an_answer.py               full — bin/lib/: bin/lib/__init__.py
+  test_add_writes_the_edge.py                         full — bin/lib/: bin/lib/__init__.py
+  test_amend_matches_create.py                        full — bin/lib/: bin/lib/__init__.py
+  test_answered_ask_is_legible.py                     full — bin/lib/: bin/lib/__init__.py
+  test_architecture_rules.py                          full — bin/lib/: bin/lib/__init__.py
+  test_ask_is_a_node.py                               full — bin/lib/: bin/lib/__init__.py
+  test_asks_list.py                                   full — bin/lib/: bin/lib/__init__.py
+  test_asks_store.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_attribution_buckets.py                         full — bin/lib/: bin/lib/__init__.py
+  test_bin_argument_contract.py                       full — bin/lib/: bin/lib/__init__.py
+  test_bin_surface.py                                 full — bin/lib/: bin/lib/__init__.py
+  test_blank_cell_is_one_rule.py                      full — bin/lib/: bin/lib/__init__.py
+  test_board_from_declarations.py                     full — bin/lib/: bin/lib/__init__.py
+  test_board_less_gaps.py                             full — bin/lib/: bin/lib/__init__.py
+  test_board_less_project_is_recognised.py            full — bin/lib/: bin/lib/__init__.py
+  test_board_less_reads_and_writes.py                 full — bin/lib/: bin/lib/__init__.py
+  test_board_names_its_sources.py                     full — bin/lib/: bin/lib/__init__.py
+  test_board_render.py                                full — bin/lib/: bin/lib/__init__.py
+  test_cadence.py                                     full — bin/lib/: bin/lib/__init__.py
+  test_cadence_store.py                               full — bin/lib/: bin/lib/__init__.py
+  test_churn.py                                       full — bin/lib/: bin/lib/__init__.py
+  test_claims.py                                      full — bin/lib/: bin/lib/__init__.py
+  test_compact_payload.py                             full — bin/lib/: bin/lib/__init__.py
+  test_config_store_readers.py                        full — bin/lib/: bin/lib/__init__.py
+  test_context_budget.py                              full — bin/lib/: bin/lib/__init__.py
+  test_contract_invariance.py                         full — bin/lib/: bin/lib/__init__.py
+  test_contract_key_parity.py                         full — bin/lib/: bin/lib/__init__.py
+  test_contract_page_snippets.py                      full — bin/lib/: bin/lib/__init__.py
+  test_count_fields.py                                full — bin/lib/: bin/lib/__init__.py
+  test_decide_status_enum.py                          full — bin/lib/: bin/lib/__init__.py
+  test_decide_writer.py                               full — bin/lib/: bin/lib/__init__.py
+  test_decoration_changes_nothing.py                  full — bin/lib/: bin/lib/__init__.py
+  test_design_handoff.py                              full — bin/lib/: bin/lib/__init__.py
+  test_diagnose.py                                    full — bin/lib/: bin/lib/__init__.py
+  test_dispatch_limit_honesty.py                      full — bin/lib/: bin/lib/__init__.py
+  test_duplicate_ids_are_refused.py                   full — bin/lib/: bin/lib/__init__.py
+  test_durations_provenance.py                        full — bin/lib/: bin/lib/__init__.py
+  test_empty_config_store.py                          full — bin/lib/: bin/lib/__init__.py
+  test_empty_declared_store.py                        full — bin/lib/: bin/lib/__init__.py
+  test_entrance.py                                    full — bin/lib/: bin/lib/__init__.py
+  test_escalation_boundaries.py                       full — bin/lib/: bin/lib/__init__.py
+  test_escalation_union.py                            full — bin/lib/: bin/lib/__init__.py
+  test_escaped_pipe_corpus.py                         full — bin/lib/: bin/lib/__init__.py
+  test_events_feed.py                                 full — bin/lib/: bin/lib/__init__.py
+  test_evidence_relation.py                           full — bin/lib/: bin/lib/__init__.py
+  test_explain_typed_tasks.py                         full — bin/lib/: bin/lib/__init__.py
+  test_glossary.py                                    full — bin/lib/: bin/lib/__init__.py
+  test_goals_contract.py                              full — bin/lib/: bin/lib/__init__.py
+  test_goals_kr_writer.py                             full — bin/lib/: bin/lib/__init__.py
+  test_goals_writer.py                                full — bin/lib/: bin/lib/__init__.py
+  test_handed_back_root.py                            full — bin/lib/: bin/lib/__init__.py
+  test_header_index_is_the_only_fold.py               full — bin/lib/: bin/lib/__init__.py
+  test_header_rule_harness.py                         full — bin/lib/: bin/lib/__init__.py
+  test_heading_defines.py                             full — bin/lib/: bin/lib/__init__.py
+  test_heading_title.py                               full — bin/lib/: bin/lib/__init__.py
+  test_host_support.py                                full — bin/lib/: bin/lib/__init__.py
+  test_i18n.py                                        full — bin/lib/: bin/lib/__init__.py
+  test_i18n_one_table.py                              full — bin/lib/: bin/lib/__init__.py
+  test_id_families.py                                 full — bin/lib/: bin/lib/__init__.py
+  test_installed_is_one_predicate.py                  full — bin/lib/: bin/lib/__init__.py
+  test_intake_signal.py                               full — bin/lib/: bin/lib/__init__.py
+  test_intake_store.py                                full — bin/lib/: bin/lib/__init__.py
+  test_knowledge_cards.py                             full — bin/lib/: bin/lib/__init__.py
+  test_knowledge_promotion.py                         full — bin/lib/: bin/lib/__init__.py
+  test_kr_checks.py                                   full — bin/lib/: bin/lib/__init__.py
+  test_kr_progress_provenance.py                      full — bin/lib/: bin/lib/__init__.py
+  test_linkage_store_declared.py                      full — bin/lib/: bin/lib/__init__.py
+  test_linkage_store_readers.py                       full — bin/lib/: bin/lib/__init__.py
+  test_linkage_task_exists.py                         full — bin/lib/: bin/lib/__init__.py
+  test_linkage_writer.py                              full — bin/lib/: bin/lib/__init__.py
+  test_live_state_expectations.py                     full — bin/lib/: bin/lib/__init__.py
+  test_md_store.py                                    full — bin/lib/: bin/lib/__init__.py
+  test_measured_krs_declare_a_target.py               full — bin/lib/: bin/lib/__init__.py
+  test_merge_gate.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_missing_defaults.py                            full — bin/lib/: bin/lib/__init__.py
+  test_module_run_guard.py                            full — bin/lib/: bin/lib/__init__.py
+  test_next_closing.py                                full — bin/lib/: bin/lib/__init__.py
+  test_next_section.py                                full — bin/lib/: bin/lib/__init__.py
+  test_ns_collision.py                                full — bin/lib/: bin/lib/__init__.py
+  test_okr_krs_render.py                              full — bin/lib/: bin/lib/__init__.py
+  test_okr_store_is_the_source.py                     full — bin/lib/: bin/lib/__init__.py
+  test_one_choke_point.py                             full — bin/lib/: bin/lib/__init__.py
+  test_one_header_rule.py                             full — bin/lib/: bin/lib/__init__.py
+  test_one_heading_predicate.py                       full — bin/lib/: bin/lib/__init__.py
+  test_one_line_break_rule.py                         full — bin/lib/: bin/lib/__init__.py
+  test_one_primitive.py                               full — bin/lib/: bin/lib/__init__.py
+  test_one_startable_rule.py                          full — bin/lib/: bin/lib/__init__.py
+  test_overall_kr_grammar.py                          full — bin/lib/: bin/lib/__init__.py
+  test_ownership.py                                   full — bin/lib/: bin/lib/__init__.py
+  test_parallel_runner.py                             full — bin/lib/: bin/lib/__init__.py
+  test_parsers.py                                     full — bin/lib/: bin/lib/__init__.py
+  test_perry_task_writes_are_what_it_writes.py        full — bin/lib/: bin/lib/__init__.py
+  test_phase_kr_declared_once.py                      full — bin/lib/: bin/lib/__init__.py
+  test_pointers_resolve.py                            full — bin/lib/: bin/lib/__init__.py
+  test_prioritize.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_procedures_call_the_tool.py                    full — bin/lib/: bin/lib/__init__.py
+  test_procedures_read_the_contract.py                full — bin/lib/: bin/lib/__init__.py
+  test_project_root_resolution.py                     full — bin/lib/: bin/lib/__init__.py
+  test_purge.py                                       full — bin/lib/: bin/lib/__init__.py
+  test_queue_sla.py                                   full — bin/lib/: bin/lib/__init__.py
+  test_reference_pages_are_reachable.py               full — bin/lib/: bin/lib/__init__.py
+  test_register_minters.py                            full — bin/lib/: bin/lib/__init__.py
+  test_register_store_invariant.py                    full — bin/lib/: bin/lib/__init__.py
+  test_register_substitution.py                       full — bin/lib/: bin/lib/__init__.py
+  test_release_core.py                                full — bin/lib/: bin/lib/__init__.py
+  test_release_update.py                              full — bin/lib/: bin/lib/__init__.py
+  test_restore_check.py                               full — bin/lib/: bin/lib/__init__.py
+  test_resume.py                                      full — bin/lib/: bin/lib/__init__.py
+  test_retired_tolerance.py                           full — bin/lib/: bin/lib/__init__.py
+  test_review_verdicts.py                             full — bin/lib/: bin/lib/__init__.py
+  test_risks.py                                       full — bin/lib/: bin/lib/__init__.py
+  test_risks_store.py                                 full — bin/lib/: bin/lib/__init__.py
+  test_role_cards.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_role_delegation.py                             full — bin/lib/: bin/lib/__init__.py
+  test_role_on_rows.py                                full — bin/lib/: bin/lib/__init__.py
+  test_router_budget.py                               full — bin/lib/: bin/lib/__init__.py
+  test_row_integrity.py                               full — bin/lib/: bin/lib/__init__.py
+  test_rung_vocabulary.py                             full — bin/lib/: bin/lib/__init__.py
+  test_same_action_linkage.py                         full — bin/lib/: bin/lib/__init__.py
+  test_scratch_is_per_agent.py                        full — bin/lib/: bin/lib/__init__.py
+  test_selection.py                                   full — bin/lib/: bin/lib/__init__.py
+  test_semantics_on_every_payload.py                  full — bin/lib/: bin/lib/__init__.py
+  test_shipped_vocabulary.py                          full — bin/lib/: bin/lib/__init__.py
+  test_slow_selector.py                               full — bin/lib/: bin/lib/__init__.py
+  test_spec_scannability.py                           full — bin/lib/: bin/lib/__init__.py
+  test_stage_separators.py                            full — bin/lib/: bin/lib/__init__.py
+  test_stale_blocked.py                               full — bin/lib/: bin/lib/__init__.py
+  test_starts_write_the_config_store_first.py         full — bin/lib/: bin/lib/__init__.py
+  test_state_cost.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_state_root_unset.py                            full — bin/lib/: bin/lib/__init__.py
+  test_store_drift.py                                 full — bin/lib/: bin/lib/__init__.py
+  test_store_is_canonical.py                          full — bin/lib/: bin/lib/__init__.py
+  test_store_is_the_write_target.py                   full — bin/lib/: bin/lib/__init__.py
+  test_store_population_agrees.py                     full — bin/lib/: bin/lib/__init__.py
+  test_stranded_rows.py                               full — bin/lib/: bin/lib/__init__.py
+  test_summary_is_asked_for.py                        full — bin/lib/: bin/lib/__init__.py
+  test_task_store.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_task_store_read_cutover.py                     full — bin/lib/: bin/lib/__init__.py
+  test_task_summary.py                                full — bin/lib/: bin/lib/__init__.py
+  test_task_writer_contracts.py                       full — bin/lib/: bin/lib/__init__.py
+  test_task_writer_core.py                            full — bin/lib/: bin/lib/__init__.py
+  test_task_writer_dependencies.py                    full — bin/lib/: bin/lib/__init__.py
+  test_task_writer_intake.py                          full — bin/lib/: bin/lib/__init__.py
+  test_task_writer_modes.py                           full — bin/lib/: bin/lib/__init__.py
+  test_tiers.py                                       full — bin/lib/: bin/lib/__init__.py
+  test_track_attribution.py                           full — bin/lib/: bin/lib/__init__.py
+  test_track_axes.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_track_move.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_track_register_source.py                       full — bin/lib/: bin/lib/__init__.py
+  test_tracks_source_documented.py                    full — bin/lib/: bin/lib/__init__.py
+  test_tree_guard.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_unlinked_declaration.py                        full — bin/lib/: bin/lib/__init__.py
+  test_v5_signoff.py                                  full — bin/lib/: bin/lib/__init__.py
+  test_wip_and_stages.py                              full — bin/lib/: bin/lib/__init__.py
+  test_work_modes.py                                  full — bin/lib/: bin/lib/__init__.py
+selected 158 of 158 modules · 1617.1 of 1617.1 module-seconds (100.0%)
+  held back — test_durations_provenance.py is the slow tier's (tests/parallel § HARNESS_SELF_TESTS): run `bash tests/run --tier slow`
+  held back — test_merge_gate.py is the slow tier's (tests/parallel § HARNESS_SELF_TESTS): run `bash tests/run --tier slow`
+  held back — test_parallel_runner.py is the slow tier's (tests/parallel § HARNESS_SELF_TESTS): run `bash tests/run --tier slow`
+  held back — test_tree_guard.py is the slow tier's (tests/parallel § HARNESS_SELF_TESTS): run `bash tests/run --tier slow`
+this change is wide
+
+[31m✗ test_claims.py[0m — 1 of 31 test(s) failed
+    ERROR  test_claims.TestClaimsCoverFiles.test_architecture_declarations_and_selected_components
+  [33m… 35 earlier line(s) elided of 60; the last 25 follow — re-run this module alone for all of it[0m
+Asking the language question first and the state-root question later ... ok
+test_every_file_that_lands_a_row_carries_the_stage_rule (test_claims.TestTheStageInvariantReachesEveryFileThatMovesARow.test_every_file_that_lands_a_row_carries_the_stage_rule)
+The claim above is prose. This is the rule underneath it: a ... ok
+test_the_files_named_as_restating_it_actually_do (test_claims.TestTheStageInvariantReachesEveryFileThatMovesARow.test_the_files_named_as_restating_it_actually_do)
+Checks the claim as written: pull the cited paths out of the ... ok
+test_both_store_files_are_claimed_under_the_right_root (test_claims.TestTheStoreFilesAreClaimed.test_both_store_files_are_claimed_under_the_right_root) ... ok
+test_the_declared_path_is_the_path_the_writer_uses (test_claims.TestTheStoreFilesAreClaimed.test_the_declared_path_is_the_path_the_writer_uses)
+A claim naming a path Perry does not write is the widening the ... ok
+
+======================================================================
+ERROR: test_architecture_declarations_and_selected_components (test_claims.TestClaimsCoverFiles.test_architecture_declarations_and_selected_components)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-task-451/tests/test_claims.py", line 105, in test_architecture_declarations_and_selected_components
+    root_spec, module = [next(f for f in SCHEMA["files"] if f["id"] == kind)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-task-451/tests/test_claims.py", line 105, in <listcomp>
+    root_spec, module = [next(f for f in SCHEMA["files"] if f["id"] == kind)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+----------------------------------------------------------------------
+Ran 31 tests in 26.223s
+
+FAILED (errors=1)
+
+[31m✗ test_state_cost.py[0m — 3 of 21 test(s) failed
+  [31m! unittest counted 3 failed test(s) and the id parser named 1[0m — the list below is the parser's and is short; the count above is the larger of the two on purpose.
+    FAIL   test_state_cost.TestNoDirectoryIsSilentlyOmitted.test_every_claimed_path_is_either_measured_or_declared_empty
+  [33m… 33 earlier line(s) elided of 58; the last 25 follow — re-run this module alone for all of it[0m
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-task-451/tests/test_state_cost.py", line 207, in test_every_claimed_path_is_either_measured_or_declared_empty
+    self.assertIn(architecture, data["claimed_paths"])
+AssertionError: 'ARCHITECTURE.md' not found in ['perry/PROJECT_STATE.md', 'perry/ARCHITECTURE.md', '.perry/config.jsonl', '.perry/events.jsonl', 'perry/architecture/', 'perry/cadence.jsonl', 'perry/linkage.jsonl', 'perry/intake.jsonl', 'perry/risks.jsonl', 'perry/tasks.jsonl', 'perry/asks.jsonl', 'perry/decisions/', 'perry/incidents/', 'perry/knowledge/', 'perry/evidence/', 'perry/okr.jsonl', 'perry/BOARD.md', 'perry/handoff/', 'perry/journal/', 'perry/runbook/', 'perry/design/', 'perry/inputs/', 'perry/weekly/', 'perry/OKR.md', 'perry/phase/', '.perry/']
+
+======================================================================
+FAIL: test_every_claimed_path_is_either_measured_or_declared_empty (test_state_cost.TestNoDirectoryIsSilentlyOmitted.test_every_claimed_path_is_either_measured_or_declared_empty) (code_path='code')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-task-451/tests/test_state_cost.py", line 207, in test_every_claimed_path_is_either_measured_or_declared_empty
+    self.assertIn(architecture, data["claimed_paths"])
+AssertionError: 'code/ARCHITECTURE.md' not found in ['perry/PROJECT_STATE.md', 'perry/ARCHITECTURE.md', '.perry/config.jsonl', '.perry/events.jsonl', 'perry/architecture/', 'perry/cadence.jsonl', 'perry/linkage.jsonl', 'perry/intake.jsonl', 'perry/risks.jsonl', 'perry/tasks.jsonl', 'perry/asks.jsonl', 'perry/decisions/', 'perry/incidents/', 'perry/knowledge/', 'perry/evidence/', 'perry/okr.jsonl', 'perry/BOARD.md', 'perry/handoff/', 'perry/journal/', 'perry/runbook/', 'perry/design/', 'perry/inputs/', 'perry/weekly/', 'perry/OKR.md', 'perry/phase/', '.perry/']
+
+======================================================================
+FAIL: test_every_claimed_path_is_either_measured_or_declared_empty (test_state_cost.TestNoDirectoryIsSilentlyOmitted.test_every_claimed_path_is_either_measured_or_declared_empty) (code_path='/private/tmp/perry-scratch/review-task-451/phase004/tmp/tmpfru4m9au/code')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/review-task-451/tests/test_state_cost.py", line 207, in test_every_claimed_path_is_either_measured_or_declared_empty
+    self.assertIn(architecture, data["claimed_paths"])
+AssertionError: 'code/ARCHITECTURE.md' not found in ['perry/PROJECT_STATE.md', 'perry/ARCHITECTURE.md', '.perry/config.jsonl', '.perry/events.jsonl', 'perry/architecture/', 'perry/cadence.jsonl', 'perry/linkage.jsonl', 'perry/intake.jsonl', 'perry/risks.jsonl', 'perry/tasks.jsonl', 'perry/asks.jsonl', 'perry/decisions/', 'perry/incidents/', 'perry/knowledge/', 'perry/evidence/', 'perry/okr.jsonl', 'perry/BOARD.md', 'perry/handoff/', 'perry/journal/', 'perry/runbook/', 'perry/design/', 'perry/inputs/', 'perry/weekly/', 'perry/OKR.md', 'perry/phase/', '.perry/']
+
+----------------------------------------------------------------------
+Ran 21 tests in 32.369s
+
+FAILED (failures=3)
+
+154 modules · 4299 tests · 459.7s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[31m✗ 2 of 154 MODULE(S) red[0m
+[31m✗ 4 of 4299 TEST(S) failed[0m

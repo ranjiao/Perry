@@ -1,0 +1,855 @@
+{
+  "modules": {
+    "test_a_write_refuses_where_nothing_is_installed.py": {
+      "sec": 12.417,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_add_declares_unlinked.py": {
+      "sec": 10.703,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_add_refuses_without_an_answer.py": {
+      "sec": 12.821,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_add_writes_the_edge.py": {
+      "sec": 8.966,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_amend_matches_create.py": {
+      "sec": 0.117,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_answered_ask_is_legible.py": {
+      "sec": 3.424,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_architecture_rules.py": {
+      "sec": 2.665,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_ask_is_a_node.py": {
+      "sec": 3.398,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_asks_list.py": {
+      "sec": 17.316,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_asks_store.py": {
+      "sec": 5.117,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_attribution_buckets.py": {
+      "sec": 2.209,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_bin_argument_contract.py": {
+      "sec": 53.134,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_bin_surface.py": {
+      "sec": 73.6,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_blank_cell_is_one_rule.py": {
+      "sec": 8.331,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_board_from_declarations.py": {
+      "sec": 2.696,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_board_less_gaps.py": {
+      "sec": 1.491,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_board_less_project_is_recognised.py": {
+      "sec": 4.384,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_board_less_reads_and_writes.py": {
+      "sec": 25.144,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_board_names_its_sources.py": {
+      "sec": 1.129,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_board_render.py": {
+      "sec": 3.085,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_cadence.py": {
+      "sec": 23.353,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_cadence_store.py": {
+      "sec": 5.527,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_churn.py": {
+      "sec": 17.81,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_claims.py": {
+      "sec": 33.941,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_compact_payload.py": {
+      "sec": 3.396,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_config_store_readers.py": {
+      "sec": 1.722,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_context_budget.py": {
+      "sec": 2.459,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_contract_invariance.py": {
+      "sec": 21.66,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_contract_key_parity.py": {
+      "sec": 23.858,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_contract_page_snippets.py": {
+      "sec": 2.379,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_count_fields.py": {
+      "sec": 1.268,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_decide_status_enum.py": {
+      "sec": 5.255,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_decide_writer.py": {
+      "sec": 25.591,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_decoration_changes_nothing.py": {
+      "sec": 6.451,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_design_handoff.py": {
+      "sec": 1.495,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_diagnose.py": {
+      "sec": 53.712,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_dispatch_limit_honesty.py": {
+      "sec": 3.537,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_duplicate_ids_are_refused.py": {
+      "sec": 3.85,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_durations_provenance.py": {
+      "sec": 0.18,
+      "source": "2026-09-09-085824"
+    },
+    "test_empty_config_store.py": {
+      "sec": 13.206,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_empty_declared_store.py": {
+      "sec": 1.873,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_entrance.py": {
+      "sec": 0.062,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_escalation_boundaries.py": {
+      "sec": 0.297,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_escalation_union.py": {
+      "sec": 5.902,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_escaped_pipe_corpus.py": {
+      "sec": 2.601,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_events_feed.py": {
+      "sec": 5.757,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_evidence_relation.py": {
+      "sec": 5.133,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_explain_typed_tasks.py": {
+      "sec": 2.236,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_glossary.py": {
+      "sec": 9.466,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_goals_contract.py": {
+      "sec": 2.34,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_goals_kr_writer.py": {
+      "sec": 4.823,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_goals_writer.py": {
+      "sec": 33.52,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_handed_back_root.py": {
+      "sec": 10.512,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_header_index_is_the_only_fold.py": {
+      "sec": 19.856,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_header_rule_harness.py": {
+      "sec": 40.953,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_heading_defines.py": {
+      "sec": 2.258,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_heading_title.py": {
+      "sec": 3.885,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_host_support.py": {
+      "sec": 44.62,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_i18n.py": {
+      "sec": 1.158,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_i18n_one_table.py": {
+      "sec": 0.168,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_id_families.py": {
+      "sec": 2.664,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_installed_is_one_predicate.py": {
+      "sec": 4.353,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_intake_signal.py": {
+      "sec": 0.9,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_intake_store.py": {
+      "sec": 13.438,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_knowledge_cards.py": {
+      "sec": 3.061,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_knowledge_promotion.py": {
+      "sec": 19.573,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_kr_checks.py": {
+      "sec": 2.555,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_kr_progress_provenance.py": {
+      "sec": 26.881,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_linkage_store_declared.py": {
+      "sec": 0.641,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_linkage_store_readers.py": {
+      "sec": 6.156,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_linkage_task_exists.py": {
+      "sec": 3.011,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_linkage_writer.py": {
+      "sec": 10.792,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_live_state_expectations.py": {
+      "sec": 14.182,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_md_store.py": {
+      "sec": 21.789,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_measured_krs_declare_a_target.py": {
+      "sec": 18.618,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_missing_defaults.py": {
+      "sec": 2.056,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_module_run_guard.py": {
+      "sec": 13.454,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_next_section.py": {
+      "sec": 4.045,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_ns_collision.py": {
+      "sec": 21.46,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_okr_krs_render.py": {
+      "sec": 2.021,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_okr_store_is_the_source.py": {
+      "sec": 6.608,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_one_choke_point.py": {
+      "sec": 11.274,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_one_header_rule.py": {
+      "sec": 11.339,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_one_heading_predicate.py": {
+      "sec": 2.128,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_one_line_break_rule.py": {
+      "sec": 8.528,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_one_primitive.py": {
+      "sec": 0.15,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_one_startable_rule.py": {
+      "sec": 3.613,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_overall_kr_grammar.py": {
+      "sec": 2.878,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_ownership.py": {
+      "sec": 0.15,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_parallel_runner.py": {
+      "sec": 12.66,
+      "source": "2026-09-09-085824"
+    },
+    "test_parsers.py": {
+      "sec": 5.633,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_perry_task_writes_are_what_it_writes.py": {
+      "sec": 11.961,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_phase_kr_declared_once.py": {
+      "sec": 28.245,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_pointers_resolve.py": {
+      "sec": 0.24,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_prioritize.py": {
+      "sec": 13.443,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_procedures_call_the_tool.py": {
+      "sec": 1.226,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_procedures_read_the_contract.py": {
+      "sec": 0.475,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_project_root_resolution.py": {
+      "sec": 4.296,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_purge.py": {
+      "sec": 8.517,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_queue_sla.py": {
+      "sec": 28.054,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_reference_pages_are_reachable.py": {
+      "sec": 0.07,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_register_minters.py": {
+      "sec": 4.122,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_register_store_invariant.py": {
+      "sec": 6.192,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_register_substitution.py": {
+      "sec": 5.115,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_restore_check.py": {
+      "sec": 17.811,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_resume.py": {
+      "sec": 4.2,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_retired_tolerance.py": {
+      "sec": 0.951,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_review_verdicts.py": {
+      "sec": 29.058,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_risks.py": {
+      "sec": 8.469,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_risks_store.py": {
+      "sec": 10.8,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_role_cards.py": {
+      "sec": 6.36,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_role_delegation.py": {
+      "sec": 4.626,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_role_on_rows.py": {
+      "sec": 2.858,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_router_budget.py": {
+      "sec": 0.551,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_row_integrity.py": {
+      "sec": 1.138,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_rung_vocabulary.py": {
+      "sec": 2.59,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_same_action_linkage.py": {
+      "sec": 22.156,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_scratch_is_per_agent.py": {
+      "sec": 2.841,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_selection.py": {
+      "sec": 2.043,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_semantics_on_every_payload.py": {
+      "sec": 10.322,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_shipped_vocabulary.py": {
+      "sec": 5.4,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_slow_selector.py": {
+      "sec": 29.738,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_spec_scannability.py": {
+      "sec": 9.451,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_stage_separators.py": {
+      "sec": 1.857,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_stale_blocked.py": {
+      "sec": 3.146,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_starts_write_the_config_store_first.py": {
+      "sec": 4.14,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_state_cost.py": {
+      "sec": 30.432,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_state_root_unset.py": {
+      "sec": 23.775,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_store_drift.py": {
+      "sec": 2.479,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_store_is_canonical.py": {
+      "sec": 3.234,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_store_is_the_write_target.py": {
+      "sec": 31.122,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_store_population_agrees.py": {
+      "sec": 2.877,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_stranded_rows.py": {
+      "sec": 8.797,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_summary_is_asked_for.py": {
+      "sec": 12.354,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_task_store.py": {
+      "sec": 2.713,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_task_store_read_cutover.py": {
+      "sec": 3.102,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_task_summary.py": {
+      "sec": 28.408,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_task_writer_contracts.py": {
+      "sec": 11.91,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_task_writer_core.py": {
+      "sec": 38.918,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_task_writer_dependencies.py": {
+      "sec": 8.169,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_task_writer_intake.py": {
+      "sec": 10.505,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_task_writer_modes.py": {
+      "sec": 11.051,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_tiers.py": {
+      "sec": 22.036,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_track_attribution.py": {
+      "sec": 21.143,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_track_axes.py": {
+      "sec": 0.055,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_track_move.py": {
+      "sec": 6.89,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_track_register_source.py": {
+      "sec": 2.891,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_tracks_source_documented.py": {
+      "sec": 6.07,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_tree_guard.py": {
+      "sec": 62.52,
+      "source": "2026-09-09-085824"
+    },
+    "test_unlinked_declaration.py": {
+      "sec": 9.16,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_v5_signoff.py": {
+      "sec": 29.638,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_wip_and_stages.py": {
+      "sec": 4.057,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_work_modes.py": {
+      "sec": 16.597,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_actor_required.py": {
+      "sec": 16.694,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_release_core.py": {
+      "sec": 17.346,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_release_update.py": {
+      "sec": 28.391,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_next_closing.py": {
+      "sec": 0.659,
+      "source": "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00"
+    },
+    "test_merge_gate.py": {
+      "sec": null,
+      "source": null
+    }
+  },
+  "schema": 1,
+  "sources": {
+    "2026-09-09-085824": {
+      "load1": 35.63,
+      "note": "`tests/parallel --record -j 8`.",
+      "ref": "38f889e43bbe792270cd5902d0e5d16e28305c1e",
+      "taken": "2026-09-09T08:58:24Z",
+      "workers": 8
+    },
+    "2026-09-11-task437": {
+      "load1": null,
+      "note": "ONE module, timed alone three times and recorded at the median (1.18/0.97/1.00s). Deliberately not a `tests/parallel --record -j 8` sweep: re-measuring 128 neighbours to land one entry is the substitution TASK-304's bound names, and a figure taken at a different load than the numbers it will be sorted against is worse than a stamped single-module reading. `load1` is null because nothing sampled it, which is a different fact from a load of zero.",
+      "ref": "96fd27b808439b9f8055a694c9fb97ffe0cfba2f",
+      "taken": "2026-09-11T00:00:00Z",
+      "workers": 1
+    },
+    "2026-09-12-task236": {
+      "load1": null,
+      "note": "ONE module, timed alone three times and recorded at the median (0.18/0.15/0.14s), on the same terms as the 2026-09-11-task437 entry above and for the same reason: re-measuring 129 neighbours to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it, which is a different fact from a load of zero.",
+      "ref": "a9e582a8407474afb7b9964a1ad0657cbc18bb59",
+      "taken": "2026-09-12T00:00:00Z",
+      "workers": 1
+    },
+    "2026-09-12-task439": {
+      "load1": null,
+      "note": "ONE module, timed alone three times and recorded at the median (5.99/3.30/2.64) rather than from a `--record` sweep, which would have re-timed all 132 under a different load.",
+      "ref": "f3df62193eebfa139219b60e2cd983836f74cada",
+      "taken": "2026-09-12T15:20:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task335": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 tests/parallel test_contract_key_parity --times` on a git-archive copy of the ref and recorded at the median of the harness's own per-module seconds (7.03/6.14/6.00s, 40 tests). On the terms of the 2026-09-12-task439 entry: no neighbour was re-timed. The same procedure at b71d8ce5, before TASK-335, read 5.20/5.12/5.19s (35 tests), so the frozen copy costs about 0.95s. `load1` is null because nothing sampled it.",
+      "ref": "3ac11420",
+      "taken": "2026-09-14T11:50:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task237": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (0.79/0.89/0.8s), on the terms of the 2026-09-12-task439 entry: re-timing every neighbour to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it.",
+      "ref": "1d30f84d3f88f7d211b6bbb764f4dfc42a61de7d",
+      "taken": "2026-09-14T03:09:47Z",
+      "workers": 1
+    },
+    "2026-09-14-asks": {
+      "load1": 11.94,
+      "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (4.19/4.09/3.94s), on the terms of the 2026-09-12-task439 entry. test_asks_list.py landed in f9143a3b (perry-task asks) without an entry, and tests/run has printed `not in durations.json` for it since. load1 is the uptime sample taken right after the three runs, with a dispatched agent's work on the same machine, so this is high rather than idle.",
+      "ref": "f9143a3b189b3cc8f9050fc41c464842061f5810",
+      "taken": "2026-09-14T03:32:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task237-d1": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 tests/parallel -j 1 --times` and recorded at the median (0.74/0.41/0.41s), on the terms of the 2026-09-14-task237 entry: re-timing every neighbour to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it.",
+      "ref": "a43310190d8109407dd8f1f49434ececc3a025f3",
+      "taken": "2026-09-14T00:00:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task237-d3a": {
+      "load1": 10.1,
+      "note": "ONE module, timed alone three times with `python3 -m unittest` and recorded at the median (4.32/4.55/5.15s), on the terms of the 2026-09-14-task237 entry: re-timing every neighbour to land one entry is the substitution TASK-304's bound names. Re-timed after the contract guards took the module from 23 to 26 tests (it read 4.82/4.03/4.76s at fbc8be5d). load1 is the uptime sample taken right after the three runs, with other sessions' work on the same machine, so this is high rather than idle.",
+      "ref": "c0916ced92ada8d5cafd1da2e1ab43f534c07fd2",
+      "taken": "2026-09-14T05:53:18Z",
+      "workers": 1
+    },
+    "2026-09-14-task237-d3b": {
+      "load1": 9.17,
+      "note": "TWO modules added by TASK-237 deliverable 3b, each timed alone three times with `python3 -m unittest` from tests/ and recorded at the median: test_cadence_store 1.24/1.29/1.48s, test_board_less_gaps 0.57/0.26/0.20s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "ref": "32c416ee",
+      "taken": "2026-09-14T07:40:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task237-d3b-prime": {
+      "load1": 11.53,
+      "note": "TWO modules added by TASK-237 deliverable 3b′, each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_installed_is_one_predicate 1.57/1.53/1.57s, test_starts_write_the_config_store_first 1.57/1.58/1.54s. On the terms of the 2026-09-14-task237 entry: no neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "ref": "91610742",
+      "taken": "2026-09-14T12:00:00Z",
+      "workers": 1
+    },
+    "2026-09-15-unlisted-pair": {
+      "load1": 21.08,
+      "note": "TWO modules that landed without an entry — test_contract_page_snippets (7ce9170b, TASK-412) and test_a_write_refuses_where_nothing_is_installed (b42fa3d7, TASK-237 round 2) — each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_contract_page_snippets 5.98/4.79/4.64s; test_a_write_refuses_where_nothing_is_installed 3.97/3.47/4.66s. test_durations_provenance was red over them on `--slow` while the default run, which defers that module, stayed green. No neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "ref": "282e6acb8ac4d285edff263eb781e7816f542d65",
+      "taken": "2026-09-15T02:10:00Z",
+      "workers": 1
+    },
+    "2026-09-14-task262": {
+      "load1": 11.08,
+      "note": "TASK-262. ONE module added and ONE slowed, each timed alone three times with `python3 -m unittest discover -s tests -t . -p <module>` and recorded at the median: test_board_names_its_sources 0.79/0.64/0.57s; test_board_from_declarations 0.91/0.91/0.89s. The slowdown is measured, not assumed: the same module at the base 7f97d337, from a `git archive` copy, back to back at the same load, took 0.53/0.86/0.60s (median 0.60). Every `perry-tasks board` now also reads `bin/perry-task § SURFACE` with `ast` (~0.03s a render). No other neighbour was re-timed. load1 is the getloadavg sample taken right after the nine runs.",
+      "ref": "7f97d337928a09fe6993f4891e2a5c3822fd3523",
+      "taken": "2026-09-14T15:00:00Z",
+      "workers": 1
+    },
+    "2026-09-15-task262-round2": {
+      "load1": 12.51,
+      "note": "TASK-262 round 2. ONE module added, timed alone three times with `/usr/bin/time -p python3 -m unittest discover -s tests -t . -p <module>` and recorded at the median: test_perry_task_writes_are_what_it_writes 2.57/2.67/1.94s (in-module). It re-runs every perry-task write in-process on temp projects. No neighbour was re-timed: only SURFACE `writes` literals changed in bin/perry-task. load1 is the getloadavg sample taken right after the three runs.",
+      "ref": "83fed4f3fd8b6a9dd09d7e51e42fb31db119b20d",
+      "taken": "2026-09-15T10:00:00Z",
+      "workers": 1
+    },
+    "2026-09-15-task441": {
+      "load1": 14.22,
+      "note": "TASK-441. SIX modules re-timed, each alone three times with `python3 tests/parallel -j 1 --times <module>` on a git-archive copy of the ref, one module per command, and recorded at the median of the harness's own per-module seconds: test_same_action_linkage 8.13/6.38/6.83 (81 tests; base 3.61s, 76 tests); test_contract_invariance 7.20/6.89/6.24 (33 tests; base 3.52s, 27 tests); test_contract_key_parity 7.86/7.27/7.64 (45 tests; base 6.03s, 40 tests); test_kr_progress_provenance 5.71/5.79/5.87 (34 tests; base 3.00s, 29 tests); test_measured_krs_declare_a_target 3.36/3.33/3.31 (20 tests; base 0.46s, 15 tests); test_phase_kr_declared_once 4.49/4.86/4.83 (34 tests; base 2.17s, 29 tests). The base figures are the same procedure on a git-archive copy of 67dada54, where the modules were red. Every module moved by more than 0.5s: each now builds a whole-tree copy with the scored phase pinned and a (none) copy for its control (test_contract_key_parity builds only the control copy, since its frozen copy already existed). No neighbour was re-timed. load1 is the first of six samples, one taken before each module's runs; they ranged 11.08-20.02.",
+      "ref": "64fc2630",
+      "taken": "2026-09-15T12:30:00Z",
+      "workers": 1
+    },
+    "2026-09-15-task442": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 tests/parallel test_next_section` and recorded at the median (1.4/0.9/1.2s, 39 tests), on the same terms as the 2026-09-11-task437 entry and for the same reason: re-measuring every neighbour to land one entry is the substitution TASK-304's bound names. `load1` is null because nothing sampled it.",
+      "ref": "bb178072b1fbaa8bb655f319630b83785899c5ab",
+      "taken": "2026-09-15T00:00:00Z",
+      "workers": 8
+    },
+    "2026-09-15-task448": {
+      "load1": 12.64,
+      "note": "ONE new module, test_selection (TASK-448), timed alone three times with `python3 tests/parallel test_selection` and recorded at the median of the runner's own wall line: 1.4/1.2/1.3s. No neighbour was re-timed, and no module that gained a COVERS declaration in the same row was re-timed: a module-level tuple moves nothing by 0.5s. load1 is the getloadavg sample taken right after the three runs.",
+      "ref": "eed48a88",
+      "taken": "2026-09-15T12:45:00Z",
+      "workers": 8
+    },
+    "2026-09-15-task453": {
+      "load1": null,
+      "note": "ONE module, timed alone three times with `python3 -m unittest discover -s tests -p test_architecture_rules.py` at the ref and recorded at the median (1.11/0.78/0.77s, 32 tests), on the terms of the 2026-09-12-task439 entry: no neighbour was re-timed. `load1` is null because nothing sampled it.",
+      "ref": "9e3cf9d4",
+      "taken": "2026-09-15T12:29:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task448-r3": {
+      "load1": 18.32,
+      "note": "EIGHT modules re-timed after TASK-448 round 3 (USER-942) took them off the live state root: seven copy named store and document files instead of the whole of perry/, or run their tool with --root at a fixture project, and test_store_is_canonical was not changed at all — its 21.59s was stale, taken before TASK-368 moved it in-process. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: board_render 1.24/1.41/1.20; task_store 1.42/1.55/1.64; decoration_changes_nothing 4.61/4.51/4.51; store_is_canonical 0.69/0.68/0.70; review_verdicts 8.01/8.51/7.58; rung_vocabulary 1.07/0.95/0.96; contract_page_snippets 1.24/1.26/1.09; count_fields 0.58/0.50/0.51. No neighbour was re-timed. load1 is the getloadavg sample taken right after the 24 runs, with other sessions' work on the same machine.",
+      "ref": "bf9bd4e3",
+      "taken": "2026-09-16T02:40:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task449": {
+      "load1": 28.88,
+      "note": "ONE new module, test_tiers (TASK-449), timed alone three times with `python3 tests/parallel -j 1 --times test_tiers` and recorded at the median of the harness's own per-module seconds: 10.61/10.57/10.58s (40 tests). No neighbour was re-timed: the row adds a --tier entry to tests/run and tests/parallel, which no other module's work goes through. The module spends its time in ~20 subprocess runs of `bash tests/run` against a stub tree, which is what holds `bare run == --tier full` as a comparison of two runs rather than of two lines of source. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine.",
+      "ref": "c71e9585",
+      "taken": "2026-09-16T12:10:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task270": {
+      "load1": 24.9,
+      "note": "TWO modules added by TASK-270, each timed alone three times with `python3 tests/parallel -j 1 --times <module>` and recorded at the median of the harness's own per-module seconds: test_empty_config_store 4.98/5.78/5.01s (16 tests, round 1, unmeasured since its merge), test_state_root_unset 2.42/2.31/2.28s (8 tests, round 2, USER-948). No neighbour was re-timed. load1 is the getloadavg sample taken right after the six runs, with other sessions' work on the same machine.",
+      "ref": "f6ec8281",
+      "taken": "2026-09-16T08:14:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task270-r3": {
+      "load1": 152.71,
+      "note": "ONE module re-timed, test_state_root_unset, because TASK-270 round 3 (USER-949) grew it from 8 to 18 tests with the `set \"State root\"` class; the 2026-09-16-task270 figure (2.31s) measured the 8. Timed alone three times with `python3 tests/parallel -j 1 --times test_state_root_unset` and recorded at the median of the harness's own per-module seconds: 17.10/9.37/9.60. No neighbour was re-timed; test_empty_config_store keeps its task270 figure. The machine was heavily loaded (load1 152.71 just after the runs; test_empty_config_store, timed in the same window for comparison only, ran 18-22s against its recorded 5.01s), so the figure is likely high rather than low.",
+      "ref": "5e86c3db",
+      "taken": "2026-09-16T08:36:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task416": {
+      "load1": 92.44,
+      "note": "ONE new module, test_kr_checks (TASK-416), timed alone three times with `python3 tests/parallel -j 1 --times test_kr_checks` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 3.02/2.08/1.58 (48 tests). No neighbour was re-timed. The machine was heavily loaded (load1 92.44 taken just after the three runs), so the figure is likely high rather than low.",
+      "ref": "162586f4",
+      "taken": "2026-09-16T07:45:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task271-275": {
+      "load1": 90.74,
+      "note": "TWO new modules, test_empty_declared_store (TASK-275) and test_tracks_source_documented (TASK-271), plus test_empty_config_store, which TASK-270 added without an entry and this branch edits. Each timed alone three times with `python3 tests/parallel -j 1 --times <module>` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 0.64/0.52/0.57 (6 tests), 2.25/2.41/2.98 (6 tests) and 16.11/22.70/23.61 (16 tests). No other neighbour was re-timed. load1 was 13.04 after the first two and 90.74 after the third, so the last figure is likely high rather than low.",
+      "ref": "ca6b3506",
+      "taken": "2026-09-16T08:24:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task264": {
+      "load1": 86.84,
+      "note": "ONE new module, test_goals_kr_writer (TASK-264), timed alone three times with `python3 tests/parallel -j 1 --times test_goals_kr_writer` in the agent's worktree at the ref and recorded at the median of the harness's own per-module seconds: 6.41/4.76/5.17 (39 tests). No neighbour was re-timed: the two modules that gained a registry line (test_a_write_refuses_where_nothing_is_installed, test_okr_store_is_the_source) each gained one table entry, which moves nothing measurable. load1 is the getloadavg sample taken right after the three runs, with other sessions' work on the same machine, so the figure is likely high rather than low.",
+      "ref": "ec5d5421",
+      "taken": "2026-09-16T08:50:00Z",
+      "workers": 1
+    },
+    "2026-09-16-task289": {
+      "ref": "aeb8cf5fb9e2a6e8c19cf46319ab8e81c88584a1",
+      "taken": "2026-09-16T09:46:00Z",
+      "workers": 1,
+      "load1": 49.48,
+      "note": "One new module, test_actor_required.py: 13 tests, measured with env -u PERRY_PROJECT -u PERRY_HOME python3 tests/parallel -j 1 --times test_actor_required. One measurement at this committed code ref while other suite runs were active; load1 captured just after measurement. No other module retimed."
+    },
+    "2026-09-16-task462": {
+      "ref": "d37dc377292daf2d29a4ab0a1c7d15ba345d9a00",
+      "taken": "2026-09-16T11:06:49.318413+00:00",
+      "workers": 1,
+      "load1": 8.28564453125,
+      "note": "TASK-462 new modules only. Core 15 tests in 8.491 seconds run with clean PYTHONPATH/PERRY_PROJECT/PERRY_HOME; update author reports 20 tests in 13.604 seconds. No neighboring module re-timed. Review follow-up: core now 16 tests measured in 14.955 seconds; clean HEAD/requested SHA mismatch coverage added, exact guard removal mutation fails. Final review follow-up: core 18 tests in 10.128 seconds, adding handwritten invalid canonical version/phase sequences; both guard-removal mutations fail."
+    },
+    "2026-09-17-task443": {
+      "ref": "d2bd2b136efea0b7ef35368660166a312087f73f",
+      "taken": "2026-09-17T03:59:45.721149+00:00",
+      "workers": 1,
+      "load1": 8.3896484375,
+      "note": "New test_next_closing.py only: 7 tests, measured once by clean-env python3 tests/parallel -j 1 --times test_next_closing on this committed three-task integration ref. Harness per-module time 0.46 seconds; wall 0.5 seconds. Other sessions may be running; no neighboring module retimed."
+    },
+    "merge-7207cb31eded-2026-09-17T04:18:49.592445+00:00": {
+      "kind": "merge-result",
+      "ref": "b20beefe8a4a217ec26933b69a64c4ca75c9927b",
+      "base": "914029a45310adf48f695c04312bd666bff2f9e8",
+      "tree": "7207cb31eded29b405c5f23d48982eff4d9fe311",
+      "taken": "2026-09-17T04:18:49.592445+00:00",
+      "workers": 8,
+      "tier": "full",
+      "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
+    },
+    "merge-8cf62293712e-2026-09-17T08:10:02.825041+00:00": {
+      "kind": "merge-result",
+      "ref": "e8f0eb0183a13a69ddd4456368745e2b500ebaf4",
+      "base": "df09680e453fe68aa47360d83eec1cf87e6771fd",
+      "tree": "8cf62293712e8e2e658f979dd5e13634c4bcbead",
+      "taken": "2026-09-17T08:10:02.825041+00:00",
+      "workers": 4,
+      "tier": "full",
+      "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
+    }
+  }
+}

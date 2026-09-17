@@ -1,0 +1,403 @@
+diff --git a/bin/lib/__init__.py b/bin/lib/__init__.py
+index 22bc1669..e31aa245 100644
+--- a/bin/lib/__init__.py
++++ b/bin/lib/__init__.py
+@@ -1123,0 +1124,9 @@ def scan_argv(argv: list[str], *, bools: tuple[str, ...] = (),
++def anchor_root(project_root: Path, state_root: Path, anchor: str) -> Path:
++    """Resolve declared locations through the shared config reader (A1 only)."""
++    if anchor == "code":
++        settings, _ = _parsers().config_store_settings(project_root)
++        raw = (settings or {}).get("code_repo_path", "")
++        return (project_root / Path(raw).expanduser()).resolve() if raw else project_root
++    return {"project": project_root, "state": state_root}[anchor]
++
++
+diff --git a/bin/perry-lint b/bin/perry-lint
+index a145faa1..bed08c10 100755
+--- a/bin/perry-lint
++++ b/bin/perry-lint
+@@ -42,0 +43,3 @@ otherwise be no way to accept one.
++  --architecture-module PATH  lint a selected <component>/ARCHITECTURE.md
++                relative to the code root; repeat for confirmed §2 components.
++                The agent selects membership; Python validates only paths/shape.
+@@ -4660,11 +4663,5 @@ def is_adopted(project_root: Path, state_root: Path) -> bool:
+-    """Has this project any Perry state at all?
+-
+-    Linting a folder that has never been adopted used to report every required
+-    file as missing — noise on someone else's project, and unusable as the
+-    stage-4 gate in `reference/adoption.md`, which needs to distinguish "the
+-    files adoption wrote are malformed" from "adoption hasn't run"."""
+-    # The predicate is `parsers § installed`, the criterion `schema/README.md §
+-    # installed` states. `BOARD.md`, `OKR.md` and `phase/` alone stopped
+-    # counting at TASK-237 3b′: every documented start writes
+-    # `.perry/config.jsonl` first. `state_root` stays in the signature for the
+-    # callers that pass it.
++    """Use the shared installed predicate before automatic schema selection.
++
++    Explicit module paths need no adoption; automatic state validation does.
++    Keep state_root in the signature for existing callers.
++    """
+@@ -4674 +4671,12 @@ def is_adopted(project_root: Path, state_root: Path) -> bool:
+-def iter_targets(root: Path, spec: dict) -> list[Path]:
++def iter_targets(root: Path, spec: dict, selected=()) -> list[Path]:
++    if spec.get("selection") == "explicit":
++        targets = []
++        for raw in selected:
++            path = Path(raw)
++            target = (root / path).resolve()
++            if (path.is_absolute() or ".." in path.parts or len(path.parts) < 2
++                    or path.name != "ARCHITECTURE.md"
++                    or not target.is_relative_to(root.resolve()) or not target.is_file()):
++                raise ValueError(f"invalid component architecture path: {raw!r}")
++            targets.append(target)
++        return targets
+@@ -4958,20 +4966,6 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
+-    """What Perry would occupy here, and what is already there.
+-
+-    `claims[]` is the one authoritative list — `files[]` describes the files
+-    Perry VALIDATES, this describes the territory Perry OCCUPIES, and the two
+-    are different units. Perry writes `journal/<YYYY-MM>/<YYYY-MM-DD>.md`, but
+-    the thing that collides with a user's folder is `journal/`, and no prefix
+-    of that glob is the claim.
+-
+-    A directory already holding genuine Perry state is a RE-ADOPTION, not a
+-    collision. Only a parse can tell the two apart, so this reuses the same
+-    heading check the default mode runs rather than a second heuristic.
+-
+-    **Two callers, one computation.** `--claims` renders these rows, and the
+-    default pass turns the `collision` ones into `NS-01`. DESIGN-002 exists to
+-    close a defect that was two lists disagreeing; shipping a second collision
+-    check next to this one would reintroduce it one level down. So each row also
+-    carries `rel` (the claimed path as the project sees it) and `foreign` (the
+-    offending files, which `NS-01` cites as evidence) — machine fields that
+-    `--claims` projects away, since its payload is a contract with the setup and
+-    adopt flows.
++    """Resolve claims at their project, state or code anchor.
++
++    Claims describe occupied territory; files describe validation, including
++    explicitly selected component documents which claim no territory. Existing
++    Perry-shaped files are re-adoptions, not collisions. Both --claims and the
++    default NS-01 pass consume these rows; only the latter uses rel/foreign.
+@@ -4982 +4976 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
+-        base = project_root if c["anchor"] == "project" else state_root
++        base = lib.anchor_root(project_root, state_root, c["anchor"])
+@@ -4985,9 +4979,2 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
+-        if not target.exists():
+-            rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
+-                         "detail": None, "rel": rel, "foreign": []})
+-            continue
+-        # Perry-shaped? Anything we would have written is not a collision.
+-        if c["kind"] == "dir":
+-            present = [f for f in sorted(target.rglob("*.md"))]
+-        else:
+-            present = [target]
++        present = sorted(target.rglob("*.md")) if c["kind"] == "dir" else [target]
++        present = [path for path in present if path.exists()]
+@@ -4995,4 +4982 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
+-        if not present:
+-            rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
+-                         "detail": "exists but empty", "rel": rel, "foreign": []})
+-        elif foreign:
++        if foreign:
+@@ -5000,5 +4984,6 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
+-            rows.append({"path": c["path"], "state": "collision", "owner": c["owner"],
+-                         "detail": f"{len(foreign)} file(s) Perry did not write, "
+-                                   f"e.g. {foreign[0].relative_to(project_root)}",
+-                         "rel": rel,
+-                         "foreign": [_rel(f, project_root) for f in foreign]})
++            status = "collision"
++            detail = (f"{len(foreign)} file(s) Perry did not write, "
++                      f"e.g. {_rel(foreign[0], project_root)}")
++        elif present:
++            status = "perry"
++            detail = f"{len(present)} existing Perry file(s)"
+@@ -5006,3 +4991,5 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
+-            rows.append({"path": c["path"], "state": "perry", "owner": c["owner"],
+-                         "detail": f"{len(present)} existing Perry file(s)",
+-                         "rel": rel, "foreign": []})
++            status = "free"
++            detail = "exists but empty" if target.exists() else None
++        rows.append({"path": c["path"], "state": status, "owner": c["owner"],
++                     "detail": detail, "rel": rel,
++                     "foreign": [_rel(f, project_root) for f in foreign]})
+@@ -5267,0 +5255 @@ def main(argv: list[str]) -> int:
++    selected_modules = []
+@@ -5274 +5262 @@ def main(argv: list[str]) -> int:
+-        elif a == "--root":
++        elif a in ("--root", "--state-root", "--architecture-module"):
+@@ -5277,10 +5265 @@ def main(argv: list[str]) -> int:
+-                # **Refused, not dropped.** This read `argv[i] if i < len(argv)
+-                # else None`, so `--root` with its value missing became no
+-                # `--root` at all and the tool linted the CURRENT DIRECTORY.
+-                # `bin/README.md § --quiet` says that mode is read by its exit
+-                # code alone, and `§ Lint after every tier-1 write` makes this a
+-                # gate — so `perry-lint --quiet --root` exited 0 with empty
+-                # stdout and empty stderr about a project the caller never
+-                # named. Measured by a V4 round with a clean cwd and a dirty
+-                # named project: exit 1 with the value, exit 0 without it.
+-                print("perry-lint: --root takes a value", file=sys.stderr)
++                print(f"perry-lint: {a} takes a value", file=sys.stderr)
+@@ -5288,5 +5267,2 @@ def main(argv: list[str]) -> int:
+-            # A value that is present but EMPTY is the same gate failing the
+-            # same way: `--quiet --root ""` exited 0 about the cwd's project
+-            # while the named one went unlinted. The rule and its sentence
+-            # live in `lib.empty_root_error`.
+-            bad = lib.empty_root_error(a, argv[i])
++            # Empty root/selection must never turn into an implicit cwd scan.
++            bad = lib.empty_root_error(a, argv[i]) if a != "--state-root" else None
+@@ -5296 +5272,6 @@ def main(argv: list[str]) -> int:
+-            root_arg = argv[i]
++            if a == "--root":
++                root_arg = argv[i]
++            elif a == "--state-root":
++                state_root_arg = argv[i]
++            else:
++                selected_modules.append(argv[i])
+@@ -5315,6 +5295,0 @@ def main(argv: list[str]) -> int:
+-        elif a == "--state-root":
+-            i += 1
+-            if i >= len(argv):
+-                print("perry-lint: --state-root takes a value", file=sys.stderr)
+-                return 2
+-            state_root_arg = argv[i]
+@@ -5331,0 +5307,5 @@ def main(argv: list[str]) -> int:
++    if selected_modules and any((mode_templates, mode_claims, mode_verification,
++                                mode_provenance, mode_knowledge, mode_reviews,
++                                mode_glossary, mode_specs, mode_summaries)):
++        print("perry-lint: --architecture-module requires project lint", file=sys.stderr)
++        return 2
+@@ -5706 +5686 @@ def main(argv: list[str]) -> int:
+-            base = project_root if spec.get("anchor") == "project" else root
++            base = lib.anchor_root(project_root, root, spec.get("anchor", "state"))
+@@ -5711 +5691,2 @@ def main(argv: list[str]) -> int:
+-            if not adopted and spec.get("anchor") != "project":
++            if not adopted and spec.get("anchor") != "project" and not (
++                    selected_modules and spec.get("selection") == "explicit"):
+@@ -5713 +5694 @@ def main(argv: list[str]) -> int:
+-            targets = iter_targets(base, spec)
++            targets = iter_targets(base, spec, selected_modules)
+@@ -5728,4 +5709 @@ def main(argv: list[str]) -> int:
+-                try:
+-                    rel = path.relative_to(project_root).as_posix()
+-                except ValueError:
+-                    rel = path.as_posix()
++                rel = _rel(path, project_root)
+diff --git a/bin/perry-state-cost b/bin/perry-state-cost
+index 258070d6..c61d32f8 100755
+--- a/bin/perry-state-cost
++++ b/bin/perry-state-cost
+@@ -251 +251 @@ def buckets(project_root: Path, state_root: Path, repo: Path) -> list[dict]:
+-        anchor = project_root if claim.get("anchor") == "project" else state_root
++        anchor = lib.anchor_root(project_root, state_root, claim.get("anchor", "state"))
+diff --git a/schema/state-schema.json b/schema/state-schema.json
+index 1b0e5b9c..b03eafed 100644
+--- a/schema/state-schema.json
++++ b/schema/state-schema.json
+@@ -1280 +1279,0 @@
+-
+@@ -1380,3 +1379,3 @@
+-      "owner": "user",
+-      "anchor": "state",
+-      "note": "PMO scaffolds it; the user authors it. Mirrors files[id=architecture].owner."
++      "owner": "perry",
++      "anchor": "code",
++      "note": "Code repository root: configured code_repo_path, otherwise project root. Authority is per section, as files[id=architecture].note declares; this is not blanket user ownership."
+@@ -2261 +2260 @@
+-      "owner": "user",
++      "owner": "perry",
+@@ -2273 +2272,21 @@
+-      "anchor": "state"
++      "anchor": "code",
++      "note": "At the code repository root: configured code_repo_path, otherwise project root. DESIGN-017 §5.1: the agent authors all sections. User confirms §1 mission/scope, §2 component list (the module index), §3 Forbidden lines, §5 version bumps, every §6 rule and closure of §7 questions before changes land. Agent rewrites descriptions (§2, §3, §4, §5 shapes), adds proposed §6 rules and §7 questions but deletes neither, and appends §8. Existing documents are in force."
++    },
++    {
++      "id": "architecture-module",
++      "path": "<component>/ARCHITECTURE.md",
++      "owner": "perry",
++      "tier": 1,
++      "cap": 600,
++      "cap_kind": "hard",
++      "required": false,
++      "headings": [
++        {
++          "level": 2,
++          "match": "^§[1-8]\\b",
++          "label": "## §1 … §8 (eight fixed sections)"
++        }
++      ],
++      "anchor": "code",
++      "note": "One document per user-confirmed code component in root ARCHITECTURE.md §2. An agent supplies selected paths; no directory scan or inferred membership. DESIGN-017 §5.1: the agent authors all sections. User confirms §1 mission/scope, §2 component list (the module index), §3 Forbidden lines, §5 version bumps, every §6 rule and closure of §7 questions before changes land. Agent rewrites descriptions (§2, §3, §4, §5 shapes), adds proposed §6 rules and §7 questions but deletes neither, and appends §8. Existing documents are in force.",
++      "selection": "explicit"
+diff --git a/tests/test_claims.py b/tests/test_claims.py
+index 6f9295a4..4c6077d8 100644
+--- a/tests/test_claims.py
++++ b/tests/test_claims.py
+@@ -1 +1 @@
+-"""Contract tests for `claims[]` — the paths Perry occupies in someone else's project.
++"""Claims are occupied territory; files are validation contracts.
+@@ -3,22 +3,4 @@
+-The claim under test: **there is exactly one authoritative list of what Perry
+-writes into a project it does not own, and every other consumer reads it.**
+-
+-This exists because the list used to live in three places that disagreed. The
+-schema's `files[]` knew 13 paths, `SKILL.md` prose knew 5, `reference/adoption.md`
+-prose knew the same 5, and the PMO/OKR skills wrote seven directories that
+-appeared in none of them. A project owning `evidence/` or `knowledge/` therefore
+-collided silently even on the adopt path, because the collision check was prose
+-enumerating a subset of a list that was itself incomplete.
+-
+-`claims[]` answers a different question from `files[]` and the distinction is
+-what makes two lists correct rather than redundant:
+-
+-  files[]  — what Perry VALIDATES. A file glob with a template, a cap, a
+-             heading contract. `journal/<YYYY-MM>/<YYYY-MM-DD>.md`.
+-  claims[] — what Perry OCCUPIES. The directory a user's own folder collides
+-             with. `journal/`.
+-
+-No prefix of that glob is the claim, which is why folding one into the other
+-does not work. See `perry/design/DESIGN-002-namespace-collision.md`.
+-
+-Run: python3 -m unittest discover -s tests   (or ./tests/run)
++Automatic file selection must be covered by a claim. Agent-selected component
++architecture documents are the explicit exception: validation does not claim
++arbitrary component directories. Project, state and code anchors stay distinct.
++Run: python3 tests/parallel test_claims -j 4
+@@ -49,0 +32,2 @@ import unittest
++import tempfile
++import inproc
+@@ -77 +61 @@ class TestClaimsShape(unittest.TestCase):
+-            self.assertIn(c["anchor"], ("state", "project"), c["path"])
++            self.assertIn(c["anchor"], ("state", "project", "code"), c["path"])
+@@ -86,9 +70,4 @@ class TestClaimsShape(unittest.TestCase):
+-        """`.perry/` holds the State root pointer, so it cannot sit behind it.
+-        Anything else anchored at the project root would be unmovable too, which
+-        would make the escape hatch useless for it.
+-
+-        Read as *one* territory, not one entry. `.perry/events.jsonl` is
+-        anchored at the project root because that is where `bin/perry-task`
+-        writes it, and it sits INSIDE `.perry/` — it adds no second immovable
+-        place, it names a file in the immovable one. A project-anchored claim
+-        outside `.perry/` is what this forbids, and that is what is asserted."""
++        """Only .perry/ is project-anchored; architecture uses the code root.
++
++        State-root relocation must still reach all state-anchored claims.
++        """
+@@ -110,4 +89 @@ class TestClaimsCoverFiles(unittest.TestCase):
+-    """Every validated file must sit inside claimed territory.
+-
+-    This is the drift guard. Adding a state file without declaring the ground it
+-    stands on is how the old prose lists fell behind in the first place."""
++    """Automatic validation claims territory; explicit module selection does not."""
+@@ -117,18 +93,54 @@ class TestClaimsCoverFiles(unittest.TestCase):
+-            path, anchor = spec["path"], spec.get("anchor", "state")
+-            with self.subTest(file=path):
+-                self.assertIsNotNone(
+-                    covering_claim(path, anchor),
+-                    f"files[id={spec['id']}] path {path!r} is under no claim — "
+-                    f"add one to claims[] or the collision check will not see it")
+-
+-    def test_claim_owner_agrees_with_file_owner(self):
+-        for spec in SCHEMA["files"]:
+-            path, anchor = spec["path"], spec.get("anchor", "state")
+-            claim = covering_claim(path, anchor)
+-            if claim is None or claim["owner"] == "perry":
+-                continue
+-            with self.subTest(file=path):
+-                self.assertEqual(
+-                    spec["owner"], claim["owner"],
+-                    f"{path}: files[] says owner={spec['owner']}, "
+-                    f"claims[] says {claim['owner']}")
++            claim = covering_claim(spec["path"], spec.get("anchor", "state"))
++            with self.subTest(file=spec["id"]):
++                if spec["id"] == "architecture-module":
++                    self.assertIsNone(claim)
++                    self.assertEqual(spec["selection"], "explicit")
++                else:
++                    self.assertIsNotNone(claim)
++                    if claim["owner"] != "perry":
++                        self.assertEqual(spec["owner"], claim["owner"])
++
++    def test_architecture_declarations_and_selected_components(self):
++        lint = inproc.load("perry-lint")
++        root_spec, module = [next(f for f in SCHEMA["files"] if f["id"] == kind)
++                             for kind in ("architecture", "architecture-module")]
++        for spec, cap in ((root_spec, 500), (module, 600)):
++            self.assertEqual((spec["anchor"], spec["cap"], spec["cap_kind"]),
++                             ("code", cap, "hard"))
++            self.assertEqual(spec["owner"], "perry")
++        self.assertEqual(covering_claim("ARCHITECTURE.md", "code")["owner"], "perry")
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp).resolve()
++            state = root / "perry"
++            state.mkdir()
++            self.assertEqual(lint.lib.anchor_root(root, state, "code"), root)
++            (root / ".perry").mkdir()
++            (root / ".perry/config.jsonl").write_text(json.dumps(
++                {"kind": "setting", "key": "code_repo_path", "value": "code"}) + "\n")
++            code = root / "code"
++            for component in ("component", "foreign"):
++                (code / component).mkdir(parents=True)
++                (code / component / "ARCHITECTURE.md").write_text("x\n" * 600)
++            (code / "ARCHITECTURE.md").write_text("## §1 Mission\n")
++            self.assertEqual(lint.lib.anchor_root(root, state, "code"), code)
++            rows, _ = lint.check_claims(root, SCHEMA, state)
++            self.assertEqual(next(r for r in rows if r["path"] == "ARCHITECTURE.md")
++                             ["rel"], "code/ARCHITECTURE.md")
++            self.assertEqual(lint.iter_targets(code, root_spec), [code / "ARCHITECTURE.md"])
++            self.assertEqual(lint.iter_targets(code, module), [])
++            selected = lint.iter_targets(code, module, ["component/ARCHITECTURE.md"])
++            self.assertEqual(selected, [code / "component/ARCHITECTURE.md"])
++            self.assertIn("size-cap", [f.rule for f in lint.check_file(
++                selected[0], "component/ARCHITECTURE.md", module, SCHEMA["enums"], False)])
++            (code / "escape").symlink_to(state, target_is_directory=True)
++            for bad in ("../ARCHITECTURE.md", "ARCHITECTURE.md", "missing/ARCHITECTURE.md",
++                        "escape/ARCHITECTURE.md", str(selected[0])):
++                with self.assertRaises(ValueError):
++                    lint.iter_targets(code, module, [bad])
++            result = subprocess.run([sys.executable, str(PERRY_HOME / "bin/perry-lint"),
++                                     "--root", str(root), "--architecture-module",
++                                     "component/ARCHITECTURE.md", "--json"],
++                                    capture_output=True, text=True)
++            self.assertEqual(result.returncode, 1, result.stderr)
++            self.assertIn("code/component/ARCHITECTURE.md", result.stdout)
++            self.assertNotIn("code/foreign/ARCHITECTURE.md", result.stdout)
+diff --git a/tests/test_state_cost.py b/tests/test_state_cost.py
+index 92b8648f..07972a69 100644
+--- a/tests/test_state_cost.py
++++ b/tests/test_state_cost.py
+@@ -196,17 +196,18 @@ class TestNoDirectoryIsSilentlyOmitted(Repo):
+-        data = self.payload()
+-        schema = json.loads(
+-            (ROOT / "schema" / "state-schema.json").read_text())
+-        claimed = len(schema["claims"])
+-        self.assertEqual(len(data["claimed_paths"]), claimed)
+-        for label in data["claimed_paths"]:
+-            with self.subTest(path=label):
+-                # Either it carries bytes, or it is absent from `paths` — and
+-                # the renderer lists exactly the absent ones as empty, so both
+-                # halves are accounted for by construction.
+-                self.assertIsInstance(label, str)
+-        text = self.run_tool().stdout
+-        for label in data["claimed_paths"]:
+-            with self.subTest(path=label):
+-                self.assertIn(label, text,
+-                              "a claimed path appears in neither the snapshot "
+-                              "table nor the empty list")
++        schema = json.loads((ROOT / "schema/state-schema.json").read_text())
++        for code_path in ("", "code", str(self.dir / "code")):
++            with self.subTest(code_path=code_path):
++                self.write(".perry/config.jsonl", config_store.config_jsonl(
++                    {"State root": "perry", "Code repo path": code_path}))
++                architecture = "code/ARCHITECTURE.md" if code_path else "ARCHITECTURE.md"
++                self.write(architecture, "architecture")
++                self.write("perry/ARCHITECTURE.md", "wrong root")
++                self.commit(DAY3)
++                data = self.payload()
++                self.assertEqual(len(data["claimed_paths"]), len(schema["claims"]))
++                self.assertIn(architecture, data["claimed_paths"])
++                self.assertNotIn("perry/ARCHITECTURE.md", data["claimed_paths"])
++                self.assertEqual(data["snapshot"]["paths"][architecture]["bytes"], 12)
++                text = self.run_tool().stdout
++                for label in data["claimed_paths"]:
++                    self.assertIsInstance(label, str)
++                    self.assertIn(label, text)

@@ -1,0 +1,36 @@
+{
+  "head": "232c3e928b7f1468396795e6fb4cff21971aa940",
+  "status": "",
+  "files": [
+    {
+      "path": "bin/lib/__init__.py",
+      "sha256": "703d61345b2fd243ea5c6c2361fdfcc9a4a5a89837e1ca92e1fac1a4cb5b5c2b",
+      "equals_candidate_git_show": true
+    },
+    {
+      "path": "bin/perry-lint",
+      "sha256": "3c5d4d0a7239213bbfd2505d807576652824e965ee526e35140bdac155a943b8",
+      "equals_candidate_git_show": true
+    },
+    {
+      "path": "bin/perry-state-cost",
+      "sha256": "31581c1357b62a411bcb8a7a7117683e66b080685acac0d70e18a61124539478",
+      "equals_candidate_git_show": true
+    },
+    {
+      "path": "schema/state-schema.json",
+      "sha256": "f636e83d20a4861f54edabc562bbc28e89d5c193acc8ce8f2a2de31d58cb92e8",
+      "equals_candidate_git_show": true
+    },
+    {
+      "path": "tests/test_claims.py",
+      "sha256": "4acf475eeea4c9607139acfa188bb896ad1f1f1e26c99194909fc03cc17d3d48",
+      "equals_candidate_git_show": true
+    },
+    {
+      "path": "tests/test_state_cost.py",
+      "sha256": "4f00eeff43026f7eca5d4144eaa14e59c4e3cded2c18926c90d42fcb78924c5e",
+      "equals_candidate_git_show": true
+    }
+  ]
+}

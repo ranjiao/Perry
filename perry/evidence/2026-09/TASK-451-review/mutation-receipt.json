@@ -1,0 +1,12 @@
+{
+  "head": "232c3e928b7f1468396795e6fb4cff21971aa940",
+  "base": "7ffcc6337bc5c8b31d2e8992c251e23299bff1ea",
+  "mutation": "Entire schema file replaced with immutable base version; code and tests unchanged",
+  "candidate_sha256": "f636e83d20a4861f54edabc562bbc28e89d5c193acc8ce8f2a2de31d58cb92e8",
+  "mutant_sha256": "8357997aad8c49e24710eeadd97be29e0072281fd69aefcfbe906a07cc6f05ba",
+  "mutation_exit": 1,
+  "restored_sha256": "f636e83d20a4861f54edabc562bbc28e89d5c193acc8ce8f2a2de31d58cb92e8",
+  "restore_equals_git_show": true,
+  "status_after_restore": "",
+  "restored_targeted_exit": 0
+}

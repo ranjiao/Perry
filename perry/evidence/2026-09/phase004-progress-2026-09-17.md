@@ -42,3 +42,17 @@ The initial executor sandbox permitted code writes but omitted shared Git metada
 TASK-460 at cb310d87587e4c4fb841620d38209b2394e0e618 has fresh V4 PASS and architecture PASS. Independent public-CLI fixtures cover 36 cases; affected 66 modules / 2,037 tests pass, the reverting mutation turns the same tier red, and restored 90 targeted tests plus immutable hashes pass. Main integration and its release/full/slow receipts remain outstanding.
 
 TASK-451 closure requires V5 because review.md applies that rung to claim-surface operations on the high-stakes list. USER-933 permits the implementation; a named human must still inspect the reviewed delivery before final acceptance. Its independent V4 preparation continues, with a concrete sign-off offer only after the implementation and review are ready.
+
+## Goal-definition boundary confirmed
+
+DESIGN-022 section 5.6 explicitly requires user approval per Objective before declaring phase 004 checks. No declarations or measurements were manufactured during implementation. That section also explicitly requires a separate restatement of P004-O4-KR2 after USER-936 deferred S2: six rules, or seven with S2 carried into phase 005. This explains why the current seven-rule target cannot be called met from the existing D1 receipt. These are goal decisions, separate from coding progress and from USER-952/USER-955.
+
+TASK-455 D3 now has a bounded spec for the approved merge-time independent architecture review and narrower executor context. It stays not_started while the two executor slots finish TASK-460 integration and TASK-451 independent review. No high-stakes gate change is authorized by that spec.
+
+## Accepted delivery and next batch
+
+TASK-460 is done at V4 and merged locally as 0.1.5 in 609abd02f71d1b82a965f48622e88063852fbe93. The merged full gate passed 154 modules/4,298 tests, separate slow passed 158 modules/4,401 tests, and receipt verification was repeated immediately before merge. Evidence: TASK-460-integration/acceptance.md. Unpublished; no tag or push.
+
+TASK-451 at 232c3e928b7f1468396795e6fb4cff21971aa940 has independent V4 and architecture PASS, 4,299 affected tests, failing schema-revert mutation, and restored 52 targeted tests. USER-958 requests the concrete V5 disposition, distinguishing personally checked from accepted on report. Implementation is complete; main integration and TASK-452 wait for that disposition.
+
+Next prepared work is TASK-455 (merge-time independent architecture review) and TASK-447 (400-character Next action guide plus preservation/migration). TASK-447 initial task-list measurement: 100 open rows at capture, 33 over 400 characters, nearest-rank p90 1,672, maximum 2,218. The full original accounts and hashes are captured externally before any replacement.
