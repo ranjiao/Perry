@@ -1,0 +1,11 @@
+:100644 100644 c78caf1c de54643f M	CHANGELOG.md
+:100644 100644 9faa1b7a 699c6c6d M	VERSION
+:100755 100755 a145faa1 043d75e0 M	bin/perry-lint
+:100644 100644 50f97c29 2790a9fe M	packs/software-ops/architecture.md
+:100644 100644 e791818b 1bebf001 M	reference/next.md
+:100644 100644 178ab535 4255e560 M	reference/snapshot.md
+:100644 100644 a2e6ba82 bde88356 M	release/records.jsonl
+:100644 100644 fa5cf196 87d043bf M	tests/test_spec_scannability.py
+:100644 100644 0ee14a4b 59a67072 M	tests/test_summary_is_asked_for.py
+:100644 100644 770a9f04 ad47dd16 M	work/reference/dispatch.md
+:100644 100644 5a6d8f78 159a4104 M	work/reference/review.md

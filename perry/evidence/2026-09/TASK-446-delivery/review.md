@@ -22,7 +22,7 @@ The live capture identifies the checkout state root and generated time 2026-09-1
 The busy synthetic fixture retains all six long objective titles, all six titled requests, both returned alternates in order and both unknown causes. The unknown fixture preserves pending-count uncertainty, absent checks/currents and every selector unknown despite null primary and zero open tasks. The safety fixture retains the exact blocking path/error, prevents normal dashboard/next reads, and does not infer interrupted state or resume a run. It covers recovery blocking; the existing later interrupted gate itself is unchanged, rather than independently exercised by this fixture.
 
 Negative semantic cases reviewed and rejected:
-- mutations/omitted-pending.details.md: REJECT. USER-006 “Choose language”: “Choose English or Chinese.” is missing, although six pending decisions are claimed. A remaining aggregate count cannot substitute for the lost request.
+> - mutations/omitted-pending.details.md: REJECT. USER-006 “Choose language”: “Choose English or Chinese.” is missing, although six pending decisions are claimed. A remaining aggregate count cannot substitute for the lost request.
 - mutations/omitted-unknown.details.md: REJECT. history.latest_weekly / “Report source unavailable” is missing. The initial Review ? and other unknowns do not preserve this cause.
 - mutations/oversized.initial.txt: REJECT. 87 lines and 2036 Unicode characters exceed both bounds; factual correctness does not waive the size requirement.
 
