@@ -61,3 +61,9 @@ Used when goals materially change between versions (new constraints, new mission
 6. Tell **`decide`** to record it: `/perry decide adr <slug> --type Process`. Not PMO — `decisions/` moved to the `decide` lane on 2026-08-16.
 
 **Tier 1 cap**: `OKR.md` ≤ 200 lines. If appending a version would exceed it, move historical `## v<N>` retro blocks to `phase/snapshots/okr-vN.md` and keep the current version + version log in the main file. Verify before writing, not after.
+
+## Completion routing
+
+After completed writes from `init`, `revise`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: goals init --> <!-- next-close: goals revise -->
+First-init chat drafts are unfinished planning: do not close or bypass an unavailable writer to trigger this step.

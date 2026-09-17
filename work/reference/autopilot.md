@@ -301,3 +301,8 @@ This lets project hooks tune autopilot to their actual quota / risk tolerance wi
 ## Stop-signal cleanup
 
 If autopilot exits via the `autopilot.stop` signal, it deletes the file before exiting (so the next invocation isn't pre-stopped). If autopilot exits any other way, the file is left untouched.
+
+## Completion routing
+
+After completed writes from `autopilot`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work autopilot -->

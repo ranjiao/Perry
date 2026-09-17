@@ -612,3 +612,8 @@ This prescription is uncomfortable to give and is frequently the right one.
   free-text on Codex; applies to the whole interview.
 - [../state/diagnosis_TEMPLATE.md](../state/diagnosis_TEMPLATE.md) — the one
   file this pipeline writes.
+
+## Completion routing
+
+After completed writes from `diagnose`, follow [the shared closing step](../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: router diagnose -->

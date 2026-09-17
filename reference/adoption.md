@@ -514,3 +514,8 @@ Then hand off to the normal standup.
   contract (`adoption: 1`).
 - [../work/reference/bootstrap.md](../work/reference/bootstrap.md) — the greenfield
   path adoption replaces for existing projects.
+
+## Completion routing
+
+After completed writes from `adopt`, follow [the shared closing step](../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: router adopt -->

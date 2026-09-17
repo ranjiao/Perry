@@ -282,3 +282,8 @@ For projects without a hook, the generic schema and DESIGN-NNN convention apply.
 - [../SKILL.md](../SKILL.md) — top-level Perry routing.
 - [../work/SKILL.md](../work/SKILL.md) — execution stewardship; consumes locked designs.
 - [../goals/SKILL.md](../goals/SKILL.md) — goal-setting; provides KR linkage for designs.
+
+## Completion routing
+
+After completed writes from `init`, `new`, `resolve`, `lock`, `revise`, `supersede`, `drop`, follow [the shared closing step](../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: decide init --> <!-- next-close: decide new --> <!-- next-close: decide resolve --> <!-- next-close: decide lock --> <!-- next-close: decide revise --> <!-- next-close: decide supersede --> <!-- next-close: decide drop -->

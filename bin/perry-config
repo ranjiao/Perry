@@ -263,6 +263,8 @@ def cmd_set(records: list[dict], label: str, value: str) -> list[dict]:
         raise Refused(f"{label!r} mints no setting key — a label is the words "
                       f"before the colon, and this one is punctuation only. "
                       f"Nothing was written.")
+    if key == "proactive_next_steps" and value not in ("on", "off"):
+        raise Refused("Proactive next steps takes exactly on or off. Nothing was written.")
     out, seen = [], False
     for rec in records:
         if rec.get("kind") == "setting" and rec.get("key") == key:

@@ -142,3 +142,21 @@ whether a file matches the schema — that half was never the gate.
 
 History: a `- Conformance gate:` line left in a pre-ADR-019 `.perry/config.md` is inert.
 Nothing reads it and nothing reports it.
+
+## Proactive next steps
+
+`Proactive next steps` is an optional exact `on | off` setting; absent means
+`on`. It controls only [the closing step](next.md#closing-step), not standup
+recommendations, safety questions, or questions inside an active planning flow.
+
+```bash
+"$PERRY_HOME/bin/perry-config" set --root . "Proactive next steps" off
+"$PERRY_HOME/bin/perry-config" set --root . "Proactive next steps" on
+"$PERRY_HOME/bin/perry-config" unset --root . "Proactive next steps"
+"$PERRY_HOME/bin/perry-config" show --root . --json
+```
+
+`show` returns the declared string under `settings.proactive_next_steps`;
+absence selects the documented default. Invalid values are refused by the
+writer; readers report invalid legacy/manual values rather than guessing.
+This uses the existing project setting record, with no new namespace or file.
