@@ -620,6 +620,10 @@
     "test_next_closing.py": {
       "sec": 0.46,
       "source": "2026-09-17-task443"
+    },
+    "test_merge_gate.py": {
+      "sec": null,
+      "source": null
     }
   },
   "schema": 1,
