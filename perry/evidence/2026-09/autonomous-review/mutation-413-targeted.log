@@ -1,0 +1,31 @@
+/private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/mutation-413/bin/perry-task:1532: DeprecationWarning: invalid escape sequence '\w'
+  """Does this line open the `## ` section called `name`?
+FFF
+======================================================================
+FAIL: test_mixed_status_totals_are_counted_before_truncation (test_bin_argument_contract.TestListIsBounded.test_mixed_status_totals_are_counted_before_truncation) (limit='1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/mutation-413/tests/test_bin_argument_contract.py", line 704, in test_mixed_status_totals_are_counted_before_truncation
+    self.assertEqual(payload["bound"]["open_total"], 4)
+AssertionError: 6 != 4
+
+======================================================================
+FAIL: test_mixed_status_totals_are_counted_before_truncation (test_bin_argument_contract.TestListIsBounded.test_mixed_status_totals_are_counted_before_truncation) (limit='3')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/mutation-413/tests/test_bin_argument_contract.py", line 704, in test_mixed_status_totals_are_counted_before_truncation
+    self.assertEqual(payload["bound"]["open_total"], 4)
+AssertionError: 6 != 4
+
+======================================================================
+FAIL: test_mixed_status_totals_are_counted_before_truncation (test_bin_argument_contract.TestListIsBounded.test_mixed_status_totals_are_counted_before_truncation) (limit='0')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/mutation-413/tests/test_bin_argument_contract.py", line 704, in test_mixed_status_totals_are_counted_before_truncation
+    self.assertEqual(payload["bound"]["open_total"], 4)
+AssertionError: 6 != 4
+
+----------------------------------------------------------------------
+Ran 1 test in 6.418s
+
+FAILED (failures=3)

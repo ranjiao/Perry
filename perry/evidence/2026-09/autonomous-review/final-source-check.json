@@ -1,0 +1,23 @@
+{
+  "reviewer": {
+    "head": "8ffb6d21d734f3624bf33bb3755881705a8ae4f9",
+    "status": "",
+    "diff_check_exit": 0
+  },
+  "candidate-413-427": {
+    "head": "8972f7599012c8a676414b5324f904a968f5e517",
+    "status": "",
+    "diff_check_exit": 0
+  },
+  "candidate-423": {
+    "head": "05ad0f3b1b25dcd58dd49f4f1fd2de1a774364e9",
+    "status": "",
+    "diff_check_exit": 0
+  },
+  "mutation-413": {
+    "head": "8972f7599012c8a676414b5324f904a968f5e517",
+    "status": "",
+    "diff_check_exit": 0
+  },
+  "restored_matches_git_show": true
+}

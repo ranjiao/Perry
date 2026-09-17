@@ -1,0 +1,7 @@
+/private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/mutation-413/bin/perry-task:1532: DeprecationWarning: invalid escape sequence '\w'
+  """Does this line open the `## ` section called `name`?
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.843s
+
+OK

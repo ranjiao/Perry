@@ -1,0 +1,6 @@
+{
+  "bin/lib/__init__.py": true,
+  "tests/test_bin_argument_contract.py": true,
+  "tests/test_bin_surface.py": true,
+  "architecture_matches_base": true
+}

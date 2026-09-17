@@ -1,0 +1,9 @@
+{
+  "bin/perry": true,
+  "bin/perry-detect-host": true,
+  "bin/perry-explain": true,
+  "bin/perry-goals": true,
+  "tests/test_bin_argument_contract.py": true,
+  "tests/test_okr_krs_render.py": true,
+  "architecture_matches_base": true
+}

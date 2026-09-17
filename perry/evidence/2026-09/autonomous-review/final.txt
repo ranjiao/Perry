@@ -1,0 +1,6 @@
+TASK-413, TASK-427, and TASK-423: **V4 PASS**. Both diffs: **architecture PASS**.
+
+[Review report]( /tmp/perry-scratch/Perry/independent-review-r8k9p5l2/review.md)
+
+The extra post-restore tier was interrupted; the restored regression passed. Integration, release, and publication are excluded.
+

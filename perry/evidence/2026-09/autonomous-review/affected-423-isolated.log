@@ -1,0 +1,90 @@
+
+[1m0. tree guard — recording /private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/candidate-423[0m
+  · recorded
+
+[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+perry-lint · templates in /private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/candidate-423
+  ✓ clean — every state file matches schema/state-schema.json
+
+[1m2. affected — the modules edf6b143a1b6cf8de3f2d84c53bc5e5d9cebf41e...HEAD selects[0m
+tier affected · edf6b143a1b6cf8de3f2d84c53bc5e5d9cebf41e...HEAD · 6 changed path(s) · running the modules below
+  test_a_write_refuses_where_nothing_is_installed.py  covers bin/perry-goals: bin/perry-goals
+  test_actor_required.py                              covers bin/perry-goals: bin/perry-goals
+  test_amend_matches_create.py                        covers bin/perry-goals: bin/perry-goals
+  test_architecture_rules.py                          covers bin/: bin/perry
+  test_attribution_buckets.py                         covers bin/perry-goals: bin/perry-goals
+  test_bin_argument_contract.py                       changed: tests/test_bin_argument_contract.py
+  test_bin_surface.py                                 covers bin/: bin/perry
+  test_blank_cell_is_one_rule.py                      COVERS = ALL
+  test_board_less_gaps.py                             covers bin/perry-explain: bin/perry-explain
+  test_board_less_project_is_recognised.py            covers bin/perry-explain: bin/perry-explain
+  test_claims.py                                      covers bin/perry-goals: bin/perry-goals
+  test_config_store_readers.py                        covers bin/perry-explain: bin/perry-explain
+  test_contract_invariance.py                         covers bin/perry-goals: bin/perry-goals
+  test_contract_key_parity.py                         covers bin/perry-goals: bin/perry-goals
+  test_empty_config_store.py                          covers bin/perry-goals: bin/perry-goals
+  test_escalation_boundaries.py                       covers bin/: bin/perry
+  test_explain_typed_tasks.py                         covers bin/perry-explain: bin/perry-explain
+  test_glossary.py                                    covers bin/perry-explain: bin/perry-explain
+  test_goals_contract.py                              covers bin/perry-goals: bin/perry-goals
+  test_goals_kr_writer.py                             covers bin/perry-goals: bin/perry-goals
+  test_goals_writer.py                                covers bin/perry-goals: bin/perry-goals
+  test_handed_back_root.py                            covers bin/: bin/perry
+  test_header_index_is_the_only_fold.py               covers bin/: bin/perry
+  test_header_rule_harness.py                         covers bin/: bin/perry
+  test_heading_defines.py                             covers bin/perry-explain: bin/perry-explain
+  test_heading_title.py                               covers bin/perry-explain: bin/perry-explain
+  test_host_support.py                                covers bin/perry-detect-host: bin/perry-detect-host
+  test_i18n.py                                        covers bin/perry-explain: bin/perry-explain
+  test_i18n_one_table.py                              covers bin/perry-goals: bin/perry-goals
+  test_id_families.py                                 covers bin/perry-explain: bin/perry-explain
+  test_installed_is_one_predicate.py                  covers bin/perry-goals: bin/perry-goals
+  test_intake_store.py                                covers bin/perry-explain: bin/perry-explain
+  test_kr_checks.py                                   covers bin/perry-goals: bin/perry-goals
+  test_kr_progress_provenance.py                      covers bin/: bin/perry
+  test_linkage_store_readers.py                       covers bin/perry-goals: bin/perry-goals
+  test_linkage_task_exists.py                         covers bin/perry-goals: bin/perry-goals
+  test_linkage_writer.py                              covers bin/perry-goals: bin/perry-goals
+  test_live_state_expectations.py                     covers tests/test_: tests/test_bin_argument_contract.py
+  test_md_store.py                                    covers bin/perry-goals: bin/perry-goals
+  test_measured_krs_declare_a_target.py               covers bin/perry-goals: bin/perry-goals
+  test_module_run_guard.py                            covers tests/: tests/test_bin_argument_contract.py
+  test_okr_krs_render.py                              changed: tests/test_okr_krs_render.py
+  test_okr_store_is_the_source.py                     covers bin/perry-goals: bin/perry-goals
+  test_one_choke_point.py                             covers bin/: bin/perry
+  test_one_header_rule.py                             covers bin/: bin/perry
+  test_one_line_break_rule.py                         covers bin/perry-goals: bin/perry-goals
+  test_one_primitive.py                               covers bin/: bin/perry
+  test_overall_kr_grammar.py                          covers bin/perry-goals: bin/perry-goals
+  test_phase_kr_declared_once.py                      covers bin/perry-goals: bin/perry-goals
+  test_procedures_call_the_tool.py                    covers bin/perry-goals: bin/perry-goals
+  test_project_root_resolution.py                     covers bin/perry-goals: bin/perry-goals
+  test_purge.py                                       covers bin/perry-explain: bin/perry-explain
+  test_retired_tolerance.py                           covers bin/perry-goals: bin/perry-goals
+  test_row_integrity.py                               covers bin/: bin/perry
+  test_rung_vocabulary.py                             covers bin/perry-explain: bin/perry-explain
+  test_same_action_linkage.py                         covers bin/perry-goals: bin/perry-goals
+  test_semantics_on_every_payload.py                  covers bin/perry-goals: bin/perry-goals
+  test_shipped_vocabulary.py                          covers bin/: bin/perry
+  test_store_population_agrees.py                     covers bin/: bin/perry
+  test_task_summary.py                                covers bin/perry-explain: bin/perry-explain
+  test_track_register_source.py                       covers bin/perry-goals: bin/perry-goals
+  test_unlinked_declaration.py                        covers bin/perry-goals: bin/perry-goals
+  test_work_modes.py                                  covers bin/perry-goals: bin/perry-goals
+selected 63 of 158 modules · 769.8 of 1617.1 module-seconds (47.6%)
+
+63 modules · 1738 tests · 1222.9s · 8 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ green for --tier affected — this is NOT a green suite[0m
+
+[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+  ✓ all bin/ scripts OK
+
+[1m4. skipped — not in the smoke tier (--tier affected)[0m
+
+[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+  ✓ nothing under /private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/candidate-423 moved
+
+[32m✓ green for --tier affected — this is NOT a green suite[0m

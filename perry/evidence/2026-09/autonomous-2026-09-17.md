@@ -1,6 +1,6 @@
 # Autonomous task advancement — 2026-09-17
 
-Status: local implementation complete; all three selected tasks await independent review and integration. Authorized by the user: "我接下来要离开电脑一段时间，你尽可能独立的推动task往下走。我晚点回来检查".
+Status: local implementation and independent V4 review complete; all three tasks await integration. Authorized by the user: "我接下来要离开电脑一段时间，你尽可能独立的推动task往下走。我晚点回来检查".
 
 ## Execution boundary
 
@@ -151,3 +151,15 @@ Codex CLI 0.148.0 passes the version check but the smoke test exits 1. The prefl
 - DESIGN-014 handoff and triage changes from earlier in this session are preserved with these receipts. No user-facing release has been published.
 
 Next: repair or explicitly choose an allowed review executor, independently review the two immutable commits, then allocate releases and validate their combined integration on current main. Tests passing on separate coding branches are not merged-state evidence.
+
+## CLI repair and resumed review — 2026-09-17
+
+A full diagnostic run established the earlier failure: server HTTP 400, `The 'gpt-6-astra' model requires a newer version of Codex.` The prior CLI was 0.148.0; the earlier metadata warning was not sufficient evidence by itself. After the user upgraded, `codex --version` reports 0.154.0 and `bash bin/perry-codex-preflight --force` exits 0 with PERRY_OK validated. No model or authentication settings changed in this session.
+
+Fresh-context independent review resumed against the two original immutable commits, using autonomous-review-criteria.md and the architecture. Required verification was explicitly set to V4 before dispatch; that records the requirement, not an earned result. Review started via codex exec in an isolated worktree. Final verdicts will be attached separately.
+
+## Independent review complete
+
+Fresh Codex reviewer returned V4 PASS for TASK-413, TASK-427 and TASK-423; architecture PASS for both commits. [Archived report](autonomous-review/review.md). Required reviewer-run affected tests: TASK-413/427 154 modules / 4304 tests, TASK-423 63 modules / 1738 tests, both exit 0 with unchanged trees. Mutation tier caught the intended counting regression; restored targeted test passed. Optional extra restored-tier repetition was cancelled and is not passing evidence. Two initial inherited-PERRY_HOME runs were excluded and cancelled; candidate-isolated reruns are the accepted results.
+
+Next: a separate integrator allocates releases and validates the combined merge candidate on current main. The implementing session has not merged its own work, closed the tasks, or pushed. No reviewer remains running.

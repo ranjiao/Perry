@@ -1,0 +1,12 @@
+Cloning into '/private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/mutation-413'...
+done.
+mutation-413-targeted 1
+mutation-413-affected 1
+restore independently verified against git show 8972f7599012c8a676414b5324f904a968f5e517:bin/perry-task
+restored-413-targeted 0
+restored-413-affected -15
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/independent-review-r8k9p5l2/reviewer/../mutation.py", line 26, in <module>
+    assert run('restored-413-affected',['bash','tests/run','--tier','affected','--base','edf6b143a1b6cf8de3f2d84c53bc5e5d9cebf41e'])==0
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
