@@ -2,6 +2,63 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.8 — 2026-09-17
+
+patch · phase 004-guided · TASK-446 · delivery TASK-446-one-screen-snapshot-20260917
+
+### Changes
+
+The initial combined snapshot uses at most 12 lines and 1200 Unicode characters, with honest progress and complete supporting details one level down.
+
+
+### Upgrade notes
+
+Use the detail view for complete objectives, pending choices, alternate recommendations and unknown causes. Mandatory safety and selector information remains visible, with any budget exception disclosed. No data migration is required.
+
+
+### Breaking changes
+
+No breaking CLI changes. No data migration is required.
+
+
+## 0.1.7 — 2026-09-17
+
+patch · phase 004-guided · TASK-455 · delivery TASK-455-independent-architecture-review-20260917
+
+### Changes
+
+Integration now selects independent architecture review against the exact integration candidate using six diff triggers, replacing author self-attestation.
+
+
+### Upgrade notes
+
+Record all six trigger facts for the final base/head. A true trigger requires a fresh independent review; unknown or missing module context blocks acceptance. Rebind selection after any candidate change. No data migration is required.
+
+
+### Breaking changes
+
+No breaking CLI changes. No data migration is required.
+
+
+## 0.1.6 — 2026-09-17
+
+patch · phase 004-guided · TASK-447 · delivery TASK-447-next-action-400-20260917
+
+### Changes
+
+Next-action lint now advises a 400 Unicode-character limit and directs users to preserve full accounts in evidence with pointers from concise actions.
+
+
+### Upgrade notes
+
+Existing actions over 400 Unicode characters now warn without a write-time refusal. Preserve the full account before shortening an action and retain its evidence pointer. No data migration is required.
+
+
+### Breaking changes
+
+No breaking CLI changes. No data migration is required.
+
+
 ## 0.1.5 — 2026-09-17
 
 patch · phase 004-guided · TASK-460 · delivery TASK-460-typed-position-20260917
