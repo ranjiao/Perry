@@ -21,16 +21,35 @@ qualification in rubric 1.5; do not add objectives to satisfy its generic 2–4
 range. Each KR must earn its place by representing a distinct outcome. Do not
 force Learn/Build/Validate tracks or quotas of principles/anti-goals.
 
-Start with Q1–Q4, filling their proposed answers from known context. That is the
-normal four-question path; Q5 is the common fifth when a baseline is unknown.
-Q5–Q8 address remaining gaps, not a mandatory second form. `Skip when` means the
+Use Q1–Q4 as a coverage guide, filling their proposed answers from known context;
+choose the next consequential unresolved gap anywhere in the bank, not the next
+number in a script. Q5 commonly addresses an unknown baseline. Q5–Q8 address
+remaining gaps, not a mandatory second form. `Skip when` means the
 specified answer is explicit in this first interview's context, not inferred from
 confidence or project age. Show the carried answer in the draft so it is visible.
 This is local avoidance of repeated questions, not an existing-project router.
 
+At each response, use the latest accepted intent and briefly show substantive
+changes. A changed beneficiary, capacity, objective or evidence invalidates the
+dependent proposed KRs, thresholds and commitments: name what no longer follows,
+withdraw it from the current proposal, and visibly propose replacements or mark
+the affected fields undecided. Recheck their mission alignment, measurement basis
+and feasibility; do not merely acknowledge a correction or relabel the old metrics.
+Explain what the revised focus or scorecard would demonstrate in practice and
+which supplied facts support the recommendation. Reduced capacity is not evidence
+for an invented lower target; an unknown baseline is not proof of attainability.
+
+Keep accepted user wording and explicit rejected suggestions visible in the draft
+conversation; do not reintroduce a rejected metric under a new name. Keep unaffected
+explicit facts without reconfirming them. When an answer conflicts with earlier
+context, show the conflict: apply a clear correction directly, and ask only if its
+meaning or the dependent choice remains unresolved. User corrections are accepted
+intent; the agent's replacement targets and commitment labels remain proposals
+until the user accepts them. Silence or confidence is not acceptance.
+
 Ask **one question at a time and wait**. Count every question and follow-up that
 asks the user for an answer toward **eight maximum before showing the draft**;
-do not hide several independent questions in one message to evade the cap. A
+reflection text must not hide a second independent question. A
 scorecard choice may present one coherent proposed set for acceptance or editing.
 On a vague answer, name the single most consequential gap and offer one grounded
 rewrite; push at most once for that answer, within the same budget. If still
