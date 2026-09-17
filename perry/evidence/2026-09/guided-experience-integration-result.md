@@ -71,3 +71,36 @@ See timing.log, targeted.log, version.log and per-task notes/upgrade/breaking fi
 No full/slow run claimed. Parent will test the final merged candidate and owns
 main integration. TASK-450 is not part of this pinned three-delivery candidate.
 No schema, architecture, canonical task state, host install or remote changes.
+
+## Fourth delivery: full merge gate
+
+Parent handed off independently reviewed TASK-450 final
+`80f07fddcc3f6ec90a0bb1831ea33095e5da671d`. Integrated it on this same branch;
+only tests/durations.json conflicted. Kept all prior records and added its
+explicit legal unmeasured test_merge_gate.py entry (sec/source both null).
+No guessed timing, dropped record or guard exemption. Dispatch changes merged
+with the prior closing/pack instructions without conflict.
+
+Allocated 0.1.4 with the real writer: TASK-450, TASK450-merge-gate, 004-guided,
+2026-09-17, codex-pmo. Upgrade notes distinguish --checks diagnosis from full
+acceptance, require external record output and exact refs/code/artifact checks,
+and retain separate slow validation. No publication.
+
+Immutable four-delivery code/allocation candidate:
+`4ea4b6e6bb05d754e668fe6ed0a56e0dbe177abe`.
+This follow-up result is the only subsequent change.
+
+- Clean-env release/manage.py check --base 914029a4 --ref HEAD: PASS with four
+  new versions, 0.1.1 through 0.1.4 (version-four.log).
+- Clean-env python3 tests/parallel test_merge_gate test_durations_provenance
+  test_next_closing test_next_section test_work_modes test_router_budget
+  test_procedures_call_the_tool: 7 modules, 205 tests PASS, 17.4s
+  (targeted-four.log). All 158 modules accounted for, four honestly unmeasured.
+- git diff --check PASS; checkout clean before this receipt append.
+
+Parent will run the unified exact-SHA full gate with external --record, and slow.
+Use immutable input SHA for the candidate so the later authorized durations-only
+import commit does not move a named candidate branch and invalidate its receipt.
+Coding will import only the emitted artifact once the parent supplies it, then
+run --verify-receipt on the clean artifact commit. Full/slow/record verification
+remain unclaimed here; no main merge, push or caller-external project mutation.
