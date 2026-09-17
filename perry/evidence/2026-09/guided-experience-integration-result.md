@@ -104,3 +104,29 @@ import commit does not move a named candidate branch and invalidate its receipt.
 Coding will import only the emitted artifact once the parent supplies it, then
 run --verify-receipt on the clean artifact commit. Full/slow/record verification
 remain unclaimed here; no main merge, push or caller-external project mutation.
+
+## Parent full-gate discovery: direct question-bank reachability
+
+The parent's full run on 372cb219 found one failure among 4,299 tests:
+TestEveryPageIsNamedByItsLane.test_no_reference_page_is_an_orphan. The first-OKR
+bank was linked from goals/reference/setup.md but was not named at all in the
+goals lane's own reference index. Added an explicit reference/elicitation.md row
+in goals/SKILL.md, scoped to init and the draft-only boundary. This is a real
+entrypoint improvement, not a guard exemption or test change.
+
+Code fix: 743beb46. VERSION remains the unmerged 0.1.4 allocation.
+- Clean-env targeted test_reference_pages_are_reachable, test_pointers_resolve,
+  test_router_budget and test_next_section: 4 modules, 63 tests PASS, 1.6s.
+- Existing test_reference_pages_are_reachable COVERS already includes goals/.
+  The actual selector with changed goals paths selected that module; after the
+  code commit, tests/run --tier affected --base 372cb219 --dry-run confirmed
+  “covers goals/: goals/SKILL.md”. This was a manually selected test-list omission
+  in earlier author/integration checks, not a selector mapping defect. No COVERS,
+  selection algorithm or TASK-455 scope changed.
+- git diff --check PASS. Logs route-fix.log and route-selection.log are in the
+  same external integration scratch directory above. The parent's failed full
+  log is /var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/guided-014-full.log.
+
+The failed gate supplied no accepted record; no durations artifact was imported.
+Parent must rerun full/slow on the newly pinned candidate after independent delta
+review. This result update precedes that run so its code identity includes it.
