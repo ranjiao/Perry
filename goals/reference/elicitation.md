@@ -1,10 +1,59 @@
-# First-OKR question bank
+# Shared goal discussion and question bank
 
-Loaded by `goals/reference/setup.md` for a project's first overall OKR only.
-Revision, existing-project routing, phase/week reuse and the premise/escape flow
-are separate procedures; this page does not implement them. Its deliverable is
-a useful draft for review, not a claim that planning persistence or finalize
-writers exist. Keep `reference/input-quality.md` as the unchanged quality authority.
+Loaded through `goals/SKILL.md` for first OKR, revision, phase and commitments.
+The deliverable is a useful draft for review, not a claim that planning
+persistence or finalize writers exist. Keep `reference/input-quality.md` as the
+unchanged quality authority. `phases.md` maps phase sections to this same bank;
+the week procedure remains at its own entrance.
+
+## Route and reuse
+
+Use the requested horizon, declared tracks in `.perry/config.jsonl`, and the
+snapshot's existing OKR/phase facts. Read the selected track's mode contract for
+its spine: `project` decomposes goals through phases; `pipeline` and `queue`
+use commitments. Do not infer a route from the project's name, apparent maturity,
+repository size or an empty file. An unreadable or ambiguous state is unknown,
+not proof that there is no OKR. In a mixed project, use the explicitly selected
+track/horizon; a queue track does not redirect an explicit overall revision.
+If selection is still consequentially ambiguous, ask one routing question and
+wait. Count it in the chosen route's budget; switching labels never resets it.
+
+| Route | Evidence for entry | Cap before visible draft | Next unanswered gap → draft destination |
+|---|---|---|---|
+| First OKR | Overall goals requested, no existing OKR confirmed | 8 | Q1 mission/horizon; Q2 focus; Q3 evidence; Q4 boundaries → first overall draft |
+| Revision | Existing OKR and a requested material change or pivot | 5 | Q9 change/affected goals, then affected Q1–Q8 gaps → proposed new version with change reasons |
+| Phase | Existing accepted overall OKR, no active phase, phase planning requested | 5 | Q2 focus/end state; Q3 evidence/DoD; Q4 exclusions; Q7 appetite; Q9 prior learning → ten-section phase draft |
+| Commitments | Selected pipeline/queue spine or explicit `commit` request | 3 | Q10 promise terms, Q3 resolution evidence or Q5 arrival/baseline gap → proposed commitment row and operational unknowns |
+
+For each turn identify the selected route and the next unanswered consequential
+gap with its draft destination, in plain language. If none remains, draft now.
+Selecting a route never starts a phase or week, revises other tracks, or creates
+a commitment. `init` with an existing OKR offers revision only if change is wanted;
+`revise` without one reports that mismatch instead of inventing an old version.
+An active phase is not silently closed or replaced: `plan-phase` surfaces that
+state and pauses the new-phase route for an explicit lifecycle choice. Overall
+approval alone never authorizes a first or subsequent phase.
+
+Reuse explicit opening answers and accepted existing wording with provenance:
+name the message, or document/version/section that supplied each carried answer.
+An earlier decision remains an earlier decision, not consent to a new horizon,
+threshold or commitment. Distinguish observed facts, accepted wording, proposals,
+rejected suggestions and unknowns in the visible draft. Skip only unchanged,
+explicit answers; read proposals in old drafts as proposals. On revision preserve
+unaffected accepted wording verbatim and show before → proposed after plus the
+reason for each affected goal. A clear new user correction supersedes the older
+intent in this draft; retain the old source and the correction so the change is
+reviewable. Ask only about unresolved meaning or consequences.
+
+The commitments route reuses the same bank, without manufacturing Objectives or
+KRs. Show arrival rate/source (or unknown), SLA/date, beneficiary and what resolved
+means. Reuse declared SLA as existing policy, never as consent to a new promise.
+Unsupported `To whom` or `Due` stays unknown and prevents a write. Once the user
+explicitly approves the exact supported create/amend operation, follow
+`goals/reference/phases.md § commit <promise>` through `bin/perry-goals commit`.
+An explicit complete `commit` instruction can already supply that approval;
+an interview answer or draft edit cannot. Extra operational context is not a new
+writer field. Never invent an arrival-rate field or manually edit the register.
 
 ## Use the bank
 
@@ -16,7 +65,7 @@ answers grounded in what was actually read or said; label an unsupported baselin
 `unknown`, and a proposed target `proposed — not yet accepted`. Do not turn an
 example or a hypothetical number into a project fact.
 
-Default to **one qualitative objective and at most three KRs**. Use the solo/fewer
+For an overall draft, default to **one qualitative objective and at most three KRs**. Use the solo/fewer
 qualification in rubric 1.5; do not add objectives to satisfy its generic 2–4
 range. Each KR must earn its place by representing a distinct outcome. Do not
 force Learn/Build/Validate tracks or quotas of principles/anti-goals.
@@ -25,12 +74,14 @@ Use Q1–Q4 as a coverage guide, filling their proposed answers from known conte
 choose the next consequential unresolved gap anywhere in the bank, not the next
 number in a script. Q5 commonly addresses an unknown baseline. Q5–Q8 address
 remaining gaps, not a mandatory second form. `Skip when` means the
-specified answer is explicit in this first interview's context, not inferred from
-confidence or project age. Show the carried answer in the draft so it is visible.
-This is local avoidance of repeated questions, not an existing-project router.
+specified answer is explicit and unchanged in the selected route's context, not
+inferred from confidence or project age. Show its source in the draft.
 
-At each response, use the latest accepted intent and briefly show substantive
-changes. A changed beneficiary, capacity, objective or evidence invalidates the
+After each real user answer, briefly reflect the accepted meaning, then choose
+the most consequential remaining gap and its draft destination. Never supply
+both sides of a live interview or continue as though the user chose the
+recommendation. At each response, use the latest accepted intent and briefly
+show substantive changes. A changed beneficiary, capacity, objective or evidence invalidates the
 dependent proposed KRs, thresholds and commitments: name what no longer follows,
 withdraw it from the current proposal, and visibly propose replacements or mark
 the affected fields undecided. Recheck their mission alignment, measurement basis
@@ -48,20 +99,49 @@ intent; the agent's replacement targets and commitment labels remain proposals
 until the user accepts them. Silence or confidence is not acceptance.
 
 Ask **one question at a time and wait**. Count every question and follow-up that
-asks the user for an answer toward **eight maximum before showing the draft**;
+asks the user for an answer toward the **route cap above before showing the draft**;
 reflection text must not hide a second independent question. A
 scorecard choice may present one coherent proposed set for acceptance or editing.
-On a vague answer, name the single most consequential gap and offer one grounded
-rewrite; push at most once for that answer, within the same budget. If still
-unknown or the budget is spent, retain it explicitly and draft now. Do not loop
+On a vague or activity-based answer, name the single most consequential gap and
+offer one outcome-oriented rewrite grounded in the beneficiary's desired change.
+Say what it would demonstrate and what evidence/threshold is still missing;
+do not manufacture a number to make it look scoreable. Push at most once for
+that answer, within the same budget. If the user rejects it or remains vague,
+accept the stated intent and move on; do not rename the same push as a new field.
+If still unknown or the budget is spent, retain it explicitly and draft now. Do not loop
 until every rubric issue disappears. Already supplied answers need no ritual
 confirmation; fewer than four questions is fine when the user supplied the facts.
 
 Render a `choice` as 2–3 options, the grounded proposal first with `(Recommended)`;
-explain the practical difference briefly. Render a `sentence` as a proposed
+explain its practical consequence and the basis for recommending it. Alternatives
+must be supported by context; an option to edit/say it differently is sufficient
+when there is no grounded alternative. Never invent options to fill the count,
+or praise an answer without explaining what it achieves or what is missing.
+Render a `sentence` as a proposed
 sentence followed by `Use this | Edit it | Say it differently`. Use the configured
 language and the host's prompt rendering from `$PERRY_HOME/reference/host-capabilities.md`.
 The seven fields below guide the agent; do not expose the whole bank to the user.
+
+## Escape without losing the user's intent
+
+On the first “just draft it” / refusal to continue, make **one** offer of the two
+most consequential remaining questions, explaining what their answers would
+change. For example: “Two more questions, then I'll draft: what success means
+and how we can observe it.” Ask only the first, then stop and wait. The offer
+and first question are one turn, not permission to ask both at once; each actual
+question counts in the same route budget. After an answer, reflect it and ask
+the second only if it is still consequential and within the cap. No new pushes
+or replacement pair extends this offer. If fewer than two questions remain in
+the budget or in the unresolved gaps, say so and offer only those; at zero,
+draft immediately. Do not ask a separate permission question to restart a budget.
+
+On a **second refusal, yield immediately**: show the incomplete draft, preserve
+rejected suggestions and unknowns, state the premises and run the advisory rubric
+once without requiring more answers. Do not append a premise/approval question
+to that refusal response. The user can correct the draft later; declining the
+interview is permission to draft, never permission to finalize. A fully formed
+pasted OKR goes directly to the visible draft and premise check, with no intake
+questions and no unsolicited rewrite to the default number of Objectives/KRs.
 
 ## Q1 · Who benefits, and over what horizon?
 
@@ -143,17 +223,82 @@ Red flags: Generic virtues; new safety restrictions attributed to the user; a ta
 Produces: Operating Principles and separation from period Anti-Goals (supports rubric 1.7; no additional rubric requirement).
 Skip when: Enduring principles, or the user's choice not to declare any yet, are explicit; also skip when no such gap affects this first draft.
 
+## Q9 · What changed, and what does it invalidate?
+
+Kind: sentence
+Draft answer: Compare the requested change with the accepted goal version. Propose a concise change statement naming affected Objectives/KRs and why; retain unaffected wording and identify any dependent threshold or commitment that no longer follows.
+Ask: “I read the change as [before → after, reason and affected goals]. What needs correcting?”
+Push until you hear: A concrete change and its consequence for the selected horizon, or an explicit unresolved impact to carry into the draft.
+Red flags: Re-interviewing the whole mission; rewriting unrelated accepted KRs; treating old approval as permission for new thresholds.
+Produces: Revision reason and affected goal sections; the dependent scorecard gaps to address through Q3/Q5/Q6/Q7.
+Skip when: The change, its scope and affected goals are already explicit; propagate it directly and ask only about unresolved consequences. For a subsequent phase, reuse the scored retro's learning as context, not automatic approval of carry-overs.
+
+## Q10 · What promise is being made?
+
+Kind: sentence
+Draft answer: Assemble the supported promise to a named party, its date/SLA and resolution definition, using the declared track and user wording. Show arrival rate/source or unknown as context; unsupported terms remain undecided. Explain what this promise would oblige the track to do.
+Ask: “I propose this promise: [terms and practical consequence]. Use this, edit it, or say it differently?”
+Push until you hear: A recognizable party, what counts as resolved and an explicit clock, or named unknowns. Queue Due uses an accepted typed SLA/date; pipeline Due needs an ISO date. A declared track SLA is required by the queue writer.
+Red flags: An invented SLA; arrival volume guessed from backlog; a promise to nobody; drafting treated as permission to write; silently changing track policy.
+Produces: Commitment Promise / To whom / Due / By when note; resolution evidence and arrival-rate uncertainties in draft context.
+Skip when: These exact terms are already supplied; discuss only changed or missing terms, then use the existing writer only with explicit operation approval.
+
 ## Show the draft and the remaining issues
 
-Display one compact **First OKR draft — not finalized** in chat: Period; Mission;
+Display one compact **[selected route] draft — not finalized** in chat. For overall goals: Period; Mission;
 Operating Principles (or none supplied); one qualitative Objective with its mission
 clause; a ≤3-row KR scorecard with baseline/source, target/unit, deadline and
 commit/stretch; Anti-Goals; and explicit unknowns/proposed assumptions. Carry over
 accepted wording and make suggested changes visible. A complete-looking table is
 not evidence that an unknown was resolved. Do not turn measurement follow-ups into
-extra KRs merely to fill slots.
+extra KRs merely to fill slots. Keep the summary to at most 12 lines; show the
+relevant section in full when editing it. For revision, include change reasons and affected
+goals with unchanged wording preserved. For commitments, show the proposed row
+and remaining operational unknowns, without an objectives cascade.
+For a phase, use `phases.md`'s ten sections and a clearly proposed KR scorecard;
+carry approved overall wording as context, never approval of new phase thresholds.
 
-Run `$PERRY_HOME/reference/input-quality.md § 1` once against this actual draft.
+### Premises, edits and approval
+
+Before approval, state the meaningful premises as short, sourced statements:
+who benefits and why, why each Objective serves that mission, what this horizon
+excludes, and any capacity/evidence assumption the recommendation depends on.
+For commitments, use the party, promise and resolution meaning instead of
+inventing Objectives. Mark proposed premises and unknowns. Ask one question
+about the set: “Which premise needs changing, or should this draft keep them?”
+Then wait. This reviews meaning, not permission to write. If the user already
+explicitly reviewed these same premises, reuse that answer. If they declined
+further questions, show the statements without demanding a response.
+
+On disagreement, return to the bank entry that produced that premise, apply
+the explicit correction to its draft section, and propagate dependent changes
+under **Use the bank**. Leave unrelated wording intact. Show the changed section
+and withdrawn proposals; ask only if a consequential choice is unresolved.
+All follow-ups count; showing a draft does not reset the interview cap or entitle
+the agent to another interrogation. At the cap use unknown/proposed fields and
+accept voluntary edits instead of requiring more interview answers.
+
+Run the rubric below once on the draft resulting from this premise review,
+including disagreement; it is not a loop until the user accepts the agent's
+preferred goals. Keep override reasons in the conversation for the owning lane;
+do not claim a journal entry. A later material user edit changes the draft and
+invalidates any approval of its earlier contents.
+
+After the premise review and rubric, distinguish approval of this exact draft
+from “change a section” or “I'll edit it.” A section edit changes only that
+section and affected dependencies; it is not approval. “I'll edit it” ends the
+turn. With a supported draft file, show its real path and re-read it on return;
+without that implementation, offer chat edits and disclose that no resumable
+file was saved. Do not create `plans/` by hand. Only offer a write operation
+when its owning writer exists; otherwise name the missing finalize path and
+stop with a reviewable draft, even if the user says “approved.” Approval never
+manufactures a writer. The explicit commitment writer remains available for
+supported, explicitly authorized terms, subject to its refusals.
+
+Run `$PERRY_HOME/reference/input-quality.md § 2` for a phase, otherwise § 1,
+once against this actual draft
+where applicable; for a commitments-only draft state which Objective/KR checks
+are inapplicable rather than inventing an OKR or a replacement rubric.
 The entries' `Produces` fields map all eight checks; coverage is not a passing
 score. Surface at most three highest-value issues with concrete rewrites, including
 missing baselines or undecided targets. Preserve advisory + override and record
@@ -164,5 +309,7 @@ This bank stops at that visible draft and quality feedback. It does not create
 `plans/`, claim resume support, write canonical goal stores, call an imagined
 finalize command or automatically start a phase. Approval/persistence/finalization
 must use the owning implementation when available; do not substitute manual store
-writes for missing tooling. No end-to-end interview quality gate is claimed here;
+writes for missing tooling. The explicit commitment operation described under
+**Route and reuse** retains its existing writer; it does not supply overall
+planning finalization. No end-to-end interview quality gate is claimed here;
 that requires the independent transcript review, beyond mechanical pointer checks.

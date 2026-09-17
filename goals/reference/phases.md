@@ -60,10 +60,19 @@ including the event that was appended.
    — a row created by the tool and later deleted by hand is gone from the file
    and still in the log, and its number stays spent.
 
-3. **`To whom` and `Due` have no defaults.** Ask for both — one
-   `AskUserQuestion`, both fields — before running the command. A promise with
-   no named party is a KR, and belongs under an Objective instead; the tool
-   refuses `--to` with that sentence rather than filing a commitment to nobody.
+3. **`To whom` and `Due` have no defaults.** Follow `elicitation.md`'s
+   **Route and reuse** for intake: reuse explicitly supplied, unchanged terms
+   without asking again. Ask only missing consequential terms, one question
+   at a time, then wait. The same three-question commitment cap includes
+   routing, follow-ups and pushes; this handoff never resets it. At the cap,
+   show the draft without another intake question. Unknown required fields
+   remain unknown and prevent writes, even if the user requests a commit.
+   An exact, complete explicit `commit` instruction already authorizes that
+   supported writer operation, subject to its existing refusals. Reusing an
+   earlier policy or accepting an interview answer/draft edit does not supply
+   new consent. A promise with no named party is a KR, and belongs under an
+   Objective instead; the tool refuses `--to` with that sentence rather than
+   filing a commitment to nobody.
 
 4. **The clock is two fields, and only one of them is checked.**
 
@@ -147,7 +156,16 @@ under `records_not_in_the_file`.
 
 ## `plan-phase <slug>`
 
-Start a new phase. `<slug>` is user-chosen (short, hyphenated). OKR assigns `#<NNN>` automatically: `NNN = (max existing phase number) + 1`, zero-padded to 3 digits. The new file is `phase/<NNN>-<slug>.md` (e.g., `phase/002-release-pipeline.md`).
+Discuss and draft a new phase through `elicitation.md`'s **Route and reuse** and
+shared response/premise/escape procedure. Existing overall approval supplies
+context, not approval of a phase. If no overall OKR exists, report that prerequisite;
+if a phase is active, surface it and pause for a lifecycle choice rather than
+closing/replacing it. Do not silently start another horizon.
+
+`<slug>` is user-chosen (short, hyphenated). The prospective target is
+`phase/<NNN>-<slug>.md`, where the writer would assign the next unused phase
+number, zero-padded to three digits. A draft does not reserve a number, set a
+start date, make a phase active or change `phase/CURRENT`.
 
 ### Read before drafting
 
@@ -161,30 +179,68 @@ Start a new phase. `<slug>` is user-chosen (short, hyphenated). OKR assigns `#<N
   **The refusal is conditional, and that is a correction, not a softening.** It used to be unconditional — a hard gate in the goals lane keyed on `ARCHITECTURE.md`, a file only software projects have. A content pipeline or a research vault has no architecture and no audit history, so the gate could never fire there; it simply sat in the procedure as software's assumptions wearing the goals lane's clothes. TASK-024's extraction is what surfaced it. The gate is unchanged where it applies.
 - **Carry-forward metrics from prior phase** (if present in `evidence/<YYYY-MM>/retro.md § Health metrics`): incident feedback-loop ratio, audit drift trend, runbook coverage gap. These inform whether the new phase needs an operability-focused Objective.
 
+### Discuss the phase with the shared bank
+
+Reuse approved overall goals, principles and anti-goals with their version and
+section. For a first phase, there is no prior learning to invent. For a subsequent
+phase, name what the scored retro establishes, what remains uncertain and which
+carry-overs are merely proposed. Do not ask the first-OKR mission questions again.
+Existing commitments on relevant pipeline/queue tracks are read as constraints;
+their existence does not authorize renewal, a new promise or section creation.
+Changes to them need their own explicit commitment operation, not a phase side effect.
+
+Use this mapping to select gaps in **the same question bank**, not five mandatory
+questions or a second set of prompts:
+
+| Consequential phase gap | Shared entry | Draft destination and recommendation consequence |
+|---|---|---|
+| Focus and desired end state | Q2; Q9 if prior learning changes the focus | Phase Focus / Objectives: why this slice advances the approved overall goal; what becomes possible at phase end |
+| Proof of that end state | Q3, Q5 or Q6 as needed | Proposed phase KRs / Definition of Done: what observable result establishes each Must-Have, with unknown baselines visible |
+| Exclusions and invariants | Q4 / Q8 | Not Doing / Operating Rules: concrete deferred work and preserved constraints, beyond copying overall Anti-Goals |
+| Appetite and capacity | Q7 adapted to phase effort and trade-offs | Cost Ceiling / User Commitments / Degradation / Scope Reduction: what fits, what would be cut, and what still needs a decision |
+
+Ask the highest-impact unresolved question with a grounded proposed answer,
+explain its consequence, then wait. **At most five questions before the visible
+phase draft**, including routing, follow-ups and pushes; the cap is not a quota.
+If a coherent phase proposal was supplied, reuse it and move to the premise check.
+Use the shared one-push and escape rules. Unknown spend/capacity, wiring, USER-ids
+or thresholds remain unknown; template examples do not supply user commitments.
+
+After a scope cut or capacity correction, apply it to the phase draft, withdraw
+dependent KR targets and commit/stretch labels that no longer follow, and revisit
+the Must-Haves, exclusions and reduction/degradation rules. Explain which result
+the reduced phase would now establish. Lower capacity is not a formula for a
+lower threshold. Propose a supported replacement or leave it undecided, preserving
+unaffected accepted constraints and rejected suggestions. Unchosen new thresholds
+are not an automatic scope-reduction rule.
+
 ### The ten mandatory sections
 
 The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical commitment:
 
 1. **Phase Focus** — narrative paragraph. What is this phase *primarily* about? What state should the project reach by phase-end? Phase end is defined by KR-completion, not a date.
 2. **Operating Rules** — phase-scoped invariants (subset / extension of overall Operating Principles). Often: agent autonomy boundaries, what requires user authorization, evidence requirements for promotions.
-3. **Cost Ceiling** — explicit dollar (or token / time) caps on the phase's spend, with a soft-fallback threshold (typically 80%). Mark whether the ceiling is *wired* (enforced by code) or *doc-only*. If the cost ceiling is set at the overall OKR level (lifetime cap), reference it here instead of redefining.
-4. **User Commitments** — bullet list of what the user must contribute during this phase. These become USER-ids in PMO's User Input Queue.
-5. **User-Unavailable Degradation** — if user input is missing for >5 days, what work continues, in what order. Names the specific task ids that don't depend on missing inputs.
-6. **Phase Scope Reduction Rule** — automatic scope cut, triggered by *one of two* conditions (spec writer picks):
+3. **Cost Ceiling** — dollar (or token / time) cap and soft-fallback threshold, explicitly supplied or marked proposed/unknown. Mark *wired* only with enforcement evidence; *doc-only* is a risk, and unknown wiring is not enforcement. If a lifetime cap exists, reference it instead of redefining it.
+4. **User Commitments** — what the user explicitly agreed to contribute, with source; proposed contributions remain proposals. PMO owns any later USER-ids; a phase draft mints none.
+5. **User-Unavailable Degradation** — if user input is missing for >5 days, what work continues, in what order. Name known independent task ids only; unknown dependencies/ids remain unknown instead of invented tasks.
+6. **Phase Scope Reduction Rule** — automatic scope cut, triggered by *one of two* conditions chosen in draft review:
    - **Phase-day trigger**: "If by phase day <N> (counting from `plan-phase` write date) named USER-ids are still open, Objective N collapses to its single Must-Have deliverable; remaining items defer to next phase."
    - **KR-progress trigger**: "If commit KRs are <X% achieved at phase day <N>, scope cuts to the named Must-Haves."
 
-   Either form (or both, whichever fires first). NO calendar-date triggers. Write each as one bullet whose bold label names the kind, so the trigger is machine-readable:
+   Either form (or both, whichever fires first). NO calendar-date triggers. In the
+   draft mark unchosen days, percentages and cuts proposed/unknown; do not turn an
+   example into consent. The supported target shape uses a bold label per bullet:
    ```
    - **Phase-day trigger**: If by phase day 14 USER-014 is still open, Objective 2 collapses to its Must-Have.
    ```
-7. **Objectives** — 2–4 phase Objectives. For each:
+7. **Objectives** — a small set serving the phase focus (rubric's solo/fewer qualification applies). For each:
    - Title (as `## Objective <N> — <title>`)
    - Goal (1–2 sentences)
    - A `### Key Results` heading carrying the template's pointer and **no
-     table**. 3–5 Key Results per Objective, ids matching `P<NNN>-O<n>-KR<m>`,
-     are declared in `linkage.jsonl` at step 2 of *After write* below and
-     printed by `bin/perry-goals krs`.
+     table** in the canonical phase document. Use the lane's existing cap of
+     **4 KRs per Objective**; fewer is fine. Show proposed KRs in the discussion
+     draft for review. At supported finalize, ids matching `P<NNN>-O<n>-KR<m>`
+     belong in `linkage.jsonl` and are printed by `bin/perry-goals krs`.
 
      **This step used to say "write them in a `### Key Results` table" and that
      is the defect TASK-157 closed.** A KR's id, title, metric, target and
@@ -193,37 +249,76 @@ The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical com
      comparing them. The markdown copy is the one that went stale, and it had:
      `P003-O2-KR1` read a target its register did not. DESIGN-013 § 5.1 (locked
      2026-08-29) puts a fact with a schema in exactly one store, and all five
-     of those fields are schema'd. **Write the register; do not retype it here.**
+     of those fields are schema'd. **The owning writer must declare them once;
+     do not retype them here or hand-append the register.**
    - Linked Projects: each Project has Owner / User role / Deliverable / Verification — these become PMO task seeds with TASK-IDs.
 8. **Definition of Done** — split into **Must-Have** (failure = phase missed) and **Nice-to-Have** (failure allowed but explained in retro).
 9. **Not Doing in this phase** — explicit anti-goals scoped to this phase. Often more concrete than the overall Anti-Goals.
 10. **Process Note** — pointer to PMO's cadence work so phase Objectives don't waste slots on "do weekly status reports".
 
-The header block must carry `**Started**: <YYYY-MM-DD>` and `**Status**: active` — phase day is computed from `Started:`, and every consumer (standup, aiMark, scope-reduction triggers) reads it. A missing or unparseable date makes phase day unknowable, not zero.
+The finalized header carries `**Started**: <YYYY-MM-DD>` and `**Status**: active`;
+phase day is computed from `Started:`. During discussion, label the content a
+draft and the start unknown/proposed, never claim the phase is already active.
+A missing or unparseable start makes phase day unknowable, not zero.
 
 ### Writing it
 
-**Input-quality pass** before confirming: run `$PERRY_HOME/reference/input-quality.md § 2 Phase OKR` against the drafted Phase Focus / KRs / DoD / Cost Ceiling / scope-reduction trigger; surface ≤3 issues (advisory + override).
+Show the ten-section **Phase draft — not active**, with a summary of at most
+12 lines and the proposed KR scorecard available for review. Carry sources,
+rejected suggestions and unknowns visibly. No phase document, `phase/CURRENT`,
+`linkage.jsonl` or other canonical goal state is written during the interview,
+premise review or draft editing. This procedure supplies chat drafts; it does
+not create planning files or claim resume support on its own.
 
-Then confirm with the user and write `phase/<NNN>-<slug>.md` from `state/phase_TEMPLATE.md`. **Verify ≤300 lines (tier 1 hard cap)** before writing — if drafted content exceeds, `AskUserQuestion` (header `"Phase cap"`, options): `Split — move Stretch / long narrative to evidence/<YYYY-MM>/phase-<NNN>-<topic>.md (Recommended) | Trim sections in place | Override with logged reason`.
+Follow `elicitation.md`'s **Premises, edits and approval** on this current phase
+draft: state the chosen focus, overall alignment, exclusions and appetite
+assumptions; let disagreement update the relevant section and dependent proposals.
+Then run `$PERRY_HOME/reference/input-quality.md § 2 Phase OKR` once on the
+resulting draft, surfacing at most three advisory issues with concrete rewrites.
+Approval of the overall OKR, a prior phase or an individual edited section is
+not approval of this phase. A later material edit invalidates prior draft approval.
 
-For an approved project release policy, read `$PERRY_HOME/packs/software-ops/releases.md` before activating this phase and coordinate any phase-based minor allocation with the main integrator. Goals owns phase records, not product versions. Drafting or closing a phase allocates nothing; without policy, continue normally.
+Before any supported finalize, preserve these existing gates:
 
-After write:
-1. Update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>`).
-2. **Write the linkage graph**: append records to `linkage.jsonl` — one JSON object per line, shapes declared in `schema/state-schema.json § stores.declared["linkage.jsonl"]`. One `kind: objective` record per phase Objective (`phase`, `id`, `title`; file order is objective order), then one `kind: kr` record per Key Result. **This is where the KRs are declared** — `id`, `title`, `metric`, `target`, and `linked` (the overall KR this one serves). Nothing else in the project holds them, so a KR left out here is a KR the phase does not have. Check what you wrote with `bin/perry-goals krs`, which prints the table the phase document used to carry. Every Project is then `bin/perry-goals link --actor goals --project <PROJECT-ID> <KR-ID> "<name>"`, one per Project defined above; every task edge afterwards is `bin/perry-goals link`, and nothing in this store is edited by hand once it exists (`reference/linkage.md`).
+- **Verify ≤300 lines (tier 1 hard cap)** for the target phase document from
+  `state/phase_TEMPLATE.md`. If over cap, show the concrete split/trim proposal
+  for review under the lane's tier-1 rules. Long narrative destined for evidence
+  is a hand-off to PMO, never a goals-lane evidence write.
+- Keep the applicable architecture/audit responses from **Read before drafting**.
+  An unresolved required response still blocks activation; an advisory rubric
+  override does not satisfy that gate or authorize an architecture edit.
+- For an approved project release policy, read
+  `$PERRY_HOME/packs/software-ops/releases.md` before activating this phase and
+  coordinate phase-based minor allocation with the main integrator. Goals owns
+  phase records, not product versions. Drafting or closing a phase allocates
+  nothing; without policy, continue normally.
 
-   **These records lived in a per-phase register document until ADR-019** (2026-09-08), authored from a shipped template. That document's 61 lines of frontmatter duplicated the store record for record and its 30 lines of prose carried four claims that were false when they were counted, so it and its template were deleted. What changed for this step is the FORMAT, not the fact that an agent authors it: `plan-phase` has never had a deterministic writer for the KRs themselves, here or before, which is why the step below is exempt from ADR-007 rule 3 exactly as instantiating the template was.
+**Finalize is a separate implementation boundary (TASK-444).** Verify the owning
+phase/goal writer and approved-draft flow actually support the requested operation.
+On this baseline the phase finalize path is unavailable: disclose it and stop,
+even after the user approves the draft. Do not hand-write a phase document or
+`phase/CURRENT`, hand-append Objective/KR records, feed a fabricated canonical
+file to a generic import/render command, or use `perry-goals link` as a KR-creation
+substitute. A writer refusal stops with its actual message; no fallback writes.
 
-   **There is no file-level `updated:` to set, and that is TASK-155.** The document carried one, and two readers took it for three different facts — when the graph changed, when a KR's `current` was asserted, and when each edge was declared — so appending one edge re-dated every asserted number in the phase. Each is a per-record field now: `kr.asserted_at` (write it **only** when you write a `current`, and only with the date that number was actually measured), `edge.declared_at` and `unlinked.declared_at` (written by `perry-goals link` and `perry-task add`, at the moment of the write). Never fill `asserted_at` with today's clock for a number somebody else measured.
+The eventual writer's returned result must identify the ten-section phase prose
+and the activated phase pointer. Its Objective fields are `phase`, `id`, `title`;
+its KR fields are `id`, `title`, `metric`, `target`, and `linked` overall KR.
+Their canonical authority is `linkage.jsonl`, with no duplicate KR table in the
+phase document. `target` / `current` are numbers or
+omitted; prose limits remain in `metric`. Unknown current is never zero, and
+`kr.asserted_at` accompanies only an asserted current, dated to its measurement.
+There is no file-level `updated:`. Projects and edges use `perry-goals link`
+only after their destination KR exists; unresolved attribution is never guessed.
+Carry-overs and aliases need review against the new phase, and old unlinked
+records are not blindly carried forward. These are draft requirements for a
+writer, not instructions to append anything manually.
 
-   Two things to get right, because a reader can't recover from either:
-   - **`target` / `current` are numbers or omitted.** A KR whose target is prose ("≤ 15% drawdown", "6–10% annualised") carries no `target` — the number goes in `metric` as text. A ceiling rendered as a progress bar reports a risk limit as two-thirds achieved. **`current` is an author's assertion: leave it out until someone asserts one.** The template no longer carries `current: 0`, because most KRs drive a count down and a defaulted zero reads as met on the day the register is written.
-   - **There are no `unlinked` records at phase start, and they are only ever appended deliberately.** One means "this work serves no KR", not "we haven't got round to it". Each carries the `phase` it was declared against, because the store holds every phase at once.
-
-   This graph is the stable-ID source of truth that keeps attribution from being guessed later, and it is what the frontend draws the O→KR→task chain from. See `$PERRY_HOME/reference/okr-linkage.md`.
-3. Verify structure: `"$PERRY_HOME/bin/perry-lint" --root .` — it checks the ten sections, the KR id pattern, that every record matches its declared shape, that no task serves two KRs, that every KR id names the phase its records are filed under, and that each `project` record serves a KR under an objective the phase declares.
-4. Optionally call `plan-week` for week 1 immediately.
+After an available writer actually succeeds, inspect its returned ids/paths,
+verify declared KRs with `bin/perry-goals krs`, and run
+`"$PERRY_HOME/bin/perry-lint" --root .` for the ten sections and linkage structure.
+Only a successful supported write reaches the shared closing step below. A
+phase draft never auto-runs `plan-week` or claims that a phase has started.
 
 ## `krs`
 

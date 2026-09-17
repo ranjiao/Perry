@@ -27,7 +27,7 @@ This `SKILL.md` is intentionally lean: it holds what runs on **every** invocatio
 | Reference file | Loaded when running |
 |---|---|
 | `reference/setup.md` | `init`, `revise` (overall `OKR.md` creation + versioning) |
-| `reference/elicitation.md` | `init` only: first-OKR interview questions, drafted answers and visible draft; no persistence/finalize claim |
+| `reference/elicitation.md` | `init`, `revise`, `plan-phase`, `commit`: horizon/spine routing, answer reuse, premise/escape and shared questions → visible draft; no persistence/finalize claim |
 | `reference/phases.md` | `plan-phase`, `score-phase`, `snapshot` (the phase cadence + the ten mandatory sections) |
 | `reference/weekly.md` | `plan-week` (the PMO hand-off) |
 | `reference/linkage.md` | `link` — owning `linkage.jsonl`: accepting PMO's attribution hand-off, aliases, unlinked |
@@ -121,9 +121,9 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 | Subcommand | One-line | Reference |
 |---|---|---|
 | `init` | First-OKR question bank → visible draft + rubric; finalize is a separate boundary | `reference/setup.md` |
-| `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
-| `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `Due` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
-| `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the phase's `objective` and `kr` records in `linkage.jsonl`. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
+| `revise` | Discuss material changes → proposed new version; reviewed approval and an available writer are separate requirements | `reference/setup.md` |
+| `commit <promise>` | Use shared discussion for missing terms (≤3 questions); an explicit approved create/amend uses **`bin/perry-goals commit`** for `OKR.md § Commitments`. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/elicitation.md` + `reference/phases.md` |
+| `plan-phase <slug>` | Shared discussion (≤5 questions) → ten-section phase draft, reusing approved overall goals and prior learning. Approval and an available phase writer are required to activate; no manual phase/CURRENT or KR writes. Relevant commitments are context, not automatically renewed | `reference/phases.md` + `reference/elicitation.md` |
 | `score-phase [<NNN>]` | End current phase: per-KR scoring; writes `phase/<NNN>-<slug>.md § Retro` and the `-final` snapshots. **Hands the retro summary to `work`; does not write `evidence/`** — see `reference/phases.md` step 5. Ends with the shared closing step | `reference/phases.md` |
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
 | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |

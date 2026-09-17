@@ -17,8 +17,10 @@ Run when `OKR.md` doesn't exist.
 
    When the store already exists (first-time setup ran), this step writes nothing.
 
-Then use `$PERRY_HOME/goals/reference/elicitation.md` for the **first-OKR question
-bank**. Read it before asking; do not turn the fields below into another form.
+Then use `$PERRY_HOME/goals/reference/elicitation.md` for **Route and reuse** and
+the shared question bank. Read it before asking; do not turn the fields below
+into another form. A selected commitments spine uses that route, not this
+overall template. Unknown state never proves this is a first OKR.
 
 1. Follow the bank's **Use the bank** response handling: propagate corrections
    through dependent proposals and choose the next consequential unresolved gap.
@@ -29,9 +31,11 @@ bank**. Read it before asking; do not turn the fields below into another form.
 2. Show the compact first-OKR draft in chat, with source/assumption distinctions,
    boundaries and remaining unknowns. This delivery does not persist a planning
    draft or provide resume/finalize machinery; do not claim those operations ran.
-3. Run `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` on that draft.
-   Surface ≤3 issues with concrete rewrites, advisory + override. The rubric is
-   unchanged, including its solo-project qualification for fewer objectives.
+3. Follow the bank's **Premises, edits and approval**: surface meaningful
+   premises, incorporate disagreement into affected draft sections, then run
+   `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` once on the resulting
+   draft. Surface ≤3 advisory issues, preserving the solo-project qualification.
+   A refusal uses the bank's escape; a fully pasted OKR skips the interview.
 4. Stop at the visible draft and quality feedback. Do not hand-append canonical
    goal stores or invent a writer to finalize it, and do not auto-run `plan-phase`.
    The owning approval/persistence/writer flow must exist before finalization;
@@ -54,21 +58,39 @@ This shape is declared in `$PERRY_HOME/schema/state-schema.json` and checked by 
 "$PERRY_HOME/bin/perry-lint" --root .
 ```
 
-## `revise` — produce a new OKR version
+## `revise` — draft a new OKR version
 
 Used when goals materially change between versions (new constraints, new mission, big learnings). Soft fork:
 
-1. Show current `OKR.md` summary.
-2. Walk through what's changing per Objective / KR.
-3. Increment version number, set new date.
-4. Append the new version under `## v<N>: YYYY-MM-DD`. Old versions stay readable for historical audit.
-5. Re-check the current phase OKR — does it still serve the new overall? If not, suggest `/okr score-phase` (close current) + `/okr plan-phase` (start new aligned with revised goals).
-6. Tell **`decide`** to record it: `/perry decide adr <slug> --type Process`. Not PMO — `decisions/` moved to the `decide` lane on 2026-08-16.
+1. Read the current accepted `OKR.md` version and the user's requested change.
+   Follow `elicitation.md`'s revision route; reuse explicit answers with sources.
+   Show what changed, why, and which Objectives/KRs it invalidates. Preserve
+   unaffected accepted wording; do not replay the first-OKR interview.
+2. Choose the next consequential affected gap from the shared bank. Ask one
+   question and wait, at most five before a visible draft, counting routing,
+   clarifications and pushes. Corrections invalidate dependent proposals under
+   **Use the bank**; new thresholds never inherit old approval.
+3. Show the proposed new version in chat, with before/after changes, reasons,
+   source distinctions and unknowns. Its proposed version/date is not an append
+   receipt. Use the bank's **Premises, edits and approval** on the resulting
+   version, including its one-pass rubric and refusal escape. A premise
+   disagreement changes that section and dependent proposals, not all wording.
+4. Keep edits separate from approval of the current draft. Finalize only through
+   an available owning approval/persistence/writer flow; if missing or refusing,
+   name the gap/message and stop. Do not append a version, render a fabricated
+   canonical input file, or hand-write stores to work around missing tooling.
+   Historical versions remain unchanged.
+5. Surface any consequence for the current phase as a proposed follow-up, never
+   an automatic phase close/start. After a supported approved revision, hand the
+   decision to `decide` via `/perry decide adr <slug> --type Process`; the goals
+   lane does not write the decision or PMO records.
 
-**Tier 1 cap**: `OKR.md` ≤ 200 lines. If appending a version would exceed it, move historical `## v<N>` retro blocks to `phase/snapshots/okr-vN.md` and keep the current version + version log in the main file. Verify before writing, not after.
+**Tier 1 cap**: `OKR.md` ≤ 200 lines. Before any supported write, review overflow
+handling under `goals/SKILL.md`: propose archiving historical version retros or
+trimming; a draft does not itself authorize moving history or writing a version.
 
 ## Completion routing
 
 After completed writes from `init`, `revise`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: goals init --> <!-- next-close: goals revise -->
-First-init chat drafts are unfinished planning: do not close or bypass an unavailable writer to trigger this step.
+First/revision chat drafts are unfinished planning: do not close or bypass an unavailable writer to trigger this step.
