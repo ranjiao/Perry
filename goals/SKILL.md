@@ -113,7 +113,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 
 | Subcommand | One-line | Reference |
 |---|---|---|
-| `init` | First-time bootstrap of overall `OKR.md` (interview) | `reference/setup.md` |
+| `init` | First-OKR question bank → visible draft + rubric; finalize is a separate boundary | `reference/setup.md` |
 | `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
 | `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `Due` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
 | `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the phase's `objective` and `kr` records in `linkage.jsonl`. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
@@ -162,9 +162,9 @@ edits that table in place — never re-rendering the file — mints `<track>/<n>
 ids that are never reused, checks the typed `Due` against the track's mode, refuses
 to silently re-date a missed promise, and appends an event to
 `.perry/events.jsonl` for every write. Full rules and the exact commands:
-`reference/phases.md § commit <promise>`. The rest of `OKR.md` is still written
-by this lane's interviews (`init`, `revise`, `plan-phase`) and the tier-1 cap
-and lint pass in the style rules below still apply to those.
+`reference/phases.md § commit <promise>`. The other goal procedures remain lane-owned; `init` currently produces the
+first-OKR draft and rubric feedback (`reference/setup.md`), not a claim of a
+finalize writer. The tier-1 cap and lint rules still apply to supported writes.
 
 ## Bootstrap
 

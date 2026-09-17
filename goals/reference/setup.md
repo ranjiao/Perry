@@ -17,25 +17,27 @@ Run when `OKR.md` doesn't exist.
 
    When the store already exists (first-time setup ran), this step writes nothing.
 
-Then conduct the interview:
+Then use `$PERRY_HOME/goals/reference/elicitation.md` for the **first-OKR question
+bank**. Read it before asking; do not turn the fields below into another form.
 
-1. **Period** — overall horizon? (3 months / 6 months / 1 year). Default to project-lifetime if known.
-2. **Mission** — one sentence: why this project exists.
-3. **Operating Principles** — 5–10 invariants the system must hold across all Objectives. Examples: "X must never be done without Y", "cost must stay below Z", "auditability before performance". These survive across versions.
-4. **Tracks → Objectives** — propose 1–3 Objective tracks. Generic defaults: *Learn*, *Build*, *Validate*. Rename freely.
-5. **For each Objective**:
-   - Title (action-oriented, qualitative)
-   - 3–5 Key Results, each measurable (number + unit + deadline)
-   - Mark KRs as `commit` (must achieve) or `stretch` (welcome-to-overshoot)
-6. **Anti-Goals** — 4–8 things the project will NOT do during this period. Examples: "no production deploys until promotion gate", "no new paid API integrations", "no untested refactors".
-7. **Versioning** — assign `v1` and today's date. All future revisions are appended versions, not edits in place.
-8. **Input-quality pass** — before writing, run the pass in `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` against the drafted Mission / Objectives / KRs / Anti-Goals. Surface ≤3 issues (advisory + override, never silent rewrite); on override, log the one-line reason. This is the systematic form of "push back on vague KRs".
-9. Write `OKR.md` from `state/OKR_TEMPLATE.md`. Verify ≤200 lines (tier 1 hard cap); if template + user inputs already exceed, prompt the user to trim Operating Principles / KR descriptions before write.
-10. Run `plan-phase` to create phase `#001`.
+1. Propose grounded answers from the user's context, then ask one question at a
+   time. Default to one objective and at most three KRs; the normal short path is
+   four to five questions, with eight total before a visible draft (including
+   clarification/push questions). Keep unsupported facts explicitly unknown.
+2. Show the compact first-OKR draft in chat, with source/assumption distinctions,
+   boundaries and remaining unknowns. This delivery does not persist a planning
+   draft or provide resume/finalize machinery; do not claim those operations ran.
+3. Run `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` on that draft.
+   Surface ≤3 issues with concrete rewrites, advisory + override. The rubric is
+   unchanged, including its solo-project qualification for fewer objectives.
+4. Stop at the visible draft and quality feedback. Do not hand-append canonical
+   goal stores or invent a writer to finalize it, and do not auto-run `plan-phase`.
+   The owning approval/persistence/writer flow must exist before finalization;
+   this first-OKR bank does not claim to supply that separate implementation.
 
 ### Structural contract
 
-KRs are written as a **table** under each `### Objective <N> — <title>` heading, with ids matching `KR-O<n>.<m>`:
+The existing overall-OKR document contract remains: KRs are written as a **table** under each `### Objective <N> — <title>` heading, with ids matching `KR-O<n>.<m>`:
 
 ```
 | Id | KR | Metric / Target | Stretch? | Deadline |
@@ -43,6 +45,7 @@ KRs are written as a **table** under each `### Objective <N> — <title>` headin
 | KR-O1.1 | Cut median release time | median ≤ 12 min | no | 2026-09-01 |
 ```
 
+This is the target document shape, not permission to bypass a missing writer.
 This shape is declared in `$PERRY_HOME/schema/state-schema.json` and checked by `bin/perry-lint`. It is also what `bin/perry-state` reads — a KR written as a prose bullet instead will not be counted anywhere. After writing, run:
 
 ```
