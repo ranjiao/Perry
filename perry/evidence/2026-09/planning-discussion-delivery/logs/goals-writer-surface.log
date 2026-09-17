@@ -1,0 +1,130 @@
+perry-goals — the deterministic read of a project's goals, and its writer.
+
+DESIGN-005 steps 2 and 3. The third of Perry's read contracts, after
+`perry-task/list/*` and `perry-decide/list/*`, and the last one needed before a
+front-end can show a whole project without opening a single markdown file.
+
+**It parses nothing itself.** Every field below comes from
+`viewer/parsers.py § load_snapshot`, the same code `perry-state` and the viewer
+use. That is not laziness — a second parser of one file is the defect this
+project has now hit twice: `perry-task` placed board cells by resolved header
+name while `viewer/parsers.py` read them by position, and on a board with one
+extra column every task's owner was reported as its track with the linter
+calling it clean. A fourth reader of `OKR.md` would be a fourth chance at the
+same shape. This tool composes and reshapes; it does not read.
+
+What it adds over `perry-state --json`, which already carries the nested
+structures: a **flat `krs` array**. A front-end wants "every KR, with where it
+sits and how far along it is" — walking objectives→krs and re-deriving progress
+is exactly the estimating `schema/README.md` forbids, done in a repo Perry's
+tests cannot reach.
+
+## The write side (TASK-037 / TASK-042)
+
+`commit` is the first write path, because `OKR.md § Commitments` is the one
+section with a live consumer and no writer at all: `modes/pipeline.md` and
+`modes/queue.md` both name it as their spine, and until now the procedure was
+prose in `goals/reference/phases.md § commit <promise>` that an agent followed
+by hand. That page is this tool's acceptance criteria, rule for rule.
+
+**`OKR.md` is never re-rendered.** `Okr` below edits lines in place, and cells
+in place inside those lines — see `splice_cell`. A writer that round-trips
+prose through a parsed model produces a file that still passes `perry-lint` and
+no longer reads the way its author wrote it, which DESIGN-005 § 5.5 rates worse
+than having no writer at all.
+
+**`okr.jsonl` is the truth for the register, and `OKR.md § Commitments` is the
+projection of it** (ADR-007 decision 2, TASK-123). `commit` reads that store
+BEFORE it decides anything, and a cell the two disagree about is a hand edit it
+refuses to act on — `register_drift` and `check_register_drift`. It does not
+re-render the file to get there; it compares, and once the comparison passes,
+every cell read out of the markdown below is provably the store's own value.
+`--accept-hand-edit` is the way past, with the meaning it already has here: the
+FILE's value becomes the new truth and the next write records it.
+
+**The log is the truth, the file is the view** — accepted by the user on
+2026-08-17 (DESIGN-005 § 9, last entry) *before* this writer was built, exactly
+so it would not be built against "the file is the truth". Every write appends
+an event to `.perry/events.jsonl`, and a row the tool wrote whose cells no
+longer match the log is a **hand edit**: reported and reconciled with the
+user's value, never overwritten with the log's.
+
+**This tool writes `OKR.md` and `phase/` and nothing else.** `BOARD.md`,
+`journal/` and `decisions/` belong to other lanes, and `SKILL.md § The
+hand-off contract` names all three as cases that must refuse. `assert_owned`
+is that rule as code, and the board-side link — a `Commitment` cell carrying an
+`Id` from this table — is printed as a hand-off for `/perry work` to write.
+
+Usage:
+  perry-goals list [--json] [--level overall|phase]
+
+  perry-goals krs [--json] [--phase <NNN>]
+      The current phase's key results, printed from `linkage.jsonl`.
+      READ-ONLY, and the only surface for them: TASK-157 removed the KR table
+      from `phase/<NNN>-<slug>.md` because those four facts were written there
+      AND in the register, with nothing comparing the two and the markdown copy
+      already stale. DESIGN-013 § 5.1 — a fact with a schema lives in exactly
+      one store.
+
+  perry-goals krs --level overall [--json] [--version <v>|all]
+      The OKR's own key results, printed from `okr.jsonl`. READ-ONLY, and the
+      only surface for them: TASK-236 removed the KR tables from `OKR.md` for
+      the same reason TASK-157 removed the phase one, after `perry-okr diff`
+      proved the store reproduced all 38 rows byte for byte. Defaults to the
+      CURRENT version block; `--version all` prints every one, and
+      `--version "v2: 2026-08-17"` prints that one. The `### Objective N`
+      headings stay in `OKR.md` — they are what these rows hang from.
+
+  perry-goals commit --actor <who> --track <t> --promise <text> --to <whom> --due <when>
+                     [--by-when-note <prose>]
+  perry-goals commit --actor <who> --id <Id> [--due <when>] [--by-when-note <prose>]
+                                [--promise <t>] [--to <whom>]
+                                [--discharged-by <text>]
+  perry-goals commit --actor <who> --close <Id> [--discharged-by <text>]
+  perry-goals commit --actor <who> --miss <Id> --reason <text>
+  perry-goals commit --actor <who> --migrate       split a pre-TASK-091 `By when` column
+
+  perry-goals link --actor <who> <TASK-ID> <KR-ID>
+  perry-goals link --actor <who> --alias <PROJECT-ID> "<the other name>"
+  perry-goals link --actor <who> --unlinked <TASK-ID>
+  perry-goals link --actor <who> --project <PROJECT-ID> <KR-ID> "<name>"
+
+  perry-goals measure <KR-ID> [--okr-version V] --check S --value N
+                      --evidence <path> --actor <who>
+  perry-goals check <KR-ID> [--okr-version V] --id S --direction D
+                    --target N [--baseline N] --label "<words>" --actor <who>
+      DESIGN-022 § 5.3. Each appends ONE `measurement` / `check` record to
+      `linkage.jsonl` and one `measure` / `check` event. A phase KR is named
+      by its id; an overall KR by its id and, when more than one OKR version
+      carries that id, `--okr-version "v4: 2026-09-15"` — the full label,
+      matched exactly. `--okr-version ""` names the phase KR. D is one of
+      increase · decrease · at_least · at_most · done. Both take `--dry-run`,
+      and both REQUIRE `--actor <who>` (USER-950): without it, exit 2.
+
+  Every writer requires a non-empty, single-line `--actor` (USER-950).
+
+  `link` appends to `linkage.jsonl` for the CURRENT phase.
+  <KR-ID> may also be a Project id or a registered alias, resolved in that
+  order; anything that does not resolve to exactly ONE KR is REFUSED with its
+  candidates named. Nothing here is fuzzy-matched, and nothing here writes a
+  `target` or a `current` — see `goals/reference/linkage.md`.
+
+  --due <when>    TYPED: an ISO date (2026-09-30) or an SLA token (3d, 2w).
+                  Anything else is refused, in every language.
+  --by-when-note <prose>
+                  PROSE: how the deadline was worded to the party it was
+                  promised to. **Never validated.** No regex asks it anything.
+
+  --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
+  --json          machine-readable result
+  --dry-run       print the plan; write nothing
+  --accept-hand-edit
+                  proceed over a row the log and the file disagree about,
+                  taking the FILE's value as the new truth
+
+Exit codes:
+  0  read, or written
+  1  refused — the reason is printed, and nothing was written
+  2  bad invocation
+
+No LLM, no external dependencies (stdlib only). DESIGN-005.

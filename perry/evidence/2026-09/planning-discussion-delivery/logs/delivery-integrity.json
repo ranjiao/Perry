@@ -1,0 +1,25 @@
+{
+  "base": "9051a43f78bb4e2f892c678c9b4ab54df8bfa376",
+  "head": "1867c7d54651d51f07b82b58933a019b1581270f",
+  "commits": {
+    "TASK-192": "1d4bc71759c59480d95c2e9313b4e6979e8eca6c",
+    "TASK-193": "3a01c057515d1a5e9d993b0ec5dd23b1d1446d40",
+    "TASK-194": "1867c7d54651d51f07b82b58933a019b1581270f"
+  },
+  "changed_paths": [
+    "goals/SKILL.md",
+    "goals/reference/elicitation.md",
+    "goals/reference/phases.md",
+    "goals/reference/setup.md"
+  ],
+  "protected_sha256_unchanged": {
+    "reference/input-quality.md": "399cdb615d6ae7b87c5a82f5a2e26e82d9951607b0e39ac9d5bce50465a74e88",
+    "ARCHITECTURE.md": "9ec42ef11570db157b309dd2c6dc1a880ebb2bd51858ac0d9cd86e3e749ae561",
+    "schema/state-schema.json": "8357997aad8c49e24710eeadd97be29e0072281fd69aefcfbe906a07cc6f05ba",
+    "perry/design/DESIGN-020-guided-planning.md": "97b0743597e1267bb0fd53cef003d647258f728ee3b53a18118119b4458dd397",
+    "perry/design/DESIGN-011-the-okr-is-elicited-not-collected.md": "380d767ddb234783512936719bce1808dea340914cc1038c84216d341fc75488"
+  },
+  "python_test_net_lines": 0,
+  "worktree_clean": true,
+  "diff_check": "pass"
+}

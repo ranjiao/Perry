@@ -1,0 +1,10 @@
+2026-09-17T11:11:43Z
+1d4bc71759c59480d95c2e9313b4e6979e8eca6c
+Command: python3 tests/parallel -j 4 test_router_budget test_ownership test_next_closing --results /private/tmp/perry-scratch/planning-discussion/20260917/logs/task-193-targeted.json
+
+3 modules · 43 tests · 0.5s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ all green[0m
+test_exit=0 guard_exit=0

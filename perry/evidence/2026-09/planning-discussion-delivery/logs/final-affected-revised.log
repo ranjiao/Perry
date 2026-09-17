@@ -1,0 +1,30 @@
+2026-09-17T11:21:54Z
+1867c7d54651d51f07b82b58933a019b1581270f
+Command: python3 tests/parallel --tier affected --base 9051a43f78bb4e2f892c678c9b4ab54df8bfa376 -j 4 --results /private/tmp/perry-scratch/planning-discussion/20260917/logs/final-affected-revised.json
+tier affected · 9051a43f78bb4e2f892c678c9b4ab54df8bfa376...HEAD · 4 changed path(s) · running the modules below
+  test_actor_required.py                       covers goals/: goals/SKILL.md
+  test_add_refuses_without_an_answer.py        covers goals/reference/phases.md: goals/reference/phases.md
+  test_blank_cell_is_one_rule.py               COVERS = ALL
+  test_claims.py                               covers goals/: goals/SKILL.md
+  test_goals_writer.py                         covers goals/reference/phases.md: goals/reference/phases.md
+  test_linkage_writer.py                       covers goals/SKILL.md: goals/SKILL.md
+  test_next_closing.py                         covers goals/SKILL.md: goals/SKILL.md
+  test_next_section.py                         covers goals/SKILL.md: goals/SKILL.md
+  test_ownership.py                            covers goals/: goals/SKILL.md
+  test_phase_kr_declared_once.py               covers goals/reference/phases.md: goals/reference/phases.md
+  test_pointers_resolve.py                     covers goals/: goals/SKILL.md
+  test_procedures_call_the_tool.py             covers goals/: goals/SKILL.md
+  test_procedures_read_the_contract.py         covers goals/: goals/SKILL.md
+  test_reference_pages_are_reachable.py        covers goals/: goals/SKILL.md
+  test_router_budget.py                        covers goals/: goals/SKILL.md
+  test_shipped_vocabulary.py                   covers goals/: goals/SKILL.md
+  test_starts_write_the_config_store_first.py  covers goals/: goals/SKILL.md
+  test_work_modes.py                           covers goals/SKILL.md: goals/SKILL.md
+selected 18 of 158 modules · 77.3 of 1061.0 module-seconds (7.3%)
+
+18 modules · 595 tests · 17.8s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ green for --tier affected — this is NOT a green suite[0m
+test_exit=0 guard_exit=0

@@ -1,0 +1,60 @@
+2026-09-17T11:19:52Z
+bc0c9e6779d4b3d843417941c48d2bd0484a1175
+Command: python3 tests/parallel --tier affected --base 9051a43f78bb4e2f892c678c9b4ab54df8bfa376 -j 4 --results /private/tmp/perry-scratch/planning-discussion/20260917/logs/final-affected.json
+tier affected · 9051a43f78bb4e2f892c678c9b4ab54df8bfa376...HEAD · 4 changed path(s) · running the modules below
+  test_actor_required.py                       covers goals/: goals/SKILL.md
+  test_add_refuses_without_an_answer.py        covers goals/reference/phases.md: goals/reference/phases.md
+  test_blank_cell_is_one_rule.py               COVERS = ALL
+  test_claims.py                               covers goals/: goals/SKILL.md
+  test_goals_writer.py                         covers goals/reference/phases.md: goals/reference/phases.md
+  test_linkage_writer.py                       covers goals/SKILL.md: goals/SKILL.md
+  test_next_closing.py                         covers goals/SKILL.md: goals/SKILL.md
+  test_next_section.py                         covers goals/SKILL.md: goals/SKILL.md
+  test_ownership.py                            covers goals/: goals/SKILL.md
+  test_phase_kr_declared_once.py               covers goals/reference/phases.md: goals/reference/phases.md
+  test_pointers_resolve.py                     covers goals/: goals/SKILL.md
+  test_procedures_call_the_tool.py             covers goals/: goals/SKILL.md
+  test_procedures_read_the_contract.py         covers goals/: goals/SKILL.md
+  test_reference_pages_are_reachable.py        covers goals/: goals/SKILL.md
+  test_router_budget.py                        covers goals/: goals/SKILL.md
+  test_shipped_vocabulary.py                   covers goals/: goals/SKILL.md
+  test_starts_write_the_config_store_first.py  covers goals/: goals/SKILL.md
+  test_work_modes.py                           covers goals/SKILL.md: goals/SKILL.md
+selected 18 of 158 modules · 77.3 of 1061.0 module-seconds (7.3%)
+
+[31m✗ test_procedures_call_the_tool.py[0m — 1 of 22 test(s) failed
+    FAIL   test_procedures_call_the_tool.ProceduresCallTheTool.test_no_procedure_hand_edits_a_tool_owned_file
+  [33m… 33 earlier line(s) elided of 58; the last 25 follow — re-run this module alone for all of it[0m
+test_write_participles_and_read_anchors_do_not_go_silent (test_procedures_call_the_tool.ProceduresCallTheTool.test_write_participles_and_read_anchors_do_not_go_silent) ... ok
+
+======================================================================
+FAIL: test_no_procedure_hand_edits_a_tool_owned_file (test_procedures_call_the_tool.ProceduresCallTheTool.test_no_procedure_hand_edits_a_tool_owned_file)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/okr-isolated-20260917/planning-discussion/tests/test_procedures_call_the_tool.py", line 1148, in test_no_procedure_hand_edits_a_tool_owned_file
+    self.assertEqual(
+AssertionError: Lists differ: ['  goals/reference/phases.md:295  [R1] li[147 chars]R);'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'  goals/reference/phases.md:295  [R1] linkage.jsonl\n      `linkage.jsonl` Objective records (`phase`, `id`, `title`) and KR records (`id`, `title`, `metric`, `target`, `linked` overall KR);'
+
++ []
+- ['  goals/reference/phases.md:295  [R1] linkage.jsonl\n'
+-  '      `linkage.jsonl` Objective records (`phase`, `id`, `title`) and KR '
+-  'records (`id`, `title`, `metric`, `target`, `linked` overall KR);'] : ADR-007 rule 3: call the tool for the fields, then generate the document from what it returned. These steps write the fields themselves:
+  goals/reference/phases.md:295  [R1] linkage.jsonl
+      `linkage.jsonl` Objective records (`phase`, `id`, `title`) and KR records (`id`, `title`, `metric`, `target`, `linked` overall KR);
+
+----------------------------------------------------------------------
+Ran 22 tests in 0.388s
+
+FAILED (failures=1)
+
+18 modules · 595 tests · 22.5s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[31m✗ 1 of 18 MODULE(S) red[0m
+[31m✗ 1 of 595 TEST(S) failed[0m
+test_exit=1 guard_exit=0
