@@ -144,7 +144,16 @@ is not.
    **`ask` is a real outcome and the honest one when you are unsure.** In interactive dispatch it is a question to the user in chat. Under `/pmo autopilot` it is a **skip** — see `autopilot.md` pre-flight step 0 and the `Skipped — high-stakes` disposition; autopilot runs unattended, so an unsure judgement there resolves in the safe direction without asking.
 
 5. Spec contains a `Subjective verification:` section (may be `(none)`); items there will be surfaced to the user at completion, never auto-validated.
-5a. **Architecture compliance pre-flight** (see `$PERRY_HOME/packs/software-ops/architecture.md § Dispatch integration`):
+5a. **Pack eligibility first**: read `$PERRY_HOME/reference/config.md § Pack
+    capabilities and controls`. Steps 5a/5b's software checks, architecture prompt
+    blocks for every executor, the compliance RESULT block and independent
+    architecture review below apply only when software-ops is selected and
+    present, or an explicit project requirement independently requires that
+    check. Name the requirement when retained under a disabled pack. Otherwise
+    skip those optional blocks/gates; ordinary RESULT, acceptance verification,
+    hook safety and Git constraints still apply. No enablement question.
+
+    **Architecture compliance pre-flight** (see `$PERRY_HOME/packs/software-ops/architecture.md § Dispatch integration`):
     - Read `ARCHITECTURE.md` at project root (full text). If `Status: draft` → log a warning but don't refuse (draft window allows iteration). If file missing AND spec's `Touches architecture:` is non-empty → refuse (spec claims sections that don't exist).
     - Read spec's `Touches architecture:` field. For every section ref listed (`§N`, `§N.NN-M`), verify it exists in the doc. Refuse on mismatch (malformed spec).
     - For each touched non-negotiable in §6 marked `Severity: hard` → use `AskUserQuestion` (header = `NN-N`, options): `Proceed — change is reviewed (Recommended only with reason) | Refuse — revise spec | Refuse — escalate to manual delegate`. "Proceed" requires a written one-line justification copied into the dispatch evidence file's header.
@@ -433,6 +442,9 @@ New §7 questions opened: (none) | - <question> — recommended USER-id
 If this block is missing or empty, dispatch treats it as **executor failure** — task goes to `review` with `compliance-missing` annotation. No auto-retry.
 
 ## Architecture review (the independent gate)
+
+Apply the eligibility decision from step 5a; an inactive pack alone adds no
+review agent. A project-required review is still required, with its source named.
 
 After the primary executor's RESULT is parsed AND objective verification (§ "On completion" step 2) passes, BUT before flipping the BOARD row to `review`, dispatch fires a second agent — the **architecture review agent**.
 

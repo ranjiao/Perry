@@ -193,7 +193,7 @@ Moves every path Perry claims under a new state root and sets `State root` with 
 
 `.perry/config.jsonl` holds the settings (`perry-config set`); prose belongs in `.perry/hook.md`. Setup writes the store first. Field **names** stay English in every language, because this file declares the language and must be readable before it is known. An optional `## Tracks` table turns on `pipeline` / `queue` / `inquiry` mode; absent means one implicit `main` track, mode `project`.
 
-The field list and the three subjects with consequences worth reading before you change them are `reference/config.md`: **repo layout** (single, or the two-repo PMO ↔ code split), **state root** (`perry` is what setup writes; the *code* fallback is still the project root and must stay that way), and **tracks**. The ADR-004 **conformance gate** was a fourth; it is deleted (`TASK-261`) — nothing refuses a write now.
+Read `reference/config.md` for repo layout, state root, tracks, and pack controls. For “what else can Perry do?” or enabling/disabling optional capabilities, use its discovery procedure. Absent Packs selects software-ops; explicit empty disables it. Pack activation does not configure release automation.
 
 ## Style rules
 

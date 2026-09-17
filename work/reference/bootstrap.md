@@ -45,7 +45,7 @@ If the user declines, stop. If the user accepts, follow this procedure.
    - `runbook/` → first task spec with `Deployed: yes`
    - `incidents/` → first `/pmo incident <slug>`
 
-   **Exception**: if `.perry/hook.md` declares an `## Architecture profile` or `## Operational profile` block, those drive eager creation. See `$PERRY_HOME/packs/software-ops/architecture.md` and `$PERRY_HOME/packs/software-ops/runbooks.md`.
+   **Exception**: an approved `.perry/hook.md` `## Architecture profile` or `## Operational profile` can independently require eager creation. Apply `$PERRY_HOME/reference/config.md § Pack capabilities and controls`: disabled pack defaults create nothing, but an explicit project requirement remains binding. See `$PERRY_HOME/packs/software-ops/architecture.md` and `$PERRY_HOME/packs/software-ops/runbooks.md` only when applicable.
 
 4. **Check `.gitignore`** — add any entries the project hook declares. Perry itself writes nothing into the project that needs ignoring: everything it writes is meant to be committed, and its one piece of pure runtime state (`perry-task`'s write lock) lives in the temp dir, keyed by a hash of the state root, precisely so no project has to maintain an ignore rule for it. The consumption layer (aiMark) reads the tracked files directly and generates nothing into the project.
 

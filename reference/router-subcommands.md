@@ -90,6 +90,11 @@ Two outcomes are first-class and must stay available: **zero findings**, and a p
 
 Without arg: print a compact overview of the three lanes + when to use each + a pointer to each lane's own `help`. This is the navigation entry point for users who don't know what's available yet.
 
+Also offer “Optional capabilities — see what is available or turn project
+features on/off” using `reference/config.md § Pack capabilities and controls`.
+On that request show available, effective and configured states from its read
+procedure, not a guessed catalogue. Ordinary help needs no setup question.
+
 Suggested format:
 
 ```
