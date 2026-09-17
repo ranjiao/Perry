@@ -1147,7 +1147,7 @@ class TestEveryModeColumnHasAWriter(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.proc = (PERRY_HOME / "work" / "reference" / "subcommands.md").read_text()
+        cls.proc = "\n".join((PERRY_HOME / "work/reference" / n).read_text() for n in ("planning.md", "decisions-risk.md", "add-task.md", "subcommands.md"))
 
     def test_the_procedure_tells_the_agent_to_set_the_mode_columns(self):
         """**Prose only.** It greps the triage procedure for column names and

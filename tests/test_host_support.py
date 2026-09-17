@@ -716,7 +716,7 @@ class TestOpenCodeDocumentationContract(unittest.TestCase):
         executor_enum = (
             "claude-subagent | opencode-subagent | codex | manual"
         )
-        subcommands = (ROOT / "work/reference/subcommands.md").read_text()
+        subcommands = (ROOT / "work/reference/add-task.md").read_text()
         self.assertIn(f"Executor: {executor_enum}", subcommands)
         for rel in (
             "work/reference/dispatch.md",

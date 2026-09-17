@@ -672,7 +672,7 @@ class TestTheContractAnnouncedAllOfIt(unittest.TestCase):
         """`conformance` is only read because the procedure says to read it,
         and a key no procedure names is a key nobody looks at."""
         procedure = (PERRY_HOME / "work" / "reference"
-                     / "subcommands.md").read_text()
+                     / "planning.md").read_text()
         for key in ("blocked_by_closed_rows", "in_progress_with_no_live_run",
                     "review_idle"):
             self.assertIn(f"| `{key}` |", procedure, key)

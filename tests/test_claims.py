@@ -635,7 +635,7 @@ class TestTheStageInvariantReachesEveryFileThatMovesARow(unittest.TestCase):
     """
 
     ROOT = pathlib.Path(__file__).resolve().parent.parent
-    CLAIMANT = "work/reference/subcommands.md"
+    CLAIMANT = "work/reference/planning.md"
 
     def test_the_files_named_as_restating_it_actually_do(self):
         """Checks the claim as written: pull the cited paths out of the
@@ -666,7 +666,7 @@ class TestTheStageInvariantReachesEveryFileThatMovesARow(unittest.TestCase):
         procedure where the stage moves too, and `Stage` and `Status` are
         orthogonal — a stage move produces no status change and leaves no
         trace at all if hand-edited."""
-        for name in ("subcommands.md", "dispatch.md", "autopilot.md"):
+        for name in ("planning.md", "subcommands.md", "dispatch.md", "autopilot.md"):
             body = (self.ROOT / "work" / "reference" / name).read_text()
             if "--status review" not in body:
                 continue

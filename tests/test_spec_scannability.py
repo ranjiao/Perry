@@ -444,14 +444,14 @@ class TestTheProcedureNamesTheShape(unittest.TestCase):
     defect: the procedure said "the same schema" and the SHAPE is what
     mattered."""
 
-    SUB = PERRY_HOME / "work" / "reference" / "subcommands.md"
-    DISPATCH = PERRY_HOME / "work" / "reference" / "dispatch.md"
+    SUB = PERRY_HOME / "work" / "reference" / "add-task.md"
+    DISPATCH = PERRY_HOME / "work" / "reference" / "dispatch-preflight.md"
     TASK = PERRY_HOME / "bin" / "perry-task"
 
     def step3(self) -> str:
         src = visible(self.SUB.read_text(encoding="utf-8"))
         return src[src.index("3. **For P0 and P1 tasks**"):
-                   src.index("### `close-task")]
+                   len(src)]
 
     def test_step_3_names_the_heading_shape(self):
         step3 = self.step3()
@@ -554,7 +554,7 @@ class TestTheTwoClausesAProseRewriteLoses(unittest.TestCase):
     unclosed `<!--`, reddens this rather than leaving it green.
     """
 
-    DISPATCH = PERRY_HOME / "work" / "reference" / "dispatch.md"
+    DISPATCH = PERRY_HOME / "work" / "reference" / "dispatch-preflight.md"
 
     def step4(self) -> str:
         src = visible(self.DISPATCH.read_text(encoding="utf-8"))
