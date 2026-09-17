@@ -1277,7 +1277,6 @@
       }
     }
   },
-
   "claims": [
     {
       "path": ".perry/",
@@ -1377,9 +1376,9 @@
     {
       "path": "ARCHITECTURE.md",
       "kind": "file",
-      "owner": "user",
-      "anchor": "state",
-      "note": "PMO scaffolds it; the user authors it. Mirrors files[id=architecture].owner."
+      "owner": "perry",
+      "anchor": "code",
+      "note": "Code repository root: configured code_repo_path, otherwise project root. Authority is per section, as files[id=architecture].note declares; this is not blanket user ownership."
     },
     {
       "path": "architecture/",
@@ -2258,7 +2257,7 @@
       "id": "architecture",
       "path": "ARCHITECTURE.md",
       "template": "work/state/ARCHITECTURE_TEMPLATE.md",
-      "owner": "user",
+      "owner": "perry",
       "tier": 1,
       "cap": 500,
       "cap_kind": "hard",
@@ -2270,7 +2269,27 @@
           "label": "## §1 … §8 (eight fixed sections)"
         }
       ],
-      "anchor": "state"
+      "anchor": "code",
+      "note": "At the code repository root: configured code_repo_path, otherwise project root. DESIGN-017 §5.1: the agent authors all sections. User confirms §1 mission/scope, §2 component list (the module index), §3 Forbidden lines, §5 version bumps, every §6 rule and closure of §7 questions before changes land. Agent rewrites descriptions (§2, §3, §4, §5 shapes), adds proposed §6 rules and §7 questions but deletes neither, and appends §8. Existing documents are in force."
+    },
+    {
+      "id": "architecture-module",
+      "path": "<component>/ARCHITECTURE.md",
+      "owner": "perry",
+      "tier": 1,
+      "cap": 600,
+      "cap_kind": "hard",
+      "required": false,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^§[1-8]\\b",
+          "label": "## §1 … §8 (eight fixed sections)"
+        }
+      ],
+      "anchor": "code",
+      "note": "One document per user-confirmed code component in root ARCHITECTURE.md §2. An agent supplies selected paths; no directory scan or inferred membership. DESIGN-017 §5.1: the agent authors all sections. User confirms §1 mission/scope, §2 component list (the module index), §3 Forbidden lines, §5 version bumps, every §6 rule and closure of §7 questions before changes land. Agent rewrites descriptions (§2, §3, §4, §5 shapes), adds proposed §6 rules and §7 questions but deletes neither, and appends §8. Existing documents are in force.",
+      "selection": "explicit"
     },
     {
       "id": "runbook",

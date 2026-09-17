@@ -40,6 +40,9 @@ and it is the one warning `--strict` does not promote: DESIGN-002 § 9 says a
 collision never sets a non-zero exit, and with no per-path opt-out there would
 otherwise be no way to accept one.
 
+  --architecture-module PATH  lint a selected <component>/ARCHITECTURE.md
+                relative to the code root; repeat for confirmed §2 components.
+                The agent selects membership; Python validates only paths/shape.
   --templates   lint Perry's own state/*_TEMPLATE.md instead of a project.
                 This is the drift guard: a template that stops matching the
                 schema is what silently breaks the standup.
@@ -4657,21 +4660,35 @@ def check_md_store_drift(project_root: Path, state_root: Path,
 
 
 def is_adopted(project_root: Path, state_root: Path) -> bool:
-    """Has this project any Perry state at all?
+    """Use the shared installed predicate before automatic schema selection.
 
-    Linting a folder that has never been adopted used to report every required
-    file as missing — noise on someone else's project, and unusable as the
-    stage-4 gate in `reference/adoption.md`, which needs to distinguish "the
-    files adoption wrote are malformed" from "adoption hasn't run"."""
-    # The predicate is `parsers § installed`, the criterion `schema/README.md §
-    # installed` states. `BOARD.md`, `OKR.md` and `phase/` alone stopped
-    # counting at TASK-237 3b′: every documented start writes
-    # `.perry/config.jsonl` first. `state_root` stays in the signature for the
-    # callers that pass it.
+    Explicit module paths need no adoption; automatic state validation does.
+    Keep state_root in the signature for existing callers.
+    """
     return P.installed(project_root)
 
 
-def iter_targets(root: Path, spec: dict) -> list[Path]:
+def anchor_root(project_root: Path, state_root: Path, anchor: str) -> Path:
+    """Resolve declared locations through the shared config reader (A1 only)."""
+    if anchor == "code":
+        settings, _ = P.config_store_settings(project_root)
+        raw = (settings or {}).get("code_repo_path", "")
+        return (project_root / Path(raw).expanduser()).resolve() if raw else project_root
+    return {"project": project_root, "state": state_root}[anchor]
+
+
+def iter_targets(root: Path, spec: dict, selected=()) -> list[Path]:
+    if spec.get("selection") == "explicit":
+        targets = []
+        for raw in selected:
+            path = Path(raw)
+            target = (root / path).resolve()
+            if (path.is_absolute() or ".." in path.parts or len(path.parts) < 2
+                    or path.name != "ARCHITECTURE.md"
+                    or not target.is_relative_to(root.resolve()) or not target.is_file()):
+                raise ValueError(f"invalid component architecture path: {raw!r}")
+            targets.append(target)
+        return targets
     pattern = spec["path"]
     exclude = spec.get("exclude")
     if any(ch in pattern for ch in "*?["):
@@ -4955,57 +4972,36 @@ def check_linkage_store(project_root: Path, state_root: Path,
 
 
 def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[list, dict]:
-    """What Perry would occupy here, and what is already there.
+    """Resolve claims at their project, state or code anchor.
 
-    `claims[]` is the one authoritative list — `files[]` describes the files
-    Perry VALIDATES, this describes the territory Perry OCCUPIES, and the two
-    are different units. Perry writes `journal/<YYYY-MM>/<YYYY-MM-DD>.md`, but
-    the thing that collides with a user's folder is `journal/`, and no prefix
-    of that glob is the claim.
-
-    A directory already holding genuine Perry state is a RE-ADOPTION, not a
-    collision. Only a parse can tell the two apart, so this reuses the same
-    heading check the default mode runs rather than a second heuristic.
-
-    **Two callers, one computation.** `--claims` renders these rows, and the
-    default pass turns the `collision` ones into `NS-01`. DESIGN-002 exists to
-    close a defect that was two lists disagreeing; shipping a second collision
-    check next to this one would reintroduce it one level down. So each row also
-    carries `rel` (the claimed path as the project sees it) and `foreign` (the
-    offending files, which `NS-01` cites as evidence) — machine fields that
-    `--claims` projects away, since its payload is a contract with the setup and
-    adopt flows.
+    Claims describe occupied territory; files describe validation, including
+    explicitly selected component documents which claim no territory. Existing
+    Perry-shaped files are re-adoptions, not collisions. Both --claims and the
+    default NS-01 pass consume these rows; only the latter uses rel/foreign.
     """
     claims = schema.get("claims") or []
     rows, collisions = [], 0
     for c in claims:
-        base = project_root if c["anchor"] == "project" else state_root
+        base = anchor_root(project_root, state_root, c["anchor"])
         target = base / c["path"].rstrip("/")
         rel = _rel(target, project_root)
-        if not target.exists():
-            rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
-                         "detail": None, "rel": rel, "foreign": []})
-            continue
-        # Perry-shaped? Anything we would have written is not a collision.
-        if c["kind"] == "dir":
-            present = [f for f in sorted(target.rglob("*.md"))]
-        else:
-            present = [target]
+        present = sorted(target.rglob("*.md")) if c["kind"] == "dir" else [target]
+        present = [path for path in present if path.exists()]
         foreign = [f for f in present if not looks_like_perry_state(f, schema, c)]
-        if not present:
-            rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
-                         "detail": "exists but empty", "rel": rel, "foreign": []})
-        elif foreign:
+        if foreign:
             collisions += 1
-            rows.append({"path": c["path"], "state": "collision", "owner": c["owner"],
-                         "detail": f"{len(foreign)} file(s) Perry did not write, "
-                                   f"e.g. {foreign[0].relative_to(project_root)}",
-                         "rel": rel,
-                         "foreign": [_rel(f, project_root) for f in foreign]})
+            status = "collision"
+            detail = (f"{len(foreign)} file(s) Perry did not write, "
+                      f"e.g. {_rel(foreign[0], project_root)}")
+        elif present:
+            status = "perry"
+            detail = f"{len(present)} existing Perry file(s)"
         else:
-            rows.append({"path": c["path"], "state": "perry", "owner": c["owner"],
-                         "detail": f"{len(present)} existing Perry file(s)",
-                         "rel": rel, "foreign": []})
+            status = "free"
+            detail = "exists but empty" if target.exists() else None
+        rows.append({"path": c["path"], "state": status, "owner": c["owner"],
+                     "detail": detail, "rel": rel,
+                     "foreign": [_rel(f, project_root) for f in foreign]})
     return rows, {"claimed": len(claims), "collisions": collisions}
 
 
@@ -5265,35 +5261,29 @@ def main(argv: list[str]) -> int:
     mode_glossary = mode_specs = mode_summaries = False
     as_json = strict = quiet = False
     state_root_arg = None
+    selected_modules = []
     i = 0
     while i < len(argv):
         a = argv[i]
         if a in ("-h", "--help"):
             print(__doc__.strip())
             return 0
-        elif a == "--root":
+        elif a in ("--root", "--state-root", "--architecture-module"):
             i += 1
             if i >= len(argv):
-                # **Refused, not dropped.** This read `argv[i] if i < len(argv)
-                # else None`, so `--root` with its value missing became no
-                # `--root` at all and the tool linted the CURRENT DIRECTORY.
-                # `bin/README.md § --quiet` says that mode is read by its exit
-                # code alone, and `§ Lint after every tier-1 write` makes this a
-                # gate — so `perry-lint --quiet --root` exited 0 with empty
-                # stdout and empty stderr about a project the caller never
-                # named. Measured by a V4 round with a clean cwd and a dirty
-                # named project: exit 1 with the value, exit 0 without it.
-                print("perry-lint: --root takes a value", file=sys.stderr)
+                print(f"perry-lint: {a} takes a value", file=sys.stderr)
                 return 2
-            # A value that is present but EMPTY is the same gate failing the
-            # same way: `--quiet --root ""` exited 0 about the cwd's project
-            # while the named one went unlinted. The rule and its sentence
-            # live in `lib.empty_root_error`.
-            bad = lib.empty_root_error(a, argv[i])
+            # Empty root/selection must never turn into an implicit cwd scan.
+            bad = lib.empty_root_error(a, argv[i]) if a != "--state-root" else None
             if bad is not None:
                 print(f"perry-lint: {bad}", file=sys.stderr)
                 return 2
-            root_arg = argv[i]
+            if a == "--root":
+                root_arg = argv[i]
+            elif a == "--state-root":
+                state_root_arg = argv[i]
+            else:
+                selected_modules.append(argv[i])
         elif a == "--templates":
             mode_templates = True
         elif a == "--claims":
@@ -5312,12 +5302,6 @@ def main(argv: list[str]) -> int:
             mode_specs = True
         elif a == "--summaries":
             mode_summaries = True
-        elif a == "--state-root":
-            i += 1
-            if i >= len(argv):
-                print("perry-lint: --state-root takes a value", file=sys.stderr)
-                return 2
-            state_root_arg = argv[i]
         elif a == "--json":
             as_json = True
         elif a == "--strict":
@@ -5329,6 +5313,11 @@ def main(argv: list[str]) -> int:
             return 2
         i += 1
 
+    if selected_modules and any((mode_templates, mode_claims, mode_verification,
+                                mode_provenance, mode_knowledge, mode_reviews,
+                                mode_glossary, mode_specs, mode_summaries)):
+        print("perry-lint: --architecture-module requires project lint", file=sys.stderr)
+        return 2
     if not SCHEMA_PATH.exists():
         print(f"perry-lint: schema not found at {SCHEMA_PATH}", file=sys.stderr)
         return 2
@@ -5703,14 +5692,15 @@ def main(argv: list[str]) -> int:
                 # for `--templates` above, which still checks the template
                 # against it. The file is named by `retired-board` below.
                 continue
-            base = project_root if spec.get("anchor") == "project" else root
+            base = anchor_root(project_root, root, spec.get("anchor", "state"))
             # Nothing outside `.perry/` can be malformed Perry state before the
             # project is a Perry project: a pre-existing `design/` belongs to
             # whoever built it, and reporting their file as a broken design doc
             # is Perry claiming a namespace it was never given.
-            if not adopted and spec.get("anchor") != "project":
+            if not adopted and spec.get("anchor") != "project" and not (
+                    selected_modules and spec.get("selection") == "explicit"):
                 continue
-            targets = iter_targets(base, spec)
+            targets = iter_targets(base, spec, selected_modules)
             if not targets:
                 # "required" means required OF A PERRY PROJECT. On a folder that
                 # has never been adopted it is not a finding, it is the answer.
@@ -5725,10 +5715,7 @@ def main(argv: list[str]) -> int:
                 if not spec_claims(spec, strip_comments(
                         path.read_text(errors="replace")), schema):
                     continue
-                try:
-                    rel = path.relative_to(project_root).as_posix()
-                except ValueError:
-                    rel = path.as_posix()
+                rel = _rel(path, project_root)
                 findings.extend(check_file(path, rel, spec, enums,
                                            is_template=False,
                                            root_flag=lib.root_flag(project_root)))
