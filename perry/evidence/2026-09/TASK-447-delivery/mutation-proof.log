@@ -1,0 +1,3 @@
+400 -> 1000: two failing 401-character subtests (ASCII and Chinese); restored: PASS.
+Restored lint SHA256: e047bd1f25ffef1571fdfad38ea9f30476a6bed1f724d2306e8e3aab87719b20
+Command: python3 -m unittest discover -s tests -p test_summary_is_asked_for.py -k next_action_400_401 -v

@@ -1,0 +1,195 @@
+test_next_action_400_401_unicode_character_boundary (test_summary_is_asked_for.TestTheLinterReportsWhatTheWriterRefuses.test_next_action_400_401_unicode_character_boundary)
+TASK-447: ASCII and Chinese share the same advisory boundary. ...
+  test_next_action_400_401_unicode_character_boundary (test_summary_is_asked_for.TestTheLinterReportsWhatTheWriterRefuses.test_next_action_400_401_unicode_character_boundary) (char='a', count=401)
+TASK-447: ASCII and Chinese share the same advisory boundary. ... FAIL
+  test_next_action_400_401_unicode_character_boundary (test_summary_is_asked_for.TestTheLinterReportsWhatTheWriterRefuses.test_next_action_400_401_unicode_character_boundary) (char='中', count=401)
+TASK-447: ASCII and Chinese share the same advisory boundary. ... FAIL
+
+======================================================================
+FAIL: test_next_action_400_401_unicode_character_boundary (test_summary_is_asked_for.TestTheLinterReportsWhatTheWriterRefuses.test_next_action_400_401_unicode_character_boundary) (char='a', count=401)
+TASK-447: ASCII and Chinese share the same advisory boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-447/tests/test_summary_is_asked_for.py", line 258, in test_next_action_400_401_unicode_character_boundary
+    self.assertEqual(len(ours), int(count > 400), txt)
+AssertionError: 0 != 1 : {
+  "target": "/private/tmp/perry-scratch/task-447/phase004/tmp/tmpsqs90iii",
+  "errors": 0,
+  "warnings": 2,
+  "findings": [
+    {
+      "severity": "warn",
+      "file": "BOARD.md",
+      "rule": "retired-board",
+      "message": "perry: /private/tmp/perry-scratch/task-447/phase004/tmp/tmpsqs90iii/BOARD.md is a retired board — no Perry write reads or updates it any more; the board is `perry-tasks board`. Before deleting it, import any register it holds that has no store yet with the `--from-board` imports (reference/version-compatibility.md § Upgrading a project to G3), then `git rm /private/tmp/perry-scratch/task-447/phase004/tmp/tmpsqs90iii/BOARD.md`",
+      "line": null
+    },
+    {
+      "severity": "warn",
+      "file": ".perry/hook.md",
+      "rule": "hook-high-stakes-armed",
+      "message": "no high-stakes operations list — /perry work dispatch's safety re-validation and /perry work autopilot's safety scan have nothing to match against",
+      "line": null
+    }
+  ],
+  "store_drift": {
+    "store_present": true,
+    "log_present": false,
+    "comparison_performed": false,
+    "records": 1,
+    "drifted": null
+  },
+  "risk_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "intake_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "ask_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "cadence_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "okr_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "linkage_store": {
+    "store_present": false,
+    "records": 0,
+    "malformed": 0
+  },
+  "config_store_drift": {
+    "store_present": true,
+    "comparison_performed": true,
+    "records": 2,
+    "drifted": 0
+  },
+  "specs": {
+    "specs": 0,
+    "unscannable": 0,
+    "unbounded": 0,
+    "checked": true
+  },
+  "summaries": {
+    "store_present": true,
+    "open_rows": 1,
+    "oversized_cells": 0,
+    "carrying": 1,
+    "blank": 0,
+    "shape_findings": 0
+  }
+}
+
+
+======================================================================
+FAIL: test_next_action_400_401_unicode_character_boundary (test_summary_is_asked_for.TestTheLinterReportsWhatTheWriterRefuses.test_next_action_400_401_unicode_character_boundary) (char='中', count=401)
+TASK-447: ASCII and Chinese share the same advisory boundary.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-447/tests/test_summary_is_asked_for.py", line 258, in test_next_action_400_401_unicode_character_boundary
+    self.assertEqual(len(ours), int(count > 400), txt)
+AssertionError: 0 != 1 : {
+  "target": "/private/tmp/perry-scratch/task-447/phase004/tmp/tmpsqs90iii",
+  "errors": 0,
+  "warnings": 2,
+  "findings": [
+    {
+      "severity": "warn",
+      "file": "BOARD.md",
+      "rule": "retired-board",
+      "message": "perry: /private/tmp/perry-scratch/task-447/phase004/tmp/tmpsqs90iii/BOARD.md is a retired board — no Perry write reads or updates it any more; the board is `perry-tasks board`. Before deleting it, import any register it holds that has no store yet with the `--from-board` imports (reference/version-compatibility.md § Upgrading a project to G3), then `git rm /private/tmp/perry-scratch/task-447/phase004/tmp/tmpsqs90iii/BOARD.md`",
+      "line": null
+    },
+    {
+      "severity": "warn",
+      "file": ".perry/hook.md",
+      "rule": "hook-high-stakes-armed",
+      "message": "no high-stakes operations list — /perry work dispatch's safety re-validation and /perry work autopilot's safety scan have nothing to match against",
+      "line": null
+    }
+  ],
+  "store_drift": {
+    "store_present": true,
+    "log_present": false,
+    "comparison_performed": false,
+    "records": 1,
+    "drifted": null
+  },
+  "risk_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "intake_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "ask_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "cadence_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "okr_store_drift": {
+    "store_present": false,
+    "comparison_performed": false,
+    "records": 0,
+    "drifted": 0
+  },
+  "linkage_store": {
+    "store_present": false,
+    "records": 0,
+    "malformed": 0
+  },
+  "config_store_drift": {
+    "store_present": true,
+    "comparison_performed": true,
+    "records": 2,
+    "drifted": 0
+  },
+  "specs": {
+    "specs": 0,
+    "unscannable": 0,
+    "unbounded": 0,
+    "checked": true
+  },
+  "summaries": {
+    "store_present": true,
+    "open_rows": 1,
+    "oversized_cells": 0,
+    "carrying": 1,
+    "blank": 0,
+    "shape_findings": 0
+  }
+}
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.533s
+
+FAILED (failures=2)

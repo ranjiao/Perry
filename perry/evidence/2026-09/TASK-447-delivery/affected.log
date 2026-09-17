@@ -1,0 +1,79 @@
+tier affected · 3034c249b8f116c5e1ae975685bbf9358a4471b2...HEAD · 2 changed path(s) · running the modules below
+  test_architecture_rules.py                covers bin/: bin/perry-lint
+  test_asks_store.py                        covers bin/perry-lint: bin/perry-lint
+  test_bin_argument_contract.py             covers bin/: bin/perry-lint
+  test_bin_surface.py                       covers bin/: bin/perry-lint
+  test_blank_cell_is_one_rule.py            COVERS = ALL
+  test_board_less_gaps.py                   covers bin/perry-lint: bin/perry-lint
+  test_board_less_project_is_recognised.py  covers bin/perry-lint: bin/perry-lint
+  test_board_less_reads_and_writes.py       covers bin/perry-lint: bin/perry-lint
+  test_cadence.py                           covers bin/perry-lint: bin/perry-lint
+  test_cadence_store.py                     covers bin/perry-lint: bin/perry-lint
+  test_claims.py                            covers tests/test_: tests/test_summary_is_asked_for.py
+  test_config_store_readers.py              covers bin/perry-lint: bin/perry-lint
+  test_decoration_changes_nothing.py        covers bin/perry-lint: bin/perry-lint
+  test_duplicate_ids_are_refused.py         covers bin/perry-lint: bin/perry-lint
+  test_empty_config_store.py                covers bin/perry-lint: bin/perry-lint
+  test_empty_declared_store.py              covers bin/perry-lint: bin/perry-lint
+  test_escalation_boundaries.py             covers bin/: bin/perry-lint
+  test_escalation_union.py                  covers bin/perry-lint: bin/perry-lint
+  test_escaped_pipe_corpus.py               covers bin/perry-lint: bin/perry-lint
+  test_evidence_relation.py                 covers bin/perry-lint: bin/perry-lint
+  test_glossary.py                          covers bin/perry-lint: bin/perry-lint
+  test_handed_back_root.py                  covers bin/: bin/perry-lint
+  test_header_index_is_the_only_fold.py     covers bin/: bin/perry-lint
+  test_header_rule_harness.py               covers bin/: bin/perry-lint
+  test_i18n.py                              covers bin/perry-lint: bin/perry-lint
+  test_i18n_one_table.py                    covers bin/perry-lint: bin/perry-lint
+  test_id_families.py                       covers bin/perry-lint: bin/perry-lint
+  test_intake_signal.py                     covers bin/perry-lint: bin/perry-lint
+  test_intake_store.py                      covers bin/perry-lint: bin/perry-lint
+  test_knowledge_cards.py                   covers bin/perry-lint: bin/perry-lint
+  test_knowledge_promotion.py               covers bin/perry-lint: bin/perry-lint
+  test_kr_checks.py                         covers bin/perry-lint: bin/perry-lint
+  test_kr_progress_provenance.py            covers bin/: bin/perry-lint
+  test_linkage_store_declared.py            covers bin/perry-lint: bin/perry-lint
+  test_linkage_store_readers.py             covers bin/perry-lint: bin/perry-lint
+  test_linkage_task_exists.py               covers bin/perry-lint: bin/perry-lint
+  test_live_state_expectations.py           covers bin/perry-lint: bin/perry-lint
+  test_md_store.py                          covers bin/perry-lint: bin/perry-lint
+  test_missing_defaults.py                  covers bin/perry-lint: bin/perry-lint
+  test_module_run_guard.py                  covers tests/: tests/test_summary_is_asked_for.py
+  test_ns_collision.py                      covers bin/perry-lint: bin/perry-lint
+  test_one_choke_point.py                   covers bin/: bin/perry-lint
+  test_one_header_rule.py                   covers bin/: bin/perry-lint
+  test_one_heading_predicate.py             covers bin/perry-lint: bin/perry-lint
+  test_one_primitive.py                     covers bin/: bin/perry-lint
+  test_overall_kr_grammar.py                covers bin/perry-lint: bin/perry-lint
+  test_ownership.py                         covers bin/perry-lint: bin/perry-lint
+  test_parsers.py                           covers bin/perry-lint: bin/perry-lint
+  test_phase_kr_declared_once.py            covers bin/perry-lint: bin/perry-lint
+  test_project_root_resolution.py           covers bin/perry-lint: bin/perry-lint
+  test_purge.py                             covers bin/perry-lint: bin/perry-lint
+  test_register_store_invariant.py          covers bin/perry-lint: bin/perry-lint
+  test_register_substitution.py             covers bin/perry-lint: bin/perry-lint
+  test_retired_tolerance.py                 covers bin/perry-lint: bin/perry-lint
+  test_review_verdicts.py                   covers bin/perry-lint: bin/perry-lint
+  test_risks.py                             covers bin/perry-lint: bin/perry-lint
+  test_risks_store.py                       covers bin/perry-lint: bin/perry-lint
+  test_role_cards.py                        covers bin/perry-lint: bin/perry-lint
+  test_row_integrity.py                     covers bin/: bin/perry-lint
+  test_shipped_vocabulary.py                covers bin/: bin/perry-lint
+  test_spec_scannability.py                 covers bin/perry-lint: bin/perry-lint
+  test_stage_separators.py                  covers bin/perry-lint: bin/perry-lint
+  test_store_drift.py                       covers bin/perry-lint: bin/perry-lint
+  test_store_is_canonical.py                covers bin/perry-lint: bin/perry-lint
+  test_store_population_agrees.py           covers bin/: bin/perry-lint
+  test_summary_is_asked_for.py              changed: tests/test_summary_is_asked_for.py
+  test_task_writer_modes.py                 covers bin/perry-lint: bin/perry-lint
+  test_track_move.py                        covers bin/perry-lint: bin/perry-lint
+  test_track_register_source.py             covers bin/perry-lint: bin/perry-lint
+  test_unlinked_declaration.py              covers bin/perry-lint: bin/perry-lint
+  test_work_modes.py                        covers bin/perry-lint: bin/perry-lint
+selected 71 of 158 modules · 738.6 of 1723.3 module-seconds (42.9%)
+
+71 modules · 2144 tests · 100.4s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ green for --tier affected — this is NOT a green suite[0m

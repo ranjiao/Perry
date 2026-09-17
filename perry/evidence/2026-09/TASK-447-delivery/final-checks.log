@@ -1,0 +1,6 @@
+cf4b49cdd39ac1a7cbf28777fcedfb696f98fcd8
+3034c249b8f116c5e1ae975685bbf9358a4471b2
+## codex/task-447-phase004-20260917
+9	26	bin/perry-lint
+17	0	tests/test_summary_is_asked_for.py
+{"open_rows": 100, "unit": "Unicode code points", "method": "nearest rank: sorted lengths[ceil(0.9*n)-1]", "p90": 1672, "maximum": 2218}

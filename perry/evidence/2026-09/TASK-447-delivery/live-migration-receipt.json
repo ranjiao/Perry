@@ -1,0 +1,352 @@
+{
+  "date": "2026-09-17",
+  "method": "Complete perry-task list --json open contract; len(str) Unicode code points; nearest rank ceil(0.9*n)-1",
+  "semantic_review": "PMO read all 33 full originals and authored proposals; retained retractions, partial results, gates and reconciliation tasks. No task status or dependencies changed.",
+  "before": {
+    "open_rows": 99,
+    "p90": 1702,
+    "maximum": 2218,
+    "over_400": 33
+  },
+  "after": {
+    "open_rows": 99,
+    "p90": 344,
+    "maximum": 377,
+    "over_400": 0
+  },
+  "writes": [
+    {
+      "task_id": "TASK-066",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "51ade439e15c67324fe48fdf89b8eb8a6a93e8993f832a616d41433ee20c8bcc",
+      "original_characters": 1290,
+      "new_characters": 319,
+      "tool_stdout": "perry-task: wrote TASK-066 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-173",
+      "status": "not_started",
+      "blocked_by": [
+        "TASK-184",
+        "TASK-185"
+      ],
+      "original_sha256": "061a1b271d4ff28c4117e4f8211333da00b70f119d836039ea65ae76b7b39437",
+      "original_characters": 473,
+      "new_characters": 305,
+      "tool_stdout": "perry-task: wrote TASK-173 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-212",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "e16a372d50a143aa8faf051320d246b1e8e258b1958261d7f577fc93e059328e",
+      "original_characters": 969,
+      "new_characters": 330,
+      "tool_stdout": "perry-task: wrote TASK-212 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-240",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "e3e54db79cb6ce08e4fb3c249cd9920f3b7a71ce8a7a83724eb6c1b3b8089a3e",
+      "original_characters": 1702,
+      "new_characters": 328,
+      "tool_stdout": "perry-task: wrote TASK-240 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-242",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "48f948d8d0bf947969b6a0be87964bbfa25d83fa35d7113bc70aa3e530765050",
+      "original_characters": 410,
+      "new_characters": 292,
+      "tool_stdout": "perry-task: wrote TASK-242 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-252",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "2828202aa9b3b8a2d815645b932b8a78d0801aec717d8e4db32b5a4ead769cee",
+      "original_characters": 435,
+      "new_characters": 289,
+      "tool_stdout": "perry-task: wrote TASK-252 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-254",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "f20ab4ebbcb7ff836b8f0f230f5a53cc812f339565f7ee9e056b6299e86458f7",
+      "original_characters": 853,
+      "new_characters": 330,
+      "tool_stdout": "perry-task: wrote TASK-254 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-255",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "74f8f056191534c08b09ab7995a400ec6b5991a8ed0319c40d01a1d4d9eaa815",
+      "original_characters": 835,
+      "new_characters": 332,
+      "tool_stdout": "perry-task: wrote TASK-255 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-282",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "5bf2326ed2c1c5e7ee9787313946791682656f5af93c217d99d05245ede98ed3",
+      "original_characters": 1065,
+      "new_characters": 320,
+      "tool_stdout": "perry-task: wrote TASK-282 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-286",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "79655cfc7f8b14d1e15ec7dc6981f3a1ffb0091500ce67e93bfe964b875a8d61",
+      "original_characters": 668,
+      "new_characters": 317,
+      "tool_stdout": "perry-task: wrote TASK-286 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-287",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "735a098eed00e2296ac2627b338d12e1902c23885fea85eb188e07a1c20a74bf",
+      "original_characters": 649,
+      "new_characters": 334,
+      "tool_stdout": "perry-task: wrote TASK-287 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-294",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "49bbae5186c29de66d3ee282e6b31abd3af53af27a4c046fb72c4551919e6849",
+      "original_characters": 1730,
+      "new_characters": 338,
+      "tool_stdout": "perry-task: wrote TASK-294 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": "perry-task: ⚠ --next contains NS-01, which reads as an id and names nothing. `perry-diagnose` reports it as dangling. Write it as prose (`round 3`) if you did not mean an id.\n"
+    },
+    {
+      "task_id": "TASK-297",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "df856d50c26055b6ef590041700a1136f8519cd41a32a7c080f05650ea250a85",
+      "original_characters": 1749,
+      "new_characters": 347,
+      "tool_stdout": "perry-task: wrote TASK-297 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-301",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "d8e8972b65916e96273b0ee2d466f768aa02b2a7ac557635781eb54b13f41925",
+      "original_characters": 1272,
+      "new_characters": 317,
+      "tool_stdout": "perry-task: wrote TASK-301 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-309",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "1e2d299fb96426f327ca8eba8efa5060839b308e67999503f29446698650afca",
+      "original_characters": 692,
+      "new_characters": 333,
+      "tool_stdout": "perry-task: wrote TASK-309 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-312",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "82890022e0d601ffc7a7d4d3e019ae4d79accee4fee427d6b442174b086faaf6",
+      "original_characters": 811,
+      "new_characters": 344,
+      "tool_stdout": "perry-task: wrote TASK-312 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-334",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "7d0b27c8f6b3fe4ec6a1413067ea2b0e68a4799ced41326e88d8eb63edbc1a4f",
+      "original_characters": 738,
+      "new_characters": 348,
+      "tool_stdout": "perry-task: wrote TASK-334 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-340",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "27bd38a220f24bd2f8281217b334fa80d2b5a1ca6c9dede5063272af9bcc0791",
+      "original_characters": 1413,
+      "new_characters": 326,
+      "tool_stdout": "perry-task: wrote TASK-340 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-350",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "13dce5d0697ba4ea2a874dee6ca24f4a16c4b05515eecc953f0460bc96e438ea",
+      "original_characters": 1189,
+      "new_characters": 332,
+      "tool_stdout": "perry-task: wrote TASK-350 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-355",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "10cf408a05692837e474301401601529fc1fa6f3bfe6d6515c5726c2cb5806ea",
+      "original_characters": 1816,
+      "new_characters": 350,
+      "tool_stdout": "perry-task: wrote TASK-355 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-371",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "30ee26320b6cac38e58cf12f5a8a638f188c0633b51caeab322980c19deaf301",
+      "original_characters": 1672,
+      "new_characters": 341,
+      "tool_stdout": "perry-task: wrote TASK-371 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-372",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "fa602105d304c1ae723cea803ceab75ba11ed19c66cdbd3b0bdca8298acb13f7",
+      "original_characters": 629,
+      "new_characters": 325,
+      "tool_stdout": "perry-task: wrote TASK-372 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-374",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "427bd7fded5244164f288ca40ff004a63e62c08aefdeb24ea466fcdaa2d3badd",
+      "original_characters": 641,
+      "new_characters": 328,
+      "tool_stdout": "perry-task: wrote TASK-374 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-375",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "2b08577cbaa86f531c44ad6fddbc24564bd12d76fc992e2a8c667bff20ff85a3",
+      "original_characters": 1011,
+      "new_characters": 320,
+      "tool_stdout": "perry-task: wrote TASK-375 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-378",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "35d6d5c8510e43043e920df0714715f99d7b632ea2c96fbabd9cf482291c1a31",
+      "original_characters": 2194,
+      "new_characters": 316,
+      "tool_stdout": "perry-task: wrote TASK-378 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-380",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "ead8ad5f7e8738561eabe6c1a8fcfa6a24586b2c81e9a16000d2d1fd6b3565a1",
+      "original_characters": 2194,
+      "new_characters": 319,
+      "tool_stdout": "perry-task: wrote TASK-380 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": "perry-task: ⚠ --next contains LOAD-03, which reads as an id and names nothing. `perry-diagnose` reports it as dangling. Write it as prose (`round 3`) if you did not mean an id.\n"
+    },
+    {
+      "task_id": "TASK-386",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "d4848064c705ea02e09ed110f63b09a82121264599261a4b1c1af301fef48a49",
+      "original_characters": 1658,
+      "new_characters": 348,
+      "tool_stdout": "perry-task: wrote TASK-386 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-387",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "b1077c405d0f36dd7cec4e584d8f01cbc207c5cbc208f55cb0ec8ba2a4e1d44e",
+      "original_characters": 1847,
+      "new_characters": 342,
+      "tool_stdout": "perry-task: wrote TASK-387 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-390",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "322910826b0304ce8cc177807fb73f373b8bdcb1fc747b1753fc5a4ec104d84b",
+      "original_characters": 2191,
+      "new_characters": 351,
+      "tool_stdout": "perry-task: wrote TASK-390 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-391",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "a32d9c29f517f2c557b5b95a3cc636bca2dc79cd84a8d76a73a972b2885b1f9e",
+      "original_characters": 2218,
+      "new_characters": 353,
+      "tool_stdout": "perry-task: wrote TASK-391 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-393",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "3a7e81cfed2394504d61138ddac863be335aaa69a5d2ab119836ab231a7f108c",
+      "original_characters": 1787,
+      "new_characters": 335,
+      "tool_stdout": "perry-task: wrote TASK-393 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    },
+    {
+      "task_id": "TASK-436",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "1983d2aa035afb50f9cc69da11ece38d80adc35f8ac068fc5fda6e9f46044ec4",
+      "original_characters": 1147,
+      "new_characters": 367,
+      "tool_stdout": "perry-task: wrote TASK-436 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": "perry-task: ⚠ --next contains V4-1, which reads as an id and names nothing. `perry-diagnose` reports it as dangling. Write it as prose (`round 3`) if you did not mean an id.\n"
+    },
+    {
+      "task_id": "TASK-440",
+      "status": "not_started",
+      "blocked_by": [],
+      "original_sha256": "2241643893399a31a4510600adff556db222ee07469705b25674247367da7944",
+      "original_characters": 963,
+      "new_characters": 342,
+      "tool_stdout": "perry-task: wrote TASK-440 (next) → tasks.jsonl + journal + event\n",
+      "tool_stderr": ""
+    }
+  ]
+}

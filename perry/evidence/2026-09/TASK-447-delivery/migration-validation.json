@@ -1,0 +1,14 @@
+{
+  "rows": 33,
+  "all_originals_match_authoritative_capture": true,
+  "evidence_sections_round_trip_exactly": true,
+  "count_unit": "Unicode code points via Python len(str)",
+  "proposal_max": 367,
+  "open_count": 100,
+  "captured_p90": 1672,
+  "captured_max": 2218,
+  "projected_only_p90": 343,
+  "projected_only_max": 377,
+  "source_sha256": "1b9f63e27ad3c58a8d68ed6411adf3add8db4f26d1bfdef612d44bb938b4d98a",
+  "projection_sha256": "f68037c9f3f0e7deeebc68156744024b7de635dc84b1c51fab3819bfaffb7cfe"
+}
