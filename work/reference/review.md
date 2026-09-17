@@ -479,3 +479,81 @@ anyway.
 
 After completed writes from `review`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work review -->
+
+## Integration architecture reviewer brief
+
+This is the merge-time gate selected by `dispatch.md § Architecture review`,
+separate from the task's required verification rung. Use a fresh context, never
+an implementing author or an agent carrying the implementation conversation.
+The integrator supplies the six trigger facts and immutable candidate inputs.
+
+```
+Read $PERRY_HOME/work/reference/review-constraints.md and follow it.
+You are the independent architecture reviewer of this integration candidate.
+Base: <full SHA>   Head: <full SHA>   Diff: <exact git diff base head>
+Trigger facts: <all six classes, evidence and any unknowns>
+Architecture: <root §1/§3/§6 at base and head with source line numbers>
+Component mapping: <agent selection from the confirmed §2 component list>
+Touched module documents: <paths and cited versions; explicitly list missing>
+
+Check the diff and component mapping yourself. Read other root sections only
+on demand (for example §5 for a contract version). Missing documents, unclear
+component membership or unknown trigger facts are unresolved, not safe. Do not
+infer a new rule from silence, and do not use an author's compliance verdict.
+For each relevant rule, answer holds / contradicts / not touched, citing the
+architecture rule's file:line and the diff evidence (or why it is not touched).
+Consider §1 scope, §3 boundaries and each §6 rule, plus touched module rules.
+A contradiction of a decided section stops acceptance for the existing user
+decision gate. A descriptive mismatch needs correction and re-review.
+Return this block for merge evidence; you do not merge or close a task:
+
+=== ARCHITECTURE COMPLIANCE ===
+Reviewer: <identity, fresh context, not the task author>; timestamp: <time>
+Base: <full SHA>
+Head: <full SHA>
+Triggers: <six facts and supporting paths/modes/versions>
+Context: <root sections; component mapping; module documents; unresolved facts>
+Rules:
+- <rule file:line> — holds | contradicts | not touched — <diff citation/reason>
+Decision: PASS | BLOCKED — <contradictions, missing context, or none>
+User decision required: <decided rule + question, or none>
+Not checked: <explicit limits>
+=== END COMPLIANCE ===
+```
+
+PASS requires all applicable rules resolved without contradiction or missing
+context. Retain output verbatim and bind it to this candidate; changed base,
+head or diff requires fresh selection/review. Task V4/V5 and human sign-off
+remain independent requirements.
+
+### Two bounded walkthrough fixtures
+
+These are procedure fixtures, not live task verdicts or substitutes for an
+integration review. A fresh reviewer records both scenario outputs in external
+scratch evidence. Pin the fixture's base/head and exact diff, and cite actual
+rule lines from that base rather than copying example line numbers.
+
+1. **Reader boundary**: in a disposable fixture candidate, add only a comment
+   to `viewer/parsers.py` (no behavior change). Record all six trigger facts:
+   listed boundary path true; new top-level directory, new bin executable,
+   contract-version change, root architecture edit and module architecture edit
+   false. Select the reader component from confirmed §2. If its module document
+   is absent, say so and return BLOCKED for missing context; never fabricate it.
+   Produce an `ARCHITECTURE COMPLIANCE` block citing at least root §6 NN-1's
+   actual rule line: the comment preserves the one-reader rule (`holds`);
+   assess the other relevant rules as the brief requires. Missing context does
+   not prevent reporting the supported rule-level finding.
+2. **Evidence only**: in a disposable fixture candidate, add only a text file
+   at `perry/evidence/<date>/architecture-walkthrough.md`. Record exact base/head,
+   diff and all six facts false, then `Architecture trigger: none — evidence-only
+   diff under perry/`. Do not launch an architecture reviewer for that candidate
+   or produce an `ARCHITECTURE COMPLIANCE` block. The walkthrough reader reports
+   the selection result; it does not turn the no-trigger case into a review.
+
+**Bounded negative checks**: remove the required `review.md § Integration
+architecture reviewer brief` pointer in a disposable dispatch copy, then restore
+it; separately restore an executor instruction requiring its own compliance
+attestation, then restore it. The existing pointer/instruction guards or fresh
+semantic reviewer must report the missing connection and the self-award. Retain
+mutated/reverted outcomes and verify restored bytes against the committed source.
+Lexical guards check pointers/pinned bytes only; no Python prose-meaning classifier.
