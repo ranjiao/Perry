@@ -1,0 +1,31 @@
+{
+  "candidate": "d403e9cb5775c968b6249fa186f6b3b91658a5ba",
+  "source": "bin/perry_store.py",
+  "original_sha256": "bb0b433ed6961ff7135add58314572f73174c10caf4f29c083c34c2989f7c9d8",
+  "mutated_sha256": "edafce49edd3ad196115f874f4570efd256bc1585e07a44b954d57962cdab899",
+  "cleared_before_mutation": [],
+  "mutation-red": {
+    "command": [
+      "python3",
+      "tests/test_board_from_declarations.py",
+      "TestAFixtureProject.test_the_longest_next_action_is_whole"
+    ],
+    "cwd": "/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy-proof",
+    "exit": 1,
+    "seconds": 0.20288120803888887
+  },
+  "cleared_after_restore": [
+    "/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy-proof/bin/__pycache__/perry_store.cpython-311.pyc"
+  ],
+  "restored_sha256": "bb0b433ed6961ff7135add58314572f73174c10caf4f29c083c34c2989f7c9d8",
+  "restored-green": {
+    "command": [
+      "python3",
+      "tests/test_board_from_declarations.py",
+      "TestAFixtureProject.test_the_longest_next_action_is_whole"
+    ],
+    "cwd": "/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy-proof",
+    "exit": 0,
+    "seconds": 0.12014374998398125
+  }
+}

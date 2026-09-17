@@ -1,0 +1,17 @@
+F
+======================================================================
+FAIL: test_the_longest_next_action_is_whole (__main__.TestThisProjectsStores.test_the_longest_next_action_is_whole)
+TASK-391's was 2,218 bytes at 5fa66a7f. The row is not named here, so the
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-447-repair/tests/test_board_from_declarations.py", line 396, in test_the_longest_next_action_is_whole
+    self.assertGreaterEqual(len(want.encode()), 1000,
+AssertionError: 377 not greater than or equal to 1000 : the live store has no long next action to check
+
+----------------------------------------------------------------------
+Ran 1 test in 0.028s
+
+FAILED (failures=1)
+real 0.12
+user 0.03
+sys 0.01

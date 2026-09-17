@@ -1,0 +1,7 @@
+test_perry_itself_passes_its_own_id_checks (test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks)
+The skill that reports this must not commit it. ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 7.131s
+
+OK

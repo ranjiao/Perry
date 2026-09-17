@@ -1,0 +1,17 @@
+/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy-proof/viewer/parsers.py:116: DeprecationWarning: invalid escape sequence '\w'
+  """True when `head` opens the section named `canonical`, in any language.
+F
+======================================================================
+FAIL: test_the_longest_next_action_is_whole (__main__.TestAFixtureProject.test_the_longest_next_action_is_whole)
+The deterministic fixture keeps the long-cell proof non-vacuous.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy-proof/tests/test_board_from_declarations.py", line 342, in test_the_longest_next_action_is_whole
+    self.assertEqual(got[0][cols.index("Next action")], want)
+AssertionError: 'Re-m[991 chars]the w' != 'Re-m[991 chars]the whole board with the file gone | then comp[2029 chars]文核对。'
+Diff is 4081 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 1 test in 0.126s
+
+FAILED (failures=1)

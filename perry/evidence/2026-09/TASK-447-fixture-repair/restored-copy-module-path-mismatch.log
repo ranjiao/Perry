@@ -1,0 +1,13 @@
+............F...
+======================================================================
+FAIL: test_the_render_reads_only_the_declared_files (__main__.TestTheFileIsNeverRead.test_the_render_reads_only_the_declared_files)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy/tests/test_board_from_declarations.py", line 485, in test_the_render_reads_only_the_declared_files
+    self.assertLessEqual(data, declared, sorted(data - declared))
+AssertionError: {'/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/perry/asks.jsonl', '/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy/bin/perry-task', '/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/perry/risks.jsonl', '/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/.perry/config.jsonl', '/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/perry/tasks.jsonl', '/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-447-repair/work/state/BOARD_TEMPLATE.md', '/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/perry/intake.jsonl', '/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-447-repair/schema/state-schema.json'} not less than or equal to {'/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/perry/asks.jsonl', '/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy/bin/perry-task', '/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/perry/risks.jsonl', '/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy/schema/state-schema.json', '/private/tmp/perry-scratch/task-447-repair/phase004/mutation-copy/work/state/BOARD_TEMPLATE.md', '/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/.perry/config.jsonl', '/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/perry/tasks.jsonl', '/private/tmp/perry-scratch/task-447-repair/phase004/tmp/t237d1-5hvqcov2/perry/intake.jsonl'} : ['/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-447-repair/schema/state-schema.json', '/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/task-447-repair/work/state/BOARD_TEMPLATE.md']
+
+----------------------------------------------------------------------
+Ran 16 tests in 1.327s
+
+FAILED (failures=1)

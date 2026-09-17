@@ -36,3 +36,9 @@ Pinned base/head, byte census, relocation map and relevant before/after section 
 ## Out of scope
 
 TASK-457 context bill, changing decided architecture, guessed module confirmation, lowering acceptance coverage, semantic Python classification, foreign writes, user sign-off, publication and main integration.
+
+## Exact integration context completion — 2026-09-17
+
+The delivered split changes work/SKILL.md, so TASK-455 selects a fresh integration architecture review. Root §2 already names the tests and release components, but neither has a module document. Extend the bounded documentation scope to tests/ARCHITECTURE.md and release/ARCHITECTURE.md: describe the existing component responsibilities, entry points, dependencies and validation flow; cite existing root rules and release policy without inventing rules, approvals, versions, counts or assertions of compliance. Each stays <=600 lines. These are descriptive maps for already-named components, not new architecture decisions. Root ARCHITECTURE.md and all decided text remain unchanged. The fresh reviewer selects these by the existing root component mapping and verifies the final candidate; their existence is not an architecture PASS.
+
+Also merge the PMO-owned quotation repair from main into the isolated candidate and rerun its affected gate. The earlier diagnose failure is not waived; retain the failed receipt and the green fixed-base run separately. Preserve all initial 15 negative/proof receipts. No need to rerun unchanged mutations unless a later edit touches them. This scoped documentation completion is an agent implementation choice under USER-957, not an invented new user decision.
