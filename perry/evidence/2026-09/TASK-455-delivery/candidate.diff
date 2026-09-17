@@ -214,7 +214,7 @@ index 770a9f04..ad47dd16 100644
 @@ -477,2 +463,0 @@ New §7 questions opened: (none) | - <question> — recommended USER-id
 -If this block is missing or empty, dispatch treats it as **executor failure** — task goes to `review` with `compliance-missing` annotation. No auto-retry.
 -
-@@ -481,7 +466,26 @@ If this block is missing or empty, dispatch treats it as **executor failure** 
+@@ -481,7 +466,26 @@ If this block is missing or empty, dispatch treats it as **executor failure**
 -Apply the eligibility decision from step 5a; an inactive pack alone adds no
 -review agent. A project-required review is still required, with its source named.
 -
