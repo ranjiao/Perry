@@ -60,10 +60,19 @@ including the event that was appended.
    — a row created by the tool and later deleted by hand is gone from the file
    and still in the log, and its number stays spent.
 
-3. **`To whom` and `Due` have no defaults.** Ask for both — one
-   `AskUserQuestion`, both fields — before running the command. A promise with
-   no named party is a KR, and belongs under an Objective instead; the tool
-   refuses `--to` with that sentence rather than filing a commitment to nobody.
+3. **`To whom` and `Due` have no defaults.** Follow `elicitation.md`'s
+   **Route and reuse** for intake: reuse explicitly supplied, unchanged terms
+   without asking again. Ask only missing consequential terms, one question
+   at a time, then wait. The same three-question commitment cap includes
+   routing, follow-ups and pushes; this handoff never resets it. At the cap,
+   show the draft without another intake question. Unknown required fields
+   remain unknown and prevent writes, even if the user requests a commit.
+   An exact, complete explicit `commit` instruction already authorizes that
+   supported writer operation, subject to its existing refusals. Reusing an
+   earlier policy or accepting an interview answer/draft edit does not supply
+   new consent. A promise with no named party is a KR, and belongs under an
+   Objective instead; the tool refuses `--to` with that sentence rather than
+   filing a commitment to nobody.
 
 4. **The clock is two fields, and only one of them is checked.**
 
