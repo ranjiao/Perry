@@ -1,0 +1,56 @@
+[
+  {
+    "path": "ARCHITECTURE.md",
+    "base_object": "169dc2ff91d62b585de4fb47f6b384e70938688b",
+    "allocation_object": "169dc2ff91d62b585de4fb47f6b384e70938688b",
+    "identical": true
+  },
+  {
+    "path": "bin/ARCHITECTURE.md",
+    "base_object": "46c791cc11610a3768084522dc6429a52d395035",
+    "allocation_object": "46c791cc11610a3768084522dc6429a52d395035",
+    "identical": true
+  },
+  {
+    "path": "perry/design/DESIGN-017-the-architecture-document-is-written-by-the-agent.md",
+    "base_object": "2e46a6d57191f0f4e9bd41444df292614a4fb046",
+    "allocation_object": "2e46a6d57191f0f4e9bd41444df292614a4fb046",
+    "identical": true
+  },
+  {
+    "path": "schema",
+    "base_object": "2a841390b5dff72587826e649d6b09b4f36840c5",
+    "allocation_object": "2a841390b5dff72587826e649d6b09b4f36840c5",
+    "identical": true
+  },
+  {
+    "path": "bin/perry-task",
+    "base_object": "2c6ac2b092edf7a0abdc633c9f46946569f59f12",
+    "allocation_object": "2c6ac2b092edf7a0abdc633c9f46946569f59f12",
+    "identical": true
+  },
+  {
+    "path": "bin/perry-decide",
+    "base_object": "d46f7c0cfdb2f62415ec47c78f5a2d2f32afe163",
+    "allocation_object": "d46f7c0cfdb2f62415ec47c78f5a2d2f32afe163",
+    "identical": true
+  },
+  {
+    "path": "bin/perry-goals",
+    "base_object": "8a2f458f702138dd7909d6f9643549fa8ac0a346",
+    "allocation_object": "8a2f458f702138dd7909d6f9643549fa8ac0a346",
+    "identical": true
+  },
+  {
+    "path": "bin/perry-knowledge",
+    "base_object": "aad106c3c99b3bf7250049b70e58404dc8964248",
+    "allocation_object": "aad106c3c99b3bf7250049b70e58404dc8964248",
+    "identical": true
+  },
+  {
+    "path": "bin/perry-state",
+    "base_object": "54d1d3a3d1c972847babd54f9e5db49bd9d42bab",
+    "allocation_object": "54d1d3a3d1c972847babd54f9e5db49bd9d42bab",
+    "identical": true
+  }
+]

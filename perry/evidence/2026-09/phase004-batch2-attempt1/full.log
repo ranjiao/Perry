@@ -1,0 +1,154 @@
+INPUTS {"base": {"ref": "73d551d8130d0e1c1814731c8ddc26d93e4d72ff", "sha": "73d551d8130d0e1c1814731c8ddc26d93e4d72ff"}, "candidates": [{"name": "delivery", "ref": "codex/phase004-batch2-gate-input-20260917", "sha": "4256184ea6cef9edfc93bfca9d2debc8a1e934ed"}], "schema": 1, "status": "pending", "tier": "full"}
+merge-check · base 73d551d8130d0e1c1814731c8ddc26d93e4d72ff @ 73d551d8
+  delivery 4256184e
+
+  … merging 1 candidate(s) onto 73d551d8
+TESTED TREE e66495752f60f89ec4377315d604e35cd06ce871
+  … running full on the merged result
+
+[1m0. tree guard — recording /private/tmp/perry-scratch/integrate-batch2/phase004/full-tmp-gh1d5kcs/perry-scratch/integrate-batch2/merge-check-zy5myx4e/tree[0m
+  · recorded
+
+[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+perry-lint · templates in /private/tmp/perry-scratch/integrate-batch2/phase004/full-tmp-gh1d5kcs/perry-scratch/integrate-batch2/merge-check-zy5myx4e/tree
+  ✓ clean — every state file matches schema/state-schema.json
+
+[1m2. parser / extractor / linter contract tests[0m
+
+[31m✗ test_board_from_declarations.py[0m — 1 of 16 test(s) failed
+    FAIL   test_board_from_declarations.TestThisProjectsStores.test_the_longest_next_action_is_whole
+  [33m… 9 earlier line(s) elided of 34; the last 25 follow — re-run this module alone for all of it[0m
+test_every_store_row_appears_exactly_once_in_its_declared_section (test_board_from_declarations.TestAFixtureProject.test_every_store_row_appears_exactly_once_in_its_declared_section) ... ok
+test_the_fixture_carries_every_shape (test_board_from_declarations.TestAFixtureProject.test_the_fixture_carries_every_shape)
+Anti-vacuity: the cases above are only as strong as these shapes. ... ok
+test_the_render_is_the_same_bytes_with_no_board_and_with_garbage (test_board_from_declarations.TestTheFileIsNeverRead.test_the_render_is_the_same_bytes_with_no_board_and_with_garbage) ... ok
+test_the_render_never_opens_board_md (test_board_from_declarations.TestTheFileIsNeverRead.test_the_render_never_opens_board_md) ... ok
+test_the_render_reads_only_the_declared_files (test_board_from_declarations.TestTheFileIsNeverRead.test_the_render_reads_only_the_declared_files) ... ok
+test_every_cell_equals_the_store_value (test_board_from_declarations.TestThisProjectsStores.test_every_cell_equals_the_store_value) ... ok
+test_every_declared_column_is_in_its_section (test_board_from_declarations.TestThisProjectsStores.test_every_declared_column_is_in_its_section) ... ok
+test_every_store_row_appears_exactly_once_in_its_declared_section (test_board_from_declarations.TestThisProjectsStores.test_every_store_row_appears_exactly_once_in_its_declared_section) ... ok
+test_the_longest_next_action_is_whole (test_board_from_declarations.TestThisProjectsStores.test_the_longest_next_action_is_whole)
+TASK-391's was 2,218 bytes at 5fa66a7f. The row is not named here, so the ... FAIL
+
+======================================================================
+FAIL: test_the_longest_next_action_is_whole (test_board_from_declarations.TestThisProjectsStores.test_the_longest_next_action_is_whole)
+TASK-391's was 2,218 bytes at 5fa66a7f. The row is not named here, so the
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/integrate-batch2/phase004/full-tmp-gh1d5kcs/perry-scratch/integrate-batch2/merge-check-zy5myx4e/tree/tests/test_board_from_declarations.py", line 396, in test_the_longest_next_action_is_whole
+    self.assertGreaterEqual(len(want.encode()), 1000,
+AssertionError: 377 not greater than or equal to 1000 : the live store has no long next action to check
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.991s
+
+FAILED (failures=1)
+
+[31m✗ test_diagnose.py[0m — 1 of 158 test(s) failed
+    FAIL   test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks
+  [33m… 250 earlier line(s) elided of 275; the last 25 follow — re-run this module alone for all of it[0m
+test_unfilled_markers_are_not_reclassified_as_prose (test_diagnose.TheDatedAndProseCountersPartitionTheCommitments.test_unfilled_markers_are_not_reclassified_as_prose) ... ok
+test_an_answered_ask_is_not_waiting_on_anyone (test_diagnose.UserAskAnswerState.test_an_answered_ask_is_not_waiting_on_anyone) ... ok
+test_an_unanswered_ask_still_counts (test_diagnose.UserAskAnswerState.test_an_unanswered_ask_still_counts) ... ok
+test_answered_and_pending_are_counted_separately (test_diagnose.UserAskAnswerState.test_answered_and_pending_are_counted_separately) ... ok
+
+======================================================================
+FAIL: test_perry_itself_passes_its_own_id_checks (test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks)
+The skill that reports this must not commit it.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/perry-scratch/integrate-batch2/phase004/full-tmp-gh1d5kcs/perry-scratch/integrate-batch2/merge-check-zy5myx4e/tree/tests/test_diagnose.py", line 708, in test_perry_itself_passes_its_own_id_checks
+    self.assertEqual(p["user_load"]["dangling"], [])
+AssertionError: Lists differ: ['USER-005', 'USER-006', 'USER-101', 'USER-102', 'USER-103'] != []
+
+First list contains 5 additional elements.
+First extra element 0:
+'USER-005'
+
+- ['USER-005', 'USER-006', 'USER-101', 'USER-102', 'USER-103']
++ []
+
+----------------------------------------------------------------------
+Ran 158 tests in 41.832s
+
+FAILED (failures=1)
+
+154 modules · 4299 tests · 261.7s · 4 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[31m✗ 2 of 154 MODULE(S) red[0m
+[31m✗ 2 of 4299 TEST(S) failed[0m
+
+[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+
+[1m4. sample projects lint clean (English and Chinese)[0m
+perry-lint · /private/tmp/perry-scratch/integrate-batch2/phase004/full-tmp-gh1d5kcs/perry-scratch/integrate-batch2/merge-check-zy5myx4e/tree/tests/fixtures/sample-project
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Architecture (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Implementation plan (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Risks & mitigations (not yet blocking at Status: in_review; required at locked)
+  ⚠ evidence [NS-01] `evidence/` holds 2 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `evidence/`. Both are reversible; the first is one command. Evidence: evidence/2026-08/REL-001-spec.md, evidence/2026-08/REL-002-spec.md
+  ⚠ inputs [NS-01] `inputs/` holds 1 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `inputs/`. Both are reversible; the first is one command. Evidence: inputs/vendor-api.md
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+
+  0 error(s), 9 warning(s)
+  · tasks store: 4 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 5 record(s), all valid
+  · linkage store: 13 record(s), 0 malformed
+  · specs: 2 of 2 declare no scope for `dispatch.md` step 4.2 to read — nobody can say those rows were screened (`perry-lint --specs --json` names every one)
+  · bounds: 2 of 2 spec(s) carry no `## Bound` — a round against those has no finite set to check and no last element (`perry-lint --specs --json` names every one)
+  · summaries: all 3 open row(s) carry one that is not just the title again
+perry-lint · /private/tmp/perry-scratch/integrate-batch2/phase004/full-tmp-gh1d5kcs/perry-scratch/integrate-batch2/merge-check-zy5myx4e/tree/tests/fixtures/sample-project-zh
+  ✓ clean — every state file matches schema/state-schema.json
+  · tasks store: 3 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 7 record(s), all valid
+  · no `linkage.jsonl` — the linkage store is unchecked, not clean
+  · no `*-spec.md` under evidence/ — the dispatch pre-flight has nothing to read here
+  · summaries: all 3 open row(s) carry one that is not just the title again
+
+[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+  ✓ nothing under /private/tmp/perry-scratch/integrate-batch2/phase004/full-tmp-gh1d5kcs/perry-scratch/integrate-batch2/merge-check-zy5myx4e/tree moved
+
+[31m✗ failures above[0m
+PERRY_CHECK	guard:snapshot	0
+PERRY_CHECK	lint:templates	0
+PERRY_CHECK	syntax:bin/perry-state	0
+PERRY_CHECK	help:bin/perry-state	0
+PERRY_CHECK	syntax:bin/perry-lint	0
+PERRY_CHECK	help:bin/perry-lint	0
+PERRY_CHECK	syntax:bin/perry-diagnose	0
+PERRY_CHECK	help:bin/perry-diagnose	0
+PERRY_CHECK	syntax:bin/perry-explain	0
+PERRY_CHECK	help:bin/perry-explain	0
+PERRY_CHECK	syntax:bin/perry-restore-check	0
+PERRY_CHECK	help:bin/perry-restore-check	0
+PERRY_CHECK	syntax:templates/knowledge-base/bin/kb-lint	0
+PERRY_CHECK	help:templates/knowledge-base/bin/kb-lint	0
+PERRY_CHECK	syntax:templates/ops/bin/deliverable-lint	0
+PERRY_CHECK	help:templates/ops/bin/deliverable-lint	0
+PERRY_CHECK	bash:bin/perry-detect-host	0
+PERRY_CHECK	bash:bin/perry-update-check	0
+PERRY_CHECK	bash:bin/perry-dispatch-limit	0
+PERRY_CHECK	bash:bin/perry-codex-preflight	0
+PERRY_CHECK	lint:fixture-en	0
+PERRY_CHECK	lint:fixture-zh	0
+PERRY_CHECK	guard:verify	0
+  … 2 check(s) red — baselining them on the base alone
+pre-existing on the base — attributed to nobody:
+  · test_board_from_declarations.py
+  · test_diagnose.py
+
+✓ nothing new is red on the merged result — every failure above was already red on the base.

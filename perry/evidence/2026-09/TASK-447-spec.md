@@ -37,3 +37,9 @@ Pinned base and immutable coding commit; actual committed affected selection, sm
 ## Out of scope
 
 Erasing original prose, silently marking any task done, changing asks, guessing KR attribution, goal declarations, schema claim surface, foreign projects, release allocation, publication, and main integration. Coding commits only its two code/test paths; the PMO applies state changes after reviewing the proposal.
+
+## Integration discovery and bounded repair — 2026-09-17
+
+The first combined full gate ran 4,299 tests and found two failures already present in its PMO-updated base. They are owned by this continuation, not waived as unrelated baseline defects. One is tests/test_board_from_declarations.py::TestThisProjectsStores.test_the_longest_next_action_is_whole, whose anti-vacuity condition requires a real open action >=1,000 bytes; the now-accepted migration makes all 99 shorter than 400 characters. Extend coding scope by this one existing test module: preserve the >1,000-byte non-truncation proof in an isolated deterministic fixture, while retaining whole-cell checks on real store values. Do not weaken/delete that proof or recreate a long live action to satisfy it. Show a bounded truncation mutation turns the isolated proof red, exact restore green, targeted and committed affected selection pass. Aggregate Python/test net remains <=0. This is the same unintegrated delivery, not a second version allocation.
+
+The second failure comes from newly archived synthetic USER identifiers written as unquoted prose. PMO owns its repair: quote the fixture/report excerpts using the existing documented quotation semantics, retain the exact original Markdown in a JSON exhibit, and verify the real dangling-ID assertion. Do not change the diagnostic, create fake USER records or waive unknown identifiers. The first failed candidate/ref and full output remain preserved; acceptance requires a new fixed-base full/slow receipt.
