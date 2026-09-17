@@ -616,6 +616,10 @@
     "test_release_update.py": {
       "sec": 13.604,
       "source": "2026-09-16-task462"
+    },
+    "test_next_closing.py": {
+      "sec": 0.46,
+      "source": "2026-09-17-task443"
     }
   },
   "schema": 1,
@@ -808,6 +812,13 @@
       "workers": 1,
       "load1": 8.28564453125,
       "note": "TASK-462 new modules only. Core 15 tests in 8.491 seconds run with clean PYTHONPATH/PERRY_PROJECT/PERRY_HOME; update author reports 20 tests in 13.604 seconds. No neighboring module re-timed. Review follow-up: core now 16 tests measured in 14.955 seconds; clean HEAD/requested SHA mismatch coverage added, exact guard removal mutation fails. Final review follow-up: core 18 tests in 10.128 seconds, adding handwritten invalid canonical version/phase sequences; both guard-removal mutations fail."
+    },
+    "2026-09-17-task443": {
+      "ref": "d2bd2b136efea0b7ef35368660166a312087f73f",
+      "taken": "2026-09-17T03:59:45.721149+00:00",
+      "workers": 1,
+      "load1": 8.3896484375,
+      "note": "New test_next_closing.py only: 7 tests, measured once by clean-env python3 tests/parallel -j 1 --times test_next_closing on this committed three-task integration ref. Harness per-module time 0.46 seconds; wall 0.5 seconds. Other sessions may be running; no neighboring module retimed."
     }
   }
 }
