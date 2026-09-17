@@ -15,7 +15,7 @@ Activate on `/perry`, on the word "Perry", on a session wanting a "where are we"
 
 **Perry registers exactly one skill: `perry`.** The lanes live under `$PERRY_HOME/<lane>/SKILL.md`, are **loaded on demand by this router**, and are not separately invocable commands. Read a lane's SKILL.md in full before acting on it.
 
-Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design` worked directly. That was withdrawn: the shared host namespace collides with design tools and lark-okr. Perry claims no common name it does not own; see `## Configuration`. `setup` removes stale upgrade links.
+Legacy sibling skills were withdrawn to avoid host namespace collisions; `setup` removes their stale links.
 
 ### Command surface
 
@@ -188,6 +188,8 @@ Handled here, not in a lane. `adopt` and `diagnose` span all three lanes, so the
 `/perry relocate <path>` · `/perry relocate . --dry-run`
 
 Moves every path Perry claims under a new state root and sets `State root` with `perry-config set`; `.perry/` never moves, because it holds the pointer. It **refuses on a dirty tree** — the `git mv` set is the only thing making the move reversible — and computes the moves from `schema/state-schema.json § claims[]`, never a hand-written list. It confirms every `from → to` first, never moves a file it did not put there, and never deletes. `NS-01` (`reference/diagnose.md § Finding catalog`) recommends it.
+
+Setup and relocate finish with [the closing step](reference/next.md#closing-step) after writes. <!-- next-close: router setup --> <!-- next-close: router relocate -->
 
 ## Configuration
 

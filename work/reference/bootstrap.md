@@ -60,3 +60,8 @@ If the user declines, stop. If the user accepts, follow this procedure.
 Subsequent `/pmo` invocations will find `perry-state --json` reporting `installed: true` — a `.perry/config.jsonl` alone is enough — and skip the bootstrap prompt entirely. The state files grow organically from there — see `reference/state-files.md` for the full inventory and size caps.
 
 Top-level `/perry` setup confirms the project-wide preferences and writes them into `.perry/config.jsonl` with `perry-config set`, as its first write. When this bootstrap runs without it, step 0 writes the store the same way before anything else, because a project whose only files are markdown is not installed (`schema/README.md § installed`) and would be offered this bootstrap again on every session. PMO reads the store at every standup.
+
+## Completion routing
+
+After completed writes from `bootstrap`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work bootstrap -->

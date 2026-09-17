@@ -107,6 +107,8 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
 6. Then ask: **"What do you want to do?"**
 
+Completed write procedures share [$PERRY_HOME/reference/next.md § Closing step](../reference/next.md#closing-step); its inventory separates read-only paths.
+
 ## Subcommand index
 
 For navigation help: `/okr help` prints this index; `/okr help <subcommand>` prints just that row plus the matching section below.
@@ -117,7 +119,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 | `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
 | `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `Due` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
 | `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the phase's `objective` and `kr` records in `linkage.jsonl`. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
-| `score-phase [<NNN>]` | End current phase: per-KR scoring; writes `phase/<NNN>-<slug>.md § Retro` and the `-final` snapshots. **Hands the retro summary to `work`; does not write `evidence/`** — see `reference/phases.md` step 5. Suggests next `plan-phase`, the after-subcommand suggestion `TASK-443`'s closing step replaces | `reference/phases.md` |
+| `score-phase [<NNN>]` | End current phase: per-KR scoring; writes `phase/<NNN>-<slug>.md § Retro` and the `-final` snapshots. **Hands the retro summary to `work`; does not write `evidence/`** — see `reference/phases.md` step 5. Ends with the shared closing step | `reference/phases.md` |
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
 | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |
 | `link <TASK-ID> <KR-ID>` / `--alias` / `--unlinked` / `--project` | Accept PMO's attribution hand-off and write it into `linkage.jsonl` (the only writer in this lane). **`bin/perry-goals link` does the write**, appending; it refuses anything that does not resolve to exactly one KR and names the candidates | `reference/linkage.md` |

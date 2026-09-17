@@ -283,7 +283,7 @@ Attribute each done task to its KR **by ID through `linkage.jsonl`**, per `$PERR
    The scored phase's records stay in `linkage.jsonl` and are never rewritten. Every record names its phase, so the next `plan-phase` appends its own and nothing is overwritten. **Carry forward** into the new phase: any Project still `active` (as a new `kind: project` record for the new phase, with its aliases intact — a carried-over Project's old names must keep resolving), and any task the retro moved to the next phase, as a new `edge` under whichever new KR it now serves. Do **not** carry the `unlinked` declarations forward blindly: re-declare them against the new phase's KRs, since work that served no KR last phase may well serve one now.
 7. Flip the phase header to `**Status**: scored`, then clear `phase/CURRENT` (delete the file or write `(none)` until the next `plan-phase`).
 8. If the overall period closed: append **Retro** to `OKR.md` for the relevant version.
-9. Suggest `/okr plan-phase <new-slug>` for the next phase. This is an after-subcommand suggestion: `TASK-443`'s closing step renders `perry-state --section next --after score-phase` in its place.
+9. Follow the shared [Closing step](../../reference/next.md#closing-step) with `--after score-phase`; render its returned recommendation only.
 
 ## `snapshot`
 
@@ -295,3 +295,8 @@ Preserve the current state of `phase/<current>.md` without ending the phase.
 4. Print: "Snapshot written: `phase/snapshots/<filename>`."
 
 Use cases: manual heartbeat (user runs ad-hoc); end-of-week milestone; before a risky pivot; before `okr revise` that might invalidate phase assumptions.
+
+## Completion routing
+
+After completed writes from `commit`, `plan-phase`, `score-phase`, `snapshot`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: goals commit --> <!-- next-close: goals plan-phase --> <!-- next-close: goals score-phase --> <!-- next-close: goals snapshot -->

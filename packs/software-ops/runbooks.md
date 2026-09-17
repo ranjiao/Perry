@@ -181,3 +181,8 @@ If declared, bootstrap seeds `runbook/` with empty markdown stubs for each known
 ## Why this isn't optional
 
 If the user can't operate the system without reading code that an agent wrote, the agent has externalised the cost of failure onto the user. The runbook is the contract that says "I wrote code AND I made it operable." `close-task` enforces the contract; everything else (audit, incidents, health-check) is detection for when the contract slips.
+
+## Completion routing
+
+After completed writes from `runbook-check`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work runbook-check -->

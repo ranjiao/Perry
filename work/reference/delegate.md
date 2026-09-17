@@ -179,3 +179,8 @@ Codex CLI permits neither native token, and every host permits `codex`.
 roles and two codex slots has two slots, not eight. A card's `executors` field
 may restrict which runtimes are acceptable (`any` by default); it never grants
 one a slot.
+
+## Completion routing
+
+After completed writes from `delegate`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work delegate -->

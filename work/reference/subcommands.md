@@ -947,3 +947,8 @@ Runs when a phase has been scored via `okr score-phase` and the user is ready to
 6. Append a `## Notes` entry to today's journal: "rollover from phase #<old-NNN>-<old-slug>; <n> rows carried; see evidence/<YYYY-MM>/retro.md".
 
 `git log -- journal/` shows the full history per day; `git log -- tasks.jsonl` shows the task store's evolution; `git log -- phase/` shows phase progression.
+
+## Completion routing
+
+After completed writes from `plan-week`, `triage`, `status`, `friday-review`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`, `risk`, `add-task`, `close-task`, `drop-task`, `coordinate`, `handoff`, `rollover`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work plan-week --> <!-- next-close: work triage --> <!-- next-close: work status --> <!-- next-close: work friday-review --> <!-- next-close: work monday-plan --> <!-- next-close: work midweek-check --> <!-- next-close: work mid-phase-review --> <!-- next-close: work end-phase-retro --> <!-- next-close: work risk --> <!-- next-close: work add-task --> <!-- next-close: work close-task --> <!-- next-close: work drop-task --> <!-- next-close: work coordinate --> <!-- next-close: work handoff --> <!-- next-close: work rollover -->

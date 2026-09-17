@@ -40,3 +40,8 @@ Loaded when `/okr plan-week` fires. The most-used OKR subcommand, and the one pl
 A Project's human-readable name drifts; its ID doesn't. `"$PERRY_HOME/bin/perry-state" --section attribution` reports which open tasks currently resolve to exactly one KR and which are `unlinked`. Anything `unlinked` is a question for the user, never a guess — see `$PERRY_HOME/reference/okr-linkage.md § The one rule`.
 
 If the user confirms a new name is the same Project, `bin/perry-goals link --actor goals --alias <PROJECT-ID> "<name>"` appends it to that project's `aliases[]` (OKR owns `phase/`; PMO hands aliases over rather than writing them, and the tool refuses a name another Project already claims). `bin/perry-lint` refuses two projects claiming the same name or alias, and refuses a task listed under two KRs — those ambiguities are precisely what the graph exists to prevent.
+
+## Completion routing
+
+After completed writes from `plan-week`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: goals plan-week -->

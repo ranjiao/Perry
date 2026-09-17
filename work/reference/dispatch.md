@@ -574,3 +574,8 @@ count of what ran, which for `affected` is a subset: name it as
 `green for --tier affected (N of M modules)`, not as a green suite. A result
 that says "the suite is green" over a 29-module run is the sentence this whole
 tier arrangement has to avoid producing (`DESIGN-021 § 5.5`).
+
+## Completion routing
+
+After completed writes from `dispatch`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work dispatch -->

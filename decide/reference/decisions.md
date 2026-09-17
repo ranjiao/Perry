@@ -339,3 +339,8 @@ What it doesn't change:
 - ADR content is still append-only after creation (status flips append `## Status change` entries, never edit Chosen/Consequences in place)
 - Format is still Context → Options → Chosen → Consequences → Evidence (the classic ADR shape)
 - `decisions/` is **`decide`-owned** — moved from `work` on 2026-08-16 by the signed hand-off contract, so that a settled decision and the document that settles it have one owner. `work` and `goals` read it freely and never write it. (This line said the opposite for a release; it was the concluding sentence of the moved lane's own reference.)
+
+## Completion routing
+
+After completed writes from `adr`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: decide adr -->

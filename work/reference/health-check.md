@@ -81,3 +81,8 @@ Each underlying scan is useful on its own. The reason to compose them:
 3. **Single decision point** — the user gets one `AskUserQuestion` batch instead of four. The cost of "should I look at this?" drops.
 
 The output report is durable, citable, and small. A user 6 months from now can read `evidence/2026-05/health-check-2026-05-13.md` and reconstruct the project's state on that day without re-walking journal entries.
+
+## Completion routing
+
+After completed writes from `health-check`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+<!-- next-close: work health-check -->

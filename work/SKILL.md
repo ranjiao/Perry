@@ -227,6 +227,8 @@ A status update of `done` requires evidence. Every status update line MUST inclu
 
 If a task moves to `done` without acceptable evidence, refuse the move and flag the gap.
 
+Completed write procedures share [$PERRY_HOME/reference/next.md § Closing step](../reference/next.md#closing-step); its inventory separates read-only paths.
+
 ## Subcommand index
 
 After the standup, the user usually picks one of these. **Read the linked reference file before acting.**
