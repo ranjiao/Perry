@@ -1,0 +1,16 @@
+ CHANGELOG.md                          |  76 +++++
+ VERSION                               |   2 +-
+ bin/perry-lint                        |  35 +-
+ goals/reference/elicitation.md        |  27 +-
+ goals/reference/setup.md              |  10 +-
+ packs/software-ops/architecture.md    | 103 ++----
+ reference/next.md                     |   6 +
+ reference/snapshot.md                 | 101 ++++--
+ release/records.jsonl                 |   4 +
+ tests/durations.json                  | 626 +++++++++++++++++-----------------
+ tests/test_board_from_declarations.py |  34 +-
+ tests/test_spec_scannability.py       |   6 +-
+ tests/test_summary_is_asked_for.py    |  17 +
+ work/reference/dispatch.md            | 172 ++++------
+ work/reference/review.md              |  78 +++++
+ 15 files changed, 729 insertions(+), 568 deletions(-)

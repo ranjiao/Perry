@@ -1,0 +1,13 @@
+{
+  "base": "d345fe4e0c3c61d890926a64339b2d119c845acc",
+  "candidate": "920039bc41765e660052719261d311fb0f1fde53",
+  "allocation": "eb68669e87c4308a0a18225f01fc476ab17b46cb",
+  "frozen_ref": "codex/okr-first-gate-input-20260917",
+  "version": "0.1.9",
+  "phase": "004-guided",
+  "task": "TASK-466",
+  "delivery": "TASK-466-first-okr-response-propagation-20260917",
+  "integrator": "pmo-agent",
+  "date": "2026-09-17",
+  "prior_records_preserved_byte_for_byte": true
+}

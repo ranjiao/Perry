@@ -1,0 +1,8 @@
+
+1 modules · 27 tests · 0.3s · 8 workers
+
+durations: 158 recorded · 158 on disk · 157 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ all green[0m
+
+VERIFIED recorded artifact on 9ab2d9b08084a5617acc668edeac955e222df10a; run/check the slow gate separately before acceptance

@@ -1,0 +1,25 @@
+{
+  "command": [
+    "env",
+    "-u",
+    "PYTHONPATH",
+    "-u",
+    "PERRY_PROJECT",
+    "-u",
+    "PERRY_HOME",
+    "bash",
+    "tests/run",
+    "--tier",
+    "slow",
+    "--workers",
+    "4",
+    "--results",
+    "/private/tmp/perry-scratch/integrate-okr-first/phase004/slow-results.json"
+  ],
+  "cwd": "/private/tmp/perry-scratch/Perry/phase004-k4_waa0n/integrate-okr-first",
+  "TMPDIR": "/private/tmp/perry-scratch/integrate-okr-first/phase004/slow-tmp-kg5b3y_0",
+  "head": "9ab2d9b08084a5617acc668edeac955e222df10a",
+  "started": "2026-09-17T10:05:05.166324+00:00",
+  "exit_code": 0,
+  "finished": "2026-09-17T10:10:18.538354+00:00"
+}

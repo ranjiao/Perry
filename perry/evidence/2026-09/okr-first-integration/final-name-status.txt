@@ -1,0 +1,15 @@
+M	CHANGELOG.md
+M	VERSION
+M	bin/perry-lint
+M	goals/reference/elicitation.md
+M	goals/reference/setup.md
+M	packs/software-ops/architecture.md
+M	reference/next.md
+M	reference/snapshot.md
+M	release/records.jsonl
+M	tests/durations.json
+M	tests/test_board_from_declarations.py
+M	tests/test_spec_scannability.py
+M	tests/test_summary_is_asked_for.py
+M	work/reference/dispatch.md
+M	work/reference/review.md

@@ -1,0 +1,87 @@
+{
+  "base": "d345fe4e0c3c61d890926a64339b2d119c845acc",
+  "head": "9ab2d9b08084a5617acc668edeac955e222df10a",
+  "named_path_object_ids": {
+    "viewer/parsers.py": {
+      "base": "a8d0ee329e7376b5814618711205a4291c43200a",
+      "head": "a8d0ee329e7376b5814618711205a4291c43200a"
+    },
+    "bin/lib": {
+      "base": "77688366ea5f0e3d8a046c207e28af0e874391fa",
+      "head": "77688366ea5f0e3d8a046c207e28af0e874391fa"
+    },
+    "schema": {
+      "base": "2a841390b5dff72587826e649d6b09b4f36840c5",
+      "head": "2a841390b5dff72587826e649d6b09b4f36840c5"
+    },
+    "SKILL.md": {
+      "base": "f66a3b9a381b90beaad8322362bff6c910dd7834",
+      "head": "f66a3b9a381b90beaad8322362bff6c910dd7834"
+    },
+    "goals/SKILL.md": {
+      "base": "57a1cfc35113485c351099f357b331cad559df5c",
+      "head": "57a1cfc35113485c351099f357b331cad559df5c"
+    },
+    "work/SKILL.md": {
+      "base": "8e17cae5609afd6690bbdcc941ec208e5244e48a",
+      "head": "8e17cae5609afd6690bbdcc941ec208e5244e48a"
+    },
+    "decide/SKILL.md": {
+      "base": "15f985b2ae16269e95724cc11f7b000280549c67",
+      "head": "15f985b2ae16269e95724cc11f7b000280549c67"
+    },
+    "ARCHITECTURE.md": {
+      "base": "169dc2ff91d62b585de4fb47f6b384e70938688b",
+      "head": "169dc2ff91d62b585de4fb47f6b384e70938688b"
+    },
+    "bin/ARCHITECTURE.md": {
+      "base": "46c791cc11610a3768084522dc6429a52d395035",
+      "head": "46c791cc11610a3768084522dc6429a52d395035"
+    }
+  },
+  "top_level_directories": {
+    "d345fe4e0c3c61d890926a64339b2d119c845acc": [
+      ".github",
+      ".perry",
+      ".vscode",
+      "bin",
+      "decide",
+      "goals",
+      "modes",
+      "packs",
+      "perry",
+      "reference",
+      "release",
+      "schema",
+      "state",
+      "templates",
+      "tests",
+      "viewer",
+      "work"
+    ],
+    "9ab2d9b08084a5617acc668edeac955e222df10a": [
+      ".github",
+      ".perry",
+      ".vscode",
+      "bin",
+      "decide",
+      "goals",
+      "modes",
+      "packs",
+      "perry",
+      "reference",
+      "release",
+      "schema",
+      "state",
+      "templates",
+      "tests",
+      "viewer",
+      "work"
+    ]
+  },
+  "version": {
+    "d345fe4e0c3c61d890926a64339b2d119c845acc": "0.1.5",
+    "9ab2d9b08084a5617acc668edeac955e222df10a": "0.1.9"
+  },
+  "diff_sha256": "12cfb40ef6d55407f7c96c2436a7a76f47ae7dc04f69448c96b43b45486eadfd"
+}

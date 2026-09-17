@@ -1,0 +1,28 @@
+{
+  "command": [
+    "env",
+    "-u",
+    "PYTHONPATH",
+    "-u",
+    "PERRY_PROJECT",
+    "-u",
+    "PERRY_HOME",
+    "python3",
+    "tests/merge-check",
+    "--verify-receipt",
+    "/private/tmp/perry-scratch/integrate-okr-first/phase004/merged-full/receipt.json"
+  ],
+  "head": "9ab2d9b08084a5617acc668edeac955e222df10a",
+  "exit_code": 0,
+  "base": {
+    "ref": "d345fe4e0c3c61d890926a64339b2d119c845acc",
+    "sha": "d345fe4e0c3c61d890926a64339b2d119c845acc"
+  },
+  "candidates": [
+    {
+      "name": "delivery",
+      "ref": "codex/okr-first-gate-input-20260917",
+      "sha": "eb68669e87c4308a0a18225f01fc476ab17b46cb"
+    }
+  ]
+}
