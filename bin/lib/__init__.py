@@ -1121,6 +1121,15 @@ def scan_argv(argv: list[str], *, bools: tuple[str, ...] = (),
     return positionals, seen, got, None
 
 
+def anchor_root(project_root: Path, state_root: Path, anchor: str) -> Path:
+    """Resolve declared locations through the shared config reader (A1 only)."""
+    if anchor == "code":
+        settings, _ = _parsers().config_store_settings(project_root)
+        raw = (settings or {}).get("code_repo_path", "")
+        return (project_root / Path(raw).expanduser()).resolve() if raw else project_root
+    return {"project": project_root, "state": state_root}[anchor]
+
+
 def resolve_state_root(project_root: Path) -> Path:
     """Where this project's Perry state files live.
 

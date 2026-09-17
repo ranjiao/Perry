@@ -113,7 +113,7 @@ class TestClaimsCoverFiles(unittest.TestCase):
             root = Path(tmp).resolve()
             state = root / "perry"
             state.mkdir()
-            self.assertEqual(lint.anchor_root(root, state, "code"), root)
+            self.assertEqual(lint.lib.anchor_root(root, state, "code"), root)
             (root / ".perry").mkdir()
             (root / ".perry/config.jsonl").write_text(json.dumps(
                 {"kind": "setting", "key": "code_repo_path", "value": "code"}) + "\n")
@@ -122,7 +122,7 @@ class TestClaimsCoverFiles(unittest.TestCase):
                 (code / component).mkdir(parents=True)
                 (code / component / "ARCHITECTURE.md").write_text("x\n" * 600)
             (code / "ARCHITECTURE.md").write_text("## §1 Mission\n")
-            self.assertEqual(lint.anchor_root(root, state, "code"), code)
+            self.assertEqual(lint.lib.anchor_root(root, state, "code"), code)
             rows, _ = lint.check_claims(root, SCHEMA, state)
             self.assertEqual(next(r for r in rows if r["path"] == "ARCHITECTURE.md")
                              ["rel"], "code/ARCHITECTURE.md")

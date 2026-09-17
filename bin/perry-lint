@@ -4668,15 +4668,6 @@ def is_adopted(project_root: Path, state_root: Path) -> bool:
     return P.installed(project_root)
 
 
-def anchor_root(project_root: Path, state_root: Path, anchor: str) -> Path:
-    """Resolve declared locations through the shared config reader (A1 only)."""
-    if anchor == "code":
-        settings, _ = P.config_store_settings(project_root)
-        raw = (settings or {}).get("code_repo_path", "")
-        return (project_root / Path(raw).expanduser()).resolve() if raw else project_root
-    return {"project": project_root, "state": state_root}[anchor]
-
-
 def iter_targets(root: Path, spec: dict, selected=()) -> list[Path]:
     if spec.get("selection") == "explicit":
         targets = []
@@ -4982,7 +4973,7 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
     claims = schema.get("claims") or []
     rows, collisions = [], 0
     for c in claims:
-        base = anchor_root(project_root, state_root, c["anchor"])
+        base = lib.anchor_root(project_root, state_root, c["anchor"])
         target = base / c["path"].rstrip("/")
         rel = _rel(target, project_root)
         present = sorted(target.rglob("*.md")) if c["kind"] == "dir" else [target]
@@ -5692,7 +5683,7 @@ def main(argv: list[str]) -> int:
                 # for `--templates` above, which still checks the template
                 # against it. The file is named by `retired-board` below.
                 continue
-            base = anchor_root(project_root, root, spec.get("anchor", "state"))
+            base = lib.anchor_root(project_root, root, spec.get("anchor", "state"))
             # Nothing outside `.perry/` can be malformed Perry state before the
             # project is a Perry project: a pre-existing `design/` belongs to
             # whoever built it, and reporting their file as a broken design doc

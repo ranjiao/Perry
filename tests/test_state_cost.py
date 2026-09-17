@@ -193,23 +193,24 @@ class TestNoDirectoryIsSilentlyOmitted(Repo):
     """V3.2. A path the measurement never names is a path no policy governs."""
 
     def test_every_claimed_path_is_either_measured_or_declared_empty(self):
-        data = self.payload()
-        schema = json.loads(
-            (ROOT / "schema" / "state-schema.json").read_text())
-        claimed = len(schema["claims"])
-        self.assertEqual(len(data["claimed_paths"]), claimed)
-        for label in data["claimed_paths"]:
-            with self.subTest(path=label):
-                # Either it carries bytes, or it is absent from `paths` — and
-                # the renderer lists exactly the absent ones as empty, so both
-                # halves are accounted for by construction.
-                self.assertIsInstance(label, str)
-        text = self.run_tool().stdout
-        for label in data["claimed_paths"]:
-            with self.subTest(path=label):
-                self.assertIn(label, text,
-                              "a claimed path appears in neither the snapshot "
-                              "table nor the empty list")
+        schema = json.loads((ROOT / "schema/state-schema.json").read_text())
+        for code_path in ("", "code", str(self.dir / "code")):
+            with self.subTest(code_path=code_path):
+                self.write(".perry/config.jsonl", config_store.config_jsonl(
+                    {"State root": "perry", "Code repo path": code_path}))
+                architecture = "code/ARCHITECTURE.md" if code_path else "ARCHITECTURE.md"
+                self.write(architecture, "architecture")
+                self.write("perry/ARCHITECTURE.md", "wrong root")
+                self.commit(DAY3)
+                data = self.payload()
+                self.assertEqual(len(data["claimed_paths"]), len(schema["claims"]))
+                self.assertIn(architecture, data["claimed_paths"])
+                self.assertNotIn("perry/ARCHITECTURE.md", data["claimed_paths"])
+                self.assertEqual(data["snapshot"]["paths"][architecture]["bytes"], 12)
+                text = self.run_tool().stdout
+                for label in data["claimed_paths"]:
+                    self.assertIsInstance(label, str)
+                    self.assertIn(label, text)
 
     def test_an_unclaimed_file_under_the_state_root_is_still_reported(self):
         """A file no claim covers still has to appear, or the total understates
