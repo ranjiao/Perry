@@ -72,8 +72,11 @@ remaining gaps, not a mandatory second form. `Skip when` means the
 specified answer is explicit and unchanged in the selected route's context, not
 inferred from confidence or project age. Show its source in the draft.
 
-At each response, use the latest accepted intent and briefly show substantive
-changes. A changed beneficiary, capacity, objective or evidence invalidates the
+After each real user answer, briefly reflect the accepted meaning, then choose
+the most consequential remaining gap and its draft destination. Never supply
+both sides of a live interview or continue as though the user chose the
+recommendation. At each response, use the latest accepted intent and briefly
+show substantive changes. A changed beneficiary, capacity, objective or evidence invalidates the
 dependent proposed KRs, thresholds and commitments: name what no longer follows,
 withdraw it from the current proposal, and visibly propose replacements or mark
 the affected fields undecided. Recheck their mission alignment, measurement basis
@@ -94,17 +97,46 @@ Ask **one question at a time and wait**. Count every question and follow-up that
 asks the user for an answer toward the **route cap above before showing the draft**;
 reflection text must not hide a second independent question. A
 scorecard choice may present one coherent proposed set for acceptance or editing.
-On a vague answer, name the single most consequential gap and offer one grounded
-rewrite; push at most once for that answer, within the same budget. If still
-unknown or the budget is spent, retain it explicitly and draft now. Do not loop
+On a vague or activity-based answer, name the single most consequential gap and
+offer one outcome-oriented rewrite grounded in the beneficiary's desired change.
+Say what it would demonstrate and what evidence/threshold is still missing;
+do not manufacture a number to make it look scoreable. Push at most once for
+that answer, within the same budget. If the user rejects it or remains vague,
+accept the stated intent and move on; do not rename the same push as a new field.
+If still unknown or the budget is spent, retain it explicitly and draft now. Do not loop
 until every rubric issue disappears. Already supplied answers need no ritual
 confirmation; fewer than four questions is fine when the user supplied the facts.
 
 Render a `choice` as 2–3 options, the grounded proposal first with `(Recommended)`;
-explain the practical difference briefly. Render a `sentence` as a proposed
+explain its practical consequence and the basis for recommending it. Alternatives
+must be supported by context; an option to edit/say it differently is sufficient
+when there is no grounded alternative. Never invent options to fill the count,
+or praise an answer without explaining what it achieves or what is missing.
+Render a `sentence` as a proposed
 sentence followed by `Use this | Edit it | Say it differently`. Use the configured
 language and the host's prompt rendering from `$PERRY_HOME/reference/host-capabilities.md`.
 The seven fields below guide the agent; do not expose the whole bank to the user.
+
+## Escape without losing the user's intent
+
+On the first “just draft it” / refusal to continue, make **one** offer of the two
+most consequential remaining questions, explaining what their answers would
+change. For example: “Two more questions, then I'll draft: what success means
+and how we can observe it.” Ask only the first, then stop and wait. The offer
+and first question are one turn, not permission to ask both at once; each actual
+question counts in the same route budget. After an answer, reflect it and ask
+the second only if it is still consequential and within the cap. No new pushes
+or replacement pair extends this offer. If fewer than two questions remain in
+the budget or in the unresolved gaps, say so and offer only those; at zero,
+draft immediately. Do not ask a separate permission question to restart a budget.
+
+On a **second refusal, yield immediately**: show the incomplete draft, preserve
+rejected suggestions and unknowns, state the premises and run the advisory rubric
+once without requiring more answers. Do not append a premise/approval question
+to that refusal response. The user can correct the draft later; declining the
+interview is permission to draft, never permission to finalize. A fully formed
+pasted OKR goes directly to the visible draft and premise check, with no intake
+questions and no unsolicited rewrite to the default number of Objectives/KRs.
 
 ## Q1 · Who benefits, and over what horizon?
 
@@ -214,9 +246,47 @@ clause; a ≤3-row KR scorecard with baseline/source, target/unit, deadline and
 commit/stretch; Anti-Goals; and explicit unknowns/proposed assumptions. Carry over
 accepted wording and make suggested changes visible. A complete-looking table is
 not evidence that an unknown was resolved. Do not turn measurement follow-ups into
-extra KRs merely to fill slots. For revision, include change reasons and affected
+extra KRs merely to fill slots. Keep the summary to at most 12 lines; show the
+relevant section in full when editing it. For revision, include change reasons and affected
 goals with unchanged wording preserved. For commitments, show the proposed row
 and remaining operational unknowns, without an objectives cascade.
+
+### Premises, edits and approval
+
+Before approval, state the meaningful premises as short, sourced statements:
+who benefits and why, why each Objective serves that mission, what this horizon
+excludes, and any capacity/evidence assumption the recommendation depends on.
+For commitments, use the party, promise and resolution meaning instead of
+inventing Objectives. Mark proposed premises and unknowns. Ask one question
+about the set: “Which premise needs changing, or should this draft keep them?”
+Then wait. This reviews meaning, not permission to write. If the user already
+explicitly reviewed these same premises, reuse that answer. If they declined
+further questions, show the statements without demanding a response.
+
+On disagreement, return to the bank entry that produced that premise, apply
+the explicit correction to its draft section, and propagate dependent changes
+under **Use the bank**. Leave unrelated wording intact. Show the changed section
+and withdrawn proposals; ask only if a consequential choice is unresolved.
+All follow-ups count; showing a draft does not reset the interview cap or entitle
+the agent to another interrogation. At the cap use unknown/proposed fields and
+accept voluntary edits instead of requiring more interview answers.
+
+Run the rubric below once on the draft resulting from this premise review,
+including disagreement; it is not a loop until the user accepts the agent's
+preferred goals. Keep override reasons in the conversation for the owning lane;
+do not claim a journal entry. A later material user edit changes the draft and
+invalidates any approval of its earlier contents.
+
+After the premise review and rubric, distinguish approval of this exact draft
+from “change a section” or “I'll edit it.” A section edit changes only that
+section and affected dependencies; it is not approval. “I'll edit it” ends the
+turn. With a supported draft file, show its real path and re-read it on return;
+without that implementation, offer chat edits and disclose that no resumable
+file was saved. Do not create `plans/` by hand. Only offer a write operation
+when its owning writer exists; otherwise name the missing finalize path and
+stop with a reviewable draft, even if the user says “approved.” Approval never
+manufactures a writer. The explicit commitment writer remains available for
+supported, explicitly authorized terms, subject to its refusals.
 
 Run `$PERRY_HOME/reference/input-quality.md § 1` once against this actual draft
 where applicable; for a commitments-only draft state which Objective/KR checks

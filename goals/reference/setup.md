@@ -31,9 +31,11 @@ overall template. Unknown state never proves this is a first OKR.
 2. Show the compact first-OKR draft in chat, with source/assumption distinctions,
    boundaries and remaining unknowns. This delivery does not persist a planning
    draft or provide resume/finalize machinery; do not claim those operations ran.
-3. Run `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` on that draft.
-   Surface ≤3 issues with concrete rewrites, advisory + override. The rubric is
-   unchanged, including its solo-project qualification for fewer objectives.
+3. Follow the bank's **Premises, edits and approval**: surface meaningful
+   premises, incorporate disagreement into affected draft sections, then run
+   `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` once on the resulting
+   draft. Surface ≤3 advisory issues, preserving the solo-project qualification.
+   A refusal uses the bank's escape; a fully pasted OKR skips the interview.
 4. Stop at the visible draft and quality feedback. Do not hand-append canonical
    goal stores or invent a writer to finalize it, and do not auto-run `plan-phase`.
    The owning approval/persistence/writer flow must exist before finalization;
@@ -70,7 +72,9 @@ Used when goals materially change between versions (new constraints, new mission
    **Use the bank**; new thresholds never inherit old approval.
 3. Show the proposed new version in chat, with before/after changes, reasons,
    source distinctions and unknowns. Its proposed version/date is not an append
-   receipt. Use the bank's draft/quality procedure on the resulting version.
+   receipt. Use the bank's **Premises, edits and approval** on the resulting
+   version, including its one-pass rubric and refusal escape. A premise
+   disagreement changes that section and dependent proposals, not all wording.
 4. Keep edits separate from approval of the current draft. Finalize only through
    an available owning approval/persistence/writer flow; if missing or refusing,
    name the gap/message and stop. Do not append a version, render a fabricated
