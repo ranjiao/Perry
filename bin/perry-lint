@@ -1881,10 +1881,10 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
 summary_shape = lib.summary_shape
 
 
-#: A board `Next action` over this many bytes is reported. See the argument at
+#: A board `Next action` over this many Unicode characters is reported. See the argument at
 #: its use site in `check_summaries`. Belongs in `schema § thresholds`; it is
 #: here because that file is the claim surface.
-NEXT_ACTION_CELL_BYTES = 1000
+NEXT_ACTION_CELL_CHARACTERS = 400
 
 
 #: Per-document line caps for the two trees that have none. Both belong in
@@ -2050,34 +2050,17 @@ def check_summaries(state_root: Path) -> list["Finding"]:
             v = r.get(key)
             return v if isinstance(v, str) else ""
         tid = _s("id") or "(unnamed row)"
-        # **`Next action` is a board CELL, and a cell is a pointer.**
-        # `work/SKILL.md:307` has said "each fact lives in one place; boards
-        # reference, evidence stores" since before this check existed, and
-        # `DESIGN-013 § 8` measured the rule being ignored at 2,825 bytes and
-        # deferred the fix. Prose alone did not hold it: on 2026-09-08 the
-        # longest open cell was 3,956 bytes and 44 rows were over 1,000, most
-        # of the worst written the same day by the session that then wrote
-        # this check. So it is a check rather than a fourth sentence.
-        #
-        # **1,000 bytes, and the number is an argument not a taste.** The
-        # median open cell is 435, so the threshold is more than twice what a
-        # cell that is doing its job costs, and it flags 44 of 141 — enough to
-        # be worth acting on and few enough to act on. It belongs in
-        # `schema/state-schema.json § thresholds` beside
-        # `review_fail_rounds_before_escalation`; it is here because that file
-        # is the claim surface and needs the user.
-        #
-        # STRUCTURAL ONLY, like every other check in this pass. It measures
-        # length, never quality: a long cell may be the right cell, and the
-        # remedy is to MOVE the account to evidence and leave the pointer,
-        # never to delete what was recorded.
+        # TASK-447: a Next action is a pointer; preserve its account in evidence.
+        # The 400-character guide counts Unicode code points (Python len), not
+        # UTF-8 bytes. It warns about length only, never quality, and imposes
+        # no write-time refusal. The schema claim surface remains unchanged.
         na = _s("next_action")
-        if len(na) > NEXT_ACTION_CELL_BYTES:
+        if len(na) > NEXT_ACTION_CELL_CHARACTERS:
             check_summaries.stats["oversized_cells"] += 1
             findings.append(Finding(
                 "warn", "tasks.jsonl", "next-action-oversized",
-                f"{tid}: `Next action` is {len(na)} bytes, over the "
-                f"{NEXT_ACTION_CELL_BYTES}-byte cell guide. A board cell is a "
+                f"{tid}: `Next action` is {len(na)} Unicode characters, over the "
+                f"{NEXT_ACTION_CELL_CHARACTERS}-character cell guide. A board cell is a "
                 f"pointer — move the account into "
                 f"`evidence/<YYYY-MM>/{tid}-*.md` and leave the sentence a "
                 f"reader of the board needs. `work/SKILL.md` § Style rules: "
