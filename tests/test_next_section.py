@@ -56,6 +56,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import config_store  # noqa: E402
 import inproc  # noqa: E402
+from test_kr_checks import check, measurement  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RULES = ROOT / "reference" / "next-rules.json"
@@ -180,7 +181,10 @@ def build(owner, name: str) -> pathlib.Path:
         krs = [kr("P001-O1-KR1", target=3, current=3),
                kr("P001-O1-KR2", target=0, current=0),
                kr("P001-O1-KR3", target=5, stretch=True)]
-    (root / "linkage.jsonl").write_text(jsonl([objective, *krs]),
+    checks = [row for k in krs if "current" in k for row in
+              (check(kr=k["id"], direction="at_least", target=k["target"]),
+               measurement(k["current"], kr=k["id"]))]
+    (root / "linkage.jsonl").write_text(jsonl([objective, *krs, *checks]),
                                         encoding="utf-8")
     return root
 
@@ -681,37 +685,56 @@ class TestTheRuleFile(unittest.TestCase):
 
 
 class TestKrProgress(unittest.TestCase):
-    """`met` over typed numbers. No `metric` prose decides a direction."""
+    def test_typed_positions_drive_counts_and_closure(self):
+        root = build(self, "closable_phase")
+        original = [json.loads(row) for row in
+                    (root / "linkage.jsonl").read_text().splitlines()]
+        original[1].update(target=400, current=1702)  # Legacy ceiling false positive.
+        k1, k2 = "P001-O1-KR1", "P001-O1-KR2"
+        for direction, target in (("decrease", 400), ("at_most", 400),
+                                  ("at_most", 0), ("increase", 400),
+                                  ("at_least", 400), ("done", 1)):
+            for values, measured, met in (([], 0, 0), ([target], 1, 1),
+                                         ([target, target], 2, 2),
+                                         ([1702, target], 2,
+                                          1 if direction in ("decrease", "at_most", "done") else 2),
+                                         ([0, target], 2,
+                                          2 if direction in ("decrease", "at_most") else 1)):
+                with self.subTest(direction=direction, values=values):
+                    rows = [r for r in original if r["kind"] in ("objective", "kr")]
+                    rows += [check(kr=k, direction=direction, target=target)
+                             for k in (k1, k2)]
+                    rows += [measurement(v, kr=k, asserted_at=(date.today().isoformat()
+                             if k == k1 else "2020-01-01") + "T00:00:00Z")
+                             for k, v in zip((k1, k2), values)]
+                    (root / "linkage.jsonl").write_text(jsonl(rows))
+                    payload = payload_of(root)
+                    self.assertEqual(["measured", "due"][:len(values)],
+                                     [k["state"] for k in payload["linkage"]["objectives"][0]["krs"][:len(values)]])
+                    counts, why = STATE.next_kr_progress(payload)
+                    self.assertEqual((dict(commit_total=2, measured=measured,
+                                           met=met, unmeasured=2-measured), ""), (counts, why))
+                    self.assertEqual(met == 2, "R-phase-closable" in
+                                     recommended(payload["next"]))
+        for extra, measured, met in (([], 0, None), ([check(kr=k1)], 0, None),
+                ([check(kr=k1), measurement(400, kr=k1), check("other", kr=k1)], 0, None),
+                ([check(kr=k1), measurement(400, kr=k1), check("other", kr=k1),
+                  measurement(1702, kr=k1, cid="other")], 1, False),
+                ([check(kr=k1), measurement(400, kr=k1), check("other", kr=k1),
+                  measurement(400, kr=k1, cid="other")], 1, True)):
+            rows = [r for r in original if r["kind"] in ("objective", "kr")]
+            (root / "linkage.jsonl").write_text(jsonl(rows + extra))
+            payload = payload_of(root)
+            self.assertEqual(measured, STATE.next_kr_progress(payload)[0]["measured"])
+            self.assertIs(met, payload["linkage"]["objectives"][0]["krs"][0]["met"])
+            self.assertNotIn("R-phase-closable", recommended(payload["next"]))
 
-    @staticmethod
-    def payload(*krs: dict) -> dict:
-        return {"phase": {"slug": "001-x"},
-                "linkage": {"phase": "001-x",
-                            "objectives": [{"krs": list(krs)}]}}
-
-    def test_a_target_of_zero_is_met_only_at_zero(self):
-        counts, why = STATE.next_kr_progress(self.payload(
-            {"current": 3, "target": 0, "stretch": False},
-            {"current": 0, "target": 0, "stretch": False}))
-        self.assertEqual("", why)
-        self.assertEqual({"commit_total": 2, "measured": 2, "met": 1,
-                          "unmeasured": 0}, counts)
-
-    def test_stretch_is_not_counted_and_a_missing_number_is_unmeasured(self):
-        counts, _why = STATE.next_kr_progress(self.payload(
-            {"current": 1, "target": 5, "stretch": True},
-            {"current": None, "target": 5, "stretch": False},
-            {"current": 4, "target": None, "stretch": False},
-            {"current": 6, "target": 5, "stretch": False}))
-        self.assertEqual({"commit_total": 3, "measured": 1, "met": 1,
-                          "unmeasured": 2}, counts)
-
-    def test_a_register_for_another_phase_is_unknown_not_zero(self):
-        got = {"phase": {"slug": "002-y"},
-               "linkage": {"phase": "001-x", "objectives": []}}
-        counts, why = STATE.next_kr_progress(got)
-        self.assertEqual({}, counts)
-        self.assertIn("001-x", why)
+    def test_absent_or_mismatched_linkage_fails_closed(self):
+        for phase, linkage in ((None, None), ({"slug": "002-y"}, None),
+                               ({"slug": "002-y"}, {"phase": "001-x"})):
+            counts, why = STATE.next_kr_progress({"phase": phase, "linkage": linkage})
+            self.assertEqual({}, counts)
+            self.assertEqual(bool(phase), bool(why))
 
 
 class TestReviewAndWip(Fixtures):
