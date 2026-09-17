@@ -31,6 +31,7 @@ from __future__ import annotations
 import task_actor
 
 COVERS = (
+    "bin/perry-config",
     "bin/perry-task",
     "bin/perry-state",
     "bin/perry-lint",
@@ -47,6 +48,7 @@ COVERS = (
 
 import importlib.machinery
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -1012,6 +1014,119 @@ class TestPackGlossary(unittest.TestCase):
             self.assertEqual(
                 [p["name"] for p in state.parse_config(root)["packs"]],
                 ["software-ops"])
+
+    def config_command(self, root, *args):
+        env = {k: v for k, v in os.environ.items()
+               if k not in {"PYTHONPATH", "PERRY_PROJECT", "PERRY_HOME"}}
+        result = subprocess.run(
+            [str(PERRY_HOME / "bin" / "perry-config"), *args,
+             "--root", str(root), "--json"],
+            text=True, capture_output=True, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_pack_controls_distinguish_default_disabled_and_restore(self):
+        """Use the real writer, not a prose assertion or a fabricated payload."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_store.write_config(root)
+            self.assertNotIn("packs", self.config_command(root, "show")["settings"])
+            self.assertEqual(self.ps.parse_config(root)["packs"],
+                             self.ps.load_packs(["software-ops"]))
+            for empty in ("", "—"):
+                with self.subTest(empty=empty):
+                    self.config_command(root, "set", "Packs", empty)
+                    self.assertEqual(self.config_command(root, "show")["settings"]["packs"], "")
+                    self.assertEqual(self.ps.parse_config(root)["packs"], [])
+                    self.config_command(root, "unset", "Packs")
+                    self.assertNotIn("packs", self.config_command(root, "show")["settings"])
+                    self.assertEqual(self.ps.parse_config(root)["packs"],
+                                     self.ps.load_packs(["software-ops"]))
+
+    def test_unknown_selection_is_not_defaulted_or_claimed_present(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_store.write_config(root)
+            self.config_command(root, "set", "Packs", "no-such-pack")
+            self.assertEqual(self.ps.parse_config(root)["packs"],
+                             [{"name": "no-such-pack", "present": False, "glossary": {}}])
+            self.config_command(root, "set", "Packs", "no-such-pack,software-ops")
+            entries = self.ps.parse_config(root)["packs"]
+            self.assertEqual([(p["name"], p["present"]) for p in entries],
+                             [("no-such-pack", False), ("software-ops", True)])
+
+    def test_disable_reenable_preserves_policies_records_and_other_settings(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_store.write_config(root)
+            self.config_command(root, "set", "Document language", "中文")
+            self.config_command(root, "track", "research", "--mode", "inquiry")
+            before = self.config_command(root, "show")
+            held = {
+                ".perry/hook.md": b"# Project rules\nKeep architecture review and release approval.\n",
+                "ARCHITECTURE.md": b"# Existing architecture\nUser-owned rules.\n",
+                "runbook/service.md": b"# Existing service\n",
+                "incidents/outage.md": b"# Existing incident\n",
+                "release/records.jsonl": b'{"project-owned":"opaque history"}\n',
+            }
+            for rel, content in held.items():
+                path = root / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+            self.config_command(root, "set", "Packs", "", "--dry-run")
+            self.assertEqual(self.config_command(root, "show"), before)
+            for value in ("", "software-ops"):
+                self.config_command(root, "set", "Packs", value)
+                cfg = self.config_command(root, "show")
+                self.assertEqual(cfg["tracks"], before["tracks"])
+                self.assertEqual({k: v for k, v in cfg["settings"].items() if k != "packs"},
+                                 before["settings"])
+                for rel, content in held.items():
+                    self.assertEqual((root / rel).read_bytes(), content)
+            self.assertTrue(self.ps.parse_config(root)["packs"][0]["present"])
+
+    def test_active_pack_does_not_materialize_release_configuration(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_store.write_config(root)
+            self.config_command(root, "set", "Packs", "software-ops")
+            cfg = self.ps.parse_config(root)
+            self.assertTrue(cfg["packs"][0]["present"])
+            self.assertFalse((root / "release").exists())
+            self.assertFalse((root / "VERSION").exists())
+            self.assertFalse((root / ".perry" / "hook.md").exists())
+            self.assertNotIn("release", self.config_command(root, "show")["settings"])
+
+    def test_selected_bundled_pack_missing_on_host_is_reported_unavailable(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "project"
+            config_store.write_config(root)
+            self.config_command(root, "set", "Packs", "software-ops")
+            # The configured name survives; a different installed tree has no
+            # manifest. Do not confuse selection with successful loading.
+            with patch.object(self.ps, "PERRY_HOME", Path(td) / "missing-host"):
+                self.assertEqual(self.ps.parse_config(root)["packs"],
+                                 [{"name": "software-ops", "present": False,
+                                   "glossary": {}}])
+
+    def test_invalid_config_discovery_exposes_uncertainty_and_never_repairs(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_store.write_config(root)
+            path = root / ".perry" / "config.jsonl"
+            for source, content in (
+                ("unreadable", b'{"kind": "setting", truncated\n'),
+                ("invalid", b'{"kind": "unknown"}\n'),
+            ):
+                with self.subTest(source=source):
+                    path.write_bytes(content)
+                    self.assertEqual(self.ps.parse_config(root)["settings_source"], source)
+                    result = subprocess.run(
+                        [str(PERRY_HOME / "bin" / "perry-config"), "show",
+                         "--root", str(root), "--json"], text=True, capture_output=True)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(path.read_bytes(), content)
 
 
 class TestEveryModeColumnHasAWriter(unittest.TestCase):

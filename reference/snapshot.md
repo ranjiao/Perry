@@ -159,6 +159,12 @@ still the contract `schema/` documents.
    rendering anything a human reads — the dashboard, the TL;DR, suggested
    actions, `AskUserQuestion` labels — substitute the mapped nouns.
 
+   Only `present: true` entries are active. Report unavailable selections as
+   unavailable; invalid/unreadable settings are unknown. Explicit `packs: []`
+   enables no pack. See `reference/config.md § Pack capabilities and controls`
+   for selection provenance and optional route/gate eligibility. Never infer
+   capability readiness from pack presence or ask to enable it at every snapshot.
+
    **It renames prose and nothing else.** File names, IDs, enum values, schema
    column keys, headings the schema matches on, and command names are invariant
    — a glossary that could move them would break every parser, and the loader

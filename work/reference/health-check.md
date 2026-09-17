@@ -6,6 +6,12 @@ A single ritual that surfaces all the drift signals at once. Designed to run at 
 
 ## What it runs
 
+Use `$PERRY_HOME/reference/config.md § Pack capabilities and controls` first.
+Scans 1, 2 and 4 are software-ops defaults: skip them when the pack is inactive,
+unless independently required by the project. Name retained requirements. Mark
+skipped sections “not run — pack inactive”, not zero findings; create no pack
+artifacts and ask no enablement question. Digests and task hygiene still run.
+
 In order:
 
 1. **`/pmo architecture-audit --quiet`** (`architecture.md`) — two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs `ARCHITECTURE.md`. Writes `architecture/audit-history/<YYYY-MM-DD>.md`. Also surfaces §7 open questions idle ≥30 days and §8 change-log entries from the last 30 days.
