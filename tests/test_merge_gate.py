@@ -142,6 +142,18 @@ class MergeGate(unittest.TestCase):
         self.assertNotEqual(p.returncode, 0)
         self.assertIn('pre-existing on the base', p.stdout)
 
+    def test_old_module_failure_does_not_hide_new_syntax_failure(self):
+        self.write('red', '1\n')
+        self.base = self.save()
+        self.branch('candidate', 'bin/perry-state', 'invalid syntax !\n')
+        p = self.gate('delivery=candidate')
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn('pre-existing on the base', p.stdout)
+        self.assertIn('test_probe.py', p.stdout)
+        self.assertIn('BROKEN ON ITS OWN', p.stdout)
+        self.assertIn('syntax:bin/perry-state', p.stdout)
+        self.assertNotIn('every failure above was already red', p.stdout)
+
     def test_red_candidate_is_named(self):
         self.branch('candidate', 'red', '1\n')
         p = self.gate('delivery=candidate')

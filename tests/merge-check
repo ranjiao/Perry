@@ -73,8 +73,8 @@ Full acceptance and recording
 Bare invocation and --tier full run bash tests/run --tier full, including its
 syntax/help stage and tree guard. --tier slow also includes harness self-tests.
 --checks is selected-check diagnosis only, never full acceptance. Any red full
-suite, including a pre-existing failure, refuses acceptance. Attribution may
-replay the full suite when a stage cannot be isolated to a module.
+suite, including a pre-existing failure, refuses acceptance. Typed stage outcomes preserve attribution alongside module failures; unknown
+stage/guard failures refuse without guessing their cause.
 
 --record DIR emits an external receipt.json and durations.json after a green
 run. It does not modify the caller, stage files, create a product commit or merge.
@@ -291,10 +291,18 @@ class Scratch:
 
 def run_check(scr: Scratch, name: str, j: int):
     """(verdict, detail lines) for one check on whatever is checked out."""
-    if name in ("suite:full", "suite:slow"):
-        tier = name.partition(":")[2]
-        p = sh(["bash", "tests/run", "--tier", tier], cwd=scr.dir, check=False)
-        return (GREEN if p.returncode == 0 else RED), plain(p.stdout + p.stderr).splitlines()[-15:]
+    kind, _, path = name.partition(":")
+    if kind in ("syntax", "help", "bash"):
+        target = scr.dir / path
+        if target.is_absolute() and scr.dir.resolve() not in target.resolve().parents:
+            raise RuntimeError("stage path is outside scratch checkout")
+        if not target.exists():
+            return ABSENT, []
+        cmd = (["python3", "-c", "import ast,sys; ast.parse(open(sys.argv[1]).read())", path]
+               if kind == "syntax" else ["bash", "-n", path] if kind == "bash"
+               else ["python3", path, "--help"])
+        p = sh(cmd, cwd=scr.dir, check=False)
+        return (GREEN if p.returncode == 0 else RED), plain(p.stdout + p.stderr).splitlines()[-8:]
     if name in LINT_CHECKS:
         cmd, needs = LINT_CHECKS[name]
         if not (scr.dir / needs).exists():
@@ -334,17 +342,29 @@ def sweep(scr: Scratch, j: int, only=None):
 
 
 def full_sweep(scr, tier, results, j=4):
-    command = ["bash", "tests/run", "--tier", tier, "--workers", str(j)]
+    command = ["bash", "tests/run", "--tier", tier, "--workers", str(j), "--report-checks"]
     if results is not None:
         command += ["--results", str(results)]
     p = sh(command, cwd=scr.dir, check=False)
     print(p.stdout, end="")
     print(p.stderr, end="", file=sys.stderr)
-    if p.returncode == 0:
+    text = plain(p.stdout + p.stderr)
+    red = [m.group(1) for line in text.splitlines()
+           if (m := RED_MODULE.match(line.strip()))]
+    guard_failed = False
+    stages = []
+    for line in text.splitlines():
+        match = re.fullmatch(r"PERRY_CHECK\t([^\t]+)\t([0-9]+)", line)
+        if match:
+            stages.append(match.group(1))
+            if int(match.group(2)):
+                if match.group(1).startswith("guard:"):
+                    guard_failed = True
+                else:
+                    red.append(match.group(1))
+    if p.returncode == 0 and not red and "guard:verify" in stages:
         return [], False
-    # The stage authority is tests/run. Replay it for attribution rather than
-    # pretending named unittest failures account for every failed shell stage.
-    return ["suite:" + tier], False
+    return list(dict.fromkeys(red)), guard_failed or not red
 
 
 def resolve_local(repo, ref):
@@ -566,6 +586,8 @@ def main() -> int:
             receipt["status"] = "diagnosis-only" if args.checks else "green"
             if output:
                 record_artifact(scr, output, results, receipt)
+                if not inputs_current(repo, receipt):
+                    raise RuntimeError("base or candidate moved during recording; no accepted receipt")
                 (output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
             print("RECEIPT " + json.dumps(receipt, sort_keys=True))
             print("✓ selected checks passed — NOT full acceptance" if args.checks else

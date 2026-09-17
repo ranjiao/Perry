@@ -90,6 +90,7 @@ tier=""
 tier_base=""
 tier_dry=""
 results_args=()
+report_checks=""
 if [ "${1:-}" = "--tier" ]; then
   tier="${2:-}"
   shift 2 2>/dev/null || shift $#
@@ -97,6 +98,7 @@ if [ "${1:-}" = "--tier" ]; then
     case "$1" in
       --base) tier_base="${2:-}"; shift 2 2>/dev/null || shift $# ;;
       --dry-run) tier_dry=1; shift ;;
+      --report-checks) report_checks=1; shift ;;
       --workers) results_args+=(-j "${2:?--workers needs a count}"); shift 2 ;;
       --results) results_args+=(--results "${2:?--results needs an external path}"); shift 2 ;;
       *) echo "tests/run --tier: unknown argument '$1'" >&2; exit 2 ;;
@@ -127,6 +129,18 @@ if [ "${1:-}" = "--tier" ]; then
     slow="--slow"
   fi
 fi
+
+# Optional typed stage outcomes for merge attribution; tests/run still owns
+# which commands constitute the complete suite.
+stage_check() {
+  local label="$1" rc=0
+  shift
+  "$@" || rc=$?
+  if [ -n "$report_checks" ]; then
+    printf 'PERRY_CHECK\t%s\t%s\n' "$label" "$rc" >&2
+  fi
+  return "$rc"
+}
 
 # ── step 0a: the environment the guard can see ─────────────────────────
 # **The guard hashes $ROOT and only $ROOT, so every write has to be aimed at
@@ -235,14 +249,14 @@ fi
 # "✓ all green" printed before the guard has spoken is a lie half the time.
 GUARD_MANIFEST="$(mktemp "${TMPDIR:-/tmp}/perry-tree-guard.XXXXXX")"
 step "0. tree guard — recording $ROOT"
-python3 tests/tree_guard.py snapshot "$ROOT" "$GUARD_MANIFEST"
+stage_check guard:snapshot python3 tests/tree_guard.py snapshot "$ROOT" "$GUARD_MANIFEST"
 echo "  · recorded"
 
 finish() {
   local rc=$?
   set +e
   step "0. tree guard — the tree the suite started in is the tree it ends in"
-  if python3 tests/tree_guard.py verify "$ROOT" "$GUARD_MANIFEST"; then
+  if stage_check guard:verify python3 tests/tree_guard.py verify "$ROOT" "$GUARD_MANIFEST"; then
     echo "  ✓ nothing under $ROOT moved"
   else
     fail=1
@@ -280,7 +294,7 @@ if [ -n "$tier_dry" ]; then
 fi
 
 step "1. schema drift guard (templates vs schema/state-schema.json)"
-python3 bin/perry-lint --templates || fail=1
+stage_check lint:templates python3 bin/perry-lint --templates || fail=1
 
 if [ "${1:-}" = "--lint" ]; then
   exit "$fail"
@@ -339,12 +353,12 @@ step "3. bin/ scripts are syntactically valid and self-documenting"
 for f in bin/perry-state bin/perry-lint bin/perry-diagnose bin/perry-explain \
          bin/perry-restore-check \
          templates/knowledge-base/bin/kb-lint templates/ops/bin/deliverable-lint; do
-  python3 -c "import ast,sys; ast.parse(open('$f').read())" || { echo "  ✗ $f does not parse"; fail=1; }
-  python3 "$f" --help >/dev/null 2>&1 || { echo "  ✗ $f --help failed"; fail=1; }
+  stage_check "syntax:$f" python3 -c "import ast,sys; ast.parse(open('$f').read())" || { echo "  ✗ $f does not parse"; fail=1; }
+  stage_check "help:$f" python3 "$f" --help >/dev/null || { echo "  ✗ $f --help failed"; fail=1; }
 done
 for f in bin/perry-detect-host bin/perry-update-check bin/perry-dispatch-limit \
          bin/perry-codex-preflight; do
-  bash -n "$f" || { echo "  ✗ $f does not parse"; fail=1; }
+  stage_check "bash:$f" bash -n "$f" || { echo "  ✗ $f does not parse"; fail=1; }
 done
 [ "$fail" = 0 ] && echo "  ✓ all bin/ scripts OK"
 
@@ -359,8 +373,8 @@ if [ "$tier" = "smoke" ] || [ "$tier" = "affected" ]; then
 fi
 
 step "4. sample projects lint clean (English and Chinese)"
-python3 bin/perry-lint --root tests/fixtures/sample-project || fail=1
-python3 bin/perry-lint --root tests/fixtures/sample-project-zh || fail=1
+stage_check lint:fixture-en python3 bin/perry-lint --root tests/fixtures/sample-project || fail=1
+stage_check lint:fixture-zh python3 bin/perry-lint --root tests/fixtures/sample-project-zh || fail=1
 
 # The banner and the exit status are `finish`'s, on the EXIT trap above.
 exit "$fail"
