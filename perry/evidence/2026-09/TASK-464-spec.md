@@ -1,7 +1,7 @@
 # TASK-464 — Pack capability discovery and project configuration
 
 Date: 2026-09-17. Owner: Coding Agent. Priority: P1. Verification: V3 plus independent scenario review.
-> Dispatch mode: manual
+> Dispatch mode: auto
 > Executor: codex
 > Estimated cycle: medium
 > Subjective verification: independent conversational scenario review
@@ -65,3 +65,7 @@ publication, KR edits and initialization orchestration (TASK-465).
 
 One bundled software-ops pack; existing configuration; discovery and lifecycle
 controls plus their conditional consumers. No arbitrary plugin platform.
+
+## Changes
+
+2026-09-17: user authorized progressing this task; dispatch enabled. No additional architecture or schema authority.
