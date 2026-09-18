@@ -50,7 +50,7 @@ overall template. Unknown state never proves this is a first OKR.
 The overall key results are records in `okr.jsonl`, each added once its version
 and objective exist with the `kr add` verb of `bin/perry-goals`
 (`--okr-version "<version>" --objective <O-id> --text "…"`, see
-`reference/phases.md § kr`), and printed by `perry-goals krs --level overall`.
+`phases.md § kr`), and printed by `perry-goals krs --level overall`.
 A KR typed into `OKR.md` as a table row or a bullet is not how one is added:
 every overall `kr` write refuses a file that still carries KR rows.
 This is the target document shape, not permission to bypass a missing writer.
