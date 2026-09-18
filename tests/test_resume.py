@@ -441,7 +441,7 @@ class TestStaleRuns(unittest.TestCase):
         readers end up disagreeing about when a run is stale."""
         t = self.SCHEMA["thresholds"]["stale_run_days"]
         self.assertEqual(t["value"], 30)
-        self.assertEqual(sorted(t["applies_to"]), ["adoption", "diagnosis"])
+        self.assertEqual(sorted(t["applies_to"]), ["adoption", "diagnosis", "plan"])
 
     def test_payload_carries_stale_and_its_threshold(self):
         for r in state(FIXTURE)["interrupted"]:

@@ -833,6 +833,10 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict,
     reader `perry-goals commit --migrate`, which WRITES. The template pass at
     the bottom of `main` passes nothing, because a lint of Perry's own shipped
     templates is not about a project and has no root to name."""
+    if spec.get("id") == "plan":
+        # No `spec_key`: a plan's one validator is its shared reader (TASK-444).
+        return [Finding("error", rel, "bad-plan", e) for e in P.parse_plan(
+            path.read_bytes(), "/".join(path.parts[-3:]))["errors"]]
     if spec.get("format") == "yaml-frontmatter":
         return check_frontmatter(path, rel, spec, enums, is_template)
 
@@ -5096,6 +5100,9 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
             return True
         return looks_like_perry_record(path, schema)
     stem = path.stem
+    # A plan's name is its grammar; its content is `bad-plan`'s (TASK-444).
+    if claim.get("path") == f"{P.PLAN_DIR}/" and P.PLAN_NAME.fullmatch(path.name):
+        return True
     # Perry names its own artifacts: DESIGN-001-…, ADR-002-…, 001-slug, dates.
     if lib.perry_named_artifact(stem) or re.match(r"^\d{3}-", stem):
         return True

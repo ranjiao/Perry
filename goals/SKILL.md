@@ -27,7 +27,8 @@ This `SKILL.md` is intentionally lean: it holds what runs on **every** invocatio
 | Reference file | Loaded when running |
 |---|---|
 | `reference/setup.md` | `init`, `revise` (overall `OKR.md` creation + versioning) |
-| `reference/elicitation.md` | `init`, `revise`, `plan-phase`, `commit`: horizon/spine routing, answer reuse, premise/escape and shared questions → visible draft; no persistence/finalize claim |
+| `reference/elicitation.md` | `init`, `revise`, `plan-phase`, `commit`: horizon/spine routing, answer reuse, premise/escape and shared questions → visible draft; no finalize claim |
+| `reference/planning.md` | `init`, and `/perry plan` on an existing draft: the `plans/` draft saved, reviewed, approved and resumed through `perry-goals draft`; finalize unavailable |
 | `reference/phases.md` | `plan-phase`, `score-phase`, `snapshot` (the phase cadence + the ten mandatory sections) |
 | `reference/weekly.md` | `plan-week` (the PMO hand-off) |
 | `reference/linkage.md` | `link` — owning `linkage.jsonl`: accepting PMO's attribution hand-off, aliases, unlinked |
@@ -53,7 +54,7 @@ Voice: interview-style, Socratic, friction-friendly. Perry-the-OKR-partner pushe
 
 ## Companion skills
 
-Pairs with **`pmo`** and **`design`**. Hand-off rules: **OKR proposes weekly tasks tagged with KR ids. PMO writes the task record + the journal entry for each one after user approval.** OKR is the only writer of `OKR.md` and `phase/` — **including `OKR.md § Commitments`**, the spine for pipeline- and queue-mode tracks (`modes/pipeline.md`, `modes/queue.md`). Those modes read it and never write it. A commitment to a named party is a goal; a KR is the special case where the party is the project itself, which is why the two live in one file under one writer. What those modes disclaim is the objectives→KRs *cascade*, not the goals file. Ownership settled 2026-08-16 after a V4 review found the section was being written by two modes and claimed by no lane. PMO is the only writer of `tasks.jsonl`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`. `decisions/` moved to `decide` on 2026-08-16 by the signed hand-off contract — no lane but `decide` writes it. `design` is the only writer of `design/<DESIGN-ID>-<slug>.md`; it reads `OKR.md` / `phase/` for goal context and links each locked design to a KR. OKR never writes PMO or design files.
+Pairs with **`pmo`** and **`design`**. Hand-off rules: **OKR proposes weekly tasks tagged with KR ids. PMO writes the task record + the journal entry for each one after user approval.** OKR is the only writer of `OKR.md` and `phase/` — **including `OKR.md § Commitments`**, the spine for pipeline- and queue-mode tracks (`modes/pipeline.md`, `modes/queue.md`). Those modes read it and never write it. A commitment to a named party is a goal; a KR is the special case where the party is the project itself, which is why the two live in one file under one writer. What those modes disclaim is the objectives→KRs *cascade*, not the goals file. Ownership settled 2026-08-16 after a V4 review found the section was being written by two modes and claimed by no lane. OKR also writes its planning drafts in `plans/` (DESIGN-020 decision 5). PMO is the only writer of `tasks.jsonl`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`. `decisions/` moved to `decide` on 2026-08-16 by the signed hand-off contract — no lane but `decide` writes it. `design` is the only writer of `design/<DESIGN-ID>-<slug>.md`; it reads `OKR.md` / `phase/` for goal context and links each locked design to a KR. OKR never writes PMO or design files.
 
 ## When this skill activates
 
@@ -120,7 +121,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 
 | Subcommand | One-line | Reference |
 |---|---|---|
-| `init` | First-OKR question bank → visible draft + rubric; finalize is a separate boundary | `reference/setup.md` |
+| `init` | First-OKR question bank → saved `plans/` draft, review + rubric, explicit approval; finalize unavailable | `reference/setup.md` + `reference/planning.md` |
 | `revise` | Discuss material changes → proposed new version; reviewed approval and an available writer are separate requirements | `reference/setup.md` |
 | `commit <promise>` | Use shared discussion for missing terms (≤3 questions); an explicit approved create/amend uses **`bin/perry-goals commit`** for `OKR.md § Commitments`. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/elicitation.md` + `reference/phases.md` |
 | `plan-phase <slug>` | Shared discussion (≤5 questions) → ten-section phase draft, reusing approved overall goals and prior learning. Approval and an available phase writer are required to activate; no manual phase/CURRENT or KR writes. Relevant commitments are context, not automatically renewed | `reference/phases.md` + `reference/elicitation.md` |
@@ -169,9 +170,9 @@ edits that table in place — never re-rendering the file — mints `<track>/<n>
 ids that are never reused, checks the typed `Due` against the track's mode, refuses
 to silently re-date a missed promise, and appends an event to
 `.perry/events.jsonl` for every write. Full rules and the exact commands:
-`reference/phases.md § commit <promise>`. The other goal procedures remain lane-owned; `init` currently produces the
-first-OKR draft and rubric feedback (`reference/setup.md`), not a claim of a
-finalize writer. The tier-1 cap and lint rules still apply to supported writes.
+`reference/phases.md § commit <promise>`. The other goal procedures remain lane-owned; `init` produces a saved,
+reviewable first-OKR draft through `bin/perry-goals draft`
+(`reference/planning.md`), not a claim of a finalize writer. The tier-1 cap and lint rules still apply to supported writes.
 
 ## Bootstrap
 

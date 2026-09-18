@@ -103,6 +103,7 @@ Each fact is a value `perry-state` already computes, or the clock
 | Fact | From |
 |---|---|
 | `installed`, `recovery.blocking`, `recovery.first_path`, `interrupted.*` | the payload's `installed`, `recovery`, `interrupted` |
+| `drafts.drafted` | `drafts.drafted`: drafted plans, plus approved ones whose content changed; unknown while a plan is unreadable (`drafts.errors` names it; it never triggers `R-recovery`) |
 | `okr.present`, `okr.version` | `okr` |
 | `phase.status`, `phase.number`, `phase.day` | `phase` |
 | `phase.kr_progress.*` | `linkage.objectives[].krs[]`: `current`, `target` and `stretch` of the current phase's key results |
@@ -123,7 +124,7 @@ commit key result, or when any of them is unmeasured.
 
 **Always unknown in this release**, because nothing computes them yet:
 
-- `week.planned` and `drafts.drafted` — no source until `TASK-444`.
+- `week.planned` — no source until `TASK-444` records a finalized week.
 - `commitments.due` — `perry-state` does not compute which commitments are due.
 - `phase.days_since_snapshot` — `perry-state` computes no date for the last
   phase snapshot.
@@ -145,9 +146,13 @@ interrupted-run gate exists`).
 
 ### R-draft-waiting
 
-A plan draft is written and waiting for approval. That approval comes before any
-new work is planned. Drafts have no source until `TASK-444`, so this overlay
-never fires yet. It adds `drafts.drafted` to `unknown[]` instead.
+A plan draft is written and waiting for review: `drafted`, or approved and
+changed since. That approval comes before any new work is planned. `/perry
+plan` here means only: resume that draft through
+`goals/reference/planning.md` — re-read it, show the path and summary, ask.
+There is no planning router for a new horizon yet; with no draft, the direct
+entrances (`/perry goals init`) apply. An approved, unchanged draft fires
+nothing: its finalize writer does not exist, and nothing finalizes on startup.
 
 ### R-setup
 

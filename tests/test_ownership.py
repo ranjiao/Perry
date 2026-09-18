@@ -320,6 +320,8 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
         # rendered from it, which is why the card is what the contract
         # names.
         ".perry/roles/*.md": ".perry/roles/",
+        # DESIGN-020 decision 5 (2026-09-14), not the 2026-08-16 signature.
+        "plans/*/*.md": "plans/",
     }
 
     # Schema-declared, lane-owned, and NOT named in the signed contract table.

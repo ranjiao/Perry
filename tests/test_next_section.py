@@ -376,7 +376,7 @@ class TestAnUnknownFactNeverFires(Fixtures):
                 {"fact": "commitments.due", "op": "gt", "value": 0}]}},
             {"id": "R-all-unknown", "when": {"all": [
                 {"fact": "installed", "op": "eq", "value": True},
-                {"fact": "drafts.drafted", "op": "gt", "value": 0}]}},
+                {"fact": "phase.days_since_snapshot", "op": "gt", "value": 0}]}},
             {"id": "R-any-true", "when": {"any": [
                 {"fact": "week.planned", "op": "eq", "value": False},
                 {"fact": "installed", "op": "eq", "value": True}]}},
@@ -384,7 +384,7 @@ class TestAnUnknownFactNeverFires(Fixtures):
         block = self.next_of("okr_no_phase", rules_path=path)
         self.assertEqual("R-any-true", block["primary"]["rule"])
         self.assertEqual(["installed=true"], block["primary"]["facts"])
-        self.assertEqual({"drafts.drafted": ["R-all-unknown"]},
+        self.assertEqual({"phase.days_since_snapshot": ["R-all-unknown"]},
                          {u["fact"]: u["rules"] for u in block["unknown"]})
 
     def test_the_phase_heartbeat_is_declared_and_its_fact_is_unknown(self):
