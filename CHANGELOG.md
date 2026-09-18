@@ -2,6 +2,44 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.16 — 2026-09-18
+
+patch · phase 004-guided · TASK-457 · delivery TASK-457-rebased-20260918
+
+### Changes
+
+Five subcommands carry a declared, read-only context bill (DESIGN-017 E2): `perry-context-budget --bill <snapshot|add-task|close-task|dispatch|plan-phase>` sums L0, the lane file and the L2 pages its index row names, and each bill has a pinned budget that a test enforces. Plan-phase's budget is 110,000 bytes (measured 107,747) after main's planning content grew it.
+
+
+### Upgrade notes
+
+The bill measures declared bytes, not tokens or dynamic reads. It does no session discovery. Local allocation only; no public release.
+
+
+### Breaking changes
+
+None.
+
+
+## 0.1.15 — 2026-09-18
+
+patch · phase 004-guided · TASK-456 · delivery TASK-456-rebased-20260918
+
+### Changes
+
+Shipped prose gets per-tier byte budgets (DESIGN-017 E1): L2 reference pages are capped at 32,768 bytes and L3 pages at 24,576, and a page over its tier turns the suite red. The three over-budget pages (work/reference/subcommands.md, work/reference/dispatch.md, reference/diagnose.md) are split along their own sections with every section preserved and every exact reference re-pointed. The root SKILL.md relocate paragraph is a pointer to reference/router-subcommands.md, which carries its rules and reasons.
+
+
+### Upgrade notes
+
+Links into the three split pages now resolve to their new part pages; old section anchors are re-pointed in shipped files. Local allocation only; no public release.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.14 — 2026-09-18
 
 patch · phase 004-guided · TASK-264 · delivery TASK-264-D3-20260918
