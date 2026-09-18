@@ -1,0 +1,32 @@
+{
+  "actualbase": "572a7636dfef43483b04357c5fab4d2d813bf619",
+  "delivery": "ded43b71ac085039f9bb0124551297f6780e999e",
+  "preparedhead": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
+  "finalhead": "17b7e23b8b3441fd50233c37183e8e9b30e7c8a4",
+  "gate_input_ref": "codex/planning-discussion-gate-input-20260917",
+  "integration_branch": "codex/integrate-planning-discussion-20260917",
+  "main_ref_observed": "572a7636dfef43483b04357c5fab4d2d813bf619",
+  "status": "integration gates passed; independent architecture judgment and PMO main merge remain separate",
+  "full_summary": [
+    "154 modules \u00b7 4299 tests \u00b7 235.0s \u00b7 4 workers"
+  ],
+  "receipt_verification_summary": [
+    "1 modules \u00b7 27 tests \u00b7 0.3s \u00b7 8 workers"
+  ],
+  "slow_summary": [
+    "158 modules \u00b7 4402 tests \u00b7 284.2s \u00b7 4 workers"
+  ],
+  "slow_modules": 158,
+  "slow_tests": 4402,
+  "sha256": {
+    "prepared.json": "062dd1ea817b0323cd59c052af9380a950166f3f7d4ad64f180b21070793a288",
+    "gate/receipt.json": "3f77a5eedd5e7500f63bb4c7f52a47747239d648742cd07e25f8aacc01ec0fb7",
+    "gate/durations.json": "f5a7fc1290097ad8a350b42140c4e4a2dea95bfb2edbc3c724c2f3065f0eef24",
+    "full.log": "e0fbe47501e6a64a22179eb4afda48da7fa43532f19bf456319c7e2f7eebb506",
+    "verify-receipt.log": "83f64679f7b9980e165751b2903eb8707471ea00e966014025127dda885912ea",
+    "slow.log": "12df5bf88c07a638644ce8f1c29d4836282924f224cb39779e751b3c4f60de3f",
+    "slow-results.json": "2de3bdf95f23ff4efd3d15188fa517a437b456621709cdfd002ff6422aed7fbf",
+    "release-final.log": "6e2c326fc3d99cd6a4a43e5de4d04628cb883d185f90d49e07f00435fcbf8925"
+  },
+  "completed_at": "2026-09-17T12:10:05.891585+00:00"
+}

@@ -1,0 +1,6 @@
+Merge made by the 'ort' strategy.
+ goals/SKILL.md                 |   8 +-
+ goals/reference/elicitation.md | 189 ++++++++++++++++++++++++++++++++++++-----
+ goals/reference/phases.md      | 169 ++++++++++++++++++++++++++++--------
+ goals/reference/setup.md       |  52 ++++++++----
+ 4 files changed, 341 insertions(+), 77 deletions(-)

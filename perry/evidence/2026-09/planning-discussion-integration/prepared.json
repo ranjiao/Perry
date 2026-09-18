@@ -1,0 +1,17 @@
+{
+  "actualbase": "572a7636dfef43483b04357c5fab4d2d813bf619",
+  "preparedhead": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
+  "delivery": "ded43b71ac085039f9bb0124551297f6780e999e",
+  "integration_branch": "codex/integrate-planning-discussion-20260917",
+  "gate_input_ref": "codex/planning-discussion-gate-input-20260917",
+  "merge_commit": "e42de86a06bcafeab723ab7d7496885eae16a7bd",
+  "prepared_tree": "1e3abd167e0eeccb0acb8ddb2a271fb43f6f3058",
+  "created_at": "2026-09-17T12:00:19.732341+00:00",
+  "version_allocations": {
+    "TASK-192": "0.1.10",
+    "TASK-193": "0.1.11",
+    "TASK-194": "0.1.12"
+  },
+  "architecture_review": "independent review required; no self-award",
+  "scope": "local integration only; main merge, push, tag and publication excluded"
+}

@@ -1,0 +1,355 @@
+{
+  "base": "572a7636dfef43483b04357c5fab4d2d813bf619",
+  "prepared": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
+  "delivery": "ded43b71ac085039f9bb0124551297f6780e999e",
+  "review_checkout": "/private/tmp/perry-scratch/Perry/okr-isolated-20260917/integrate-planning-review",
+  "at": "2026-09-17T12:04:58.904682+00:00",
+  "paths": [
+    "CHANGELOG.md",
+    "VERSION",
+    "goals/SKILL.md",
+    "goals/reference/elicitation.md",
+    "goals/reference/phases.md",
+    "goals/reference/setup.md",
+    "release/records.jsonl"
+  ],
+  "goals": {
+    "goals/SKILL.md": {
+      "equals_delivery": true,
+      "base_bytes": 21964,
+      "prepared_bytes": 22049,
+      "sha256": "d8485667c22a99cb10a4deabd96a60eeb44580074c09328ae9ae0b1c22e59bf9"
+    },
+    "goals/reference/elicitation.md": {
+      "equals_delivery": true,
+      "base_bytes": 14107,
+      "prepared_bytes": 25388,
+      "sha256": "3aba42a730144020ea52819756474b6bbf804824c3b41b50668f5cf3db612d6a"
+    },
+    "goals/reference/phases.md": {
+      "equals_delivery": true,
+      "base_bytes": 25222,
+      "prepared_bytes": 28389,
+      "sha256": "f8ecdbb2d9848061052dee18d6a81b4d206eb206b1330e01c13a6adabedec31b"
+    },
+    "goals/reference/setup.md": {
+      "equals_delivery": true,
+      "base_bytes": 4546,
+      "prepared_bytes": 5922,
+      "sha256": "f30c4588891ce7f405a055a4fb83bf1322c620f587b0fb03bf49c8a731e97eb1"
+    }
+  },
+  "context": {
+    "ARCHITECTURE.md": {
+      "same_as_base": true,
+      "blob": "169dc2ff91d62b585de4fb47f6b384e70938688b",
+      "sha256": "9ec42ef11570db157b309dd2c6dc1a880ebb2bd51858ac0d9cd86e3e749ae561"
+    },
+    "perry/design/DESIGN-017-the-architecture-document-is-written-by-the-agent.md": {
+      "same_as_base": true,
+      "blob": "2e46a6d57191f0f4e9bd41444df292614a4fb046",
+      "sha256": "e423d287bd2f4625775b8bf7930db1dfe61c25c015905fc07550e4590454b9e9"
+    },
+    "release/README.md": {
+      "same_as_base": true,
+      "blob": "48f8b3bd114ce42be7aaaf905584c2d91dcffc87",
+      "sha256": "fdcf96cf88c08fcae84d1dd9415bccdd9f5904ff4133bf2800ab0d225a993553"
+    },
+    "tests/merge-check": {
+      "same_as_base": true,
+      "blob": "47c904b5f177f8f83e1eda8230d1609a7a41316d",
+      "sha256": "ec2f5c77c3a50a436b4788597f17ce4f0b8887e3a6333de855a9bc535729e2ec"
+    },
+    "reference/input-quality.md": {
+      "same_as_base": true,
+      "blob": "576025db7f7d35e2d2b173c8a45520ef19d5f6ba",
+      "sha256": "399cdb615d6ae7b87c5a82f5a2e26e82d9951607b0e39ac9d5bce50465a74e88"
+    }
+  },
+  "base_top_dirs": [
+    ".github",
+    ".perry",
+    ".vscode",
+    "bin",
+    "decide",
+    "goals",
+    "modes",
+    "packs",
+    "perry",
+    "reference",
+    "release",
+    "schema",
+    "state",
+    "templates",
+    "tests",
+    "viewer",
+    "work"
+  ],
+  "base_trees": {
+    "bin": "9f1d28d3a8ba195350beaa25a398d7af1e83d451",
+    "schema": "2a841390b5dff72587826e649d6b09b4f36840c5"
+  },
+  "base_missing_tests_readme": true,
+  "base_duration_declarations": {
+    "schema": 1
+  },
+  "base_contract_headers": {
+    "schema/asks-list-contract.md": [
+      "# `perry-task asks --all --json` \u2014 `perry-asks/list/1.4`",
+      "",
+      "The User Input Queue as a query. By default the **open** asks; with `--all`,",
+      "every ask Perry has recorded, and for each answered one **when** it was",
+      "answered and **what** the answer was.",
+      "",
+      "## Why this exists rather than widening `list`",
+      "",
+      "`perry-task list --json \u00a7 asks.items` is the *needs-you* list, and it leaves",
+      "answered asks out **by design**. Its contract row reads \"the unanswered asks\","
+    ],
+    "schema/decide-list-contract.md": [
+      "# `perry-decide list --json` \u2014 the decisions contract",
+      "",
+      "> Contract: **`perry-decide/list/2.2`**",
+      "> Locked by `tests/test_decide_writer.py \u00a7 TestListContract`.",
+      "> DESIGN-005 \u00a7 6 step 1.",
+      "",
+      "The second of Perry's three read contracts. Versioned independently of",
+      "`perry-task/list/*` on purpose (DESIGN-005 \u00a7 4 decision 5): a consumer that",
+      "reads tasks should not have to re-check its code because the decisions payload",
+      "gained a field."
+    ],
+    "schema/events-list-contract.md": [
+      "# `perry-task events --json` \u2014 `perry-events/list/1.4`",
+      "",
+      "The event log's **tail**, in **log order**, with a cursor you can page on.",
+      "`--limit N` is the **newest** N events; the cursor walks **backwards** from",
+      "there into older ones. Until 1.1 the first page was the log's head while this",
+      "line said tail \u2014 see `semantics` and the Changelog.",
+      "",
+      "## Why this exists rather than `--limit` on `list`",
+      "",
+      "`list` was the obvious place and it is the wrong one. **Three of its fields are"
+    ],
+    "schema/goals-list-contract.md": [
+      "# `perry-goals list --json` \u2014 the goals contract",
+      "",
+      "> Contract: **`perry-goals/list/3.5`**",
+      "> Locked by `tests/test_goals_contract.py`.",
+      "> DESIGN-005 \u00a7 6 step 2.",
+      "",
+      "The third of Perry's read contracts, and the last one a front-end needs before",
+      "it can show a whole project \u2014 tasks, decisions, goals \u2014 without opening a single",
+      "markdown file.",
+      ""
+    ],
+    "schema/knowledge-list-contract.md": [
+      "# `perry-knowledge list --json` \u2014 `perry-knowledge/list/1.3`",
+      "",
+      "The read side of the knowledge card store: every card under `knowledge/`, the",
+      "five provenance fields each one carries, and whether it is past its",
+      "re-verification window. Read-only, computed from the files on every call,",
+      "stored nowhere.",
+      "",
+      "**Why this page exists, given the payload already shipped.** `perry-knowledge`",
+      "has emitted this contract since the store was built, and a consumer asked for",
+      "it anyway \u2014 because a tool that emits a `contract:` string and has no document"
+    ],
+    "schema/next-contract.md": [
+      "# `perry-state --section next` \u2014 `perry-next/1.0`",
+      "",
+      "Where a project stands on Perry's sequence, and the one step to take next. It",
+      "is computed on every call from values `perry-state` already reads, plus the",
+      "clock, and it is stored nowhere. `reference/next.md` says why each rule exists",
+      "and how an agent renders the block. `reference/next-rules.json` is the rule",
+      "table itself.",
+      "",
+      "**The command decides and the renderer does not.** A consumer shows `position`,",
+      "`primary` and `alternates` as they are. It never reorders, adds or drops a"
+    ],
+    "schema/roles-list-contract.md": [
+      "# `perry-state --json \u00a7 roles` \u2014 `perry-roles/list/1.1`",
+      "",
+      "The roster a front-end renders: which roles a project declares, and what each",
+      "one is allowed to do. Read-only, computed on every call, stored nowhere.",
+      "",
+      "**Why this has a version and the rest of `perry-state` does not.** aiMark was",
+      "asked, in the 2026-08-18 hand-off, whether it depended on this payload. It does,",
+      "and it named the six fields it renders. **A payload a front-end renders and",
+      "nothing promises is a promise made by accident** \u2014 so those six are frozen here",
+      "and everything else in the block is explicitly not."
+    ],
+    "schema/task-list-contract.md": [
+      "# `perry-task list --json` \u2014 the front-end contract",
+      "",
+      "> Contract: **`perry-task/list/2.4`**",
+      "> Locked by `tests/test_task_writer.py \u00a7 TestListContract`.",
+      "> Consumers today: aimark.",
+      "",
+      "This is the one interface a program outside Perry should read task state",
+      "through. It is versioned separately from Perry itself, because its entire",
+      "purpose is to **not move when Perry's storage does**.",
+      ""
+    ]
+  },
+  "prepared_top_dirs": [
+    ".github",
+    ".perry",
+    ".vscode",
+    "bin",
+    "decide",
+    "goals",
+    "modes",
+    "packs",
+    "perry",
+    "reference",
+    "release",
+    "schema",
+    "state",
+    "templates",
+    "tests",
+    "viewer",
+    "work"
+  ],
+  "prepared_trees": {
+    "bin": "9f1d28d3a8ba195350beaa25a398d7af1e83d451",
+    "schema": "2a841390b5dff72587826e649d6b09b4f36840c5"
+  },
+  "prepared_missing_tests_readme": true,
+  "prepared_duration_declarations": {
+    "schema": 1
+  },
+  "prepared_contract_headers": {
+    "schema/asks-list-contract.md": [
+      "# `perry-task asks --all --json` \u2014 `perry-asks/list/1.4`",
+      "",
+      "The User Input Queue as a query. By default the **open** asks; with `--all`,",
+      "every ask Perry has recorded, and for each answered one **when** it was",
+      "answered and **what** the answer was.",
+      "",
+      "## Why this exists rather than widening `list`",
+      "",
+      "`perry-task list --json \u00a7 asks.items` is the *needs-you* list, and it leaves",
+      "answered asks out **by design**. Its contract row reads \"the unanswered asks\","
+    ],
+    "schema/decide-list-contract.md": [
+      "# `perry-decide list --json` \u2014 the decisions contract",
+      "",
+      "> Contract: **`perry-decide/list/2.2`**",
+      "> Locked by `tests/test_decide_writer.py \u00a7 TestListContract`.",
+      "> DESIGN-005 \u00a7 6 step 1.",
+      "",
+      "The second of Perry's three read contracts. Versioned independently of",
+      "`perry-task/list/*` on purpose (DESIGN-005 \u00a7 4 decision 5): a consumer that",
+      "reads tasks should not have to re-check its code because the decisions payload",
+      "gained a field."
+    ],
+    "schema/events-list-contract.md": [
+      "# `perry-task events --json` \u2014 `perry-events/list/1.4`",
+      "",
+      "The event log's **tail**, in **log order**, with a cursor you can page on.",
+      "`--limit N` is the **newest** N events; the cursor walks **backwards** from",
+      "there into older ones. Until 1.1 the first page was the log's head while this",
+      "line said tail \u2014 see `semantics` and the Changelog.",
+      "",
+      "## Why this exists rather than `--limit` on `list`",
+      "",
+      "`list` was the obvious place and it is the wrong one. **Three of its fields are"
+    ],
+    "schema/goals-list-contract.md": [
+      "# `perry-goals list --json` \u2014 the goals contract",
+      "",
+      "> Contract: **`perry-goals/list/3.5`**",
+      "> Locked by `tests/test_goals_contract.py`.",
+      "> DESIGN-005 \u00a7 6 step 2.",
+      "",
+      "The third of Perry's read contracts, and the last one a front-end needs before",
+      "it can show a whole project \u2014 tasks, decisions, goals \u2014 without opening a single",
+      "markdown file.",
+      ""
+    ],
+    "schema/knowledge-list-contract.md": [
+      "# `perry-knowledge list --json` \u2014 `perry-knowledge/list/1.3`",
+      "",
+      "The read side of the knowledge card store: every card under `knowledge/`, the",
+      "five provenance fields each one carries, and whether it is past its",
+      "re-verification window. Read-only, computed from the files on every call,",
+      "stored nowhere.",
+      "",
+      "**Why this page exists, given the payload already shipped.** `perry-knowledge`",
+      "has emitted this contract since the store was built, and a consumer asked for",
+      "it anyway \u2014 because a tool that emits a `contract:` string and has no document"
+    ],
+    "schema/next-contract.md": [
+      "# `perry-state --section next` \u2014 `perry-next/1.0`",
+      "",
+      "Where a project stands on Perry's sequence, and the one step to take next. It",
+      "is computed on every call from values `perry-state` already reads, plus the",
+      "clock, and it is stored nowhere. `reference/next.md` says why each rule exists",
+      "and how an agent renders the block. `reference/next-rules.json` is the rule",
+      "table itself.",
+      "",
+      "**The command decides and the renderer does not.** A consumer shows `position`,",
+      "`primary` and `alternates` as they are. It never reorders, adds or drops a"
+    ],
+    "schema/roles-list-contract.md": [
+      "# `perry-state --json \u00a7 roles` \u2014 `perry-roles/list/1.1`",
+      "",
+      "The roster a front-end renders: which roles a project declares, and what each",
+      "one is allowed to do. Read-only, computed on every call, stored nowhere.",
+      "",
+      "**Why this has a version and the rest of `perry-state` does not.** aiMark was",
+      "asked, in the 2026-08-18 hand-off, whether it depended on this payload. It does,",
+      "and it named the six fields it renders. **A payload a front-end renders and",
+      "nothing promises is a promise made by accident** \u2014 so those six are frozen here",
+      "and everything else in the block is explicitly not."
+    ],
+    "schema/task-list-contract.md": [
+      "# `perry-task list --json` \u2014 the front-end contract",
+      "",
+      "> Contract: **`perry-task/list/2.4`**",
+      "> Locked by `tests/test_task_writer.py \u00a7 TestListContract`.",
+      "> Consumers today: aimark.",
+      "",
+      "This is the one interface a program outside Perry should read task state",
+      "through. It is versioned separately from Perry itself, because its entire",
+      "purpose is to **not move when Perry's storage does**.",
+      ""
+    ]
+  },
+  "release_append_only": true,
+  "release_additions": [
+    {
+      "version": "0.1.10",
+      "date": "2026-09-17",
+      "kind": "patch",
+      "phase": "004-guided",
+      "task": "TASK-192",
+      "delivery": "TASK-192-discussion-20260917",
+      "integrator": "PMO-Agent",
+      "decision": null
+    },
+    {
+      "version": "0.1.11",
+      "date": "2026-09-17",
+      "kind": "patch",
+      "phase": "004-guided",
+      "task": "TASK-193",
+      "delivery": "TASK-193-discussion-20260917",
+      "integrator": "PMO-Agent",
+      "decision": null
+    },
+    {
+      "version": "0.1.12",
+      "date": "2026-09-17",
+      "kind": "patch",
+      "phase": "004-guided",
+      "task": "TASK-194",
+      "delivery": "TASK-194-discussion-20260917",
+      "integrator": "PMO-Agent",
+      "decision": null
+    }
+  ],
+  "release_exact_fields": true,
+  "release_unique_deliveries": true,
+  "version_bytes": "b'0.1.12\\n'"
+}

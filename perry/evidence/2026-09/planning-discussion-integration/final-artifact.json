@@ -1,0 +1,22 @@
+{
+  "actualbase": "572a7636dfef43483b04357c5fab4d2d813bf619",
+  "preparedhead": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
+  "finalhead": "17b7e23b8b3441fd50233c37183e8e9b30e7c8a4",
+  "artifact_only_delta": [
+    "tests/durations.json"
+  ],
+  "frozen_ref_unchanged": true,
+  "deferred_module_records_preserved": [
+    "test_durations_provenance.py",
+    "test_merge_gate.py",
+    "test_parallel_runner.py",
+    "test_tree_guard.py"
+  ],
+  "sha256": {
+    "prepared.json": "062dd1ea817b0323cd59c052af9380a950166f3f7d4ad64f180b21070793a288",
+    "gate/receipt.json": "3f77a5eedd5e7500f63bb4c7f52a47747239d648742cd07e25f8aacc01ec0fb7",
+    "gate/durations.json": "f5a7fc1290097ad8a350b42140c4e4a2dea95bfb2edbc3c724c2f3065f0eef24",
+    "verify-receipt.log": "83f64679f7b9980e165751b2903eb8707471ea00e966014025127dda885912ea"
+  },
+  "architecture_review": "separate reviewer owns judgment; not self-awarded"
+}

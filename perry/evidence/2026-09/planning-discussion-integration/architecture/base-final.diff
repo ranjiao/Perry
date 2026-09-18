@@ -1,0 +1,1629 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 8a5bc56e..69dd111a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,63 @@
+
+ Generated from release/records.jsonl; edit records through the release tool.
+
++## 0.1.12 — 2026-09-17
++
++patch · phase 004-guided · TASK-194 · delivery TASK-194-discussion-20260917
++
++### Changes
++
++Phase planning reuses the shared response-sensitive interview and approved overall wording or prior learning to produce a ten-section phase draft. Approval of the current phase draft is separate from overall approval and from activation. The procedure discloses the unavailable phase writer and forbids manual phase, pointer or KR-store writes to bypass that boundary.
++
++
++### Upgrade notes
++
++This local allocation supplies discussion instructions only. Planning-draft persistence and full overall/phase writers are not supplied; there is no automatic finalize, phase activation or week start. Overall and phase drafts remain unfinalized until the owning approval/persistence/writer flow supports the requested operation. The existing commitment writer is usable only for supported explicitly approved operations with required terms. This allocation does not accept a real-user interview or constitute a public release.
++
++
++### Breaking changes
++
++None.
++
++
++## 0.1.11 — 2026-09-17
++
++patch · phase 004-guided · TASK-193 · delivery TASK-193-discussion-20260917
++
++### Changes
++
++Goal discussions propagate user corrections into dependent proposals, review meaningful premises against the current draft, and preserve accepted intent, rejected suggestions and unknowns. The bounded refusal escape offers only the remaining consequential questions within budget and yields an incomplete draft on a second refusal. Premise review, draft edits and approval remain separate; the advisory rubric is unchanged.
++
++
++### Upgrade notes
++
++This local allocation supplies discussion instructions only. Planning-draft persistence and full overall/phase writers are not supplied; there is no automatic finalize, phase activation or week start. Overall and phase drafts remain unfinalized until the owning approval/persistence/writer flow supports the requested operation. The existing commitment writer is usable only for supported explicitly approved operations with required terms. This allocation does not accept a real-user interview or constitute a public release.
++
++
++### Breaking changes
++
++None.
++
++
++## 0.1.10 — 2026-09-17
++
++patch · phase 004-guided · TASK-192 · delivery TASK-192-discussion-20260917
++
++### Changes
++
++Goal discussions route by the requested horizon and declared track spine, reusing explicit answers and accepted wording with their sources. First-OKR, revision, phase and commitment routes share the question bank with bounded question budgets. Commitment handoff asks only for missing or changed terms: already supplied To whom and Due are reused, and an explicit complete create/amend instruction can already authorize the existing commitment writer.
++
++
++### Upgrade notes
++
++This local allocation supplies discussion instructions only. Planning-draft persistence and full overall/phase writers are not supplied; there is no automatic finalize, phase activation or week start. Overall and phase drafts remain unfinalized until the owning approval/persistence/writer flow supports the requested operation. The existing commitment writer is usable only for supported explicitly approved operations with required terms. This allocation does not accept a real-user interview or constitute a public release.
++
++
++### Breaking changes
++
++None.
++
++
+ ## 0.1.9 — 2026-09-17
+
+ patch · phase 004-guided · TASK-466 · delivery TASK-466-first-okr-response-propagation-20260917
+diff --git a/VERSION b/VERSION
+index 1a030947..0e24a92f 100644
+--- a/VERSION
++++ b/VERSION
+@@ -1 +1 @@
+-0.1.9
++0.1.12
+diff --git a/goals/SKILL.md b/goals/SKILL.md
+index 57a1cfc3..56f7fdc2 100644
+--- a/goals/SKILL.md
++++ b/goals/SKILL.md
+@@ -27,7 +27,7 @@ This `SKILL.md` is intentionally lean: it holds what runs on **every** invocatio
+ | Reference file | Loaded when running |
+ |---|---|
+ | `reference/setup.md` | `init`, `revise` (overall `OKR.md` creation + versioning) |
+-| `reference/elicitation.md` | `init` only: first-OKR interview questions, drafted answers and visible draft; no persistence/finalize claim |
++| `reference/elicitation.md` | `init`, `revise`, `plan-phase`, `commit`: horizon/spine routing, answer reuse, premise/escape and shared questions → visible draft; no persistence/finalize claim |
+ | `reference/phases.md` | `plan-phase`, `score-phase`, `snapshot` (the phase cadence + the ten mandatory sections) |
+ | `reference/weekly.md` | `plan-week` (the PMO hand-off) |
+ | `reference/linkage.md` | `link` — owning `linkage.jsonl`: accepting PMO's attribution hand-off, aliases, unlinked |
+@@ -121,9 +121,9 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
+ | Subcommand | One-line | Reference |
+ |---|---|---|
+ | `init` | First-OKR question bank → visible draft + rubric; finalize is a separate boundary | `reference/setup.md` |
+-| `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
+-| `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `Due` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
+-| `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the phase's `objective` and `kr` records in `linkage.jsonl`. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
++| `revise` | Discuss material changes → proposed new version; reviewed approval and an available writer are separate requirements | `reference/setup.md` |
++| `commit <promise>` | Use shared discussion for missing terms (≤3 questions); an explicit approved create/amend uses **`bin/perry-goals commit`** for `OKR.md § Commitments`. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/elicitation.md` + `reference/phases.md` |
++| `plan-phase <slug>` | Shared discussion (≤5 questions) → ten-section phase draft, reusing approved overall goals and prior learning. Approval and an available phase writer are required to activate; no manual phase/CURRENT or KR writes. Relevant commitments are context, not automatically renewed | `reference/phases.md` + `reference/elicitation.md` |
+ | `score-phase [<NNN>]` | End current phase: per-KR scoring; writes `phase/<NNN>-<slug>.md § Retro` and the `-final` snapshots. **Hands the retro summary to `work`; does not write `evidence/`** — see `reference/phases.md` step 5. Ends with the shared closing step | `reference/phases.md` |
+ | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
+ | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |
+diff --git a/goals/reference/elicitation.md b/goals/reference/elicitation.md
+index 92e5eb27..b75835c3 100644
+--- a/goals/reference/elicitation.md
++++ b/goals/reference/elicitation.md
+@@ -1,10 +1,59 @@
+-# First-OKR question bank
++# Shared goal discussion and question bank
+
+-Loaded by `goals/reference/setup.md` for a project's first overall OKR only.
+-Revision, existing-project routing, phase/week reuse and the premise/escape flow
+-are separate procedures; this page does not implement them. Its deliverable is
+-a useful draft for review, not a claim that planning persistence or finalize
+-writers exist. Keep `reference/input-quality.md` as the unchanged quality authority.
++Loaded through `goals/SKILL.md` for first OKR, revision, phase and commitments.
++The deliverable is a useful draft for review, not a claim that planning
++persistence or finalize writers exist. Keep `reference/input-quality.md` as the
++unchanged quality authority. `phases.md` maps phase sections to this same bank;
++the week procedure remains at its own entrance.
++
++## Route and reuse
++
++Use the requested horizon, declared tracks in `.perry/config.jsonl`, and the
++snapshot's existing OKR/phase facts. Read the selected track's mode contract for
++its spine: `project` decomposes goals through phases; `pipeline` and `queue`
++use commitments. Do not infer a route from the project's name, apparent maturity,
++repository size or an empty file. An unreadable or ambiguous state is unknown,
++not proof that there is no OKR. In a mixed project, use the explicitly selected
++track/horizon; a queue track does not redirect an explicit overall revision.
++If selection is still consequentially ambiguous, ask one routing question and
++wait. Count it in the chosen route's budget; switching labels never resets it.
++
++| Route | Evidence for entry | Cap before visible draft | Next unanswered gap → draft destination |
++|---|---|---|---|
++| First OKR | Overall goals requested, no existing OKR confirmed | 8 | Q1 mission/horizon; Q2 focus; Q3 evidence; Q4 boundaries → first overall draft |
++| Revision | Existing OKR and a requested material change or pivot | 5 | Q9 change/affected goals, then affected Q1–Q8 gaps → proposed new version with change reasons |
++| Phase | Existing accepted overall OKR, no active phase, phase planning requested | 5 | Q2 focus/end state; Q3 evidence/DoD; Q4 exclusions; Q7 appetite; Q9 prior learning → ten-section phase draft |
++| Commitments | Selected pipeline/queue spine or explicit `commit` request | 3 | Q10 promise terms, Q3 resolution evidence or Q5 arrival/baseline gap → proposed commitment row and operational unknowns |
++
++For each turn identify the selected route and the next unanswered consequential
++gap with its draft destination, in plain language. If none remains, draft now.
++Selecting a route never starts a phase or week, revises other tracks, or creates
++a commitment. `init` with an existing OKR offers revision only if change is wanted;
++`revise` without one reports that mismatch instead of inventing an old version.
++An active phase is not silently closed or replaced: `plan-phase` surfaces that
++state and pauses the new-phase route for an explicit lifecycle choice. Overall
++approval alone never authorizes a first or subsequent phase.
++
++Reuse explicit opening answers and accepted existing wording with provenance:
++name the message, or document/version/section that supplied each carried answer.
++An earlier decision remains an earlier decision, not consent to a new horizon,
++threshold or commitment. Distinguish observed facts, accepted wording, proposals,
++rejected suggestions and unknowns in the visible draft. Skip only unchanged,
++explicit answers; read proposals in old drafts as proposals. On revision preserve
++unaffected accepted wording verbatim and show before → proposed after plus the
++reason for each affected goal. A clear new user correction supersedes the older
++intent in this draft; retain the old source and the correction so the change is
++reviewable. Ask only about unresolved meaning or consequences.
++
++The commitments route reuses the same bank, without manufacturing Objectives or
++KRs. Show arrival rate/source (or unknown), SLA/date, beneficiary and what resolved
++means. Reuse declared SLA as existing policy, never as consent to a new promise.
++Unsupported `To whom` or `Due` stays unknown and prevents a write. Once the user
++explicitly approves the exact supported create/amend operation, follow
++`goals/reference/phases.md § commit <promise>` through `bin/perry-goals commit`.
++An explicit complete `commit` instruction can already supply that approval;
++an interview answer or draft edit cannot. Extra operational context is not a new
++writer field. Never invent an arrival-rate field or manually edit the register.
+
+ ## Use the bank
+
+@@ -16,7 +65,7 @@ answers grounded in what was actually read or said; label an unsupported baselin
+ `unknown`, and a proposed target `proposed — not yet accepted`. Do not turn an
+ example or a hypothetical number into a project fact.
+
+-Default to **one qualitative objective and at most three KRs**. Use the solo/fewer
++For an overall draft, default to **one qualitative objective and at most three KRs**. Use the solo/fewer
+ qualification in rubric 1.5; do not add objectives to satisfy its generic 2–4
+ range. Each KR must earn its place by representing a distinct outcome. Do not
+ force Learn/Build/Validate tracks or quotas of principles/anti-goals.
+@@ -25,12 +74,14 @@ Use Q1–Q4 as a coverage guide, filling their proposed answers from known conte
+ choose the next consequential unresolved gap anywhere in the bank, not the next
+ number in a script. Q5 commonly addresses an unknown baseline. Q5–Q8 address
+ remaining gaps, not a mandatory second form. `Skip when` means the
+-specified answer is explicit in this first interview's context, not inferred from
+-confidence or project age. Show the carried answer in the draft so it is visible.
+-This is local avoidance of repeated questions, not an existing-project router.
++specified answer is explicit and unchanged in the selected route's context, not
++inferred from confidence or project age. Show its source in the draft.
+
+-At each response, use the latest accepted intent and briefly show substantive
+-changes. A changed beneficiary, capacity, objective or evidence invalidates the
++After each real user answer, briefly reflect the accepted meaning, then choose
++the most consequential remaining gap and its draft destination. Never supply
++both sides of a live interview or continue as though the user chose the
++recommendation. At each response, use the latest accepted intent and briefly
++show substantive changes. A changed beneficiary, capacity, objective or evidence invalidates the
+ dependent proposed KRs, thresholds and commitments: name what no longer follows,
+ withdraw it from the current proposal, and visibly propose replacements or mark
+ the affected fields undecided. Recheck their mission alignment, measurement basis
+@@ -48,21 +99,50 @@ intent; the agent's replacement targets and commitment labels remain proposals
+ until the user accepts them. Silence or confidence is not acceptance.
+
+ Ask **one question at a time and wait**. Count every question and follow-up that
+-asks the user for an answer toward **eight maximum before showing the draft**;
++asks the user for an answer toward the **route cap above before showing the draft**;
+ reflection text must not hide a second independent question. A
+ scorecard choice may present one coherent proposed set for acceptance or editing.
+-On a vague answer, name the single most consequential gap and offer one grounded
+-rewrite; push at most once for that answer, within the same budget. If still
+-unknown or the budget is spent, retain it explicitly and draft now. Do not loop
++On a vague or activity-based answer, name the single most consequential gap and
++offer one outcome-oriented rewrite grounded in the beneficiary's desired change.
++Say what it would demonstrate and what evidence/threshold is still missing;
++do not manufacture a number to make it look scoreable. Push at most once for
++that answer, within the same budget. If the user rejects it or remains vague,
++accept the stated intent and move on; do not rename the same push as a new field.
++If still unknown or the budget is spent, retain it explicitly and draft now. Do not loop
+ until every rubric issue disappears. Already supplied answers need no ritual
+ confirmation; fewer than four questions is fine when the user supplied the facts.
+
+ Render a `choice` as 2–3 options, the grounded proposal first with `(Recommended)`;
+-explain the practical difference briefly. Render a `sentence` as a proposed
++explain its practical consequence and the basis for recommending it. Alternatives
++must be supported by context; an option to edit/say it differently is sufficient
++when there is no grounded alternative. Never invent options to fill the count,
++or praise an answer without explaining what it achieves or what is missing.
++Render a `sentence` as a proposed
+ sentence followed by `Use this | Edit it | Say it differently`. Use the configured
+ language and the host's prompt rendering from `$PERRY_HOME/reference/host-capabilities.md`.
+ The seven fields below guide the agent; do not expose the whole bank to the user.
+
++## Escape without losing the user's intent
++
++On the first “just draft it” / refusal to continue, make **one** offer of the two
++most consequential remaining questions, explaining what their answers would
++change. For example: “Two more questions, then I'll draft: what success means
++and how we can observe it.” Ask only the first, then stop and wait. The offer
++and first question are one turn, not permission to ask both at once; each actual
++question counts in the same route budget. After an answer, reflect it and ask
++the second only if it is still consequential and within the cap. No new pushes
++or replacement pair extends this offer. If fewer than two questions remain in
++the budget or in the unresolved gaps, say so and offer only those; at zero,
++draft immediately. Do not ask a separate permission question to restart a budget.
++
++On a **second refusal, yield immediately**: show the incomplete draft, preserve
++rejected suggestions and unknowns, state the premises and run the advisory rubric
++once without requiring more answers. Do not append a premise/approval question
++to that refusal response. The user can correct the draft later; declining the
++interview is permission to draft, never permission to finalize. A fully formed
++pasted OKR goes directly to the visible draft and premise check, with no intake
++questions and no unsolicited rewrite to the default number of Objectives/KRs.
++
+ ## Q1 · Who benefits, and over what horizon?
+
+ Kind: sentence
+@@ -143,17 +223,82 @@ Red flags: Generic virtues; new safety restrictions attributed to the user; a ta
+ Produces: Operating Principles and separation from period Anti-Goals (supports rubric 1.7; no additional rubric requirement).
+ Skip when: Enduring principles, or the user's choice not to declare any yet, are explicit; also skip when no such gap affects this first draft.
+
++## Q9 · What changed, and what does it invalidate?
++
++Kind: sentence
++Draft answer: Compare the requested change with the accepted goal version. Propose a concise change statement naming affected Objectives/KRs and why; retain unaffected wording and identify any dependent threshold or commitment that no longer follows.
++Ask: “I read the change as [before → after, reason and affected goals]. What needs correcting?”
++Push until you hear: A concrete change and its consequence for the selected horizon, or an explicit unresolved impact to carry into the draft.
++Red flags: Re-interviewing the whole mission; rewriting unrelated accepted KRs; treating old approval as permission for new thresholds.
++Produces: Revision reason and affected goal sections; the dependent scorecard gaps to address through Q3/Q5/Q6/Q7.
++Skip when: The change, its scope and affected goals are already explicit; propagate it directly and ask only about unresolved consequences. For a subsequent phase, reuse the scored retro's learning as context, not automatic approval of carry-overs.
++
++## Q10 · What promise is being made?
++
++Kind: sentence
++Draft answer: Assemble the supported promise to a named party, its date/SLA and resolution definition, using the declared track and user wording. Show arrival rate/source or unknown as context; unsupported terms remain undecided. Explain what this promise would oblige the track to do.
++Ask: “I propose this promise: [terms and practical consequence]. Use this, edit it, or say it differently?”
++Push until you hear: A recognizable party, what counts as resolved and an explicit clock, or named unknowns. Queue Due uses an accepted typed SLA/date; pipeline Due needs an ISO date. A declared track SLA is required by the queue writer.
++Red flags: An invented SLA; arrival volume guessed from backlog; a promise to nobody; drafting treated as permission to write; silently changing track policy.
++Produces: Commitment Promise / To whom / Due / By when note; resolution evidence and arrival-rate uncertainties in draft context.
++Skip when: These exact terms are already supplied; discuss only changed or missing terms, then use the existing writer only with explicit operation approval.
++
+ ## Show the draft and the remaining issues
+
+-Display one compact **First OKR draft — not finalized** in chat: Period; Mission;
++Display one compact **[selected route] draft — not finalized** in chat. For overall goals: Period; Mission;
+ Operating Principles (or none supplied); one qualitative Objective with its mission
+ clause; a ≤3-row KR scorecard with baseline/source, target/unit, deadline and
+ commit/stretch; Anti-Goals; and explicit unknowns/proposed assumptions. Carry over
+ accepted wording and make suggested changes visible. A complete-looking table is
+ not evidence that an unknown was resolved. Do not turn measurement follow-ups into
+-extra KRs merely to fill slots.
++extra KRs merely to fill slots. Keep the summary to at most 12 lines; show the
++relevant section in full when editing it. For revision, include change reasons and affected
++goals with unchanged wording preserved. For commitments, show the proposed row
++and remaining operational unknowns, without an objectives cascade.
++For a phase, use `phases.md`'s ten sections and a clearly proposed KR scorecard;
++carry approved overall wording as context, never approval of new phase thresholds.
++
++### Premises, edits and approval
++
++Before approval, state the meaningful premises as short, sourced statements:
++who benefits and why, why each Objective serves that mission, what this horizon
++excludes, and any capacity/evidence assumption the recommendation depends on.
++For commitments, use the party, promise and resolution meaning instead of
++inventing Objectives. Mark proposed premises and unknowns. Ask one question
++about the set: “Which premise needs changing, or should this draft keep them?”
++Then wait. This reviews meaning, not permission to write. If the user already
++explicitly reviewed these same premises, reuse that answer. If they declined
++further questions, show the statements without demanding a response.
++
++On disagreement, return to the bank entry that produced that premise, apply
++the explicit correction to its draft section, and propagate dependent changes
++under **Use the bank**. Leave unrelated wording intact. Show the changed section
++and withdrawn proposals; ask only if a consequential choice is unresolved.
++All follow-ups count; showing a draft does not reset the interview cap or entitle
++the agent to another interrogation. At the cap use unknown/proposed fields and
++accept voluntary edits instead of requiring more interview answers.
++
++Run the rubric below once on the draft resulting from this premise review,
++including disagreement; it is not a loop until the user accepts the agent's
++preferred goals. Keep override reasons in the conversation for the owning lane;
++do not claim a journal entry. A later material user edit changes the draft and
++invalidates any approval of its earlier contents.
++
++After the premise review and rubric, distinguish approval of this exact draft
++from “change a section” or “I'll edit it.” A section edit changes only that
++section and affected dependencies; it is not approval. “I'll edit it” ends the
++turn. With a supported draft file, show its real path and re-read it on return;
++without that implementation, offer chat edits and disclose that no resumable
++file was saved. Do not create `plans/` by hand. Only offer a write operation
++when its owning writer exists; otherwise name the missing finalize path and
++stop with a reviewable draft, even if the user says “approved.” Approval never
++manufactures a writer. The explicit commitment writer remains available for
++supported, explicitly authorized terms, subject to its refusals.
+
+-Run `$PERRY_HOME/reference/input-quality.md § 1` once against this actual draft.
++Run `$PERRY_HOME/reference/input-quality.md § 2` for a phase, otherwise § 1,
++once against this actual draft
++where applicable; for a commitments-only draft state which Objective/KR checks
++are inapplicable rather than inventing an OKR or a replacement rubric.
+ The entries' `Produces` fields map all eight checks; coverage is not a passing
+ score. Surface at most three highest-value issues with concrete rewrites, including
+ missing baselines or undecided targets. Preserve advisory + override and record
+@@ -164,5 +309,7 @@ This bank stops at that visible draft and quality feedback. It does not create
+ `plans/`, claim resume support, write canonical goal stores, call an imagined
+ finalize command or automatically start a phase. Approval/persistence/finalization
+ must use the owning implementation when available; do not substitute manual store
+-writes for missing tooling. No end-to-end interview quality gate is claimed here;
++writes for missing tooling. The explicit commitment operation described under
++**Route and reuse** retains its existing writer; it does not supply overall
++planning finalization. No end-to-end interview quality gate is claimed here;
+ that requires the independent transcript review, beyond mechanical pointer checks.
+diff --git a/goals/reference/phases.md b/goals/reference/phases.md
+index 80bd1e29..f84b8e4d 100644
+--- a/goals/reference/phases.md
++++ b/goals/reference/phases.md
+@@ -60,10 +60,19 @@ including the event that was appended.
+    — a row created by the tool and later deleted by hand is gone from the file
+    and still in the log, and its number stays spent.
+
+-3. **`To whom` and `Due` have no defaults.** Ask for both — one
+-   `AskUserQuestion`, both fields — before running the command. A promise with
+-   no named party is a KR, and belongs under an Objective instead; the tool
+-   refuses `--to` with that sentence rather than filing a commitment to nobody.
++3. **`To whom` and `Due` have no defaults.** Follow `elicitation.md`'s
++   **Route and reuse** for intake: reuse explicitly supplied, unchanged terms
++   without asking again. Ask only missing consequential terms, one question
++   at a time, then wait. The same three-question commitment cap includes
++   routing, follow-ups and pushes; this handoff never resets it. At the cap,
++   show the draft without another intake question. Unknown required fields
++   remain unknown and prevent writes, even if the user requests a commit.
++   An exact, complete explicit `commit` instruction already authorizes that
++   supported writer operation, subject to its existing refusals. Reusing an
++   earlier policy or accepting an interview answer/draft edit does not supply
++   new consent. A promise with no named party is a KR, and belongs under an
++   Objective instead; the tool refuses `--to` with that sentence rather than
++   filing a commitment to nobody.
+
+ 4. **The clock is two fields, and only one of them is checked.**
+
+@@ -147,7 +156,16 @@ under `records_not_in_the_file`.
+
+ ## `plan-phase <slug>`
+
+-Start a new phase. `<slug>` is user-chosen (short, hyphenated). OKR assigns `#<NNN>` automatically: `NNN = (max existing phase number) + 1`, zero-padded to 3 digits. The new file is `phase/<NNN>-<slug>.md` (e.g., `phase/002-release-pipeline.md`).
++Discuss and draft a new phase through `elicitation.md`'s **Route and reuse** and
++shared response/premise/escape procedure. Existing overall approval supplies
++context, not approval of a phase. If no overall OKR exists, report that prerequisite;
++if a phase is active, surface it and pause for a lifecycle choice rather than
++closing/replacing it. Do not silently start another horizon.
++
++`<slug>` is user-chosen (short, hyphenated). The prospective target is
++`phase/<NNN>-<slug>.md`, where the writer would assign the next unused phase
++number, zero-padded to three digits. A draft does not reserve a number, set a
++start date, make a phase active or change `phase/CURRENT`.
+
+ ### Read before drafting
+
+@@ -161,30 +179,68 @@ Start a new phase. `<slug>` is user-chosen (short, hyphenated). OKR assigns `#<N
+   **The refusal is conditional, and that is a correction, not a softening.** It used to be unconditional — a hard gate in the goals lane keyed on `ARCHITECTURE.md`, a file only software projects have. A content pipeline or a research vault has no architecture and no audit history, so the gate could never fire there; it simply sat in the procedure as software's assumptions wearing the goals lane's clothes. TASK-024's extraction is what surfaced it. The gate is unchanged where it applies.
+ - **Carry-forward metrics from prior phase** (if present in `evidence/<YYYY-MM>/retro.md § Health metrics`): incident feedback-loop ratio, audit drift trend, runbook coverage gap. These inform whether the new phase needs an operability-focused Objective.
+
++### Discuss the phase with the shared bank
++
++Reuse approved overall goals, principles and anti-goals with their version and
++section. For a first phase, there is no prior learning to invent. For a subsequent
++phase, name what the scored retro establishes, what remains uncertain and which
++carry-overs are merely proposed. Do not ask the first-OKR mission questions again.
++Existing commitments on relevant pipeline/queue tracks are read as constraints;
++their existence does not authorize renewal, a new promise or section creation.
++Changes to them need their own explicit commitment operation, not a phase side effect.
++
++Use this mapping to select gaps in **the same question bank**, not five mandatory
++questions or a second set of prompts:
++
++| Consequential phase gap | Shared entry | Draft destination and recommendation consequence |
++|---|---|---|
++| Focus and desired end state | Q2; Q9 if prior learning changes the focus | Phase Focus / Objectives: why this slice advances the approved overall goal; what becomes possible at phase end |
++| Proof of that end state | Q3, Q5 or Q6 as needed | Proposed phase KRs / Definition of Done: what observable result establishes each Must-Have, with unknown baselines visible |
++| Exclusions and invariants | Q4 / Q8 | Not Doing / Operating Rules: concrete deferred work and preserved constraints, beyond copying overall Anti-Goals |
++| Appetite and capacity | Q7 adapted to phase effort and trade-offs | Cost Ceiling / User Commitments / Degradation / Scope Reduction: what fits, what would be cut, and what still needs a decision |
++
++Ask the highest-impact unresolved question with a grounded proposed answer,
++explain its consequence, then wait. **At most five questions before the visible
++phase draft**, including routing, follow-ups and pushes; the cap is not a quota.
++If a coherent phase proposal was supplied, reuse it and move to the premise check.
++Use the shared one-push and escape rules. Unknown spend/capacity, wiring, USER-ids
++or thresholds remain unknown; template examples do not supply user commitments.
++
++After a scope cut or capacity correction, apply it to the phase draft, withdraw
++dependent KR targets and commit/stretch labels that no longer follow, and revisit
++the Must-Haves, exclusions and reduction/degradation rules. Explain which result
++the reduced phase would now establish. Lower capacity is not a formula for a
++lower threshold. Propose a supported replacement or leave it undecided, preserving
++unaffected accepted constraints and rejected suggestions. Unchosen new thresholds
++are not an automatic scope-reduction rule.
++
+ ### The ten mandatory sections
+
+ The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical commitment:
+
+ 1. **Phase Focus** — narrative paragraph. What is this phase *primarily* about? What state should the project reach by phase-end? Phase end is defined by KR-completion, not a date.
+ 2. **Operating Rules** — phase-scoped invariants (subset / extension of overall Operating Principles). Often: agent autonomy boundaries, what requires user authorization, evidence requirements for promotions.
+-3. **Cost Ceiling** — explicit dollar (or token / time) caps on the phase's spend, with a soft-fallback threshold (typically 80%). Mark whether the ceiling is *wired* (enforced by code) or *doc-only*. If the cost ceiling is set at the overall OKR level (lifetime cap), reference it here instead of redefining.
+-4. **User Commitments** — bullet list of what the user must contribute during this phase. These become USER-ids in PMO's User Input Queue.
+-5. **User-Unavailable Degradation** — if user input is missing for >5 days, what work continues, in what order. Names the specific task ids that don't depend on missing inputs.
+-6. **Phase Scope Reduction Rule** — automatic scope cut, triggered by *one of two* conditions (spec writer picks):
++3. **Cost Ceiling** — dollar (or token / time) cap and soft-fallback threshold, explicitly supplied or marked proposed/unknown. Mark *wired* only with enforcement evidence; *doc-only* is a risk, and unknown wiring is not enforcement. If a lifetime cap exists, reference it instead of redefining it.
++4. **User Commitments** — what the user explicitly agreed to contribute, with source; proposed contributions remain proposals. PMO owns any later USER-ids; a phase draft mints none.
++5. **User-Unavailable Degradation** — if user input is missing for >5 days, what work continues, in what order. Name known independent task ids only; unknown dependencies/ids remain unknown instead of invented tasks.
++6. **Phase Scope Reduction Rule** — automatic scope cut, triggered by *one of two* conditions chosen in draft review:
+    - **Phase-day trigger**: "If by phase day <N> (counting from `plan-phase` write date) named USER-ids are still open, Objective N collapses to its single Must-Have deliverable; remaining items defer to next phase."
+    - **KR-progress trigger**: "If commit KRs are <X% achieved at phase day <N>, scope cuts to the named Must-Haves."
+
+-   Either form (or both, whichever fires first). NO calendar-date triggers. Write each as one bullet whose bold label names the kind, so the trigger is machine-readable:
++   Either form (or both, whichever fires first). NO calendar-date triggers. In the
++   draft mark unchosen days, percentages and cuts proposed/unknown; do not turn an
++   example into consent. The supported target shape uses a bold label per bullet:
+    ```
+    - **Phase-day trigger**: If by phase day 14 USER-014 is still open, Objective 2 collapses to its Must-Have.
+    ```
+-7. **Objectives** — 2–4 phase Objectives. For each:
++7. **Objectives** — a small set serving the phase focus (rubric's solo/fewer qualification applies). For each:
+    - Title (as `## Objective <N> — <title>`)
+    - Goal (1–2 sentences)
+    - A `### Key Results` heading carrying the template's pointer and **no
+-     table**. 3–5 Key Results per Objective, ids matching `P<NNN>-O<n>-KR<m>`,
+-     are declared in `linkage.jsonl` at step 2 of *After write* below and
+-     printed by `bin/perry-goals krs`.
++     table** in the canonical phase document. Use the lane's existing cap of
++     **4 KRs per Objective**; fewer is fine. Show proposed KRs in the discussion
++     draft for review. At supported finalize, ids matching `P<NNN>-O<n>-KR<m>`
++     belong in `linkage.jsonl` and are printed by `bin/perry-goals krs`.
+
+      **This step used to say "write them in a `### Key Results` table" and that
+      is the defect TASK-157 closed.** A KR's id, title, metric, target and
+@@ -193,37 +249,76 @@ The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical com
+      comparing them. The markdown copy is the one that went stale, and it had:
+      `P003-O2-KR1` read a target its register did not. DESIGN-013 § 5.1 (locked
+      2026-08-29) puts a fact with a schema in exactly one store, and all five
+-     of those fields are schema'd. **Write the register; do not retype it here.**
++     of those fields are schema'd. **The owning writer must declare them once;
++     do not retype them here or hand-append the register.**
+    - Linked Projects: each Project has Owner / User role / Deliverable / Verification — these become PMO task seeds with TASK-IDs.
+ 8. **Definition of Done** — split into **Must-Have** (failure = phase missed) and **Nice-to-Have** (failure allowed but explained in retro).
+ 9. **Not Doing in this phase** — explicit anti-goals scoped to this phase. Often more concrete than the overall Anti-Goals.
+ 10. **Process Note** — pointer to PMO's cadence work so phase Objectives don't waste slots on "do weekly status reports".
+
+-The header block must carry `**Started**: <YYYY-MM-DD>` and `**Status**: active` — phase day is computed from `Started:`, and every consumer (standup, aiMark, scope-reduction triggers) reads it. A missing or unparseable date makes phase day unknowable, not zero.
++The finalized header carries `**Started**: <YYYY-MM-DD>` and `**Status**: active`;
++phase day is computed from `Started:`. During discussion, label the content a
++draft and the start unknown/proposed, never claim the phase is already active.
++A missing or unparseable start makes phase day unknowable, not zero.
+
+ ### Writing it
+
+-**Input-quality pass** before confirming: run `$PERRY_HOME/reference/input-quality.md § 2 Phase OKR` against the drafted Phase Focus / KRs / DoD / Cost Ceiling / scope-reduction trigger; surface ≤3 issues (advisory + override).
+-
+-Then confirm with the user and write `phase/<NNN>-<slug>.md` from `state/phase_TEMPLATE.md`. **Verify ≤300 lines (tier 1 hard cap)** before writing — if drafted content exceeds, `AskUserQuestion` (header `"Phase cap"`, options): `Split — move Stretch / long narrative to evidence/<YYYY-MM>/phase-<NNN>-<topic>.md (Recommended) | Trim sections in place | Override with logged reason`.
+-
+-For an approved project release policy, read `$PERRY_HOME/packs/software-ops/releases.md` before activating this phase and coordinate any phase-based minor allocation with the main integrator. Goals owns phase records, not product versions. Drafting or closing a phase allocates nothing; without policy, continue normally.
+-
+-After write:
+-1. Update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>`).
+-2. **Write the linkage graph**: append records to `linkage.jsonl` — one JSON object per line, shapes declared in `schema/state-schema.json § stores.declared["linkage.jsonl"]`. One `kind: objective` record per phase Objective (`phase`, `id`, `title`; file order is objective order), then one `kind: kr` record per Key Result. **This is where the KRs are declared** — `id`, `title`, `metric`, `target`, and `linked` (the overall KR this one serves). Nothing else in the project holds them, so a KR left out here is a KR the phase does not have. Check what you wrote with `bin/perry-goals krs`, which prints the table the phase document used to carry. Every Project is then `bin/perry-goals link --actor goals --project <PROJECT-ID> <KR-ID> "<name>"`, one per Project defined above; every task edge afterwards is `bin/perry-goals link`, and nothing in this store is edited by hand once it exists (`reference/linkage.md`).
+-
+-   **These records lived in a per-phase register document until ADR-019** (2026-09-08), authored from a shipped template. That document's 61 lines of frontmatter duplicated the store record for record and its 30 lines of prose carried four claims that were false when they were counted, so it and its template were deleted. What changed for this step is the FORMAT, not the fact that an agent authors it: `plan-phase` has never had a deterministic writer for the KRs themselves, here or before, which is why the step below is exempt from ADR-007 rule 3 exactly as instantiating the template was.
+-
+-   **There is no file-level `updated:` to set, and that is TASK-155.** The document carried one, and two readers took it for three different facts — when the graph changed, when a KR's `current` was asserted, and when each edge was declared — so appending one edge re-dated every asserted number in the phase. Each is a per-record field now: `kr.asserted_at` (write it **only** when you write a `current`, and only with the date that number was actually measured), `edge.declared_at` and `unlinked.declared_at` (written by `perry-goals link` and `perry-task add`, at the moment of the write). Never fill `asserted_at` with today's clock for a number somebody else measured.
+-
+-   Two things to get right, because a reader can't recover from either:
+-   - **`target` / `current` are numbers or omitted.** A KR whose target is prose ("≤ 15% drawdown", "6–10% annualised") carries no `target` — the number goes in `metric` as text. A ceiling rendered as a progress bar reports a risk limit as two-thirds achieved. **`current` is an author's assertion: leave it out until someone asserts one.** The template no longer carries `current: 0`, because most KRs drive a count down and a defaulted zero reads as met on the day the register is written.
+-   - **There are no `unlinked` records at phase start, and they are only ever appended deliberately.** One means "this work serves no KR", not "we haven't got round to it". Each carries the `phase` it was declared against, because the store holds every phase at once.
+-
+-   This graph is the stable-ID source of truth that keeps attribution from being guessed later, and it is what the frontend draws the O→KR→task chain from. See `$PERRY_HOME/reference/okr-linkage.md`.
+-3. Verify structure: `"$PERRY_HOME/bin/perry-lint" --root .` — it checks the ten sections, the KR id pattern, that every record matches its declared shape, that no task serves two KRs, that every KR id names the phase its records are filed under, and that each `project` record serves a KR under an objective the phase declares.
+-4. Optionally call `plan-week` for week 1 immediately.
++Show the ten-section **Phase draft — not active**, with a summary of at most
++12 lines and the proposed KR scorecard available for review. Carry sources,
++rejected suggestions and unknowns visibly. No phase document, `phase/CURRENT`,
++`linkage.jsonl` or other canonical goal state is written during the interview,
++premise review or draft editing. This procedure supplies chat drafts; it does
++not create planning files or claim resume support on its own.
++
++Follow `elicitation.md`'s **Premises, edits and approval** on this current phase
++draft: state the chosen focus, overall alignment, exclusions and appetite
++assumptions; let disagreement update the relevant section and dependent proposals.
++Then run `$PERRY_HOME/reference/input-quality.md § 2 Phase OKR` once on the
++resulting draft, surfacing at most three advisory issues with concrete rewrites.
++Approval of the overall OKR, a prior phase or an individual edited section is
++not approval of this phase. A later material edit invalidates prior draft approval.
++
++Before any supported finalize, preserve these existing gates:
++
++- **Verify ≤300 lines (tier 1 hard cap)** for the target phase document from
++  `state/phase_TEMPLATE.md`. If over cap, show the concrete split/trim proposal
++  for review under the lane's tier-1 rules. Long narrative destined for evidence
++  is a hand-off to PMO, never a goals-lane evidence write.
++- Keep the applicable architecture/audit responses from **Read before drafting**.
++  An unresolved required response still blocks activation; an advisory rubric
++  override does not satisfy that gate or authorize an architecture edit.
++- For an approved project release policy, read
++  `$PERRY_HOME/packs/software-ops/releases.md` before activating this phase and
++  coordinate phase-based minor allocation with the main integrator. Goals owns
++  phase records, not product versions. Drafting or closing a phase allocates
++  nothing; without policy, continue normally.
++
++**Finalize is a separate implementation boundary (TASK-444).** Verify the owning
++phase/goal writer and approved-draft flow actually support the requested operation.
++On this baseline the phase finalize path is unavailable: disclose it and stop,
++even after the user approves the draft. Do not hand-write a phase document or
++`phase/CURRENT`, hand-append Objective/KR records, feed a fabricated canonical
++file to a generic import/render command, or use `perry-goals link` as a KR-creation
++substitute. A writer refusal stops with its actual message; no fallback writes.
++
++The eventual writer's returned result must identify the ten-section phase prose
++and the activated phase pointer. Its Objective fields are `phase`, `id`, `title`;
++its KR fields are `id`, `title`, `metric`, `target`, and `linked` overall KR.
++Their canonical authority is `linkage.jsonl`, with no duplicate KR table in the
++phase document. `target` / `current` are numbers or
++omitted; prose limits remain in `metric`. Unknown current is never zero, and
++`kr.asserted_at` accompanies only an asserted current, dated to its measurement.
++There is no file-level `updated:`. Projects and edges use `perry-goals link`
++only after their destination KR exists; unresolved attribution is never guessed.
++Carry-overs and aliases need review against the new phase, and old unlinked
++records are not blindly carried forward. These are draft requirements for a
++writer, not instructions to append anything manually.
++
++After an available writer actually succeeds, inspect its returned ids/paths,
++verify declared KRs with `bin/perry-goals krs`, and run
++`"$PERRY_HOME/bin/perry-lint" --root .` for the ten sections and linkage structure.
++Only a successful supported write reaches the shared closing step below. A
++phase draft never auto-runs `plan-week` or claims that a phase has started.
+
+ ## `krs`
+
+diff --git a/goals/reference/setup.md b/goals/reference/setup.md
+index 6979d1c3..e467902c 100644
+--- a/goals/reference/setup.md
++++ b/goals/reference/setup.md
+@@ -17,8 +17,10 @@ Run when `OKR.md` doesn't exist.
+
+    When the store already exists (first-time setup ran), this step writes nothing.
+
+-Then use `$PERRY_HOME/goals/reference/elicitation.md` for the **first-OKR question
+-bank**. Read it before asking; do not turn the fields below into another form.
++Then use `$PERRY_HOME/goals/reference/elicitation.md` for **Route and reuse** and
++the shared question bank. Read it before asking; do not turn the fields below
++into another form. A selected commitments spine uses that route, not this
++overall template. Unknown state never proves this is a first OKR.
+
+ 1. Follow the bank's **Use the bank** response handling: propagate corrections
+    through dependent proposals and choose the next consequential unresolved gap.
+@@ -29,9 +31,11 @@ bank**. Read it before asking; do not turn the fields below into another form.
+ 2. Show the compact first-OKR draft in chat, with source/assumption distinctions,
+    boundaries and remaining unknowns. This delivery does not persist a planning
+    draft or provide resume/finalize machinery; do not claim those operations ran.
+-3. Run `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` on that draft.
+-   Surface ≤3 issues with concrete rewrites, advisory + override. The rubric is
+-   unchanged, including its solo-project qualification for fewer objectives.
++3. Follow the bank's **Premises, edits and approval**: surface meaningful
++   premises, incorporate disagreement into affected draft sections, then run
++   `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` once on the resulting
++   draft. Surface ≤3 advisory issues, preserving the solo-project qualification.
++   A refusal uses the bank's escape; a fully pasted OKR skips the interview.
+ 4. Stop at the visible draft and quality feedback. Do not hand-append canonical
+    goal stores or invent a writer to finalize it, and do not auto-run `plan-phase`.
+    The owning approval/persistence/writer flow must exist before finalization;
+@@ -54,21 +58,39 @@ This shape is declared in `$PERRY_HOME/schema/state-schema.json` and checked by
+ "$PERRY_HOME/bin/perry-lint" --root .
+ ```
+
+-## `revise` — produce a new OKR version
++## `revise` — draft a new OKR version
+
+ Used when goals materially change between versions (new constraints, new mission, big learnings). Soft fork:
+
+-1. Show current `OKR.md` summary.
+-2. Walk through what's changing per Objective / KR.
+-3. Increment version number, set new date.
+-4. Append the new version under `## v<N>: YYYY-MM-DD`. Old versions stay readable for historical audit.
+-5. Re-check the current phase OKR — does it still serve the new overall? If not, suggest `/okr score-phase` (close current) + `/okr plan-phase` (start new aligned with revised goals).
+-6. Tell **`decide`** to record it: `/perry decide adr <slug> --type Process`. Not PMO — `decisions/` moved to the `decide` lane on 2026-08-16.
+-
+-**Tier 1 cap**: `OKR.md` ≤ 200 lines. If appending a version would exceed it, move historical `## v<N>` retro blocks to `phase/snapshots/okr-vN.md` and keep the current version + version log in the main file. Verify before writing, not after.
++1. Read the current accepted `OKR.md` version and the user's requested change.
++   Follow `elicitation.md`'s revision route; reuse explicit answers with sources.
++   Show what changed, why, and which Objectives/KRs it invalidates. Preserve
++   unaffected accepted wording; do not replay the first-OKR interview.
++2. Choose the next consequential affected gap from the shared bank. Ask one
++   question and wait, at most five before a visible draft, counting routing,
++   clarifications and pushes. Corrections invalidate dependent proposals under
++   **Use the bank**; new thresholds never inherit old approval.
++3. Show the proposed new version in chat, with before/after changes, reasons,
++   source distinctions and unknowns. Its proposed version/date is not an append
++   receipt. Use the bank's **Premises, edits and approval** on the resulting
++   version, including its one-pass rubric and refusal escape. A premise
++   disagreement changes that section and dependent proposals, not all wording.
++4. Keep edits separate from approval of the current draft. Finalize only through
++   an available owning approval/persistence/writer flow; if missing or refusing,
++   name the gap/message and stop. Do not append a version, render a fabricated
++   canonical input file, or hand-write stores to work around missing tooling.
++   Historical versions remain unchanged.
++5. Surface any consequence for the current phase as a proposed follow-up, never
++   an automatic phase close/start. After a supported approved revision, hand the
++   decision to `decide` via `/perry decide adr <slug> --type Process`; the goals
++   lane does not write the decision or PMO records.
++
++**Tier 1 cap**: `OKR.md` ≤ 200 lines. Before any supported write, review overflow
++handling under `goals/SKILL.md`: propose archiving historical version retros or
++trimming; a draft does not itself authorize moving history or writing a version.
+
+ ## Completion routing
+
+ After completed writes from `init`, `revise`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
+ <!-- next-close: goals init --> <!-- next-close: goals revise -->
+-First-init chat drafts are unfinished planning: do not close or bypass an unavailable writer to trigger this step.
++First/revision chat drafts are unfinished planning: do not close or bypass an unavailable writer to trigger this step.
+diff --git a/release/records.jsonl b/release/records.jsonl
+index 3e17b606..f77f9f36 100644
+--- a/release/records.jsonl
++++ b/release/records.jsonl
+@@ -8,3 +8,6 @@
+ {"breaking": "No breaking CLI changes. No data migration is required.\n", "date": "2026-09-17", "decision": null, "delivery": "TASK-455-independent-architecture-review-20260917", "integrator": "pmo-agent", "kind": "patch", "notes": "Integration now selects independent architecture review against the exact integration candidate using six diff triggers, replacing author self-attestation.\n", "phase": "004-guided", "task": "TASK-455", "upgrade": "Record all six trigger facts for the final base/head. A true trigger requires a fresh independent review; unknown or missing module context blocks acceptance. Rebind selection after any candidate change. No data migration is required.\n", "version": "0.1.7"}
+ {"breaking": "No breaking CLI changes. No data migration is required.\n", "date": "2026-09-17", "decision": null, "delivery": "TASK-446-one-screen-snapshot-20260917", "integrator": "pmo-agent", "kind": "patch", "notes": "The initial combined snapshot uses at most 12 lines and 1200 Unicode characters, with honest progress and complete supporting details one level down.\n", "phase": "004-guided", "task": "TASK-446", "upgrade": "Use the detail view for complete objectives, pending choices, alternate recommendations and unknown causes. Mandatory safety and selector information remains visible, with any budget exception disclosed. No data migration is required.\n", "version": "0.1.8"}
+ {"breaking": "None.\n", "date": "2026-09-17", "decision": null, "delivery": "TASK-466-first-okr-response-propagation-20260917", "integrator": "pmo-agent", "kind": "patch", "notes": "First-OKR conversations now carry user corrections through dependent KR, threshold and commitment proposals, preserve accepted facts and rejected suggestions, and choose the next consequential unresolved gap. Replacement targets remain proposals until accepted, within the existing eight-question draft budget.\n", "phase": "004-guided", "task": "TASK-466", "upgrade": "None.\n", "version": "0.1.9"}
++{"breaking": "None.\n", "date": "2026-09-17", "decision": null, "delivery": "TASK-192-discussion-20260917", "integrator": "PMO-Agent", "kind": "patch", "notes": "Goal discussions route by the requested horizon and declared track spine, reusing explicit answers and accepted wording with their sources. First-OKR, revision, phase and commitment routes share the question bank with bounded question budgets. Commitment handoff asks only for missing or changed terms: already supplied To whom and Due are reused, and an explicit complete create/amend instruction can already authorize the existing commitment writer.\n", "phase": "004-guided", "task": "TASK-192", "upgrade": "This local allocation supplies discussion instructions only. Planning-draft persistence and full overall/phase writers are not supplied; there is no automatic finalize, phase activation or week start. Overall and phase drafts remain unfinalized until the owning approval/persistence/writer flow supports the requested operation. The existing commitment writer is usable only for supported explicitly approved operations with required terms. This allocation does not accept a real-user interview or constitute a public release.\n", "version": "0.1.10"}
++{"breaking": "None.\n", "date": "2026-09-17", "decision": null, "delivery": "TASK-193-discussion-20260917", "integrator": "PMO-Agent", "kind": "patch", "notes": "Goal discussions propagate user corrections into dependent proposals, review meaningful premises against the current draft, and preserve accepted intent, rejected suggestions and unknowns. The bounded refusal escape offers only the remaining consequential questions within budget and yields an incomplete draft on a second refusal. Premise review, draft edits and approval remain separate; the advisory rubric is unchanged.\n", "phase": "004-guided", "task": "TASK-193", "upgrade": "This local allocation supplies discussion instructions only. Planning-draft persistence and full overall/phase writers are not supplied; there is no automatic finalize, phase activation or week start. Overall and phase drafts remain unfinalized until the owning approval/persistence/writer flow supports the requested operation. The existing commitment writer is usable only for supported explicitly approved operations with required terms. This allocation does not accept a real-user interview or constitute a public release.\n", "version": "0.1.11"}
++{"breaking": "None.\n", "date": "2026-09-17", "decision": null, "delivery": "TASK-194-discussion-20260917", "integrator": "PMO-Agent", "kind": "patch", "notes": "Phase planning reuses the shared response-sensitive interview and approved overall wording or prior learning to produce a ten-section phase draft. Approval of the current phase draft is separate from overall approval and from activation. The procedure discloses the unavailable phase writer and forbids manual phase, pointer or KR-store writes to bypass that boundary.\n", "phase": "004-guided", "task": "TASK-194", "upgrade": "This local allocation supplies discussion instructions only. Planning-draft persistence and full overall/phase writers are not supplied; there is no automatic finalize, phase activation or week start. Overall and phase drafts remain unfinalized until the owning approval/persistence/writer flow supports the requested operation. The existing commitment writer is usable only for supported explicitly approved operations with required terms. This allocation does not accept a real-user interview or constitute a public release.\n", "version": "0.1.12"}
+diff --git a/tests/durations.json b/tests/durations.json
+index 07b1a39b..22b4066e 100644
+--- a/tests/durations.json
++++ b/tests/durations.json
+@@ -1,632 +1,632 @@
+ {
+   "modules": {
+     "test_a_write_refuses_where_nothing_is_installed.py": {
+-      "sec": 5.536,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.12,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_add_declares_unlinked.py": {
+-      "sec": 6.604,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.718,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_add_refuses_without_an_answer.py": {
+-      "sec": 10.512,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 10.158,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_add_writes_the_edge.py": {
+-      "sec": 6.574,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.527,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_amend_matches_create.py": {
+-      "sec": 0.1,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.082,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_answered_ask_is_legible.py": {
+-      "sec": 2.376,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.483,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_architecture_rules.py": {
+-      "sec": 1.099,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.329,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_ask_is_a_node.py": {
+-      "sec": 2.86,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.322,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_asks_list.py": {
+-      "sec": 6.414,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.887,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_asks_store.py": {
+-      "sec": 3.122,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.197,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_attribution_buckets.py": {
+-      "sec": 1.589,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.583,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_bin_argument_contract.py": {
+-      "sec": 37.101,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 38.258,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_bin_surface.py": {
+-      "sec": 49.068,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 48.784,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_blank_cell_is_one_rule.py": {
+-      "sec": 5.669,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.901,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_from_declarations.py": {
+-      "sec": 0.983,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.535,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_less_gaps.py": {
+-      "sec": 0.72,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.559,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_less_project_is_recognised.py": {
+-      "sec": 4.01,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.999,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_less_reads_and_writes.py": {
+-      "sec": 11.906,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.347,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_names_its_sources.py": {
+-      "sec": 0.98,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.732,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_render.py": {
+-      "sec": 1.388,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.987,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_cadence.py": {
+-      "sec": 19.88,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 16.231,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_cadence_store.py": {
+-      "sec": 2.888,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.323,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_churn.py": {
+-      "sec": 8.231,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 8.901,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_claims.py": {
+-      "sec": 13.561,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 13.588,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_compact_payload.py": {
+-      "sec": 3.006,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.427,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_config_store_readers.py": {
+-      "sec": 0.923,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.875,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_context_budget.py": {
+-      "sec": 1.044,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.097,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_contract_invariance.py": {
+-      "sec": 22.612,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 11.446,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_contract_key_parity.py": {
+-      "sec": 18.193,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 16.444,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_contract_page_snippets.py": {
+-      "sec": 1.811,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.729,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_count_fields.py": {
+-      "sec": 0.86,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.756,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_decide_status_enum.py": {
+-      "sec": 3.232,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.3,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_decide_writer.py": {
+-      "sec": 11.312,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 10.302,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_decoration_changes_nothing.py": {
+-      "sec": 5.923,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.445,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_design_handoff.py": {
+-      "sec": 1.021,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.001,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_diagnose.py": {
+-      "sec": 40.364,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 39.424,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_dispatch_limit_honesty.py": {
+-      "sec": 1.671,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.52,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_duplicate_ids_are_refused.py": {
+-      "sec": 3.452,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.719,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_durations_provenance.py": {
+       "sec": 0.18,
+       "source": "2026-09-09-085824"
+     },
+     "test_empty_config_store.py": {
+-      "sec": 6.088,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.782,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_empty_declared_store.py": {
+-      "sec": 1.084,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.845,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_entrance.py": {
+-      "sec": 0.048,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.051,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_escalation_boundaries.py": {
+-      "sec": 0.16,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.163,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_escalation_union.py": {
+-      "sec": 4.31,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.201,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_escaped_pipe_corpus.py": {
+-      "sec": 1.593,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.608,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_events_feed.py": {
+-      "sec": 4.104,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.109,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_evidence_relation.py": {
+-      "sec": 4.305,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.978,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_explain_typed_tasks.py": {
+-      "sec": 1.442,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.333,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_glossary.py": {
+-      "sec": 2.933,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.871,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_goals_contract.py": {
+-      "sec": 1.706,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.659,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_goals_kr_writer.py": {
+-      "sec": 2.073,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.252,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_goals_writer.py": {
+-      "sec": 7.523,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 12.613,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_handed_back_root.py": {
+-      "sec": 7.972,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.928,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_header_index_is_the_only_fold.py": {
+-      "sec": 15.17,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.731,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_header_rule_harness.py": {
+-      "sec": 32.811,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 31.374,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_heading_defines.py": {
+-      "sec": 0.894,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.94,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_heading_title.py": {
+-      "sec": 2.424,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.404,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_host_support.py": {
+-      "sec": 19.308,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 21.22,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_i18n.py": {
+-      "sec": 0.66,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.657,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_i18n_one_table.py": {
+-      "sec": 0.155,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.135,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_id_families.py": {
+-      "sec": 1.542,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.638,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_installed_is_one_predicate.py": {
+-      "sec": 3.913,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.417,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_intake_signal.py": {
+-      "sec": 0.401,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.479,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_intake_store.py": {
+-      "sec": 5.619,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.601,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_knowledge_cards.py": {
+-      "sec": 2.419,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.416,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_knowledge_promotion.py": {
+-      "sec": 14.294,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.413,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_kr_checks.py": {
+-      "sec": 1.196,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.131,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_kr_progress_provenance.py": {
+-      "sec": 10.099,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 19.805,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_linkage_store_declared.py": {
+-      "sec": 0.174,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.155,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_linkage_store_readers.py": {
+-      "sec": 4.528,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.493,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_linkage_task_exists.py": {
+-      "sec": 2.442,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.441,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_linkage_writer.py": {
+-      "sec": 6.48,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.616,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_live_state_expectations.py": {
+-      "sec": 9.17,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 10.621,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_md_store.py": {
+-      "sec": 13.713,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.618,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_measured_krs_declare_a_target.py": {
+-      "sec": 15.974,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.298,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_missing_defaults.py": {
+-      "sec": 1.019,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.251,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_module_run_guard.py": {
+-      "sec": 7.379,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.18,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_next_section.py": {
+-      "sec": 1.487,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.255,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_ns_collision.py": {
+-      "sec": 20.423,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 10.614,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_okr_krs_render.py": {
+-      "sec": 1.009,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.897,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_okr_store_is_the_source.py": {
+-      "sec": 5.966,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.874,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_choke_point.py": {
+-      "sec": 5.599,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.381,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_header_rule.py": {
+-      "sec": 6.793,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.039,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_heading_predicate.py": {
+-      "sec": 1.112,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.082,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_line_break_rule.py": {
+-      "sec": 6.254,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.128,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_primitive.py": {
+-      "sec": 0.1,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.091,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_startable_rule.py": {
+-      "sec": 2.518,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.117,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_overall_kr_grammar.py": {
+-      "sec": 1.565,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.455,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_ownership.py": {
+-      "sec": 0.095,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.079,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_parallel_runner.py": {
+       "sec": 12.66,
+       "source": "2026-09-09-085824"
+     },
+     "test_parsers.py": {
+-      "sec": 3.405,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.373,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_perry_task_writes_are_what_it_writes.py": {
+-      "sec": 6.023,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.881,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_phase_kr_declared_once.py": {
+-      "sec": 9.525,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 22.353,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_pointers_resolve.py": {
+-      "sec": 0.118,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.094,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_prioritize.py": {
+-      "sec": 10.137,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.948,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_procedures_call_the_tool.py": {
+-      "sec": 0.493,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.527,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_procedures_read_the_contract.py": {
+-      "sec": 0.175,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.188,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_project_root_resolution.py": {
+-      "sec": 3.996,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.983,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_purge.py": {
+-      "sec": 6.533,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.048,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_queue_sla.py": {
+-      "sec": 15.742,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 14.747,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_reference_pages_are_reachable.py": {
+       "sec": 0.051,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_register_minters.py": {
+-      "sec": 1.333,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.637,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_register_store_invariant.py": {
+-      "sec": 2.726,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.658,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_register_substitution.py": {
+-      "sec": 2.298,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.689,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_restore_check.py": {
+-      "sec": 11.062,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 8.005,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_resume.py": {
+-      "sec": 3.095,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.798,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_retired_tolerance.py": {
+-      "sec": 0.536,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.639,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_review_verdicts.py": {
+-      "sec": 12.788,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 12.39,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_risks.py": {
+-      "sec": 3.962,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.483,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_risks_store.py": {
+-      "sec": 5.166,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.628,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_role_cards.py": {
+-      "sec": 3.996,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.594,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_role_delegation.py": {
+-      "sec": 4.207,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.131,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_role_on_rows.py": {
+-      "sec": 2.168,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.303,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_router_budget.py": {
+-      "sec": 0.27,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.272,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_row_integrity.py": {
+-      "sec": 0.619,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.58,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_rung_vocabulary.py": {
+-      "sec": 1.745,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.498,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_same_action_linkage.py": {
+-      "sec": 23.14,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 11.566,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_scratch_is_per_agent.py": {
+-      "sec": 1.759,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.898,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_selection.py": {
+-      "sec": 1.858,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.556,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_semantics_on_every_payload.py": {
+-      "sec": 8.826,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 11.271,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_shipped_vocabulary.py": {
+-      "sec": 3.588,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.061,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_slow_selector.py": {
+-      "sec": 7.565,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 14.33,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_spec_scannability.py": {
+-      "sec": 7.414,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.79,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_stage_separators.py": {
+-      "sec": 1.325,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.004,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_stale_blocked.py": {
+-      "sec": 1.924,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.669,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_starts_write_the_config_store_first.py": {
+-      "sec": 2.478,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.729,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_state_cost.py": {
+-      "sec": 15.319,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 16.494,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_state_root_unset.py": {
+-      "sec": 16.156,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 12.261,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_store_drift.py": {
+-      "sec": 1.017,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.138,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_store_is_canonical.py": {
+-      "sec": 2.756,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.202,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_store_is_the_write_target.py": {
+-      "sec": 13.414,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 13.515,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_store_population_agrees.py": {
+-      "sec": 1.508,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.372,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_stranded_rows.py": {
+-      "sec": 6.529,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.96,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_summary_is_asked_for.py": {
+-      "sec": 7.048,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.747,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_store.py": {
+-      "sec": 2.069,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.272,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_store_read_cutover.py": {
+-      "sec": 2.704,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.392,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_summary.py": {
+-      "sec": 9.73,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 15.746,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_contracts.py": {
+-      "sec": 5.958,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.902,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_core.py": {
+-      "sec": 12.939,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 14.629,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_dependencies.py": {
+-      "sec": 5.193,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.097,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_intake.py": {
+-      "sec": 4.135,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.261,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_modes.py": {
+-      "sec": 5.794,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.358,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_tiers.py": {
+-      "sec": 25.546,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 15.865,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_track_attribution.py": {
+-      "sec": 10.804,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 8.397,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_track_axes.py": {
+-      "sec": 0.052,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.048,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_track_move.py": {
+-      "sec": 4.78,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.525,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_track_register_source.py": {
+-      "sec": 2.253,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.069,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_tracks_source_documented.py": {
+-      "sec": 2.987,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.165,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_tree_guard.py": {
+       "sec": 62.52,
+       "source": "2026-09-09-085824"
+     },
+     "test_unlinked_declaration.py": {
+-      "sec": 2.515,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.491,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_v5_signoff.py": {
+-      "sec": 13.573,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 14.173,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_wip_and_stages.py": {
+-      "sec": 2.421,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.469,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_work_modes.py": {
+-      "sec": 9.597,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 16.72,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_actor_required.py": {
+-      "sec": 5.274,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.175,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_release_core.py": {
+-      "sec": 13.37,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 12.834,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_release_update.py": {
+-      "sec": 19.123,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 20.173,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_next_closing.py": {
+-      "sec": 0.358,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.419,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_merge_gate.py": {
+       "sec": null,
+@@ -860,6 +860,16 @@
+       "workers": 4,
+       "tier": "full",
+       "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
++    },
++    "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00": {
++      "kind": "merge-result",
++      "ref": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
++      "base": "572a7636dfef43483b04357c5fab4d2d813bf619",
++      "tree": "1e3abd167e0eeccb0acb8ddb2a271fb43f6f3058",
++      "taken": "2026-09-17T12:04:43.393454+00:00",
++      "workers": 4,
++      "tier": "full",
++      "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
+     }
+   }
+ }

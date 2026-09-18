@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-09-17T12:13:26.688482+00:00",
+  "base": "572a7636dfef43483b04357c5fab4d2d813bf619",
+  "prepared": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
+  "final": "17b7e23b8b3441fd50233c37183e8e9b30e7c8a4",
+  "scope": "corrected duration context only; original comparisons retained",
+  "sources": [
+    {
+      "path": "ARCHITECTURE.md",
+      "ref": "17b7e23b8b3441fd50233c37183e8e9b30e7c8a4",
+      "blob": "169dc2ff91d62b585de4fb47f6b384e70938688b",
+      "sha256": "9ec42ef11570db157b309dd2c6dc1a880ebb2bd51858ac0d9cd86e3e749ae561",
+      "lines": [
+        [
+          129,
+          132
+        ]
+      ]
+    },
+    {
+      "path": "perry/design/DESIGN-021-test-tiers.md",
+      "ref": "17b7e23b8b3441fd50233c37183e8e9b30e7c8a4",
+      "blob": "e4fc0d5e859f5e461a45fdddf3634c05c6749891",
+      "sha256": "b24b6bbb2d26e082fcb60e2ac2ee35185f4ab2c892a20faec8cea04dd39b15c2",
+      "lines": [
+        [
+          1,
+          9
+        ],
+        [
+          178,
+          211
+        ]
+      ]
+    },
+    {
+      "path": "work/reference/dispatch.md",
+      "ref": "17b7e23b8b3441fd50233c37183e8e9b30e7c8a4",
+      "blob": "ad47dd16ddbc0e016a65c44a8a902290e4aa7877",
+      "sha256": "440a4d3b905b937a08619f3acae6a6049161e7e2b04e74ea9d79b8631752003a",
+      "lines": [
+        [
+          358,
+          433
+        ]
+      ]
+    },
+    {
+      "path": "tests/merge-check",
+      "ref": "17b7e23b8b3441fd50233c37183e8e9b30e7c8a4",
+      "blob": "47c904b5f177f8f83e1eda8230d1609a7a41316d",
+      "sha256": "ec2f5c77c3a50a436b4788597f17ce4f0b8887e3a6333de855a9bc535729e2ec",
+      "lines": [
+        [
+          77,
+          87
+        ],
+        [
+          375,
+          447
+        ]
+      ]
+    },
+    {
+      "path": "tests/test_durations_provenance.py",
+      "ref": "17b7e23b8b3441fd50233c37183e8e9b30e7c8a4",
+      "blob": "723257bb3d34a48332cc40ba4c5093b9cbac0b2e",
+      "sha256": "b8be5cc685086f1aeaa5153b4a4d1d27f6dcee689189b374cb1b46c992bd872d",
+      "lines": [
+        [
+          29,
+          46
+        ],
+        [
+          111,
+          189
+        ]
+      ]
+    }
+  ],
+  "original_review_sha256_before": "17fbff137bf738503e1fccde66a19dadda4aa4dbe863d8361bce53aa24f17071",
+  "original_review_sha256_after": "17fbff137bf738503e1fccde66a19dadda4aa4dbe863d8361bce53aa24f17071",
+  "original_review_preserved": true,
+  "corrected_review_sha256": "f1e54198cef8c3b882c746c85d9fc3a8bde87ff6f68f88fd8c36dfc8b9f32791",
+  "decision": "PASS",
+  "tests_run": false,
+  "candidate_mutations": false
+}

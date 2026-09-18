@@ -1,0 +1,89 @@
+{
+  "timestamp": "2026-09-17T12:07:03.867874+00:00",
+  "base": "572a7636dfef43483b04357c5fab4d2d813bf619",
+  "prepared": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
+  "final": "17b7e23b8b3441fd50233c37183e8e9b30e7c8a4",
+  "final_parent": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
+  "prepared_to_final_commit_count": 1,
+  "prepared_to_final_paths": [
+    "M\ttests/durations.json"
+  ],
+  "final_diff_paths": [
+    "M\tCHANGELOG.md",
+    "M\tVERSION",
+    "M\tgoals/SKILL.md",
+    "M\tgoals/reference/elicitation.md",
+    "M\tgoals/reference/phases.md",
+    "M\tgoals/reference/setup.md",
+    "M\trelease/records.jsonl",
+    "M\ttests/durations.json"
+  ],
+  "artifact_sha256": "f5a7fc1290097ad8a350b42140c4e4a2dea95bfb2edbc3c724c2f3065f0eef24",
+  "emitted_sha256": "f5a7fc1290097ad8a350b42140c4e4a2dea95bfb2edbc3c724c2f3065f0eef24",
+  "receipt_sha256": "3f77a5eedd5e7500f63bb4c7f52a47747239d648742cd07e25f8aacc01ec0fb7",
+  "artifact_equal_emitted": true,
+  "artifact_hash_equals_receipt": true,
+  "receipt_status": "green",
+  "receipt_tier": "full",
+  "receipt_base": {
+    "ref": "572a7636dfef43483b04357c5fab4d2d813bf619",
+    "sha": "572a7636dfef43483b04357c5fab4d2d813bf619"
+  },
+  "receipt_candidates": [
+    {
+      "name": "delivery",
+      "ref": "codex/planning-discussion-gate-input-20260917",
+      "sha": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17"
+    }
+  ],
+  "input_refs_unchanged": true,
+  "prepared_tree": "1e3abd167e0eeccb0acb8ddb2a271fb43f6f3058",
+  "receipt_tested_tree": "1e3abd167e0eeccb0acb8ddb2a271fb43f6f3058",
+  "final_tree": "ff275a9d6c8917ce279ad625cfea3d579c7a01b2",
+  "prepared_code_identity": "0862b81383ab61b85b0354fc5d96688a3cb888469fdc9650b9ab2c5ac4e57d90",
+  "final_code_identity": "0862b81383ab61b85b0354fc5d96688a3cb888469fdc9650b9ab2c5ac4e57d90",
+  "receipt_code_identity": "0862b81383ab61b85b0354fc5d96688a3cb888469fdc9650b9ab2c5ac4e57d90",
+  "receipt_artifact_verified": false,
+  "duration_schema_before": 1,
+  "duration_schema_after": 1,
+  "duration_top_keys_same": true,
+  "duration_module_inventory_same": true,
+  "changed_modules": 154,
+  "measured_modules": 154,
+  "unmeasured_modules": 4,
+  "changed_modules_equal_measured": true,
+  "unmeasured_unchanged": true,
+  "old_sources_unchanged": true,
+  "added_sources": {
+    "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00": {
+      "kind": "merge-result",
+      "ref": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
+      "base": "572a7636dfef43483b04357c5fab4d2d813bf619",
+      "tree": "1e3abd167e0eeccb0acb8ddb2a271fb43f6f3058",
+      "taken": "2026-09-17T12:04:43.393454+00:00",
+      "workers": 4,
+      "tier": "full",
+      "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
+    }
+  },
+  "measured_values_finite_nonnegative": true,
+  "measured_rows_use_new_source": true,
+  "context_equal_base_and_prepared": {
+    "ARCHITECTURE.md": true,
+    "perry/design/DESIGN-017-the-architecture-document-is-written-by-the-agent.md": true,
+    "release/README.md": true,
+    "tests/merge-check": true
+  },
+  "goals_equal_delivery": {
+    "goals/SKILL.md": true,
+    "goals/reference/elicitation.md": true,
+    "goals/reference/phases.md": true,
+    "goals/reference/setup.md": true
+  },
+  "tests_readme_exists_final": false,
+  "top_dirs_unchanged": true,
+  "bin_tree_unchanged": true,
+  "schema_tree_unchanged": true,
+  "review_checkout_head": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
+  "review_checkout_status": ""
+}

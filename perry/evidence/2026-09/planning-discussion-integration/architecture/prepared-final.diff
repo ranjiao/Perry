@@ -1,0 +1,961 @@
+diff --git a/tests/durations.json b/tests/durations.json
+index 07b1a39b..22b4066e 100644
+--- a/tests/durations.json
++++ b/tests/durations.json
+@@ -1,632 +1,632 @@
+ {
+   "modules": {
+     "test_a_write_refuses_where_nothing_is_installed.py": {
+-      "sec": 5.536,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.12,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_add_declares_unlinked.py": {
+-      "sec": 6.604,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.718,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_add_refuses_without_an_answer.py": {
+-      "sec": 10.512,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 10.158,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_add_writes_the_edge.py": {
+-      "sec": 6.574,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.527,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_amend_matches_create.py": {
+-      "sec": 0.1,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.082,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_answered_ask_is_legible.py": {
+-      "sec": 2.376,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.483,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_architecture_rules.py": {
+-      "sec": 1.099,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.329,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_ask_is_a_node.py": {
+-      "sec": 2.86,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.322,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_asks_list.py": {
+-      "sec": 6.414,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.887,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_asks_store.py": {
+-      "sec": 3.122,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.197,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_attribution_buckets.py": {
+-      "sec": 1.589,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.583,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_bin_argument_contract.py": {
+-      "sec": 37.101,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 38.258,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_bin_surface.py": {
+-      "sec": 49.068,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 48.784,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_blank_cell_is_one_rule.py": {
+-      "sec": 5.669,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.901,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_from_declarations.py": {
+-      "sec": 0.983,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.535,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_less_gaps.py": {
+-      "sec": 0.72,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.559,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_less_project_is_recognised.py": {
+-      "sec": 4.01,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.999,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_less_reads_and_writes.py": {
+-      "sec": 11.906,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.347,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_names_its_sources.py": {
+-      "sec": 0.98,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.732,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_board_render.py": {
+-      "sec": 1.388,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.987,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_cadence.py": {
+-      "sec": 19.88,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 16.231,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_cadence_store.py": {
+-      "sec": 2.888,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.323,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_churn.py": {
+-      "sec": 8.231,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 8.901,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_claims.py": {
+-      "sec": 13.561,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 13.588,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_compact_payload.py": {
+-      "sec": 3.006,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.427,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_config_store_readers.py": {
+-      "sec": 0.923,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.875,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_context_budget.py": {
+-      "sec": 1.044,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.097,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_contract_invariance.py": {
+-      "sec": 22.612,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 11.446,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_contract_key_parity.py": {
+-      "sec": 18.193,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 16.444,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_contract_page_snippets.py": {
+-      "sec": 1.811,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.729,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_count_fields.py": {
+-      "sec": 0.86,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.756,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_decide_status_enum.py": {
+-      "sec": 3.232,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.3,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_decide_writer.py": {
+-      "sec": 11.312,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 10.302,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_decoration_changes_nothing.py": {
+-      "sec": 5.923,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.445,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_design_handoff.py": {
+-      "sec": 1.021,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.001,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_diagnose.py": {
+-      "sec": 40.364,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 39.424,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_dispatch_limit_honesty.py": {
+-      "sec": 1.671,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.52,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_duplicate_ids_are_refused.py": {
+-      "sec": 3.452,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.719,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_durations_provenance.py": {
+       "sec": 0.18,
+       "source": "2026-09-09-085824"
+     },
+     "test_empty_config_store.py": {
+-      "sec": 6.088,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.782,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_empty_declared_store.py": {
+-      "sec": 1.084,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.845,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_entrance.py": {
+-      "sec": 0.048,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.051,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_escalation_boundaries.py": {
+-      "sec": 0.16,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.163,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_escalation_union.py": {
+-      "sec": 4.31,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.201,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_escaped_pipe_corpus.py": {
+-      "sec": 1.593,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.608,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_events_feed.py": {
+-      "sec": 4.104,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.109,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_evidence_relation.py": {
+-      "sec": 4.305,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.978,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_explain_typed_tasks.py": {
+-      "sec": 1.442,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.333,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_glossary.py": {
+-      "sec": 2.933,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.871,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_goals_contract.py": {
+-      "sec": 1.706,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.659,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_goals_kr_writer.py": {
+-      "sec": 2.073,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.252,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_goals_writer.py": {
+-      "sec": 7.523,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 12.613,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_handed_back_root.py": {
+-      "sec": 7.972,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.928,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_header_index_is_the_only_fold.py": {
+-      "sec": 15.17,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.731,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_header_rule_harness.py": {
+-      "sec": 32.811,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 31.374,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_heading_defines.py": {
+-      "sec": 0.894,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.94,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_heading_title.py": {
+-      "sec": 2.424,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.404,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_host_support.py": {
+-      "sec": 19.308,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 21.22,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_i18n.py": {
+-      "sec": 0.66,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.657,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_i18n_one_table.py": {
+-      "sec": 0.155,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.135,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_id_families.py": {
+-      "sec": 1.542,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.638,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_installed_is_one_predicate.py": {
+-      "sec": 3.913,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.417,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_intake_signal.py": {
+-      "sec": 0.401,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.479,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_intake_store.py": {
+-      "sec": 5.619,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.601,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_knowledge_cards.py": {
+-      "sec": 2.419,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.416,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_knowledge_promotion.py": {
+-      "sec": 14.294,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.413,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_kr_checks.py": {
+-      "sec": 1.196,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.131,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_kr_progress_provenance.py": {
+-      "sec": 10.099,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 19.805,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_linkage_store_declared.py": {
+-      "sec": 0.174,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.155,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_linkage_store_readers.py": {
+-      "sec": 4.528,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.493,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_linkage_task_exists.py": {
+-      "sec": 2.442,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.441,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_linkage_writer.py": {
+-      "sec": 6.48,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.616,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_live_state_expectations.py": {
+-      "sec": 9.17,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 10.621,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_md_store.py": {
+-      "sec": 13.713,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.618,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_measured_krs_declare_a_target.py": {
+-      "sec": 15.974,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.298,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_missing_defaults.py": {
+-      "sec": 1.019,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.251,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_module_run_guard.py": {
+-      "sec": 7.379,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.18,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_next_section.py": {
+-      "sec": 1.487,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.255,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_ns_collision.py": {
+-      "sec": 20.423,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 10.614,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_okr_krs_render.py": {
+-      "sec": 1.009,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.897,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_okr_store_is_the_source.py": {
+-      "sec": 5.966,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.874,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_choke_point.py": {
+-      "sec": 5.599,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.381,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_header_rule.py": {
+-      "sec": 6.793,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 7.039,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_heading_predicate.py": {
+-      "sec": 1.112,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.082,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_line_break_rule.py": {
+-      "sec": 6.254,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.128,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_primitive.py": {
+-      "sec": 0.1,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.091,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_one_startable_rule.py": {
+-      "sec": 2.518,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.117,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_overall_kr_grammar.py": {
+-      "sec": 1.565,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.455,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_ownership.py": {
+-      "sec": 0.095,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.079,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_parallel_runner.py": {
+       "sec": 12.66,
+       "source": "2026-09-09-085824"
+     },
+     "test_parsers.py": {
+-      "sec": 3.405,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.373,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_perry_task_writes_are_what_it_writes.py": {
+-      "sec": 6.023,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.881,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_phase_kr_declared_once.py": {
+-      "sec": 9.525,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 22.353,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_pointers_resolve.py": {
+-      "sec": 0.118,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.094,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_prioritize.py": {
+-      "sec": 10.137,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.948,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_procedures_call_the_tool.py": {
+-      "sec": 0.493,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.527,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_procedures_read_the_contract.py": {
+-      "sec": 0.175,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.188,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_project_root_resolution.py": {
+-      "sec": 3.996,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.983,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_purge.py": {
+-      "sec": 6.533,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.048,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_queue_sla.py": {
+-      "sec": 15.742,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 14.747,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_reference_pages_are_reachable.py": {
+       "sec": 0.051,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_register_minters.py": {
+-      "sec": 1.333,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.637,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_register_store_invariant.py": {
+-      "sec": 2.726,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.658,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_register_substitution.py": {
+-      "sec": 2.298,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.689,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_restore_check.py": {
+-      "sec": 11.062,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 8.005,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_resume.py": {
+-      "sec": 3.095,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.798,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_retired_tolerance.py": {
+-      "sec": 0.536,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.639,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_review_verdicts.py": {
+-      "sec": 12.788,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 12.39,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_risks.py": {
+-      "sec": 3.962,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.483,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_risks_store.py": {
+-      "sec": 5.166,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.628,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_role_cards.py": {
+-      "sec": 3.996,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.594,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_role_delegation.py": {
+-      "sec": 4.207,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.131,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_role_on_rows.py": {
+-      "sec": 2.168,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.303,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_router_budget.py": {
+-      "sec": 0.27,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.272,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_row_integrity.py": {
+-      "sec": 0.619,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.58,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_rung_vocabulary.py": {
+-      "sec": 1.745,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.498,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_same_action_linkage.py": {
+-      "sec": 23.14,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 11.566,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_scratch_is_per_agent.py": {
+-      "sec": 1.759,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.898,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_selection.py": {
+-      "sec": 1.858,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.556,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_semantics_on_every_payload.py": {
+-      "sec": 8.826,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 11.271,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_shipped_vocabulary.py": {
+-      "sec": 3.588,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.061,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_slow_selector.py": {
+-      "sec": 7.565,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 14.33,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_spec_scannability.py": {
+-      "sec": 7.414,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 9.79,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_stage_separators.py": {
+-      "sec": 1.325,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.004,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_stale_blocked.py": {
+-      "sec": 1.924,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.669,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_starts_write_the_config_store_first.py": {
+-      "sec": 2.478,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.729,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_state_cost.py": {
+-      "sec": 15.319,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 16.494,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_state_root_unset.py": {
+-      "sec": 16.156,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 12.261,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_store_drift.py": {
+-      "sec": 1.017,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.138,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_store_is_canonical.py": {
+-      "sec": 2.756,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.202,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_store_is_the_write_target.py": {
+-      "sec": 13.414,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 13.515,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_store_population_agrees.py": {
+-      "sec": 1.508,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 1.372,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_stranded_rows.py": {
+-      "sec": 6.529,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.96,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_summary_is_asked_for.py": {
+-      "sec": 7.048,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.747,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_store.py": {
+-      "sec": 2.069,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.272,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_store_read_cutover.py": {
+-      "sec": 2.704,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.392,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_summary.py": {
+-      "sec": 9.73,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 15.746,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_contracts.py": {
+-      "sec": 5.958,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.902,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_core.py": {
+-      "sec": 12.939,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 14.629,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_dependencies.py": {
+-      "sec": 5.193,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.097,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_intake.py": {
+-      "sec": 4.135,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 4.261,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_task_writer_modes.py": {
+-      "sec": 5.794,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 5.358,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_tiers.py": {
+-      "sec": 25.546,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 15.865,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_track_attribution.py": {
+-      "sec": 10.804,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 8.397,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_track_axes.py": {
+-      "sec": 0.052,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.048,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_track_move.py": {
+-      "sec": 4.78,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.525,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_track_register_source.py": {
+-      "sec": 2.253,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.069,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_tracks_source_documented.py": {
+-      "sec": 2.987,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 3.165,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_tree_guard.py": {
+       "sec": 62.52,
+       "source": "2026-09-09-085824"
+     },
+     "test_unlinked_declaration.py": {
+-      "sec": 2.515,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.491,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_v5_signoff.py": {
+-      "sec": 13.573,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 14.173,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_wip_and_stages.py": {
+-      "sec": 2.421,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 2.469,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_work_modes.py": {
+-      "sec": 9.597,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 16.72,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_actor_required.py": {
+-      "sec": 5.274,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 6.175,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_release_core.py": {
+-      "sec": 13.37,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 12.834,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_release_update.py": {
+-      "sec": 19.123,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 20.173,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_next_closing.py": {
+-      "sec": 0.358,
+-      "source": "merge-f02c16eac236-2026-09-17T10:04:58.195618+00:00"
++      "sec": 0.419,
++      "source": "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00"
+     },
+     "test_merge_gate.py": {
+       "sec": null,
+@@ -860,6 +860,16 @@
+       "workers": 4,
+       "tier": "full",
+       "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
++    },
++    "merge-1e3abd167e0e-2026-09-17T12:04:43.393454+00:00": {
++      "kind": "merge-result",
++      "ref": "ae1a9a6323dd94b36c4601dd5689be1ed801fd17",
++      "base": "572a7636dfef43483b04357c5fab4d2d813bf619",
++      "tree": "1e3abd167e0eeccb0acb8ddb2a271fb43f6f3058",
++      "taken": "2026-09-17T12:04:43.393454+00:00",
++      "workers": 4,
++      "tier": "full",
++      "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
+     }
+   }
+ }
