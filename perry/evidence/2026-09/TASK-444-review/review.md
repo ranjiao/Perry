@@ -233,3 +233,120 @@ first". This is cosmetic.
   TASK-191/TASK-465 remain the real-interview gates.
 - `lib.project_lock` behaviour under true multi-process contention for draft writes. It is
   reused as is, and the draft tests do not exercise it.
+
+---
+
+## Re-review: repair round `bc18b398` (on top of `e77bd340`, base `bd3f6329`)
+
+Date: 2026-09-18. Same reviewer, and I still did not write the candidate. The criteria are
+unchanged, with two additions from the user. USER-961 raises the ceiling to +750 net lines and
+approves the repair scope: non-blocking plan errors, ignoring dotfiles and backups, the install
+gate and the actor on every write, and fixing the abandon-terminal test. USER-962 confirms the
+`SKILL.md` ownership row. Both are recorded on `main` in `perry/asks.jsonl:62-63`. File:line
+references below point at `bc18b398`.
+
+VERDICT: PASS-WITH-FINDINGS
+
+All six first-round findings are resolved, apart from partial resolution of F2b and F4. None of
+the fixes weakens recovery for task transactions or dossiers. My mutations of the repaired code
+all went red, apart from two legitimate greens (below). One new issue: **the branch alone is red**
+(N1). It cites USER-961/962, which exist only on `main`. The merged result is green.
+
+### Measurements (mine)
+
+| Check | Result |
+|---|---|
+| Net lines vs `bd3f6329`, `git diff --numstat -- bin viewer tests` | production +603 / −146 = **+457**; tests +235 / −47 = **+188**; total **+645**, which is 105 under the +750 ceiling (USER-961). This matches result.md. |
+| `git diff --check bd3f6329 bc18b398` | clean |
+| `bash tests/run` on `bc18b398` **alone** | **1 red**: 154 modules, 4312 tests, 1 failure, `test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks` (`dangling: ['USER-961', 'USER-962']`). Re-run alone it is still red (12 tests, 1 failure), so it is deterministic and not order- or clock-dependent. |
+| `bash tests/run` on `bc18b398` merged with `main` (`merge --no-commit`, then aborted) | all green: 154 modules, 4312 tests, tree guard clean |
+| Rows changed in `e77bd340..bc18b398` | 11 files, +171 / −43. No new file outside §5 or the first round's list. |
+
+### The six findings
+
+| # | Status | Evidence |
+|---|---|---|
+| F1: a stray or malformed `plans/` entry blocks Perry | **Resolved.** This is a deliberate departure from analysis §4, authorized by USER-961. | `scan_recovery` no longer adds plan rows (`viewer/parsers.py:5415-5456`; `blocking` is `pending or malformed` over transactions and dossiers only, `:5452`). `scan_plans` ignores `.*`, `*~`, `*.swp`, `*.bak` and `tmp*.tmp` (`:5587`). `drafts.errors` now carries the rows, not a count (`bin/perry-state:1679`), and `drafts.drafted` stays null. Probed: `.DS_Store` in `plans/` and `plans/okr/` plus a `~` backup gives `blocking: false`, `errors: []`. A broken sibling draft gives `blocking: false`, `errors: [that path]`, `drafted: null`, and primary `R-interrupted`, and the healthy draft stays writable. A broken draft's own `abandon` refuses and names the field and the fix (`bin/perry-goals:3767-3770`). The user chose that stop, and I accept it. |
+| F2a: install gate only on create | **Resolved** | It now runs for every write mode (`bin/perry-goals:3835`), after the read-only `show`/`finalize` return. |
+| F2b: actor discarded | **Partly resolved** | New frontmatter field `decided_by`, set to `--actor` by `approve`/`abandon` (`bin/perry-goals:3869, 3872`), cleared by any update, validated (`viewer/parsers.py:5564`), and kept out of the approval digest. Probed: a hand-typed `decided_by` on a drafted plan is rejected. Still open: `create` and `update` record no actor. USER-961 asked for the actor "on every write", so N2 below applies. |
+| F3: terminal guard unpinned | **Resolved** | `test_abandon_is_terminal_and_kept` now tries `approve` on an abandoned draft. My R22 changes from GREEN to **RED**. |
+| F4: unpinned checks | **Mostly resolved** | Unknown keys (R21), the install gate (F2a/F2a′), and the `---` fence (R17) are now RED. R18 (body file = the draft) stays GREEN legitimately: a valid draft always opens with `---`, so the fence refusal fires first, and I agree with result.md R-a. R2 (a `show` through a linked directory) is still GREEN, since `create` is covered by `assert_owned` and `scan` by its own check. Recovery-over-interrupted precedence is still unpinned, but I re-probed it: a valid plan plus a transaction marker gives `R-recovery`, and draft writes refuse. |
+| F5: I/O traceback | **Resolved** | `draft_main` turns `OSError` into a refusal with `io_error: true` (`bin/perry-goals:3897-3900`). Probed with a read-only horizon dir: exit 1, a JSON refusal, no traceback, old bytes kept. |
+| F6: docs and edges | **Resolved** | (a) `goals/SKILL.md:57`: the `plans/` clause is now its own sentence, and "the spine" belongs to Commitments again. (b) A future `--date` is refused (`bin/perry-goals:3837-3838`). (c) Approving an interviewing draft now says "still interviewing: mark it drafted…" (`:3865-3867`). |
+
+### Item 4: recovery for transactions and dossiers still blocks
+
+- The code is unchanged apart from dropping the plan term. `pending` and dossier `malformed` still
+  drive `blocking` (`viewer/parsers.py:5452`).
+- Probes:
+  - a valid interviewing plan plus `.perry-task-transaction.json` gives `blocking: true` and
+    primary `R-recovery`, and `draft update` refuses "recovery is blocking";
+  - a malformed `.perry/adoption/*.md` gives `blocking: true`, `malformed_dossiers: [adopt]`, and
+    `R-recovery`.
+- Mutations, run over `test_resume`, `test_next_section` and `TestFirstOkrDraft`:
+  - X1 (dossier errors no longer block): RED (`test_missing_frontmatter_is_reported`);
+  - X2 (transactions no longer block): RED (`test_valid_pending_transaction_is_reported_without_mutation`,
+    `test_a_recovery_hazard_outranks_a_missing_okr`, `test_the_overlays_survive_a_lane_filter`).
+
+### Mutations under cache discipline
+
+Harness: `-B`, plus deletion of `bin/`, `bin/lib/`, `viewer/` and `tests/__pycache__` before
+every run and after every restore. Each mutation was applied, run and restored, and
+`git status` was clean afterwards.
+
+**The first round, repeated at `e77bd340` with purging:** all 25 results are **identical** to the
+first-round table. R1, R3–R15, R20 and R23–R25 are RED. R2, R16, R17, R18, R19, R21 and R22 are
+GREEN. The mtime/size cache hazard the author reports did not change any first-round result.
+
+**At `bc18b398`:**
+
+| Mutation | Result |
+|---|---|
+| The six safety cases: R1, R3 (symlink/traversal); R4 (stale token); R5–R7 (approve-then-edit); R8, R9 (finalize writes); R10, R12, R21 (malformed/duplicate/unknown); R13–R15 (publish failure) | all RED |
+| R17 fence, R20 cap, R22 terminal guard, R23 recovery gate on writes, R24 existing OKR, R25 drafted ≠ interrupted | all RED |
+| F1a: plan errors back in blocking recovery | RED |
+| F1b: droppings not ignored | RED |
+| F1c: `drafts.errors` emptied | RED |
+| F1d: broken-draft refusal without the fix wording (both string literals removed) | RED. My first attempt removed only the second literal and read GREEN. That was a faulty mutant, not a test gap. |
+| F2a: install gate removed / F2a′ gate only on create | RED / RED |
+| F2b: approve doesn't record / abandon doesn't record / update doesn't clear `decided_by` | RED / RED / RED |
+| F2b‴: `decided_by` validator off | **GREEN**: the validator works (probed) but no test pins it. Low. |
+| F5: `OSError` not converted | RED |
+| F6b: future date allowed / F6c: interviewing-approve check off | RED / RED |
+| X1 / X2: recovery (see item 4) | RED / RED |
+| R2 dirs not link-checked, R18 body file = draft, R19 last re-read | GREEN, and legitimate (see F4 above) |
+
+### Remaining findings, ranked by severity
+
+**N1 — Medium (branch integrity; fix before merge or merge onto current `main`). The branch alone
+is red.** `bc18b398` cites `USER-961`/`USER-962` in `schema/state-schema.json:2469`,
+`schema/README.md:410` and result.md. Those asks exist only on `main` (`perry/asks.jsonl:62-63`),
+not on the branch's base `bd3f6329`. So `test_diagnose…test_perry_itself_passes_its_own_id_checks`
+fails deterministically on the branch. result.md's "all green, 4312" is not true of `bc18b398`
+alone. It is true only of the merge with `main`, which I verified (4312, all green). The PMO
+merges locally, so a merge onto current `main` resolves it. It is still a claim that is not
+true of the branch as committed.
+
+**N2 — Low-Medium (consent/scope, for the PMO to confirm). `decided_by` is a new schema field,
+added under a budget/scope ask.** USER-960 limited schema metadata to `questions_asked` and
+`approved_sha256`. USER-961 approves "install gate + actor on every write", but it does not name
+a new `files[id=plan]` field. The standing rule is that `state-schema.json` edits need explicit
+consent. The field is also narrower than the ask: `create`/`update` still record no actor.
+Because it is hand-editable, it must never be read as proof of consent. `planning.md` calls it
+"the record of who decided", and the Approval section already says a hand-typed hash is not
+consent. The same caveat should explicitly cover `decided_by`. Either confirm the field with the
+user, or record that USER-961 covers it.
+
+**N3 — Low. Checks that work but no test pins down.** These are the `decided_by` validator
+(F2b‴), a `show` through a linked `plans/` or horizon directory (R2), and recovery-over-interrupted
+precedence. All three behave correctly when probed.
+
+**N4 — Low (edge).** The `OSError` wrapper always appends "Nothing was written". On `create`, an
+`os.unlink(tmp)` failure after a successful `os.link` would publish the draft and still report
+"Nothing was written". This is unlikely, and noted only for accuracy.
+
+### What I could not verify (this round)
+
+- The author's own mutation script and its output: I re-derived the mutations independently.
+- A live agent–user review/approve session.
+- The unclosed races named in the docs.
