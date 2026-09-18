@@ -421,6 +421,14 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
              # `write_atomic` and so behind `assert_owned`.
              'write_atomic(ctx["state_root"], path, '
              'append_linkage_records(ctx, [record]))',
+             # `append_okr_record` — `kr add|restate|withdraw` of an OVERALL
+             # KR (TASK-264 D3). `okr.jsonl`, never OKR.md: one line appended
+             # after `OKR.md`'s byte gate passed on the store it would leave.
+             "lib.write_atomic(store, prior_text + line)",
+             # `write_kr_change` — the same verbs for a PHASE KR:
+             # `linkage.jsonl`, behind `assert_owned`, as `measure` writes it.
+             'write_atomic(ctx["state_root"], path, '
+             'append_linkage_records(ctx, [record]))',
              # `publish_plan` (TASK-444): a `plans/okr/*.md` draft past `assert_owned`.
              "lib.write_atomic(path, text)"],
             "a write call site was added or moved; check it is gated")

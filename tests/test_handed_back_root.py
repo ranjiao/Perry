@@ -256,7 +256,14 @@ MENTIONS = {
 #: `perry-task risk-add` and `perry-task resolve-intake {n + 1}`. Measured by
 #: diffing `command_phrases()` over a `git archive` of the base and this tree:
 #: 14 gone, none added.
-PASTEABLE_WRITER_PHRASES = 56
+#:
+#: **56 -> 58 at TASK-264 deliverable 3, two new hand-backs, each rooted from
+#: the start**: `perry-goals kr restate {hint} --set …{_r}`, once in
+#: `cmd_kr_add`'s refusal of an id that already exists and once in
+#: `cmd_kr_revise`'s refusal of a restate that names no field. The verb's other
+#: hand-backs end in a metavariable (`<KR-ID>`, `…`) and are not paste-able;
+#: they carry the root anyway.
+PASTEABLE_WRITER_PHRASES = 58
 
 
 def _load(path: Path):

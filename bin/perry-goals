@@ -3848,8 +3848,8 @@ def refuse_withdrawn_kr(ctx, target: dict, verb: str) -> None:
         f"Its records stay in the store. To track the goal again, add it under "
         f"a new id — `perry-goals kr add <NEW-KR-ID>"
         f"{' --okr-version ' + json.dumps(version, ensure_ascii=False) if version else ''}"
-        f" --objective <O> --text \"…\" --reason \"…\" --actor <who>`. "
-        f"Nothing was written")
+        f" --objective <O> --text \"…\" --reason \"…\" --actor <who>"
+        f"{lib.root_flag(ctx['project_root'])}`. Nothing was written")
 
 
 def refuse_closed_for_revision(ctx, target: dict, verb: str) -> None:
@@ -3868,7 +3868,7 @@ def refuse_closed_for_revision(ctx, target: dict, verb: str) -> None:
             f"'s KRs; revise one of those. ({exc})") from None
 
 
-def kr_reason(args, op: str, kr_hint: str) -> str:
+def kr_reason(args, op: str, kr_hint: str, _r: str = "") -> str:
     reason = (args.reason or "").strip()
     if not reason or "\n" in reason or "\r" in reason:
         raise Refused(
@@ -3876,7 +3876,7 @@ def kr_reason(args, op: str, kr_hint: str) -> str:
             f"{'none was given' if not reason else 'it contains a line break'}"
             f". Every KR change records why (DESIGN-022 § 5.7). Re-run: "
             f"`perry-goals kr {op} {kr_hint} … --reason \"<why>\" --actor "
-            f"<who>`. Nothing was written")
+            f"<who>{_r}`. Nothing was written")
     return reason
 
 
@@ -3901,7 +3901,7 @@ def typed_kr_value(level: str, field: str, raw: str):
 
 
 def parse_kr_sets(args, level: str, op: str, kr_hint: str,
-                  also_identity: tuple = ()) -> dict:
+                  also_identity: tuple = (), _r: str = "") -> dict:
     """`--set FIELD=VALUE…` → `{field: typed value}`, or a refusal.
 
     Refused: a token with no `=`; a field named twice; an identity field
@@ -3911,14 +3911,14 @@ def parse_kr_sets(args, level: str, op: str, kr_hint: str,
     identity = lib.kr_identity_fields(kr_store_name(level)) | set(also_identity)
     allowed = [f for f in kr_record_fields(level)
                if f not in identity and f not in KR_FIELDS_NEVER_SET]
-    out: dict = {}
+    typed: dict = {}
     for token in args.sets:
         field, eq, raw = token.partition("=")
         field = field.strip()
         if not eq or not field:
             raise Refused(f"--set takes FIELD=VALUE; {token!r} is not one. "
                           f"Nothing was written")
-        if field in out:
+        if field in typed:
             raise Refused(f"--set {field} is given twice. Nothing was written")
         if field in also_identity:
             raise Refused(
@@ -3930,16 +3930,16 @@ def parse_kr_sets(args, level: str, op: str, kr_hint: str,
                 f"`kr {op}` refused: `{field}` is an identity field of the KR "
                 f"and cannot be set with --set. A KR is renamed or moved by "
                 f"withdrawing it and adding a new one: `perry-goals kr "
-                f"withdraw {kr_hint} --reason \"…\" --actor <who>`, then "
-                f"`perry-goals kr add …`. Fields --set may name: "
+                f"withdraw {kr_hint} --reason \"…\" --actor <who>{_r}`, "
+                f"then `perry-goals kr add …`. Fields --set may name: "
                 f"{', '.join(allowed)}. Nothing was written")
         if field not in allowed:
             raise Refused(
                 f"`kr {op}` refused: a {level} KR record has no field "
                 f"`{field}`. Fields --set may name: {', '.join(allowed)}. "
                 f"Nothing was written")
-        out[field] = typed_kr_value(level, field, raw)
-    return out
+        typed[field] = typed_kr_value(level, field, raw)
+    return typed
 
 
 def append_okr_record(ctx, record: dict, dry_run: bool) -> None:
@@ -4010,8 +4010,8 @@ def append_okr_record(ctx, record: dict, dry_run: bool) -> None:
         prior_text += "\n"
     # `okr.jsonl` is `owner: goals` (`schema § claims`) and is written the way
     # `write_okr_and_store` writes it, beside the lane's own gated file.
-    lib.write_atomic(store, prior_text + json.dumps(record, ensure_ascii=False)
-                     + "\n")
+    line = json.dumps(record, ensure_ascii=False) + "\n"
+    lib.write_atomic(store, prior_text + line)
 
 
 def write_kr_change(args, ctx, level: str, record: dict, event: dict,
@@ -4029,8 +4029,7 @@ def write_kr_change(args, ctx, level: str, record: dict, event: dict,
                        "event_written": False})
         return result
     if level == "phase":
-        write_atomic(ctx["state_root"], path,
-                     append_linkage_records(ctx, [record]))
+        write_atomic(ctx["state_root"], path, append_linkage_records(ctx, [record]))
     result["written"] = True
     result["event_written"] = append_event(ctx["project_root"], event)
     return result
@@ -4083,9 +4082,10 @@ def cmd_kr_add(args, ctx, kr_id: str) -> dict:
                                "--objective")
     text = check_writable(required_flag(args, "text", "--text", "kr"),
                           "--text")
-    reason = kr_reason(args, "add", hint)
+    reason = kr_reason(args, "add", hint, lib.root_flag(ctx["project_root"]))
     text_field = "title" if level == "phase" else "text"
-    sets = parse_kr_sets(args, level, "add", hint, also_identity=(text_field,))
+    sets = parse_kr_sets(args, level, "add", hint, also_identity=(text_field,),
+                         _r=lib.root_flag(ctx["project_root"]))
     records = kr_store_records(ctx, level)
     store = kr_store_name(level)
 
@@ -4150,12 +4150,16 @@ def cmd_kr_add(args, ctx, kr_id: str) -> dict:
     if taken:
         views, _f = lib.kr_revisions(records, store)
         status = lib.kr_status(views.get((kr_id, version)))["status"]
+        _r = lib.root_flag(ctx["project_root"])
+        restate_it = (f"To change it, `perry-goals kr restate {hint} --set "
+                      f"FIELD=VALUE --reason \"…\" --actor <who>{_r}`; to "
+                      f"add another, choose a new id")
         raise Refused(
             f"`{kr_id}` already exists "
             f"{'in ' + P.LINKAGE_STORE if level == 'phase' else 'in ' + repr(version)}"
             f"{' and is withdrawn' if status == 'withdrawn' else ''}; KR ids "
             f"are never reused (DESIGN-022 § 5.7). "
-            f"{'Choose a new id' if status == 'withdrawn' else 'To change it, `perry-goals kr restate ' + hint + ' --set FIELD=VALUE --reason …`; to add another, choose a new id'}"
+            f"{'Choose a new id' if status == 'withdrawn' else restate_it}"
             f" — `perry-goals krs{' --level overall' if level == 'overall' else ''}` "
             f"lists the ids in use. Nothing was written")
 
@@ -4173,7 +4177,8 @@ def cmd_kr_add(args, ctx, kr_id: str) -> dict:
                 f"holds {len(active)} active KRs ({', '.join(active)}), the "
                 f"cap of {PHASE_KR_CAP} per Objective (goals/SKILL.md § Style "
                 f"rules). Withdraw one first — `perry-goals kr withdraw "
-                f"<KR-ID> --reason \"…\" --actor <who>` — or add it under "
+                f"<KR-ID> --reason \"…\" --actor <who>"
+                f"{lib.root_flag(ctx['project_root'])}` — or add it under "
                 f"another objective. Nothing was written")
         declared = kr_record_fields("phase")
         values = {"kind": "kr", "phase": target["phase"], "objective": objective,
@@ -4213,7 +4218,7 @@ def cmd_kr_revise(args, ctx, op: str, kr_token: str) -> dict:
     hint = kr_flag_hint(kr, version) if level == "overall" else kr
     refuse_closed_for_revision(ctx, target, op)
     refuse_withdrawn_kr(ctx, target, op)
-    reason = kr_reason(args, op, hint)
+    reason = kr_reason(args, op, hint, lib.root_flag(ctx["project_root"]))
     fields: dict = {}
     unchanged: list[str] = []
     changes: dict = {}
@@ -4223,8 +4228,10 @@ def cmd_kr_revise(args, ctx, op: str, kr_token: str) -> dict:
                 f"`kr restate` names no field. Re-run with one or more "
                 f"`--set FIELD=VALUE`: `perry-goals kr restate {hint} --set "
                 f"{'title' if level == 'phase' else 'text'}=\"…\" --reason "
-                f"\"…\" --actor <who>`. Nothing was written")
-        sets = parse_kr_sets(args, level, "restate", hint)
+                f"\"…\" --actor <who>{lib.root_flag(ctx['project_root'])}`. "
+                f"Nothing was written")
+        sets = parse_kr_sets(args, level, "restate", hint,
+                             _r=lib.root_flag(ctx["project_root"]))
         current = kr_view(ctx, target)["record"]
         for field, value in sets.items():
             if field in current and current.get(field) == value \

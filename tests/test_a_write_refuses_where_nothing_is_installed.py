@@ -90,6 +90,10 @@ GATED = {
     ("perry-goals", "check"): ["check", "P001-O1-KR1", "--id", "c",
                                "--direction", "done", "--target", "1",
                                "--label", "x", "--actor", "gate-test"],
+    # TASK-264 D3: appends to `linkage.jsonl` or `okr.jsonl`, and the log.
+    ("perry-goals", "kr"): ["kr", "add", "P001-O1-KR9", "--objective", "O1",
+                            "--text", "x", "--reason", "r",
+                            "--actor", "gate-test"],
 }
 
 

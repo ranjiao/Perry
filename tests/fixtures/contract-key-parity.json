@@ -55,20 +55,29 @@
       "unparsed_sketches": [],
       "witness": ""
     },
-    "perry-goals/list/3.5": {
+    "perry-goals/list/3.6": {
       "collections_the_witness_filled": [
         "krs[].checks",
         "krs[].current_staleness.moved_tasks"
       ],
       "command": "perry-goals list --json",
-      "contract": "perry-goals/list/3.5",
-      "documented": 104,
+      "contract": "perry-goals/list/3.6",
+      "documented": 116,
       "documented_not_emitted": [],
-      "emitted": 86,
+      "emitted": 90,
       "emitted_not_documented": [],
       "file": "schema/goals-list-contract.md",
       "named_no_such_collection": [],
-      "not_observable": {},
+      "not_observable": {
+        "krs[].revisions[].actor": "inside `krs[].revisions`, which is empty in this run and in `tests/fixtures/witness-project`",
+        "krs[].revisions[].changes": "inside `krs[].revisions`, which is empty in this run and in `tests/fixtures/witness-project`",
+        "krs[].revisions[].changes[].after": "inside `krs[].revisions`, which is empty in this run and in `tests/fixtures/witness-project`",
+        "krs[].revisions[].changes[].before": "inside `krs[].revisions`, which is empty in this run and in `tests/fixtures/witness-project`",
+        "krs[].revisions[].changes[].field": "inside `krs[].revisions`, which is empty in this run and in `tests/fixtures/witness-project`",
+        "krs[].revisions[].op": "inside `krs[].revisions`, which is empty in this run and in `tests/fixtures/witness-project`",
+        "krs[].revisions[].reason": "inside `krs[].revisions`, which is empty in this run and in `tests/fixtures/witness-project`",
+        "krs[].revisions[].revised_at": "inside `krs[].revisions`, which is empty in this run and in `tests/fixtures/witness-project`"
+      },
       "observed_in_witness": {
         "krs[].checks[].baseline": "inside `krs[].checks`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
         "krs[].checks[].declared_at": "inside `krs[].checks`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",

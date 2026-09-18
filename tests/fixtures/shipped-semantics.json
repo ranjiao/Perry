@@ -224,6 +224,20 @@
           "krs[].met",
           "krs[].fraction"
         ]
+      },
+      {
+        "version": "3.6",
+        "fields": [
+          "krs[].status",
+          "krs[].revisions",
+          "krs[].withdrawn_at",
+          "krs[].withdrawn_reason",
+          "krs[].title",
+          "krs[].metric",
+          "krs[].target",
+          "krs[].current",
+          "krs[].stretch"
+        ]
       }
     ],
     "perry-decide/list": [

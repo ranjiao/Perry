@@ -4721,8 +4721,8 @@ def kr_revision_findings(records: list, store: str,
                     f"line {f['line']}: the `kr_revision` of {f['kr']}"
                     f"{' (' + f['okr_version'] + ')' if f['okr_version'] else ''}"
                     f" is not applied — {f['message']}. Readers show the KR "
-                    f"without it; `perry-goals kr restate|withdraw` writes a "
-                    f"valid one (DESIGN-022 § 5.7).")
+                    f"without it; the `kr restate` and `kr withdraw` verbs of "
+                    f"perry-goals write valid ones (DESIGN-022 § 5.7).")
             for f in found]
 
 
