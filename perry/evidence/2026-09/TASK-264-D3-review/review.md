@@ -263,3 +263,169 @@ Code that could obviously be shared (about 60 lines; no rewrite asked):
 - **A real template-born project.** The refusal for an `OKR.md` that carries KR rows is tested on a fixture. I only scanned the shipped template (`kr: 6`); no real template-born project was run through it.
 - **Consumers outside this repository**, such as aiMark. I did not check whether any of them read `perry-state`'s `okr.objectives[].krs[]` or `phase.kr_total` in a way that F1 would mislead.
 - **Concurrency and clock skew.** Two `kr` writes in the same second tie on `revised_at` and fold in file order, as designed. The writer cannot revise a KR after its withdrawal, because it asks the fold first. A hand-appended revision stamped earlier than an existing withdraw would fold before it and be accepted, by the rule as written. I reasoned about this but did not probe it.
+
+---
+
+# Re-review: the repair round (USER-966)
+
+VERDICT: PASS
+
+> Candidate: head `4dd6b457` (code head `001cac10`) on `worktree-agent-aebd0dddb8b7a2f89`, built on `b6101c77`. Base `5e5407ea`.
+> Scope (USER-966): fix F1, F3 and F5; F2 is the template and `setup.md`. F4 and F6 are recorded only. The `commit` objective-id bug is TASK-467.
+> Method: I reviewed `git diff b6101c77 4dd6b457` before reading the author's repair section, then checked its claims. Every probe ran on copies under the session scratchpad. My branch was moved onto `4dd6b457` with this file's first commit replayed on top.
+
+## The four findings
+
+| Finding | Status | Where |
+|---|---|---|
+| **F1** — `perry-state` counted and showed withdrawn KRs | **Resolved** on every `perry-state` surface | `bin/perry-state:1857-1871` (the overall fold, keyed by the version label), `:2029` (`okr.objectives[].krs[]`), `:2054` (`phase.objectives[].krs[]`), `:2063-2064` (`kr_total` without the withdrawn KRs, and a new `kr_withdrawn`), `:2871`, `:2884` and `:2900` (`--compact`), `:3035` (dashboard) |
+| **F3** — a withdrawn KR accepted new task edges | **Resolved** | `bin/perry-task:3887-3899` (`add --kr`); `bin/perry-goals:1449-1453` (`link` reads the folded graph), `:1643` (`refuse_withdrawn_target`), `:1680` (edge), `:1813` (Project) |
+| **F5** — the overall append bypassed `assert_owned` | **Resolved** | `bin/perry-goals:4066` (gated `write_atomic`), `:750` (`okr.jsonl` added to `owned_by_goals`, matching `owner: goals` in `schema § claims`) |
+| **F2** — the template and `setup.md` prescribed KR tables | **Resolved** | `goals/state/OKR_TEMPLATE.md:57-61` (KR tables removed, pointer paragraph added, objective headings kept); `goals/reference/setup.md:46-58` (no KR table; points at the `kr add` verb) |
+
+### F1, surface by surface
+
+I measured each surface on a fresh copy of this repository's state, after `kr withdraw P004-O3-KR1` and `kr withdraw O3-KR5 --okr-version "v4: 2026-09-15"`:
+
+| Surface | Before the repair (`b6101c77`) | After (`4dd6b457`) |
+|---|---|---|
+| `phase.kr_total` | 12 | **11**, and `phase.kr_withdrawn: 1` |
+| Dashboard line | `4 objectives / 12 KRs` | `4 objectives / 11 KRs (+1 withdrawn)` |
+| `phase.objectives[].krs[]` | no `status` | `status` on every entry (0 missing); `P004-O3-KR1` reads `withdrawn` |
+| `okr.objectives[].krs[]` | no `status` | `status` on every entry (0 missing); `O3-KR5` reads `withdrawn` with its reason |
+| `--compact` | no `status`, no withdrawn count | `status` projected on all three KR lists; `phase.kr_withdrawn: 1` |
+| `schema/README.md` | — | Documents no `perry-state` phase or okr block, and says `perry-state --json` "is not a frozen contract". Nothing to update |
+
+**One residue, Low (F11 below).** The documented payload that does carry `phase.kr_total` is `schema/goals-list-contract.md:383`, which belongs to `perry-goals list`. It still counts the withdrawn KR (`bin/perry-goals:1208`), and read **12** on the same copy where `perry-state` read **11**. The author left it unchanged on purpose, and said so. It is defensible, since the contract defines it as "counted from the phase's objectives" and a withdrawn KR stays in `krs[]`. But two payloads now publish a key with the same name and different answers.
+
+### F3, probed
+
+On the same copy:
+
+- `perry-task add --kr P004-O3-KR1` (the withdrawn KR, written for real, not `--dry-run`) was refused. The message names the withdrawal, `perry-goals krs` and `--unlinked`.
+- The same command with `--kr P004-O3-KR2` (an active KR) is accepted under `--dry-run`.
+- `perry-goals link TASK-193 P004-O3-KR1` was refused, and the message lists the 11 active KRs and `link --unlinked TASK-193`.
+- `diff -rq` against a pre-copy: no bytes moved.
+
+`perry-task`'s only edge writer is `linkage_add_change`, called from `commit` for an `add` event only, and `--kr` is written verbatim, so matching the exact phase key `(id, "")` is enough. `link` refuses after the token is resolved, so a Project id or alias that resolves to a withdrawn KR is refused too.
+
+## The two rewritten tests
+
+**`test_parsers.TemplateContract.test_okr_template_yields_objectives_and_krs` (`tests/test_parsers.py:64`): honest, not weakened.**
+
+- The original made four claims against the template's markdown:
+  1. the objectives parse;
+  2. every objective has KRs;
+  3. `KR-O1.1` is read;
+  4. the `Stretch?` column is read.
+- USER-966 removes the rows, so claims 2–4 can no longer be true of the template's markdown. Asserting them there would mean restoring the thing the decision removed.
+- The new version keeps claim 1 unchanged. It moves claims 2–4 to the model the template now ships: a store keyed by the template's objective headings, including the trailing `<!-- … -->` note, which the parser strips. The test gives the reason in its docstring.
+- It adds one guard that is new and strictly stronger: no KR is read from the template's markdown.
+- **What is lost.** The markdown `Stretch?` column is no longer read from a shipped file. The parsing itself is still covered by `test_overall_kr_grammar`, `test_md_store` and `test_goals_contract`.
+- **What is slightly circular.** The test builds the store from the same headings it then checks. What it proves is that the template's headings key correctly, which is a real property of the template. It is not an end-to-end read.
+- `TestAProjectFromTheTemplate` in `test_goals_kr_revisions` covers the end-to-end path.
+
+**`test_compact_payload`: extended, not weakened.** The diff only adds names:
+
+- `phase.kr_withdrawn` in the key-kind map;
+- `status` in the three projection tuples.
+
+No existing entry was removed or loosened. My mutations F1f and F1g turn it red.
+
+## Mutations
+
+Method:
+
+- `scratchpad/mutate2.py` ran each mutation on a fresh copy of `git archive 4dd6b457`.
+- Before each run it purged every `__pycache__` and ran `python3 -B` with `PERRY_PROJECT` and `PERRY_HOME` unset.
+- Each anchor had to occur exactly once, or the run aborted.
+- Modules run: `test_goals_kr_revisions`, `test_compact_payload`, `test_parsers`, `test_okr_store_is_the_source`, `test_kr_checks`, `test_next_section`, `test_goals_kr_writer`, `test_actor_required` and `test_pointers_resolve`.
+- The unmutated control, S0, was green.
+
+| # | Mutation | Result | Red tests |
+|---|---|---|---|
+| S0 | control: no mutation | GREEN | — |
+| F1a | phase.kr_total counts withdrawn KRs | RED | `test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it` |
+| F1b | okr.objectives[].krs[] carry no status | RED | `test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it` |
+| F1c | phase.objectives[].krs[] carry no status | RED | `test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it` |
+| F1d | overall status keyed without the version label | RED | `test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it` |
+| F1e | dashboard drops the withdrawn suffix | RED | `test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it` |
+| F1f | --compact drops phase.kr_withdrawn | RED | `test_every_field_is_projected_by_the_kind_this_file_expects`, `test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it` |
+| F1g | --compact drops status from okr.objectives | RED | `test_each_projection_still_picks_out_the_names_it_is_meant_to`, `test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it` |
+| F3a | perry-task add --kr accepts a withdrawn KR | RED | `test_perry_task_add_kr_to_a_withdrawn_kr` |
+| F3b | link accepts an edge to a withdrawn KR | RED | `test_link_an_edge_or_a_project_to_a_withdrawn_kr` |
+| F3c | link --project accepts a withdrawn KR | RED | `test_link_an_edge_or_a_project_to_a_withdrawn_kr` |
+| F3d | link reads the unfolded graph | RED | `test_link_reads_the_folded_graph` |
+| F5a | overall append back to ungated lib.write_atomic | RED | `test_no_other_subcommand_writes_OKR_md`, `test_the_overall_append_goes_through_the_lane_gate` |
+| F5b | okr.jsonl dropped from owned_by_goals | RED | `test_a_project_instantiated_from_it_accepts_an_overall_kr_add`, `test_add_check_measure_restate_withdraw_then_measure_refused`, `test_add_reusing_a_withdrawn_overall_id`, `test_commit_carries_a_revision_through_the_okr_md_gate`, `test_every_record_the_writer_appends_lints_clean`, `test_perry_goals_list_publishes_status_and_the_folded_values`, `test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it`, `test_the_overall_append_goes_through_the_lane_gate`, `test_the_overall_list_row_folds_its_own_store` |
+| F2a | a KR table row back in the template | RED | `test_a_project_instantiated_from_it_accepts_an_overall_kr_add`, `test_okr_template_yields_objectives_and_krs`, `test_the_template_carries_no_kr_rows` |
+| F2b | setup.md prescribes the KR table again | GREEN | — |
+| R1 | (round 1) fold applies revisions in file order | RED | `test_revisions_apply_in_revised_at_order_not_file_order` |
+| R9 | (round 1) measure accepted on a withdrawn KR | RED | `test_add_check_measure_restate_withdraw_then_measure_refused` |
+| R13 | (round 1) perry-state reads an unfolded snapshot | RED | `test_perry_state_reads_the_restated_values` |
+
+**17 of the 18 mutations are red** (S0 is the control). That covers each fix at least once (F1 seven ways, F3 four, F5 two, F2 once) and three of my first-round mutations (R1, R9 and R13), which are still red. **F2b is green.** I then ran the full default tier on that copy, and it was still green (155 modules), so nothing guards `setup.md`'s prose against prescribing KR tables again. I record this as Info (F13), not a defect. The template itself is guarded (F2a is red), and a test that judged the meaning of a procedure page would come close to NN-4.
+
+## Template regression (point 4)
+
+`scratchpad/template_flow.sh` ran on a fresh `git init` folder, with `PERRY_PROJECT` and `PERRY_HOME` unset.
+
+| Step | Result |
+|---|---|
+| `perry-lint --claims` | exit 0 |
+| `perry-config set` × 4 (Document language, Chat language, Repo layout, State root `perry`), as in `reference/first-run.md § Writing the config store` | exit 0 each |
+| `perry-goals draft create --horizon okr --route first … --body-file <the shipped template, placeholders filled>` | exit 0, `status: interviewing` |
+| `draft update --status drafted`, then `draft approve` | exit 0 each; `approval_valid: true` |
+| `draft finalize` | exit 1 by design (TASK-444: no overall authoring writer) |
+| `OKR.md` from the approved body, then `perry-okr write --from-file`, then `perry-okr migrate-ids` | exit 0; 3 objective ids minted |
+| `perry-goals kr add O1-KR1 --okr-version "v1: 2026-09-18" --objective O-1 …` | exit 0; `OKR.md` unchanged; `krs --level overall` lists it under "Objective 1 — Alpha" |
+
+**No regression.** The one `perry-lint` error in the resulting project is `Due = 'filled'` in `## Commitments`, which is my own placeholder fill and not the template's.
+
+Two things the run surfaced:
+
+- **F12, Low, new.** `draft finalize` still lists "a KR add/restate/withdraw writer (TASK-264, not built)" as missing (`bin/perry-goals:4345-4348`, `DRAFT_MISSING`), and `goals/reference/planning.md:103-105` says the same. After this row that writer exists, so the refusal names one false reason. Finalize is still correctly unavailable, because the overall authoring writer is still missing.
+- **Pre-existing, not this row's.** The template's `### Objective 3 — {{title}}     <!-- delete this block if only 2 Os -->` heading is printed with its comment by `krs --level overall` if the user keeps it. The `perry-okr` import step is itself something `planning.md` tells an agent not to do by hand. There is still no sanctioned path from an approved first-OKR draft to `OKR.md`, which is TASK-444's known gap.
+
+## Suites and size
+
+| Run | Result |
+|---|---|
+| `bash tests/run`, `PERRY_PROJECT` and `PERRY_HOME` unset, pycache purged | **155 modules · 4,368 tests · all green** (104.8 s) |
+| `bash tests/run --tier slow`, same | **159 modules · 4,471 tests · all green** (188.5 s) |
+| `git diff --check 5e5407ea 4dd6b457` | clean |
+
+No module was red, so none needed re-running alone. The mutation driver ran at the same time as the suites, in separate directories, and nothing went red.
+
+Net lines, measured with `git diff --numstat` at code head `001cac10`:
+
+| Scope | Against `5e5407ea` | This round (against `b6101c77`) |
+|---|---|---|
+| Production Python (`bin/`, `viewer/`) | +1,138 / −40, **net +1,098** | net **+78** |
+| Test Python | +986 / −19, **net +967** | net **+188** |
+| Docs and schema (`goals/`, `schema/`, `reference/`) | +203 / −34 | — |
+
+These match the author's figures exactly.
+
+## Remaining findings, by severity
+
+No Medium or High findings remain.
+
+**Low**
+
+- **F4** — `restate` checks type, not format. Recorded only, per USER-966.
+- **F6** — `parsers` returns unfolded KRs unless the caller passes the hook. Recorded only, per USER-966. Its live instance, `perry-goals link`, is fixed by F3.
+- **F7** — `phase.kr_progress.withdrawn` is a count, with the reasons elsewhere. Unchanged and acceptable.
+- **F11 (new)** — `perry-goals list`'s `phase.kr_total` (`bin/perry-goals:1208`, `schema/goals-list-contract.md:383`) still counts withdrawn KRs, while `perry-state`'s now does not: 12 against 11 on the same project. Fix it with a `perry-goals/list` minor and a `semantics` note, or document the difference.
+- **F12 (new)** — `DRAFT_MISSING` (`bin/perry-goals:4348`) and `goals/reference/planning.md:105` still say the TASK-264 KR writer is not built.
+
+**Info**
+
+- **F8, F9, F10** — as in round one.
+- **F13 (new)** — no test guards `setup.md` against prescribing KR tables again (F2b is green on the full tier).
+- **TASK-467** — out of scope, not reviewed.
+
+## What I could not verify
+
+- The rewritten `test_parsers` case against a template edited by hand in the ways a user would edit it. I checked only the shipped file and my filled copy.
+- Consumers outside this repository, such as aiMark, that may read `perry-state`'s `phase.kr_total`, whose meaning changed in this round (it now excludes withdrawn KRs).
