@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.17 — 2026-09-18
+
+patch · phase 004-guided · TASK-468 · delivery TASK-468-20260918
+
+### Changes
+
+`perry-context-budget` binds usage to the actual host and session: an explicit `--session` source or a verified host identity, never the newest transcript file. Claude and Codex adapters report input, cached input, cache creation, output and reasoning separately, deduplicate repeated records, take deltas of cumulative counters, and subtract a forked Codex child's inherited counter. Reports carry host, transcript host, session and parent identity, source, freshness, coverage (Workflow and unmatched children make it partial) and a not_measured list; cost and quota stay unknown. A frozen pre-change baseline is recorded in perry/evidence/2026-09/TASK-468-baseline/.
+
+
+### Upgrade notes
+
+On Claude Code Desktop the main session and its subagents carry the same identity, so the gate reports `unknown` there and autopilot falls back to --max-dispatches. On the plain Claude CLI a subagent may bind its main session (unverified; settle in TASK-471 before relying on the gate there). OpenCode reports unknown. `scanned_whole_file` is gone; a verdict may be `historical`; a refused bill exits 1. Local allocation only; no public release.
+
+
+### Breaking changes
+
+The implicit newest-transcript selection is removed: without an explicit --session or a verified host identity the verdict is `unknown`. JSON output drops scanned_whole_file and adds transcript_host, coverage and not_measured.
+
+
 ## 0.1.16 — 2026-09-18
 
 patch · phase 004-guided · TASK-457 · delivery TASK-457-rebased-20260918
