@@ -221,8 +221,8 @@ It holds paths, counts and numbers only; no transcript content was copied.
 
 The base is still `c48e25fe`. The round started from `5f182d3c`; the repair
 commit is `5752ff71`, and a later commit adds this section and the log. On
-scope: USER-970 restored the ≤ 0 net-lines rule to Objective 4 only. TASK-468
-is unlinked, so the rule does not bind it, and USER-969's exception stands.
+scope: a user decision recorded on main after this base restored the ≤ 0 net-lines rule to Objective 4 only. TASK-468
+is unlinked, so the rule does not bind it, and the earlier user exception for this task stands (IDs are defined only on main, so they are not cited here).
 The stop condition in the first section is superseded.
 
 **Net lines against `c48e25fe`, at `5752ff71`:**
