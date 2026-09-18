@@ -1440,7 +1440,14 @@ class Register:
                 f"because the append would be judged against a graph nobody "
                 f"can see. Run `perry-lint --root .` for the line. Nothing "
                 f"was written")
-        self.graph = P.load_linkage(self.state_root, self.number)
+        # Folded (DESIGN-022 § 5.7; TASK-264 D3 repair, V4 finding F3): the
+        # graph `link` judges against is the one every reader sees, and
+        # `withdrawn` names the KRs that take no new edge or Project.
+        self.graph = P.load_linkage(self.state_root, self.number,
+                                    kr_fold=lib.fold_kr_records)
+        views, _findings = lib.kr_revisions(records, P.LINKAGE_STORE)
+        self.withdrawn = {kr: view for (kr, _v), view in views.items()
+                          if view["status"] == "withdrawn"}
         if not self.graph.ok:
             raise Refused(
                 f"{P.LINKAGE_STORE} declares no key result for phase "
@@ -1630,6 +1637,27 @@ def claimed_by(model, label: str) -> str:
     return ""
 
 
+def refuse_withdrawn_target(reg: Register, kr: str, what: str,
+                            task: str = "") -> None:
+    """A withdrawn KR takes no new edge and no new Project (V4 finding F3).
+
+    Its status is `lib.kr_revisions`' answer, read by `Register`; withdrawal
+    is terminal, so the recovery is another KR or an unlinked declaration."""
+    view = reg.withdrawn.get(kr)
+    if not view:
+        return
+    active = [k for k in kr_ids(reg.graph) if k not in reg.withdrawn]
+    raise Refused(
+        f"{kr} was withdrawn at {view['withdrawn_at']} "
+        f"({view['withdrawn_reason']}), so it takes no new {what}: a "
+        f"withdrawn KR leaves every count and is never scored (DESIGN-022 § "
+        f"5.7). Name an active KR of this phase instead — "
+        f"{', '.join(active) or '(none)'}"
+        + (f" — or declare the task unlinked with `link --unlinked {task}`"
+           if task else "")
+        + ". Nothing was written")
+
+
 def link_edge(reg: Register, task: str, token: str) -> dict:
     """1 — resolved → append the edge (`goals/reference/linkage.md § link`).
 
@@ -1646,6 +1674,7 @@ def link_edge(reg: Register, task: str, token: str) -> dict:
             f"carry as a KR — the Project registry and the objectives "
             f"disagree. Fix the graph first (`perry-lint --root .`). "
             f"Nothing was written")
+    refuse_withdrawn_target(reg, kr, "task edge", task)
     holder = reg.graph.kr_for_task(task)
     if holder == kr:
         return {"already": f"{task} is already linked to {kr}"}
@@ -1778,6 +1807,7 @@ def link_project(reg: Register, pid: str, kr: str, name: str) -> dict:
             f"{', '.join(kr_ids(reg.graph)) or '(none)'}. A Project is "
             f"registered against a declared KR, never against a new one. "
             f"Nothing was written")
+    refuse_withdrawn_target(reg, kr, "Project")
     owner = claimed_by(reg.graph, name)
     if owner:
         raise Refused(

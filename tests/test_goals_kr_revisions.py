@@ -29,6 +29,7 @@ COVERS = (
     "bin/perry-goals",
     "bin/perry-state",
     "bin/perry-lint",
+    "bin/perry-task",
     "bin/lib/",
     "bin/perry_md_store.py",
     "viewer/parsers.py",
@@ -570,6 +571,50 @@ class TestRefusals(Project):
         self.assertRefused(["check", "P004-O1-KR1", "--id", "x", "--direction",
                             "done", "--target", "1", "--label", "x"],
                            "withdrawn", "perry-goals kr add")
+
+    # ── attribution to a withdrawn KR (V4 finding F3, repair round) ──
+    def test_perry_task_add_kr_to_a_withdrawn_kr(self):
+        self.withdraw_p004()
+        before = self.snapshot()
+        row = ["add", "--title", "a row for it", "--deliverable", "d",
+               "--verification", "v", "--summary", "a summary sentence here.",
+               "--actor", "t", "--root", str(self.root)]
+        got = inproc.run("perry-task", [*row, "--kr", "P004-O1-KR1"],
+                         env={"PERRY_PROJECT": None})
+        self.assertEqual(got.returncode, 1, got.stdout + got.stderr)
+        self.assertEqual(before, self.snapshot())
+        self.assertFalse((self.root / "tasks.jsonl").exists())
+        said = got.stdout + got.stderr
+        for fragment in ("withdrawn", "gone", "perry-goals krs", "--unlinked",
+                         "Nothing was written"):
+            self.assertIn(fragment, said)
+        # The control: an active KR of the same phase is still accepted.
+        ok = inproc.run("perry-task", [*row, "--kr", "O2-KR1", "--dry-run"],
+                        env={"PERRY_PROJECT": None})
+        self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+
+    def test_link_an_edge_or_a_project_to_a_withdrawn_kr(self):
+        self.withdraw_p004()
+        self.assertRefused(["link", "--actor", "t", "TASK-001", "P004-O1-KR1"],
+                           "withdrawn", "takes no new task edge", "O2-KR1",
+                           "link --unlinked TASK-001")
+        self.assertRefused(["link", "--actor", "t", "--project", "PROJ-001",
+                            "P004-O1-KR1", "a project"],
+                           "withdrawn", "takes no new Project", "O2-KR1")
+        got = self.goals("link", "--actor", "t", "TASK-001", "O2-KR1",
+                         "--dry-run")
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+
+    def test_link_reads_the_folded_graph(self):
+        """`link` builds its graph through the fold: a KR restated in the
+        store is the KR `Register` sees."""
+        self.ok("kr", "restate", "P004-O1-KR1", "--set", "title=folded",
+                "--reason", "r")
+        sys.path.insert(0, str(HERE.parent / "bin"))
+        goals = inproc.load("perry-goals")
+        reg = goals.Register(self.root, "004-now")
+        titles = {k.id: k.title for o in reg.graph.objectives for k in o.krs}
+        self.assertEqual(titles["P004-O1-KR1"], "folded")
 
     # ── the surface ──
     def test_a_flag_the_op_does_not_take_is_exit_2(self):
