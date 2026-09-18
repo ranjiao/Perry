@@ -52,6 +52,7 @@ Project-local installs are `.claude/skills/perry` for Claude Code and `.opencode
 | Dispatch cap | enforced | enforced | filesystem-wide but completion cleanup is advisory across sessions |
 | Skill discovery | `~/.claude/skills/perry` | `~/.config/opencode/skills/perry` or `.opencode/skills/perry` | `~/.agents/skills/perry` |
 | Skill invocation | `/perry` | invoke `perry`; lanes are arguments to the one skill | `/skills`, pick **perry**, or mention `$perry` |
+| Session usage telemetry | `CLAUDE_CODE_SESSION_ID` names `~/.claude/projects/*/<id>.jsonl`; under `CLAUDE_CODE_CHILD_SESSION` (Desktop) main and subagents share it, so `unknown` | none Perry can read: `unknown` | `CODEX_THREAD_ID` names `~/.codex/sessions/*/*/*/rollout-*-<id>.jsonl` |
 
 The executor enum is `claude-subagent | opencode-subagent | codex | manual`. The host matrix is strict:
 
@@ -62,6 +63,13 @@ The executor enum is `claude-subagent | opencode-subagent | codex | manual`. The
 | `codex-cli` | `codex` |
 
 If a spec pins a native executor for another host, refuse rather than silently reroute. `manual` routes to `/perry work delegate`; it is never registered with `perry-dispatch-limit`. When an auto spec omits `Executor`, offer only executors valid for `$HOST`, plus `manual`.
+
+`bin/perry-context-budget` binds its gate to that identity, never to the newest transcript; with no identity, several matches or an unsupported host it reports `unknown` and does not gate.
+**Claude Desktop is always `unknown`, main session included:** Desktop sets
+`CLAUDE_CODE_CHILD_SESSION=1` everywhere, and its subagents run in the same
+process with the same `CLAUDE_CODE_SESSION_ID`, so no environment signal says
+which session is asking. `unknown` there is not a clean budget; `autopilot`
+falls back to `--max-dispatches`. Categories, deduplication and coverage per host: `bin/README.md § perry-context-budget`.
 
 ## Prompt rendering
 

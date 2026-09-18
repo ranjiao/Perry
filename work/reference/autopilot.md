@@ -206,10 +206,12 @@ Repeat:
      dropped work. Run `/pmo handoff`, then tell the user in one line that a
      fresh session resumes from it.
 
-     Verdict `unknown` (exit 0) means the host keeps no transcript this tool
-     can read — it does **not** mean the context is fine. Say so once in the
-     run summary and fall back to `--max-dispatches`, which is the proxy that
-     does not need a transcript.
+     Verdict `unknown` (exit 0) means the gate could not bind this session to
+     one transcript with usage: OpenCode, no or an ambiguous session identity,
+     or **Claude Desktop, where it is always `unknown`** because the main
+     session and its subagents share one id. It does **not** mean the context
+     is fine. Say so once in the run summary, with the printed reason, and
+     fall back to `--max-dispatches`, the proxy that needs no transcript.
    - No remaining eligible tasks → exit (success)
 
 2. **Saturate dispatch slots**:

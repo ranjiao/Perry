@@ -49,7 +49,7 @@ statements it was fixing.
 | [`perry-lint`](perry-lint) | read | Validates state files against `schema/state-schema.json`. Run it after every write to a tier‑1 file. |
 | [`perry-diagnose`](perry-diagnose) | read | How a project is *structured* for agent work — context load, document graph, tracking spine. Works on any folder, Perry or not. |
 | [`perry-state-cost`](perry-state-cost) | read | What a project's Perry state costs it: bytes, file count, share of tracked bytes and the growth trend, per claimed path, at a named commit. The paths come from `schema/state-schema.json § claims`, so a directory cannot fall out of the report by being forgotten. Reads `evidence/` and `journal/` to size them and writes nothing anywhere. |
-| [`perry-context-budget`](perry-context-budget) | read | What the SESSION costs per turn, from the host's own transcript accounting — not what the state costs on disk, which is `perry-state-cost`. Measured over 25 sessions and 18,941 turns: 99.1% of this project's 8.43B tokens was `cache_read`, the accumulated context re-read every turn, so the bill is `Σ over turns (context at that turn)`. Exit 1 at the ceiling in `schema § thresholds.session_context_ceiling`, which is how `autopilot` knows to hand off; `--composition` says what the context is made of. `--bill <snapshot\|add-task\|close-task\|dispatch\|plan-phase\|all>` separately reports declared L0/L1/L2 file bytes and finite caps, excluding conditional/project context; `--bill-skill-root` supplies a fixture root. Abstains loudly on a host with no transcript rather than reporting a clean bill it never measured. |
+| [`perry-context-budget`](perry-context-budget) | read | What the SESSION costs per turn, from the host's own transcript accounting — not what the state costs on disk, which is `perry-state-cost`. Measured over 25 sessions and 18,941 turns: 99.1% of this project's 8.43B tokens was `cache_read`, the accumulated context re-read every turn, so the bill is `Σ over turns (context at that turn)`. The session is the one the host's identity names (`CLAUDE_CODE_SESSION_ID`, `CODEX_THREAD_ID`) or an explicit `--session`, never the newest file; the report carries host, session, parent, source path, freshness, coverage and five usage categories, with cost and quota `unknown`. Exit 1 at the ceiling in `schema § thresholds.session_context_ceiling`, which is how `autopilot` knows to hand off; a `historical` `--session` never gates. `--composition` says what the context is made of. `--bill <snapshot\|add-task\|close-task\|dispatch\|plan-phase\|all>` separately reports declared L0/L1/L2 file bytes and finite caps, excluding conditional/project context; `--bill-skill-root` supplies a fixture root. Abstains loudly — OpenCode, an absent, ambiguous or child identity, no usage — rather than reporting a clean bill it never measured. Argument: [below](#perry-context-budget). |
 | [`perry-explain`](perry-explain) | read | Resolves an ID (`REL-002`, `ADR-003`, `P<NNN>-O<n>-KR<n>`) to what it actually means, where it was defined, and everywhere it is referenced. |
 | [`perry-churn`](perry-churn) | read | Per-day line churn from `git log --numstat`, with documentation (`.md` and friends) counted apart from everything else. **In a Perry project — one with a `.perry/` — the split is four ways with no flag: `docs` and `evidence` (`<state root>/evidence/**`, resolved through `lib.resolve_state_root`), `code` and `tests` (a test tree or a test file name; the path rule beats the extension, so a markdown fixture under `tests/` is a test). `--plain` restores the two-way table byte for byte, `--split` forces four in any repo.** `--days N` prints the last N days as a calendar, so a day with no commits shows as a zero row rather than vanishing. Still repository-agnostic: `-C <dir>` points it at any git repo, no Perry state file is read, and `--csv` / `--json` carry the same numbers as the table. |
 | [`perry-restore-check`](perry-restore-check) | read | Did a mutation round put the file back? Compares the working tree against `git show <ref>:<path>` — an independent source — because the pattern this project prescribed compared the file against the bytes the harness had just written back, and that assertion cannot fail when the write succeeds (`work/reference/review-constraints.md § Verify a restore against an independent source`, TASK-256). Exits non-zero if any path differs. Refuses to answer unless its own bytes have been shown to match the copy committed in its repository — including when there is no committed copy to compare against; `--allow-modified-self` overrides, though from a scratch copy the better move is usually to run the *live* repository's helper against the copy with `--root <copy>`, which needs no override. |
@@ -681,3 +681,111 @@ other state file lives, and every writer reads it to decide which tracks exist.
 Neither is new — every reader of the config has always had them — and a writer
 of the config meets them at every write.
 
+
+### `perry-context-budget`
+
+**The number this exists for.** Measured across 25 Perry sessions and 18,941
+turns: 8.43 billion tokens, of which 99.1% was `cache_read` — the accumulated
+context, re-read on every turn. Output was 0.3%. The largest session ran 8,174
+turns at a mean context of 504,651 tokens, touched 997,717 at its peak, and
+compacted 15 times. So the cost of a long run is not what it loads but
+`Σ over turns (context at that turn)`, and both factors grow together inside
+one session: a five-hour run is superlinear, not five one-hour runs. Replaying
+those turns against a cap, 200k would have cost 58.3% less and 300k 42.3% less
+for the same work. `autopilot` reads the gate as a stop check; a run that
+crosses the ceiling writes a handoff and exits, and the next session resumes
+from it at a fresh baseline — which is the reason `handoff/` exists.
+
+**It measures; it does not estimate.** The figure is the host's own accounting
+of the most recent request: every input category (uncached input, cached
+input, cache creation) summed. Summing is the only way the figure does not
+drop to near zero right after a compaction, when the context arrives as cache
+creation instead of cache reads — exactly when it is largest. Output is not
+context. The transcript path, its age and the time of its last record travel
+with every answer, so the number is one somebody else can re-derive.
+
+**It measures one named session, never the newest file.** Until TASK-468 it
+took the most recently written transcript in the cwd's slug directory and
+called it the live session. The TASK-468 baseline recorded what that did: run
+from a child agent with `--root` on the main checkout, it reported the
+*parent's* 352,067-token context as the child's, `OVER`, exit 1 — and run from a
+worktree cwd it found nothing at all, because the host files a worktree's
+session under the checkout it started in. A newer transcript from a concurrent
+session, or from the other host during a nested `codex exec`, would be picked
+the same way. The session is now bound by the identity the host exports for it
+— `CLAUDE_CODE_SESSION_ID` (the file is `<id>.jsonl` under any
+`~/.claude/projects/` directory) or `CODEX_THREAD_ID` (the rollout whose name
+ends in the id) — after `perry-detect-host` has said which host this is, so an
+inherited variable from an outer host is not read. The file's own records must
+name the same session. Zero or several matches, an id the file contradicts,
+OpenCode (no per-session usage Perry can read) and an unidentified host are
+all `unknown`.
+
+**Claude Desktop cannot be bound, and says so.** Desktop sets
+`CLAUDE_CODE_CHILD_SESSION=1` on the main session as well as on its
+subagents, so the flag does not mark a subagent. Observed on 2026-09-18: the PMO's main
+Desktop session reported `CLAUDE_CODE_CHILD_SESSION=1` and a
+`CLAUDE_CODE_SESSION_ID` equal to its own transcript id; a subagent it spawned
+saw the same flag and that same id (its parent's, not its own
+`subagents/agent-<id>.jsonl`), its shell was a direct child of `CLAUDE_PID`,
+and none of its 56 environment variables names the subagent. Binding the id would give a
+subagent the main session's context — the defect this binding exists to
+remove — so under that flag the gate is `unknown` in the main session too, and
+`autopilot` falls back to `--max-dispatches`. The same in-process sharing
+probably holds for the plain CLI's subagents, which carry no flag; that is
+unverified (no plain-CLI session was available to inspect). `--session` is still accepted: it is `current` when its records
+name the host's session, `historical` when they name another — reported with
+its figures, never a verdict and never exit 1 — and `explicit`, the caller's
+own assertion, when the host gives no identity.
+
+**Categories follow each host's schema and are never added twice.** Claude
+writes one record per content block and repeats the message's usage on each,
+so a message id counts once (the baseline session: 300 records, 167 messages).
+Its `input_tokens`, `cache_read_input_tokens` and `cache_creation_input_tokens`
+are disjoint; `thinking_tokens` is inside `output_tokens`. Codex writes a
+cumulative `total_token_usage` on each `token_count` event, so a request is
+the delta from the previous total; an identical total is a repeat, and a total
+below its predecessor restarts the counter. A counter's first request is its
+`last_token_usage`, not its total: a child forked from its parent
+(`forked_from_id`) starts with the parent's running total and an empty last
+request, and counting that total again overstated one real parent by 26.7%.
+Its `input_tokens` includes
+`cached_input_tokens` and `cache_write_input_tokens`, and `output_tokens`
+includes `reasoning_output_tokens`, so Perry's `input` is the remainder and
+`reasoning` is reported beside `output`, not added to it. A Claude request
+with no `output_tokens_details` recorded no reasoning figure: `reasoning` is
+then `null` and named in `not_measured`, never a measured 0.
+
+**Coverage says what the totals leave out.** Children are the session's own:
+Claude keeps them anywhere under `<id>/subagents/` (a `Workflow`'s under
+`subagents/workflows/wf_*/`), and a Codex child names its parent in its first
+record. The parent's spawn calls (`Agent`/`Task`, `spawn_agent`) are counted.
+Coverage is `partial`, with the reason, when fewer children have usage than
+were spawned, when a child transcript is one no spawn accounts for, when a
+`Workflow` ran (it records no count of the children it spawned, so they can be
+summed but never shown complete), or when any line was malformed or
+truncated. A partial total is not
+a total. Cost and quota are always `unknown`: there is no authoritative
+conversion from these counts to money or to a subscription's allowance.
+
+**When it cannot measure, it says so and does not gate.** A gate that silently
+passes is worse than no gate, so `unknown` exits 0 with the reason printed,
+and `autopilot` falls back to `--max-dispatches`. It is read-only: it opens
+transcripts and prints.
+
+**It reads the whole transcript, not its tail.** It used to seek to the last
+4 MB (a 41 MB transcript was measured here), because reading from the top to
+answer a question about the last line is the kind of cost it complains about.
+Deduplication, cumulative deltas, coverage and totals need every record, so it
+now streams the file once, line by line; the tail read and its full-scan
+fallback went with the question they answered.
+
+**It reads `.perry/config.jsonl` directly — a named NN-1 deviation.** The
+project's `session_context_ceiling` comes from the config store without going
+through `viewer.parsers`, because this tool answers a question about the
+*session* and must keep working in a directory that is not a Perry project at
+all, including one it may not look inside (that is the defaults, not a crash).
+It reads one key of one record kind and nothing else. The register name travels
+with the value, because a budget that stops a run has to name the file a reader
+can edit to argue with it; a store that does not carry the key is an answer,
+and the schema default stands.
