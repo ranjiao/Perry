@@ -3858,14 +3858,32 @@ def refuse_closed_for_revision(ctx, target: dict, verb: str) -> None:
     history is not revised."""
     try:
         refuse_closed_kr(ctx, target)
-    except Refused as exc:
-        where = ("phase " + target["phase"] if target["level"] == "phase"
-                 else f"OKR version {target['okr_version']!r}")
+    except Refused:
+        if target["level"] == "phase":
+            slug = target["phase"]
+            why = (f"phase {slug} is scored (`phase/{slug}.md` **Status**)")
+            see = "`perry-goals krs` lists the current phase's KRs"
+        else:
+            versions, _order = overall_kr_model(
+                ctx["state_root"], ctx["project_root"], "current")
+            current = versions[0]["version"] if versions else ""
+            why = (f"OKR version {target['okr_version']!r} is not the current "
+                   f"one ({current!r})")
+            see = ("`perry-goals krs --level overall` lists the current "
+                   "version's KRs")
         raise Refused(
-            f"`kr {verb}` refused: {target['kr']} belongs to {where}, which is "
-            f"closed — history is not revised (DESIGN-022 § 5.7). "
-            f"{'`perry-goals krs` lists the current phase' if target['level'] == 'phase' else '`perry-goals krs --level overall` lists the current version'}"
-            f"'s KRs; revise one of those. ({exc})") from None
+            f"`kr {verb}` refused: {target['kr']} is closed — {why}, and "
+            f"history is not revised (DESIGN-022 § 5.7). {see}; change one of "
+            f"those. Nothing was written") from None
+
+
+def kr_hint(kr: str, version: str, level: str) -> str:
+    """`<KR-ID> [--okr-version …]` as a recovery command must spell it: the
+    label for an overall KR, `""` for a phase KR whose id carries no phase
+    (`O2-KR1` is legal at both levels)."""
+    if level == "overall" or not re.match(r"^P\d{3}-", kr):
+        return f"{kr} --okr-version {json.dumps(version, ensure_ascii=False)}"
+    return kr
 
 
 def kr_reason(args, op: str, kr_hint: str, _r: str = "") -> str:
@@ -4075,8 +4093,7 @@ def cmd_kr_add(args, ctx, kr_id: str) -> dict:
     """
     target = kr_add_target(ctx, kr_id, args.okr_version)
     level, version = target["level"], target["okr_version"]
-    hint = kr_flag_hint(kr_id, version) if level == "overall" else (
-        kr_id if kr_id.startswith("P") else kr_flag_hint(kr_id, "") + ' ""')
+    hint = kr_hint(kr_id, version, level)
     objective = check_writable(required_flag(args, "objective",
                                              "--objective", "kr"),
                                "--objective")
@@ -4215,7 +4232,7 @@ def cmd_kr_revise(args, ctx, op: str, kr_token: str) -> dict:
     target = resolve_kr_for_writer(ctx, kr_token, args.okr_version,
                                    linkage_optional=True)
     kr, version, level = target["kr"], target["okr_version"], target["level"]
-    hint = kr_flag_hint(kr, version) if level == "overall" else kr
+    hint = kr_hint(kr, version, level)
     refuse_closed_for_revision(ctx, target, op)
     refuse_withdrawn_kr(ctx, target, op)
     reason = kr_reason(args, op, hint, lib.root_flag(ctx["project_root"]))
