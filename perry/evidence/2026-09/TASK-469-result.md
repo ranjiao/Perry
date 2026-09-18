@@ -131,7 +131,7 @@ My first M5 renamed the call, which produced an ERROR. I replaced it with a true
 With `PERRY_PROJECT` and `PERRY_HOME` unset:
 - `bash tests/run` at `078d6da2`: 156 modules, 4,386 tests, all green.
 - `--tier affected` each round: green.
-- Final-commit full and slow runs: see the addendum at the end.
+- Final-commit full and slow runs: see the addendum at the end. The first slow run at `5fe74346` failed on the missing durations entry (deviation 4).
 
 `git diff --check`: clean.
 
@@ -146,7 +146,7 @@ With `PERRY_PROJECT` and `PERRY_HOME` unset:
 1. **A shared guard now reads a pointer line.** `tests/test_shipped_vocabulary.py::TestStartupRootDescriptionsNameLiveLaneDirectories` requires each lane to keep one `**Set $PERRY_HOME**` line. The lanes keep it inside their router pointer ("the grandparent of this file"), so the guard now reads a pointer. The guard was not edited.
 2. **Lane subcommands no longer render the router dashboard.** `/perry work …` runs router steps −2 to 3, including the First-time setup gate, then the lane's own snapshot. Before, the router's "Always run this first" implied both dashboards. This is AC4's intended de-duplication. Decide whether it needs the user's sign-off.
 3. **The Query route skips the update check.** AC1 requires this only for Explain; I extended it to Query to keep the query bounded. The update check is not a safety gate. Revert if unwanted.
-4. **`tests/durations.json` has no entry for `test_startup_routing.py`.** The runner warns but stays green. The measured durations belong at integration, as with TASK-468.
+4. **`tests/durations.json` lists `test_startup_routing.py` as `sec: null, source: null`.** That means "not measured", a value its schema allows. The slow tier's `test_durations_provenance` went red without the entry: it was the only red in the first final slow run at `5fe74346`. Measured figures belong at integration, as with TASK-468.
 5. **Pre-existing defects the transcript agents hit.** Out of scope, not fixed, and no rows opened:
    - `reference/snapshot.md` l.71 ends mid-sentence.
    - The card's "fill from the dossier" (snapshot.md) contradicts "never the dossier's frontmatter" (router step 2).

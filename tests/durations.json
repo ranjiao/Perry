@@ -508,6 +508,10 @@
       "sec": 2.148,
       "source": "merge-a6396ee335f3-2026-09-18T09:38:36.002761+00:00"
     },
+    "test_startup_routing.py": {
+      "sec": null,
+      "source": null
+    },
     "test_state_cost.py": {
       "sec": 11.609,
       "source": "merge-a6396ee335f3-2026-09-18T09:38:36.002761+00:00"
