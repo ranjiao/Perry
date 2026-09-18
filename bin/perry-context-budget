@@ -2,37 +2,40 @@
 """
 perry-context-budget — how much context this session is paying for, per turn.
 
-Session cost is accumulated context re-read per turn. The default gate uses
-host transcript accounting: cache-read + cache-creation + input tokens on the
-last measured turn. Only Claude Code has a known transcript location; other
-hosts report unknown and abstain. The transcript path and age are reported.
-Read-only: session modes read transcripts; bills read declared skill files.
+The gate reads the host's own usage accounting for ONE session, bound by the
+host's session identity (Claude Code `CLAUDE_CODE_SESSION_ID`, Codex
+`CODEX_THREAD_ID`) or by an explicit `--session` file — never the newest file.
+OpenCode, a Claude child session, an absent or ambiguous identity and a
+transcript with no usage are `unknown`. Read-only. The argument for each
+choice is in `bin/README.md § The argument, per tool`.
 
 Usage:
-  perry-context-budget [--ceiling N] [--session <path>] [--json]
+  perry-context-budget [--ceiling N] [--session <path>] [--root <p>] [--json]
   perry-context-budget --composition [--session <path>] [--json]
+  perry-context-budget --bill NAME [--bill-skill-root PATH] [--json]
 
   --ceiling      the budget. Accepts 200000 or 200k. Most specific wins:
                  this flag, then env `PERRY_CONTEXT_CEILING`, then the
                  project's `session_context_ceiling` setting in
                  `.perry/config.jsonl`, then `schema § thresholds`. Every
                  report names which of the four answered.
-  --session      measure this transcript instead of the newest one for the
-                 project. The escape hatch for "the newest file is not me".
-  --composition  scan the WHOLE transcript and report what the context is made
-                 of, by block type and by the biggest repeated shell commands.
-                 This is the diagnosis; the default mode is the gate.
-  --json         machine-readable.
+  --session      read this transcript instead of the host-identified one. It
+                 is `current` when its session id is the host's, `historical`
+                 (reported, never gating) when it differs, and `explicit`
+                 (caller-asserted) when the host gives no identity.
+  --composition  what the bound transcript is made of, by block type and by
+                 the biggest repeated shell commands. Byte-based estimates.
+  --json         machine-readable, with provenance and coverage.
   --bill NAME    static declared byte bill: snapshot, add-task, close-task,
                  dispatch, plan-phase, or all. No session/project reads.
   --bill-skill-root PATH  bill-only fixture root; default is this installation.
                  Bill mode excludes conditional/transitive context; --root,
                  --session, --composition and --ceiling are incompatible.
-                 Exit 0 within cap (inclusive), 1 over cap, 2 error/unknown.
 
 Exit status:
-  0  under the ceiling, or could not measure (verdict `unknown`)
-  1  at or over the ceiling — autopilot stops, hands off, and starts fresh
+  0  under the ceiling, historical, unknown (not gating); a bill within cap
+  1  at or over the ceiling; a bill over its cap, or refused (reason on stderr)
+  2  bad invocation
 """
 
 from __future__ import annotations
@@ -42,6 +45,7 @@ import collections
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -49,8 +53,9 @@ from pathlib import Path
 # Schema fallback for installations missing the schema.
 DEFAULT_CEILING = 200_000
 
-# Read the tail first; fall back to a full scan if it has no usage.
-TAIL_BYTES = 4 << 20
+# The environment variable through which each measured host names its session.
+HOST_IDENTITY = {"claude-code": "CLAUDE_CODE_SESSION_ID", "codex-cli": "CODEX_THREAD_ID"}
+CATEGORIES = ("input", "cached_input", "cache_creation", "output", "reasoning")
 
 
 def parse_size(text: str) -> int:
@@ -70,46 +75,29 @@ CEILING_SETTING_KEY = "session_context_ceiling"
 
 def declared_ceiling(project_root: Path) -> tuple[str | None, str]:
     """The project's own ceiling and WHICH register answered, or (None, _)."""
-    store = project_root / ".perry" / "config.jsonl"
     try:
-        present = store.exists()
+        lines = (project_root / ".perry" / "config.jsonl").read_text(errors="replace").splitlines()
     except OSError:
-        # An inaccessible project uses defaults.
-        present = False
-    if present:
-        for raw in store.read_text(errors="replace").split("\n"):
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                rec = json.loads(raw)
-            except (ValueError, TypeError):
-                continue
-            if (rec.get("kind") == "setting"
-                    and rec.get("key") == CEILING_SETTING_KEY):
-                value = str(rec.get("value") or "").strip()
-                return (value or None), ".perry/config.jsonl"
+        # An absent or inaccessible project uses defaults.
+        return None, ""
+    for raw in lines:
+        try:
+            rec = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(rec, dict) and rec.get("kind") == "setting" and rec.get("key") == CEILING_SETTING_KEY:
+            return (str(rec.get("value") or "").strip() or None), ".perry/config.jsonl"
     return None, ""
 
 
 def resolve_ceiling(perry_home: Path, project_root: Path,
                     flag: str | None) -> tuple[int, str]:
-    """The ceiling and WHERE it came from, most specific first."""
-    if flag:
+    """The ceiling and WHERE it came from, most specific first; an unparseable one is skipped."""
+    for value, source in [(flag, "--ceiling"), (os.environ.get("PERRY_CONTEXT_CEILING"), "PERRY_CONTEXT_CEILING"),
+                          declared_ceiling(project_root)]:
         try:
-            return parse_size(flag), "--ceiling"
-        except ValueError:
-            pass
-    env = (os.environ.get("PERRY_CONTEXT_CEILING") or "").strip()
-    if env:
-        try:
-            return parse_size(env), "PERRY_CONTEXT_CEILING"
-        except ValueError:
-            pass
-    declared, register = declared_ceiling(project_root)
-    if declared:
-        try:
-            return parse_size(declared), register
+            if value and value.strip():
+                return parse_size(value), source
         except ValueError:
             pass
     path = perry_home / "schema" / "state-schema.json"
@@ -121,58 +109,126 @@ def resolve_ceiling(perry_home: Path, project_root: Path,
         return DEFAULT_CEILING, "built-in default (schema unreadable)"
 
 
-def transcript_dir(project_root: Path) -> Path:
-    """Where claude-code keeps this project's transcripts."""
-    slug = str(project_root.resolve()).replace(os.sep, "-")
-    return Path.home() / ".claude" / "projects" / slug
+def host_identity() -> tuple[str, str | None]:
+    """The host `perry-detect-host` names, and the session id that host exports
+    for THIS session. A Claude child inherits its parent's id, so it has none."""
+    detect = Path(__file__).resolve().parent / "perry-detect-host"
+    host = subprocess.run(["bash", str(detect)], capture_output=True, text=True).stdout.strip() or "unknown"
+    child = host == "claude-code" and os.environ.get("CLAUDE_CODE_CHILD_SESSION")
+    return host, None if child else (os.environ.get(HOST_IDENTITY.get(host, ""), "").strip() or None)
 
 
-def newest_transcript(project_root: Path) -> Path | None:
-    """The most recently written transcript, which is the live session."""
-    d = transcript_dir(project_root)
-    if not d.is_dir():
-        return None
-    files = [p for p in d.glob("*.jsonl") if p.is_file()]
-    return max(files, key=lambda p: p.stat().st_mtime) if files else None
+def locate(host: str, session: str) -> list[Path]:
+    """Every transcript whose NAME carries this session id: a lookup, not a pick."""
+    if not re.fullmatch(r"[0-9A-Za-z-]+", session):
+        return []
+    if host == "claude-code":
+        return sorted((Path.home() / ".claude" / "projects").glob(f"*/{session}.jsonl"))
+    return sorted((Path.home() / ".codex" / "sessions").glob(f"*/*/*/rollout-*-{session}.jsonl"))
 
 
-def _usage_of(record: dict) -> dict | None:
-    usage = (record.get("message") or {}).get("usage")
-    return usage if isinstance(usage, dict) and usage else None
+def records(path: Path, seen: collections.Counter):
+    """Each parsed record. A bad line is counted — `truncated` when it is an
+    unterminated last line, else `malformed` — and skipped, never read as zero."""
+    with path.open("rb") as fh:
+        for raw in fh:
+            try:
+                rec = json.loads(raw)
+            except ValueError:
+                if raw.strip():
+                    seen["truncated" if not raw.endswith(b"\n") else "malformed"] += 1
+                continue
+            if isinstance(rec, dict):
+                yield rec
+            else:
+                seen["malformed"] += 1
+
+
+def turn(seen: collections.Counter, *values) -> dict | None:
+    """One request's usage in Perry's five categories, or None if a field is not a count."""
+    if all(isinstance(v, int) and v >= 0 for v in values):
+        return dict(zip(CATEGORIES, values))
+    seen["malformed"] += 1
+    return None
 
 
 def context_of(usage: dict) -> int:
-    """What the model was charged to read on this turn."""
-    return (usage.get("cache_read_input_tokens", 0)
-            + usage.get("cache_creation_input_tokens", 0)
-            + usage.get("input_tokens", 0))
+    """What the model was charged to read on one request: every input category."""
+    return usage["input"] + usage["cached_input"] + usage["cache_creation"]
 
 
-def last_usage(path: Path) -> tuple[dict | None, bool]:
-    """The most recent turn's usage, read from the END of the file."""
-    with path.open("rb") as fh:
-        if path.stat().st_size > TAIL_BYTES:
-            fh.seek(-TAIL_BYTES, os.SEEK_END)
-            fh.readline()          # discard the partial line the seek landed in
-            whole = False
-        else:
-            whole = True
-        blob = fh.read()
+def read_claude(path: Path) -> dict:
+    """Claude Code writes one record per content block and repeats the message's
+    usage on each, so a message id counts once. `input_tokens`, cache reads and
+    cache creation are disjoint; `thinking_tokens` is inside `output_tokens`."""
+    seen, turns, ids, last = collections.Counter(), {}, set(), {}
+    spawned = 0
+    for rec in records(path, seen):
+        message = rec.get("message") if isinstance(rec.get("message"), dict) else {}
+        ids.add((rec.get("agentId"), rec.get("sessionId")))
+        last.update({k: rec[k] for k in ("cwd", "timestamp") if rec.get(k)})
+        content = message.get("content") if isinstance(message.get("content"), list) else []
+        spawned += sum(isinstance(b, dict) and b.get("type") == "tool_use"
+                       and b.get("name") in ("Agent", "Task") for b in content)
+        usage = message.get("usage")
+        if isinstance(usage, dict) and usage:
+            key = message.get("id") or rec.get("requestId") or rec.get("uuid")
+            seen["duplicate"] += key in turns
+            turns[key] = turn(seen, usage.get("input_tokens"), usage.get("cache_read_input_tokens"),
+                              usage.get("cache_creation_input_tokens"), usage.get("output_tokens"),
+                              (usage.get("output_tokens_details") or {}).get("thinking_tokens", 0))
+    ids.discard((None, None))
+    agent, session = ids.pop() if len(ids) == 1 else (None, None)
+    return {"session": agent or session, "parent": session if agent else None, "cwd": last.get("cwd"),
+            "last_record_at": last.get("timestamp"), "turns": [t for t in turns.values() if t],
+            "seen": seen, "spawned": spawned}
 
-    while True:
-        for raw in reversed(blob.split(b"\n")):
-            if b'"usage"' not in raw:
-                continue
-            try:
-                usage = _usage_of(json.loads(raw))
-            except (ValueError, TypeError):
-                continue
-            if usage:
-                return usage, whole
-        if whole:
-            return None, whole
-        # The tail carried no usage record. Fall back rather than report zero.
-        blob, whole = path.read_bytes(), True
+
+def read_codex(path: Path) -> dict:
+    """Codex `token_count` events carry CUMULATIVE totals, so a turn is the delta
+    from the previous total; a repeat is a duplicate and a drop restarts the
+    counter. `input_tokens` includes cached and cache-write input, and
+    `output_tokens` includes `reasoning_output_tokens`: neither is added twice."""
+    seen, turns, meta, last, prev = collections.Counter(), [], {}, {}, None
+    spawned = 0
+    for rec in records(path, seen):
+        payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
+        last.update({k: rec[k] for k in ("timestamp",) if rec.get(k)})
+        if rec.get("type") == "session_meta":
+            meta = payload
+        spawned += payload.get("type") in ("function_call", "custom_tool_call") and payload.get("name") == "spawn_agent"
+        info = payload.get("info") if payload.get("type") == "token_count" else None
+        total = info.get("total_token_usage") if isinstance(info, dict) else None
+        if not isinstance(total, dict) or total == prev:
+            seen["duplicate"] += total is not None and total == prev
+            continue
+        try:
+            base = prev if prev and all(total.get(k, 0) >= v for k, v in prev.items()) else {}
+            d = {k: total.get(k, 0) - base.get(k, 0) for k in
+                 ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens")}
+        except TypeError:
+            seen["malformed"] += 1
+            continue
+        turns.append(turn(seen, d["input_tokens"] - d["cached_input_tokens"] - d["cache_write_input_tokens"],
+                          d["cached_input_tokens"], d["cache_write_input_tokens"], d["output_tokens"],
+                          d["reasoning_output_tokens"]))
+        prev = total
+    return {"session": meta.get("id"), "parent": meta.get("parent_thread_id"), "cwd": meta.get("cwd"),
+            "last_record_at": last.get("timestamp"), "turns": [t for t in turns if t],
+            "seen": seen, "spawned": spawned}
+
+
+def children(codex: bool, path: Path, session: str) -> list[dict]:
+    """The session's children: Claude keeps them beside the transcript; a Codex
+    child names its parent in its first record."""
+    if not codex:
+        return [read_claude(p) for p in sorted((path.parent / session / "subagents").glob("*.jsonl"))]
+    kids = []
+    for p in sorted((Path.home() / ".codex" / "sessions").glob("*/*/*/rollout-*.jsonl")):
+        with p.open("rb") as fh:
+            if session.encode() in fh.readline():
+                kids.append(read_codex(p))
+    return [kid for kid in kids if kid["parent"] == session]
 
 
 def composition(path: Path) -> dict:
@@ -182,14 +238,8 @@ def composition(path: Path) -> dict:
     shell = collections.Counter()
     shell_n = collections.Counter()
 
-    for raw in path.read_bytes().split(b"\n"):
-        if not raw.strip():
-            continue
-        try:
-            record = json.loads(raw)
-        except (ValueError, TypeError):
-            continue
-        message = record.get("message") or {}
+    for record in records(path, collections.Counter()):
+        message = record.get("message") if isinstance(record.get("message"), dict) else {}
         role = message.get("role")
         content = message.get("content")
         if isinstance(content, str):
@@ -295,7 +345,7 @@ def declared_bill(root: Path, command: str) -> dict:
         if command not in [command_token(token, lane) for token in tokens]:
             continue
         primary += is_primary
-        refs = re.findall(r"`([^`]+)`", cells[ref_col].split(" (", 1)[0])
+        refs = re.findall(r"`([^`]+)`", re.sub(r"\([^)]*\)", "", cells[ref_col]))
         if not refs:
             raise ValueError(f"missing reference declaration: {index}:{number}")
         declarations.append({"index": index.relative_to(root).as_posix(),
@@ -332,7 +382,7 @@ def print_bills(args, root: Path) -> int:
         for bill in report["bills"]:
             print(f"\n{bill['command']}: {bill['status']}")
             if "error" in bill:
-                print(bill["error"])
+                print(f"perry-context-budget: {bill['command']}: {bill['error']}", file=sys.stderr)
                 continue
             for item in bill["files"]:
                 print(f"  {item['bytes']:>8} bytes  {item['path']}")
@@ -340,24 +390,64 @@ def print_bills(args, root: Path) -> int:
             for item in bill["excluded"]:
                 print(f"  excluded {item['path']}: {item['reason']}")
     statuses = {bill["status"] for bill in report["bills"]}
-    return 2 if "unknown" in statuses else int("over" in statuses)
+    return int(bool(statuses & {"unknown", "over"}))
+
+
+def bind(session_flag: str | None, host: str, identity: str | None) -> tuple[Path | None, str]:
+    """The one transcript this run may measure, or None and why it may not."""
+    if session_flag:
+        return Path(session_flag), "--session"
+    if host == "opencode":
+        return None, "OpenCode exposes no per-session usage telemetry Perry can read"
+    if host not in HOST_IDENTITY:
+        return None, f"host is {host!r}: no session identity to bind to"
+    if identity is None:
+        return None, f"absent identity: {host} gave this session no {HOST_IDENTITY[host]} of its own"
+    found = locate(host, identity)
+    if len(found) != 1:
+        return None, f"{len(found)} transcripts carry session id {identity!r}; need exactly one"
+    return found[0], "host identity"
+
+
+def measure(path: Path, identity: str | None, binding: str) -> dict:
+    """Usage, provenance and coverage for the bound transcript and its children."""
+    with path.open("rb") as fh:
+        codex = b'"session_meta"' in fh.readline()
+    data = (read_codex if codex else read_claude)(path)
+    kids = children(codex, path, data["session"] or "") if data["session"] else []
+    bad = sum(data["seen"][k] + sum(kid["seen"][k] for kid in kids) for k in ("malformed", "truncated"))
+    with_usage = sum(bool(kid["turns"]) for kid in kids)
+    gaps = ([f"{bad} malformed or truncated line(s) skipped"] if bad else []) + (
+        [f"{data['spawned'] - with_usage} of {data['spawned']} spawned children have no usage"]
+        if with_usage < data["spawned"] else [])
+    return {"host": "codex-cli" if codex else "claude-code", "binding": binding,
+            "scope": "current" if identity and data["session"] == identity else
+                     "historical" if binding == "--session" and identity else "explicit",
+            "session": data["session"], "parent": data["parent"], "transcript": str(path),
+            "cwd": data["cwd"], "last_record_at": data["last_record_at"],
+            "transcript_age_min": round((time.time() - path.stat().st_mtime) / 60, 1),
+            "coverage": "partial" if gaps else "complete", "gaps": gaps,
+            "usage": {c: sum(t[c] for r in [data, *kids] for t in r["turns"]) for c in CATEGORIES},
+            "children": {"spawned": data["spawned"], "found": len(kids), "with_usage": with_usage},
+            "records": {"requests": len(data["turns"]), **data["seen"]},
+            "last": data["turns"][-1] if data["turns"] else None,
+            "measured": ["context", "usage"], "estimated": [], "cost": "unknown", "quota": "unknown"}
 
 
 def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if {"-h", "--help"} & set(argv):
+        print(__doc__.strip())
+        return 0
     ap = argparse.ArgumentParser(add_help=False)
     ap.add_argument("--ceiling")
     ap.add_argument("--session")
     ap.add_argument("--root")
     ap.add_argument("--composition", action="store_true")
     ap.add_argument("--json", action="store_true")
-    ap.add_argument("-h", "--help", action="store_true")
     ap.add_argument("--bill", choices=[*BILL_BUDGETS, "all"])
     ap.add_argument("--bill-skill-root")
     args = ap.parse_args(argv)
-
-    if args.help:
-        print(__doc__.strip())
-        return 0
 
     if args.bill:
         if args.session is not None or args.composition or args.ceiling is not None or args.root is not None:
@@ -378,36 +468,22 @@ def main(argv=None) -> int:
 
     perry_home = Path(os.environ.get("PERRY_HOME", Path(__file__).resolve().parent.parent))
     project_root = Path(args.root or os.environ.get("PERRY_PROJECT") or Path.cwd())
-
-    ceiling, ceiling_from = resolve_ceiling(perry_home, project_root,
-                                            args.ceiling)
-
-    def unknown(path, why):
-        report = {"verdict": "unknown", "context": None, "ceiling": ceiling,
-                  "ceiling_from": ceiling_from, "transcript": str(path) if path else None, "why": why}
-        print(json.dumps(report, indent=2) if args.json else
-              f"context  : unknown\nverdict  : UNKNOWN — not gating\nwhy      : {why}")
-        return 0
-
-    path = Path(args.session) if args.session else newest_transcript(project_root)
-    if path is None or not path.exists():
-        return unknown(None, "no transcript for this project — either the host is not "
-                       "claude-code, or this project has no session history. "
-                       "Not gating: a gate that passes silently is worse than "
-                       "none, so this one says it abstained.")
-
-    age_min = (time.time() - path.stat().st_mtime) / 60
-
-    if args.composition:
+    ceiling, ceiling_from = resolve_ceiling(perry_home, project_root, args.ceiling)
+    host, identity = host_identity()
+    path, binding = bind(args.session, host, identity)
+    report = {"verdict": "unknown", "context": None, "ceiling": ceiling, "ceiling_from": ceiling_from,
+              "host": host, "identity": identity, "transcript": None, "why": binding}
+    if path is not None and not path.is_file():
+        report["why"] = f"no transcript at {path}"
+    elif path is not None and args.composition:
         data = composition(path)
         data["transcript"] = str(path)
         if args.json:
             print(json.dumps(data, indent=2))
             return 0
         print(f"transcript : {path}")
-        print(f"written    : {age_min:.0f} min ago")
         print(f"accumulated: ~{data['total_approx_tokens']:,} tokens "
-              f"(at ~4 bytes/token, a rule of thumb)\n")
+              f"(estimated at ~4 bytes/token, a rule of thumb)\n")
         print(f"{'block type':28} {'count':>7} {'~tokens':>12} {'share':>7} {'~each':>8}")
         total = max(1, data["total_bytes"])
         for b in data["blocks"]:
@@ -419,30 +495,33 @@ def main(argv=None) -> int:
                 print(f"  {s['command'][:34]:34} {s['calls']:>5} calls "
                       f"~{s['approx_tokens']:>9,} tok  ~{s['approx_tokens_each']:>6,}/call")
         return 0
-
-    usage, whole = last_usage(path)
-    if usage is None:
-        return unknown(path, f"{path} carries no usage record yet")
-
-    context = context_of(usage)
-    over = context >= ceiling
-    report = {
-        "verdict": "OVER" if over else "OK",
-        "context": context, "ceiling": ceiling, "ceiling_from": ceiling_from,
-        "pct": round(100 * context / max(1, ceiling), 1),
-        "transcript": str(path), "transcript_age_min": round(age_min, 1),
-        "scanned_whole_file": whole,
-    }
+    elif path is not None:
+        report.update(measure(path, identity, binding))
+        last = report.pop("last")
+        if binding == "host identity" and report["session"] != identity:
+            report["why"] = f"{path} records session {report['session']!r}, not the host's {identity!r}"
+        elif last is None:
+            report["why"] = f"{path} carries no usage record yet"
+        else:
+            report["context"] = context_of(last)
+            report["pct"] = round(100 * report["context"] / max(1, ceiling), 1)
+            over = report["context"] >= ceiling
+            report["verdict"] = "historical" if report["scope"] == "historical" else "OVER" if over else "OK"
+            report.pop("why")
     if args.json:
         print(json.dumps(report, indent=2))
+    elif report["verdict"] == "unknown":
+        print(f"context  : unknown\nverdict  : UNKNOWN — not gating\nwhy      : {report['why']}")
     else:
-        bar = "OVER — hand off and start a fresh session" if over else "OK"
-        print(f"transcript : {path}")
-        print(f"written    : {age_min:.0f} min ago")
-        print(f"context    : {context:,} tokens")
+        print(f"transcript : {path} ({report['host']}, session {report['session']}, {report['scope']})")
+        print(f"written    : {report['transcript_age_min']:.0f} min ago; coverage {report['coverage']}"
+              + "".join(f"; {gap}" for gap in report["gaps"]))
+        print(f"context    : {report['context']:,} tokens (measured; cost and quota unknown)")
         print(f"ceiling    : {ceiling:,} ({ceiling_from})")
+        bar = {"OK": "OK", "OVER": "OVER — hand off and start a fresh session",
+               "historical": "historical — not a verdict on this session"}[report["verdict"]]
         print(f"verdict    : {report['pct']}% of budget — {bar}")
-    return 1 if over else 0
+    return int(report["verdict"] == "OVER")
 
 
 if __name__ == "__main__":
