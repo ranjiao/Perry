@@ -216,3 +216,92 @@ It holds paths, counts and numbers only; no transcript content was copied.
 11. **The baseline capture script is quoted, not committed.** It is inside the
     baseline README, not a `.py` file, so it does not count as Python. Its
     sha256 is recorded.
+
+## Repair round (after independent V4 FAIL, review `76a95244`)
+
+The base is still `c48e25fe`. The round started from `5f182d3c`; the repair
+commit is `5752ff71`, and a later commit adds this section and the log. On
+scope: USER-970 restored the ≤ 0 net-lines rule to Objective 4 only. TASK-468
+is unlinked, so the rule does not bind it, and USER-969's exception stands.
+The stop condition in the first section is superseded.
+
+**Net lines against `c48e25fe`, at `5752ff71`:**
+
+| File | Added | Deleted | Net |
+|---|---:|---:|---:|
+| `bin/perry-context-budget` | 267 | 154 | **+113** |
+| `tests/test_context_budget.py` | 200 | 78 | **+122** |
+| Total | | | **+235** |
+
+The repair round alone added +34 production and +35 test lines.
+
+### Findings, changes, tests and mutations
+
+Log: the "Repair round" block of `TASK-468-mutation.log`. Every `__pycache__`
+was purged before each mutant, and the tool was restored byte-equal after each
+one. The unmutated module is green (39 tests). All 16 mutants were killed. The
+9 new ones each fail one named assertion. The 7 re-anchored first-round
+mutants are still killed.
+
+| Finding | Change | Test | Mutant → result |
+|---|---|---|---|
+| H1: forked Codex children double-count | A counter's first request (and the first after a drop) is `total − last_token_usage`, not the whole total. An inherited-only snapshot is skipped as carrying no request. | `test_a_forked_codex_child_adds_only_its_own_usage_not_the_inherited_total`. It replaces the from-zero fixture: the child's first total is the parent's running total, with an empty `last_token_usage`. | H1 (base from zero) → KILLED |
+| H2: Workflow children invisible, coverage "complete" | Claude children are found anywhere under `<id>/subagents/`. `Workflow` calls are counted. A Workflow run makes coverage `partial`, because it records no child count. So does a direct child that no `Agent`/`Task` spawn accounts for. `children` gains `workflow_calls` and `workflow_found`. | `test_claude_workflow_and_unaccounted_children_count_and_never_read_complete` | H2a (no recursion) → KILLED. H2b (Workflow reads complete) → KILLED. H2c (unaccounted child silent) → KILLED |
+| M1: unrecorded reasoning reported as 0 | Reasoning is `None` when the host wrote no `thinking_tokens`. `usage.reasoning` is then `null` and named in `not_measured`. | `test_claude_reasoning_the_host_did_not_record_is_unknown_not_zero` | M1 (default 0) → KILLED |
+| Desktop main session always `unknown` | Outcome **(b)**; evidence below. It stays `unknown` with an explicit reason. It is documented in `reference/host-capabilities.md`, `work/reference/autopilot.md` and `bin/README.md`. | Absent-identity table, Desktop row (reason "Claude Desktop"). `test_an_explicit_other_session_…`: under the flag, `--session` on the id's own file is `explicit`, not `current`. | D1 (Desktop binds the shared id) → KILLED. D2 (the shared id verifies `--session` as current) → KILLED |
+| L3: running host overwritten | `host` is the running host. `transcript_host` is the file's format. | `test_an_explicit_other_session_…` (Claude host, Codex file) | L3 → KILLED |
+| L4: detect-host dependency | 10 s timeout. `OSError`/timeout reads as `unknown`. `bin/ARCHITECTURE.md` §2 has a paragraph on the transcript reads and the subprocess. | covered by the whole suite; not mutated | — |
+| L5: cache-write rule unpinned | The fixture has non-zero `cache_write_input_tokens` (30). | forked-child test: `input` 80, `cache_creation` 30 | L5 (the reviewer's R7) → KILLED |
+| L6: baseline protocol fields | `TASK-468-baseline/README.md § Comparison-protocol fields`. Cache condition, tool capabilities, fixture state, and the spec and plan sha256 at `c48e25fe`. All derived; no usage re-captured. | — | — |
+| L7: autopilot prose | `work/reference/autopilot.md` now names OpenCode, absent or ambiguous identity, and Desktop as `unknown`, and says to print the reason. | — | — |
+
+L1 (explicit `--session` gates) and L2 (resumed Claude transcripts are
+`unknown`) were judged acceptable by the reviewer and are unchanged.
+
+### Real-data verification (read-only, nothing copied)
+
+- **H1.** Codex parent `019fa19d-4566-7d30-886e-b96f3deb76e9`, bound by
+  `PERRY_HOST=codex-cli CODEX_THREAD_ID=…`:
+  - input plus cached input is **104,163,176** (input 3,514,984; cached
+    100,648,192). The reviewer's expected figure matches exactly; the old
+    figure was 131,928,122.
+  - Children: 2 spawned, 2 found, 2 with usage. Coverage `complete`.
+- **H2 and M1.** `-Users-bytedance-proj-Gimegime-pmo/c5e0ef07-1259-4fdb-a335-251afbfc7270.jsonl`,
+  by `--session`:
+  - input is **2,506,119**, which is 239,300 plus the 2,266,819 in workflow
+    children. Output is 2,206,088, which is 1,975,385 plus 230,703.
+  - `children {spawned 1, found 1, with_usage 1, workflow_calls 2, workflow_found 213}`.
+  - Coverage `partial`, with the gap "2 Workflow call(s) and 213 workflow
+    child transcript(s)…".
+  - `usage.reasoning` is `null`, and `not_measured` gives "the host recorded
+    none for 2174 of 2174 request(s)".
+
+### Desktop evidence (outcome b)
+
+Facts the PMO reported from its main Desktop session:
+- `CLAUDE_CODE_CHILD_SESSION=1`;
+- `CLAUDE_CODE_SESSION_ID` equals its own transcript id;
+- `CLAUDE_CODE_HOST_SESSION_ID` differs from it.
+
+Facts from my environment as a subagent of that session:
+- `CLAUDE_CODE_CHILD_SESSION=1`;
+- `CLAUDE_CODE_SESSION_ID=bcc8bb26-…`, the parent's id, not my own
+  `subagents/agent-abf710762750f9d9b.jsonl`;
+- a `CLAUDE_CODE_HOST_SESSION_ID` that is not a transcript id;
+- my shell's parent PID is `CLAUDE_PID` (20686), the `claude` process;
+- none of my 56 variable names refers to a subagent.
+
+So the flag and the id are identical in the main session and in its
+subagents. The flag does not mark a subagent: the main session has it too.
+
+The one candidate I found is `AI_AGENT=claude-code_2-1-274_agent`. It is
+recorded only in two subagent transcripts, and I have no main-session value
+for it, so I could not verify that it differs. **Not used; not a guess.**
+
+If the PMO runs `echo "$AI_AGENT"` in its main session and gets a different
+value, that would be a candidate for outcome (a). Even then, it would need a
+second observation of each case.
+
+**Open risk (unverified).** The plain CLI's subagents probably share the main
+session's id too, but without the flag. There, a subagent running the gate
+would bind the main session. I had no plain-CLI session to inspect.

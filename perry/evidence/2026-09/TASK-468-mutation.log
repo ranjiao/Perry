@@ -162,3 +162,133 @@ finally:
     TOOL.write_text(ORIG)
     purge()
 print("restored:", TOOL.read_text() == ORIG)
+
+# Repair round: run on the tree committed as 5752ff71; tool restored byte-equal
+UNMUTATED: exit 0 OK
+H1 forked child's inherited first total counted (base from zero): KILLED (FAILED (failures=1))
+    FAIL TestProvenanceAndCoverage.test_a_forked_codex_child_adds_only_its_own_usage_not_the_inherited_total
+H2a Workflow children not globbed (subagents/*.jsonl only): KILLED (FAILED (failures=1))
+    FAIL TestProvenanceAndCoverage.test_claude_workflow_and_unaccounted_children_count_and_never_read_complete
+H2b a Workflow run reads as complete: KILLED (FAILED (failures=1))
+    FAIL TestProvenanceAndCoverage.test_claude_workflow_and_unaccounted_children_count_and_never_read_complete
+H2c a child no spawn accounts for is silent: KILLED (FAILED (failures=1))
+    FAIL TestProvenanceAndCoverage.test_claude_workflow_and_unaccounted_children_count_and_never_read_complete
+M1 unrecorded Claude reasoning read as 0: KILLED (FAILED (failures=1))
+    FAIL TestUsageCategoriesFollowEachHostSchema.test_claude_reasoning_the_host_did_not_record_is_unknown_not_zero
+L3 transcript format overwrites the running host: KILLED (FAILED (failures=1))
+    FAIL TestTheSessionIsBoundNeverGuessed.test_an_explicit_other_session_is_historical_and_never_gates
+L5 (R7) Codex cache-write not subtracted from input: KILLED (FAILED (failures=1))
+    FAIL TestProvenanceAndCoverage.test_a_forked_codex_child_adds_only_its_own_usage_not_the_inherited_total
+D1 Desktop main session bound by the shared id: KILLED (FAILED (failures=1))
+    FAIL TestTheSessionIsBoundNeverGuessed.test_absent_ambiguous_mismatched_or_unsupported_identity_is_unknown_not_zero
+D2 Desktop shared id verifies an explicit --session as current: KILLED (FAILED (failures=1))
+    FAIL TestTheSessionIsBoundNeverGuessed.test_an_explicit_other_session_is_historical_and_never_gates
+M1r binding reverted to newest transcript (any project): KILLED (FAILED (failures=5, errors=3))
+    ERROR TestProvenanceAndCoverage.test_a_forked_codex_child_adds_only_its_own_usage_not_the_inherited_total
+    ERROR TestItAbstainsLoudlyRatherThanPassingSilently.test_a_missing_transcript_is_unknown_and_says_so
+    ERROR TestUsageCategoriesFollowEachHostSchema.test_codex_cumulative_totals_become_deltas_with_repeats_and_resets
+    FAIL TestTheSessionIsBoundNeverGuessed.test_a_concurrent_newer_session_in_the_same_project_is_not_this_one
+    FAIL TestTheSessionIsBoundNeverGuessed.test_a_newer_claude_transcript_during_a_codex_run_is_not_the_codex_session
+    FAIL TestItAbstainsLoudlyRatherThanPassingSilently.test_a_transcript_with_no_usage_yet_is_unknown_not_zero
+    FAIL TestTheSessionIsBoundNeverGuessed.test_a_worktree_cwd_still_finds_the_session_by_id_not_by_its_own_slug
+    FAIL TestTheSessionIsBoundNeverGuessed.test_absent_ambiguous_mismatched_or_unsupported_identity_is_unknown_not_zero
+M3r file records not checked against the identity: KILLED (FAILED (failures=1))
+    FAIL TestTheSessionIsBoundNeverGuessed.test_absent_ambiguous_mismatched_or_unsupported_identity_is_unknown_not_zero
+M4r ambiguous matches take the first: KILLED (FAILED (failures=1))
+    FAIL TestTheSessionIsBoundNeverGuessed.test_absent_ambiguous_mismatched_or_unsupported_identity_is_unknown_not_zero
+M6r Claude repeated records counted per record: KILLED (FAILED (failures=1))
+    FAIL TestUsageCategoriesFollowEachHostSchema.test_claude_repeats_a_message_per_block_and_it_counts_once
+M8r Codex cumulative totals summed: KILLED (FAILED (failures=2))
+    FAIL TestProvenanceAndCoverage.test_a_forked_codex_child_adds_only_its_own_usage_not_the_inherited_total
+    FAIL TestUsageCategoriesFollowEachHostSchema.test_codex_cumulative_totals_become_deltas_with_repeats_and_resets
+M10r missing children do not make coverage partial: KILLED (FAILED (failures=1))
+    FAIL TestProvenanceAndCoverage.test_claude_children_are_counted_and_a_missing_one_makes_coverage_partial
+M13r Codex children dropped: KILLED (FAILED (failures=1))
+    FAIL TestProvenanceAndCoverage.test_a_forked_codex_child_adds_only_its_own_usage_not_the_inherited_total
+restored: True
+# Repair-round runner (scratchpad, not shipped)
+"""TASK-468 repair-round mutation proofs (same method: one mutant, purge __pycache__, run, restore)."""
+import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+
+WT = pathlib.Path("/Users/bytedance/proj/Perry/.claude/worktrees/agent-abf710762750f9d9b")
+TOOL = WT / "bin" / "perry-context-budget"
+ORIG = TOOL.read_text()
+
+MUTANTS = {
+    # repair-round findings
+    "H1 forked child's inherited first total counted (base from zero)": (
+        'own = info.get("last_token_usage") if isinstance(info.get("last_token_usage"), dict) else total',
+        'own = total'),
+    "H2a Workflow children not globbed (subagents/*.jsonl only)": (
+        'for p in sorted((path.parent / session / "subagents").rglob("*.jsonl"))]',
+        'for p in sorted((path.parent / session / "subagents").glob("*.jsonl"))]'),
+    "H2b a Workflow run reads as complete": (
+        '"a Workflow does not record how many children it spawned"] if data["workflows"] or in_workflows else [])',
+        '"a Workflow does not record how many children it spawned"] if False else [])'),
+    "H2c a child no spawn accounts for is silent": (
+        'if len(direct) > data["spawned"] else [])', 'if False else [])'),
+    "M1 unrecorded Claude reasoning read as 0": (
+        '(usage.get("output_tokens_details") or {}).get("thinking_tokens"))',
+        '(usage.get("output_tokens_details") or {}).get("thinking_tokens", 0))'),
+    "L3 transcript format overwrites the running host": (
+        'return {"transcript_host": "codex-cli" if codex else "claude-code", "binding": binding,',
+        'return {"transcript_host": "codex-cli" if codex else "claude-code", "host": "codex-cli" if codex else "claude-code", "binding": binding,'),
+    "L5 (R7) Codex cache-write not subtracted from input": (
+        'd["input_tokens"] - d["cached_input_tokens"] - d["cache_write_input_tokens"],',
+        'd["input_tokens"] - d["cached_input_tokens"],'),
+    "D1 Desktop main session bound by the shared id": (
+        '    if host == "claude-code" and os.environ.get("CLAUDE_CODE_CHILD_SESSION"):\n        return None, ("absent identity: under',
+        '    if False:\n        return None, ("absent identity: under'),
+    "D2 Desktop shared id verifies an explicit --session as current": (
+        "    return host, None if child else", "    return host, None if False else"),
+    # first-round mutants, re-anchored where the repair moved code
+    "M1r binding reverted to newest transcript (any project)": (
+        "    found = locate(host, identity)\n",
+        "    found = [max(Path.home().glob('.claude/projects/*/*.jsonl'), key=lambda p: p.stat().st_mtime)]\n"),
+    "M3r file records not checked against the identity": (
+        '        if binding == "host identity" and report["session"] != identity:', '        if False:'),
+    "M4r ambiguous matches take the first": ("    if len(found) != 1:", "    if len(found) == 0:"),
+    "M6r Claude repeated records counted per record": (
+        'key = message.get("id") or rec.get("requestId") or rec.get("uuid")', 'key = id(rec)'),
+    "M8r Codex cumulative totals summed": (
+        "d = {k: total.get(k, 0) - base.get(k, 0) for k in", "d = {k: total.get(k, 0) for k in"),
+    "M10r missing children do not make coverage partial": (
+        'if with_usage < data["spawned"] else [])', 'if False else [])'),
+    "M13r Codex children dropped": ("    kids = []\n    for p in sorted((Path.home()", "    return []\n    for p in sorted((Path.home()"),
+}
+
+
+def purge():
+    for d in WT.rglob("__pycache__"):
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def run():
+    env = {k: v for k, v in os.environ.items() if k not in ("PERRY_PROJECT", "PERRY_HOME")}
+    p = subprocess.run([sys.executable, "-m", "unittest", "tests.test_context_budget"], cwd=WT,
+                       capture_output=True, text=True, env=env)
+    failed = sorted(set(re.findall(r"^(FAIL|ERROR): (\w+) \(tests\.test_context_budget\.(\w+)", p.stderr, re.M)))
+    return p.returncode, failed, p.stderr.strip().splitlines()[-1]
+
+
+try:
+    purge()
+    code, failed, tail = run()
+    print(f"UNMUTATED: exit {code} {tail}")
+    for name, (old, new) in MUTANTS.items():
+        assert ORIG.count(old) == 1, f"{name}: anchor count {ORIG.count(old)}"
+        TOOL.write_text(ORIG.replace(old, new))
+        purge()
+        code, failed, tail = run()
+        print(f"{name}: {'KILLED' if code else 'SURVIVED'} ({tail})")
+        for kind, test, cls in failed:
+            print(f"    {kind} {cls}.{test}")
+finally:
+    TOOL.write_text(ORIG)
+    purge()
+print("restored:", TOOL.read_text() == ORIG)
