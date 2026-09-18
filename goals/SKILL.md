@@ -67,11 +67,9 @@ Trigger on any of:
 
 ## Mandatory first move: the OKR Snapshot
 
-Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
+Run before any subcommand but `help`; a question takes the router's Explain or Query route instead. If `OKR.md` is missing, jump to Bootstrap.
 
-−3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: it's the perry/ root dir (the grandparent of `goals/SKILL.md`).
-−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `opencode` | `codex-cli`) and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` follow that matrix (OpenCode = `question`; Codex = numbered free text; same chosen value and writes).
-−1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
+−3 to −1. **Router startup, once per operation** — `$PERRY_HOME/SKILL.md § Mandatory first move`: **Set `$PERRY_HOME`** (the grandparent of this file), detect `$HOST` (choice prompts follow `$PERRY_HOME/reference/host-capabilities.md`), the update check, then the blocking recovery and interrupted-run gates before this lane reads state. Do not repeat them; run any that did not run.
 0. **Read `.perry/config.jsonl`** if present (`"$PERRY_HOME/bin/perry-config" show --json`), for document language, chat language and repo layout. `OKR.md` and every phase file are written in `Document language`; the snapshot, the TL;DR and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; KR ids (`KR-O1.2`, `P<NNN>-O<n>-KR<n>`), phase slugs, dates and enum values stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
 2. **Compute the state — one call**: `"$PERRY_HOME/bin/perry-state" --json`. Deterministic, read-only, stdlib-only. It resolves the current phase via `phase/CURRENT`, parses `OKR.md` and the phase file, reads `linkage.jsonl`, cross-checks the task store, and returns objectives, KR ids, phase day, scope-reduction triggers, cost-ceiling lines, `attribution.linked` / `attribution.unlinked`, and tier-1 cap overruns. **Every number in the snapshot comes from this payload** — never count by eye; a field the payload doesn't carry prints `—`. On non-zero exit, say so in one line and read `OKR.md` + the phase file directly.

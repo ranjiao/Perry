@@ -12,7 +12,7 @@ After deriving `$PERRY_HOME`, run:
 bash "$PERRY_HOME/bin/perry-detect-host"
 ```
 
-The result is `claude-code`, `opencode`, `codex-cli`, or `unknown`. Remember it as `$HOST`; do not re-run per subcommand. If it is `unknown`, retain the original `claude-code` fallback, mention the ambiguity once, and recommend an override:
+The result is `claude-code`, `opencode`, `codex-cli`, or `unknown`. Remember it as `$HOST`; do not re-run per subcommand or when the router hands to a lane. An explanation needs no detection unless its answer or a choice prompt depends on the host (`reference/startup.md`). If it is `unknown`, retain the original `claude-code` fallback, mention the ambiguity once, and recommend an override:
 
 ```
 export PERRY_HOST=claude-code      # or opencode or codex-cli
