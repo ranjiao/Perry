@@ -1,21 +1,4 @@
-"""`perry-context-budget` — the gate that makes a long run affordable.
-
-Measured across 25 Perry sessions and 18,941 turns: **8.43 billion tokens, 99.1%
-of it `cache_read`** — the accumulated context, re-read on every turn. Output
-was 0.3%. The largest session ran 8,174 turns at a mean context of 504,651 and
-peaked at 997,717.
-
-Cost is therefore `Σ over turns (context at that turn)`, and both factors grow
-together inside one session. Replaying the measured turns against a cap: 200k
-would have cost **58.3% less** for exactly the same work.
-
-This is the check that the gate reads the host's own accounting rather than
-guessing, trips at the ceiling, and — the one that matters most — **abstains
-loudly instead of passing silently** when it cannot measure. A gate that
-returns "fine" because it found nothing to look at is worse than no gate.
-
-Run: python3 tests/parallel test_context_budget
-"""
+"""`perry-context-budget` — the gate that makes a long run affordable."""
 
 from __future__ import annotations
 
@@ -30,6 +13,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+import contextlib
+import io
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-context-budget"
@@ -46,7 +32,6 @@ def mod():
 
 
 def turn(cache_read=0, cache_creation=0, inp=0, extra=None):
-    """One assistant record shaped the way a transcript writes it."""
     rec = {"type": "assistant", "message": {"role": "assistant",
            "usage": {"cache_read_input_tokens": cache_read,
                      "cache_creation_input_tokens": cache_creation,
@@ -58,7 +43,7 @@ def turn(cache_read=0, cache_creation=0, inp=0, extra=None):
 
 class BudgetCase(unittest.TestCase):
     def setUp(self):
-        self.dir = pathlib.Path(tempfile.mkdtemp())
+        self.dir = pathlib.Path(tempfile.mkdtemp()).resolve()
         self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
         self.t = self.dir / "session.jsonl"
 
@@ -66,10 +51,9 @@ class BudgetCase(unittest.TestCase):
         self.t.write_text("\n".join(lines) + "\n")
 
     def run_tool(self, *args):
-        proc = subprocess.run(
+        return subprocess.run(
             [sys.executable, str(TOOL), "--session", str(self.t), *args],
             capture_output=True, text=True, cwd=self.dir)
-        return proc
 
     def json_out(self, *args):
         proc = self.run_tool("--json", *args)
@@ -78,16 +62,12 @@ class BudgetCase(unittest.TestCase):
 
 class TestTheFigureIsTheHostsOwnAccounting(BudgetCase):
     def test_all_three_input_fields_are_summed(self):
-        """A turn right after a compaction carries its context as
-        `cache_creation`, not `cache_read`. Reading only the latter reports
-        near zero at exactly the moment the context is largest."""
         self.assertEqual(mod().context_of({
             "cache_read_input_tokens": 100,
             "cache_creation_input_tokens": 20,
             "input_tokens": 3}), 123)
 
     def test_output_tokens_are_not_context(self):
-        """Output was 0.3% of the measured bill and is not re-read."""
         self.assertEqual(mod().context_of(
             {"cache_read_input_tokens": 5, "output_tokens": 9999}), 5)
 
@@ -114,8 +94,6 @@ class TestTheGate(BudgetCase):
         self.assertEqual((report["verdict"], code), ("OVER", 1))
 
     def test_the_ceiling_comes_from_the_schema_by_default(self):
-        """One place declares the number, or the gate and the report disagree
-        about what they are gating on."""
         schema = json.loads((ROOT / "schema" / "state-schema.json").read_text())
         declared = schema["thresholds"]["session_context_ceiling"]["value"]
         self.write(turn(cache_read=1))
@@ -129,28 +107,15 @@ class TestTheGate(BudgetCase):
 
 
 class TestItAbstainsLoudlyRatherThanPassingSilently(BudgetCase):
-    """The failure mode that would make this gate worse than useless.
-
-    On a host that keeps no transcript, a gate that finds no file and returns
-    "under budget" reports a clean bill it never measured — and autopilot would
-    run to a million tokens believing it had been checked.
-    """
 
     def test_a_missing_transcript_is_unknown_and_says_so(self):
-        proc = subprocess.run(
-            [sys.executable, str(TOOL), "--json",
-             "--session", str(self.dir / "nope.jsonl")],
-            capture_output=True, text=True, cwd=self.dir)
-        report = json.loads(proc.stdout)
+        report, _ = self.json_out()
         self.assertEqual((report["verdict"], report["context"]),
                          ("unknown", None))
         self.assertIn("Not gating", report["why"])
 
     def test_unknown_does_not_gate(self):
-        """Exit 0 — it cannot block a run on a measurement it never made."""
-        proc = subprocess.run(
-            [sys.executable, str(TOOL), "--session", str(self.dir / "nope.jsonl")],
-            capture_output=True, text=True, cwd=self.dir)
+        proc = self.run_tool()
         self.assertEqual(proc.returncode, 0)
         self.assertIn("not gating", proc.stdout)
 
@@ -161,8 +126,6 @@ class TestItAbstainsLoudlyRatherThanPassingSilently(BudgetCase):
         self.assertIn("UNKNOWN", proc.stdout)
 
     def test_every_abstaining_branch_still_emits_JSON_under_json(self):
-        """Found by mutation. The branch that says "I measured nothing" is the
-        one a caller most needs to parse, and it was the one printing prose."""
         self.write(json.dumps({"type": "user", "message": {"role": "user"}}))
         report, code = self.json_out()
         self.assertEqual((report["verdict"], report["context"], code),
@@ -170,14 +133,6 @@ class TestItAbstainsLoudlyRatherThanPassingSilently(BudgetCase):
 
 
 class TestTheSlugThatFindsTheTranscript(unittest.TestCase):
-    """Untested until a mutation said so, and the worst thing to leave untested.
-
-    `transcript_dir` is the only step that can silently point at nothing. If
-    the slug is wrong there is no file, `newest_transcript` returns None, the
-    verdict is `unknown` — and the gate abstains FOREVER while reporting
-    exactly what it reports on a host that legitimately has no transcript.
-    Deleting the separator fold left all sixteen other tests green.
-    """
 
     def test_separators_become_dashes(self):
         self.assertEqual(
@@ -185,8 +140,6 @@ class TestTheSlugThatFindsTheTranscript(unittest.TestCase):
             "-Users-x-proj-Perry")
 
     def test_it_resolves_the_real_project_directory(self):
-        """Pinned against this repository, whose transcripts exist on the
-        machine that runs it — the slug is right or this is not a directory."""
         d = mod().transcript_dir(ROOT)
         self.assertEqual(d.name, str(ROOT.resolve()).replace("/", "-"))
         self.assertTrue(d.name.startswith("-"))
@@ -194,9 +147,6 @@ class TestTheSlugThatFindsTheTranscript(unittest.TestCase):
 
 class TestItReadsTheEndOfALargeFile(BudgetCase):
     def test_the_tail_is_enough_on_a_file_past_the_window(self):
-        """A 41 MB transcript was measured on this project. Reading one from
-        the top to answer a question about its last line is the cost this tool
-        exists to complain about."""
         filler = json.dumps({"type": "user", "pad": "x" * 4000})
         self.write(*([filler] * 1200), turn(cache_read=4242))
         self.assertGreater(self.t.stat().st_size, 4 << 20)
@@ -205,7 +155,6 @@ class TestItReadsTheEndOfALargeFile(BudgetCase):
         self.assertFalse(report["scanned_whole_file"])
 
     def test_a_tail_carrying_no_usage_falls_back_and_admits_it(self):
-        """Report the full scan rather than a zero the tail happened to see."""
         filler = json.dumps({"type": "user", "pad": "x" * 4000})
         self.write(turn(cache_read=31337), *([filler] * 1200))
         report, _ = self.json_out()
@@ -214,13 +163,6 @@ class TestItReadsTheEndOfALargeFile(BudgetCase):
 
 
 class TestCompositionNamesTheExpensiveHalf(BudgetCase):
-    """The answer nobody guessed, and the reason `--composition` exists.
-
-    Across the three largest sessions, `tool_use` INPUT — what the agent TYPES
-    to call a tool — was 52% of everything accumulated, twice the 26% its
-    results took. Bash results averaged 202 tokens a call; the commands
-    invoking them averaged 353. The CLI's output was never the expensive half.
-    """
 
     def call(self, cmd, result="ok"):
         return "\n".join([
@@ -242,9 +184,6 @@ class TestCompositionNamesTheExpensiveHalf(BudgetCase):
                            kinds["user:tool_result"])
 
     def test_repeated_shell_commands_are_grouped_and_ranked(self):
-        """1,161 `cd /Users/bytedance/proj/Perry …` calls at ~326 tokens each
-        put 379k tokens of preamble into one session's context. Grouping by the
-        head of the command is what makes that visible."""
         self.write("\n".join(self.call(f"cd /tmp/x && echo {i}") for i in range(5)))
         data, _ = self.json_out("--composition")
         top = data["top_shell"][0]
@@ -261,24 +200,6 @@ class TestCompositionNamesTheExpensiveHalf(BudgetCase):
 
 
 class TestTheCeilingIsDeclaredNotHardcoded(BudgetCase):
-    """200k is a measured default, not a law.
-
-    `--ceiling` beats env `PERRY_CONTEXT_CEILING` beats the project's declared
-    `Session context ceiling` beats `schema § thresholds`. The report names
-    which one answered.
-
-    **There is one config register and it is `.perry/config.jsonl`** (ADR-019).
-    `.perry/config.md` used to be the fallback for a project with no store;
-    the file no longer exists, so `stray_markdown` below writes one anyway and
-    every case asserts it changes nothing. A test that merely stopped
-    exercising the markdown could not tell the fallback's removal from the
-    fallback being unreachable in the fixture.
-
-    **Resolution is unit-tested; the gate is spawned once.** `resolve_ceiling`
-    is a pure function, and one subprocess per precedence case was enough
-    added load to make `test_host_support`'s concurrency-cap assertion flake
-    under 8-worker `tests/run`.
-    """
 
     def setUp(self):
         super().setUp()
@@ -293,15 +214,11 @@ class TestTheCeilingIsDeclaredNotHardcoded(BudgetCase):
             "label": "Session context ceiling", "value": value}) + "\n")
 
     def stray_markdown(self, body):
-        """A `.perry/config.md` nothing should read. ADR-019 deleted the file;
-        a leftover copy in a working tree is inert, and that is the assertion."""
         (self.proj / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n" + body + "\n")
 
     def resolved(self, flag=None, **env):
-        import os
-        from unittest import mock
-        with mock.patch.dict(os.environ, env, clear=False):
+        with mock.patch.dict("os.environ", env, clear=False):
             return self.M.resolve_ceiling(ROOT, self.proj, flag)
 
     def test_the_default_is_the_schema_value(self):
@@ -315,8 +232,6 @@ class TestTheCeilingIsDeclaredNotHardcoded(BudgetCase):
         self.assertEqual(self.resolved(), (120_000, ".perry/config.jsonl"))
 
     def test_a_stray_markdown_is_not_a_register_when_there_is_no_store(self):
-        """The fallback ADR-019 removed. With no store at all, a
-        `.perry/config.md` declaring 90k answers nothing and the schema does."""
         self.stray_markdown("- Session context ceiling: 90k")
         schema = json.loads((ROOT / "schema" / "state-schema.json").read_text())
         declared = schema["thresholds"]["session_context_ceiling"]["value"]
@@ -350,8 +265,6 @@ class TestTheCeilingIsDeclaredNotHardcoded(BudgetCase):
         self.assertIn("schema", src)
 
     def test_a_declared_ceiling_actually_moves_the_verdict(self):
-        """The one spawn: the number has to reach the GATE, not just the
-        report, or every case above is arithmetic nothing acts on."""
         self.store("100k")                      # the session is at 150k
         proc = subprocess.run(
             [sys.executable, str(TOOL), "--root", str(self.proj),
@@ -361,6 +274,104 @@ class TestTheCeilingIsDeclaredNotHardcoded(BudgetCase):
         d = json.loads(proc.stdout)
         self.assertEqual((d["ceiling"], d["ceiling_from"], d["verdict"]),
                          (100_000, ".perry/config.jsonl", "OVER"))
+
+
+class TestDeclaredBills(BudgetCase):
+    def setUp(self):
+        super().setUp()
+        self.m = mod()
+        self.row = "| `snapshot` | `reference/a.md` + `reference/a.md` |\n"
+        self.header = "| Subcommand | Reference |\n|---|---|\n"
+        (self.dir / "reference").mkdir()
+        (self.dir / "reference/a.md").write_text("星", encoding="utf-8")
+        self.index(self.row)
+
+    def index(self, rows):
+        (self.dir / "SKILL.md").write_text(self.header + rows, encoding="utf-8")
+
+    def run_bill(self, *args):
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            code = self.m.main(["--bill", "snapshot", "--bill-skill-root", str(self.dir), "--json", *args])
+        return code, json.loads(out.getvalue())["bills"][0]
+
+    def test_bytes_dedup_read_only_and_no_session_discovery(self):
+        before = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.dir.rglob("*") if p.is_file()}
+        original = pathlib.Path.open
+        def read_only(path, mode="r", *args, **kwargs):
+            self.assertIn(mode, ("r", "rb"))
+            self.assertIn(path, before)
+            return original(path, mode, *args, **kwargs)
+        with mock.patch.object(self.m, "newest_transcript", side_effect=AssertionError), \
+             mock.patch.object(pathlib.Path, "glob", side_effect=AssertionError), \
+             mock.patch.object(pathlib.Path, "iterdir", side_effect=AssertionError), \
+             mock.patch.object(pathlib.Path, "open", read_only):
+            code, bill = self.run_bill()
+        self.assertEqual((code, bill["total_bytes"]), (0, sum(len(v[0]) for v in before.values())))
+        self.assertEqual(bill["files"][-1], {"path": "reference/a.md", "bytes": 3})
+        self.assertEqual(before, {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.dir.rglob("*") if p.is_file()})
+
+    def test_each_fixed_cap_and_one_byte_over(self):
+        expected = {"snapshot": 80_000, "add-task": 100_000, "close-task": 95_000,
+                    "dispatch": 115_000, "plan-phase": 110_000}
+        self.assertEqual(self.m.BILL_BUDGETS, expected)
+        for command, cap in expected.items():
+            with self.subTest(command=command):
+                lane = "" if command == "snapshot" else "goals" if command == "plan-phase" else "work"
+                folder = self.dir / lane
+                folder.mkdir(exist_ok=True)
+                (folder / "SKILL.md").write_text(self.header + self.row.replace("snapshot", command).replace("reference/a.md", "$PERRY_HOME/reference/a.md"))
+                target = self.dir / "reference/a.md"
+                target.write_bytes(b"")
+                fixed = self.m.declared_bill(self.dir, command)["total_bytes"]
+                for extra, status in [(0, "within"), (1, "over")]:
+                    target.write_bytes(b"x" * (cap - fixed + extra))
+                    code, bill = self.run_bill("--bill", command)
+                    self.assertEqual((code, bill["total_bytes"], bill["status"]), (extra, cap + extra, status))
+
+    def test_shared_lane_and_non_l2_paths(self):
+        folder = self.dir / "work"
+        (folder / "reference").mkdir(parents=True)
+        (folder / "reference/b.md").write_text("lane")
+        (self.dir / "pack.md").write_text("excluded")
+        (folder / "SKILL.md").write_text(self.header + "| `add-task` | `reference/b.md` |\n\n"
+            "| Reference file | Loaded when running |\n|---|---|\n"
+            "| `$PERRY_HOME/reference/a.md` (shared) | `/pmo add-task <id>` |\n"
+            "| `$PERRY_HOME/pack.md` | `add-task` |\n"
+            "| `missing.md` | prose about add-task |\n")
+        bill = self.m.declared_bill(self.dir, "add-task")
+        self.assertEqual([f["path"] for f in bill["files"]],
+                         ["SKILL.md", "work/SKILL.md", "work/reference/b.md", "reference/a.md"])
+        self.assertEqual(bill["excluded"], [{"path": "pack.md", "reason": "non-L2"}])
+
+    def test_missing_ambiguous_and_escaping_declarations_fail(self):
+        for rows in ["", self.row * 2, "| `snapshot` | none |\n",
+                     self.row.replace("a.md", "missing.md"), self.row.replace("reference/a.md", "../outside.md")]:
+            with self.subTest(rows=rows):
+                self.index(rows)
+                code, bill = self.run_bill()
+                self.assertEqual((code, bill["status"]), (2, "unknown"))
+                self.assertNotIn("total_bytes", bill)
+        self.index(self.row)
+        (self.dir / "reference/a.md").unlink()
+        (self.dir / "reference/a.md").symlink_to(TOOL)
+        self.assertEqual(self.run_bill()[0], 2)
+        (self.dir / "SKILL.md").unlink()
+        self.assertEqual(self.run_bill()[0], 2)
+
+    def test_cli_conflicts_and_installation_default(self):
+        for option in [["--session", "x"], ["--composition"], ["--ceiling", "1"], ["--root", "x"]]:
+            with self.subTest(option=option), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                self.m.main(["--bill", "snapshot", *option])
+            self.assertEqual(error.exception.code, 2)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            self.m.main(["--bill-skill-root", str(self.dir)])
+        with mock.patch.dict("os.environ", {"PERRY_HOME": str(self.dir), "PERRY_PROJECT": str(self.dir)}):
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(self.m.main(["--bill", "all", "--json"]), 0)
+        bills = json.loads(out.getvalue())["bills"]
+        self.assertEqual(len(bills), 5)
+        for bill in bills:
+            self.assertEqual(bill["total_bytes"], sum((ROOT / f["path"]).stat().st_size for f in bill["files"]))
 
 
 if __name__ == "__main__":

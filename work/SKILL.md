@@ -30,7 +30,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 
 | Reference file | Loaded when running |
 |---|---|
-| `reference/dispatch.md` | `/pmo dispatch <task-id>` |
+| `reference/dispatch.md` + `reference/dispatch-preflight.md` | `/pmo dispatch <task-id>` |
 | `reference/autopilot.md` | `/pmo autopilot` (autonomous BOARD-driving loop) |
 | `reference/digests.md` | `/pmo digest <path>` (read external doc, retain gist) + archive review inside `mid-phase-review` / `end-phase-retro` |
 | `reference/promotion.md` | The knowledge-card capture point inside `close-task`, `end-phase-retro` and `/pmo incident close` — one question, `Source:` pre-filled from the evidence just written, a sourceless card refused |
@@ -41,7 +41,10 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/delegate.md` | `/pmo delegate <task-id> <role>` |
 | `reference/review.md` | `/pmo review <task-id> …` — dispatching a V4: the criteria gate, the four rules that make a round converge, the machine-readable verdict block, and concurrent dispatch of independent rows |
 | `reference/review-constraints.md` | Read by every review agent — referenced by path from the prompt, never retyped into it |
-| `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), phase transition (`rollover`) |
+| `reference/planning.md` | `plan-week`, `triage` |
+| `reference/add-task.md` | `add-task` |
+| `reference/decisions-risk.md` | `decide`, `risk`, `nudge` |
+| `reference/subcommands.md` | cadence (`status`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`), task lifecycle (`close-task`, `drop-task`), cross-session (`coordinate`, `handoff`), phase transition (`rollover`) |
 | `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`, `autopilot`) |
 | `reference/conversational.md` | Every chat reply (plain-language + on-demand in-flight board) |
 | `reference/reporting-format.md` | `status`, `monday-plan`, `midweek-check` weekly output |
@@ -245,8 +248,8 @@ For version/release setup requests, or an applicable approved project release po
 
 | Subcommand | One-line | Reference |
 |---|---|---|
-| `plan-week` | Pick this ISO week's 3–5 P0 tasks; update BOARD + journal | `reference/subcommands.md` |
-| `triage` | Walk BOARD top-to-bottom; flag stale / inflated / evidence-less rows | `reference/subcommands.md` |
+| `plan-week` | Pick this ISO week's 3–5 P0 tasks; update BOARD + journal | `reference/planning.md` |
+| `triage` | Walk BOARD top-to-bottom; flag stale / inflated / evidence-less rows | `reference/planning.md` |
 | `delegate <task-id> <role>` | Render manual prompt for user to paste into another session | `reference/delegate.md` |
 | `dispatch <task-id>` | Fully automated: spec → executor → verify → evidence → BOARD/journal | `reference/dispatch.md` |
 | `autopilot [--max-dispatches=N] [--max-duration=Th] [--max-failures=F] [--dry-run]` | Drive the BOARD top-to-bottom: dispatch every safe-to-dispatch row until budget exhausts. Default budget 10 / 2h / 3. **First run per project is forced dry-run + briefing.** Stop signals: close session OR `touch ~/.cache/perry/autopilot.stop`. Never auto-`done` (always lands at `review`). | `reference/autopilot.md` |
@@ -262,9 +265,9 @@ For version/release setup requests, or an applicable approved project release po
 | `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `$PERRY_HOME/packs/software-ops/runbooks.md` |
 | `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `$PERRY_HOME/packs/software-ops/incidents.md` |
 | `health-check` | Meta-runner: audit + runbook-check + digest stale + incident patterns. Called inline by retros | `reference/health-check.md` |
-| `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/subcommands.md` |
-| `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/subcommands.md` |
-| `add-task` | BOARD row + journal definition + (P0/P1) spec file | `reference/subcommands.md` |
+| `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/decisions-risk.md` |
+| `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/decisions-risk.md` |
+| `add-task` | BOARD row + journal definition + (P0/P1) spec file | `reference/add-task.md` |
 | `close-task <id>` | Remove BOARD row, write status-change journal line | `reference/subcommands.md` |
 | `drop-task <id> <reason>` | Same as close, with reason | `reference/subcommands.md` |
 | `coordinate` | Pull cross-session updates → `PROJECT_STATE.md` | `reference/subcommands.md` |
