@@ -1848,6 +1848,27 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     _checks_by_kr = lib.kr_checks(_linkage_records)
     _revisions, _revision_findings = lib.kr_revisions(_linkage_records or [],
                                                       P.LINKAGE_STORE)
+    # The overall KRs' fold, keyed `(id, version label)` — the same rule over
+    # `okr.jsonl` (DESIGN-022 § 5.7). `okr.objectives[].krs[]` below carries
+    # its `status` so no KR list in this payload hides a withdrawal (TASK-264
+    # D3 repair, V4 finding F1).
+    _okr_revisions, _ = lib.kr_revisions(P.load_okr_store(root) or [],
+                                         P.OKR_STORE)
+    _okr_version = snap.okr.version or ""
+
+    def _okr_kr(k) -> dict:
+        return {**encode(k),
+                **lib.kr_status(_okr_revisions.get((k.id, _okr_version)))}
+
+    def _phase_kr(k) -> dict:
+        return {**encode(k), **lib.kr_status(_revisions.get((k.id, "")))}
+
+    _phase_krs = (P.phase_key_results(snap.phase,
+                                      getattr(snap, "linkage", None))
+                  if snap.phase else [])
+    _phase_withdrawn = sum(
+        1 for k in _phase_krs
+        if lib.kr_status(_revisions.get((k.id, "")))["status"] == "withdrawn")
     linkage_objectives = [
         encode_linkage_objective(o,
                                  status_by_id=_status_by_id, events=_events,
@@ -2005,7 +2026,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "version": snap.okr.version,
             "mission": snap.okr.mission,
             "objectives": [
-                {"title": o.title, "krs": [encode(k) for k in o.krs]}
+                {"title": o.title, "krs": [_okr_kr(k) for k in o.krs]}
                 for o in snap.okr.objectives
             ],
             "operating_principles": len(snap.okr.operating_principles),
@@ -2030,14 +2051,17 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             # no KR for the phase, so the KEY SHAPE here is unchanged and only
             # its source moved.
             "objectives": [
-                {"title": o.title, "krs": [encode(k) for k in krs]}
+                {"title": o.title, "krs": [_phase_kr(k) for k in krs]}
                 for o, krs in zip(
                     snap.phase.objectives,
                     P.phase_key_results_by_objective(
                         snap.phase, getattr(snap, "linkage", None)))
             ],
-            "kr_total": len(P.phase_key_results(
-                snap.phase, getattr(snap, "linkage", None))),
+            # **A withdrawn KR is not in the total** (DESIGN-022 § 5.7
+            # *Counting*); it is reported beside it. The KR itself stays in
+            # `objectives[].krs[]` above, with `status: withdrawn`.
+            "kr_total": len(_phase_krs) - _phase_withdrawn,
+            "kr_withdrawn": _phase_withdrawn,
             "cost_ceiling": snap.phase.cost_ceiling_lines,
             "scope_triggers": [encode(t) for t in snap.phase.scope_triggers],
         },
@@ -2844,7 +2868,7 @@ COMPACT: tuple[tuple[str, str, object], ...] = (
     # count over its KRs; `perry-explain <ID>` and `--section okr` answer the
     # rest, which is what they are for.
     ("okr.objectives", "okr.objectives",
-     ("objectives", ("id", "linked", "stretch"))),
+     ("objectives", ("id", "linked", "stretch", "status"))),
     ("okr.anti_goals", "okr.anti_goals", "value"),
     ("okr.operating_principles", "okr.operating_principles", "value"),
     # One entry, projected as a sub-document, so a project with no phase
@@ -2857,9 +2881,11 @@ COMPACT: tuple[tuple[str, str, object], ...] = (
         ("started", "started", "value"),
         ("day", "day", "value"),
         ("kr_total", "kr_total", "value"),
+        ("kr_withdrawn", "kr_withdrawn", "value"),
         ("focus_present", "focus_present", "value"),
         ("cost_ceiling", "cost_ceiling", "value"),
-        ("objectives", "objectives", ("objectives", ("id", "linked", "stretch"))),
+        ("objectives", "objectives", ("objectives", ("id", "linked", "stretch",
+                                                     "status"))),
         ("scope_triggers", "scope_triggers", "count"),
     ))),
     # **The KR progress the dashboard puts a percentage on** —
@@ -2871,7 +2897,7 @@ COMPACT: tuple[tuple[str, str, object], ...] = (
     ("linkage.phase", "linkage.phase", "value"),
     ("linkage.objectives", "linkage.objectives",
      ("objectives_with_progress", ("id", "title", "current", "target",
-                                   "stretch"))),
+                                   "stretch", "status"))),
     ("linkage.unlinked", "linkage.unlinked", "count"),
     # A provenance roll-up over the phase's KRs — how many were asserted,
     # measured, stale. NOT a per-objective percentage; the line above is.
@@ -3005,7 +3031,8 @@ def dash(payload: dict) -> str:
         short_slug = re.sub(r"^\d{3}-", "", ph["slug"])
         lines.append(
             f"🌀 Current phase  : #{em(ph['number'])} {short_slug} · {day} · "
-            f"{len(ph['objectives'])} objectives / {ph['kr_total']} KRs · "
+            f"{len(ph['objectives'])} objectives / {ph['kr_total']} KRs"
+            f"{' (+' + str(ph['kr_withdrawn']) + ' withdrawn)' if ph.get('kr_withdrawn') else ''} · "
             f"{len(ph['scope_triggers'])} scope triggers"
         )
     else:

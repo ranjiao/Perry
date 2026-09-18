@@ -398,13 +398,15 @@ class TestItIsAProjectionAndNothingElse(unittest.TestCase):
         "architecture": "value",
         "roles": "value",
         "warnings": "value",
-        # the ten `phase` children
+        # the eleven `phase` children
         "phase.number": "value",
         "phase.slug": "value",
         "phase.status": "value",
         "phase.started": "value",
         "phase.day": "value",
         "phase.kr_total": "value",
+        # TASK-264 D3 repair (F1): the withdrawn KRs `kr_total` leaves out.
+        "phase.kr_withdrawn": "value",
         "phase.focus_present": "value",
         "phase.cost_ceiling": "value",
         "phase.objectives": "objectives",
@@ -644,10 +646,13 @@ class TestTheStandupCanActuallyRenderFromIt(unittest.TestCase):
         "project.tracks": ("track", "mode", "stage_list", "stages_declared",
                            "wip", "sla", "cycle", "default_rung", "declared"),
         "board.drift": ("checked", "drift", "unrecorded"),
-        "okr.objectives": ("id", "linked", "stretch"),
-        "linkage.objectives": ("id", "title", "current", "target", "stretch"),
+        # `status` on all three KR lists: TASK-264 D3 repair (F1) — a
+        # withdrawn KR stays listed and the standup must be able to tell.
+        "okr.objectives": ("id", "linked", "stretch", "status"),
+        "linkage.objectives": ("id", "title", "current", "target", "stretch",
+                               "status"),
         # the one `subdict` child that carries names of its own
-        "phase.objectives": ("id", "linked", "stretch"),
+        "phase.objectives": ("id", "linked", "stretch", "status"),
     }
 
     def test_each_projection_still_picks_out_the_names_it_is_meant_to(self):

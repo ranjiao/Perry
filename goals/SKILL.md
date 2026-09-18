@@ -105,7 +105,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
    📅 Phase day <N>   ·   last snapshot <M>d ago (heartbeat <H>d)
    ```
 
-   Use `✓` for KRs ≥1.0, `◐` for ≥0.7, `◑` for ≥0.4, `◯` below.
+   Use `✓` for KRs ≥1.0, `◐` for ≥0.7, `◑` for ≥0.4, `◯` below. A KR with `status: withdrawn` shows `✗ … withdrawn` and is not in `<KRs total>`.
 
    If no current phase exists: render only the overall OKR block. Starting a phase is recommended by the next block (`R-no-phase`).
 

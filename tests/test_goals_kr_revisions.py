@@ -667,6 +667,41 @@ class TestReaders(Project):
         self.assertEqual(krs["P004-O1-KR1"]["status"], "withdrawn")
         self.assertEqual(krs["O2-KR1"]["status"], "active")
 
+    def test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it(self):
+        """V4 finding F1 (TASK-264 D3 repair). Every KR list in the payload
+        carries `status`, and `phase.kr_total` — which the dashboard prints —
+        leaves a withdrawn KR out, reporting it beside the total."""
+        self.with_phase_objective()
+        before = self.state()
+        self.assertEqual((before["phase"]["kr_total"],
+                          before["phase"]["kr_withdrawn"]), (2, 0))
+        self.ok("kr", "withdraw", "P004-O1-KR1", "--reason", "gone")
+        self.ok("kr", "withdraw", "O1-KR1", "--okr-version", V4,
+                "--reason", "gone too")
+        payload = self.state()
+        self.assertEqual((payload["phase"]["kr_total"],
+                          payload["phase"]["kr_withdrawn"]), (1, 1))
+        phase = {k["id"]: k for o in payload["phase"]["objectives"]
+                 for k in o["krs"]}
+        self.assertEqual((phase["P004-O1-KR1"]["status"],
+                          phase["P004-O1-KR1"]["withdrawn_reason"]),
+                         ("withdrawn", "gone"))
+        self.assertTrue(phase["P004-O1-KR1"]["withdrawn_at"])
+        self.assertEqual(phase["O2-KR1"]["status"], "active")
+        overall = {k["id"]: k for o in payload["okr"]["objectives"]
+                   for k in o["krs"]}
+        self.assertEqual(overall["O1-KR1"]["status"], "withdrawn")
+        narrow = json.loads(inproc.run(
+            "perry-state", ["--compact", "--root", str(self.root)],
+            env={"PERRY_PROJECT": None}).stdout)
+        self.assertEqual(narrow["phase"]["kr_withdrawn"], 1)
+        self.assertEqual({k["id"]: k["status"] for o in narrow["okr"]["objectives"]
+                          for k in o["krs"]}, {"O1-KR1": "withdrawn"})
+        dash = inproc.run("perry-state", ["--dashboard", "--root",
+                                          str(self.root)],
+                          env={"PERRY_PROJECT": None}).stdout
+        self.assertIn("/ 1 KRs (+1 withdrawn)", dash)
+
     def test_perry_state_reads_the_restated_values(self):
         """The payload's linkage KRs are the folded ones: a restated title
         and target, not the record's."""
