@@ -2171,6 +2171,222 @@ def kr_position(entries, *, task_ids=(), events=None, now=None,
             "fraction": checks[0]["fraction"] if len(checks) == 1 else None}
 
 
+# ── KR revisions — DESIGN-022 § 5.7 (TASK-264 deliverable 3, ADR-022) ─────
+#
+# A KR's words are changed by APPENDING a `kr_revision` record to the store
+# that holds the KR — `linkage.jsonl` for a phase KR, `okr.jsonl` for an
+# overall one — and never by rewriting its `kr` record. What the KR is NOW is
+# therefore a fold over its revisions, and this is the one place that fold is
+# stated. `viewer/parsers.py` stays the one reader of each file (NN-1): it
+# hands this code the records it read, and this code only orders and applies
+# them, which is the arrangement `kr_checks` above already has (DESIGN-022
+# § 9, 2026-09-16).
+#
+# **The rule, as § 5.7 states it:**
+#
+# 1. A KR's revisions apply in `revised_at` order — compared through
+#    `ts_moment`, never as text — and equal moments apply in file order.
+# 2. `restate` overwrites the named fields; every other field stands.
+# 3. `withdraw` is terminal: `status: withdrawn`, `withdrawn_at` and the
+#    reason. A revision after it is malformed and is not applied.
+# 4. Every KR reports `status` and `revisions[]`, each revision with `op`,
+#    `revised_at`, `reason`, `actor` and, for `restate`, every named field's
+#    before and after value.
+#
+# A revision that breaks the record rules is REPORTED (`findings`, which
+# `perry-lint` prints) and NOT applied, so one bad line cannot move a KR.
+# Every check compares typed values (NN-4): the reason is checked for being
+# non-empty text, never read.
+
+#: The two operations. `schema § stores.declared[*].records.kr_revision.fields
+#: .op.pattern` spells the same pair; `tests/test_goals_kr_revisions.py` pins them.
+KR_REVISION_OPS = ("restate", "withdraw")
+
+#: A KR revision's store, by where the KR lives. The key a revision is filed
+#: under is `(kr, okr_version)`, the key `kr_checks` uses: `""` for a phase KR,
+#: the `okr.jsonl` version label for an overall one.
+KR_REVISION_STORES = ("linkage.jsonl", "okr.jsonl")
+
+#: Used only when the schema cannot be read: the union of both levels' identity
+#: fields, so an unreadable schema refuses MORE restatements, never fewer.
+_KR_IDENTITY_FALLBACK = frozenset(("kind", "id", "phase", "version",
+                                   "objective", "objective_id", "order"))
+
+
+def kr_identity_fields(store: str) -> frozenset:
+    """The fields a `restate` may never name, for the KR records of `store`.
+
+    Read from `schema § stores.declared[<store>].records.kr_revision
+    .identity_fields` — declared once, beside the record they govern — rather
+    than restated here (DESIGN-022 § 5.7's table: `kind`, `id`, `phase` /
+    `version`, `objective` / `objective_id`, `order`).
+    """
+    try:
+        spec = ((((json.loads(SCHEMA_PATH.read_text()).get("stores") or {})
+                  .get("declared") or {}).get(store) or {})
+                .get("records") or {}).get("kr_revision") or {}
+    except (OSError, ValueError):
+        spec = {}
+    fields = spec.get("identity_fields")
+    if isinstance(fields, list) and fields:
+        return frozenset(str(f) for f in fields)
+    return _KR_IDENTITY_FALLBACK
+
+
+def kr_revision_key(record: dict, store: str) -> tuple:
+    """`(kr id, okr_version)` for a `kr` or `kr_revision` record of `store`."""
+    if record.get("kind") == "kr_revision":
+        return (str(record.get("kr") or ""), str(record.get("okr_version") or ""))
+    if store == "okr.jsonl":
+        return (str(record.get("id") or ""), str(record.get("version") or ""))
+    return (str(record.get("id") or ""), "")
+
+
+def kr_revisions(records, store: str) -> tuple[dict, list]:
+    """The fold: `({(kr, okr_version): view}, findings)` over one store's records.
+
+    `view` is `{"status", "withdrawn_at", "withdrawn_reason", "revisions",
+    "fields"}` for every KR that has a `kr` record in `records`, revised or
+    not; `fields` holds the restated values the fold applied, to be laid over
+    the KR's record (`fold_kr_records`). `findings` are
+    `{"line", "kr", "okr_version", "message"}`, one per revision that was NOT
+    applied, with its line in the store (1-based, counting records).
+
+    `store` is `"linkage.jsonl"` or `"okr.jsonl"`: it decides how a `kr`
+    record is keyed and which identity fields a `restate` may not name.
+    """
+    identity = kr_identity_fields(store)
+    base: dict[tuple, dict] = {}
+    pending: dict[tuple, list] = {}
+    findings: list[dict] = []
+    for line, record in enumerate(records or [], 1):
+        if not isinstance(record, dict):
+            continue
+        if record.get("kind") == "kr":
+            base.setdefault(kr_revision_key(record, store), record)
+        elif record.get("kind") == "kr_revision":
+            pending.setdefault(kr_revision_key(record, store), []).append(
+                (line, record))
+
+    def finding(line, key, message):
+        findings.append({"line": line, "kr": key[0], "okr_version": key[1],
+                         "message": message})
+
+    views: dict[tuple, dict] = {
+        key: {"status": "active", "withdrawn_at": None,
+              "withdrawn_reason": None, "revisions": [], "fields": {}}
+        for key in base}
+    for key, entries in pending.items():
+        if key not in base:
+            for line, _record in entries:
+                finding(line, key,
+                        f"revises {key[0]}"
+                        f"{' (' + key[1] + ')' if key[1] else ''}, which is "
+                        f"not a `kr` record of {store}")
+            continue
+        # Rule 1. An unreadable `revised_at` cannot be placed on the line, so
+        # it is reported and never sorted against readable ones.
+        placed = []
+        for line, record in entries:
+            moment = ts_moment(record.get("revised_at"))
+            if moment is None:
+                finding(line, key,
+                        f"`revised_at` {record.get('revised_at')!r} is not a "
+                        f"timestamp with an offset")
+                continue
+            placed.append((moment, line, record))
+        placed.sort(key=lambda item: (item[0], item[1]))
+        view, current = views[key], dict(base[key])
+        for _moment, line, record in placed:
+            op = record.get("op")
+            reason = record.get("reason")
+            fields = record.get("fields")
+            if view["status"] == "withdrawn":
+                finding(line, key, f"a `{op}` revision after the KR was "
+                        f"withdrawn at {view['withdrawn_at']}; withdraw is "
+                        f"terminal")
+                continue
+            if op not in KR_REVISION_OPS:
+                finding(line, key, f"`op` is {op!r}, expected one of "
+                        f"{'/'.join(KR_REVISION_OPS)}")
+                continue
+            if not isinstance(reason, str) or not reason.strip():
+                finding(line, key, "`reason` is empty; a revision carries one")
+                continue
+            if not isinstance(fields, dict):
+                finding(line, key, f"`fields` is "
+                        f"{type(fields).__name__}, expected an object")
+                continue
+            if op == "withdraw" and fields:
+                finding(line, key, "a `withdraw` carries `fields: {}`")
+                continue
+            if op == "restate":
+                named = sorted(set(fields) & identity)
+                if not fields or named:
+                    finding(line, key,
+                            f"a `restate` names identity field(s) "
+                            f"{', '.join(named)}" if named else
+                            "a `restate` names no field")
+                    continue
+            entry = {"op": op, "revised_at": str(record.get("revised_at")),
+                     "reason": reason, "actor": str(record.get("actor") or "")}
+            if op == "restate":
+                entry["changes"] = [
+                    {"field": f, "before": current.get(f), "after": fields[f]}
+                    for f in sorted(fields)]
+                current.update(fields)
+                view["fields"].update(fields)
+            else:
+                view["status"] = "withdrawn"
+                view["withdrawn_at"] = entry["revised_at"]
+                view["withdrawn_reason"] = reason
+            view["revisions"].append(entry)
+    return views, findings
+
+
+def kr_status(view: dict | None) -> dict:
+    """A KR's published revision keys: `status`, `withdrawn_at`,
+    `withdrawn_reason` and `revisions` — one `kr_revisions` view, or the
+    answer for a KR with none. Spliced in by every reader, the way
+    `kr_position` is."""
+    view = view or {}
+    return {"status": view.get("status") or "active",
+            "withdrawn_at": view.get("withdrawn_at"),
+            "withdrawn_reason": view.get("withdrawn_reason"),
+            "revisions": list(view.get("revisions") or [])}
+
+
+def fold_kr_records(records, store: str) -> list:
+    """`records` with every `kr` record replaced by its folded copy.
+
+    The restated fields are laid over the record — rule 2 — and the
+    `kr_revision` records themselves are left out, so a reader that builds a
+    model from the result (`parsers.linkage_from_store`, `parsers.parse_okr`)
+    sees what each KR is NOW and nothing it does not know how to read. The
+    records passed in are not modified. A withdrawn KR stays: it is listed,
+    with its status, by every reader (§ 5.7 *Contracts*).
+
+    The signature is the `kr_fold` hook `parsers.load_linkage` and
+    `parsers.load_snapshot` take, so the parser stays the one reader and this
+    stays the one rule.
+    """
+    if records is None:
+        return None
+    views, _findings = kr_revisions(records, store)
+    out = []
+    for record in records:
+        if not isinstance(record, dict):
+            out.append(record)
+        elif record.get("kind") == "kr_revision":
+            continue
+        elif record.get("kind") == "kr":
+            view = views.get(kr_revision_key(record, store)) or {}
+            out.append({**record, **(view.get("fields") or {})})
+        else:
+            out.append(record)
+    return out
+
+
 def objective_kr_summary(krs) -> dict:
     """An Objective's KRs as COUNTS — DESIGN-022 § 5.2, per Objective.
 
@@ -2180,12 +2396,17 @@ def objective_kr_summary(krs) -> dict:
     `due` — a due value is old, not absent); `met` counts those whose `met`
     is `true`; `by_state` counts each state.
 
+    **A withdrawn KR leaves every count** (DESIGN-022 § 5.7 *Counting*): one
+    whose `status` is `withdrawn` is in no total, no `measured` and no `met`.
+    `withdrawn_krs` below is where it is reported beside them.
+
     **There is no mean, and no fraction.** `perry-goals/list/2.0` removed
     `progress` because averaging positions of KRs that run in different
     directions reports a risk budget as partly achieved; `met of total` is
     the only aggregate that cannot.
     """
-    commit = [k for k in (krs or []) if not k.get("stretch")]
+    commit = [k for k in (krs or []) if not k.get("stretch")
+              and k.get("status") != "withdrawn"]
     by_state = {state: 0 for state in KR_POSITION_STATES}
     for k in commit:
         by_state[k.get("state") if k.get("state") in by_state
@@ -2196,6 +2417,16 @@ def objective_kr_summary(krs) -> dict:
         "met": sum(1 for k in commit if k.get("met") is True),
         "by_state": by_state,
     }
+
+
+def withdrawn_krs(krs) -> list[dict]:
+    """The commit KRs `objective_kr_summary` left out as withdrawn, each with
+    its date and reason — the `withdrawn: n` § 5.7 reports beside the counts.
+    Stretch KRs are excluded here as they are there."""
+    return [{"id": k.get("id"), "withdrawn_at": k.get("withdrawn_at"),
+             "reason": k.get("withdrawn_reason")}
+            for k in (krs or []) if not k.get("stretch")
+            and k.get("status") == "withdrawn"]
 
 
 # ── the one question a dashboard asks ─────────────────────────────────────

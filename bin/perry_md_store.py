@@ -228,6 +228,27 @@ TRACK_FIELDS = store_record_fields(".perry/config.jsonl", "track")
 #: The same, for a `kind: setting` record.
 SETTING_FIELDS = store_record_fields(".perry/config.jsonl", "setting")
 
+#: `kind: kr_revision` — one restatement or withdrawal of an overall KR
+#: (DESIGN-022 § 5.7, TASK-264 deliverable 3). It projects from no line of
+#: `OKR.md`, so its fields are declared in the schema, as `track`'s are, and
+#: read from there: `stores.declared["okr.jsonl"].records.kr_revision`.
+KR_REVISION_FIELDS = store_record_fields("okr.jsonl", "kr_revision")
+
+
+def _declared_types(store_path: str, kind: str) -> dict[str, str]:
+    """`{field: declared type}` for a schema-declared record kind."""
+    spec = ((((schema().get("stores") or {}).get("declared") or {})
+             .get(store_path) or {}).get("records") or {}).get(kind) or {}
+    fields = spec.get("fields")
+    return ({name: str((f or {}).get("type") or "string")
+             for name, f in fields.items()} if isinstance(fields, dict) else {})
+
+
+#: The one kind here whose fields are not all strings: `fields` is an object.
+#: `validate_records` reads a declared type from this map before falling back
+#: to "string or null", so the rule is the schema's and not a special case.
+DECLARED_TYPES = {"kr_revision": _declared_types("okr.jsonl", "kr_revision")}
+
 #: Fields carried per record kind, in a fixed order, so two writes of the same
 #: state produce the same bytes. Same rule and same reason as
 #: `perry_store.record`: a store whose lines reshuffle turns every write into a
@@ -266,6 +287,7 @@ STORED: dict[str, tuple[str, ...]] = {
     "setting": ("kind", "key", "label", "value", "order"),
     "track": ("kind", "track", "mode", "spine", "stages", "wip", "sla",
               "cycle", "default_rung", "order"),
+    "kr_revision": tuple(KR_REVISION_FIELDS),
 }
 
 
@@ -336,6 +358,14 @@ def record_key(rec: dict) -> str:
         return f"setting\x00{rec.get('key','')}"
     if kind == "track":
         return f"track\x00{rec.get('track','')}"
+    # A KR carries any number of revisions, so no one field is a key. The
+    # whole record is: two lines that agree on every field are one fact
+    # written twice, and `validate_records` refuses the second.
+    if kind == "kr_revision":
+        return (f"kr_revision\x00{rec.get('okr_version','')}\x00"
+                f"{rec.get('kr','')}\x00{rec.get('revised_at','')}\x00"
+                + json.dumps({k: v for k, v in rec.items() if k != "kind"},
+                             sort_keys=True, ensure_ascii=False))
     return f"{kind}\x00{rec.get('id','')}"
 
 
@@ -641,6 +671,10 @@ def mint_objective_ids(records: list[dict], *,
 REQUIRED = {
     "kr": ("version",),
     "objective": ("version",),
+    # The key of the KR it revises. Everything else a revision must carry is
+    # a rule of the fold (`lib § kr_revisions`), which reports and skips a
+    # revision that breaks it rather than refusing the whole store.
+    "kr_revision": ("kr", "okr_version"),
 }
 
 
@@ -679,6 +713,9 @@ def validate_records(records: list) -> tuple[list[dict], list[dict]]:
                 ok = value is None or (isinstance(value, int)
                                        and not isinstance(value, bool))
                 expected = "integer or null"
+            elif DECLARED_TYPES.get(kind, {}).get(field) == "object":
+                ok = isinstance(value, dict)
+                expected = "object"
             else:
                 ok = value is None or isinstance(value, str)
                 expected = "string or null"
@@ -1069,8 +1106,12 @@ class Doc:
 #: is where the key results are read. The deletion was allowed only because
 #: `perry-okr diff` proved, on the file as it stood, that the store rebuilt
 #: all 38 rows byte for byte first — DESIGN-009 § 6 step 2.
+#: `kr_revision` is store-only from birth (TASK-264 deliverable 3): it
+#: restates or withdraws a KR that already has no line in the file, so there
+#: is no line for it either, and `write_okr_and_store` keeps it as it keeps
+#: `kr` — carried through every write, compared by no byte of `OKR.md`.
 OKR = Doc("okr", "OKR.md", "okr.jsonl", scan_okr, under_state_root=True,
-          store_only_kinds=("kr",))
+          store_only_kinds=("kr", "kr_revision"))
 DOCS = {"okr": OKR}
 
 
