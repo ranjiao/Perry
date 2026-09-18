@@ -667,6 +667,33 @@ class TestReaders(Project):
         self.assertEqual(krs["P004-O1-KR1"]["status"], "withdrawn")
         self.assertEqual(krs["O2-KR1"]["status"], "active")
 
+    def test_perry_state_reads_the_restated_values(self):
+        """The payload's linkage KRs are the folded ones: a restated title
+        and target, not the record's."""
+        self.ok("kr", "restate", "P004-O1-KR1", "--set", "target=5",
+                "--set", "title=restated in state", "--reason", "r")
+        krs = {k["id"]: k for o in self.state()["linkage"]["objectives"]
+               for k in o["krs"]}
+        self.assertEqual((krs["P004-O1-KR1"]["title"],
+                          krs["P004-O1-KR1"]["target"]),
+                         ("restated in state", 5.0))
+
+    def test_every_record_the_writer_appends_lints_clean(self):
+        """A `kr_revision` is a declared kind of `linkage.jsonl`, and a
+        store-only kind of `okr.jsonl` — neither malformed nor drift."""
+        self.ok("kr", "restate", "P004-O1-KR1", "--set", "target=5",
+                "--reason", "r")
+        self.ok("kr", "withdraw", "P004-O1-KR1", "--reason", "r")
+        self.ok("kr", "restate", "O4-KR1", "--set", "text=x", "--reason", "r")
+        self.ok("kr", "withdraw", "O4-KR1", "--reason", "r")
+        got = inproc.run("perry-lint", ["--root", str(self.root)],
+                         env={"PERRY_PROJECT": None})
+        said = got.stdout + got.stderr
+        self.assertIn("linkage store: 9 record(s), 0 malformed", said)
+        self.assertNotIn("kr_revision/", said)
+        self.assertNotIn("kr-revision-malformed", said)
+        self.assertNotIn("okr-store-badly-typed", said)
+
     def test_perry_lint_names_a_hand_appended_revision_the_fold_skips(self):
         self.ok("kr", "withdraw", "P004-O1-KR1", "--reason", "gone")
         with open(self.linkage, "a") as fh:
