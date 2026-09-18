@@ -61,8 +61,9 @@ flowchart TD
 
 ### What `perry-context-budget` reads outside the project
 
-It reads host transcripts, not Perry state: `~/.claude/projects/` and
-`~/.codex/sessions/`, read-only, located by the session id the host exports.
+It reads host transcripts, not Perry state, read-only: `~/.codex/sessions/`,
+located by the session id Codex exports, and a Claude transcript only when a
+caller names it with `--session` (Claude's exported id cannot be bound).
 To learn which host it is under, it runs `bin/perry-detect-host` as a
 subprocess (10 s timeout; a failure reads as `unknown`) and depends only on
 that script's one-token output. It is the only `bin/` tool that executes

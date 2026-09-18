@@ -48,13 +48,17 @@ def turn(cache_read=0, cache_creation=0, inp=0, extra=None, sid=SID, mid=None, o
     return json.dumps(rec)
 
 
-def codex(*totals, tid=TID, parent=None, first_last=None):
+def codex(*totals, tid=TID, parent=None, first_last=None, forked=True):
     """A rollout: session_meta, then one token_count per CUMULATIVE total (inp, cached, out,
     reasoning[, cache_write]). `first_last` is the first snapshot's `last_token_usage`: a
-    forked child's first total is its parent's running total, with nothing of its own."""
+    forked child's first total is its parent's running total, with nothing of its own. Real
+    children carry it with and without `forked_from_id`, and a forked one embeds its parent's
+    `session_meta` after its own."""
     keys = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens", "cache_write_input_tokens")
-    return [json.dumps({"type": "session_meta", "payload": {"id": tid, "cwd": "/w", "parent_thread_id": parent,
-                                                            "forked_from_id": parent if first_last else None}})] + [
+    meta = [json.dumps({"type": "session_meta", "payload": {"id": i, "cwd": "/w", "parent_thread_id": p,
+                                                            "forked_from_id": p if first_last and forked else None}})
+            for i, p in [(tid, parent)] + ([(parent, None)] if first_last and forked else [])]
+    return meta + [
         json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": {
             "total_token_usage": dict(zip(keys, t)),
             **({"last_token_usage": dict(zip(keys, first_last))} if first_last and i == 0 else {})}}})
@@ -85,7 +89,9 @@ class BudgetCase(unittest.TestCase):
                               capture_output=True, text=True, cwd=self.dir, env=clean)
 
     def json_out(self, *args, **env):
-        env = env or {"CLAUDE_CODE_SESSION_ID": SID}
+        """Claude binds no session by identity, so a Claude fixture is read by `--session`."""
+        if not env and "--session" not in args:
+            args = ("--session", str(self.t), *args)
         proc = self.run_tool("--json", *args, **env)
         return json.loads(proc.stdout), proc.returncode
 
@@ -134,7 +140,7 @@ class TestTheGate(BudgetCase):
 class TestItAbstainsLoudlyRatherThanPassingSilently(BudgetCase):
 
     def test_a_missing_transcript_is_unknown_and_says_so(self):
-        report, _ = self.json_out(CLAUDE_CODE_SESSION_ID="no-such-session")
+        report, _ = self.json_out(CODEX_THREAD_ID="no-such-session", PERRY_HOST="codex-cli")
         self.assertEqual((report["verdict"], report["context"]), ("unknown", None))
         self.assertIn("0 transcripts carry session id", report["why"])
 
@@ -146,8 +152,8 @@ class TestItAbstainsLoudlyRatherThanPassingSilently(BudgetCase):
     def test_a_transcript_with_no_usage_yet_is_unknown_not_zero(self):
         self.write(json.dumps({"type": "user", "sessionId": SID}))
         self.rollout(*codex())
-        for host, env in [("claude-code", {"CLAUDE_CODE_SESSION_ID": SID}), ("codex-cli", {"CODEX_THREAD_ID": TID})]:
-            proc = self.run_tool("--json", host=host, **env)
+        for host, args, env in [("claude-code", ["--session", str(self.t)], {}), ("codex-cli", [], {"CODEX_THREAD_ID": TID})]:
+            proc = self.run_tool("--json", *args, host=host, **env)
             report = json.loads(proc.stdout)
             self.assertEqual((report["verdict"], report["context"], proc.returncode), ("unknown", None, 0), host)
             self.assertIn("no usage record", report["why"])
@@ -160,18 +166,27 @@ class TestTheSessionIsBoundNeverGuessed(BudgetCase):
         self.write(*lines, path=path)
         os.utime(path, (4_000_000_000, 4_000_000_000))
 
-    def test_a_concurrent_newer_session_in_the_same_project_is_not_this_one(self):
-        self.write(turn(cache_read=1_000))
-        self.newer(self.t.with_name("other.jsonl"), turn(cache_read=900_000, sid="other"))
-        report, code = self.json_out()
-        self.assertEqual((report["context"], report["session"], report["scope"], code), (1_000, SID, "current", 0))
+    def test_a_concurrent_newer_session_is_not_this_one(self):
+        self.rollout(*codex((1_000, 0, 1, 0)))
+        self.newer(self.rollouts / "rollout-2026-09-18T09-00-00-other.jsonl", *codex((900_000, 0, 1, 0), tid="other"))
+        later = self.dir / ".codex/sessions/2026/09/19/rollout-2026-09-19T00-00-00-later.jsonl"
+        self.newer(later, *codex((900_000, 0, 1, 0), tid="later"))
+        report, code = self.json_out(CODEX_THREAD_ID=TID, PERRY_HOST="codex-cli")
+        self.assertEqual((report["context"], report["session"], report["scope"], report["binding"], code),
+                         (1_000, TID, "current", "host identity", 0))
 
-    def test_a_worktree_cwd_still_finds_the_session_by_id_not_by_its_own_slug(self):
-        self.write(turn(cache_read=1_234))
+    def test_a_claude_session_id_binds_nothing_because_a_subagent_carries_its_parents(self):
+        """R-M1: on Desktop the main session and its subagents share the id and the child flag;
+        on the plain CLI there is no flag, and no verified signal separates them either."""
+        self.write(turn(cache_read=900_000))
         slug = str(self.dir).replace(os.sep, "-")
         self.newer(self.dir / ".claude" / "projects" / slug / "cwd.jsonl", turn(cache_read=900_000, sid="cwd"))
-        report, _ = self.json_out()
-        self.assertEqual((report["context"], report["transcript"]), (1_234, str(self.t)))
+        for env in [{"CLAUDE_CODE_SESSION_ID": SID}, {"CLAUDE_CODE_SESSION_ID": SID, "CLAUDE_CODE_CHILD_SESSION": "1",
+                                                      "AI_AGENT": "claude-code_2-1-274_agent"}]:
+            with self.subTest(env=env):
+                report, code = self.json_out(**env)
+                self.assertEqual((report["verdict"], report["context"], report["identity"], code), ("unknown", None, None, 0))
+                self.assertIn("unverified identity", report["why"])
 
     def test_a_newer_claude_transcript_during_a_codex_run_is_not_the_codex_session(self):
         self.rollout(*codex((5_000, 4_000, 10, 0)))
@@ -183,14 +198,13 @@ class TestTheSessionIsBoundNeverGuessed(BudgetCase):
     def test_absent_ambiguous_mismatched_or_unsupported_identity_is_unknown_not_zero(self):
         self.write(turn(cache_read=900_000))
         self.rollout(*codex((900_000, 0, 1, 0)))
-        self.write(turn(cache_read=1, sid="x"), path=self.dir / ".claude/projects/-a/dup.jsonl")
-        self.write(turn(cache_read=1, sid="x"), path=self.dir / ".claude/projects/-b/dup.jsonl")
-        self.write(turn(cache_read=1, sid="impostor"), path=self.dir / ".claude/projects/-c/named.jsonl")
+        for day in ("17", "18"):
+            self.write(*codex((1, 0, 1, 0), tid="dup"), path=self.rollouts.parent / day / "rollout-x-dup.jsonl")
+        self.rollout(*codex((1, 0, 1, 0), tid="impostor"), tid="named")
         for host, env, why in [
-                ("claude-code", {}, "absent identity"), ("codex-cli", {}, "absent identity"),
-                ("claude-code", {"CLAUDE_CODE_SESSION_ID": SID, "CLAUDE_CODE_CHILD_SESSION": "1"}, "Claude Desktop"),
-                ("claude-code", {"CLAUDE_CODE_SESSION_ID": "dup"}, "2 transcripts"),
-                ("claude-code", {"CLAUDE_CODE_SESSION_ID": "named"}, "not the host's"),
+                ("claude-code", {}, "unverified identity"), ("codex-cli", {}, "absent identity"),
+                ("codex-cli", {"CODEX_THREAD_ID": "dup"}, "2 transcripts"),
+                ("codex-cli", {"CODEX_THREAD_ID": "named"}, "not the host's"),
                 ("opencode", {"CLAUDE_CODE_SESSION_ID": SID}, "OpenCode exposes no"),
                 ("unknown", {"CLAUDE_CODE_SESSION_ID": SID}, "no session identity")]:
             with self.subTest(host=host, env=env):
@@ -202,13 +216,13 @@ class TestTheSessionIsBoundNeverGuessed(BudgetCase):
     def test_an_explicit_other_session_is_historical_and_never_gates(self):
         old = self.dir / "old.jsonl"
         self.write(turn(cache_read=900_000, sid="old"), path=old)
-        report, code = self.json_out("--session", str(old))
+        report, code = self.json_out("--session", str(old), CODEX_THREAD_ID=TID, PERRY_HOST="codex-cli")
         self.assertEqual((report["verdict"], report["scope"], report["context"], code), ("historical", "historical", 900_000, 0))
         report, code = self.json_out("--session", str(old), PERRY_HOST="unknown")
         self.assertEqual((report["verdict"], report["scope"], code), ("OVER", "explicit", 1))
         self.write(turn(cache_read=1))
-        report, _ = self.json_out("--session", str(self.t), CLAUDE_CODE_SESSION_ID=SID, CLAUDE_CODE_CHILD_SESSION="1")
-        self.assertEqual(report["scope"], "explicit")  # Desktop's shared id verifies nothing
+        report, _ = self.json_out("--session", str(self.t), CLAUDE_CODE_SESSION_ID=SID)
+        self.assertEqual(report["scope"], "explicit")  # Claude's id verifies nothing, even when it matches
         self.rollout(*codex((5, 0, 1, 0)))
         report, _ = self.json_out("--session", str(next(self.rollouts.iterdir())))
         self.assertEqual((report["host"], report["transcript_host"]), ("claude-code", "codex-cli"))
@@ -249,14 +263,14 @@ class TestProvenanceAndCoverage(BudgetCase):
         child["agentId"] = "kid"
         self.write(json.dumps(child), path=self.t.parent / SID / "subagents" / "agent-kid.jsonl")
         report, _ = self.json_out()
-        self.assertEqual((report["session"], report["parent"], report["cwd"], report["binding"]), (SID, None, "/w", "host identity"))
+        self.assertEqual((report["session"], report["parent"], report["cwd"], report["binding"]), (SID, None, "/w", "--session"))
         self.assertEqual((report["usage"]["cached_input"], report["usage"]["output"], report["context"]), (15, 3, 10))
         self.assertEqual(report["children"], {"spawned": 2, "found": 1, "with_usage": 1,
                                               "workflow_calls": 0, "workflow_found": 0})
         self.assertEqual((report["coverage"], report["cost"], report["quota"]), ("partial", "unknown", "unknown"))
         self.assertEqual((report["measured"], report["estimated"]), (["context", "usage"], []))
         kid, _ = self.json_out("--session", str(self.t.parent / SID / "subagents" / "agent-kid.jsonl"))
-        self.assertEqual((kid["session"], kid["parent"], kid["scope"]), ("kid", SID, "historical"))
+        self.assertEqual((kid["session"], kid["parent"], kid["scope"]), ("kid", SID, "explicit"))
 
     def test_a_forked_codex_child_adds_only_its_own_usage_not_the_inherited_total(self):
         spawn = json.dumps({"type": "response_item", "payload": {"type": "function_call", "name": "spawn_agent"}})
@@ -268,6 +282,31 @@ class TestProvenanceAndCoverage(BudgetCase):
         self.assertEqual(report["usage"], {"input": 80, "cached_input": 230, "cache_creation": 30, "output": 32, "reasoning": 0})
         self.assertEqual((report["context"], report["coverage"]), (200, "complete"))
         self.assertEqual(report["children"], {"spawned": 1, "found": 1, "with_usage": 1, "workflow_calls": 0, "workflow_found": 0})
+
+    def test_an_inherited_total_is_not_a_request_with_or_without_forked_from_id(self):
+        """R-L2: a real child inherits without `forked_from_id` (S2), and one that has made no
+        request since the fork has no usage, not a measured context of 0 (S3)."""
+        spawn = json.dumps({"type": "response_item", "payload": {"type": "function_call", "name": "spawn_agent"}})
+        at_fork = (100, 60, 10, 0)
+        self.rollout(*codex(at_fork, (300, 200, 30, 0)), spawn)
+        self.rollout(*codex(at_fork, (140, 90, 12, 0), tid="kid", parent=TID, first_last=(0, 0, 0, 0), forked=False), tid="kid")
+        report, _ = self.json_out(CODEX_THREAD_ID=TID, PERRY_HOST="codex-cli")
+        self.assertEqual(report["usage"], {"input": 110, "cached_input": 230, "cache_creation": 0, "output": 32, "reasoning": 0})
+        self.rollout(*codex(at_fork, tid="idle", parent=TID, first_last=(0, 0, 0, 0)), tid="idle")
+        idle = self.run_tool("--json", host="codex-cli", CODEX_THREAD_ID="idle")
+        report = json.loads(idle.stdout)
+        self.assertEqual((report["verdict"], report["context"], idle.returncode), ("unknown", None, 0))
+        self.assertIn("no usage record", report["why"])
+
+    def test_a_forked_child_is_its_own_session_not_the_parent_it_embeds(self):
+        """R-L1: the first `session_meta` names the rollout; the parent's copy after it does not."""
+        spawn = json.dumps({"type": "response_item", "payload": {"type": "function_call", "name": "spawn_agent"}})
+        self.rollout(*codex((100, 60, 10, 0)), spawn)
+        self.rollout(*codex((100, 60, 10, 0), (140, 90, 12, 0), tid="kid", parent=TID, first_last=(0, 0, 0, 0)), tid="kid")
+        kid, _ = self.json_out(CODEX_THREAD_ID="kid", PERRY_HOST="codex-cli")
+        self.assertEqual((kid["session"], kid["parent"], kid["scope"], kid["context"]), ("kid", TID, "current", 40))
+        report, _ = self.json_out(CODEX_THREAD_ID=TID, PERRY_HOST="codex-cli")
+        self.assertEqual((report["children"]["with_usage"], report["coverage"]), (1, "complete"))
 
     def test_claude_workflow_and_unaccounted_children_count_and_never_read_complete(self):
         self.write(turn(cache_read=10, extra={"content": [{"type": "tool_use", "name": "Workflow"}]}))
