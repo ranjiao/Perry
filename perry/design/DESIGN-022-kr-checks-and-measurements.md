@@ -1,7 +1,7 @@
 # DESIGN-022: A KR is measured through declared checks, and only a command measures them
 
 > Status: locked
-> Date: 2026-09-15 · Locked: 2026-09-16
+> Date: 2026-09-18 · Locked: 2026-09-16
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: O2-KR3 (a deterministic writer per lane) / P004-O2-KR2
 > Supersedes: —   · Superseded by: —
@@ -106,7 +106,8 @@ appended without one, correctly, because nothing may write one:
 - **No rewrite of any existing record.** Phases 001–003 keep their `target` /
   `current` as written. They are published as today and report no position.
 - **No change to `okr.jsonl`**, and none to `objective`, `edge`, `unlinked`,
-  `project` or `agent` records.
+  `project` or `agent` records. *Amended 2026-09-18 by § 5.7:* `okr.jsonl`
+  gains one appended kind, `kr_revision`; no existing record changes.
 - **No history view, trend or chart.** Measurements accumulate as records; a
   reader for them as a series waits for a consumer (§ 8).
 
@@ -120,6 +121,9 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | 2 | KRs carrying several numbers | Typed checks under one KR (Recommended) / Split within the 4-per-Objective cap / One primary number, rest prose | Typed checks under one KR | 2026-09-15 |
 | 3 | Overall v4 KRs | Own checks and measurements (Recommended) / Roll up from linked phase KRs | Own checks and measurements | 2026-09-15 |
 | 4 | Change `state-schema.json` | Authorize two new record kinds (Recommended) / Not now; design waits | Authorize two new record kinds | 2026-09-15 |
+| 5 | Schema for KR restate/withdraw (`TASK-264` D3) | Design and implement it this round / Land check+measure, leave D3 blocked | Design and implement it this round (`USER-952`) | 2026-09-18 |
+| 6 | How a restated or withdrawn KR is represented | One appended `kr_revision` kind at both levels (Recommended) / Phase appended, overall edited in place | One appended `kr_revision` kind at both levels (`USER-965`) | 2026-09-18 |
+| 7 | Which fields a restate may change | Wording and metadata, not the target (Recommended) / Any non-identity field | Any non-identity field (`USER-965`) | 2026-09-18 |
 
 - **1.** Reverses `perry-goals/list/2.0`'s removal of `progress`, but only
   where the project has declared the direction the removal said Perry cannot
@@ -136,6 +140,16 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
   (the claim surface). This row is that authorization, scoped to the `check`
   and `measurement` kinds in § 5.1 on `linkage.jsonl`. No existing field or
   claim changes.
+- **5.** `USER-952` extends decision 4's authorization to the `kr_revision`
+  kind of § 5.7 on `linkage.jsonl` and `okr.jsonl`, and to the reader changes
+  it needs. Nothing else in `state-schema.json`.
+- **6.** One kind and one fold rule means one answer for "what is this KR
+  now" at both levels, with history kept in the store. The alternative kept
+  overall history only in events and two rules. The cost is on the overall
+  side: `OKR.md` must render the folded KR.
+- **7.** The user chose the flexible option. A target changed by restate is
+  therefore never silent: every revision lists each changed field with its
+  before and after values in `perry-goals krs`, and `score-phase` shows them.
 
 ## 5. Architecture
 
@@ -268,6 +282,84 @@ It is a declaration, not a restatement: no KR's words change.
 `P004-O4-KR2`'s target of 7 needs a separate restatement after `USER-936`
 deferred S2: either 6, or 7 with S2 carried to phase 005.
 
+### 5.7 A KR is added, restated and withdrawn by appended records (decisions 5–7)
+
+A KR's words are changed by appending, never by rewriting. The KR's original
+`kr` record is untouched; a `kr_revision` record is appended **to the store
+that holds the KR** — `linkage.jsonl` for a phase KR, `okr.jsonl` for an
+overall KR:
+
+```json
+{"kind": "kr_revision", "kr": "P004-O4-KR2", "okr_version": "", "op": "restate",
+ "fields": {"target": 6}, "reason": "S2 deferred to phase 005 (USER-936)",
+ "revised_at": "2026-09-18T15:02:11+08:00", "actor": "goals"}
+
+{"kind": "kr_revision", "kr": "O3-KR5", "okr_version": "v4: 2026-09-15", "op": "withdraw",
+ "fields": {}, "reason": "…", "revised_at": "…", "actor": "goals"}
+```
+
+| Field | Rule |
+|---|---|
+| `kr` + `okr_version` | the KR, keyed as in § 5.1: `""` for a phase KR, the full version label for an overall KR |
+| `op` | `restate` · `withdraw` |
+| `fields` | `restate`: one or more fields of that level's `kr` record, each with its new value. Identity fields are refused: `kind`, `id`, `phase` / `version`, `objective` / `objective_id`, `order`. `withdraw`: `{}` |
+| `reason` | non-empty text; required for both ops |
+| `revised_at` | the write's own timestamp, with offset |
+
+**The fold rule**, stated once in `bin/lib` beside `kr_checks` and read by every
+reader (`parsers` stays the one reader of each file; `lib` only orders what it
+returns, as § 9's 2026-09-16 entry settled):
+
+1. A KR's revisions apply in `revised_at` order; equal timestamps apply in file order.
+2. `restate` overwrites the named fields; the KR's value of every other field stands.
+3. `withdraw` is terminal. The KR reports `status: withdrawn`, `withdrawn_at`
+   and the reason. A revision after it is malformed.
+4. Every KR reports `status: active | withdrawn` and `revisions[]`: each with
+   `op`, `revised_at`, `reason`, `actor` and, for `restate`, every changed field
+   with its before and after values.
+
+**The writer** (goals lane, `TASK-264` deliverable 3):
+
+```
+perry-goals kr add      <KR-ID> [--okr-version V] --objective O --text "…" [record fields…]
+perry-goals kr restate  <KR-ID> [--okr-version V] --set FIELD=VALUE… --reason "…"
+perry-goals kr withdraw <KR-ID> [--okr-version V] --reason "…"
+```
+
+- `add` appends a `kr` record: a phase KR to `linkage.jsonl` for the current
+  phase, an overall KR to `okr.jsonl` for the current version. It refuses an id
+  that exists at that level, **including a withdrawn one** — ids are never
+  reused. It also refuses a phase KR beyond the per-Objective cap, counting
+  active KRs only.
+- All three refuse:
+  - a scored phase, or an OKR version that is not current (history is not revised);
+  - a KR that resolves to nothing, or a bare overall id naming more than one version;
+  - a withdrawn KR;
+  - a `restate` that names no field, names an identity field, or changes nothing;
+  - a missing `--reason`.
+  Every refusal names the command that would make it pass.
+- `check` and `measure` (§ 5.3) also refuse a withdrawn KR.
+- Every write takes `--actor` and supports `--dry-run`. The canonical store is
+  written first, then one event (`kr_add`, `kr_restate`, `kr_withdraw`) under the
+  project lock. The work-owned journal is not written (hand-off contract).
+- Overall KRs: `OKR.md` renders the **folded** KR. A restate shows the new
+  words; a withdrawn row stays visible with a `withdrawn <date>: <reason>`
+  marker. The existing byte-for-byte render gate stays. If the current
+  `OKR.md` ↔ `okr.jsonl` write path cannot carry an appended record through
+  that gate, the executor stops and reports; it does not weaken the gate.
+
+**Counting.** A withdrawn KR leaves every denominator: § 5.2's per-Objective
+`measured / total` and `met / total`, `perry-state § phase.kr_progress`, and the
+day-21 trigger. It is reported beside them as `withdrawn: n` with each reason.
+Its checks and measurements stay in the store. `score-phase` lists withdrawn
+KRs with their reasons and does not score them. A KR restated after it was
+measured keeps its measurements; the revision list shows what changed and when.
+
+**Contracts.** `perry-goals/list` gains `status` and `revisions` as keys, a minor
+version. Withdrawn KRs stay in the list; they are not filtered. `perry-lint`
+validates `kr_revision` records: a known KR, a valid `op`, only non-identity
+`fields`, a non-empty `reason`, a valid `revised_at`, and nothing after a withdrawal.
+
 ## 6. Implementation plan
 
 | Phase | Scope | Proposed PMO task(s) | Owner |
@@ -277,8 +369,9 @@ deferred S2: either 6, or 7 with S2 carried to phase 005.
 | C | `perry-state § phase.kr_progress` from § 5.2; reconcile `TASK-442`'s `met` | new row at hand-off | Coding Agent |
 | D | `R-kr-due`, `friday-review` and `score-phase` steps (§ 5.5); `COMPUTED_KR_METRICS` keyed by check (§ 5.4) | new row at hand-off | Coding Agent |
 | E | Declare phase 004's and v4's checks through the writer (§ 5.6) | goals lane, no task row | PMO + user |
+| B2 | `kr_revision` in the schema (decision 5); fold rule and readers (§ 5.7); `kr add` / `restate` / `withdraw` at both levels; `OKR.md` render of folded KRs; `perry-goals/list` minor | `TASK-264` deliverable 3 | Coding Agent |
 
-A before B, B before E; C and D after A. `TASK-231` depends on `TASK-155`,
+A before B, B before E; C and D after A. B2 after B; it adds no dependency to E. `TASK-231` depends on `TASK-155`,
 which is dropped; that edge is repointed to `TASK-264` at hand-off.
 
 ## 7. Risks & mitigations
@@ -303,6 +396,7 @@ which is dropped; that edge is repointed to `TASK-264` at hand-off.
 
 ## 9. Changes (append-only after lock)
 - 2026-09-16 — the two ordering rules live in `bin/lib/__init__.py § kr_checks`, not in `perry_store` as § 5.1 says — found by `TASK-416`, confirmed by its architecture review. `bin/perry_store.py` holds no linkage code, and `viewer/parsers.py` may import nothing from `bin/` (`ARCHITECTURE.md § 3`), so the rules sit beside `lib.ts_moment`, the one timestamp converter. `parsers.load_linkage_store` remains the one reader of the file; `lib` only orders the records it returns, so `NN-1` holds. A placement correction, not a design change.
+- 2026-09-18 — revised (architecture refinement): § 5.7 adds KR add, restate and withdraw by an appended `kr_revision` kind at both levels. User Decisions 5–7 (`USER-952`, `USER-965`) and implementation phase B2 are added, and the Non-Goal "no change to `okr.jsonl`" is amended accordingly. Cause: `TASK-264` found that neither store could represent a restated or withdrawn KR by appending (`evidence/2026-09/TASK-264-result.md` § 3). Recorded in `ADR-022`.
 
 ## 10. References
 
