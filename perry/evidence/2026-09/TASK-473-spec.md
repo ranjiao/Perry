@@ -50,7 +50,7 @@ Before implementation freeze base/head and actual relevant commands; use targete
 
 Nine matched before/after runtime pairs, five static bills and the eight safety cases enumerated in the iteration plan. Stop at this sample; additional exploration requires an explicit scope decision.
 
-Read perry/evidence/2026-09/2026-09-18-token-efficiency-iteration-plan.md for shared protocol and targets. Current phase net Python/test lines <=0 and stdlib-only constraints remain binding. Missing telemetry is unknown. If a target requires changing locked architecture, expanding a claim, relaxing a phase constraint or weakening a gate, stop that implementation and record the exact decision needed. Never delete tests or hide failed runs to meet cost targets.
+Read perry/evidence/2026-09/2026-09-18-token-efficiency-iteration-plan.md for shared protocol and targets. Stdlib-only constraints remain binding. The phase 004 net Python/test lines <=0 rule binds Objective 4 work only (phase/004-guided.md § Operating Rules); this unlinked task is not bound by it (USER-970, 2026-09-18), but must not add needless code, delete meaningful checks or compress code to save lines. Missing telemetry is unknown. If a target requires changing locked architecture, expanding a claim, relaxing a phase constraint or weakening a gate, stop that implementation and record the exact decision needed. Never delete tests or hide failed runs to meet cost targets.
 
 ## Out of scope
 

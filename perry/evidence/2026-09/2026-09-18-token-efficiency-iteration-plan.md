@@ -57,7 +57,7 @@ Separate a cheap deterministic preflight from the final live comparison. Do not 
 
 Each work package has one owner, files in scope, explicit exclusions and falsifiable acceptance in its spec. Default dispatch mode is manual: this request registers work and does not start agents. Product implementations use isolated worktrees, scoped commits and targeted checks while iterating. Before integration, follow release/README.md, run the required merged-candidate gates including bash tests/run and git diff --check, and obtain fresh-context V4 against the written criteria. Implementers cannot self-award V4/V5 or merge their own work.
 
-The phase rule net Python/test lines <=0 still applies; simplify relevant code, never delete meaningful checks or compress unreadably to satisfy it. If an adapter cannot meet the bound, record the exact conflict and seek a separate decision before implementation. No new dependency, model purchase, scheduler, claim path, task backend, automatic host conversation reset or general evaluation framework.
+*Corrected 2026-09-18 (USER-970):* the phase 004 rule net Python/test lines <=0 binds Objective 4 work only (phase/004-guided.md § Operating Rules), not this unlinked iteration. Keep code proportionate: simplify relevant code, never delete meaningful checks or compress unreadably. TASK-468 was delivered under the earlier reading and its +166 exception (USER-969) stands. No new dependency, model purchase, scheduler, claim path, task backend, automatic host conversation reset or general evaluation framework.
 
 ## Rollout, failure and rollback
 
