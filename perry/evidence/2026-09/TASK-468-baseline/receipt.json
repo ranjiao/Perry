@@ -1,0 +1,265 @@
+{
+  "captured_at": "2026-09-18T16:18:59+0800",
+  "commit": "c48e25fe2ca9be598fe7be919b246eaefa30356e",
+  "host_env": {
+    "CLAUDECODE": "1",
+    "CLAUDE_CODE_ENTRYPOINT": "claude-desktop",
+    "CLAUDE_CODE_SESSION_ID": "bcc8bb26-9e88-4097-95fb-951ab3eeeda7",
+    "CLAUDE_CODE_CHILD_SESSION": "1",
+    "CLAUDE_EFFORT": "high",
+    "CLAUDE_AGENT_SDK_VERSION": "0.3.274",
+    "CLAUDE_CODE_DESKTOP_APP_VERSION": "2.2553.0",
+    "CODEX_THREAD_ID": null,
+    "CODEX_SANDBOX": null,
+    "OPENCODE": null,
+    "PERRY_HOST": null,
+    "PERRY_HOME": null,
+    "PERRY_PROJECT": null
+  },
+  "detect_host": "claude-code",
+  "static_bills": [
+    {
+      "command": "snapshot",
+      "status": "within",
+      "total_bytes": 77257,
+      "budget_bytes": 80000,
+      "files": [
+        {
+          "path": "SKILL.md",
+          "bytes": 20453,
+          "sha256": "99070ab3ea903b9ffea3213936215a2ee2f4d8ed8fe58081f64a8f277cdb7d97"
+        },
+        {
+          "path": "reference/snapshot.md",
+          "bytes": 16426,
+          "sha256": "0e32a57fb1d7274eecd5fb0dffc9f689d7a57229ed7ade0aa29b7b8bcfc9de15"
+        },
+        {
+          "path": "reference/host-capabilities.md",
+          "bytes": 6023,
+          "sha256": "c8e068c63a24486cf107474e068ee8b8b1612252ce4be41b342083efbc00b10c"
+        },
+        {
+          "path": "reference/i18n.md",
+          "bytes": 15082,
+          "sha256": "6671ae82a70b6433ef241ab6fc16384a5277332612e76fbb43055f2486a8af49"
+        },
+        {
+          "path": "reference/next.md",
+          "bytes": 19273,
+          "sha256": "0bed9ea4a792e69d6c390bb353c8aa8093a7c260e98d72be29278773293b28ea"
+        }
+      ],
+      "excluded": []
+    },
+    {
+      "command": "add-task",
+      "status": "within",
+      "total_bytes": 99351,
+      "budget_bytes": 100000,
+      "files": [
+        {
+          "path": "SKILL.md",
+          "bytes": 20453,
+          "sha256": "99070ab3ea903b9ffea3213936215a2ee2f4d8ed8fe58081f64a8f277cdb7d97"
+        },
+        {
+          "path": "work/SKILL.md",
+          "bytes": 36907,
+          "sha256": "b41430508a45c671589554e9d81e2eb94edeba3b730ac6261fbdfae23d756e18"
+        },
+        {
+          "path": "work/reference/add-task.md",
+          "bytes": 22159,
+          "sha256": "ffded750e5e7b858bd600d3ccce938b2893487b489a2249c9ae7b5bdbbd3d597"
+        },
+        {
+          "path": "reference/input-quality.md",
+          "bytes": 9389,
+          "sha256": "399cdb615d6ae7b87c5a82f5a2e26e82d9951607b0e39ac9d5bce50465a74e88"
+        },
+        {
+          "path": "reference/okr-linkage.md",
+          "bytes": 10443,
+          "sha256": "02e148def06fe5e3ad082b83b10b87e5496fcbb81fecfd00801eada15aa7c176"
+        }
+      ],
+      "excluded": []
+    },
+    {
+      "command": "close-task",
+      "status": "within",
+      "total_bytes": 90213,
+      "budget_bytes": 95000,
+      "files": [
+        {
+          "path": "SKILL.md",
+          "bytes": 20453,
+          "sha256": "99070ab3ea903b9ffea3213936215a2ee2f4d8ed8fe58081f64a8f277cdb7d97"
+        },
+        {
+          "path": "work/SKILL.md",
+          "bytes": 36907,
+          "sha256": "b41430508a45c671589554e9d81e2eb94edeba3b730ac6261fbdfae23d756e18"
+        },
+        {
+          "path": "work/reference/promotion.md",
+          "bytes": 8668,
+          "sha256": "611976d7521cf6b41ccbc3b40bc94242633065470efbd2f74a8b3fafd92a15fc"
+        },
+        {
+          "path": "work/reference/subcommands.md",
+          "bytes": 24185,
+          "sha256": "1803800d5ce0ac374ec9df47aa035d85a30d8d215c2492c857fbc08208ea44b4"
+        }
+      ],
+      "excluded": [
+        {
+          "path": "packs/software-ops/runbooks.md",
+          "reason": "non-L2"
+        }
+      ]
+    },
+    {
+      "command": "dispatch",
+      "status": "within",
+      "total_bytes": 113558,
+      "budget_bytes": 115000,
+      "files": [
+        {
+          "path": "SKILL.md",
+          "bytes": 20453,
+          "sha256": "99070ab3ea903b9ffea3213936215a2ee2f4d8ed8fe58081f64a8f277cdb7d97"
+        },
+        {
+          "path": "work/SKILL.md",
+          "bytes": 36907,
+          "sha256": "b41430508a45c671589554e9d81e2eb94edeba3b730ac6261fbdfae23d756e18"
+        },
+        {
+          "path": "work/reference/dispatch.md",
+          "bytes": 31487,
+          "sha256": "28761b1d22b586cc30770674d2f13fa7a8d43d7c1efa3f0a4f0f32d00268c0e8"
+        },
+        {
+          "path": "work/reference/dispatch-preflight.md",
+          "bytes": 18848,
+          "sha256": "f093d6a8039b7ef7a13292b02f29ed3143645f3932c08f2f014527d92fbcea33"
+        },
+        {
+          "path": "work/reference/git-boundaries.md",
+          "bytes": 5863,
+          "sha256": "ac47d379109884a1ace569273be66f2b279ff3a5ac3aa70751da8ad3818ce917"
+        }
+      ],
+      "excluded": []
+    },
+    {
+      "command": "plan-phase",
+      "status": "within",
+      "total_bytes": 107747,
+      "budget_bytes": 110000,
+      "files": [
+        {
+          "path": "SKILL.md",
+          "bytes": 20453,
+          "sha256": "99070ab3ea903b9ffea3213936215a2ee2f4d8ed8fe58081f64a8f277cdb7d97"
+        },
+        {
+          "path": "goals/SKILL.md",
+          "bytes": 22415,
+          "sha256": "2e52a55106bfde89a57875274826a68b800a4104611bf2ad97f21a7bdc0a603d"
+        },
+        {
+          "path": "goals/reference/elicitation.md",
+          "bytes": 25429,
+          "sha256": "e0c9a780fa7b05de46ecf71cf1b2d998d43d0c94979c735c24e9f7f427c585b8"
+        },
+        {
+          "path": "goals/reference/phases.md",
+          "bytes": 30061,
+          "sha256": "8ede092e6ad8e1193dd8e6f992ed57cd0f24c9495af7f2e5da5727b0a2d8caf6"
+        },
+        {
+          "path": "reference/input-quality.md",
+          "bytes": 9389,
+          "sha256": "399cdb615d6ae7b87c5a82f5a2e26e82d9951607b0e39ac9d5bce50465a74e88"
+        }
+      ],
+      "excluded": []
+    }
+  ],
+  "file_bytes": {
+    "SKILL.md": 20453,
+    "work/SKILL.md": 36907,
+    "goals/SKILL.md": 22415,
+    "decide/SKILL.md": 24081,
+    "work/reference/dispatch.md": 31487
+  },
+  "claude_inventory": {
+    "dir": "/Users/bytedance/.claude/projects/-Users-bytedance-proj-Perry",
+    "session_files": 58,
+    "subagent_files": 512,
+    "session_bytes": 224722971,
+    "project_dirs_total": 20
+  },
+  "claude_current_parent_session": {
+    "lines": 956,
+    "malformed_lines": 0,
+    "usage_records": 300,
+    "distinct_messages": 167,
+    "totals": {
+      "input": 364,
+      "cached_input": 35567461,
+      "cache_creation": 300127,
+      "output": 119534,
+      "reasoning_in_output": 22701
+    },
+    "peak_context": 352067,
+    "models": {
+      "claude-opus-5": 300
+    },
+    "spawn_tool_uses": 10,
+    "path": "/Users/bytedance/.claude/projects/-Users-bytedance-proj-Perry/bcc8bb26-9e88-4097-95fb-951ab3eeeda7.jsonl",
+    "bytes": 2813516,
+    "mtime": "2026-09-18T16:15:06",
+    "children": {
+      "files": 10,
+      "with_usage": 10,
+      "totals": {
+        "input": 1834,
+        "cached_input": 214712683,
+        "cache_creation": 4982537,
+        "output": 703972,
+        "reasoning_in_output": 227730
+      },
+      "distinct_messages": 912
+    },
+    "newest_file_in_project_dir": "bcc8bb26-9e88-4097-95fb-951ab3eeeda7.jsonl"
+  },
+  "codex_inventory": {
+    "dir": "/Users/bytedance/.codex/sessions",
+    "rollouts": 459,
+    "perry_cwd_rollouts": 19,
+    "perry_child_rollouts": 3,
+    "perry_spawn_calls": 3,
+    "token_count_snapshots": 2164,
+    "duplicate_snapshots": 86,
+    "malformed_lines": 0,
+    "models_effort": {
+      "gpt-6-astra|medium": 57,
+      "gpt-6-astra|low": 29,
+      "gpt-5.6-sol|high": 8,
+      "gpt-5.5|high": 2
+    },
+    "totals_raw_host_fields": {
+      "input_tokens": 293197234,
+      "cached_input_tokens": 286671744,
+      "output_tokens": 665533,
+      "total_tokens": 293862767,
+      "reasoning_output_tokens": 198630
+    },
+    "first": "rollout-2026-05-09T11-24-30-019e0ac3-e4c6-7030-9ac0-ed68f38d1b3a.jsonl",
+    "last": "rollout-2026-09-18T14-24-55-01a0b330-7ecc-7780-a0ca-40337855ade9.jsonl"
+  }
+}
