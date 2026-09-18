@@ -177,7 +177,7 @@ what `handoff/` has always been for.
    - Title, current time, project name
    - **Will dispatch** (numbered list with TASK-ID / Title / Executor / Estimated cycle)
    - **Skipped** (grouped by reason)
-   - **Budget**: dispatches=X/10, duration=~Ym estimated / 120m cap, failures=0/3, context=Nk/200k (or `unknown — not gating` on a host with no transcript)
+   - **Budget**: dispatches=X/10, duration=~Ym estimated / 120m cap, failures=0/3, context=Nk/200k (or `unknown — not measured`, never a clean budget)
    - **Stop signals reminder**: close session, or `touch ~/.cache/perry/autopilot.stop`
 8. **First run only**: this is the dry-run; proceed to AskUserQuestion `First run` (see above).
 9. **Subsequent runs**: AskUserQuestion (header `"Autopilot"`, options): `Proceed (Recommended) | Edit task list | Cancel`.
@@ -193,7 +193,10 @@ Repeat:
    - `dispatches_done >= max_dispatches` → exit
    - `now - start_time >= max_duration` → exit
    - `failures >= max_failures` → exit
-   - **Context ceiling** — run the gate; a non-zero exit means stop:
+   - **Context ceiling** — the budget checkpoint, `subcommands.md § Budget
+     boundary`, with the run's ceiling. This check sits between one
+     iteration's completions and the next dispatch, so it is both of that
+     section's checkpoints:
 
      ```
      "$PERRY_HOME/bin/perry-context-budget" ${max_context:+--ceiling $max_context}
@@ -203,15 +206,18 @@ Repeat:
      `context ceiling`. The handoff is not optional here and not a courtesy:
      it is the only thing that makes stopping cheap rather than lossy, and a
      run that exits on this check without one has converted a budget stop into
-     dropped work. Run `/pmo handoff`, then tell the user in one line that a
-     fresh session resumes from it.
+     dropped work. Dispatches still in flight go in it as pending, per that
+     section; the loop does not wait for them. Run `/pmo handoff`, then tell
+     the user in one line that a fresh session resumes from it.
 
      Verdict `unknown` (exit 0) means the gate could not bind this session to
      one transcript with usage: OpenCode, no or an ambiguous session identity,
-     or **Claude Desktop, where it is always `unknown`** because the main
-     session and its subagents share one id. It does **not** mean the context
-     is fine. Say so once in the run summary, with the printed reason, and
-     fall back to `--max-dispatches`, the proxy that needs no transcript.
+     or **Claude Code, where it is always `unknown`** because a subagent
+     carries its main session's id (`$PERRY_HOME/reference/host-capabilities.md`). It does
+     **not** mean the context is fine. Say so once in the run summary, with the
+     printed reason, and fall back to `--max-dispatches`, the proxy that needs
+     no transcript. The loop never passes `--session`: an `explicit` reading
+     is the caller's assertion, not a verdict.
    - No remaining eligible tasks → exit (success)
 
 2. **Saturate dispatch slots**:
