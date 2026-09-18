@@ -59,6 +59,15 @@ flowchart TD
 | `perry_store.py` | 2,237 | the record shape, the store-only board render behind `perry-tasks board`, and the renderer and `--from-board` importers for a `BOARD.md` a project still holds |
 | `perry_md_store.py` | 1,806 | the same pair for documents keyed by heading — `OKR.md` today |
 
+### What `perry-context-budget` reads outside the project
+
+It reads host transcripts, not Perry state: `~/.claude/projects/` and
+`~/.codex/sessions/`, read-only, located by the session id the host exports.
+To learn which host it is under, it runs `bin/perry-detect-host` as a
+subprocess (10 s timeout; a failure reads as `unknown`) and depends only on
+that script's one-token output. It is the only `bin/` tool that executes
+another one; nothing is imported.
+
 ### The one tool that reaches outside
 
 `perry-codex-preflight` shells out to `codex exec` to check the CLI answers

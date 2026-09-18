@@ -42,6 +42,39 @@ TASK-468 worktree at base commit `c48e25fe2ca9be598fe7be919b246eaefa30356e`
 Only paths, counts, sizes, model names and numeric usage fields were read into
 the receipt. No transcript text, tool input or tool output was copied.
 
+## Comparison-protocol fields (added in the repair round)
+
+The plan's § Comparison protocol also asks for the four fields below. They
+were added on 2026-09-18 during the V4 repair round (finding L6). Each is
+derived from `receipt.json`, the base commit or the capturing session's
+known configuration. **No usage was re-read or re-captured:** the figures
+above stay pre-change.
+
+- **Cache condition.** The prompt cache was warm in every aggregate:
+  - parent session: 99.16% of input tokens were cache reads
+    (35,567,461 of 35,867,952);
+  - its children: 97.73%;
+  - Perry's Codex rollouts: 97.77% of `input_tokens` were
+    `cached_input_tokens`.
+  - No cold-cache run was made.
+- **Tool capabilities of the capturing session.** It was a Claude Code
+  subagent: non-interactive, `general-purpose`, in an isolated git worktree.
+  It had Bash (with background runs), Read/Write/Edit, Agent, and the
+  per-host capabilities in `reference/host-capabilities.md` at `c48e25fe`.
+  The host was `claude-code` per `bin/perry-detect-host`.
+- **Fixture state.** No disposable runtime fixture was run; the nine matched
+  runs belong to TASK-473.
+  - The worktree was clean at `c48e25fe` when the capture ran.
+  - The static bills were measured on that committed tree.
+  - The transcripts were live and growing, and the recorded byte size is the
+    size that was read.
+- **Acceptance criteria in force.**
+  - `perry/evidence/2026-09/TASK-468-spec.md` at `c48e25fe`, sha256
+    `a2a33556b9bb6d22ca979848e7ef9f9a4edafd2baae35d1c5a7298b2a00c76e6`
+    (six criteria).
+  - The iteration plan at `c48e25fe`, sha256
+    `48129dadf4cd36f0b5a6848361539c8bbcbcf69395757bbbeb4f4088a40aa9fd`.
+
 ## The legacy gate at the base commit
 
 The pre-change `bin/perry-context-budget`, run from this child session:

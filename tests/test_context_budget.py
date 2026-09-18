@@ -36,23 +36,29 @@ def mod():
 
 
 def turn(cache_read=0, cache_creation=0, inp=0, extra=None, sid=SID, mid=None, out=10, think=0):
+    """A Claude assistant record; `think=None` omits `output_tokens_details`, as older hosts do."""
     rec = {"type": "assistant", "sessionId": sid, "cwd": "/w", "message": {"role": "assistant",
            "id": mid or f"m{cache_read}-{cache_creation}-{inp}",
            "usage": {"cache_read_input_tokens": cache_read,
                      "cache_creation_input_tokens": cache_creation,
                      "input_tokens": inp, "output_tokens": out,
-                     "output_tokens_details": {"thinking_tokens": think}}}}
+                     **({} if think is None else {"output_tokens_details": {"thinking_tokens": think}})}}}
     if extra:
         rec["message"].update(extra)
     return json.dumps(rec)
 
 
-def codex(*totals, tid=TID, parent=None):
-    """A rollout: session_meta, then one token_count per CUMULATIVE total (inp, cached, out, reasoning)."""
-    keys = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens")
-    return [json.dumps({"type": "session_meta", "payload": {"id": tid, "cwd": "/w", "parent_thread_id": parent}})] + [
+def codex(*totals, tid=TID, parent=None, first_last=None):
+    """A rollout: session_meta, then one token_count per CUMULATIVE total (inp, cached, out,
+    reasoning[, cache_write]). `first_last` is the first snapshot's `last_token_usage`: a
+    forked child's first total is its parent's running total, with nothing of its own."""
+    keys = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens", "cache_write_input_tokens")
+    return [json.dumps({"type": "session_meta", "payload": {"id": tid, "cwd": "/w", "parent_thread_id": parent,
+                                                            "forked_from_id": parent if first_last else None}})] + [
         json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": {
-            "total_token_usage": dict(zip(keys, t))}}}) for t in totals]
+            "total_token_usage": dict(zip(keys, t)),
+            **({"last_token_usage": dict(zip(keys, first_last))} if first_last and i == 0 else {})}}})
+        for i, t in enumerate(totals)]
 
 
 class BudgetCase(unittest.TestCase):
@@ -182,7 +188,7 @@ class TestTheSessionIsBoundNeverGuessed(BudgetCase):
         self.write(turn(cache_read=1, sid="impostor"), path=self.dir / ".claude/projects/-c/named.jsonl")
         for host, env, why in [
                 ("claude-code", {}, "absent identity"), ("codex-cli", {}, "absent identity"),
-                ("claude-code", {"CLAUDE_CODE_SESSION_ID": SID, "CLAUDE_CODE_CHILD_SESSION": "1"}, "absent identity"),
+                ("claude-code", {"CLAUDE_CODE_SESSION_ID": SID, "CLAUDE_CODE_CHILD_SESSION": "1"}, "Claude Desktop"),
                 ("claude-code", {"CLAUDE_CODE_SESSION_ID": "dup"}, "2 transcripts"),
                 ("claude-code", {"CLAUDE_CODE_SESSION_ID": "named"}, "not the host's"),
                 ("opencode", {"CLAUDE_CODE_SESSION_ID": SID}, "OpenCode exposes no"),
@@ -200,6 +206,12 @@ class TestTheSessionIsBoundNeverGuessed(BudgetCase):
         self.assertEqual((report["verdict"], report["scope"], report["context"], code), ("historical", "historical", 900_000, 0))
         report, code = self.json_out("--session", str(old), PERRY_HOST="unknown")
         self.assertEqual((report["verdict"], report["scope"], code), ("OVER", "explicit", 1))
+        self.write(turn(cache_read=1))
+        report, _ = self.json_out("--session", str(self.t), CLAUDE_CODE_SESSION_ID=SID, CLAUDE_CODE_CHILD_SESSION="1")
+        self.assertEqual(report["scope"], "explicit")  # Desktop's shared id verifies nothing
+        self.rollout(*codex((5, 0, 1, 0)))
+        report, _ = self.json_out("--session", str(next(self.rollouts.iterdir())))
+        self.assertEqual((report["host"], report["transcript_host"]), ("claude-code", "codex-cli"))
 
 
 class TestUsageCategoriesFollowEachHostSchema(BudgetCase):
@@ -220,6 +232,12 @@ class TestUsageCategoriesFollowEachHostSchema(BudgetCase):
         self.assertEqual(report["usage"], {"input": 80, "cached_input": 200, "cache_creation": 0, "output": 30, "reasoning": 10})
         self.assertEqual((report["records"], report["context"]), ({"requests": 3, "duplicate": 1}, 30))
 
+    def test_claude_reasoning_the_host_did_not_record_is_unknown_not_zero(self):
+        self.write(turn(cache_read=5, out=9, think=4, mid="a"), turn(cache_read=6, out=9, think=None, mid="b"))
+        report, _ = self.json_out()
+        self.assertEqual((report["usage"]["output"], report["usage"]["reasoning"]), (18, None))
+        self.assertEqual(report["not_measured"], ["usage.reasoning: the host recorded none for 1 of 2 request(s)"])
+
 
 class TestProvenanceAndCoverage(BudgetCase):
     """Criterion 4: who, where, how fresh, how complete; money and quota stay unknown."""
@@ -233,19 +251,36 @@ class TestProvenanceAndCoverage(BudgetCase):
         report, _ = self.json_out()
         self.assertEqual((report["session"], report["parent"], report["cwd"], report["binding"]), (SID, None, "/w", "host identity"))
         self.assertEqual((report["usage"]["cached_input"], report["usage"]["output"], report["context"]), (15, 3, 10))
-        self.assertEqual(report["children"], {"spawned": 2, "found": 1, "with_usage": 1})
+        self.assertEqual(report["children"], {"spawned": 2, "found": 1, "with_usage": 1,
+                                              "workflow_calls": 0, "workflow_found": 0})
         self.assertEqual((report["coverage"], report["cost"], report["quota"]), ("partial", "unknown", "unknown"))
         self.assertEqual((report["measured"], report["estimated"]), (["context", "usage"], []))
         kid, _ = self.json_out("--session", str(self.t.parent / SID / "subagents" / "agent-kid.jsonl"))
         self.assertEqual((kid["session"], kid["parent"], kid["scope"]), ("kid", SID, "historical"))
 
-    def test_a_codex_child_names_its_parent_and_is_included(self):
+    def test_a_forked_codex_child_adds_only_its_own_usage_not_the_inherited_total(self):
         spawn = json.dumps({"type": "response_item", "payload": {"type": "function_call", "name": "spawn_agent"}})
-        self.rollout(*codex((100, 0, 1, 0)), spawn)
-        self.rollout(*codex((40, 0, 2, 0), tid="kid", parent=TID), tid="kid")
+        at_fork = (100, 60, 10, 0, 30)          # cache-write input is inside input_tokens
+        first, *rest = codex(at_fork, (300, 200, 30, 0, 30))
+        self.rollout(first, rest[0], spawn, rest[1])
+        self.rollout(*codex(at_fork, (140, 90, 12, 0, 30), tid="kid", parent=TID, first_last=(0, 0, 0, 0, 0)), tid="kid")
         report, _ = self.json_out(CODEX_THREAD_ID=TID, PERRY_HOST="codex-cli")
-        self.assertEqual((report["usage"]["input"], report["children"], report["coverage"]),
-                         (140, {"spawned": 1, "found": 1, "with_usage": 1}, "complete"))
+        self.assertEqual(report["usage"], {"input": 80, "cached_input": 230, "cache_creation": 30, "output": 32, "reasoning": 0})
+        self.assertEqual((report["context"], report["coverage"]), (200, "complete"))
+        self.assertEqual(report["children"], {"spawned": 1, "found": 1, "with_usage": 1, "workflow_calls": 0, "workflow_found": 0})
+
+    def test_claude_workflow_and_unaccounted_children_count_and_never_read_complete(self):
+        self.write(turn(cache_read=10, extra={"content": [{"type": "tool_use", "name": "Workflow"}]}))
+        child = json.loads(turn(cache_read=7, mid="w1"))
+        child["agentId"] = "w"
+        self.write(json.dumps(child), path=self.t.parent / SID / "subagents" / "workflows" / "wf_1" / "agent-w.jsonl")
+        report, _ = self.json_out()
+        self.assertEqual((report["usage"]["cached_input"], report["coverage"]), (17, "partial"))
+        self.assertEqual(report["gaps"], ["1 Workflow call(s) and 1 workflow child transcript(s): "
+                                          "a Workflow does not record how many children it spawned"])
+        self.write(json.dumps(child), path=self.t.parent / SID / "subagents" / "agent-stray.jsonl")
+        report, _ = self.json_out()
+        self.assertIn("1 child transcript(s) that no spawn accounts for", report["gaps"])
 
 
 class TestCompositionNamesTheExpensiveHalf(BudgetCase):

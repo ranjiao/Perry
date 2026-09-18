@@ -717,10 +717,23 @@ the same way. The session is now bound by the identity the host exports for it
 `~/.claude/projects/` directory) or `CODEX_THREAD_ID` (the rollout whose name
 ends in the id) — after `perry-detect-host` has said which host this is, so an
 inherited variable from an outer host is not read. The file's own records must
-name the same session. Zero or several matches, an id the file contradicts, a
-Claude child session (which inherits its parent's id and has none of its own),
+name the same session. Zero or several matches, an id the file contradicts,
 OpenCode (no per-session usage Perry can read) and an unidentified host are
-all `unknown`. `--session` is still accepted: it is `current` when its records
+all `unknown`.
+
+**Claude Desktop cannot be bound, and says so.** Desktop sets
+`CLAUDE_CODE_CHILD_SESSION=1` on the main session as well as on its
+subagents, so the flag does not mark a subagent. Observed on 2026-09-18: the PMO's main
+Desktop session reported `CLAUDE_CODE_CHILD_SESSION=1` and a
+`CLAUDE_CODE_SESSION_ID` equal to its own transcript id; a subagent it spawned
+saw the same flag and that same id (its parent's, not its own
+`subagents/agent-<id>.jsonl`), its shell was a direct child of `CLAUDE_PID`,
+and none of its 56 environment variables names the subagent. Binding the id would give a
+subagent the main session's context — the defect this binding exists to
+remove — so under that flag the gate is `unknown` in the main session too, and
+`autopilot` falls back to `--max-dispatches`. The same in-process sharing
+probably holds for the plain CLI's subagents, which carry no flag; that is
+unverified (no plain-CLI session was available to inspect). `--session` is still accepted: it is `current` when its records
 name the host's session, `historical` when they name another — reported with
 its figures, never a verdict and never exit 1 — and `explicit`, the caller's
 own assertion, when the host gives no identity.
@@ -732,16 +745,26 @@ Its `input_tokens`, `cache_read_input_tokens` and `cache_creation_input_tokens`
 are disjoint; `thinking_tokens` is inside `output_tokens`. Codex writes a
 cumulative `total_token_usage` on each `token_count` event, so a request is
 the delta from the previous total; an identical total is a repeat, and a total
-below its predecessor restarts the counter. Its `input_tokens` includes
+below its predecessor restarts the counter. A counter's first request is its
+`last_token_usage`, not its total: a child forked from its parent
+(`forked_from_id`) starts with the parent's running total and an empty last
+request, and counting that total again overstated one real parent by 26.7%.
+Its `input_tokens` includes
 `cached_input_tokens` and `cache_write_input_tokens`, and `output_tokens`
 includes `reasoning_output_tokens`, so Perry's `input` is the remainder and
-`reasoning` is reported beside `output`, not added to it.
+`reasoning` is reported beside `output`, not added to it. A Claude request
+with no `output_tokens_details` recorded no reasoning figure: `reasoning` is
+then `null` and named in `not_measured`, never a measured 0.
 
 **Coverage says what the totals leave out.** Children are the session's own:
-Claude keeps them in `<id>/subagents/`, and a Codex child names its parent in
-its first record. The parent's spawn calls (`Agent`/`Task`, `spawn_agent`) are
-counted, and fewer children with usage than spawns, or any malformed or
-truncated line, makes coverage `partial` and says why. A partial total is not
+Claude keeps them anywhere under `<id>/subagents/` (a `Workflow`'s under
+`subagents/workflows/wf_*/`), and a Codex child names its parent in its first
+record. The parent's spawn calls (`Agent`/`Task`, `spawn_agent`) are counted.
+Coverage is `partial`, with the reason, when fewer children have usage than
+were spawned, when a child transcript is one no spawn accounts for, when a
+`Workflow` ran (it records no count of the children it spawned, so they can be
+summed but never shown complete), or when any line was malformed or
+truncated. A partial total is not
 a total. Cost and quota are always `unknown`: there is no authoritative
 conversion from these counts to money or to a subscription's allowance.
 
