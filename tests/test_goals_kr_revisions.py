@@ -34,6 +34,7 @@ COVERS = (
     "bin/perry_md_store.py",
     "viewer/parsers.py",
     "schema/state-schema.json",
+    "goals/state/",
 )
 
 import json
@@ -697,6 +698,58 @@ class TestRefusals(Project):
                                     for r in rows))
         self.assertRefused(["kr", "withdraw", "O4-KR1", "--reason", "r"],
                            "byte for byte", "perry-okr diff")
+
+
+class TestAProjectFromTheTemplate(unittest.TestCase):
+    """V4 finding F2 (repair round): the shipped `OKR_TEMPLATE.md` matches
+    the post-TASK-236 model, so a project started from it takes an overall
+    `kr add` rather than being refused for carrying KR rows."""
+
+    TEMPLATE = HERE.parent / "goals" / "state" / "OKR_TEMPLATE.md"
+
+    def test_the_template_carries_no_kr_rows(self):
+        sys.path.insert(0, str(HERE.parent / "bin"))
+        import perry_md_store as md
+        _lines, sites = md.OKR.scan(self.TEMPLATE.read_text(encoding="utf-8"))
+        self.assertEqual([s["line"] + 1 for s in sites if s["kind"] == "kr"],
+                         [], "the template authors KR rows again (TASK-236)")
+        self.assertGreater(sum(1 for s in sites if s["kind"] == "objective"),
+                           0, "the objective headings must survive")
+
+    def test_a_project_instantiated_from_it_accepts_an_overall_kr_add(self):
+        import re
+        import config_store
+        tmp = Path(tempfile.mkdtemp(prefix="okr-template-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        root = tmp / "p"
+        root.mkdir()
+        config_store.write_config(root)
+        text = self.TEMPLATE.read_text(encoding="utf-8")
+        text = text.replace("{{date}}", "2026-09-18")
+        for title in ("Alpha", "Beta", "Gamma"):
+            text = text.replace("{{title}}", title, 1)
+        text = re.sub(r"\{\{[^}]*\}\}", "filled", text)
+        (root / "OKR.md").write_text(text, encoding="utf-8")
+
+        def run(tool, *argv):
+            got = inproc.run(tool, [*argv, "--root", str(root)],
+                             env={"PERRY_PROJECT": None})
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            return got
+
+        # The store from the file, then the objective ids `kr add` names.
+        run("perry-okr", "write", "--from-file")
+        run("perry-okr", "migrate-ids")
+        okr_md = (root / "OKR.md").read_bytes()
+        run("perry-goals", "kr", "add", "O1-KR1", "--okr-version",
+            "v1: 2026-09-18", "--objective", "O-1", "--text", "first KR",
+            "--reason", "the first KR", "--actor", "t")
+        self.assertEqual((root / "OKR.md").read_bytes(), okr_md)
+        got = json.loads(run("perry-goals", "krs", "--level", "overall",
+                             "--json").stdout)
+        self.assertEqual([(o["heading"], [k["id"] for k in o["krs"]])
+                          for v in got["versions"] for o in v["objectives"]][0],
+                         ("Objective 1 — Alpha", ["O1-KR1"]))
 
 
 class TestReaders(Project):

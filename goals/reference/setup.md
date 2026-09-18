@@ -45,16 +45,17 @@ overall template. Unknown state never proves this is a first OKR.
 
 ### Structural contract
 
-The existing overall-OKR document contract remains: KRs are written as a **table** under each `### Objective <N> — <title>` heading, with ids matching `KR-O<n>.<m>`:
-
-```
-| Id | KR | Metric / Target | Stretch? | Deadline |
-|----|----|------------------|----------|----------|
-| KR-O1.1 | Cut median release time | median ≤ 12 min | no | 2026-09-01 |
-```
-
+`OKR.md` carries each version's `## v<N>: <date>` block and its
+`### Objective <N> — <title>` headings — **no KR table** (TASK-236, `ADR-019`).
+The overall key results are records in `okr.jsonl`, each added once its version
+and objective exist with the `kr add` verb of `bin/perry-goals`
+(`--okr-version "<version>" --objective <O-id> --text "…"`, see
+`reference/phases.md § kr`), and printed by `perry-goals krs --level overall`.
+A KR typed into `OKR.md` as a table row or a bullet is not how one is added:
+every overall `kr` write refuses a file that still carries KR rows.
 This is the target document shape, not permission to bypass a missing writer.
-This shape is declared in `$PERRY_HOME/schema/state-schema.json` and checked by `bin/perry-lint`. It is also what `bin/perry-state` reads — a KR written as a prose bullet instead will not be counted anywhere. After writing, run:
+The shape is declared in `$PERRY_HOME/schema/state-schema.json` and checked by
+`bin/perry-lint`. After writing, run:
 
 ```
 "$PERRY_HOME/bin/perry-lint" --root .

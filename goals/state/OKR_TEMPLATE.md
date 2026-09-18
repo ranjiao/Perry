@@ -54,32 +54,23 @@ This document is the long-term reference for the system. The `okr` skill uses it
 
 ## v1: {{date}}
 
+> The key results under these objectives live in `okr.jsonl`, not here: each
+> is added with `perry-goals kr add <KR-ID> --okr-version "<this version>"
+> --objective <O-id> --text "…" --reason "…" --actor goals` and read with
+> `perry-goals krs --level overall`. A fact with a schema lives in exactly one store (`ADR-019`,
+> TASK-236). The objective headings stay: they are what the KRs hang from.
+
 ### Objective 1 — {{title}}
 
 {{1–2 sentences explaining the goal.}}
-
-| Id | KR | Metric / Target | Stretch? | Deadline |
-|----|----|------------------|----------|----------|
-| KR-O1.1 | {{kr text}} | {{metric}} ≥ {{target}} | no | {{date}} |
-| KR-O1.2 | {{kr text}} | {{metric}} ≥ {{target}} | no | {{date}} |
-| KR-O1.3 | {{kr text}} | {{metric}} ≥ {{target}} | yes | {{date}} |
 
 ### Objective 2 — {{title}}
 
 {{1–2 sentences explaining the goal.}}
 
-| Id | KR | Metric / Target | Stretch? | Deadline |
-|----|----|------------------|----------|----------|
-| KR-O2.1 | {{kr text}} | {{metric}} ≥ {{target}} | no | {{date}} |
-| KR-O2.2 | {{kr text}} | {{metric}} ≥ {{target}} | no | {{date}} |
-
 ### Objective 3 — {{title}}     <!-- delete this block if only 2 Os -->
 
 {{1–2 sentences.}}
-
-| Id | KR | Metric / Target | Stretch? | Deadline |
-|----|----|------------------|----------|----------|
-| KR-O3.1 | {{kr text}} | {{metric}} ≥ {{target}} | no | {{date}} |
 
 ### Retro — v1     <!-- filled when version closes; until then, leave empty -->
 
