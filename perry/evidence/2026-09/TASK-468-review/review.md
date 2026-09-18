@@ -5,7 +5,7 @@ Target: branch `worktree-agent-abf710762750f9d9b`, head `5f182d3c`, base `c48e25
 - `TASK-468-spec.md`;
 - the iteration plan;
 - the four findings carried from `TASK-456-457-integration/acceptance.md`;
-- USER-969;
+- the user decision granting TASK-468 a +166 net Python/test line exception (recorded on main at `36c0822f`, after this base);
 - `AGENTS.md`, `ARCHITECTURE.md` and `bin/ARCHITECTURE.md`;
 - `reference/host-capabilities.md`.
 
@@ -105,7 +105,7 @@ Both fixes are small and stay inside the files already in scope.
 | 3 | **FAIL** | Claude categories, dedup and reasoning-inside-output are correct against the real schema (`thinking_tokens` exists under `output_tokens_details`). Codex reasoning-inside-output is confirmed by `total_tokens == input + output` in 28,927 of 28,927 snapshots. The Codex delta rule is wrong for forked children (H1). A missing reasoning figure becomes 0 (M1). The cache-write rule is unpinned (L5). |
 | 4 | **FAIL** | Provenance fields are present, and cost and quota are always `unknown`. A missing Agent/Task child gives `partial`, and R5 and R10 are killed. Workflow children are invisible and coverage says `complete` (H2). |
 | 5 | PASS | Commit `26a4053c` holds the receipt and precedes `04e91c18`. `commit` = `c48e25fe…`, and its sha256 matches the README. The five bills are retained with unchanged caps. The field gaps are L6. |
-| 6 | PASS (lines by exception) | Negative fixtures fail when binding is reverted. Legacy tests are green. Net +166 = `bin/perry-context-budget` +79 and tests +87, which I verified with `git diff --numstat`. USER-969 covers it. I saw no padding: the code is dense and has no dead helpers. |
+| 6 | PASS (lines by exception) | Negative fixtures fail when binding is reverted. Legacy tests are green. Net +166 = `bin/perry-context-budget` +79 and tests +87, which I verified with `git diff --numstat`. The user's +166 exception (main `36c0822f`) covers it. I saw no padding: the code is dense and has no dead helpers. |
 | Carried | PASS | (1) The rationale, including the NN-1 config-read deviation, is restored in `bin/README.md § perry-context-budget`. (2) A refused bill exits 1 with the reason on stderr. (3) `--help --bill bogus` exits 0 and prints usage. (4) Refs after a `( … )` note are kept. |
 
 ## Privacy of the baseline
