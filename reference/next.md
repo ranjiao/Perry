@@ -120,7 +120,10 @@ Each fact is a value `perry-state` already computes, or the clock
 **measured** when it has both a `current` and a `target`. It is **met** when
 `current >= target`, but a target of `0` is met only at `0`, because such a key
 result is counting something down. `met_ratio` is unknown when the phase has no
-commit key result, or when any of them is unmeasured.
+commit key result, or when any of them is unmeasured. A key result whose
+`status` is `withdrawn` (DESIGN-022 § 5.7) is in none of these counts;
+`phase.kr_progress.withdrawn` counts it, and its reason is on its
+`linkage.objectives[].krs[]` entry.
 
 **Always unknown in this release**, because nothing computes them yet:
 

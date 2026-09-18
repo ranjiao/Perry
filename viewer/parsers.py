@@ -4498,7 +4498,7 @@ def linkage_records_for_phase(records: list, phase_number: str) -> list | None:
     return got
 
 
-def load_linkage(state_root: Path, phase: str) -> Linkage:
+def load_linkage(state_root: Path, phase: str, *, kr_fold=None) -> Linkage:
     """The graph every reader reads. **One store, one slice, one answer.**
 
     `phase` is the phase slug or its `<NNN>`; `phase/CURRENT` holds the slug.
@@ -4515,6 +4515,14 @@ def load_linkage(state_root: Path, phase: str) -> Linkage:
     records = load_linkage_store(state_root)
     if records is None:
         return Linkage()
+    # **`kr_fold` — the KR-revision rule, handed in (DESIGN-022 § 5.7).** A
+    # `kr_revision` record restates or withdraws a KR by being appended, and
+    # the rule that folds it lives in `bin/lib § kr_revisions`, which this
+    # module may not import (ARCHITECTURE.md § 3). So a caller passes
+    # `lib.fold_kr_records`: this stays the one reader of the file, and the
+    # rule stays in one place. Without it the records are the raw lines.
+    if kr_fold is not None:
+        records = kr_fold(records, LINKAGE_STORE)
     got = linkage_records_for_phase(records, linkage_phase_number(phase))
     if got is None:
         return Linkage()
@@ -5174,7 +5182,7 @@ def project_name(project_root: Path) -> str:
     return Path(project_root).name or "Perry"
 
 
-def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
+def load_snapshot(root: Path = STATE_ROOT, *, kr_fold=None) -> PMOSnapshot:
     """The whole project state, read from `root` — which is the STATE root.
 
     Every caller already passed a state root: `bin/perry-state` resolves one
@@ -5218,7 +5226,7 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
             # objective titles into `linkage.jsonl` with the rest, so the
             # phase NUMBER is the whole of what `load_linkage` needs.
             number = (phase.number if phase else "") or slug.split("-")[0]
-            linkage = load_linkage(root, number)
+            linkage = load_linkage(root, number, kr_fold=kr_fold)
 
     # **THE RULE: once `BOARD.md § Top risks` is a table, that table is the
     # register and `PROJECT_STATE.md` is no longer merged into it.**
@@ -5292,9 +5300,15 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
                         intake=load_register_store(root, INTAKE_STORE),
                         cadence=load_register_store(root, CADENCE_STORE))
 
+    # `kr_fold`: see `load_linkage`. The OKR store's KRs are folded by the
+    # same rule, so a restated overall KR reads as restated.
+    okr_records = load_okr_store(root)
+    if kr_fold is not None and okr_records is not None:
+        okr_records = kr_fold(okr_records, OKR_STORE)
+
     return PMOSnapshot(
         board=board,
-        okr=parse_okr(okr_text, krs=load_okr_store(root)) if okr_text else OKR(),
+        okr=parse_okr(okr_text, krs=okr_records) if okr_text else OKR(),
         phase=phase,
         top_risks=deduped,
         adrs=parse_decisions(root),

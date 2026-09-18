@@ -1,6 +1,6 @@
 # `perry-goals list --json` — the goals contract
 
-> Contract: **`perry-goals/list/3.5`**
+> Contract: **`perry-goals/list/3.6`**
 > Locked by `tests/test_goals_contract.py`.
 > DESIGN-005 § 6 step 2.
 
@@ -33,7 +33,7 @@ Perry's tests cannot reach.
 
 ```jsonc
 {
-  "contract":     "perry-goals/list/3.5",
+  "contract":     "perry-goals/list/3.6",
   "installed":    true,                    // false: not a Perry project — schema/README.md § installed
   "semantics":    [ /* below */ ],         // meaning changes, oldest minor first
   "project_root": "/abs/path",
@@ -67,7 +67,14 @@ Perry's tests cannot reach.
         "state": "measured", "met": false, "fraction": 0.5 } ],
       "state": "measured",                 // undeclared | unmeasured | due | measured
       "met": false,                        // null when undeclared or unmeasured
-      "fraction": 0.5                      // null unless exactly one increase/decrease check
+      "fraction": 0.5,                     // null unless exactly one increase/decrease check
+      "status": "active",                  // 3.6 — active | withdrawn
+      "withdrawn_at": null,                // 3.6 — the withdraw's revised_at, else null
+      "withdrawn_reason": null,            // 3.6 — its reason, else null
+      "revisions": [ {                     // 3.6 — oldest first, [] when none
+        "op": "restate", "revised_at": "2026-09-18T15:02:11+08:00",
+        "reason": "S2 deferred to phase 005 (USER-936)", "actor": "goals",
+        "changes": [ { "field": "target", "before": 7, "after": 6 } ] } ]
   } ],
   "answered_by":  "linkage",               // linkage | prose | none
   "unlinked_task_ids": ["REL-009"],        // DECLARED, never inferred
@@ -134,6 +141,10 @@ is — a consumer checks before it looks. Same shape as
 | `state` | string | `3.5`. `undeclared`, `unmeasured`, `due` or `measured` — the worst of its checks |
 | `met` | bool \| null | `3.5`. `true` when every check is met. **`null` when `state` is `undeclared` or `unmeasured`, never `false`** |
 | `fraction` | number \| null | `3.5`. Between `0.0` and `1.0`, only for a KR with exactly one `increase` / `decrease` check |
+| `status` | string | `3.6`. `active` or `withdrawn` — see *A KR's revisions* below. A withdrawn KR stays in `krs[]` |
+| `withdrawn_at` | string \| null | `3.6`. The withdrawal's `revised_at`, as written; `null` while `active` |
+| `withdrawn_reason` | string \| null | `3.6`. The withdrawal's reason; `null` while `active` |
+| `revisions` | array | `3.6`. Every applied revision, oldest first; `[]` for a KR never revised |
 
 ### `current` is an assertion unless it says it was measured, and these three blocks say which
 
@@ -323,6 +334,41 @@ there is exactly one check, and `null` otherwise. **An Objective has no
 fraction either**: `bin/lib § objective_kr_summary` counts commit KRs measured
 of total and met of total, stretch excluded, and never takes a mean.
 
+### A KR's revisions — `status`, `revisions`, and the folded values
+
+Added in `3.6` (TASK-264 deliverable 3, DESIGN-022 § 5.7, ADR-022). A KR is
+added, restated and withdrawn by **appending**: `perry-goals kr restate` and
+`kr withdraw` append a `kr_revision` record to the store that holds the KR —
+`linkage.jsonl` for a phase KR, `okr.jsonl` for an overall KR — and never
+rewrite the KR's own record. **Every value on a KR here is the folded one**,
+from the one rule in `bin/lib § kr_revisions`:
+
+1. a KR's revisions apply in `revised_at` order (compared through
+   `bin/lib § ts_moment`), equal timestamps in file order;
+2. `restate` overwrites the fields it names; every other field stands;
+3. `withdraw` is terminal: `status` is `withdrawn`, and a revision after it is
+   malformed and not applied (`perry-lint` names it).
+
+So `title`, `metric`, `target`, `current` and the rest return the restated
+value. **A restated `target` moves nothing else**: the user chose to let a
+restate change any non-identity field, targets included (USER-965), and the
+guard is that every revision publishes each changed field's before and after
+value. A consumer that shows a target should show `revisions[]` beside it.
+
+**A withdrawn KR is listed, not filtered**, with its date and reason. It is not
+a commit KR still to be met: it leaves every count — `perry-state § phase.
+kr_progress`, and `bin/lib § objective_kr_summary`'s measured / met of total —
+and a consumer's own counts should leave it out the same way. Its checks and
+measurements stay in the store.
+
+| Key | Type | Notes |
+|---|---|---|
+| `revisions[].op` | string | `restate` or `withdraw` |
+| `revisions[].revised_at` | string | the record's `revised_at`, as written, with its offset |
+| `revisions[].reason` | string | prose, always populated |
+| `revisions[].actor` | string | who wrote it |
+| `revisions[].changes` | array | `restate` only: `{field, before, after}` for each field it named, `before` being the folded value just before it applied |
+
 ### The phase
 
 | Key | Type | Notes |
@@ -466,6 +512,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `3.3` | 2026-09-14 | **no key added, one value's meaning changed, TASK-237 3c.** `installed` is narrower (Amendment (7), the user's decision): at `3.2` a canonical store under the state root counted on its own, so a folder holding only another tool's `tasks.jsonl` read `installed: true`. From `3.3` a store counts only with a `.perry/` directory at the project root beside it (`schema/README.md § installed`); such a directory now answers `installed: false` with the empty shape at exit 0. `semantics` carries a `3.3` entry. A narrowed meaning is not a removal or a retype, so this is a minor. |
 | `3.4` | 2026-09-15 | **no key added, one value's meaning changed, TASK-262 round 4b.** A held `BOARD.md` is retired (Amendment (4), the user's decision): `lib.task_status_index` reads `tasks.jsonl` alone and no longer puts a held board's rows beneath the store. A linked id that only the held file carried is now counted from the event log's last state-moving event, or as `unknown` when the log has none, in `krs[].linked_task_completion`. Unchanged on a project with no held board and on one whose board rows are all stored. `semantics` carries a `3.4` entry. |
 | `3.5` | 2026-09-16 | **additive, TASK-416 (DESIGN-022 § 5.2, USER-937).** Four keys added on every KR, none removed or retyped: `krs[].checks`, `krs[].state`, `krs[].met` and `krs[].fraction`, derived on read by `bin/lib § kr_position` from the new `check` and `measurement` records of `linkage.jsonl`. A KR with no check reads `state: "undeclared"`, `met: null`, `fraction: null`; a check with no measurement reads `unmeasured`, `met: null` — absent is never `0` and never `false`. `target` and `current` keep their meaning and are not read by the derivation, so phases 001–003 publish exactly what `3.4` published. `semantics` carries a `3.5` entry, as `3.2` did for an added key, because these are the first keys since `2.0` that say how far along a KR is. |
+| `3.6` | 2026-09-18 | **additive, and existing values now fold, TASK-264 deliverable 3 (DESIGN-022 § 5.7, ADR-022, USER-952, USER-965).** Four keys added on every KR, none removed or retyped: `krs[].status`, `krs[].withdrawn_at`, `krs[].withdrawn_reason` and `krs[].revisions`, from `bin/lib § kr_revisions`, the fold over the new `kr_revision` records of `linkage.jsonl` and `okr.jsonl`. The existing keys of a restated KR (`title`, `metric`, `target`, `current`, `stretch`, …) now return the folded value; on a KR with no revision nothing changes, so every project written before `3.6` publishes exactly what `3.5` published. A withdrawn KR stays in `krs[]` with `status: "withdrawn"`. `semantics` carries a `3.6` entry because a value can now differ from the KR record's. |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a
 deterministic writer and still has no deterministic *reader* — a consumer that

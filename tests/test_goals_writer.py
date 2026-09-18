@@ -1570,7 +1570,8 @@ class TestTheReadContractDidNotMove(unittest.TestCase):
         # TASK-237 3c: `installed` narrowed (a store needs `.perry/`), a minor bump.
         # TASK-262 4b: task statuses from the store alone, a minor bump.
         # TASK-416: `checks`, `state`, `met`, `fraction` added, a minor bump.
-        self.assertEqual("perry-goals/list/3.5", G.LIST_CONTRACT)
+        # TASK-264 D3: `status` and `revisions` added, KRs folded, a minor bump.
+        self.assertEqual("perry-goals/list/3.6", G.LIST_CONTRACT)
 
     def test_the_contract_document_agrees(self):
         doc = (ROOT / "schema" / "goals-list-contract.md").read_text()

@@ -56,7 +56,10 @@ class TestShape(unittest.TestCase):
           "current_provenance", "current_staleness", "linked_task_completion",
           # `3.5`, TASK-416 (DESIGN-022 § 5.2). Derived from `check` and
           # `measurement` records; `undeclared` / `null` without them.
-          "checks", "state", "met", "fraction"}
+          "checks", "state", "met", "fraction",
+          # `3.6`, TASK-264 D3 (DESIGN-022 § 5.7). From the `kr_revision`
+          # fold; `active` / `[]` for a KR never revised.
+          "status", "withdrawn_at", "withdrawn_reason", "revisions"}
     CONF = {"okr_present", "phase_present", "linkage_present",
             "krs_without_metric", "krs_without_numbers",
             "krs_not_in_linkage", "duplicate_kr_ids",

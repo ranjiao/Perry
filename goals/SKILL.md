@@ -105,7 +105,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
    📅 Phase day <N>   ·   last snapshot <M>d ago (heartbeat <H>d)
    ```
 
-   Use `✓` for KRs ≥1.0, `◐` for ≥0.7, `◑` for ≥0.4, `◯` below.
+   Use `✓` for KRs ≥1.0, `◐` for ≥0.7, `◑` for ≥0.4, `◯` below. A KR with `status: withdrawn` shows `✗ … withdrawn` and is not in `<KRs total>`.
 
    If no current phase exists: render only the overall OKR block. Starting a phase is recommended by the next block (`R-no-phase`).
 
@@ -129,7 +129,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
 | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |
 | `link <TASK-ID> <KR-ID>` / `--alias` / `--unlinked` / `--project` | Accept PMO's attribution hand-off and write it into `linkage.jsonl` (the only writer in this lane). **`bin/perry-goals link` does the write**, appending; it refuses anything that does not resolve to exactly one KR and names the candidates | `reference/linkage.md` |
-| `krs` | Print the current phase's key results from `linkage.jsonl`. **`bin/perry-goals krs` is the whole command** and it is read-only. The phase document carries no KR table (TASK-157 / DESIGN-013 § 5.1 — a fact with a schema lives in exactly one store); `--phase <NNN>` reads a scored phase's | `reference/phases.md` |
+| `krs` · `kr add`/`restate`/`withdraw` | Print KRs read-only: **`bin/perry-goals krs`** (`--phase <NNN>`, `--level overall`); the phase document has no KR table (TASK-157). Change one by appending, with its **`kr` verb**, never by hand (DESIGN-022 § 5.7) | `reference/phases.md` |
 | `pivot <reason>` | Mid-phase goal change (high-friction by design) | `reference/pivots.md` |
 | `dashboard` | Detailed view per Objective (computes status, projection) | `reference/pivots.md` |
 | `help [<subcommand>]` | Print this index; with arg, print + read the matching reference | (handled here) |
@@ -151,7 +151,7 @@ With arg: locate the row for `<subcommand>`, print it, then **read the matching 
 | `OKR.md` | okr | Versioned overall OKR with Operating Principles + Anti-Goals. `## Commitments` is written by `bin/perry-goals commit`, never by hand — see the note below | `state/OKR_TEMPLATE.md` |
 | `phase/<NNN>-<slug>.md` | okr | Phase OKR with Focus, Rules, Cost Ceiling, User Commitments, Degradation, Scope Reduction, Objectives, DoD, Not Doing | `state/phase_TEMPLATE.md` |
 | `phase/CURRENT` | okr | One-line pointer to current phase (`<NNN>-<slug>`). Empty / missing = no current phase | (plain text) |
-| `linkage.jsonl` | perry | **The O→KR→task→agent graph** (a store: one JSON object per line, six record kinds declared in `schema/state-schema.json § stores.declared`). Declares the phase's objectives and key results, task→KR edges, numeric KR progress with its own `asserted_at`, declared-unlinked work, and the stable Project ID ↔ aliases registry that stops attribution from being guessed. Machine-written by `bin/perry-goals link` and `bin/perry-task add`'s `--kr`, never by hand; read by Perry *and* the frontend. It was `phase/<NNN>-linkage.md` until ADR-019. | — (a store has no template) |
+| `linkage.jsonl` | perry | **The O→KR→task→agent graph** (a store: one JSON object per line, six record kinds declared in `schema/state-schema.json § stores.declared`). Declares the phase's objectives and key results, task→KR edges, numeric KR progress with its own `asserted_at`, declared-unlinked work, and the stable Project ID ↔ aliases registry that stops attribution from being guessed. Machine-written by `bin/perry-goals link` / `kr` and `bin/perry-task add`'s `--kr`, never by hand; read by Perry *and* the frontend. It was `phase/<NNN>-linkage.md` until ADR-019. | — (a store has no template) |
 | `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md` | okr | Frozen point-in-time copies of phase OKR. Auto-written on `score-phase` (with `-final` suffix) or `snapshot` (no suffix) | — |
 | `tasks.jsonl` (`perry-task list --json`) | pmo | Read by OKR for cross-check; never written | (in pmo skill) |
 | `evidence/<YYYY-MM>/retro.md` | pmo | Read by OKR `score-phase` after PMO writes it; never written | (in pmo skill) |

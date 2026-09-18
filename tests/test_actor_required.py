@@ -391,6 +391,15 @@ class TestGoalsActorContract(unittest.TestCase):
             yield verb, root, (check if verb == "check" else [
                 "measure", "P004-O1-KR1", "--check", "n", "--value", "1",
                 "--evidence", "evidence/2026-09/m.md"])
+        # TASK-264 D3: `kr add | restate | withdraw` (DESIGN-022 § 5.7).
+        for op, tail in (
+                ("add", ["P004-O1-KR9", "--objective", "O1", "--text", "new"]),
+                ("restate", ["P004-O1-KR1", "--set", "title=restated"]),
+                ("withdraw", ["P004-O1-KR1"])):
+            tmp = Path(tempfile.mkdtemp(prefix="goals-actor-"))
+            self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+            root = KW.make_project(tmp / "p")
+            yield "kr/" + op, root, ["kr", op, *tail, "--reason", "fixture"]
 
     def test_every_mode_refuses_absent_empty_blank_and_multiline_before_writing(self):
         seen = set()
@@ -422,7 +431,8 @@ class TestGoalsActorContract(unittest.TestCase):
                 self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
                 events = [json.loads(line) for line in (root / ".perry/events.jsonl").read_text().splitlines()]
                 self.assertEqual(events[-1]["actor"], actor)
-                if argv[0] in ("link", "check", "measure"):
+                if argv[0] in ("link", "check", "measure") or argv[1:2] in (
+                        ["restate"], ["withdraw"]):
                     record = json.loads((root / "linkage.jsonl").read_text().splitlines()[-1])
                     self.assertEqual(record["actor"], actor)
 
@@ -452,7 +462,7 @@ class TestGoalsActorContract(unittest.TestCase):
         missing, seen = [], 0
         with patch.dict(globals(), CMD=matcher):
             for path in shipped_documents():
-                for ln, command, has in invocations(path.read_text(), {"commit", "link", "check", "measure"}):
+                for ln, command, has in invocations(path.read_text(), {"commit", "link", "check", "measure", "kr"}):
                     seen += 1
                     if not has:
                         missing.append(f"{path.relative_to(ROOT)}:{ln}: {command}")

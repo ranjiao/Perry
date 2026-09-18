@@ -3880,6 +3880,23 @@ def cmd_add(args, ctx) -> dict:
     # one in the store, and the two halves of one transaction would not match.
     if args.kr is not None:
         args.kr = str(args.kr).strip()
+    # **A withdrawn KR takes no new work** (TASK-264 D3 repair, V4 finding
+    # F3; DESIGN-022 § 5.7). Its status is the fold's answer —
+    # `lib.kr_revisions`, the one rule — over the records the store already
+    # holds; a typed comparison, nothing read from prose.
+    if args.kr and _register != "unparseable":
+        _views, _ = lib.kr_revisions(P.load_linkage_store(ctx["state_root"])
+                                     or [], P.LINKAGE_STORE)
+        _kr = lib.kr_status(_views.get((args.kr, "")))
+        if _kr["status"] == "withdrawn":
+            raise Refused(
+                f"--kr {args.kr} names a withdrawn key result (withdrawn at "
+                f"{_kr['withdrawn_at']}: {_kr['withdrawn_reason']}). It "
+                f"leaves every count and is never scored, so work attributed "
+                f"to it would count toward nothing. Attribute the row to an "
+                f"active KR — `perry-goals krs` lists them with their "
+                f"`status` — or pass `--unlinked` if it serves none. Nothing "
+                f"was written")
     # Same limit as `cmd_next`, at the other site that writes this cell. A
     # refusal that only one of two writers performs is a refusal a caller
     # routes around without meaning to.

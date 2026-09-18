@@ -443,8 +443,10 @@ class TestPerryGoalsPublishesThePosition(LintedStore):
         return self.goals("list")["krs"]
 
     def test_the_contract_is_3_5(self):
+        # TASK-264 D3 moved it to 3.6 (`status`, `revisions`); 3.5's four
+        # keys are unchanged, which the tests below still hold.
         self.assertEqual(self.goals("list")["contract"],
-                         "perry-goals/list/3.5")
+                         "perry-goals/list/3.6")
 
     def test_a_kr_whose_record_carries_numbers_and_no_check_is_undeclared(self):
         """Phases 001–003's shape: `target` and `current` on the `kr` record,

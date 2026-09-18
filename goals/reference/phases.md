@@ -299,7 +299,8 @@ On this baseline the phase finalize path is unavailable: disclose it and stop,
 even after the user approves the draft. Do not hand-write a phase document or
 `phase/CURRENT`, hand-append Objective/KR records, feed a fabricated canonical
 file to a generic import/render command, or use `perry-goals link` as a KR-creation
-substitute. A writer refusal stops with its actual message; no fallback writes.
+substitute. A KR of an ACTIVE phase is added with the `kr add` verb (`## kr`
+below). A writer refusal stops with its actual message; no fallback writes.
 
 The eventual writer's returned result must identify the ten-section phase prose
 and the activated phase pointer. Its Objective fields are `phase`, `id`, `title`;
@@ -358,13 +359,39 @@ carries no `krs[]`. `viewer/parsers.py § phase_key_results` reads the document
 exactly then, so those KRs still reach every payload. One source at a time,
 chosen, never merged; `krs` itself needs a register and says so if there is none.
 
+## `kr add | restate | withdraw` — changing a KR
+
+A KR is added, restated or withdrawn **by appending, through the command** —
+never by hand-appending or hand-editing `linkage.jsonl` or `okr.jsonl`
+(DESIGN-022 § 5.7, ADR-022). Each change the user approved is one call:
+
+```bash
+"$PERRY_HOME/bin/perry-goals" kr add P004-O2-KR4 --objective O2 --text "…" \
+    --set target=6 --reason "…" --actor goals                  # a phase KR
+"$PERRY_HOME/bin/perry-goals" kr add O4-KR3 --okr-version "v4: 2026-09-15" \
+    --objective O-14 --text "…" --reason "…" --actor goals      # an overall KR
+"$PERRY_HOME/bin/perry-goals" kr restate P004-O4-KR2 --set target=6 \
+    --reason "S2 deferred to phase 005" --actor goals
+"$PERRY_HOME/bin/perry-goals" kr withdraw P004-O4-KR2 --reason "…" --actor goals
+```
+
+`restate` changes any field except the KR's identity (`id`, `phase` /
+`version`, `objective` / `objective_id`, `order`) — a target included, so every
+revision is published with each field's before and after value in
+`krs --json` `revisions[]`. `withdraw` is terminal: the KR stays listed with its
+reason, leaves every count, and its id is never reused. All three refuse a
+scored phase or a past OKR version, a withdrawn KR, and a missing `--reason`,
+and each refusal names the command that would pass. `--dry-run` shows the
+record first. `OKR.md` is not written: the overall KR rows are
+`krs --level overall`'s since TASK-236.
+
 ## `score-phase [<NNN>]`
 
 Close out a phase. Default: the current phase (read from `phase/CURRENT`). Cross-reference `evidence/<YYYY-MM>/` (for the calendar months the phase spanned) and the closed tasks (`perry-task list --all --json`).
 
 Attribute each done task to its KR **by ID through `linkage.jsonl`**, per `$PERRY_HOME/reference/okr-linkage.md`; any task that does not resolve to exactly one KR is listed under a `## Unlinked at scoring` note and **not** averaged into any KR score — surface it and ask rather than guessing which KR it belonged to. `"$PERRY_HOME/bin/perry-state" --section attribution` lists exactly these.
 
-1. For each phase KR: final metric, status from {`achieved`, `partial`, `missed`, `dropped`}, evidence path. **Use `AskUserQuestion`** with one question per KR (header = the KR id, e.g., `"P<NNN>-O1-KR2"`); options = the 4-status set; recommended option pre-selected based on observed metric vs target.
+1. For each phase KR: final metric, status from {`achieved`, `partial`, `missed`, `dropped`}, evidence path. A KR `krs --json` reports `status: withdrawn` is listed with its reason and not scored; read each KR's `revisions[]` before scoring it against its target. **Use `AskUserQuestion`** with one question per KR (header = the KR id, e.g., `"P<NNN>-O1-KR2"`); options = the 4-status set; recommended option pre-selected based on observed metric vs target.
 2. Compute KR score 0.0–1.0 (overshot caps at 1.0; record stretch overshoot separately).
 3. Aggregate to Objective score (mean of KRs).
 4. Write **Retro** section in `phase/<NNN>-<slug>.md`:

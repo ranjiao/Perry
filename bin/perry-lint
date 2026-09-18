@@ -1387,7 +1387,8 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
         own = P.linkage_phase_number(slug)
         if not own:
             continue
-        link = P.load_linkage(root, own)
+        # Folded, as every reader reads a KR (DESIGN-022 § 5.7).
+        link = P.load_linkage(root, own, kr_fold=lib.fold_kr_records)
         rel = P.LINKAGE_STORE
         if not link.ok:
             continue
@@ -4559,6 +4560,9 @@ def check_md_store_drift(project_root: Path, state_root: Path,
                         f"unknown here rather than absent")]
 
     good, issues = _MD_STORE.validate_records(on_disk)
+    if "kr_revision" in doc.store_only_kinds:
+        findings.extend(kr_revision_findings(on_disk, doc.rel_store,
+                                             rel_store))
     for issue in issues:
         who = issue.get("key") or f"line {issue['line']}"
         findings.append(Finding(
@@ -4695,6 +4699,31 @@ def _empty_linkage_store_stats() -> dict:
     one of them matches a declared shape.
     """
     return {"store_present": False, "records": 0, "malformed": 0}
+
+
+def kr_revision_findings(records: list, store: str,
+                         rel: str) -> list["Finding"]:
+    """`kr_revision` records the fold does not apply — DESIGN-022 § 5.7.
+
+    **The rule is not restated here.** `lib.kr_revisions` is the fold every
+    reader reads, and the revisions it reports and skips are exactly the
+    malformed ones: a KR that is not in the store, an `op` that is not
+    `restate` / `withdraw`, an identity field restated, an empty `reason`, a
+    `revised_at` that is not a timestamp, and anything after a withdrawal. A
+    second list here would be the two-lists-disagreeing defect ADR-004 is
+    about. The shape of each record (its field types) is checked where every
+    other record of the store is: the schema-driven pass for `linkage.jsonl`,
+    `perry_md_store.validate_records` for `okr.jsonl`.
+    """
+    _views, found = lib.kr_revisions(
+        [r for r in records if isinstance(r, dict)], store)
+    return [Finding("warn", rel, "kr-revision-malformed",
+                    f"line {f['line']}: the `kr_revision` of {f['kr']}"
+                    f"{' (' + f['okr_version'] + ')' if f['okr_version'] else ''}"
+                    f" is not applied — {f['message']}. Readers show the KR "
+                    f"without it; the `kr restate` and `kr withdraw` verbs of "
+                    f"perry-goals write valid ones (DESIGN-022 § 5.7).")
+            for f in found]
 
 
 def _linkage_record_findings(records: list, declared: dict,
@@ -4910,6 +4939,7 @@ def check_linkage_store(project_root: Path, state_root: Path,
 
     good, issues = _linkage_record_findings(on_disk, declared,
                                             schema.get("enums"))
+    findings.extend(kr_revision_findings(on_disk, _JSONL_STORE_KEY, rel_store))
     check_linkage_store.stats["records"] = len(good)
     check_linkage_store.stats["malformed"] = len(issues)
     for issue in issues[:DRIFT_ROWS_SHOWN]:

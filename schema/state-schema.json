@@ -1230,6 +1230,106 @@
                 "required": true
               }
             }
+          },
+          "kr_revision": {
+            "description": "One restatement or withdrawal of a PHASE KR - DESIGN-022 § 5.7, ADR-022, added by TASK-264 deliverable 3 under USER-952 (decision 5) and USER-965 (decisions 6 and 7). A KR's words are changed by appending one of these; the KR's own `kr` record is never rewritten. The fold rule - revisions apply in `revised_at` order, equal timestamps in file order; `restate` overwrites the named fields; `withdraw` is terminal and a revision after it is malformed - is stated once, in `bin/lib/__init__.py § kr_revisions`, and every reader reads it. Written by `goals` only (`perry-goals kr restate` / `kr withdraw`). The overall-KR twin is declared on `okr.jsonl` below.",
+            "identity_fields": ["kind", "id", "phase", "objective"],
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "kr_revision",
+                "required": true
+              },
+              "kr": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(?:P\\d{3}-)?O\\d+-KR\\d+$",
+                "note": "The `id` of a `kr` record in this store."
+              },
+              "okr_version": {
+                "type": "string",
+                "required": true,
+                "note": "Always `\"\"` in this store: a phase KR's id is unique. Carried so the key is the `(kr, okr_version)` pair `check` and `measurement` use."
+              },
+              "op": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(restate|withdraw)$"
+              },
+              "fields": {
+                "type": "object",
+                "required": true,
+                "note": "`restate`: one or more fields of the `kr` record, each with its NEW value; any field except the `identity_fields` above. `withdraw`: `{}`. The before value is not stored: the fold derives it."
+              },
+              "reason": {
+                "type": "string",
+                "required": true,
+                "note": "Non-empty prose. Nothing derives anything from it (NN-4)."
+              },
+              "revised_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime",
+                "note": "The write's own timestamp, with offset. The fold's ordering key."
+              },
+              "actor": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        }
+      },
+      "okr.jsonl": {
+        "owner": "goals",
+        "anchor": "state",
+        "format": "jsonl",
+        "discriminator": "kind",
+        "description": "ONE record kind of the OKR store, and only one. The store's other kinds (`kr`, `objective`, `commitment`, `version`) project from `OKR.md`, so their field lists are `bin/perry_md_store.py § STORED`, as `stores.note` says. `kr_revision` projects from nothing - it is store-only, like `kr` since TASK-236 - so its shape is declared here or nowhere. Added by TASK-264 deliverable 3 under USER-952 and USER-965 (DESIGN-022 § 5.7, ADR-022); no other kind of this store is declared or changed by it.",
+        "records": {
+          "kr_revision": {
+            "description": "One restatement or withdrawal of an OVERALL KR - the twin of `linkage.jsonl`'s `kr_revision`, same fields and the same fold rule (`bin/lib/__init__.py § kr_revisions`). Appended to this store because the KR lives here. `OKR.md` carries no KR row since TASK-236, so it renders nothing of it; `perry-goals krs --level overall` prints the folded KR.",
+            "identity_fields": ["kind", "id", "version", "objective", "objective_id", "order"],
+            "fields": {
+              "kind": {
+                "type": "string",
+                "const": "kr_revision",
+                "required": true
+              },
+              "kr": {
+                "type": "string",
+                "required": true,
+                "note": "The `id` of a `kr` record in this store."
+              },
+              "okr_version": {
+                "type": "string",
+                "required": true,
+                "note": "The full `version` label of that `kr` record (`v4: 2026-09-15`), matched exactly: `O1-KR1` exists in more than one version."
+              },
+              "op": {
+                "type": "string",
+                "required": true,
+                "pattern": "^(restate|withdraw)$"
+              },
+              "fields": {
+                "type": "object",
+                "required": true,
+                "note": "`restate`: one or more fields of the `kr` record with their new values, never an `identity_fields` entry. `withdraw`: `{}`."
+              },
+              "reason": {
+                "type": "string",
+                "required": true
+              },
+              "revised_at": {
+                "type": "string",
+                "required": true,
+                "format": "iso-datetime"
+              },
+              "actor": {
+                "type": "string",
+                "required": true
+              }
+            }
           }
         }
       },

@@ -22,6 +22,7 @@ COVERS = (
 )
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -61,14 +62,36 @@ class TemplateContract(unittest.TestCase):
     can't read is the exact failure that made a reader show empty panels."""
 
     def test_okr_template_yields_objectives_and_krs(self):
-        okr = P.parse_okr(read("goals/state/OKR_TEMPLATE.md"))
+        """**The KRs come from the store, under the template's objectives.**
+
+        Until TASK-264 D3's repair round (V4 finding F2) the template carried
+        KR tables and this test read `KR-O1.1` out of one. Those rows left
+        `OKR.md` with TASK-236; the template now matches that model, so the
+        same three claims are asserted against the model it ships: every
+        objective parses, the store's KRs land under each by heading, and the
+        `stretch` field is read — plus a fourth, that no KR is read out of the
+        template's own markdown."""
+        text = read("goals/state/OKR_TEMPLATE.md")
+        okr = P.parse_okr(text)
         self.assertTrue(okr.objectives, "no objectives parsed from OKR_TEMPLATE")
+        self.assertEqual([kr.id for o in okr.objectives for kr in o.krs], [],
+                         "the template carries KR rows again (TASK-236)")
+        # The heading as the reader keys it: the template's trailing
+        # `<!-- … -->` note is a comment, which the parser strips.
+        headings = [re.sub(r"<!--.*?-->", "", line[4:]).strip()
+                    for line in text.split("\n")
+                    if line.startswith("### Objective ")]
+        store = [{"kind": "kr", "version": okr.version, "objective": h,
+                  "id": f"O{n}-KR1", "text": "t", "stretch": "yes" if n == 1
+                  else "no", "order": n}
+                 for n, h in enumerate(headings, 1)]
+        okr = P.parse_okr(text, krs=store)
         for obj in okr.objectives:
             self.assertTrue(obj.krs, f"objective {obj.title!r} parsed with zero KRs")
         ids = [kr.id for obj in okr.objectives for kr in obj.krs]
-        self.assertIn("KR-O1.1", ids)
+        self.assertIn("O1-KR1", ids)
         self.assertTrue(any(kr.stretch for o in okr.objectives for kr in o.krs),
-                        "Stretch? column not read")
+                        "Stretch? field not read")
 
     def test_okr_template_ignores_commented_example_version(self):
         """The template parks a `## v2:` example inside an HTML comment. It
