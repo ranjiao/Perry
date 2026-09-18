@@ -28,18 +28,20 @@ overall template. Unknown state never proves this is a first OKR.
    Default to one objective and at most three KRs, with eight questions total
    before a visible draft (including every clarification/push question).
    Keep unsupported facts explicitly unknown and unaccepted targets proposed.
-2. Show the compact first-OKR draft in chat, with source/assumption distinctions,
-   boundaries and remaining unknowns. This delivery does not persist a planning
-   draft or provide resume/finalize machinery; do not claim those operations ran.
+2. Save the draft from the first answer on, and show it for review, through
+   `$PERRY_HOME/goals/reference/planning.md` (`perry-goals draft`): each asked
+   question and answer is persisted, so a closed session resumes at the
+   pending question. Keep source/assumption distinctions, boundaries and
+   remaining unknowns in the body.
 3. Follow the bank's **Premises, edits and approval**: surface meaningful
    premises, incorporate disagreement into affected draft sections, then run
    `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` once on the resulting
    draft. Surface ≤3 advisory issues, preserving the solo-project qualification.
    A refusal uses the bank's escape; a fully pasted OKR skips the interview.
-4. Stop at the visible draft and quality feedback. Do not hand-append canonical
-   goal stores or invent a writer to finalize it, and do not auto-run `plan-phase`.
-   The owning approval/persistence/writer flow must exist before finalization;
-   this first-OKR bank does not claim to supply that separate implementation.
+4. Stop at the reviewed or approved draft: say "draft approved; overall
+   finalize is unavailable". `draft finalize` refuses and names the missing
+   writers. Do not hand-append canonical goal stores, hand-author `OKR.md` for
+   an importer, or auto-run `plan-phase`.
 
 ### Structural contract
 

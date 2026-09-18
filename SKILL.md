@@ -68,7 +68,7 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 
 | Lane | Only writer of | Proposes, never writes |
 |---|---|---|
-| **`goals`** (`goals/`) | `OKR.md` — **including `## Commitments`** — and `phase/<NNN>-<slug>.md` | weekly tasks, handed to `work` |
+| **`goals`** (`goals/`) | `OKR.md` — **including `## Commitments`** — and `phase/<NNN>-<slug>.md`; drafts in `plans/` (DESIGN-020 UD 5, not this sign-off) | weekly tasks, handed to `work` |
 | **`work`** (`work/`) | `tasks.jsonl` + its 4 register stores (`perry-tasks board` prints them), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
 | **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
 
@@ -122,7 +122,8 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
    never by Perry deciding a run has gone stale. **Never resume without asking.**
 
    The card, its three answer branches and the flag-mismatch refusal:
-   `reference/snapshot.md § The interrupted-run card`.
+   `reference/snapshot.md § The interrupted-run card`. A `plan` draft, and
+   `/perry plan`: `goals/reference/planning.md`.
 
 3. **Compute the state — one call**:
    ```

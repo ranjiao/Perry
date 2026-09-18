@@ -273,6 +273,23 @@
       "done",
       "declined",
       "deferred"
+    ],
+    "plan_horizon": [
+      "okr",
+      "phase",
+      "week",
+      "commitments"
+    ],
+    "plan_route": [
+      "first",
+      "revision"
+    ],
+    "plan_status": [
+      "interviewing",
+      "drafted",
+      "approved",
+      "finalized",
+      "abandoned"
     ]
   },
   "i18n": {
@@ -796,9 +813,10 @@
       "value": 30,
       "applies_to": [
         "adoption",
-        "diagnosis"
+        "diagnosis",
+        "plan"
       ],
-      "note": "A pipeline whose stage is non-terminal for this long is reported as a stale run, so the interrupted-run card also nudges the user to retire it. A calibrated default, not a law - long enough that a genuinely paused adoption is not nagged, short enough to catch one that is actually dead. Declared here so perry-lint and the entry card read the same number."
+      "note": "A pipeline whose stage is non-terminal for this long is reported as a stale run, so the interrupted-run card also nudges the user to retire it. A calibrated default, not a law - long enough that a genuinely paused adoption is not nagged, short enough to catch one that is actually dead. Declared here so perry-lint and the entry card read the same number. `plan` (TASK-444) applies the same number to an interviewing planning draft; stale never abandons one."
     },
     "knowledge_stale_days": {
       "value": 90,
@@ -1448,6 +1466,13 @@
       "kind": "dir",
       "owner": "decide",
       "anchor": "state"
+    },
+    {
+      "path": "plans/",
+      "kind": "dir",
+      "owner": "goals",
+      "anchor": "state",
+      "note": "planning drafts, noncanonical. Consented in DESIGN-020 decision 5 (2026-09-14); added by TASK-444."
     }
   ],
   "files": [
@@ -2416,6 +2441,32 @@
           "步骤"
         ],
         "workflow_note": "Not the check - the check is the closed set above. These get a SHARPER MESSAGE, because a card carrying one is making decision #1's exact mistake and deserves to be told which rule it broke rather than 'unknown section'."
+      }
+    },
+    {
+      "id": "plan",
+      "path": "plans/*/*.md",
+      "owner": "goals",
+      "anchor": "state",
+      "tier": 2,
+      "required": false,
+      "format": "yaml-frontmatter",
+      "note": "A planning draft (DESIGN-020 § 5.5, TASK-444): typed frontmatter and an opaque, human-editable body in the target document's shape. NONCANONICAL - the stores are the goals; a finalized draft is history. Validated by `viewer/parsers.py § parse_plan`, which `perry-goals draft`, `perry-state` and `perry-lint` all call. Every key below is required and no other key is allowed. Written by `perry-goals draft` for horizon `okr`, route `first` only; the other horizons and `revision` are declared vocabulary whose writer is refused as unsupported.",
+      "frontmatter": {
+        "description": "No `spec_key` discriminator: the horizon/route/status fields identify the shape.",
+        "fields": {
+          "horizon": {"type": "string", "required": true, "enum": "plan_horizon", "note": "must equal the directory name"},
+          "route": {"type": "string", "required": true, "enum": "plan_route"},
+          "status": {"type": "string", "required": true, "enum": "plan_status", "note": "interviewing -> drafted -> approved -> finalized; abandoned is terminal. `approved` is set only by `perry-goals draft approve`; any content change returns it to drafted."},
+          "step": {"type": "string", "required": true, "note": "the pending question q1-q8 while interviewing, chosen by the agent, never computed; exactly \"\" otherwise"},
+          "answered": {"type": "array", "required": true, "items": {"type": "string"}, "note": "unique q1-q8 ids: coverage, not a question count"},
+          "target": {"type": "string", "required": true, "note": "what finalize would write; exactly `OKR.md` for horizon okr"},
+          "created": {"type": "string", "required": true, "format": "iso-date"},
+          "updated": {"type": "string", "required": true, "format": "iso-date", "note": "not earlier than created; changes only on a write"},
+          "finalized_refs": {"type": "array", "required": true, "items": {"type": "string"}, "note": "empty unless status is finalized"},
+          "questions_asked": {"type": "integer", "required": true, "note": "0-8. Incremented once per durably recorded question (`--ask`), follow-ups included; enforces the eight-question budget across sessions."},
+          "approved_sha256": {"type": "string", "required": true, "note": "null, or 64 lowercase hex digits set exactly when approved/finalized: SHA-256 of the sorted, compact, unescaped JSON of horizon, route, target, created, step, answered, questions_asked, then one LF, then the exact body bytes. A mismatch means the approval is stale."}
+        }
       }
     }
   ],

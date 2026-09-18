@@ -27,11 +27,15 @@ COVERS = (
     "goals/reference/phases.md",
     "schema/goals-list-contract.md",
     "perry/OKR.md",
+    "viewer/parsers.py",
+    "bin/perry-state",
+    "bin/perry-lint",
+    "schema/state-schema.json",
+    "reference/next-rules.json",
 )
 
 import goals_actor
 import contextlib
-import importlib.util
 import json
 import os
 import pathlib
@@ -43,20 +47,10 @@ import sys
 import tempfile
 import unittest
 from datetime import date, timedelta
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "viewer"))
-
-
-def _load():
-    """`bin/perry-goals` has no `.py` suffix, so import it by path."""
-    spec = importlib.util.spec_from_loader(
-        "perry_goals",
-        importlib.machinery.SourceFileLoader(
-            "perry_goals", str(ROOT / "bin" / "perry-goals")))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 sys.path.insert(0, str(ROOT / 'viewer'))
@@ -66,21 +60,11 @@ import config_store
 import inproc  # noqa: E402
 from config_store import track  # noqa: E402
 
-G = _load()
+# The same cached modules `inproc.run` executes (TASK-444 paydown of two
+# private loaders): nothing here mutates either without restoring it.
+G = inproc.load("perry-goals")
 GOALS = ROOT / "bin" / "perry-goals"
-
-
-def _load_lint():
-    spec = importlib.util.spec_from_loader(
-        "perry_lint_for_goals",
-        importlib.machinery.SourceFileLoader(
-            "perry_lint_for_goals", str(ROOT / "bin" / "perry-lint")))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-LINT_MODULE = _load_lint()
+LINT_MODULE = inproc.load("perry-lint")
 SCHEMA = json.loads((ROOT / "schema" / "state-schema.json").read_text())
 LINT_MODULE.load_glossary(SCHEMA)
 OKR_SPEC = next(f for f in SCHEMA["files"] if f["id"] == "okr")
@@ -151,20 +135,6 @@ def without_level_two_section(text: str, prefix: str) -> str:
     lo, hi = level_two_span(text, prefix)
     lines = text.split("\n")
     return "\n".join(lines[:lo] + lines[hi:])
-
-
-def goals_module():
-    """`bin/perry-goals` as a module, for asserting on its patterns and on
-    what TASK-091 deleted directly rather than through the CLI."""
-    import importlib.machinery
-    import importlib.util
-    spec = importlib.util.spec_from_loader(
-        "perry_goals_mod",
-        importlib.machinery.SourceFileLoader(
-            "perry_goals_mod", str(ROOT / "bin" / "perry-goals")))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 class TestByteIdentity(unittest.TestCase):
@@ -1631,7 +1601,7 @@ class TestTheClockRegexIsGone(unittest.TestCase):
                     f"{path.name} still mentions the deleted regex")
 
     def test_the_vocabulary_and_its_helpers_are_not_importable(self):
-        mod = goals_module()
+        mod = G
         for name in self.GONE:
             with self.subTest(name=name):
                 self.assertFalse(hasattr(mod, name),
@@ -1641,7 +1611,7 @@ class TestTheClockRegexIsGone(unittest.TestCase):
         """Not a smaller vocabulary — a format. Both patterns are anchored at
         both ends, which is what makes "is the WHOLE cell this" the question
         rather than "does this cell contain something like this"."""
-        mod = goals_module()
+        mod = G
         self.assertEqual("^", mod.ISO_DATE_RE.pattern[0])
         self.assertEqual("$", mod.ISO_DATE_RE.pattern[-1])
         self.assertEqual("^", mod.SLA_TOKEN_RE.pattern[0])
@@ -1651,7 +1621,7 @@ class TestTheClockRegexIsGone(unittest.TestCase):
         """The fifth round's defect was two halves matched under different
         rules. There is now one rule, and it contains no CJK at all — so it
         cannot be enforced asymmetrically."""
-        mod = goals_module()
+        mod = G
         for pattern in (mod.ISO_DATE_RE.pattern, mod.SLA_TOKEN_RE.pattern):
             with self.subTest(pattern=pattern):
                 self.assertFalse(
@@ -2006,6 +1976,192 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
         self.assertNotEqual(before, after)
         self.assertEqual(T.split_row(before)[3:], T.split_row(after)[3:],
                          "cells the edit did not name were rewritten")
+
+
+class TestFirstOkrDraft(unittest.TestCase):
+    """TASK-444's draft-only child (`perry/evidence/2026-09/TASK-444-readiness/
+    analysis.md § 6`): persistence, current-content review and explicit resume
+    of a first-OKR draft. Every body here is SYNTHETIC — none is TASK-191
+    interview evidence."""
+
+    REL = "plans/okr/2026-09-17-first-okr.md"
+
+    def setUp(self):
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="plan-"))
+        self.scratch = pathlib.Path(tempfile.mkdtemp(prefix="plan-body-"))
+        for d in (self.root, self.scratch):
+            self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        config_store.write_config(self.root)
+        self.plan = self.root / self.REL
+
+    def draft(self, mode, *flags, code=0, body=None):
+        if body is not None:
+            (self.scratch / "b.md").write_text(body, encoding="utf-8")
+            flags += ("--body-file", str(self.scratch / "b.md"))
+        actor = () if mode in ("show", "finalize") else ("--actor", "test")
+        r = inproc.run("perry-goals", ["draft", mode, "--root", str(self.root),
+                                       "--json", *flags, *actor])
+        self.assertEqual(code, r.returncode, r.stdout + r.stderr)
+        return json.loads(r.stdout) if r.stdout.strip() else None
+
+    def create(self, body="## Mission\nQ1 (accepted): ship.\n", code=0, *more):
+        return self.draft("create", "--horizon", "okr", "--route", "first",
+                          "--date", "2026-09-17", "--slug", "first-okr",
+                          "--target", "OKR.md", "--step", "q2", "--answered",
+                          "q1", "--ask", *more, code=code, body=body)
+
+    def change(self, mode, *flags, code=0, body=None):
+        sha = self.draft("show", "--path", self.REL)["sha256"]
+        return self.draft(mode, "--path", self.REL, "--expect-sha256", sha,
+                          *flags, code=code, body=body)
+
+    def state(self, section):
+        r = inproc.run("perry-state", ["--root", str(self.root), "--section", section])
+        return json.loads(r.stdout)[section]
+
+    def test_resume_after_the_third_question_keeps_every_answer(self):
+        self.create()
+        kept = "Q1 (accepted): ship.\nRejected: 'grow users'.\n"
+        self.change("update", "--ask", "--step", "q4", body=kept + "Pending q4?\n")
+        body = kept + "Q4 (accepted): no mobile.\nPending q1 follow-up: by when?\n"
+        self.change("update", "--ask", "--step", "q1", "--answered", "q1,q4", body=body)
+        show = self.draft("show", "--path", self.REL)   # a new session resumes
+        self.assertEqual((show["meta"]["step"], show["meta"]["questions_asked"],
+                          show["body"]), ("q1", 3, body))
+        [row] = self.state("interrupted")
+        self.assertEqual(("plan", "q1", 2, 3), tuple(row[k] for k in (
+            "pipeline", "step", "interview_answers", "questions_asked")))
+        self.assertEqual("R-interrupted", self.state("next")["primary"]["rule"])
+        self.assertEqual(show["sha256"], self.draft("show", "--path", self.REL)["sha256"])
+
+    def test_create_is_create_only(self):
+        self.create()
+        before = self.plan.read_bytes()
+        self.assertEqual((self.REL, before),
+                         (self.create("other", 1)["existing"], self.plan.read_bytes()))
+        self.assertNotIn("NS-01", inproc.run("perry-lint", ["--root", str(self.root)]).stdout)
+
+    def test_a_file_edit_is_kept_and_a_stale_token_is_refused(self):
+        sha = self.create()["sha256"]
+        self.plan.write_text(self.plan.read_text() + "User edit.\n")
+        out = self.draft("update", "--path", self.REL, "--expect-sha256", sha,
+                         "--step", "q3", code=1)
+        self.assertTrue(out["conflict"])
+        self.assertEqual(out["current_sha256"], self.draft("show", "--path", self.REL)["sha256"])
+        self.change("update", "--step", "q3")
+        self.assertTrue(self.plan.read_text().endswith("User edit.\n"))
+
+    def test_approval_binds_the_current_content(self):
+        self.create()
+        self.change("approve", code=1)                        # not yet drafted
+        self.change("update", "--status", "drafted", "--step", "")
+        self.change("update", "--ask", code=1)                # a drafted plan asks none
+        self.assertEqual([], self.state("interrupted"))
+        self.assertEqual(1, self.state("drafts")["drafted"])
+        self.assertEqual("R-draft-waiting", self.state("next")["primary"]["rule"])
+        self.assertTrue(self.change("approve")["approval_valid"])
+        self.assertEqual(0, self.state("drafts")["drafted"])
+        self.plan.write_text(self.plan.read_text() + "Edited after approval.\n")
+        edited = self.plan.read_bytes()
+        show = self.draft("show", "--path", self.REL)
+        self.assertEqual(("approved", False), (show["meta"]["status"], show["approval_valid"]))
+        self.assertEqual((edited, 1), (self.plan.read_bytes(), self.state("drafts")["drafted"]))
+        self.assertTrue(self.change("approve")["approval_valid"])
+        out = self.change("update", body="Changed.\n")
+        self.assertEqual(("drafted", False), (out["status"], out["approval_valid"]))
+        self.assertIn("approved_sha256: null", self.plan.read_text())
+
+    def test_abandon_is_terminal_and_kept(self):
+        self.create()
+        self.assertEqual("abandoned", self.change("abandon")["status"])
+        self.change("update", "--step", "q3", code=1)
+        self.assertEqual(([], True), (self.state("interrupted"), self.plan.is_file()))
+
+    def test_finalize_is_refused_and_changes_no_byte(self):
+        self.create()
+        self.change("update", "--status", "drafted", "--step", "")
+        self.change("approve")
+        snap = lambda: {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}  # noqa: E731
+        before, out = snap(), self.draft("finalize", "--path", self.REL, code=1)
+        self.assertEqual((False, 2, True, before), (
+            out["written"], len(out["missing"]), out["approval_valid"], snap()))
+        for name in ("OKR.md", "okr.jsonl", "linkage.jsonl", "phase"):
+            self.assertFalse((self.root / name).exists(), name)
+
+    def test_malformed_metadata_is_visible_not_guessed(self):
+        self.create()
+        self.plan.write_text(self.plan.read_text().replace(
+            "status: interviewing", "status: interviewing\nstatus: approved"))
+        self.assertIn("duplicate key(s): status",
+                      self.draft("show", "--path", self.REL)["errors"])
+        rec = self.state("recovery")
+        self.assertEqual((True, "plan", self.REL), (rec["blocking"], *map(
+            rec["malformed_dossiers"][0].get, ("pipeline", "path"))))
+        self.assertIsNone(self.state("drafts")["drafted"])
+        self.assertIn("bad-plan", inproc.run("perry-lint", ["--root", str(self.root)]).stdout)
+        self.change("update", "--step", "q3", code=1)
+
+    def test_escaping_paths_and_links_are_refused(self):
+        (self.root / "plans").symlink_to(self.scratch, target_is_directory=True)
+        self.create(code=1)
+        self.assertEqual(([], True), (list(self.scratch.glob("okr")),
+                                      self.state("recovery")["blocking"]))
+        (self.root / "plans").unlink()
+        self.create()
+        (self.scratch / "p.md").write_bytes(self.plan.read_bytes())
+        (self.plan.parent / "2026-09-17-link.md").symlink_to(self.scratch / "p.md")
+        self.draft("show", "--path", "plans/okr/2026-09-17-link.md", code=1)
+        for rel in (f"{self.scratch}/plans/okr/2026-09-17-a.md", "plans/okr/2026-09-17-a.txt",
+                    "plans/okr/../../2026-09-17-a.md", "plans/okr/2026-02-30-a.md",
+                    "plans/quarter/2026-09-17-a.md", "plans/okr/2026-09-17-A.md"):
+            with self.subTest(rel=rel):   # a valid plan sits where each resolves
+                (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
+                (self.root / rel).write_bytes(self.plan.read_bytes())
+                self.draft("show", "--path", rel, code=1)
+
+    def test_recovery_blocks_a_draft_write(self):
+        (self.root / ".perry-task-transaction.json").write_text("{}")
+        self.assertIn("recovery", self.create(code=1))
+        self.assertFalse((self.root / "plans").exists())
+
+    def test_a_failed_publish_leaves_old_bytes_and_no_temp(self):
+        self.create()
+        before = self.plan.read_bytes()
+        with mock.patch("os.replace", side_effect=OSError("disk full")):
+            self.change("update", "--step", "q3", code=1)
+        self.assertEqual([before], [p.read_bytes() for p in self.plan.parent.iterdir()])
+        self.plan.unlink()
+        with mock.patch("os.link", side_effect=OSError("disk full")):
+            self.create(code=1)
+        self.assertEqual([], list(self.plan.parent.iterdir()))
+
+    def test_the_question_budget_and_unsupported_routes(self):
+        self.create()
+        for _ in range(7):
+            self.change("update", "--ask")
+        self.change("update", "--ask", code=1)
+        self.assertEqual(8, self.draft("show", "--path", self.REL)["meta"]["questions_asked"])
+        for horizon, route in (("phase", "first"), ("okr", "revision")):
+            self.assertTrue(self.draft(
+                "create", "--horizon", horizon, "--route", route, "--date",
+                "2026-09-18", "--slug", "x", "--target", "OKR.md", "--step",
+                "q1", code=1, body="x\n")["unsupported"])
+        (self.root / "OKR.md").write_text("# OKR\n")
+        self.assertTrue(self.create(code=1)["unsupported"])
+
+    def test_flags_are_exact_and_dry_run_writes_nothing(self):
+        self.create("x\n", 0, "--dry-run")
+        self.assertFalse((self.root / "plans").exists())
+        for argv in (["create", "--path", self.REL], ["show"], ["bogus"],
+                     ["show", "--path", self.REL, "extra"],
+                     ["update", "--path", self.REL, "--expect-sha256", "x",
+                      "--status", "approved", "--actor", "a"],
+                     ["approve", "--path", self.REL, "--expect-sha256", "x"],
+                     ["show", "--path", self.REL, "--path", self.REL],
+                     ["show", "--path"]):
+            with self.subTest(argv=argv):
+                r = inproc.run("perry-goals", ["draft", *argv, "--root", str(self.root)])
+                self.assertEqual(2, r.returncode, r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

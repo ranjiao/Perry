@@ -13,6 +13,7 @@ goes back; every reader here takes whichever of the two it actually needs."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -5312,6 +5313,291 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
         weekly=walk_weekly(root),
     )
 
+
+# ── startup recovery: moved from `bin/perry-state` (TASK-444) so a writer can
+# ask the same gate without importing another tool (`bin/ARCHITECTURE.md § 3`).
+
+
+def recovery_enums() -> dict:
+    """The pipeline vocabulary needed to decide whether resume is safe."""
+    try:
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return schema.get("enums") or {}
+
+
+def inspect_dossier(path: Path, pipeline: str) -> tuple[dict, list[str]]:
+    """Read the small frontmatter subset required for safe resume.
+
+    Full YAML/schema conformance remains `perry-lint`'s job. This check only
+    prevents a damaged restore point from disappearing or being offered as a
+    resumable run during startup.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        return {}, [f"cannot read dossier: {type(exc).__name__}: {exc}"]
+
+    if not lines or lines[0].strip() != "---":
+        return {}, ["missing opening frontmatter delimiter"]
+    closing = next((i for i, line in enumerate(lines[1:], 1)
+                    if line.strip() == "---"), None)
+    if closing is None:
+        return {}, ["missing closing frontmatter delimiter"]
+
+    fm: dict[str, str] = {}
+    for line in lines[1:closing]:
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", line)
+        if m:
+            fm[m.group(1)] = m.group(2).strip().strip('"\'')
+
+    discriminator = "adoption" if pipeline == "adopt" else "diagnosis"
+    stage_enum = f"{discriminator}_stage"
+    enums = recovery_enums()
+    errors: list[str] = []
+    if fm.get(discriminator) != "1":
+        errors.append(f"expected {discriminator}: 1")
+
+    stage = (fm.get("stage") or "").strip()
+    stages = enums.get(stage_enum)
+    if not stage:
+        errors.append("missing stage")
+    elif not isinstance(stages, list):
+        errors.append(f"schema enum unavailable: {stage_enum}")
+    elif stage not in stages:
+        errors.append(f"invalid stage: {stage}")
+    else:
+        step = (fm.get("step") or "").strip()
+        enum_by_stage = {
+            ("adopt", "confirm"): "adoption_step_confirm",
+            ("adopt", "commit"): "adoption_step_commit",
+            ("diagnose", "interview"): "diagnosis_step_interview",
+        }
+        step_enum = enum_by_stage.get((pipeline, stage))
+        if step and step_enum:
+            allowed = enums.get(step_enum)
+            if not isinstance(allowed, list):
+                errors.append(f"schema enum unavailable: {step_enum}")
+            elif step not in allowed:
+                errors.append(f"invalid step for {stage}: {step}")
+        if step and pipeline == "diagnose" and stage == "execute" \
+                and re.fullmatch(r"rx-\d+", step) is None:
+            errors.append(f"invalid step for execute: {step}")
+    return fm, errors
+
+
+def dossier_records(perry_root: Path) -> list[dict]:
+    out: list[dict] = []
+    for pipeline, sub in (("adopt", "adoption"), ("diagnose", "diagnose")):
+        directory = perry_root / ".perry" / sub
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.glob("*.md")):
+            fm, errors = inspect_dossier(path, pipeline)
+            out.append({
+                "pipeline": pipeline,
+                "path": path.relative_to(perry_root).as_posix(),
+                "file": path,
+                "frontmatter": fm,
+                "errors": errors,
+            })
+    return out
+
+
+def display_path(path: Path, project_root: Path) -> str:
+    try:
+        return path.relative_to(project_root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def scan_recovery(state_root: Path, project_root: Path) -> dict:
+    """Startup hazards that require repair before normal state is trusted."""
+    pending: list[dict] = []
+    marker = state_root / ".perry-task-transaction.json"
+    if marker.exists():
+        error = None
+        phase = None
+        entries = None
+        try:
+            transaction = json.loads(marker.read_text(encoding="utf-8"))
+            if not isinstance(transaction, dict):
+                raise ValueError("expected a JSON object")
+            phase = transaction.get("phase", "commit")
+            raw_entries = transaction.get("entries")
+            entries = len(raw_entries) if isinstance(raw_entries, list) else None
+            if transaction.get("version") != 1:
+                raise ValueError("version must be 1")
+            if not isinstance(raw_entries, list):
+                raise ValueError("entries must be a list")
+            if phase not in {"commit", "rollback"}:
+                raise ValueError("phase must be commit or rollback")
+        except (OSError, ValueError, TypeError) as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        pending.append({
+            "path": display_path(marker, project_root),
+            "valid": error is None,
+            "phase": phase,
+            "entries": entries,
+            "error": error,
+        })
+
+    malformed = [
+        {"pipeline": row["pipeline"], "path": row["path"],
+         "errors": row["errors"]}
+        for row in dossier_records(project_root) if row["errors"]
+    ] + [{"pipeline": "plan", "path": display_path(state_root / e["path"],
+                                                   project_root),
+          "errors": e["errors"]} for e in scan_plans(state_root)[1]]
+    return {
+        "blocking": bool(pending or malformed),
+        "pending_transactions": pending,
+        "malformed_dossiers": malformed,
+    }
+
+
+
+# ── planning drafts: `<state root>/plans/<horizon>/<date>-<slug>.md` ────────
+# DESIGN-020 § 5.5, TASK-444: the one reader of plan frontmatter, for goals,
+# state and lint. The body is hashed and transported, never read for meaning.
+
+PLAN_DIR = "plans"
+PLAN_KEYS = ("horizon", "route", "status", "step", "answered", "target",
+             "created", "updated", "finalized_refs", "questions_asked",
+             "approved_sha256")
+#: What `approved_sha256` binds. Lifecycle bookkeeping (`status`, `updated`,
+#: `finalized_refs`, the digest itself) is left out so it cannot self-refer.
+PLAN_APPROVAL_KEYS = ("horizon", "route", "target", "created", "step",
+                      "answered", "questions_asked")
+PLAN_QUESTION_CAP = 8
+PLAN_NAME = re.compile(r"(\d{4}-\d{2}-\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md")
+_PLAN_Q = re.compile(rf"q[1-{PLAN_QUESTION_CAP}]")
+
+
+@lru_cache(maxsize=1)
+def plan_enums() -> dict:
+    try:
+        enums = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))["enums"]
+    except Exception:
+        return {}
+    return {k: tuple(enums.get(f"plan_{k}") or ()) for k in ("horizon", "route", "status")}
+
+
+def real_date(value) -> date | None:
+    try:
+        return date.fromisoformat(value) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def plan_file(state_root: Path, rel: str) -> tuple[Path | None, str | None]:
+    """`(path, None)` for `plans/<horizon>/<real date>-<slug>.md` — a grammar
+    `..`, `/` and depth cannot pass — with no linked component; else `(None, why)`."""
+    parts = rel.split("/")
+    m = PLAN_NAME.fullmatch(parts[-1])
+    if (len(parts) != 3 or parts[0] != PLAN_DIR or not m or real_date(m[1]) is None
+            or parts[1] not in plan_enums().get("horizon", ())):
+        return None, (f"{rel!r} is not {PLAN_DIR}/<horizon>/<YYYY-MM-DD>-<slug>.md "
+                      f"(declared horizon, real date, a-z0-9 and hyphen slug)")
+    path = state_root / rel
+    link = next((p for p in (path.parent.parent, path.parent, path) if p.is_symlink()), None)
+    return (None, f"{link} is a symbolic link") if link else (path, None)
+
+
+def plan_approval_digest(meta: dict, body: str) -> str:
+    """SHA-256: sorted compact unescaped JSON of those keys, LF, body bytes."""
+    image = json.dumps({k: meta.get(k) for k in PLAN_APPROVAL_KEYS}, sort_keys=True,
+                       separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(image.encode() + b"\n" + body.encode()).hexdigest()
+
+
+def parse_plan(raw: bytes, rel: str) -> dict:
+    """`path`, raw `sha256`, `errors`; if valid, `meta`, opaque `body`, and
+    `approval_valid` — a stored approval holds only while its digest matches."""
+    out: dict = {"path": rel, "sha256": hashlib.sha256(raw).hexdigest(), "errors": []}
+    err = out["errors"].append
+    try:
+        front, body = split_frontmatter(raw.decode("utf-8"))
+        meta = parse_yaml_subset(front) if front.strip() else None
+    except (UnicodeDecodeError, ValueError) as exc:
+        meta, front = f"unreadable frontmatter: {exc}", ""
+    if not isinstance(meta, dict):
+        err(meta if isinstance(meta, str) else "missing `---` frontmatter mapping")
+        return out
+    keys = re.findall(r"^([A-Za-z_][\w-]*)[ \t]*:", front, re.M)
+    for what, names in (("duplicate", sorted({k for k in keys if keys.count(k) > 1})),
+                        ("missing", [k for k in PLAN_KEYS if k not in meta]),
+                        ("unknown", sorted(set(meta) - set(PLAN_KEYS)))):
+        if names:
+            err(f"{what} key(s): {', '.join(names)}")
+    if out["errors"]:
+        return out
+    m, enums = meta, plan_enums()
+    for k in ("horizon", "route", "status"):
+        if m[k] not in enums.get(k, ()):
+            err(f"{k}: {m[k]!r} is not one of {list(enums.get(k, ()))}")
+    qids = isinstance(m["answered"], list) and all(
+        isinstance(q, str) and _PLAN_Q.fullmatch(q) for q in m["answered"])
+    created, updated = real_date(m["created"]), real_date(m["updated"])
+    sha, refs, asked = m["approved_sha256"], m["finalized_refs"], m["questions_asked"]
+    for bad, why in (
+            (rel.split("/")[1:2] != [m["horizon"]], "horizon differs from its directory"),
+            (m["status"] == "interviewing" and not (
+                isinstance(m["step"], str) and _PLAN_Q.fullmatch(m["step"])),
+             "step: an interviewing plan names its pending question q1-q8"),
+            (m["status"] != "interviewing" and m["step"] != "",
+             'step: must be "" unless interviewing; an interviewing plan is not approved'),
+            (not qids or len(set(m["answered"])) != len(m["answered"]),
+             "answered: must be unique q1-q8 ids"),
+            (not isinstance(m["target"], str) or not m["target"]
+             or (m["horizon"] == "okr" and m["target"] != "OKR.md"),
+             "target: not this horizon's destination"),
+            (not created or not updated or created > updated,
+             "created/updated: real YYYY-MM-DD dates, created first"),
+            (not isinstance(refs, list) or not all(isinstance(r, str) and r for r in refs)
+             or (refs and m["status"] != "finalized"),
+             "finalized_refs: ids/paths, and only once finalized"),
+            (type(asked) is not int or not 0 <= asked <= PLAN_QUESTION_CAP,
+             f"questions_asked: 0-{PLAN_QUESTION_CAP}; at the cap, draft with explicit unknowns"),
+            (not (sha is None or isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{64}", sha))
+             or (sha is not None) != (m["status"] in ("approved", "finalized")),
+             "approved_sha256: 64 lowercase hex exactly when approved/finalized, else null")):
+        if bad:
+            err(why)
+    if not out["errors"]:
+        out.update(meta=m, body=body, approval_sha256=plan_approval_digest(m, body))
+        out["approval_valid"] = sha == out["approval_sha256"]
+    return out
+
+
+def scan_plans(state_root: Path) -> tuple[list[dict], list[dict]]:
+    """`(valid plans, errors)`: every entry under `plans/` but an in-flight
+    `lib.stage` temp is a plan or an error row, never skipped as no draft."""
+    plans, errors, top = [], [], state_root / PLAN_DIR
+    try:
+        if top.is_symlink() or (top.exists() and not top.is_dir()):
+            return [], [{"path": PLAN_DIR, "errors": ["not a real directory"]}]
+        found = [p for h in (sorted(top.iterdir()) if top.is_dir() else [])
+                 for p in (sorted(h.iterdir()) if h.is_dir() and not h.is_symlink()
+                           and h.name in plan_enums().get("horizon", ()) else [h])]
+    except OSError as exc:
+        return [], [{"path": PLAN_DIR, "errors": [f"unreadable: {exc}"]}]
+    for f in found:
+        rel = f.relative_to(state_root).as_posix()
+        if re.fullmatch(rf"{PLAN_DIR}/[a-z]+/tmp.*\.tmp", rel):
+            continue
+        (path, why), rec = plan_file(state_root, rel), None
+        try:
+            rec = parse_plan(f.read_bytes(), rel) if path and f.is_file() else None
+        except OSError as exc:
+            why = f"unreadable: {exc}"
+        if rec and not rec["errors"]:
+            plans.append({**rec, "file": str(path)})
+        else:
+            errors.append({"path": rel, "errors": rec["errors"] if rec else
+                           [why or "not a plan file"]})
+    return plans, errors
 
 if __name__ == "__main__":
     s = load_snapshot()

@@ -399,6 +399,17 @@ reason on stderr and nothing on stdout. An abandoned `/perry adopt` or `/perry
 diagnose` also reads `installed: false` — `perry-state --section interrupted` is
 what tells it from a folder that has never heard of Perry.
 
+**Planning drafts** (`files[id=plan]`, `plans/<horizon>/<date>-<slug>.md`,
+TASK-444) are computed on both branches too, by `viewer/parsers.py §
+scan_plans`. `perry-state` carries them as `drafts: {plans, drafted, errors}`
+— each plan's typed frontmatter, `sha256`, `approval_valid` and
+`finalize_available: false`, never its body (`perry-goals draft show` transports
+that). `drafts.drafted` counts drafts awaiting review and is `null`, never `0`,
+while any entry under `plans/` is unreadable; those entries are
+`recovery.malformed_dossiers` rows with `pipeline: plan`, and `recovery` blocks.
+An interviewing draft is an `interrupted` row with `pipeline: plan`. A draft is
+not canonical state and does not make a directory installed.
+
 ## Changing the format
 
 Change the schema **first**, then the template, then the parser, then the

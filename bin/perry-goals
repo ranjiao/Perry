@@ -103,6 +103,11 @@ Usage:
       increase · decrease · at_least · at_most · done. Both take `--dry-run`,
       and both REQUIRE `--actor <who>` (USER-950): without it, exit 2.
 
+  perry-goals draft create|show|update|approve|abandon|finalize …
+      A planning draft, plans/okr/<date>-<slug>.md (TASK-444, DESIGN-020 §
+      5.5); `draft` must be the first argument. Flags per mode, the approval
+      rule and the unsupported finalize: `goals/reference/planning.md`.
+
   Every writer requires a non-empty, single-line `--actor` (USER-950).
 
   `link` appends to `linkage.jsonl` for the CURRENT phase.
@@ -134,6 +139,7 @@ No LLM, no external dependencies (stdlib only). DESIGN-005.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -715,8 +721,9 @@ def owned_by_goals(relative: str) -> bool:
     # `kr` — and nothing mechanical enforces that yet, which is why every
     # record this tool writes carries `actor` and `via` (§ 7's mitigation:
     # auditable before it is enforced).
+    # `plans/` — the planning drafts, DESIGN-020 decision 5 (TASK-444).
     return (relative in ("OKR.md", P.LINKAGE_STORE)
-            or relative.startswith("phase/"))
+            or relative.startswith(("phase/", "plans/")))
 
 
 HANDOFF = {
@@ -3653,6 +3660,249 @@ def cmd_check(args, ctx) -> dict:
                        if prior else None)})
 
 
+# ── draft: a first-OKR planning draft (TASK-444, DESIGN-020 § 5.5) ────────
+# Frontmatter validated by `parsers § parse_plan`; the body is copied and
+# hashed, never read. Only okr/first is written, and never a canonical goal.
+
+_DRAFT_WRITE = "--root --path --expect-sha256 --actor --dry-run --json"
+DRAFT_FLAGS = {mode: tuple(flags.split()) for mode, flags in {
+    "create": "--root --horizon --route --date --slug --target --body-file "
+              "--step --answered --ask --actor --dry-run --json",
+    "show": "--root --path --json", "finalize": "--root --path --json",
+    "update": _DRAFT_WRITE + " --body-file --step --answered --status --ask",
+    "approve": _DRAFT_WRITE, "abandon": _DRAFT_WRITE}.items()}
+DRAFT_OPTIONAL = set("--answered --ask --dry-run --json --body-file --step --status".split())
+DRAFT_MISSING = [
+    "an overall-OKR authoring writer (mission, objectives, version block); "
+    "the perry-okr importer reads an existing OKR.md and authors nothing",
+    "a KR add/restate/withdraw writer (TASK-264, not built)"]
+
+
+def refusal(msg: str, **details) -> Refused:  # typed details for `--json`
+    exc = Refused(msg + ". Nothing was written")
+    exc.details = details
+    return exc
+
+
+def parse_draft(argv: list[str]) -> tuple[str, dict]:
+    """`(mode, {flag: value})`; anything malformed exits 2, by name."""
+    def usage(msg: str):
+        print(f"perry-goals draft: {msg} (try --help)", file=sys.stderr)
+        sys.exit(2)
+    mode, vals, i = (argv or [""])[0], {}, 1
+    if mode not in DRAFT_FLAGS:
+        usage(f"expected a mode: {' / '.join(DRAFT_FLAGS)}")
+    while i < len(argv):
+        t = argv[i]
+        if t not in DRAFT_FLAGS[mode] or t in vals:
+            usage(f"`draft {mode}` takes each of {' '.join(DRAFT_FLAGS[mode])} "
+                  f"at most once, not {t!r}")
+        if t in ("--ask", "--dry-run", "--json"):
+            vals[t] = True
+        elif i + 1 >= len(argv) or argv[i + 1].startswith("--"):
+            usage(f"{t} takes a value")
+        else:
+            i += 1
+            vals[t] = argv[i]
+            if lib.empty_root_error(t, argv[i]):
+                usage(lib.empty_root_error(t, argv[i]))
+        i += 1
+    missing = [f for f in DRAFT_FLAGS[mode] if f not in DRAFT_OPTIONAL | set(vals)]
+    actor = vals.get("--actor", "-")
+    for bad, msg in ((missing, f"`draft {mode}` needs {' '.join(missing)}"),
+                     (vals.get("--status") not in (None, "interviewing", "drafted"),
+                      "--status takes interviewing or drafted; approval is `draft approve`"),
+                     (not actor.strip() or set(actor) & {"\n", "\r"},
+                      "--actor must be a non-empty single line (USER-950)")):
+        if bad:
+            usage(msg)
+    return mode, vals
+
+
+def render_plan(meta: dict, body: str) -> str:
+    """The frontmatter in one stable shape, then the body byte for byte."""
+    q = lambda v: json.dumps(v, ensure_ascii=False)  # noqa: E731
+    return "\n".join([
+        "---", f"horizon: {meta['horizon']}", f"route: {meta['route']}",
+        f"status: {meta['status']}", f"step: {meta['step'] or q('')}",
+        f"answered: [{', '.join(meta['answered'])}]",
+        f"target: {q(meta['target'])}", f"created: {meta['created']}",
+        f"updated: {meta['updated']}",
+        f"finalized_refs: [{', '.join(map(q, meta['finalized_refs']))}]",
+        f"questions_asked: {meta['questions_asked']}",
+        f"approved_sha256: {q(meta['approved_sha256'])}", "---", ""]) + body
+
+
+def read_body(value: str, plan: Path) -> str:
+    """`--body-file`: opaque UTF-8 prose, only read, never the plan itself."""
+    src = Path(value).expanduser()
+    try:
+        if not src.is_file() or src.resolve() == plan.resolve():
+            raise OSError("not a readable file other than the plan")
+        body = src.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise refusal(f"--body-file {value}: {exc}")
+    if not body.strip() or body.lstrip("﻿").startswith("---"):
+        raise refusal("--body-file must be non-empty and must not open with a "
+                      "`---` fence: the frontmatter is this tool's")
+    return body
+
+
+def draft_gate(project_root: Path, state_root: Path, rec: dict | None,
+               expect: str | None = None) -> None:
+    """Under the lock: recovery must not block, and a plan being changed must
+    be valid, okr/first, not terminal, and the bytes last read."""
+    rc = P.scan_recovery(state_root, project_root)
+    if rc["blocking"]:
+        raise refusal("recovery is blocking: " + ", ".join(
+            r["path"] for r in rc["pending_transactions"] + rc["malformed_dossiers"])
+            + "; repair it first", recovery=rc)
+    m = (rec or {}).get("meta") or {}
+    why = rec and ("; ".join(rec["errors"]) or (
+        "only okr/first drafts are written"
+        if (m["horizon"], m["route"]) != ("okr", "first") else
+        f"{m['status']} is terminal" if m["status"] in ("abandoned", "finalized")
+        else None))
+    if why:
+        raise refusal(f"{rec['path']}: {why}", errors=rec["errors"])
+    if rec and rec["sha256"] != expect:
+        raise refusal(f"{rec['path']} changed since it was read (expected "
+                      f"{expect}, now {rec['sha256']}). Re-read it with `draft "
+                      f"show`, keep its edits, and prepare the change against it",
+                      conflict=True, current_sha256=rec["sha256"])
+
+
+def publish_plan(path: Path, rel: str, meta: dict, body: str,
+                 expect: str | None, dry_run: bool) -> dict:
+    """Validate the exact image, then publish it: create-only by a hard link
+    refusing an existing name, else replace after a last re-read, which
+    narrows (cannot close) the race with an editor that takes no lock."""
+    text = render_plan(meta, body)
+    rec = P.parse_plan(text.encode("utf-8"), rel)
+    if rec["errors"]:
+        raise refusal("the draft would be invalid: " + "; ".join(rec["errors"]),
+                      errors=rec["errors"])
+    if not dry_run and expect is None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = lib.stage(path, text)
+        try:
+            os.chmod(tmp, 0o644)
+            os.link(tmp, path)
+        except FileExistsError:
+            raise refusal(f"a plan already exists at {rel}", existing=rel)
+        finally:
+            os.unlink(tmp)
+    elif not dry_run:
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expect:
+            raise refusal(f"{rel} changed during this write", conflict=True)
+        lib.write_atomic(path, text)
+    return {"path": rel, "file": str(path), "written": not dry_run,
+            "sha256": rec["sha256"], "status": meta["status"],
+            "step": meta["step"], "questions_asked": meta["questions_asked"],
+            "approval_valid": rec["approval_valid"], "finalize_available": False}
+
+
+def draft_command(mode: str, v: dict) -> dict:
+    project_root = Path(v["--root"]).expanduser().resolve()
+    state_root = P.resolve_state_root(project_root).resolve()
+    if not state_root.is_relative_to(project_root):
+        raise Refused(f"state root {state_root} is outside {project_root}")
+    qids = lambda s: [q.strip() for q in s.split(",") if q.strip()]  # noqa: E731
+    horizon = v.get("--horizon", "okr")
+    rel = v.get("--path") or f"{P.PLAN_DIR}/{horizon}/{v['--date']}-{v['--slug']}.md"
+    if mode == "create" and (horizon, v["--route"]) != ("okr", "first"):
+        raise refusal(f"{horizon}/{v['--route']} is unsupported: only okr/first "
+                      f"drafts are written", unsupported=True)
+    path, why = P.plan_file(state_root, rel)
+    if why or (mode != "create" and not path.is_file()):
+        raise Refused(why or f"no plan at {rel}")
+    if mode in ("show", "finalize"):
+        rec = {**P.parse_plan(path.read_bytes(), rel), "file": str(path),
+               "project_path": P.display_path(path, project_root),
+               "finalize_available": False}
+        if mode == "finalize":
+            raise refusal(f"finalize is unavailable for {rel}: no writer exists "
+                          f"for {' / '.join(DRAFT_MISSING)}", written=False,
+                          missing=DRAFT_MISSING,
+                          approval_valid=rec.get("approval_valid"))
+        return rec
+    assert_owned(state_root, path)
+    today, dry = date.today().isoformat(), bool(v.get("--dry-run"))
+    if mode == "create":
+        meta = {"horizon": "okr", "route": "first", "status": "interviewing",
+                "step": v["--step"], "answered": qids(v.get("--answered", "")),
+                "target": v["--target"], "created": v["--date"],
+                "updated": v["--date"], "finalized_refs": [],
+                "questions_asked": int(bool(v.get("--ask"))),
+                "approved_sha256": None}
+        body = read_body(v["--body-file"], path)
+        lib.refuse_write_unless_installed(project_root, ("okr.jsonl",), Refused)
+        if any((state_root / n).exists() for n in ("OKR.md", "okr.jsonl")):
+            raise refusal("an overall OKR already exists: the first route is for "
+                          "a project with none, and revision drafts are "
+                          "unsupported", unsupported=True)
+        with project_lock(state_root):
+            draft_gate(project_root, state_root, None)
+            if path.exists():
+                raise refusal(f"a plan already exists at {rel}", existing=rel)
+            return publish_plan(path, rel, meta, body, None, dry)
+    with project_lock(state_root):
+        rec = P.parse_plan(path.read_bytes(), rel)
+        draft_gate(project_root, state_root, rec, v["--expect-sha256"])
+        meta, body = dict(rec["meta"]), rec["body"]
+        unchanged = {"path": rel, "written": False, "status": meta["status"],
+                     "approval_valid": rec["approval_valid"],
+                     "finalize_available": False}
+        if mode == "approve":
+            if meta["status"] == "approved" and rec["approval_valid"]:
+                return unchanged
+            meta.update(status="approved", approved_sha256=rec["approval_sha256"])
+        elif mode == "abandon":
+            meta.update(status="abandoned", step="", approved_sha256=None)
+        else:
+            if "--body-file" in v:
+                body = read_body(v["--body-file"], path)
+            meta.update(step=v.get("--step", meta["step"]),
+                        answered=qids(v.get("--answered", ",".join(meta["answered"]))),
+                        status=v.get("--status", meta["status"]))
+            if v.get("--ask"):     # past the cap, `parse_plan` refuses the image
+                if meta["status"] != "interviewing":
+                    raise refusal("--ask records a question; only an interviewing plan asks one")
+                meta["questions_asked"] += 1
+            if meta == rec["meta"] and body == rec["body"]:
+                return unchanged
+            meta.update(approved_sha256=None, status=meta["status"].replace(
+                "approved", "drafted"))
+        meta["updated"] = today
+        return publish_plan(path, rel, meta, body, v["--expect-sha256"], dry)
+
+
+def draft_main(argv: list[str]) -> int:
+    if "--help" in argv or "-h" in argv:
+        print(__doc__.strip())
+        return 0
+    mode, v = parse_draft(argv)
+    try:
+        result = draft_command(mode, v)
+    except Refused as exc:
+        if v.get("--json"):
+            print(json.dumps({"refused": str(exc), **getattr(exc, "details", {})},
+                             ensure_ascii=False, indent=2))
+        else:
+            print(f"perry-goals: refused — {exc}", file=sys.stderr)
+        return 1
+    if v.get("--json") or mode == "show":
+        # `show` is always the payload: the body verbatim, for the agent to
+        # read and summarize. This tool summarizes nothing.
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"perry-goals: {'wrote' if result['written'] else 'did not write'}"
+              f" {result['path']} · {result['status']} · sha256 "
+              f"{result.get('sha256', 'unchanged')}"
+              + (" · finalize unavailable" * (result["status"] == "approved")))
+    return 0
+
+
 COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link,
             "krs": cmd_krs, "measure": cmd_measure, "check": cmd_check}
 
@@ -3812,6 +4062,8 @@ def handoff_line(cid: str) -> str:
 
 
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["draft"]:
+        return draft_main(argv[1:])
     try:
         args = parse(argv)
     except Refused as exc:

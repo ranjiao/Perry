@@ -420,7 +420,9 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
              # `linkage.jsonl`, never OKR.md, through this tool's own
              # `write_atomic` and so behind `assert_owned`.
              'write_atomic(ctx["state_root"], path, '
-             'append_linkage_records(ctx, [record]))'],
+             'append_linkage_records(ctx, [record]))',
+             # `publish_plan` (TASK-444): a `plans/okr/*.md` draft past `assert_owned`.
+             "lib.write_atomic(path, text)"],
             "a write call site was added or moved; check it is gated")
 
 

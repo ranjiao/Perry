@@ -1,8 +1,8 @@
 # Shared goal discussion and question bank
 
 Loaded through `goals/SKILL.md` for first OKR, revision, phase and commitments.
-The deliverable is a useful draft for review, not a claim that planning
-persistence or finalize writers exist. Keep `reference/input-quality.md` as the
+The deliverable is a useful draft for review. A first-OKR draft is persisted
+and resumed through `planning.md`; no finalize writer exists yet. Keep `reference/input-quality.md` as the
 unchanged quality authority. `phases.md` maps phase sections to this same bank;
 the week procedure remains at its own entrance.
 
@@ -305,11 +305,11 @@ missing baselines or undecided targets. Preserve advisory + override and record
 any user's stated override reason in the draft conversation; do not fabricate a
 journal receipt or silently rewrite their answers. If clean, say so briefly.
 
-This bank stops at that visible draft and quality feedback. It does not create
-`plans/`, claim resume support, write canonical goal stores, call an imagined
-finalize command or automatically start a phase. Approval/persistence/finalization
-must use the owning implementation when available; do not substitute manual store
-writes for missing tooling. The explicit commitment operation described under
+This bank stops at that draft and quality feedback. For the first-OKR route
+the draft lives in `plans/` and is saved, reviewed, approved and resumed only
+through `planning.md`; the other routes keep a chat draft. Nothing here writes
+canonical goal stores, finalizes, or automatically starts a phase; do not
+substitute manual store writes for missing tooling. The explicit commitment operation described under
 **Route and reuse** retains its existing writer; it does not supply overall
 planning finalization. No end-to-end interview quality gate is claimed here;
 that requires the independent transcript review, beyond mechanical pointer checks.
