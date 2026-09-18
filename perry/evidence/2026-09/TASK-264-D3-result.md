@@ -344,3 +344,161 @@ scratch (green, as quoted above).
 
 **Stop conditions:** none was hit. Phase 004's checks were not declared,
 `P004-O4-KR2` was not restated, and no live KR was written.
+
+## Repair round (USER-966), 2026-09-18
+
+> Scope: V4 review `c0d5cd00:perry/evidence/2026-09/TASK-264-D3-review/review.md`
+> (PASS-WITH-FINDINGS), findings F1, F3, F5 and F2 (the template).
+> Built on `b6101c77`, on the same branch. Code head `001cac10`; this section
+> is committed on top of it.
+> Not in scope, and not changed: F4, F6, F7, TASK-467 (the `commit`
+> objective-id bug).
+
+### F1 — `perry-state` counted and showed withdrawn KRs
+
+**Change** (`bin/perry-state`):
+
+- `phase.kr_total` now leaves withdrawn KRs out.
+- A new `phase.kr_withdrawn` reports the withdrawn count beside it. Existing
+  field names are unchanged.
+- Every KR entry in `phase.objectives[].krs[]` and `okr.objectives[].krs[]`
+  now carries `status`, `withdrawn_at`, `withdrawn_reason` and `revisions`.
+  These come from the same fold, and the overall KRs are keyed by the
+  version label.
+- `--compact` projects `status` on all three KR lists and projects
+  `phase.kr_withdrawn`.
+- `--dashboard` reads `… / 1 KRs (+1 withdrawn)`.
+- `goals/SKILL.md`'s snapshot rule says a withdrawn KR shows as withdrawn and
+  is not in `<KRs total>`.
+
+**Tests extended, none weakened:**
+
+- `test_compact_payload`: the key map gains `phase.kr_withdrawn`, and the
+  three name tuples gain `status`.
+
+**Test:**
+`TestReaders.test_perry_state_leaves_a_withdrawn_kr_out_of_kr_total_and_marks_it`
+checks `kr_total` and `kr_withdrawn` before and after, the `status` on both
+lists, the compact payload and the dashboard line.
+
+No contract page documents `perry-state`'s `phase` or `okr` block; the goals
+contract's `kr_total` is `perry-goals list`'s and is unchanged.
+
+**Mutations, all red:**
+
+| Mutation | Red test |
+|---|---|
+| F1a — `kr_total` counts withdrawn KRs | that test |
+| F1b — phase KR entries carry no `status` | that test |
+| F1c — overall KR entries carry no `status` | that test |
+| F1d — compact drops `status` | that test and `test_compact_payload…test_each_projection_still_picks_out_the_names_it_is_meant_to` |
+
+### F3 — a withdrawn KR still accepted new task edges
+
+**Change:**
+
+- `perry-task add --kr <withdrawn>` is refused. The refusal names the
+  withdrawal, `perry-goals krs` and `--unlinked`. Status comes from
+  `lib.kr_revisions`.
+- `perry-goals link`'s `Register` builds its graph with
+  `kr_fold=lib.fold_kr_records`. A new `refuse_withdrawn_target` refuses an
+  edge (`link <TASK> <KR>`) or a Project (`link --project`) on a withdrawn KR,
+  and names the active KRs and `link --unlinked <TASK>`.
+
+**Tests:** in `TestRefusals`, each with byte snapshots and an active-KR control:
+
+- `test_perry_task_add_kr_to_a_withdrawn_kr`
+- `test_link_an_edge_or_a_project_to_a_withdrawn_kr`
+- `test_link_reads_the_folded_graph`
+
+**Mutations, all red:**
+
+| Mutation | Red test |
+|---|---|
+| F3a — `add --kr` accepts a withdrawn KR | the `add` test |
+| F3b — `link` accepts a withdrawn KR | the `link` test |
+| F3c — `link` reads the unfolded graph | `test_link_reads_the_folded_graph` |
+
+### F5 — the overall append bypassed `assert_owned`
+
+**Change:**
+
+- `append_okr_record` now writes through the lane's
+  `write_atomic(state_root, store, …)`.
+- `owned_by_goals` now includes `okr.jsonl`, which is `owner: goals` in
+  `schema § claims`. Before this change `assert_owned` would have refused it.
+- The call-site registry in `test_okr_store_is_the_source` names the gated
+  call.
+
+**Test:** `TestRefusals.test_the_overall_append_goes_through_the_lane_gate`.
+
+- The test swaps `assert_owned` for a refusing stub and runs `kr withdraw`
+  on an overall KR in-process.
+- It expects exit 1, the gate asked once about `okr.jsonl`, and no byte
+  moved.
+
+**Mutation, red:** F5, putting back the direct `lib.write_atomic(store, …)`,
+turns that test red.
+
+### F2 — the shipped OKR template prescribed KR tables
+
+**Change:**
+
+- `goals/state/OKR_TEMPLATE.md` loses its three KR tables and gains the
+  pointer paragraph Perry's own `perry/OKR.md` carries: KRs live in
+  `okr.jsonl`, are added with `perry-goals kr add … --actor`, and are read
+  with `krs --level overall`. The objective headings stay.
+- `goals/reference/setup.md § Structural contract` no longer prescribes a KR
+  table. It says `OKR.md` holds the version blocks and objective headings,
+  that KRs are added by the `kr add` verb, and that a file carrying KR rows is
+  refused.
+- `goals/reference/elicitation.md` and `planning.md` carry no such
+  instruction, so they were not changed.
+
+**Tests:**
+
+- `TestAProjectFromTheTemplate.test_the_template_carries_no_kr_rows`: the
+  scan finds no `kr` site, and the objective headings survive.
+- `…test_a_project_instantiated_from_it_accepts_an_overall_kr_add`: the
+  template is filled, then `perry-okr write --from-file`, then
+  `perry-okr migrate-ids`, then `kr add O1-KR1`. The test expects exit 0, an
+  unchanged `OKR.md`, and the KR under `Objective 1`.
+
+**`test_parsers.TemplateContract.test_okr_template_yields_objectives_and_krs`
+was rewritten, not weakened.** It read `KR-O1.1` out of the template's table,
+which USER-966 removes. It now asserts, against the model the template ships:
+
+- every objective parses;
+- the store's KRs land under each objective by heading;
+- `stretch` is read;
+- a new check: no KR is read from the template's markdown.
+
+`perry-lint --templates` is clean. `test_shipped_vocabulary`,
+`test_procedures_call_the_tool`, `test_actor_required` (the new example names
+`--actor`) and `test_pointers_resolve` are green.
+
+**Mutation, red:** F2, putting one KR table row back in the template, turns
+both template tests and `test_parsers…test_okr_template_yields_objectives_and_krs`
+red.
+
+### Method, suites and size
+
+The script is `$TMPDIR/perry-scratch/<worktree>/mutate_repair.py`. Each run:
+
+- takes a fresh `git archive` of `001cac10`;
+- purges every `__pycache__`;
+- asserts each anchor occurs exactly once;
+- runs the named modules.
+
+All 9 repair mutations were red.
+
+| Run | Result |
+|---|---|
+| Affected, `--base b6101c77`, at `be888f95` | 120 modules; 1 red, `test_pointers_resolve` (a relative pointer in `setup.md`), fixed in `001cac10` and green alone |
+| Final affected, full, slow and `git diff --check` | quoted in the hand-off, on the commit carrying this section |
+
+Net lines against `5e5407ea`, at code head `001cac10`:
+
+- **production Python** +1,138 / −40, net **+1,098**. This round added +78
+  of them.
+- **test Python** +986 / −19, net **+967**. This round added +188 of them.
