@@ -151,9 +151,11 @@ The cost is about 5–10× the old tail read on the largest Claude file, but sti
 
 Suites (`PERRY_PROJECT` and `PERRY_HOME` unset, `__pycache__` purged first):
 - `bash tests/run`: 155 modules · 4,377 tests · 113.4 s · all green.
-- `bash tests/run --tier slow`: SLOW_RESULT.
+- `bash tests/run --tier slow`: 159 modules · 4,480 tests · 146.5 s · all green. This is the final clean run, on this review branch.
+  - My first slow run had every test green, but the tree guard flagged `perry/evidence/2026-09/TASK-468-review/`. That was me: I created the directory while the run was in progress, so it is not a suite write.
+  - My second run was red in `test_diagnose` (`test_perry_itself_passes_its_own_id_checks`, a dangling user-decision ID). The cause was this review file citing an ID that is defined only on main after `c48e25fe`. I reworded it, then re-ran `test_diagnose` alone (158 tests, OK) before the final run.
+  - Neither red run is attributable to the candidate.
 - `git diff --check c48e25fe 5f182d3c`: clean.
-- No red module, so nothing needed a re-run alone.
 
 ## Mutation table (mine)
 
