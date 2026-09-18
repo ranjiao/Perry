@@ -204,3 +204,156 @@ The suite is green on three real-data defects, H1, H2 and M1. No mutation is nee
 - **A real nested `codex exec` under Claude Code.** I did not run one. Only the fixture covers the precedence.
 - **Codex's semantics for a nonzero `cache_write_input_tokens`.** The field is never nonzero in local data.
 - **Whether other hosts or versions write workflow or other child transcripts in places the adapters do not look.** I checked only the layouts present on this machine.
+
+---
+
+## Re-review — repair round
+
+Date: 2026-09-18. Same reviewer, and I did not write the repair. Target: head `fe52036d` (repair code `5752ff71`), built on `5f182d3c`, base still `c48e25fe`. This review branch was replayed onto `fe52036d`. I read `git diff 5f182d3c fe52036d` and re-ran everything below myself before I read the author's repair section, and then checked its claims.
+
+VERDICT: PASS-WITH-FINDINGS
+
+H1, H2 and M1 are fixed, with the exact real-data figures reproduced. L3–L7 are resolved. No High remains. What is left:
+- one Medium. It is a live but unverified risk on the plain Claude CLI and must be settled before any later package relies on the gate there.
+- one Low I missed in round 1, which predates the repair;
+- two untested repair branches.
+
+### First-round findings
+
+| Finding | Status | Where |
+|---|---|---|
+| H1 Codex forked child double count | **Resolved** | `bin/perry-context-budget:218-229`. A counter's first request, and the first after a drop, is `total − last_token_usage`, and an inherited-only snapshot is skipped. Keyed on `last_token_usage`, not `forked_from_id`, so it also fixes the one real child without `forked_from_id` (see real data). Fixture `tests/test_context_budget.py:261-270`. |
+| H2 Workflow children invisible, coverage says complete | **Resolved** | `:181-182` counts `Workflow` calls. `:243` uses `rglob`. `:440-448` adds the workflow and unaccounted-child gaps, and workflow children are summed into `usage`. Fixture `:272-283`. |
+| M1 unrecorded reasoning reported as 0 | **Resolved** | `:188` (no default), `:152-156` (`None` allowed for reasoning only), `:450-453` and `not_measured`. Fixture `:235-239`. |
+| L3 running host overwritten | **Resolved** | `:454` uses `transcript_host`, and `host` stays the running host. |
+| L4 subprocess dependency undocumented, no timeout | **Resolved** | `:117-121` (10 s timeout; `OSError`/timeout reads as `unknown`) and `bin/ARCHITECTURE.md:62-69`. |
+| L5 cache-write rule unpinned | **Resolved (pinned by fixture)** | The forked-child fixture carries `cache_write_input_tokens=30` inside `input_tokens`. R7 is now killed. The host semantics are still undocumented, and the field is still always 0 in local data. |
+| L6 baseline protocol fields | **Resolved** | `TASK-468-baseline/README.md § Comparison-protocol fields`. I checked the spec and plan sha256 at `c48e25fe` independently, and both match. I recomputed the 99.16% cache share (35,567,461 / 35,867,952). `receipt.json` is unchanged. |
+| L7 autopilot prose | **Resolved** | `work/reference/autopilot.md:209-214`. |
+| L1 explicit `--session` gates, L2 resumed Claude file is `unknown` | Unchanged, as agreed | see Desktop below |
+
+### Real data (read-only, the same sources as round 1)
+
+- **H1.** Parent `019fa19d…` bound by `PERRY_HOST=codex-cli CODEX_THREAD_ID=…`:
+  - input + cached = 3,514,984 + 100,648,192 = **104,163,176**, exactly the independent figure;
+  - 2 of 2 children, `complete`.
+- **H1, no undercount.** I ran the `5f182d3c` and `fe52036d` `read_codex` on every local rollout under 100 MB (454; 5 larger ones skipped):
+  - **Plain rollouts:** 379, with 0 changed totals and 0 inherited first totals. Their summed requests equal the final total, including the 2 plain rollouts that have a counter reset.
+  - **Changed totals:** 17, all children with an inherited first total. In every case the change equals the inherited amount exactly.
+    - 16 are `forked_from_id` children.
+    - 1 is a child *without* `forked_from_id` (`019fac0b…`, 7,959,390 inherited), which the repair also handles correctly.
+  - **"Resumed" rollouts:** the only rollouts with two `session_meta` records are 5 forked children. Their totals are unchanged by the repair and equal their final totals. See R-L1 for a separate defect in them.
+- **H2 and M1.** `Gimegime-pmo/c5e0ef07…` via `--session`:
+  - `children {spawned 1, found 1, with_usage 1, workflow_calls 2, workflow_found 213}`;
+  - `coverage: partial`, with the Workflow gap;
+  - input 2,506,119 = 239,300 + 2,266,819;
+  - `reasoning: null`, and `not_measured` says "2174 of 2174".
+- **Timing:**
+
+  | Transcript | Time |
+  |---|---|
+  | Gimegime session (213 workflow children) | 0.80 s |
+  | 41 MB Perry transcript | 1.22 s |
+  | 405 MB Codex rollout | 1.83 s |
+
+### Desktop limitation (outcome b)
+
+- **Honestly documented.** Yes, for Desktop:
+  - `reference/host-capabilities.md:55` (the matrix row) and `:68-72`;
+  - `work/reference/autopilot.md:209-214`;
+  - `bin/README.md` § perry-context-budget;
+  - the tool's own reason string (`:422-424`).
+
+  Each says `unknown` there is not a clean budget and that autopilot falls back to `--max-dispatches`. Verified from this Desktop subagent: the default run gives `unknown`, exit 0, with the Desktop reason.
+- **Can a Claude subagent still get a clean verdict on its parent?**
+  - By default, no.
+  - With an explicit `--session <parent file>`, yes. Run from this subagent it printed `(…, explicit)`, `OVER — hand off and start a fresh session`, exit 1, with the parent's 386,228.
+  - This is the L1 path, accepted in round 1 as the caller's own assertion. On Desktop it is now the *only* way to get a verdict, main session included. The explicit path is not mentioned in `host-capabilities.md`, so an agent there does not learn that an explicit verdict is unverified (R-L3).
+
+### Remaining findings, ranked
+
+**Medium**
+
+- **R-M1. A plain-CLI subagent would bind its main session as `current`. This is a live risk, inferred rather than observed, and only partly documented.**
+  - **Why the risk is live.** The PMO's evidence shows `CLAUDE_CODE_CHILD_SESSION` marks Desktop, not a subagent, and `AI_AGENT` is identical in the main session and in subagents. This subagent's `CLAUDE_CODE_SESSION_ID` is its parent's id. So the runtime passes the parent's id to in-process subagents, and nothing in the evidence suggests the plain CLI does otherwise. On the plain CLI there is no flag at all, so `host_identity()` (`:122`) returns the shared id and `bind()` (`:414-431`) binds the parent transcript.
+  - **Simulated.** I blanked the flag in this subagent. The result was `(claude-code, session bcc8bb26…, current)`, `OVER`, exit 1 on the parent's 386,228 tokens. That is the original defect class, now labelled `current`, which the report treats as verified.
+  - **Documented** only in `bin/README.md:735-736`, as "probably holds … unverified".
+    - `reference/host-capabilities.md:55` still presents `CLAUDE_CODE_SESSION_ID` as binding the Claude session, with no plain-CLI caveat.
+    - `work/reference/autopilot.md` does not mention it.
+  - **Exposure today.** It is limited. The only instruction to run the gate is autopilot's stop check, which runs in the main session, where the binding is correct.
+  - **Required before a later package enables gate-driven advice on Claude** (the plan says "verify identity failures before enabling advice"):
+    - either check one real plain-CLI subagent's environment;
+    - or decide to treat `claude-code` without a distinguishing signal as `unknown`.
+
+    In either case, add the caveat to `host-capabilities.md`.
+
+**Low**
+
+- **R-L1 (pre-existing; I missed it in round 1). In a forked Codex child the last `session_meta` wins** (`:210`, `meta = payload`).
+  - Five forked children embed their parent's `session_meta` as a second record, so `read_codex` reports the *parent's* id as the child's session.
+  - Real parent `01a022e7…` reports `found 0` and the gap "3 of 3 spawned children have no usage", although those children carry usage. Coverage is correctly `partial`, but the stated reason is false and their usage is left out.
+  - Real child `01a022e9…`, bound by its own `CODEX_THREAD_ID`, reports `unknown` ("records session 01a022e7…").
+  - Both outcomes are fail-safe. The fix is for the first `session_meta` to win, plus a two-meta fixture.
+- **R-L2. Two repair branches are untested (surviving mutants S2 and S3).**
+  - S2 keys `last_token_usage` on `forked_from_id`. The fixture always sets `forked_from_id`, but real child `019fac0b…` inherits 7,959,390 tokens without it, so that regression would reintroduce the double count.
+  - S3 drops the zero-delta skip (`:227-228`). A forked child with no request of its own after the fork would then report a measured context of `0` instead of "no usage record".
+- **R-L3. The Desktop explicit path is undocumented** (see above).
+- **L2. A resumed Claude transcript is `unknown`.** Unchanged and fail-safe.
+
+**Info**
+- The Desktop check sits in both `host_identity()` (`:122`) and `bind()` (`:422`). The second only improves the message. That is not padding worth a finding.
+
+### Net lines (measured: `git diff --numstat c48e25fe fe52036d -- bin tests`)
+
+| File | Added | Deleted | Net |
+|---|---:|---:|---:|
+| `bin/perry-context-budget` | 267 | 154 | +113 |
+| `tests/test_context_budget.py` | 200 | 78 | +122 |
+| Total | | | +235 |
+
+The repair itself is +34 in the tool and +35 in tests. TASK-468 is unlinked, so the line count is not a finding. I looked for padding and found none: each added line serves one of the fixed findings or its test.
+
+### Mutations (mine)
+
+Method, the same as round 1:
+- one fresh `git archive fe52036d` tree per mutant;
+- every `__pycache__` purged;
+- `python3 -B -m unittest tests.test_context_budget`;
+- the unmutated tree is green.
+
+| # | Mutation | Result | Killing test |
+|---|---|---|---|
+| S1 | H1: first snapshot counted whole (base `{}`) | KILLED | forked-child test |
+| S2 | H1: `last_token_usage` honoured only with `forked_from_id` | **SURVIVED** | none (R-L2) |
+| S3 | H1: inherited zero-delta snapshot kept as a request | **SURVIVED** | none (R-L2) |
+| S4 | H2: `glob`, not `rglob` | KILLED | workflow test |
+| S5 | H2: a Workflow run leaves coverage complete | KILLED | workflow test |
+| S6 | H2: unaccounted child not a gap | KILLED | workflow test |
+| S7 | M1: unrecorded reasoning defaults to 0 | KILLED | reasoning test |
+| S8 | M1: mixed recorded and unrecorded reasoning summed as if 0 | KILLED | reasoning test |
+| S9 | L3: transcript host overwrites running host | KILLED | explicit-session test |
+| S10 | Desktop: `CHILD_SESSION` ignored in `host_identity` | KILLED | explicit-session test |
+| S11 | Desktop: shared id verifies explicit `--session` as current | KILLED | explicit-session test |
+| R7 | Codex cache-write not subtracted (re-run) | KILLED (survived in round 1) | forked-child test |
+| R1 | newest file in cwd slug (re-run) | KILLED (10 F, 11 E) | concurrent, worktree, newer-Claude-during-Codex, absent identity, … |
+| R2 | Claude dedup dropped (re-run) | KILLED | dedup test |
+| R4 | Codex cumulative counters summed (re-run) | KILLED | forked-child, codex deltas |
+
+### Suites (`PERRY_PROJECT` and `PERRY_HOME` unset, `__pycache__` purged)
+
+- `bash tests/run`: 155 modules · 4,379 tests · 100.3 s · all green.
+- `bash tests/run --tier slow`: 159 modules · 4,482 tests · 148.5 s · all green.
+- `git diff --check c48e25fe fe52036d` and `git diff --check 5f182d3c fe52036d`: clean.
+
+### Checking the author's repair claims
+
+- **Net lines and suite counts.** Reproduced: +113 / +122 / +235, and 4,379 / 4,482.
+- **H1, H2 and M1 real-data figures.** Reproduced exactly.
+- **"All 16 mutants killed".** Consistent with S1, S4–S11 and R7. Their set did not include S2 or S3.
+- **Open risk (plain CLI).** Stated honestly in the result and in `bin/README.md`, but not carried into `host-capabilities.md` (R-M1).
+
+### Still not verified
+
+- A real plain-CLI Claude subagent's environment (R-M1).
+- A real nested `codex exec` under Claude Code.
+- The semantics of a nonzero Codex `cache_write_input_tokens`.
