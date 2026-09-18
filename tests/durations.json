@@ -200,6 +200,10 @@
       "sec": 1.594,
       "source": "merge-2bdc5f79135b-2026-09-18T04:18:39.149402+00:00"
     },
+    "test_goals_kr_revisions.py": {
+      "sec": 0.77,
+      "source": "2026-09-18-task264-d3"
+    },
     "test_goals_kr_writer.py": {
       "sec": 1.387,
       "source": "merge-2bdc5f79135b-2026-09-18T04:18:39.149402+00:00"
@@ -880,6 +884,13 @@
       "workers": 4,
       "tier": "full",
       "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
+    },
+    "2026-09-18-task264-d3": {
+      "ref": "7ed1333c8ae5e912ae777c1e7d1d5384076a9b4e",
+      "taken": "2026-09-18T05:30:00Z",
+      "workers": 1,
+      "load1": 8.67,
+      "note": "ONE new module, test_goals_kr_revisions (TASK-264 deliverable 3), timed alone three times with `env -u PERRY_PROJECT -u PERRY_HOME python3 tests/parallel -j 1 --times test_goals_kr_revisions` in the agent worktree at the ref and recorded at the median of the harness per-module seconds: 1.31/0.77/0.65 (47 tests). No neighbour was re-timed: the modules that gained a registry line or a pinned version each gained one entry, which moves nothing measurable. load1 is the getloadavg sample taken right after the three runs."
     }
   }
 }
