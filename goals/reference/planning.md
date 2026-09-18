@@ -22,7 +22,7 @@ question**, so a new session can resume without reconstructing anything.
 | `answered` | coverage: unique q-ids. Not a count — a follow-up may revisit an id |
 | `questions_asked` | every question actually asked, follow-ups included; `--ask` adds one. The tool refuses a ninth: at eight, draft with explicit unknowns |
 | `approved_sha256` | set only by `draft approve`; cleared by any change. See *Approval* |
-| `decided_by` | the `--actor` of the `approve` or `abandon` that set the status; cleared by any later update. Drafts append no event, so this is the record of who decided |
+| `decided_by` | the `--actor` of the `approve` or `abandon` that set the status; cleared by any later update. Drafts append no event, so this is the record of who decided. It is hand-editable: a record, not proof of consent (USER-963) |
 | `created` / `updated` / `finalized_refs` | dates of the file and of its last write; `[]` in this slice |
 
 Python validates these fields and hashes the body. It never reads the body: it
