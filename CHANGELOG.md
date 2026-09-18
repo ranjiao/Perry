@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.14 — 2026-09-18
+
+patch · phase 004-guided · TASK-264 · delivery TASK-264-D3-20260918
+
+### Changes
+
+KRs are added, restated and withdrawn through `perry-goals kr add|restate|withdraw` at both levels. Each change appends a `kr_revision` record to the store that holds the KR (linkage.jsonl for phase KRs, okr.jsonl for overall KRs); one fold rule in bin/lib applies revisions in revised_at order. Every KR reports status and revisions with before/after values. A withdrawn KR leaves every denominator, is reported as withdrawn with its reason, and refuses check, measure and new task links. perry-goals/list is 3.6. The OKR template no longer carries KR table rows.
+
+
+### Upgrade notes
+
+Stop hand-appending KR records: use `perry-goals kr add|restate|withdraw`. Restate may change any non-identity field, including a target; the change is visible in revisions[]. perry-state's phase.kr_total now excludes withdrawn KRs and phase.kr_withdrawn counts them; perry-goals list's phase.kr_total still counts them. An OKR.md that still carries pre-TASK-236 KR table rows refuses overall kr writes; move KRs to okr.jsonl first. `draft finalize` still refuses. Local allocation only; no public release.
+
+
+### Breaking changes
+
+perry-state phase.kr_total excludes withdrawn KRs.
+
+
 ## 0.1.13 — 2026-09-18
 
 patch · phase 004-guided · TASK-444 · delivery TASK-444-draft-child-20260918
