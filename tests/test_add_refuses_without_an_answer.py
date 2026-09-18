@@ -421,7 +421,7 @@ class TestTheRefusalMakesNoVisibilityClaim(Base):
         page an agent reads IN ORDER to open a row. Deleting it from one is
         how a rule with several enforcement points stays half-true.
         """
-        page = (PERRY_HOME / "work" / "reference" / "subcommands.md").read_text()
+        page = (PERRY_HOME / "work" / "reference" / "add-task.md").read_text()
         bullet = [ln for ln in page.split("\n")
                   if "--unlinked` is a declaration to mean" in ln]
         self.assertEqual(len(bullet), 1,

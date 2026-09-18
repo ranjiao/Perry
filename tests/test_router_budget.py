@@ -1,30 +1,9 @@
-"""The tier-0 router has a byte budget, and every `§` citation must resolve.
+"""Location-based shipped prose budgets and section citation resolution.
 
-Two guards, both about the same failure: a router that grows until nobody reads
-it, and pointers that rot silently when it is cut down.
-
-**Why a byte budget at all.** `SKILL.md` is tier 0 — the host loads it on every
-single `/perry` invocation, before the agent knows which lane the request even
-belongs to. Every byte here is paid on every turn, including the turns that
-never touch it. Lane SKILL.md files are tier 1: loaded on demand, one at a time,
-and only when a request belongs to that lane. So the router's cap is a hard
-product constraint and the lanes' caps are drift alarms, and they are set by
-different reasoning — which is why the numbers below are not one number.
-
-`reference/*.md` pages are deliberately uncapped. They are tier 1 and the whole
-point of the extraction is that prose moved *there* costs nothing until it is
-needed; capping them would push the prose back into the file this test exists to
-protect.
-
-**Why the section half needs its own guard.** Perry's docs cross-reference by
-`<path>.md § <Section>`. The pointer checks that already existed resolve the
-path half only — `tests/test_claims.py § TestEveryDeclaredSubcommandHasAProcedure`
-checks that a lane's index names a file that exists. Nothing checked the section
-half, so renaming or deleting a heading dangled every citation to it silently.
-TASK-064 moved six section bodies out of the router and rewrote 60-odd
-citations; without this guard that edit is unreviewable.
-
-Run: python3 -m unittest discover -s tests   (or ./tests/run)
+DESIGN-017 §5.4: L0/L1 keep their existing caps; L2 is 32 KiB.
+Measured 2026-09-17 on 626832ec: 49 L3 pages, median 1,861 bytes,
+p90 10,480, maximum 22,809. A 24 KiB cap leaves the maximum 7.7% room.
+Schema contracts remain citation targets, not one of these prose tiers.
 """
 
 from __future__ import annotations
@@ -44,11 +23,14 @@ COVERS = (
 
 import re
 import unittest
+import tempfile
+from unittest.mock import patch
 from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 
 LANES = ("goals", "work", "decide")
+TIER_CAPS = {"L2": 32768, "L3": 24576}
 SHIPPED_DIRS = ("reference", "modes", "packs", "schema", "templates")
 
 # The router's cap is given by the product constraint, not by measurement:
@@ -243,22 +225,27 @@ def resolvable_citations():
             yield rel_page, n, path_half, section, quoted, targets
 
 
+def budgeted_pages():
+    for rel, cap in BUDGETS.items():
+        yield PERRY_HOME / rel, "L0" if rel == "SKILL.md" else "L1", cap
+    for tier, dirs in (("L2", ("reference", *(f"{lane}/reference" for lane in LANES))),
+                       ("L3", ("modes", "packs", "templates", *(f"{lane}/state" for lane in LANES)))):
+        for directory in dirs:
+            for page in sorted((PERRY_HOME / directory).rglob("*.md")):
+                yield page, tier, TIER_CAPS[tier]
+
+
+def budget_overflows():
+    return [f"{p.relative_to(PERRY_HOME)}: {tier} actual={p.stat().st_size} cap={cap}"
+            for p, tier, cap in budgeted_pages() if p.stat().st_size > cap]
+
+
 class TestByteBudget(unittest.TestCase):
     """A router nobody can afford to read routes nothing."""
 
     def test_every_budgeted_file_is_within_its_cap(self):
-        oversize = []
-        for rel, cap in BUDGETS.items():
-            size = (PERRY_HOME / rel).stat().st_size
-            if size > cap:
-                oversize.append(
-                    f"{rel}: {size} bytes > {cap} cap (over by {size - cap})")
-        self.assertEqual(
-            oversize, [],
-            "a budgeted SKILL.md outgrew its cap. Move a section body into a "
-            "`reference/` page and leave a one-line pointer — do not raise the "
-            "cap without deciding that the file should be bigger:\n    "
-            + "\n    ".join(oversize))
+        oversize = budget_overflows()
+        self.assertEqual(oversize, [], "\n".join(oversize))
 
     def test_the_router_is_the_smallest_budget(self):
         """Guards the guard. If a lane cap were ever set below the router's,
@@ -271,16 +258,22 @@ class TestByteBudget(unittest.TestCase):
                 f"{lane}/SKILL.md is budgeted at or below the tier-0 router, "
                 f"which inverts the cost model these caps encode")
 
-    def test_reference_pages_are_deliberately_uncapped(self):
-        """The extraction only pays off if the target of the move is free.
-        Stated as a test so that adding `reference/*.md` to BUDGETS is a
-        conscious reversal rather than a tidy-looking edit."""
-        for rel in BUDGETS:
-            self.assertTrue(
-                rel.endswith("SKILL.md"),
-                f"{rel} is budgeted, but only SKILL.md files are tier 0 or "
-                f"tier 1 routers; capping a reference page pushes prose back "
-                f"into the router")
+    def test_new_tiers_accept_exact_cap_and_reject_one_byte_over(self):
+        with tempfile.TemporaryDirectory() as td, patch(__name__ + ".PERRY_HOME", Path(td)):
+            for rel, cap in BUDGETS.items():
+                p = Path(td) / rel
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_bytes(b"x" * cap)
+            for tier, rel, cap in (("L2", "reference/probe.md", 32768), ("L3", "work/state/probe.md", 24576)):
+                with self.subTest(tier=tier):
+                    p = Path(td) / rel
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_bytes(b"x" * cap)
+                    self.assertEqual(budget_overflows(), [])
+                    p.write_bytes(p.read_bytes() + b"x")
+                    self.assertEqual(budget_overflows(), [
+                        f"{rel}: {tier} actual={cap + 1} cap={cap}"])
+                    p.unlink()
 
 
 class TestSectionCitationsResolve(unittest.TestCase):
