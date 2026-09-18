@@ -189,7 +189,7 @@ Handled here, not in a lane. `adopt` and `diagnose` span all three lanes, so the
 
 `/perry relocate <path>` · `/perry relocate . --dry-run`
 
-Moves every path Perry claims under a new state root and sets `State root` with `perry-config set`; `.perry/` never moves, because it holds the pointer. It **refuses on a dirty tree** — the `git mv` set is the only thing making the move reversible — and computes the moves from `schema/state-schema.json § claims[]`, never a hand-written list. It confirms every `from → to` first, never moves a file it did not put there, and never deletes. `NS-01` (`reference/diagnose.md § Finding catalog`) recommends it.
+Moves every path Perry claims under a new state root and sets `State root` with `perry-config set`; `.perry/` never moves. It **refuses on a dirty tree**, computes the moves from `schema/state-schema.json § claims[]`, confirms every `from → to` first, never moves a file it did not put there, and never deletes. `NS-01` recommends it. Why and steps: `reference/router-subcommands.md § /perry relocate`.
 
 Setup and relocate finish with [the closing step](reference/next.md#closing-step) after writes. <!-- next-close: router setup --> <!-- next-close: router relocate -->
 

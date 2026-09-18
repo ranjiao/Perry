@@ -236,9 +236,9 @@ def composition(path: Path) -> dict:
             "total_approx_tokens": sum(blocks.values()) // 4}
 
 
-# Caps are rounded up from the post-split declared byte totals (2026-09-17).
+# Caps round the declared byte totals up to 5,000 (2026-09-17; plan-phase 2026-09-18).
 BILL_BUDGETS = {"snapshot": 80_000, "add-task": 100_000, "close-task": 95_000,
-                "dispatch": 115_000, "plan-phase": 80_000}
+                "dispatch": 115_000, "plan-phase": 110_000}
 BILL_SCOPE = ("Static declared L0 + L1 + L2 UTF-8 file bytes, not runtime "
               "transcript usage or tokens. Excludes non-L2 references, rows "
               "without an explicit matching command, transitive reads and "

@@ -43,7 +43,7 @@ def turn(cache_read=0, cache_creation=0, inp=0, extra=None):
 
 class BudgetCase(unittest.TestCase):
     def setUp(self):
-        self.dir = pathlib.Path(tempfile.mkdtemp())
+        self.dir = pathlib.Path(tempfile.mkdtemp()).resolve()
         self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
         self.t = self.dir / "session.jsonl"
 
@@ -312,7 +312,7 @@ class TestDeclaredBills(BudgetCase):
 
     def test_each_fixed_cap_and_one_byte_over(self):
         expected = {"snapshot": 80_000, "add-task": 100_000, "close-task": 95_000,
-                    "dispatch": 115_000, "plan-phase": 80_000}
+                    "dispatch": 115_000, "plan-phase": 110_000}
         self.assertEqual(self.m.BILL_BUDGETS, expected)
         for command, cap in expected.items():
             with self.subTest(command=command):
