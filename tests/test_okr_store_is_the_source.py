@@ -423,8 +423,9 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
              'append_linkage_records(ctx, [record]))',
              # `append_okr_record` — `kr add|restate|withdraw` of an OVERALL
              # KR (TASK-264 D3). `okr.jsonl`, never OKR.md: one line appended
-             # after `OKR.md`'s byte gate passed on the store it would leave.
-             "lib.write_atomic(store, prior_text + line)",
+             # after `OKR.md`'s byte gate passed on the store it would leave,
+             # through this tool's gated `write_atomic` (V4 finding F5).
+             "write_atomic(state_root, store, prior_text + line)",
              # `write_kr_change` — the same verbs for a PHASE KR:
              # `linkage.jsonl`, behind `assert_owned`, as `measure` writes it.
              'write_atomic(ctx["state_root"], path, '

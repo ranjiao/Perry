@@ -744,7 +744,10 @@ def owned_by_goals(relative: str) -> bool:
     # record this tool writes carries `actor` and `via` (§ 7's mitigation:
     # auditable before it is enforced).
     # `plans/` — the planning drafts, DESIGN-020 decision 5 (TASK-444).
-    return (relative in ("OKR.md", P.LINKAGE_STORE)
+    # `okr.jsonl` — `owner: goals` in `schema § claims`; the store `OKR.md`
+    # is projected from, and where `kr add|restate|withdraw` appends an
+    # overall KR's records (TASK-264 D3).
+    return (relative in ("OKR.md", P.LINKAGE_STORE, P.OKR_STORE)
             or relative.startswith(("phase/", "plans/")))
 
 
@@ -4056,10 +4059,11 @@ def append_okr_record(ctx, record: dict, dry_run: bool) -> None:
     prior_text = store.read_text(encoding="utf-8") if store.exists() else ""
     if prior_text and not prior_text.endswith("\n"):
         prior_text += "\n"
-    # `okr.jsonl` is `owner: goals` (`schema § claims`) and is written the way
-    # `write_okr_and_store` writes it, beside the lane's own gated file.
+    # Through this lane's gated `write_atomic`, as the phase path writes
+    # `linkage.jsonl`: `okr.jsonl` is `owner: goals` (`schema § claims`), and
+    # `assert_owned` is what says so here (TASK-264 D3 repair, V4 finding F5).
     line = json.dumps(record, ensure_ascii=False) + "\n"
-    lib.write_atomic(store, prior_text + line)
+    write_atomic(state_root, store, prior_text + line)
 
 
 def write_kr_change(args, ctx, level: str, record: dict, event: dict,

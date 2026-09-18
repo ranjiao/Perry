@@ -616,6 +616,32 @@ class TestRefusals(Project):
         titles = {k.id: k.title for o in reg.graph.objectives for k in o.krs}
         self.assertEqual(titles["P004-O1-KR1"], "folded")
 
+    # ── the lane gate on the overall append (V4 finding F5) ──
+    def test_the_overall_append_goes_through_the_lane_gate(self):
+        """`append_okr_record` writes through `write_atomic(state_root, …)`,
+        so `assert_owned` is asked about `okr.jsonl`. With the gate made to
+        refuse, the append is refused and not a byte moves; a direct
+        `lib.write_atomic` would write past it."""
+        goals = inproc.load("perry-goals")
+        asked = []
+
+        def refuse(state_root, path):
+            asked.append(Path(path).name)
+            raise goals.Refused("gate asked. Nothing was written")
+
+        before = self.snapshot()
+        original = goals.assert_owned
+        goals.assert_owned = refuse
+        try:
+            code = goals.main(["kr", "withdraw", "O4-KR1", "--reason", "r",
+                               "--actor", "t", "--root", str(self.root)])
+        finally:
+            goals.assert_owned = original
+        self.assertEqual(code, 1)
+        self.assertEqual(asked, ["okr.jsonl"])
+        self.assertEqual(before, self.snapshot())
+        self.assertTrue(goals.owned_by_goals("okr.jsonl"))
+
     # ── the surface ──
     def test_a_flag_the_op_does_not_take_is_exit_2(self):
         for argv in (["kr", "withdraw", "P004-O1-KR1", "--set", "title=x",
