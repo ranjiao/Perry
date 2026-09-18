@@ -59,3 +59,21 @@ No phase/KR edits, new dependencies, claim-surface changes, paid API purchases, 
 ## KR linkage
 
 unlinked — explicit user decision USER-968. Independent iteration targets are in the plan; no KR progress is asserted.
+
+## Carried from TASK-468 (added by the PMO, 2026-09-18)
+
+TASK-468 landed as local 0.1.17: `perry-context-budget` is session-bound. See `TASK-468-integration/acceptance.md` and `TASK-468-review/review.md`. The findings below are now part of this row's scope. They widen files in scope to `bin/perry-context-budget` and `tests/test_context_budget.py` for these items only.
+
+1. **R-M1 (Medium), settle before any checkpoint relies on the gate on Claude.**
+   - **The risk.** On the plain Claude CLI a subagent may bind its main session's transcript as `current`. A simulation (child flag blanked) reproduced the original false attribution: the parent's context reported as this session's, `OVER`, exit 1.
+   - **Why the environment can't tell.** On Desktop the PMO verified that `CLAUDE_CODE_CHILD_SESSION=1` and `AI_AGENT` are identical in the main session and in subagents. The environment cannot separate them, so Desktop already reports `unknown`.
+   - **What to do.** Either verify a real plain-CLI subagent's environment and add a distinguishing fixture, or treat Claude without a verified distinguishing signal as `unknown`. Document the outcome in `reference/host-capabilities.md`.
+2. **R-L1.** In a forked Codex child the last `session_meta` record wins (`bin/perry-context-budget` ~:210). Make the first record win, and add a fixture.
+3. **R-L2.** Two parts of TASK-468's H1 fix are untested; the reviewer's mutants S2 and S3 survived.
+   - S2: applying the fix only when `forked_from_id` is present.
+   - S3: removing the inherited-snapshot skip.
+
+   Add tests that kill both.
+4. **R-L3.** Document that on Desktop an explicit `--session` path is the only way to get a verdict, and that it is labelled `explicit`.
+
+A checkpoint that meets `unknown` must follow the plan's rule: unknown is never zero or a clean budget.
