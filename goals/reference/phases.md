@@ -299,7 +299,7 @@ On this baseline the phase finalize path is unavailable: disclose it and stop,
 even after the user approves the draft. Do not hand-write a phase document or
 `phase/CURRENT`, hand-append Objective/KR records, feed a fabricated canonical
 file to a generic import/render command, or use `perry-goals link` as a KR-creation
-substitute. A KR of an ACTIVE phase is added with `perry-goals kr add` (`## kr`
+substitute. A KR of an ACTIVE phase is added with the `kr add` verb (`## kr`
 below). A writer refusal stops with its actual message; no fallback writes.
 
 The eventual writer's returned result must identify the ten-section phase prose
