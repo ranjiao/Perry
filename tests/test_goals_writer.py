@@ -2053,13 +2053,14 @@ class TestFirstOkrDraft(unittest.TestCase):
 
     def test_approval_binds_the_current_content(self):
         self.create()
-        self.change("approve", code=1)                        # not yet drafted
+        self.assertIn("still interviewing", self.change("approve", code=1)["refused"])
         self.change("update", "--status", "drafted", "--step", "")
         self.change("update", "--ask", code=1)                # a drafted plan asks none
         self.assertEqual([], self.state("interrupted"))
         self.assertEqual(1, self.state("drafts")["drafted"])
         self.assertEqual("R-draft-waiting", self.state("next")["primary"]["rule"])
         self.assertTrue(self.change("approve")["approval_valid"])
+        self.assertIn('decided_by: "test"', self.plan.read_text())
         self.assertEqual(0, self.state("drafts")["drafted"])
         self.plan.write_text(self.plan.read_text() + "Edited after approval.\n")
         edited = self.plan.read_bytes()
@@ -2069,12 +2070,14 @@ class TestFirstOkrDraft(unittest.TestCase):
         self.assertTrue(self.change("approve")["approval_valid"])
         out = self.change("update", body="Changed.\n")
         self.assertEqual(("drafted", False), (out["status"], out["approval_valid"]))
-        self.assertIn("approved_sha256: null", self.plan.read_text())
+        self.assertIn("approved_sha256: null\ndecided_by: null", self.plan.read_text())
 
     def test_abandon_is_terminal_and_kept(self):
         self.create()
         self.assertEqual("abandoned", self.change("abandon")["status"])
-        self.change("update", "--step", "q3", code=1)
+        self.assertIn("abandoned is terminal", self.change("approve", code=1)["refused"])
+        self.assertIn('status: abandoned', self.plan.read_text())
+        self.assertIn('decided_by: "test"', self.plan.read_text())
         self.assertEqual(([], True), (self.state("interrupted"), self.plan.is_file()))
 
     def test_finalize_is_refused_and_changes_no_byte(self):
@@ -2094,18 +2097,26 @@ class TestFirstOkrDraft(unittest.TestCase):
             "status: interviewing", "status: interviewing\nstatus: approved"))
         self.assertIn("duplicate key(s): status",
                       self.draft("show", "--path", self.REL)["errors"])
-        rec = self.state("recovery")
-        self.assertEqual((True, "plan", self.REL), (rec["blocking"], *map(
-            rec["malformed_dossiers"][0].get, ("pipeline", "path"))))
-        self.assertIsNone(self.state("drafts")["drafted"])
+        for junk in (".DS_Store", "2026-09-17-first-okr.md~", ".x.md.swp"):
+            (self.plan.parent / junk).write_text("editor dropping")
+        drafts = self.state("drafts")   # visible, and blocks nothing but this file
+        self.assertEqual((False, None, [self.REL]), (
+            self.state("recovery")["blocking"], drafts["drafted"],
+            [e["path"] for e in drafts["errors"]]))
+        self.assertEqual("R-no-okr", self.state("next")["primary"]["rule"])
         self.assertIn("bad-plan", inproc.run("perry-lint", ["--root", str(self.root)]).stdout)
-        self.change("update", "--step", "q3", code=1)
+        self.assertIn("fix those frontmatter fields",
+                      self.change("abandon", code=1)["refused"])
+        self.plan.write_text(self.plan.read_text().replace(
+            "status: approved", "consent: yes"))
+        self.assertEqual(["unknown key(s): consent"],
+                         self.draft("show", "--path", self.REL)["errors"])
 
     def test_escaping_paths_and_links_are_refused(self):
         (self.root / "plans").symlink_to(self.scratch, target_is_directory=True)
         self.create(code=1)
-        self.assertEqual(([], True), (list(self.scratch.glob("okr")),
-                                      self.state("recovery")["blocking"]))
+        self.assertEqual(([], ["plans"]), (list(self.scratch.glob("okr")), [
+            e["path"] for e in self.state("drafts")["errors"]]))
         (self.root / "plans").unlink()
         self.create()
         (self.scratch / "p.md").write_bytes(self.plan.read_bytes())
@@ -2128,12 +2139,29 @@ class TestFirstOkrDraft(unittest.TestCase):
         self.create()
         before = self.plan.read_bytes()
         with mock.patch("os.replace", side_effect=OSError("disk full")):
-            self.change("update", "--step", "q3", code=1)
+            self.assertIn("disk full", self.change("update", "--step", "q3", code=1)["refused"])
         self.assertEqual([before], [p.read_bytes() for p in self.plan.parent.iterdir()])
         self.plan.unlink()
         with mock.patch("os.link", side_effect=OSError("disk full")):
-            self.create(code=1)
+            self.assertTrue(self.create(code=1)["io_error"])
         self.assertEqual([], list(self.plan.parent.iterdir()))
+
+    def test_writes_need_an_installed_project_and_honest_inputs(self):
+        (self.root / ".perry" / "config.jsonl").unlink()
+        self.assertIn("not an installed Perry project", self.create(code=1)["refused"])
+        config_store.write_config(self.root)
+        self.create()
+        (self.root / ".perry" / "config.jsonl").unlink()
+        self.change("update", "--step", "q3", code=1)
+        config_store.write_config(self.root)
+        before = self.plan.read_bytes()
+        for body in ("---\nstatus: approved\n---\nx\n", None):
+            flags = () if body else ("--body-file", str(self.plan))
+            self.assertIn("--body-file", self.change("update", *flags, code=1, body=body)["refused"])
+        self.assertEqual(before, self.plan.read_bytes())
+        self.assertIn("later than today", self.draft(
+            "create", "--horizon", "okr", "--route", "first", "--date", "2999-01-01",
+            "--slug", "x", "--target", "OKR.md", "--step", "q1", code=1, body="x\n")["refused"])
 
     def test_the_question_budget_and_unsupported_routes(self):
         self.create()

@@ -22,6 +22,7 @@ question**, so a new session can resume without reconstructing anything.
 | `answered` | coverage: unique q-ids. Not a count — a follow-up may revisit an id |
 | `questions_asked` | every question actually asked, follow-ups included; `--ask` adds one. The tool refuses a ninth: at eight, draft with explicit unknowns |
 | `approved_sha256` | set only by `draft approve`; cleared by any change. See *Approval* |
+| `decided_by` | the `--actor` of the `approve` or `abandon` that set the status; cleared by any later update. Drafts append no event, so this is the record of who decided |
 | `created` / `updated` / `finalized_refs` | dates of the file and of its last write; `[]` in this slice |
 
 Python validates these fields and hashes the body. It never reads the body: it
@@ -57,8 +58,12 @@ argument. Unknown, repeated, valueless or mode-foreign flags exit 2.
   There is no overwrite flag. The project lock serializes Perry writers only;
   the re-read narrows, and does not close, the race with an open editor.
 - `create` refuses when the file exists (it returns the existing path; resume
-  it), when an overall OKR already exists, and on an uninstalled project.
-  Every write refuses while `perry-state --section recovery` is blocking.
+  it), when an overall OKR already exists, and for a `--date` later than today.
+  Every write refuses on an uninstalled project, and while `perry-state
+  --section recovery` is blocking. A disk or permission error is a refusal
+  (exit 1, `io_error: true` under `--json`), never a traceback.
+- A draft whose frontmatter is broken refuses every write, `abandon`
+  included, and names each field to fix. Fix those lines by hand, then re-read.
 
 ## The loop
 
@@ -106,6 +111,8 @@ and do not finalize on startup — not even a validly approved draft.
 (`pipeline: plan`, its `step`, `interview_answers`, `questions_asked`); a
 **drafted** one — or an approved one whose content changed — counts in
 `drafts.drafted`, which fires `R-draft-waiting`. A malformed, linked or
-misnamed entry under `plans/` is a blocking `recovery` row, and
-`drafts.drafted` is then null rather than zero. Stale after
+misnamed entry under `plans/` is a `drafts.errors` row (path and errors) — show
+it to the user; it blocks nothing but writes to that file — and
+`drafts.drafted` is then null rather than zero. Dotfiles (`.DS_Store`) and
+editor backups (`*~`, `*.swp`, `*.bak`) are ignored. Stale after
 `stale_run_days` (30) like any run; stale never abandons a draft.

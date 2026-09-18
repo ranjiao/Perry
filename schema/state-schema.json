@@ -2465,7 +2465,8 @@
           "updated": {"type": "string", "required": true, "format": "iso-date", "note": "not earlier than created; changes only on a write"},
           "finalized_refs": {"type": "array", "required": true, "items": {"type": "string"}, "note": "empty unless status is finalized"},
           "questions_asked": {"type": "integer", "required": true, "note": "0-8. Incremented once per durably recorded question (`--ask`), follow-ups included; enforces the eight-question budget across sessions."},
-          "approved_sha256": {"type": "string", "required": true, "note": "null, or 64 lowercase hex digits set exactly when approved/finalized: SHA-256 of the sorted, compact, unescaped JSON of horizon, route, target, created, step, answered, questions_asked, then one LF, then the exact body bytes. A mismatch means the approval is stale."}
+          "approved_sha256": {"type": "string", "required": true, "note": "null, or 64 lowercase hex digits set exactly when approved/finalized: SHA-256 of the sorted, compact, unescaped JSON of horizon, route, target, created, step, answered, questions_asked, then one LF, then the exact body bytes. A mismatch means the approval is stale."},
+          "decided_by": {"type": "string", "required": true, "note": "null, or the `--actor` of the `draft approve` / `draft abandon` that set the status; cleared by any later update. The one audit field (TASK-444 repair, USER-961); drafts append no event."}
         }
       }
     }

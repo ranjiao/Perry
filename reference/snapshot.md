@@ -63,6 +63,8 @@ answered <interview_answers>`, and — instead of the adoption card's last line 
 `Saved as a draft; no canonical goal has been written.` Resume re-reads it
 with `draft show` and shows the recorded pending question without asking a new
 one; Abandon is `draft abandon`. There is no Start over: the file stays.
+A `drafts.errors` row is not a card: name its path and errors in one line,
+say it blocks only that draft, and carry on.
 
 **Never resume without asking.** A run continued on Perry's initiative
 

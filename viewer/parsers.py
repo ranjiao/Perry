@@ -5447,9 +5447,7 @@ def scan_recovery(state_root: Path, project_root: Path) -> dict:
         {"pipeline": row["pipeline"], "path": row["path"],
          "errors": row["errors"]}
         for row in dossier_records(project_root) if row["errors"]
-    ] + [{"pipeline": "plan", "path": display_path(state_root / e["path"],
-                                                   project_root),
-          "errors": e["errors"]} for e in scan_plans(state_root)[1]]
+    ]
     return {
         "blocking": bool(pending or malformed),
         "pending_transactions": pending,
@@ -5465,7 +5463,7 @@ def scan_recovery(state_root: Path, project_root: Path) -> dict:
 PLAN_DIR = "plans"
 PLAN_KEYS = ("horizon", "route", "status", "step", "answered", "target",
              "created", "updated", "finalized_refs", "questions_asked",
-             "approved_sha256")
+             "approved_sha256", "decided_by")
 #: What `approved_sha256` binds. Lifecycle bookkeeping (`status`, `updated`,
 #: `finalized_refs`, the digest itself) is left out so it cannot self-refer.
 PLAN_APPROVAL_KEYS = ("horizon", "route", "target", "created", "step",
@@ -5562,7 +5560,11 @@ def parse_plan(raw: bytes, rel: str) -> dict:
              f"questions_asked: 0-{PLAN_QUESTION_CAP}; at the cap, draft with explicit unknowns"),
             (not (sha is None or isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{64}", sha))
              or (sha is not None) != (m["status"] in ("approved", "finalized")),
-             "approved_sha256: 64 lowercase hex exactly when approved/finalized, else null")):
+             "approved_sha256: 64 lowercase hex exactly when approved/finalized, else null"),
+            (m["decided_by"] is not None and (
+                m["status"] not in ("approved", "abandoned", "finalized")
+                or not isinstance(m["decided_by"], str) or not m["decided_by"].strip()),
+             "decided_by: the approving/abandoning --actor, else null")):
         if bad:
             err(why)
     if not out["errors"]:
@@ -5572,21 +5574,21 @@ def parse_plan(raw: bytes, rel: str) -> dict:
 
 
 def scan_plans(state_root: Path) -> tuple[list[dict], list[dict]]:
-    """`(valid plans, errors)`: every entry under `plans/` but an in-flight
-    `lib.stage` temp is a plan or an error row, never skipped as no draft."""
+    """`(valid plans, errors)`: every entry under `plans/` is a plan or an
+    error row, never skipped as no draft — except an in-flight `lib.stage`
+    temp and editor/OS droppings (dotfiles, `*~`, `*.swp`, `*.bak`)."""
     plans, errors, top = [], [], state_root / PLAN_DIR
     try:
         if top.is_symlink() or (top.exists() and not top.is_dir()):
             return [], [{"path": PLAN_DIR, "errors": ["not a real directory"]}]
         found = [p for h in (sorted(top.iterdir()) if top.is_dir() else [])
                  for p in (sorted(h.iterdir()) if h.is_dir() and not h.is_symlink()
-                           and h.name in plan_enums().get("horizon", ()) else [h])]
+                           and h.name in plan_enums().get("horizon", ()) else [h])
+                 if not re.fullmatch(r"\..*|.*~|.*\.(swp|bak)|tmp.*\.tmp", p.name)]
     except OSError as exc:
         return [], [{"path": PLAN_DIR, "errors": [f"unreadable: {exc}"]}]
     for f in found:
         rel = f.relative_to(state_root).as_posix()
-        if re.fullmatch(rf"{PLAN_DIR}/[a-z]+/tmp.*\.tmp", rel):
-            continue
         (path, why), rec = plan_file(state_root, rel), None
         try:
             rec = parse_plan(f.read_bytes(), rel) if path and f.is_file() else None

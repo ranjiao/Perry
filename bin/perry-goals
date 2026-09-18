@@ -3730,7 +3730,8 @@ def render_plan(meta: dict, body: str) -> str:
         f"updated: {meta['updated']}",
         f"finalized_refs: [{', '.join(map(q, meta['finalized_refs']))}]",
         f"questions_asked: {meta['questions_asked']}",
-        f"approved_sha256: {q(meta['approved_sha256'])}", "---", ""]) + body
+        f"approved_sha256: {q(meta['approved_sha256'])}",
+        f"decided_by: {q(meta['decided_by'])}", "---", ""]) + body
 
 
 def read_body(value: str, plan: Path) -> str:
@@ -3742,7 +3743,7 @@ def read_body(value: str, plan: Path) -> str:
         body = src.read_bytes().decode("utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise refusal(f"--body-file {value}: {exc}")
-    if not body.strip() or body.lstrip("﻿").startswith("---"):
+    if not body.strip() or body.lstrip("\ufeff").startswith("---"):
         raise refusal("--body-file must be non-empty and must not open with a "
                       "`---` fence: the frontmatter is this tool's")
     return body
@@ -3764,7 +3765,9 @@ def draft_gate(project_root: Path, state_root: Path, rec: dict | None,
         f"{m['status']} is terminal" if m["status"] in ("abandoned", "finalized")
         else None))
     if why:
-        raise refusal(f"{rec['path']}: {why}", errors=rec["errors"])
+        raise refusal(f"{rec['path']}: {why}" + (
+            "; fix those frontmatter fields by hand (goals/reference/planning.md "
+            "§ The file), then re-read" if rec["errors"] else ""), errors=rec["errors"])
     if rec and rec["sha256"] != expect:
         raise refusal(f"{rec['path']} changed since it was read (expected "
                       f"{expect}, now {rec['sha256']}). Re-read it with `draft "
@@ -3828,15 +3831,18 @@ def draft_command(mode: str, v: dict) -> dict:
         return rec
     assert_owned(state_root, path)
     today, dry = date.today().isoformat(), bool(v.get("--dry-run"))
+    # A draft writes no store; the gate is asked about the one it plans for.
+    lib.refuse_write_unless_installed(project_root, ("okr.jsonl",), Refused)
     if mode == "create":
+        if v["--date"] > today:
+            raise refusal(f"--date {v['--date']} is later than today ({today})")
         meta = {"horizon": "okr", "route": "first", "status": "interviewing",
                 "step": v["--step"], "answered": qids(v.get("--answered", "")),
                 "target": v["--target"], "created": v["--date"],
                 "updated": v["--date"], "finalized_refs": [],
                 "questions_asked": int(bool(v.get("--ask"))),
-                "approved_sha256": None}
+                "approved_sha256": None, "decided_by": None}
         body = read_body(v["--body-file"], path)
-        lib.refuse_write_unless_installed(project_root, ("okr.jsonl",), Refused)
         if any((state_root / n).exists() for n in ("OKR.md", "okr.jsonl")):
             raise refusal("an overall OKR already exists: the first route is for "
                           "a project with none, and revision drafts are "
@@ -3856,9 +3862,14 @@ def draft_command(mode: str, v: dict) -> dict:
         if mode == "approve":
             if meta["status"] == "approved" and rec["approval_valid"]:
                 return unchanged
-            meta.update(status="approved", approved_sha256=rec["approval_sha256"])
+            if meta["status"] == "interviewing":
+                raise refusal(f"{rel} is still interviewing: mark it drafted "
+                              f"(`update --status drafted --step \"\"`) before approving")
+            meta.update(status="approved", approved_sha256=rec["approval_sha256"],
+                        decided_by=v["--actor"])
         elif mode == "abandon":
-            meta.update(status="abandoned", step="", approved_sha256=None)
+            meta.update(status="abandoned", step="", approved_sha256=None,
+                        decided_by=v["--actor"])
         else:
             if "--body-file" in v:
                 body = read_body(v["--body-file"], path)
@@ -3871,7 +3882,7 @@ def draft_command(mode: str, v: dict) -> dict:
                 meta["questions_asked"] += 1
             if meta == rec["meta"] and body == rec["body"]:
                 return unchanged
-            meta.update(approved_sha256=None, status=meta["status"].replace(
+            meta.update(approved_sha256=None, decided_by=None, status=meta["status"].replace(
                 "approved", "drafted"))
         meta["updated"] = today
         return publish_plan(path, rel, meta, body, v["--expect-sha256"], dry)
@@ -3883,7 +3894,10 @@ def draft_main(argv: list[str]) -> int:
         return 0
     mode, v = parse_draft(argv)
     try:
-        result = draft_command(mode, v)
+        try:
+            result = draft_command(mode, v)
+        except OSError as exc:
+            raise refusal(f"{type(exc).__name__}: {exc}", io_error=True)
     except Refused as exc:
         if v.get("--json"):
             print(json.dumps({"refused": str(exc), **getattr(exc, "details", {})},

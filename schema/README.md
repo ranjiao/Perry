@@ -405,8 +405,10 @@ scan_plans`. `perry-state` carries them as `drafts: {plans, drafted, errors}`
 — each plan's typed frontmatter, `sha256`, `approval_valid` and
 `finalize_available: false`, never its body (`perry-goals draft show` transports
 that). `drafts.drafted` counts drafts awaiting review and is `null`, never `0`,
-while any entry under `plans/` is unreadable; those entries are
-`recovery.malformed_dossiers` rows with `pipeline: plan`, and `recovery` blocks.
+while any entry under `plans/` is unreadable; each such entry is a
+`drafts.errors` row `{path, errors}`. They are **not** recovery hazards: a
+noncanonical draft never blocks startup (TASK-444 repair, USER-961). Dotfiles
+and editor backups (`*~`, `*.swp`, `*.bak`) under `plans/` are ignored.
 An interviewing draft is an `interrupted` row with `pipeline: plan`. A draft is
 not canonical state and does not make a directory installed.
 

@@ -103,7 +103,7 @@ Each fact is a value `perry-state` already computes, or the clock
 | Fact | From |
 |---|---|
 | `installed`, `recovery.blocking`, `recovery.first_path`, `interrupted.*` | the payload's `installed`, `recovery`, `interrupted` |
-| `drafts.drafted` | `drafts.drafted`: drafted plans, plus approved ones whose content changed; unknown while a plan is unreadable |
+| `drafts.drafted` | `drafts.drafted`: drafted plans, plus approved ones whose content changed; unknown while a plan is unreadable (`drafts.errors` names it; it never triggers `R-recovery`) |
 | `okr.present`, `okr.version` | `okr` |
 | `phase.status`, `phase.number`, `phase.day` | `phase` |
 | `phase.kr_progress.*` | `linkage.objectives[].krs[]`: `current`, `target` and `stretch` of the current phase's key results |

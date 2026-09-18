@@ -1670,12 +1670,13 @@ def scan_interrupted(perry_root: Path, state_root: Path | None = None) -> list[d
 
 def scan_drafts(state_root: Path) -> dict:
     """Plans' metadata, no body (TASK-444). `drafted`: awaiting review (or
-    approved, then changed); null — never 0 — while any plan is unreadable."""
+    approved, then changed); null — never 0 — while any plan is unreadable.
+    `errors` names each unreadable entry; unlike `recovery` it blocks nothing."""
     plans, errors = P.scan_plans(state_root)
     rows = [{"path": p["path"], **p["meta"], "sha256": p["sha256"],
              "approval_valid": p["approval_valid"], "finalize_available": False}
             for p in plans]
-    return {"plans": rows, "errors": len(errors), "drafted": None if errors else sum(
+    return {"plans": rows, "errors": errors, "drafted": None if errors else sum(
         r["status"] == "drafted" or (r["status"] == "approved" and not r["approval_valid"])
         for r in rows)}
 
@@ -2317,7 +2318,7 @@ def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
     drafted = (payload.get("drafts") or {}).get("drafted")
     if drafted is None:
         unknown["drafts.drafted"] = ("a planning draft could not be read — "
-                                     "see recovery")
+                                     "see drafts.errors")
     else:
         facts["drafts.drafted"] = drafted
 

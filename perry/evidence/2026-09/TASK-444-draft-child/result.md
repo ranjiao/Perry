@@ -106,3 +106,74 @@ mutation applied, restored afterwards; script and full output in the session scr
 11. Not done / not claimed: canonical finalize, TASK-264, week/phase/commitments/revision
     drafts, interview quality, V4. Hostile concurrent directory replacement and a
     non-cooperating editor's last-instant write are not closed (documented in planning.md).
+
+## Repair round (V4 findings on e77bd340; USER-961, USER-962)
+
+Review: `9aeadf9b:perry/evidence/2026-09/TASK-444-review/review.md` (PASS-WITH-FINDINGS).
+Worked on the same branch, on top of `e77bd340`. Head: the repair commit that adds this section.
+USER-962 confirmed the `SKILL.md` ownership-row edit, so it is kept unchanged.
+
+### Net delta vs bd3f6329 (ceiling +750, USER-961)
+
+| | + | − | net |
+|---|---:|---:|---:|
+| Production (`bin/`, `viewer/`) | 603 | 146 | **+457** (+17 this round) |
+| Tests | 235 | 47 | **+188** (+28 this round) |
+| Total | | | **+645** (+45 this round; 105 under the ceiling) |
+
+### Deviation from analysis §4, stated explicitly (authority: USER-961 repair brief, F1)
+
+Analysis §4 routed malformed/escaping/unreadable plans through `recovery` with
+`recovery.blocking` winning. **This round reverses that.** Plan read errors are now
+`drafts.errors` rows (`{path, errors}`) that block nothing. `recovery` again covers only task
+transactions and adoption/diagnosis dossiers. `drafts.drafted` stays `null` (never 0) while any
+entry is unreadable, and `next.unknown` points at `drafts.errors`. Dotfiles and editor backups
+(`.*`, `*~`, `*.swp`, `*.bak`) under `plans/` are ignored, and so is the `tmp*.tmp` stage file.
+A broken draft still refuses every write to itself, `abandon` included. I chose the second
+option the brief allowed: the refusal names each failing field and says to fix those
+frontmatter lines by hand. I did not implement abandoning a draft whose metadata cannot be
+parsed, because a correct rewrite needs metadata the tool cannot trust.
+
+### Findings → change → test → mutation
+
+Every test is in `tests/test_goals_writer.py::TestFirstOkrDraft`. The mutation script now
+deletes `bin/__pycache__` and `viewer/__pycache__` around each run (see note).
+
+| Finding | Change | Test | Mutation → result |
+|---|---|---|---|
+| F1 stray/malformed plan blocks Perry | as described above; `perry-state § scan_drafts` publishes `errors` as rows | `test_malformed_metadata_is_visible_not_guessed` (a `.DS_Store`, a `~` backup and a `.swp` sit beside a broken draft; recovery is not blocking; the primary is `R-no-okr`; `drafts.errors == [draft]`; lint still reports `bad-plan`; abandon is refused and the message names the fix); `test_escaping…` (a linked `plans/` becomes a `drafts.errors` row) | plan rows back in recovery: RED; droppings not ignored: RED; errors dropped from `drafts`: RED; refusal without the fix wording: RED |
+| F2a install gate only on create | the gate now runs for every write mode | `test_writes_need_an_installed_project_and_honest_inputs` (create, and update after config removal, are both refused) | gate moved back to create only: RED; gate removed: RED |
+| F2b actor discarded | **one new field, `decided_by`** (schema `files[id=plan]`, `PLAN_KEYS`, validator). Set by `approve`/`abandon` to `--actor`; cleared by any update; null otherwise; excluded from the approval digest. No event and no new store. | `test_approval_binds…` (set on approve, cleared by update), `test_abandon…` (set on abandon) | approve does not record: RED; abandon does not record: RED; not cleared: RED |
+| F3 terminal guard unpinned | the test now tries `approve` on an abandoned draft, which is the path the guard alone stops | `test_abandon_is_terminal_and_kept` | guard removed: RED (it was GREEN in review R22) |
+| F4 unpinned checks | tests only | unknown key (`consent: yes`) in the malformed test; create and update on an uninstalled project; `--body-file` opening with `---`; `--body-file` = the draft | unknown keys accepted: RED; install gate: RED; fence allowed: RED; **body file = the draft allowed: GREEN** (finding R-a) |
+| F5 I/O traceback | `draft_main` turns `OSError` into a refusal (exit 1; under `--json`, `{"refused", "io_error": true}`) | `test_a_failed_publish…` now asserts the refusal text / `io_error` | `OSError` no longer caught: RED |
+| F6a SKILL.md:57 wording | the `plans/` clause moved into its own sentence, so the "spine" appositive belongs to `§ Commitments` again | docs | — |
+| F6b future `--date` | create refuses a `--date` later than today | `test_writes_need…` (2999-01-01) | check removed: RED |
+| F6c approve while interviewing | a clear refusal: "still interviewing: mark it drafted (`update --status drafted --step ""`) before approving" | `test_approval_binds…` asserts the wording | check removed: RED |
+| Original set, re-run on the repaired code | — | — | stale token, approval binding, finalize writing nothing, duplicate keys, symlinks, recovery gate, temp cleanup, create-only: all RED |
+
+Docs updated to match: `goals/reference/planning.md` (field `decided_by`; install, future-date,
+I/O and broken-metadata refusals; `drafts.errors`); `reference/snapshot.md` (a `drafts.errors`
+row is one line, not a card); `reference/next.md` (fact row); `schema/README.md` (`drafts.errors`
+rows, not recovery hazards; droppings ignored); `goals/SKILL.md` (F6a).
+
+### Remaining findings
+
+- **R-a (green mutation):** removing the "body file is the draft itself" check stays green. A
+  draft always opens with a `---` fence, so the fence refusal fires first on the same input. The
+  check is defence in depth, and no input can reach it alone. I kept it and did not pin it.
+- **Harness note:** `inproc.load` imports `bin/perry-goals` through `SourceFileLoader`, which
+  **does** write `bin/__pycache__/perry-goalscpython-311.pyc`. The pyc is keyed on source mtime
+  (seconds) and size. Two back-to-back mutations of equal byte length can therefore run the
+  previous mutant's bytecode. That happened once in this round (the abandon-actor mutation read
+  GREEN, then RED once the cache was cleared). My first-round mutations did not clear caches. The
+  reviewer's harness may not have cleared them either. Mutation results from either harness that
+  lack a cache purge are provisional wherever two consecutive mutants had equal length.
+- Unchanged from review: recovery-over-interrupted precedence with a valid plan is still not
+  pinned; `show` through a linked horizon directory (review R2) is covered only by `create` and
+  `scan`. The last re-read before publish (R19) cannot be staged.
+
+### Suite
+
+`bash tests/run` at the repair head: all green, 154 modules · 4312 tests · 88.5 s; tree guard
+clean. `git diff --check`: clean.
