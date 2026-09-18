@@ -29,7 +29,10 @@ question ("how does triage work" is not "what needs triage"). Reply in the
 user's language; the config store is not read for it.
 
 A lane's `help` is this route: load that lane's `SKILL.md` for its index and
-the one reference its row names. It never runs the lane's snapshot.
+the one reference its row names. It never runs the lane's snapshot. Rows that
+depend on an optional pack are shown marked as needing that pack, not
+filtered: finding out whether it is active would mean reading the config
+store.
 
 An explanation writes nothing, not even a hook, a config default or a
 closing-step record.
@@ -41,14 +44,17 @@ malformed dossier reports a state that is about to change or is wrong. So a
 query runs step 2 in full before its one read:
 
 - `blocking: true` → stop and report every path and error. The question goes
-  unanswered.
+  unanswered, and nothing else of the project is read, not even a listing.
 - an interrupted run → render its card and ask, exactly as step 2 says. Never
   resume. Answer the question only after the user's choice, and only if that
   choice leaves the question standing.
 
 Then read only what the question needs: `--section <name>` for one top-level
 key, `perry-explain <ID>` for one id, `perry-task list --json` for task rows.
-No dashboard, no mode file, no `next` block, no second read to "add context".
+Nothing of these runs before step 2, not even to check that the question can
+be answered. The one extra read allowed is `perry-explain <ID>` for an id the
+answer names without its title (`SKILL.md § Style rules`). No dashboard, no
+mode file, no `next` block, no second read to "add context".
 
 `installed: false` means this folder has no Perry state. Say so and offer
 `/perry`. First-time setup writes the config store, so a query never starts

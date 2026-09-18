@@ -86,7 +86,7 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 | **Query**: one fact about this project | −2, −1, 1, 2 | only that projection: `--section <name>`, `perry-explain <ID>`, `perry-task list --json` |
 | **Change**: a write, a subcommand but `help`, bare `/perry` | −2 to 3 | bare `/perry` → 3b–6; a lane skips its −3 to −1, keeps its gates |
 
-Unclear → ask which, before any state read. Steps run once per operation; after a write, or when state may have moved, re-read. Steps −2 to 3 are ordering-critical; the rest is `reference/snapshot.md`.
+Unclear → ask which. Nothing reads state before step 2. Steps run once per operation; after a write, or when state may have moved, re-read. Steps −2 to 3 are ordering-critical; the rest is `reference/snapshot.md`.
 
 −2. **Set `$PERRY_HOME`** — if unset, derive it from the path of the SKILL.md you just read: the directory containing this top-level SKILL.md (it also contains `bin/`, `reference/`, `modes/`, `packs/`, `goals/`, `work/`, `decide/`). For a lane SKILL.md, use the grandparent. Every `$PERRY_HOME/bin/<script>` call needs this step.
 
