@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.13 — 2026-09-18
+
+patch · phase 004-guided · TASK-444 · delivery TASK-444-draft-child-20260918
+
+### Changes
+
+First-OKR planning drafts persist under plans/okr/ through `perry-goals draft create|show|update|approve|abandon|finalize`. A draft resumes at its next unanswered question, records questions_asked, and binds approval to the current content by digest; any later update clears approval and decided_by. Draft read errors surface as non-blocking drafts.errors rows, and dotfiles and editor backups under plans/ are ignored. perry-state reports drafts, and an interviewing draft appears as an interrupted plan run.
+
+
+### Upgrade notes
+
+Only the first-OKR horizon is supported, and only on an installed project with no existing OKR. `finalize` refuses and names the missing writers: no canonical OKR, phase, KR or task write is supplied, so an approved draft remains unfinalized until TASK-264 and the finalize writers land. decided_by is hand-editable and is a record, not proof of consent. This local allocation does not accept a real-user interview or constitute a public release.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.12 — 2026-09-17
 
 patch · phase 004-guided · TASK-194 · delivery TASK-194-discussion-20260917
