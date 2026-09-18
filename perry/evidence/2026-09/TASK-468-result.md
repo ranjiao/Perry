@@ -305,3 +305,22 @@ second observation of each case.
 **Open risk (unverified).** The plain CLI's subagents probably share the main
 session's id too, but without the flag. There, a subagent running the gate
 would bind the main session. I had no plain-CLI session to inspect.
+
+### Repair-round suites
+
+- **Affected tier, each round:** `--tier affected --base 5f182d3c` was green
+  (1 module, 40 tests). `test_context_budget`, `test_bin_argument_contract`,
+  `test_host_support`, `test_shipped_vocabulary` and `test_bin_surface` were
+  green when run directly.
+- **First full run on `71bd8c1b`: red in `test_diagnose` (1 test).**
+  - I re-ran the module alone and it was still red.
+  - The cause was this file, not the code: it cited two user-decision IDs
+    that are defined only on main after `c48e25fe`.
+  - I reworded the citation in `d3b81cb3`, and `test_diagnose` alone was then
+    green (158 tests).
+- **Final, on `d3b81cb3`, with `PERRY_PROJECT` and `PERRY_HOME` unset and
+  `__pycache__` purged:**
+  - `--tier full`: 155 modules, 4,379 tests, 101.9 s, green;
+  - `--tier slow`: 159 modules, 4,482 tests, 124.7 s, green;
+  - `git diff --check c48e25fe d3b81cb3`: clean.
+- The only later commit adds this subsection.
