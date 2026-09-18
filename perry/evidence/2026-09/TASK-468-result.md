@@ -174,8 +174,7 @@ It holds paths, counts and numbers only; no transcript content was copied.
   - `test_context_budget`, `test_bin_argument_contract`, `test_host_support`,
     `test_shipped_vocabulary` and `test_bin_surface` directly: 240 tests,
     green.
-- **Final full and slow:** recorded below, after the commit that adds this
-  file.
+- **Final, on 4bc86dbd, with `PERRY_PROJECT` and `PERRY_HOME` unset:** `--tier full` 155 modules, 4,377 tests, 108.0 s, green; `--tier slow` 159 modules, 4,480 tests, 174.7 s, green; `git diff --check c48e25fe 4bc86dbd` clean. The only later commit edits this file.
 
 ## Deviations and open questions
 
