@@ -70,14 +70,29 @@ of English hedges; round 2's reviewer walked around it with a word the list did
 not have, and no such list can be completed. Forbidding the nouns an exception
 must name is the same list one level down.
 
-**So this is the honest state of the guard: it holds that the rule is STATED,
-at each of the four sites, and does not hold that the rule is not TAKEN BACK in
-the sentence after it.** The six structural mutants show the first half is real.
-TASK-471's V4 reached the same conclusion about that row's prose — six of seven
-prose mutants survived there — so this is a property of guarding prose with
-string tests, not of this round's care. It is named here so the next reader does
-not have to rediscover it, and it was named in round 3's dispatch so the
-reviewer could attack exactly it.
+**Both paragraphs above were wrong, and round 3's V4 disproved them. Corrected
+2026-09-20.**
+
+The claim was that no string test can hold a rule against being taken back in
+place, and that this is a property of the medium. It is not. Pinning the
+**flattened rule paragraph with `assertEqual`** holds it — on the very
+paragraph `test_every_site_states_the_route_rule_at_the_instruction` already
+extracts at `tests/test_startup_routing.py:333-334`. The reviewer demonstrated
+it against four surviving mutants, including B1; I reproduced it: an `assertIn`
+guard cannot see B1 because the clause is still present, and an `assertEqual`
+on the same extraction sees it immediately.
+
+What I should have written is the **trade-off**, not an impossibility: an exact
+pin is brittle, because every legitimate rewording of a 466-character paragraph
+then has to update the test. That is a cost to weigh, and I never weighed it —
+I declared the problem unsolvable and moved on, in a result file, and repeated
+it in the round's dispatch so the reviewer inherited my framing. He tested it
+instead of restating it, which is the only reason it is corrected here.
+
+The general limit on guarding prose with string tests is real, and TASK-471's
+V4 found it on that row. **Its application to B1 was wrong**, and a general
+truth invoked where a specific check exists is an excuse wearing a principle's
+clothes.
 
 ## Two guards that reported my own text as the defect
 
