@@ -400,6 +400,8 @@ same verdicts, and that is how a board of `review` rows ages.
 "$PERRY_HOME/bin/perry-task" list --json    # `startable`, `blocked_by`
 ```
 
+Before a round goes out, run the budget checkpoint in `subcommands.md § Budget boundary`; `OVER` sends no round.
+
 Two rows touching the same files still go out together — they get **separate
 agents and separate verdict blocks**, because merging them produces one verdict
 that fits neither row.

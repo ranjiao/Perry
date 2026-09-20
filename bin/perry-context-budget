@@ -3,10 +3,10 @@
 perry-context-budget — how much context this session is paying for, per turn.
 
 The gate reads the host's own usage accounting for ONE session, bound by the
-host's session identity (Claude Code `CLAUDE_CODE_SESSION_ID`, Codex
-`CODEX_THREAD_ID`) or by an explicit `--session` file — never the newest file.
-OpenCode, a Claude child session, an absent or ambiguous identity and a
-transcript with no usage are `unknown`. Read-only. The argument for each
+host's session identity (Codex `CODEX_THREAD_ID`) or by an explicit `--session`
+file — never the newest file. Claude Code (its subagents carry the main
+session's id), OpenCode, an absent or ambiguous identity and a transcript with
+no usage are `unknown`. Read-only. The argument for each
 choice is in `bin/README.md § The argument, per tool`.
 
 Usage:
@@ -22,7 +22,7 @@ Usage:
   --session      read this transcript instead of the host-identified one. It
                  is `current` when its session id is the host's, `historical`
                  (reported, never gating) when it differs, and `explicit`
-                 (caller-asserted) when the host gives no identity.
+                 (caller-asserted) when the host gives none, as Claude never does.
   --composition  what the bound transcript is made of, by block type and by
                  the biggest repeated shell commands. Byte-based estimates.
   --json         machine-readable, with provenance and coverage.
@@ -54,7 +54,7 @@ from pathlib import Path
 DEFAULT_CEILING = 200_000
 
 # The environment variable through which each measured host names its session.
-HOST_IDENTITY = {"claude-code": "CLAUDE_CODE_SESSION_ID", "codex-cli": "CODEX_THREAD_ID"}
+HOST_IDENTITY = {"codex-cli": "CODEX_THREAD_ID"}
 CATEGORIES = ("input", "cached_input", "cache_creation", "output", "reasoning")
 
 
@@ -111,24 +111,22 @@ def resolve_ceiling(perry_home: Path, project_root: Path,
 
 def host_identity() -> tuple[str, str | None]:
     """The host `perry-detect-host` names, and the session id that host exports
-    for THIS session. Under `CLAUDE_CODE_CHILD_SESSION` (Claude Desktop) the main
-    session and its subagents run in one process with one id, so there is none."""
+    for THIS session. Claude Code hands its subagents the main session's
+    `CLAUDE_CODE_SESSION_ID`, and no verified signal tells them apart, so a
+    Claude session has none (`reference/host-capabilities.md`)."""
     detect = Path(__file__).resolve().parent / "perry-detect-host"
     try:
         host = subprocess.run(["bash", str(detect)], capture_output=True, text=True, timeout=10).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         host = ""
     host = host or "unknown"
-    child = host == "claude-code" and os.environ.get("CLAUDE_CODE_CHILD_SESSION")
-    return host, None if child else (os.environ.get(HOST_IDENTITY.get(host, ""), "").strip() or None)
+    return host, os.environ.get(HOST_IDENTITY.get(host, ""), "").strip() or None
 
 
-def locate(host: str, session: str) -> list[Path]:
+def locate(session: str) -> list[Path]:
     """Every transcript whose NAME carries this session id: a lookup, not a pick."""
     if not re.fullmatch(r"[0-9A-Za-z-]+", session):
         return []
-    if host == "claude-code":
-        return sorted((Path.home() / ".claude" / "projects").glob(f"*/{session}.jsonl"))
     return sorted((Path.home() / ".codex" / "sessions").glob(f"*/*/*/rollout-*-{session}.jsonl"))
 
 
@@ -206,8 +204,8 @@ def read_codex(path: Path) -> dict:
     for rec in records(path, seen):
         payload = rec.get("payload") if isinstance(rec.get("payload"), dict) else {}
         last.update({k: rec[k] for k in ("timestamp",) if rec.get(k)})
-        if rec.get("type") == "session_meta":
-            meta = payload
+        if rec.get("type") == "session_meta" and not meta:
+            meta = payload  # a forked child embeds its parent's meta after its own
         spawned += payload.get("type") in ("function_call", "custom_tool_call") and payload.get("name") == "spawn_agent"
         info = payload.get("info") if payload.get("type") == "token_count" else None
         total = info.get("total_token_usage") if isinstance(info, dict) else None
@@ -417,14 +415,15 @@ def bind(session_flag: str | None, host: str, identity: str | None) -> tuple[Pat
         return Path(session_flag), "--session"
     if host == "opencode":
         return None, "OpenCode exposes no per-session usage telemetry Perry can read"
+    if host == "claude-code":
+        return None, ("unverified identity: Claude Code gives its subagents the main session's "
+                      "CLAUDE_CODE_SESSION_ID and no verified signal tells them apart; "
+                      "--session gives only an explicit, caller-asserted reading")
     if host not in HOST_IDENTITY:
         return None, f"host is {host!r}: no session identity to bind to"
-    if host == "claude-code" and os.environ.get("CLAUDE_CODE_CHILD_SESSION"):
-        return None, ("absent identity: under CLAUDE_CODE_CHILD_SESSION (Claude Desktop) the main session "
-                      "and its subagents share one CLAUDE_CODE_SESSION_ID, so neither can be verified")
     if identity is None:
         return None, f"absent identity: {host} gave this session no {HOST_IDENTITY[host]} of its own"
-    found = locate(host, identity)
+    found = locate(identity)
     if len(found) != 1:
         return None, f"{len(found)} transcripts carry session id {identity!r}; need exactly one"
     return found[0], "host identity"

@@ -6,6 +6,26 @@
 
 ---
 
+## 0. Resume point
+
+Required at a budget boundary (`work/reference/subcommands.md § Budget boundary`); ≤ 8 KiB in all; cite evidence by path, never paste logs.
+
+| Field | Value |
+|---|---|
+| Goal | {{one sentence}} |
+| Task · spec | {{TASK-ID}} · `evidence/{{YYYY-MM}}/{{TASK-ID}}-spec.md` |
+| Worktree · branch | {{absolute path}} · {{branch}} |
+| Base · head | {{main tip SHA}} · {{worktree HEAD SHA}} |
+| Changes | {{commit range or files}} |
+| Test receipts | {{command → result, at SHA; log path}} |
+| Unresolved criteria | {{numbers + why}} |
+| Pending work | {{in-flight dispatches: task, branch, worktree, log; recovery or interrupted-run findings}} |
+| Pending decisions | {{USER- ids}} |
+| Budget | {{`OVER 212,000 / 200,000` or `unknown — not measured: <reason>`}} |
+| Next command | `{{exact command}}` |
+
+At a budget boundary, sections 4 and 6 may be omitted.
+
 ## 1. P0 / Must-Have progress ({{n}}/{{N}} done)
 
 | Must-Have | Status | Evidence |
@@ -91,6 +111,8 @@ When you (PMO Agent in a new session) resume tomorrow, **read these files first*
 1. `perry-tasks board` (the latest board)
 2. `evidence/{{YYYY-MM}}/{{the most active TASK-ID}}.md` (latest evidence)
 3. **This file** (`handoff/{{YYYY-MM-DD}}.md`)
+
+After a budget boundary, first verify § 0 per `work/reference/subcommands.md § Budget boundary` (Resuming).
 
 Then have the user say: "已读今日总结, [{{key topic}}] 进展如何" — and continue from there.
 

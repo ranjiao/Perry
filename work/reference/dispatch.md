@@ -10,7 +10,7 @@ See `dispatch-preflight.md § 0 · Whether to dispatch at all`.
 
 ## Pre-flight (any failure → refuse and fall back to `delegate`)
 
-See `dispatch-preflight.md § Pre-flight (any failure → refuse and fall back to delegate)`.
+First the before-dispatch budget checkpoint, `subcommands.md § Budget boundary`: `OVER` dispatches nothing. Then `dispatch-preflight.md § Pre-flight (any failure → refuse and fall back to delegate)`.
 
 ## Dispatch
 
@@ -407,6 +407,7 @@ this does not change dispatch safety or automatically close the task.
    - PR URL + branch + commit SHA
 6. `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status review --next "user verifies subjective items: <…>"` — row, journal line and event together. Then record the evidence path, executor and cycle time in the dispatch evidence file, which is where per-run detail belongs.
 7. Surface to user: pass/fail summary + 1-line subjective verification ask.
+8. The after-task budget checkpoint: `subcommands.md § Budget boundary`.
 
 ## Failure handling (mark `review`, no auto-retry)
 
