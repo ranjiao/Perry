@@ -4647,8 +4647,26 @@ def phase_pointer(state_root: Path) -> tuple[Path, str]:
     spelling, so the shared rule would silently drop it.
     """
     f = state_root / "phase" / "CURRENT"
-    slug = f.read_text().strip() if f.exists() else ""
+    # `phase_text`, not `read_text()`, even for a one-token pointer: one
+    # reader shape for every phase read leaves no exception to argue
+    # about later. The value is stripped, so the two agree here anyway.
+    slug = phase_text(f).strip() if f.exists() else ""
     return f, ("" if slug in PHASE_NONE else slug)
+
+
+def phase_text(path: Path) -> str:
+    """A phase document's bytes, decoded and **not** newline-translated.
+
+    `Path.read_text()` applies universal newlines: a lone `\r` becomes `\n`
+    and a `\r\n` loses its `\r`. For a READER that silently disagrees with
+    `bin/perry-lint`, which is round 2's F2/R2. For `close`, which writes what
+    it read back out, it would also rewrite every line of a CRLF document
+    while claiming to change one — the reviewer's R3.
+
+    `phase new` normalises what IT writes (USER-973 A). What Perry did not
+    write, Perry does not rewrite.
+    """
+    return path.read_bytes().decode("utf-8")
 
 
 def phase_header(text: str, field: str) -> tuple[int, str] | None:
@@ -4696,7 +4714,11 @@ def splice_header(text: str, field: str, value: str) -> str:
         raise Refused(
             f"line {n} is not the `> **{field}**:` header it was located as; "
             f"the document was not rewritten. Nothing was written")
-    lines[n] = re.sub(pattern, rf"\g<1> {value}", lines[n])
+    # Keep the line's own terminator. On a CRLF document `split("\n")` leaves
+    # a trailing `\r` on every line, and `.*$` would eat this one's — leaving
+    # one LF-terminated line in a CRLF file.
+    cr = "\r" if lines[n].endswith("\r") else ""
+    lines[n] = re.sub(pattern, rf"\g<1> {value}", lines[n].rstrip("\r")) + cr
     return "\n".join(lines)
 
 
@@ -4779,7 +4801,19 @@ def phase_command(mode: str, v: dict) -> dict:
                 raise refusal(f"phase/{target.name} already exists",
                               existing=target.name)
             body = read_body(v["--body-file"], target)
-            text = body if body.endswith("\n") else body + "\n"
+            # **USER-973 (2026-09-20), principle A: the writer normalises.**
+            # Every boundary `str.splitlines()` knows becomes LF, so the bytes
+            # on disk carry only LF and every reader agrees whatever call it
+            # uses. `splitlines()` is the lossy call this file warns about
+            # twice — here the loss IS the operation, which is why it is the
+            # right call in exactly this one place and the wrong one in
+            # `phase_header`. The accepted cost, stated in the answer: this
+            # rewrites the author's bytes, which `Okr.render` declines to do
+            # for `OKR.md`. Two V4 rounds failed on the disagreement it ends:
+            # perry-goals counted a lone CR as no line break and perry-lint
+            # counted it as one, so a 300-line body was written and then
+            # rejected by the project's own linter at 301.
+            text = "\n".join(body.splitlines()) + "\n"
             for field, value in (("Started", today), ("Status", "active")):
                 if phase_header(text, field) is None:
                     raise refusal(
@@ -4834,7 +4868,7 @@ def phase_command(mode: str, v: dict) -> dict:
             # state the enum has no word for — and `close` would then refuse
             # forever, because its own guard is exactly that Status. Found by
             # exercising the verbs in sequence, not by reading them.
-            scored = phase_header(target.read_text(), "Status")
+            scored = phase_header(phase_text(target), "Status")
             if scored is not None and scored[1] == "scored":
                 raise refusal(
                     f"phase {pid} is scored; a scored phase is "
@@ -4863,7 +4897,7 @@ def phase_command(mode: str, v: dict) -> dict:
                     f"phase {pid} is not the active phase "
                     f"({active or 'none'} is). Only the active phase closes",
                     active=active)
-            text = target.read_text()
+            text = phase_text(target)
             hit = phase_header(text, "Status")
             if hit is None:
                 raise refusal("the phase document carries no "
