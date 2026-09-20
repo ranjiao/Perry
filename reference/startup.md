@@ -95,6 +95,30 @@ The pattern in all three: **a correction is only a correction where the
 behaviour is driven.** A rule on this page governs a reader who came here, and
 the failing routes are precisely the ones that do not.
 
+## The pack rule is scoped by route
+
+USER-974 (2026-09-20) chose principle A: the pack-eligibility procedure never
+runs on the Explain route, whatever Explain is loading, and pack-dependent
+content — rows and the `packs/` pages `help <subcommand>` opens — is shown
+**marked** rather than filtered, hidden or withheld. Each of those three is a
+decision about which pack is active, and that decision needs the read an
+ungated route may not do.
+
+**It took two V4 rounds to get that sentence into the file that drives the
+behaviour.** Round 1 wrote the correction *here*, on this page, which line 3
+says is read only "when the route is unclear" — the help route is not unclear
+and never opens it. Round 2 moved it into `work/SKILL.md` and scoped it to help
+**rows**, leaving "before loading software-ops references" standing in the same
+sentence; `work/SKILL.md § help` reaches exactly that for five pack
+subcommands. The instance was fixed twice and the category outlived both.
+
+The third round enumerated four sites instead of one: `work/SKILL.md`,
+`goals/SKILL.md`, and two in `reference/config.md` — `/perry help` being sent
+at a procedure whose step 1 reads the config store and the project payload, and
+work help being told to *hide* inactive pack commands. The last two required
+widening that row's declared scope, which is recorded in its spec rather than
+done quietly.
+
 ## Once per operation, refreshed when invalidated
 
 An operation is one request carried to its end, including its route into a

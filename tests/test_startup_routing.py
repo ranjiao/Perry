@@ -301,6 +301,59 @@ class TestTheHelpRouteIsNotSentToReadState(unittest.TestCase):
     behaviour, which is the whole of D1.
     """
 
+    #: Every file that names the pack procedure, and so must carry the route
+    #: rule. Enumerated rather than sampled: rounds 1 and 2 each fixed the one
+    #: site they were shown and the category outlived both.
+    PACK_SITES = ("SKILL.md", "goals/SKILL.md", "work/SKILL.md",
+                  "decide/SKILL.md", "reference/config.md")
+
+    #: The exact instruction each site must carry, keyed by file. Pinning the
+    #: SITE, not a window around the first heading: mutations A4 and A5 both
+    #: survived a +/-1400-character window, because `reference/config.md`'s
+    #: two instructions are 70 lines apart and only one fell inside it.
+    ROUTE_RULES = {
+        "work/SKILL.md": ("**Pack eligibility:**", "never on the explain route"),
+        "goals/SKILL.md": ("Pack capabilities and controls`", "never on the explain route"),
+        "reference/config.md": ("`/perry help` points here",
+                                "not for step 1"),
+    }
+
+    def flat(self, text: str) -> str:
+        return " ".join(text.split()).lower()
+
+    def test_every_site_states_the_route_rule_at_the_instruction(self):
+        """POSITIVE: each site must SAY the rule, where the rule is given.
+
+        Round 2's guard was a blacklist of softening words and its reviewer
+        walked around it with a hedge the list did not have. A blacklist of
+        English cannot be completed; an assertion that a named instruction
+        carries a named clause can be.
+        """
+        for rel, (anchor, clause) in self.ROUTE_RULES.items():
+            with self.subTest(file=rel):
+                text = read(rel)
+                self.assertIn(anchor, text, f"{rel} lost its instruction")
+                i = text.index(anchor)
+                para = self.flat(text[i:text.index("\n\n", i)])
+                self.assertIn(clause, para,
+                              f"{rel}'s instruction does not scope itself by "
+                              f"route; it reads {para[:110]!r}")
+
+    def test_no_site_anywhere_tells_help_to_hide_a_pack_command(self):
+        """Whole file, not a window. Hiding is a decision about which pack is
+        active, and that decision needs a read help is not allowed to make."""
+        for rel in self.PACK_SITES:
+            with self.subTest(file=rel):
+                flat = self.flat(read(rel))
+                for verb in ("help hides", "hides inactive pack",
+                             "help filters", "filtered from its executable"):
+                    self.assertNotIn(
+                        verb, flat,
+                        f"{rel} tells an Explain request to {verb!r}")
+                self.assertNotIn("also points here", flat,
+                                 f"{rel} sends /perry help at the procedure "
+                                 f"without saying which part it may run")
+
     def test_no_lane_sends_help_row_rendering_through_the_pack_procedure(self):
         """The defect itself: no lane may make help rows need that read.
 
@@ -319,11 +372,29 @@ class TestTheHelpRouteIsNotSentToReadState(unittest.TestCase):
 
     def test_the_lane_that_has_pack_help_rows_says_to_mark_not_filter(self):
         text = read("work/SKILL.md")
-        window = text[text.index("Pack eligibility"):][:1600]
-        self.assertIn("mark", window.lower(),
+        i = text.index("**Pack eligibility:**")
+        # **The instruction paragraph alone, not a fixed-size window.** The
+        # first version read 2,000 characters and went red on this file's own
+        # account of what round 2 got wrong, which QUOTES the old wording. A
+        # guard that cannot tell an instruction from a description of a
+        # retired instruction reports the history as the defect.
+        # **Whitespace-normalised.** Markdown wraps, so a phrase can fall
+        # across a newline; a guard keyed to where the wrap lands is the
+        # allowlist TASK-431 broke by adding a comment above the line it named.
+        flat = lambda t: " ".join(t.split()).lower()  # noqa: E731
+        rule = flat(text[i:text.index("\n\n", i)])
+        body = flat(text[i:][:2000])
+        self.assertNotIn(
+            "before loading software-ops references", rule,
+            "the half round 2 left: help <subcommand> reads the matching "
+            "reference file, and for five subcommands that file is a "
+            "packs/software-ops page")
+        self.assertIn("never on the explain route", rule,
+                      "the eligibility rule does not scope itself by route")
+        self.assertIn("mark", body,
                       "the remedy is not in the file that drives the "
                       "behaviour; startup.md is not read by the help route")
-        self.assertIn("do not filter", window.lower())
+        self.assertIn("never filter", body)
 
 
 if __name__ == "__main__":
