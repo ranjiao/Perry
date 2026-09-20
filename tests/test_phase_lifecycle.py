@@ -218,6 +218,28 @@ class TestActivateRefuses(Fixture):
         self.assertIn("is scored", msg)
         self.assertIn("not reactivated", msg)
 
+    def test_the_refusal_names_the_active_phase_even_when_the_target_is_scored(self):
+        """TASK-474 V4 F5, which round 2 did not actually fix.
+
+        Criterion 4 asks the refusal to name the phase holding the pointer.
+        When the target is ALSO scored, gate order decides which sentence the
+        caller reads. Round 2 reordered the gates and reported the fix as
+        covered by a mutant that had replaced `if active:` with `if False:` —
+        which deletes the gate rather than reordering it, so it killed on the
+        gate's existence and said nothing about its order. Round 2's reviewer
+        caught that; this is the test that was missing.
+        """
+        d = self.project()
+        # 003 exists and is scored; 002 is still the active phase.
+        second = d / "phase" / "003-scored.md"
+        second.write_text((d / "phase" / "002-release-pipeline.md")
+                          .read_text().replace("> **Status**: active",
+                                               "> **Status**: scored", 1))
+        msg = self.refused(d, "activate", "--phase", "003", "--actor", "t")
+        self.assertIn("002-release-pipeline is still active", msg,
+                      "the refusal does not name the phase holding the "
+                      "pointer; the scored gate answered first")
+
     def test_activate_is_refused_on_a_number_no_document_carries(self):
         d = self.project(active=None)
         self.assertIn("no phase document numbered 099",
@@ -453,18 +475,53 @@ class TestOneSpellingOfTheLineBreakRule(Fixture):
     did not stop the third one.
     """
 
-    def test_the_phase_functions_never_call_splitlines(self):
+    def sites(self) -> list[str]:
         source = (ROOT / "bin" / "perry-goals").read_text()
         start = source.index("def phase_docs(")
         end = source.index("COMMANDS = {", start)
-        offenders = [
-            line.strip() for line in source[start:end].split("\n")
-            if ".splitlines()" in line
-            and not line.lstrip().startswith(("#", "*"))
-            and "`" not in line]
+        return [line.strip() for line in source[start:end].split("\n")
+                if ".splitlines()" in line
+                and not line.lstrip().startswith(("#", "*"))
+                and "`" not in line]
+
+    def test_exactly_one_splitlines_and_it_is_the_normaliser(self):
+        """Positive: say what must be true, do not enumerate what must not.
+
+        Round 2's version of this asserted the call was ABSENT. USER-973's
+        principle A requires it in exactly one place — the normalisation in
+        `new` — so an absence assertion would have forced the principle to be
+        implemented somewhere it does not belong, or the guard deleted. It
+        pins the count and the line instead.
+        """
+        sites = self.sites()
+        self.assertEqual(
+            len(sites), 1,
+            f"the phase lifecycle has {len(sites)} splitlines() calls; "
+            f"principle A puts exactly one, in `new`'s normaliser: {sites}")
+        self.assertIn('"\\n".join(body.splitlines())', sites[0],
+                      "the one splitlines() is not the normaliser")
+
+    def test_the_normaliser_is_in_new_and_nowhere_else(self):
+        source = (ROOT / "bin" / "perry-goals").read_text()
+        new_start = source.index('if mode == "new":')
+        activate_start = source.index('elif mode == "activate":')
+        self.assertIn('"\\n".join(body.splitlines())',
+                      source[new_start:activate_start],
+                      "the normaliser is not inside `new`")
+
+    def test_the_readers_decode_rather_than_translate(self):
+        """`phase_text` exists so no phase reader calls `read_text()`."""
+        source = (ROOT / "bin" / "perry-goals").read_text()
+        start = source.index("def phase_docs(")
+        end = source.index("COMMANDS = {", start)
+        offenders = [line.strip() for line in source[start:end].split("\n")
+                     if ".read_text()" in line
+                     and "def phase_text" not in line
+                     and not line.lstrip().startswith(("#", "*"))
+                     and "`" not in line]
         self.assertEqual(offenders, [],
-                         "the phase lifecycle must split lines the one way "
-                         "bin/perry-lint and Okr.render do")
+                         "a phase reader calls read_text(), which applies "
+                         "universal newlines and disagrees with perry-lint")
 
 
 class TestSpliceHeaderRefusesAnIndexItCannotTrust(Fixture):
@@ -513,6 +570,118 @@ class TestSpliceHeaderRefusesAnIndexItCannotTrust(Fixture):
         mod = self.module()
         out = mod.splice_header(TEMPLATE.read_text(), "Status", "scored")
         self.assertIn("> **Status**: scored", out)
+
+
+class TestTheWriterNormalises(Fixture):
+    """USER-973 principle A. What `phase new` writes carries only LF.
+
+    Two V4 rounds failed on one disagreement: `perry-goals` read a body with
+    `read_bytes().decode()`, where a lone CR is not a line break, and
+    `bin/perry-lint` reads with `read_text()`, where it is. The principle
+    removes the disagreement at the source rather than teaching each reader
+    about the other.
+
+    These assertions are POSITIVE — they state what must be true of the bytes
+    — because round 2's guard was a blacklist of softening words and round 2's
+    reviewer walked around it with a word the list did not have.
+    """
+
+    BREAKS = ("\r\n", "\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e",
+              "\x85", "\u2028", "\u2029")
+
+    def body_broken_by(self, d: pathlib.Path, sep: str) -> str:
+        """The template with one paragraph break replaced by `sep`."""
+        text = TEMPLATE.read_text()
+        head, _, rest = text.partition("\n")
+        out = d / "broken.md"
+        out.write_text(head + sep + rest)
+        return str(out)
+
+    def test_every_break_becomes_lf_on_disk(self):
+        for sep in self.BREAKS:
+            with self.subTest(sep=repr(sep)):
+                d = self.project(active=None)
+                proc = self.run_phase(d, "new", "--slug", "norm", "--body-file",
+                                      self.body_broken_by(d, sep), "--actor", "t")
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                raw = (d / "phase" / "003-norm.md").read_bytes()
+                for ch in (b"\r", b"\x0b", b"\x0c", b"\x1c", b"\x1d",
+                           b"\x1e", b"\xc2\x85", b"\xe2\x80\xa8",
+                           b"\xe2\x80\xa9"):
+                    self.assertNotIn(ch, raw,
+                                     f"{ch!r} survived normalisation")
+
+    def test_the_two_readers_agree_on_every_written_document(self):
+        """The property the principle buys, stated as the two calls."""
+        for sep in self.BREAKS:
+            with self.subTest(sep=repr(sep)):
+                d = self.project(active=None)
+                self.assertEqual(
+                    self.run_phase(d, "new", "--slug", "norm", "--body-file",
+                                   self.body_broken_by(d, sep), "--actor",
+                                   "t").returncode, 0)
+                f = d / "phase" / "003-norm.md"
+                self.assertEqual(len(f.read_bytes().decode().split("\n")),
+                                 len(f.read_text().split("\n")),
+                                 "perry-goals and perry-lint would disagree "
+                                 "on this document's line count")
+
+    def test_the_cap_boundary_holds_with_a_lone_cr_in_the_body(self):
+        """Round 2's R2 case, exactly: 300 lines plus one CR."""
+        text = TEMPLATE.read_text()
+        for n in (299, 300, 301):
+            with self.subTest(lines=n):
+                d = self.project(active=None)
+                have = len(text.split("\n"))
+                body = (text + "filler\n" * (n - have) if n > have
+                        else "\n".join(text.split("\n")[:n]))
+                src = d / "cr_body.md"
+                src.write_text(body.replace("## Phase Focus",
+                                            "## Phase\rFocus", 1))
+                proc = self.run_phase(d, "new", "--slug", "cr", "--body-file",
+                                      str(src), "--actor", "t")
+                lint = subprocess.run(
+                    [sys.executable, str(ROOT / "bin" / "perry-lint"),
+                     "--root", str(d)], capture_output=True, text=True, cwd=ROOT)
+                if proc.returncode == 0:
+                    self.assertNotIn("size-cap", lint.stdout + lint.stderr,
+                                     f"wrote a document its linter rejects "
+                                     f"at {n} lines + one CR")
+                else:
+                    self.assertIn("tier-1 hard cap", proc.stderr)
+
+
+class TestCloseDoesNotRewriteWhatPerryDidNotWrite(Fixture):
+    """The reviewer's R3. `close` read with `read_text()` and wrote the
+    translated string back, so a CRLF document lost every CR while `close`
+    claimed to change one line, and the snapshot was not a byte copy."""
+
+    def crlf_project(self):
+        d = self.project()
+        doc = d / "phase" / "002-release-pipeline.md"
+        doc.write_bytes(doc.read_text().replace("\n", "\r\n").encode())
+        return d, doc
+
+    def test_the_snapshot_is_a_byte_for_byte_copy(self):
+        d, doc = self.crlf_project()
+        before = doc.read_bytes()
+        proc = self.run_phase(d, "close", "--actor", "t", "--json")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        snap = d / json.loads(proc.stdout)["snapshot"]
+        self.assertEqual(snap.read_bytes(), before,
+                         "the snapshot is not the document as it stood")
+
+    def test_only_the_status_line_differs_and_the_crlf_survives(self):
+        d, doc = self.crlf_project()
+        before = doc.read_bytes()
+        self.assertEqual(self.run_phase(d, "close", "--actor", "t").returncode, 0)
+        after = doc.read_bytes()
+        self.assertEqual(before.count(b"\r\n"), after.count(b"\r\n"),
+                         "close changed line terminators it was not asked to")
+        diff = [(a, b) for a, b in zip(before.split(b"\r\n"),
+                                       after.split(b"\r\n")) if a != b]
+        self.assertEqual(len(diff), 1, f"close rewrote {len(diff)} lines")
+        self.assertIn(b"Status", diff[0][0])
 
 
 if __name__ == "__main__":
