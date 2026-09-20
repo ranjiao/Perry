@@ -72,7 +72,7 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 | **`work`** (`work/`) | `tasks.jsonl` + its 4 register stores (`perry-tasks board` prints them), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
 | **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
 
-**Two changes from the previous contract** — `decisions/` + its then-index moved from `work` to `decide`, and `OKR.md § Commitments` became explicitly `goals`. **The lane names and the directories now agree**, an edit needing no second signature because the ownership set above is byte-identical across it. Both accounts: `reference/hand-off-contract.md`.
+**Two changes from the previous contract, and why neither needed a second signature**: `reference/hand-off-contract.md`.
 
 **What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing `tasks.jsonl`; `work` writing `decisions/`; `decide` writing `journal/`.
 
@@ -86,7 +86,7 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 | **Query**: one fact about this project | −2, −1, 1, 2 | only that projection: `--section <name>`, `perry-explain <ID>`, `perry-task list --json` |
 | **Change**: a write, a subcommand but `help`, bare `/perry` | −2 to 3 | bare `/perry` → 3b–6; a lane skips its −3 to −1, keeps its gates |
 
-Unclear → ask which. Nothing reads state before step 2. Steps run once per operation; after a write, or when state may have moved, re-read. Steps −2 to 3 are ordering-critical; the rest is `reference/snapshot.md`.
+Unclear → ask which. Nothing reads state before step 2 **but step 1's config read**. Steps run once per operation; after a write, or when state may have moved, re-read. Steps −2 to 3 are ordering-critical; the rest is `reference/snapshot.md`.
 
 −2. **Set `$PERRY_HOME`** — if unset, derive it from the path of the SKILL.md you just read: the directory containing this top-level SKILL.md (it also contains `bin/`, `reference/`, `modes/`, `packs/`, `goals/`, `work/`, `decide/`). For a lane SKILL.md, use the grandparent. Every `$PERRY_HOME/bin/<script>` call needs this step.
 
@@ -94,7 +94,7 @@ Unclear → ask which. Nothing reads state before step 2. Steps run once per ope
 
 0. **Auto-update check**: run `bash "$PERRY_HOME/bin/perry-update-check"`. It is throttled to once per 7 days; surface output verbatim. OpenCode and Codex may run this bounded check synchronously.
 
-1. **Read `.perry/config.jsonl`** for document language, chat language and repo layout. If it does not exist and a state file does, prompt for first-time setup. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
+1. **Read `.perry/config.jsonl`** for document language, chat language and repo layout. If it does not exist and a state file does, prompt for first-time setup — **Change route only**, since it writes; Explain and Query report the gap and stop. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
 
 2. **Check for an interrupted run, but only after recovery safety — before anything else reads project state.**
 
@@ -104,7 +104,8 @@ Unclear → ask which. Nothing reads state before step 2. Steps run once per ope
 
    This is the deterministic, read-only startup recovery gate. If
    `blocking: true`, stop before any further project-state read or mutation and
-   report every exact path and error. A pending task transaction must be
+   report every exact path and error — **nothing else is read after that
+   stop, not even a listing**. A pending task transaction must be
    recovered by the task command; a malformed dossier must be repaired or
    explicitly retired. Do not reinterpret either as routine PMO hygiene.
 

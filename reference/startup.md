@@ -72,6 +72,29 @@ its config and hook reads, its own state read, the ownership table, the
 hook's high-stakes list, evidence and verification rules. Nothing the lane
 gates on is lifted because the router ran first.
 
+## Why three router sentences are worded the way they are
+
+Each replaced a sentence a V4 round proved false or unreachable (TASK-469
+round 1 FAIL, `perry/evidence/2026-09/TASK-469-v4-review.md`).
+
+- **"except step 1's `.perry/config.jsonl`"** (route table). The router used
+  to assert "Nothing reads state before step 2" as an absolute, eight lines
+  above the step that reads the config store. This page's own definition of a
+  project-state read includes it, so the tier-0 absolute was false by the
+  tier-2 definition shipped beside it, and only a reader who opened this page
+  found out (D2).
+- **"on a Change route only"** (step 1). First-time setup writes. A Query that
+  started it would turn a question into a mutation, ahead of the recovery gate.
+  The rule was written here and not there, so the route that needed it never
+  saw it (D2).
+- **"not even a listing"** (step 2). This clause lived only on this page. The
+  blocking path never opens this page, so the one agent that obeyed it had
+  never read it — its round-2 trace lists no read of this file (D3).
+
+The pattern in all three: **a correction is only a correction where the
+behaviour is driven.** A rule on this page governs a reader who came here, and
+the failing routes are precisely the ones that do not.
+
 ## Once per operation, refreshed when invalidated
 
 An operation is one request carried to its end, including its route into a

@@ -42,12 +42,24 @@ def first_move(router: str) -> str:
 
 def routes(section: str) -> dict[str, str]:
     """Route name → its `Run` cell, from the table above step −2."""
+    return {name: run for name, (run, _) in route_cells(section).items()}
+
+
+def route_cells(section: str) -> dict[str, tuple[str, str]]:
+    """Route name → (`Run` cell, `Then` cell).
+
+    **The `Then` cell is half the contract and was unparsed.** Acceptance
+    criterion 1 — no dashboard, no update check, no mode load, no project-state
+    read — is written entirely in `Then`, and the V4 round rewrote Explain's
+    `Then` to "the pages that answer, plus `perry-task list --json` and the
+    dashboard" with the suite staying green (mutation P3).
+    """
     table = section[:section.index("−2. **Set `$PERRY_HOME`**")]
     out = {}
     for line in table.splitlines():
-        m = re.match(r"\|\s*\*\*(\w+)\*\*[^|]*\|([^|]*)\|", line)
+        m = re.match(r"\|\s*\*\*(\w+)\*\*[^|]*\|([^|]*)\|([^|]*)\|", line)
         if m:
-            out[m.group(1)] = m.group(2).strip()
+            out[m.group(1)] = (m.group(2).strip(), m.group(3).strip())
     return out
 
 
@@ -119,6 +131,199 @@ class TestTheLanesShareTheRouterStartup(unittest.TestCase):
                     self.assertNotIn(own, head,
                                      f"{lane} carries its own copy of {own}; "
                                      f"a second startup path drifts")
+
+
+class TestTheThenCellCarriesCriterionOne(unittest.TestCase):
+    """AC1's content lives in the `Then` column. Nothing read it (V4 D5/P3)."""
+
+    #: What criterion 1 excludes by name. Each must appear in the cell's
+    #: NEGATIVE clause and nowhere else.
+    EXCLUDED = ("update check", "config", "state", "modes", "dashboard",
+                "write")
+
+    def explain_then(self) -> str:
+        return route_cells(first_move(read("SKILL.md")))["Explain"][1].lower()
+
+    def test_the_cell_carries_a_negation_and_it_names_every_exclusion(self):
+        """Polarity, not presence.
+
+        The first version of this test asserted the words were ABSENT, and it
+        went red on the correct cell — which reads "No update check, config,
+        state, modes, dashboard or write". A substring test cannot tell "no
+        dashboard" from "the dashboard", which is the same shape as the P3
+        defect it was written to catch.
+        """
+        then = self.explain_then()
+        self.assertIn("no ", then, "Explain's Then cell carries no negation")
+        negation = then[then.index("no "):]
+        for token in self.EXCLUDED:
+            with self.subTest(excluded=token):
+                self.assertIn(token, negation,
+                              f"criterion 1 excludes {token!r} and the cell's "
+                              f"negative clause does not name it")
+                self.assertNotIn(
+                    token, then[:then.index("no ")],
+                    f"{token!r} is named before the negation, so the cell "
+                    f"both loads and excludes it")
+
+    def test_nothing_is_added_after_the_negation(self):
+        """Mutation P3 appended `plus perry-task list --json and the
+        dashboard` — an addition the negation does not cover."""
+        then = self.explain_then()
+        for added in ("plus ", "perry-task list", "perry-state", "perry-explain"):
+            self.assertNotIn(added, then, f"Explain's Then cell names {added!r}")
+
+    def test_explain_still_says_what_it_does_load(self):
+        self.assertIn("pages that answer", self.explain_then())
+
+
+class TestTheLaneOrderingWordIsGuarded(unittest.TestCase):
+    """Mutation P6: flipping the lanes' `before` to `after` stayed green.
+
+    `test_each_lane_defers_its_startup_to_the_router` slices at
+    `**Compute the state` and asserts two literals appear in the head — which
+    cannot tell "run the gates BEFORE the state read" from "AFTER". That one
+    word carries the whole of criteria 2 and 3 inside the lanes.
+    """
+
+    def test_each_lane_runs_the_gates_before_it_reads_state(self):
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                text = read(f"{lane}/SKILL.md")
+                ritual = text[text.index("## Mandatory first move"):]
+                head = ritual[:ritual.index("**Compute the state")]
+                window = head[head.index("interrupted-run gates"):][:120]
+                # **The word immediately after the gates, not anywhere near
+                # them.** Mutation S3 kept `before` in the window and read
+                # "gates, run before nothing and after this lane reads state";
+                # a `\bbefore\b` search anywhere in 120 characters cannot
+                # tell that from the rule.
+                self.assertRegex(
+                    window, r"^interrupted-run gates\s+before\b",
+                    f"{lane} does not say the gates run immediately BEFORE "
+                    f"it reads state; window was {window[:70]!r}")
+                self.assertNotIn(" after", window,
+                                 f"{lane}'s ordering clause says 'after'")
+
+
+class TestCriterionTwosOwnSentencesAreGuarded(unittest.TestCase):
+    """Mutations P1, P2, P4 and P5 each inverted one of criterion 2's
+    sentences in place with the suite staying green.
+
+    P2 and P5 were this change's own fix and shipped with no guard at all.
+    P1 and P4 are older sentences; guarding them costs one assertion each and
+    they are the stop and the never-resume rule, which is what criterion 2 is.
+    """
+
+    def sentences(self):
+        router = read("SKILL.md")
+        return (
+            ("the blocking stop", router,
+             "stop before any further project-state read or mutation"),
+            ("the case-6 clause", router,
+             "not even a listing"),
+            ("the step-2 ordering", router,
+             "Nothing reads state before step 2"),
+            ("never resume", router, "Never resume without asking"),
+            # D2's write half. Removing this gate left the suite green on the
+            # first attempt at the round-2 fixes: the rule was written and
+            # nothing read it, which is the same shape as P1-P6.
+            ("first-time setup is Change-only", router,
+             "**Change route only**"),
+        )
+
+    #: Words that turn a rule into a suggestion without removing it. A
+    #: presence assertion cannot see any of them.
+    WEASEL = ("unless", "except when", "in which case", "is fine", "may be",
+              "if you need", "afterwards is", "run before nothing")
+
+    def test_each_sentence_is_present_and_not_inverted(self):
+        for name, text, phrase in self.sentences():
+            with self.subTest(sentence=name):
+                self.assertIn(phrase, text, f"{name} is gone")
+
+    def test_no_rule_is_softened_by_what_follows_it(self):
+        """Presence is not meaning.
+
+        Four mutations kept every guarded literal and flipped the rule anyway
+        — an escape clause after the blocking stop, an exception after
+        "Never resume without asking", a qualifier naming the wrong step.
+        All four were green before this test existed. It is the same lesson
+        TASK-474's mislabelled F5 mutant taught one row over: a mutation that
+        kills on the wrong property proves nothing about the right one.
+        """
+        for name, text, phrase in self.sentences():
+            with self.subTest(sentence=name):
+                tail = text[text.index(phrase) + len(phrase):][:140].lower()
+                for weasel in self.WEASEL:
+                    self.assertNotIn(
+                        weasel, tail,
+                        f"{name} is followed by {weasel!r}, which takes it "
+                        f"back without removing it")
+
+    def test_the_step_one_qualifier_names_step_one_and_the_config_read(self):
+        """Mutation S1 pointed the qualifier at step 3 and stayed green."""
+        router = read("SKILL.md")
+        i = router.index("Nothing reads state before step 2")
+        clause = router[i:i + 160]
+        self.assertIn("step 1", clause,
+                      "the qualifier does not name step 1, the step it is about")
+        self.assertIn("config read", clause)
+        for wrong in ("step 3", "step 0", "dashboard"):
+            self.assertNotIn(wrong, clause, f"the qualifier names {wrong!r}")
+
+    def test_first_time_setup_is_gated_where_step_one_prompts_for_it(self):
+        """The gate must sit ON step 1, not merely somewhere in the file.
+
+        First-time setup writes the config store. A Query that started it
+        would turn a question into a mutation, ahead of the recovery gate.
+        """
+        router = read("SKILL.md")
+        step1 = router[router.index("1. **Read `.perry/config.jsonl`**"):][:600]
+        self.assertIn("first-time setup", step1)
+        self.assertIn("**Change route only**", step1,
+                      "step 1 prompts for a write with no route gate on it")
+
+    def test_the_blocking_stop_is_not_turned_into_a_continue(self):
+        router = read("SKILL.md")
+        window = router[router.index("`blocking: true`"):][:600]
+        for inverted in ("continue to the state read", "listing the state root",
+                         "Resume the run"):
+            self.assertNotIn(inverted, window)
+
+
+class TestTheHelpRouteIsNotSentToReadState(unittest.TestCase):
+    """V4 D1. `work/SKILL.md`'s pack preamble sent the Explain route into a
+    procedure whose step 1 runs `perry-config show` and `perry-state`.
+
+    The remedy was first written into `reference/startup.md`, which the help
+    route never opens — so this asserts it is in the lane file that drives the
+    behaviour, which is the whole of D1.
+    """
+
+    def test_no_lane_sends_help_row_rendering_through_the_pack_procedure(self):
+        """The defect itself: no lane may make help rows need that read.
+
+        `goals` points at the same procedure for the DISCOVERY operation —
+        "what else can Perry do?" — which is a Query and legitimately reads.
+        Only the help-row clause is the defect, so only it is asserted away.
+        """
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                text = read(f"{lane}/SKILL.md")
+                self.assertNotIn(
+                    "rendering its help rows", text,
+                    f"{lane} applies the pack procedure to help rows; its "
+                    f"step 1 reads perry-config and perry-state, and help is "
+                    f"the one route with no recovery gate")
+
+    def test_the_lane_that_has_pack_help_rows_says_to_mark_not_filter(self):
+        text = read("work/SKILL.md")
+        window = text[text.index("Pack eligibility"):][:1600]
+        self.assertIn("mark", window.lower(),
+                      "the remedy is not in the file that drives the "
+                      "behaviour; startup.md is not read by the help route")
+        self.assertIn("do not filter", window.lower())
 
 
 if __name__ == "__main__":
