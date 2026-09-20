@@ -21,10 +21,24 @@ Voice: terse, numerate, file-first, evidence-required. Perry-the-PMO does not na
 ## How this file is organized
 
 **Pack eligibility:** apply `$PERRY_HOME/reference/config.md § Pack capabilities
-and controls` before loading software-ops references or rendering its help rows.
-Only selected, present packs supply optional routes/gates. Explicit project
-requirements remain binding when a pack is disabled; name their source. Do not
-offer inactive pack commands as active or ask to enable them during routine work.
+and controls` before loading software-ops references or running an optional
+pack's route. Only selected, present packs supply optional routes/gates. Explicit
+project requirements remain binding when a pack is disabled; name their source.
+Do not offer inactive pack commands as active or ask to enable them during
+routine work.
+
+**Rendering help rows is the one thing that procedure is NOT applied to.** Its
+step 1 reads `perry-config show --json` and `perry-state --section project`, and
+`help` is the Explain route — the one route that runs no recovery gate at all
+(`$PERRY_HOME/SKILL.md § Mandatory first move`). So print every row and **mark**
+the ones an optional pack supplies as needing that pack; do not filter them,
+because filtering is what needs the read. A row printed marked is also how the
+sentence above is obeyed without a read: marked is not offered-as-active.
+
+This correction lives here, beside the instruction that drives the behaviour.
+It was first written into `$PERRY_HOME/reference/startup.md`, which is read
+"when the route is unclear" — and the help route is not unclear, never opens
+that page, and so never received it (TASK-469 V4 D1).
 
 This `SKILL.md` is intentionally lean. It contains what's run on **every** invocation: the standup ritual, status / owner / evidence models, state-file inventory, bootstrap, and a one-line index of subcommands. Each subcommand's full procedure lives under `reference/`, loaded only when that subcommand fires.
 
@@ -118,11 +132,9 @@ Trigger on any of:
 
 ## Mandatory first move: the Standup
 
-Always run this before anything else, even if the user asked a specific question. Answer their question after the snapshot.
+Run this before any subcommand but `help`. A question about the project is the router's Query route (one projection after the gates), not a standup; a question about Perry is its Explain route.
 
-−3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: `$PERRY_HOME` is the perry/ root dir, the grandparent of `work/SKILL.md` (it contains `bin/`, `reference/`, `goals/`, `work/`, `decide/`, top-level `SKILL.md`). All later bin/ invocations are written `$PERRY_HOME/bin/<script>`.
-−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `opencode` | `codex-cli`). Then read `$PERRY_HOME/reference/host-capabilities.md` once for fallback rules; subsequent references to choice tools, native subagents, and background execution in this file and the reference files apply per that matrix.
-−1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
+−3 to −1. **Router startup, once per operation** — `$PERRY_HOME/SKILL.md § Mandatory first move`: **Set `$PERRY_HOME`** (the grandparent of this file), detect `$HOST` (choice tools, native subagents and background execution follow `$PERRY_HOME/reference/host-capabilities.md`), the update check, then the blocking recovery and interrupted-run gates before this lane reads state. Do not repeat them; run any that did not run. All later bin/ invocations are written `$PERRY_HOME/bin/<script>`.
 0. **Read `.perry/config.jsonl`** if present (`"$PERRY_HOME/bin/perry-config" show --json`). It declares the document language (English / 中文 / other), the chat language, and the repo layout (single vs split). Task records, `journal/`, ADRs, evidence, weekly reports, handoffs and delegation prompts are written in `Document language`; the standup, the TL;DR, suggested actions and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; task ids, `P0`/`P1`/`P2`, owner names, status values (`in_progress`, `blocked`, …), evidence paths and commit SHAs stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`. A delegation prompt is written in the document language but must carry its file paths, commands and acceptance checks verbatim — the receiving agent runs them. On a split layout, every reference to a code path in delegation prompts and evidence files must include the code-repo absolute path so a future session can find it. If the file is missing and any state file already exists, prompt the user to run top-level `/perry` first-time setup before continuing.
 1. **Read `.perry/hook.md`** if present (project-specific hook). Apply additions; never let a hook override the generic rules in this skill.
 2. **Compute the state — ONE call, not a dozen file reads**:

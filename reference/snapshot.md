@@ -1,8 +1,10 @@
 # The combined snapshot — the steps the router points at
 
 Tier 1. Loaded on demand from `SKILL.md § Mandatory first move: combined
-snapshot`, which keeps the ordering-critical steps (set `$PERRY_HOME`, detect
-host, the interrupted-run gate, the state read) and points here for the rest.
+snapshot`, which keeps the route table and the ordering-critical steps (set
+`$PERRY_HOME`, detect host, the recovery and interrupted-run gates, the state
+read) and points here for the rest. Only the Change route for bare `/perry`
+or an overview reaches steps 3b–6 (`reference/startup.md`).
 
 Extracted from `SKILL.md` on 2026-08-18 (TASK-064) to keep the tier-0
 router inside its byte budget. The prose is carried over unchanged.
@@ -266,4 +268,4 @@ still the contract `schema/` documents.
    the selector's recommendation merely because it appeared. Startup safety
    questions still apply. This does not change the shared closing procedure.
 
-If the user picks an OKR-flavored action (plan, score, pivot, revise), read `$PERRY_HOME/goals/SKILL.md` and follow it. A work-flavored action (triage, status, delegate, handoff, rollover, risk) → `$PERRY_HOME/work/SKILL.md`. Recording a decision (`adr`) is the `decide` lane, not this one. A design-flavored action (RFC, architecture, lock, supersede) → `$PERRY_HOME/decide/SKILL.md`. If unclear, ask which, then route. **Read the lane file in full before acting on it** — it is loaded on demand precisely so it can be complete.
+If the user picks an OKR-flavored action (plan, score, pivot, revise), read `$PERRY_HOME/goals/SKILL.md` and follow it. A work-flavored action (triage, status, delegate, handoff, rollover, risk) → `$PERRY_HOME/work/SKILL.md`. Recording a decision (`adr`) is the `decide` lane, not this one. A design-flavored action (RFC, architecture, lock, supersede) → `$PERRY_HOME/decide/SKILL.md`. If unclear, ask which, then route. **Read the lane file in full before acting on it** — it is loaded on demand precisely so it can be complete. It starts after its steps −3 to −1: this operation already ran them and the gates, so they are not repeated.

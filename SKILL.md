@@ -9,7 +9,7 @@ description: Perry — one virtual project office for solo or small projects. Us
 
 Perry has three internal lanes sharing project state. This tier-0 router is read on every invocation, so it keeps commands, ordering-critical steps and one pointer per subject; bodies live under `reference/`.
 
-Activate on `/perry`, on the word "Perry", on a session wanting a "where are we" overview without naming a lane, and on a user asking how Perry works. Only goal-setting → `goals`; only execution → `work`. `/perry help` does **not** trigger the snapshot.
+Activate on `/perry`, on the word "Perry", on a session wanting a "where are we" overview without naming a lane, and on a user asking how Perry works. Only goal-setting → `goals`; only execution → `work`.
 
 ## One skill, three lanes
 
@@ -72,13 +72,21 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 | **`work`** (`work/`) | `tasks.jsonl` + its 4 register stores (`perry-tasks board` prints them), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
 | **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
 
-**Two changes from the previous contract** — `decisions/` + its then-index moved from `work` to `decide`, and `OKR.md § Commitments` became explicitly `goals`. **The lane names and the directories now agree**, an edit needing no second signature because the ownership set above is byte-identical across it. Both accounts: `reference/hand-off-contract.md`.
+**Two changes from the previous contract, and why neither needed a second signature**: `reference/hand-off-contract.md`.
 
 **What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing `tasks.jsonl`; `work` writing `decisions/`; `decide` writing `journal/`.
 
 ## Mandatory first move: combined snapshot
 
-Always run this first. Steps −2 to 3 are ordering-critical; the rest is `reference/snapshot.md`.
+**Route first, reading no project state.** You judge the intent; cases: `reference/startup.md`.
+
+| Route | Run | Then |
+|---|---|---|
+| **Explain**: help, how Perry works | step −2 | only the pages that answer. No update check, config, state, modes, dashboard or write |
+| **Query**: one fact about this project | −2, −1, 1, 2 | only that projection: `--section <name>`, `perry-explain <ID>`, `perry-task list --json` |
+| **Change**: a write, a subcommand but `help`, bare `/perry` | −2 to 3 | bare `/perry` → 3b–6; a lane skips its −3 to −1, keeps its gates |
+
+Unclear → ask which. Nothing reads state before step 2 **but step 1's config read**. Steps run once per operation; after a write, or when state may have moved, re-read. Steps −2 to 3 are ordering-critical; the rest is `reference/snapshot.md`.
 
 −2. **Set `$PERRY_HOME`** — if unset, derive it from the path of the SKILL.md you just read: the directory containing this top-level SKILL.md (it also contains `bin/`, `reference/`, `modes/`, `packs/`, `goals/`, `work/`, `decide/`). For a lane SKILL.md, use the grandparent. Every `$PERRY_HOME/bin/<script>` call needs this step.
 
@@ -86,7 +94,7 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
 
 0. **Auto-update check**: run `bash "$PERRY_HOME/bin/perry-update-check"`. It is throttled to once per 7 days; surface output verbatim. OpenCode and Codex may run this bounded check synchronously.
 
-1. **Read `.perry/config.jsonl`** for document language, chat language and repo layout. If it does not exist and a state file does, prompt for first-time setup. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
+1. **Read `.perry/config.jsonl`** for document language, chat language and repo layout. If it does not exist and a state file does, prompt for first-time setup — **Change route only**, since it writes; Explain and Query report the gap and stop. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
 
 2. **Check for an interrupted run, but only after recovery safety — before anything else reads project state.**
 
@@ -96,7 +104,8 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
 
    This is the deterministic, read-only startup recovery gate. If
    `blocking: true`, stop before any further project-state read or mutation and
-   report every exact path and error. A pending task transaction must be
+   report every exact path and error — **nothing else is read after that
+   stop, not even a listing**. A pending task transaction must be
    recovered by the task command; a malformed dossier must be repaired or
    explicitly retired. Do not reinterpret either as routine PMO hygiene.
 
@@ -106,11 +115,9 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
    "$PERRY_HOME/bin/perry-state" --section interrupted
    ```
 
-   Deterministic, read-only, stdlib-only. One row per pipeline someone walked
-   away from mid-run. **Every number on the card comes from this payload** —
-   never eyeball the dossier's frontmatter, which would be estimating how much
-   of the user's own work survived. The gate exists because such a run is
-   otherwise **invisible**: `reference/snapshot.md § Why the interrupted-run gate exists`.
+   Read-only; one row per pipeline left mid-run. **Every number on the card
+   comes from this payload**, never the dossier's frontmatter. Why:
+   `reference/snapshot.md § Why the interrupted-run gate exists`.
 
    None found → step 3 unchanged. One → render the card, then ask; do **not** run
    First-time setup and do not render the dashboard first. More than one → list
@@ -129,9 +136,9 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
    ```
    "$PERRY_HOME/bin/perry-state" --compact
    ```
-   `installed: false` → jump to **First-time setup** below — **but only if step 2 found neither a recovery hazard nor an interrupted run.** An abandoned adoption reports `installed: false` too, because stages 0–3 write no state file; treating that as a fresh project is the failure step 2 exists to prevent. Otherwise the payload carries everything the dashboard needs; a field it lacks prints `—`.
+   `installed: false` → jump to **First-time setup** below — **but only if step 2 found neither a recovery hazard nor an interrupted run.** Otherwise the payload carries everything the dashboard needs; a field it lacks prints `—`.
 
-The rest is `reference/snapshot.md`: **3b** load one mode file per distinct `mode` in `project.tracks[]` (never empty; a mode with no file means no rules — say so and fall back rather than skip). **3c** apply `project.packs[]`'s glossary to prose only. **4** render the dashboard in the exact shape given there, `—` for empty, never fabricated, **every ID carrying its title**. **5** render `next` per `reference/next.md`, then **6** ask "What do you want to do?", routing to `$PERRY_HOME/goals/SKILL.md`, `$PERRY_HOME/work/SKILL.md` or `$PERRY_HOME/decide/SKILL.md` — read it in full first.
+The rest is `reference/snapshot.md`: **3b** mode files, **3c** pack glossary, **4** dashboard, **5** `next` per `reference/next.md`, **6** ask "What do you want to do?" and route to `$PERRY_HOME/goals/SKILL.md`, `$PERRY_HOME/work/SKILL.md` or `$PERRY_HOME/decide/SKILL.md`, read in full first.
 
 ## First-time setup
 
@@ -183,7 +190,7 @@ Handled here, not in a lane. `adopt` and `diagnose` span all three lanes, so the
 | `snapshot` | Default. | `reference/snapshot.md` + `reference/host-capabilities.md` + `reference/i18n.md` + `reference/next.md` |
 | `/perry adopt [--depth=quick\|standard\|deep] [--only=…] [--resume] [--recheck]` | **Evidence proposes, the user declares.** Five resumable stages: scan, harvest, infer, confirm, commit. Writes one file of its own, `.perry/adoption/<YYYY-MM-DD>-dossier.md`. Read references first. | `reference/adoption.md` + `reference/adoption-sources.md` |
 | `/perry diagnose [--depth=…] [--only=…] [--dry-run] [--resume] [--recheck]` | `adopt` converts a project **into** Perry; `diagnose` asks whether its working structure is sound at all, on any folder. **Every prescription traces to a finding, and every finding to a measurement or an answer the user gave.** Six stages: scan, read, interview, prescribe, execute, recheck. **Zero findings** and pure **subtraction** are first-class. Read reference first. | `reference/diagnose.md` |
-| `/perry help [<lane>]` | The three lanes and when to use each. With a lane name or alias, render that lane's own `help`. Does **NOT** trigger the snapshot ritual. | — |
+| `/perry help [<lane>]` | The three lanes and when to use each. With a lane name or alias, render that lane's own `help`. The Explain route: no snapshot. | — |
 
 ### `/perry relocate <path>` — moving Perry's state root
 

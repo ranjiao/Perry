@@ -74,7 +74,12 @@ after.** A hand edit to a role card is now drift, the same behaviour `BOARD.md`
 has had since ADR-007 decision 2. `SKILL.md` lands at 20,457 bytes against a
 20,480 cap — 23 bytes of headroom, so the next ownership change forces a trim of
 the router before it can be written, and the account above is here rather than
-there for that reason. The paragraph under the table still reads "Two changes
-from the previous contract"; it describes the 2026-08-16 edit accurately and
-gains no mention of this one, so the table alone no longer carries its own
-history.
+there for that reason.
+
+**The trim this paragraph predicted happened on 2026-09-20.** TASK-469's
+round-2 V4 fixes needed 129 bytes the router did not have. The summary
+paragraph under the table — which described the 2026-08-16 edit accurately and
+gained no mention of any later one — was the movable text, exactly as
+anticipated here. A pointer to this page stands in its place, and the router
+came back to 20,371 bytes against the same 20,480 cap. The table alone no
+longer carries its own history, and it does not need to: this file does.
