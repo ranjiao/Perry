@@ -395,3 +395,4 @@
 {"kind": "unlinked", "task": "TASK-471", "phase": "004-guided", "declared_at": "2026-09-18T07:20:41Z", "actor": "codex-pmo", "via": "add"}
 {"kind": "unlinked", "task": "TASK-472", "phase": "004-guided", "declared_at": "2026-09-18T07:20:41Z", "actor": "codex-pmo", "via": "add"}
 {"kind": "unlinked", "task": "TASK-473", "phase": "004-guided", "declared_at": "2026-09-18T07:20:42Z", "actor": "codex-pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-474", "phase": "004-guided", "declared_at": "2026-09-20T04:05:37Z", "actor": "PMO Agent", "via": "add"}
