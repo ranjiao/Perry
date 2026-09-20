@@ -4652,8 +4652,20 @@ def phase_pointer(state_root: Path) -> tuple[Path, str]:
 
 
 def phase_header(text: str, field: str) -> tuple[int, str] | None:
-    """`(line index, current value)` for a `> **<field>**: …` header line."""
-    for n, line in enumerate(text.splitlines()):
+    """`(line index, current value)` for a `> **<field>**: …` header line.
+
+    **`split("\n")`, not `splitlines()`, and the index is into that list.**
+    This pair got it wrong once (TASK-474 V4 F1): the index came from
+    `splitlines()` and `splice_header` subscripted `split("\n")`. Those agree
+    only on a document with none of the nine other boundaries `splitlines()`
+    breaks on — `\x0b \x0c \x1c \x1d \x1e \x85 \u2028 \u2029` and a lone
+    `\r`. One such character above the header silently rewrote the wrong line;
+    two ran the index off the end, mid-write. `Okr.render` forty lines up says
+    why this file uses `split("\n")`, and `tests/test_one_line_break_rule.py`
+    exists because two spellings of this rule once disagreed on six of eleven
+    boundaries. This is the same rule, in the same file, for the third time.
+    """
+    for n, line in enumerate(text.split("\n")):
         m = re.match(rf"(>\s*\*\*{re.escape(field)}\*\*:)(.*)$", line)
         if m:
             return n, m.group(2).strip()
@@ -4674,8 +4686,17 @@ def splice_header(text: str, field: str, value: str) -> str:
                       f"Nothing was written")
     n, _ = hit
     lines = text.split("\n")
-    lines[n] = re.sub(rf"(>\s*\*\*{re.escape(field)}\*\*:).*$",
-                      rf"\g<1> {value}", lines[n])
+    pattern = rf"(>\s*\*\*{re.escape(field)}\*\*:).*$"
+    # **Never trust the index alone.** `phase_header` and this function split
+    # with the same call now, so `n` is correct by construction — but the
+    # failure this replaces was silent precisely because `re.sub` matching
+    # nothing is not an error. If the two ever drift apart again, this refuses
+    # instead of returning the text unchanged and reporting success.
+    if n >= len(lines) or not re.match(pattern, lines[n]):
+        raise Refused(
+            f"line {n} is not the `> **{field}**:` header it was located as; "
+            f"the document was not rewritten. Nothing was written")
+    lines[n] = re.sub(pattern, rf"\g<1> {value}", lines[n])
     return "\n".join(lines)
 
 
@@ -4766,7 +4787,12 @@ def phase_command(mode: str, v: dict) -> dict:
                         f"start from goals/state/phase_TEMPLATE.md",
                         missing_header=field)
                 text = splice_header(text, field, value)
-            cap, lines = phase_cap(), len(text.splitlines())
+            # `bin/perry-lint § size-cap` counts `raw.split("\n")`. A
+            # gate that disagrees with the check it stands in for is
+            # not a gate: at exactly `cap` written lines, `splitlines()`
+            # is one lower, so this wrote a document the project's own
+            # linter then rejected (TASK-474 V4 F2).
+            cap, lines = phase_cap(), len(text.split("\n"))
             if lines > cap:
                 raise refusal(
                     f"phase/{target.name} would be {lines} lines, over the "
@@ -4793,6 +4819,16 @@ def phase_command(mode: str, v: dict) -> dict:
             if active == pid:
                 raise refusal(f"phase {active} is already the active one",
                               active=active)
+            # **The active phase is named first.** Criterion 4 asks the
+            # refusal to name the phase that is holding the pointer, and when
+            # the target was ALSO scored the scored gate answered first and
+            # never named it (TASK-474 V4 F5). Both are refusals and both
+            # write nothing; the order is what the caller reads.
+            if active:
+                raise refusal(
+                    f"phase {active} is still active. Close it first; this "
+                    f"command does not replace one phase with another",
+                    active=active)
             # **A scored phase does not reopen.** Without this the pointer
             # could name a document whose `Status` says `scored`, which is a
             # state the enum has no word for — and `close` would then refuse
@@ -4804,11 +4840,6 @@ def phase_command(mode: str, v: dict) -> dict:
                     f"phase {pid} is scored; a scored phase is "
                     f"terminal and is not reactivated. `phase new` opens the "
                     f"next one", status="scored")
-            if active:
-                raise refusal(
-                    f"phase {active} is still active. Close it first; this "
-                    f"command does not replace one phase with another",
-                    active=active)
             if not dry:
                 write_atomic(state_root, pointer, pid + "\n")
             payload = {"mode": mode, "phase": pid,
