@@ -62,9 +62,15 @@ not improvisation: the page **predicted this exact trim**, in writing —
 > written, and the account above is here rather than there for that reason.
 
 — so the full record was already deliberately kept there and the router held a
-summary. The page now records that the trim happened. `SKILL.md`: **20,371 /
-20,480**, 109 bytes of headroom. The user chose this over raising the cap or
-dropping a finding's fix.
+summary. The page now records that the trim happened. The user chose this over
+raising the cap or dropping a finding's fix.
+
+**Two figures above were loose, corrected 2026-09-20 after round 2's V4.** The
+paragraph freed **238** bytes, not 129; 129 was the shortfall it covered. And
+the headroom is **86**, not 109: the binding constraint is not the 20,480 cap
+but `tests/test_next_section.py:72`'s `ROUTER_BYTES_AT_BASE = 20457`, a
+no-net-growth guard. `SKILL.md` is 20,371, so it is inside both — but a result
+that quotes the looser of two limits is reporting the wrong gate.
 
 ## Mutation proof — twelve, in two kinds
 
@@ -106,6 +112,23 @@ With `PERRY_PROJECT` and `PERRY_HOME` unset, in this worktree, at `c44d5a64`:
 **157 modules / 4424 tests / all green**, tree guard clean. `git diff --check`
 clean. Three modules went red mid-round on the byte budget and are green here;
 that is the budget doing its job, not a flake.
+
+## Correction: the mutation claim does not generalise
+
+Round 2's V4 invented six mutations of the "second kind" and **all six
+survived**. I reproduced one: `not even a listing**, save when a path must be
+confirmed.` — a softening clause whose hedge word is not among the eight in
+`WEASEL`.
+
+The defect is structural, not a missing word. `WEASEL` is a **blacklist of
+English hedges**, and no such list is completable; it is also applied only
+after five named sentences and never to the `Then` cell, where criterion 1
+lives. The four mutations this file reports as killed were killed — and they
+were the four I thought of. A guard assembled from the author's own imagination
+covers the author's own imagination.
+
+Whatever principle USER-974 settles, its guard has to assert the rule's shape
+positively rather than forbid known ways of softening it.
 
 ## Not claimed
 
