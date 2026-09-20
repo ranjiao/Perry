@@ -114,6 +114,17 @@ Usage:
       not written. A withdrawn KR is terminal and its id is never reused.
       All three take `--dry-run` and REQUIRE `--actor` and `--reason`.
 
+  perry-goals phase new --slug <slug> --body-file <path> --actor <who>
+  perry-goals phase activate --phase <NNN> --actor <who>
+  perry-goals phase close [--phase <NNN>] --actor <who>
+      The phase lifecycle (TASK-474); `phase` must be the first argument.
+      `new` assigns the next unused number, writes phase/<NNN>-<slug>.md from
+      the supplied body, stamps Started and Status, and activates it in one
+      locked operation. `close` snapshots to phase/snapshots/, flips Status to
+      scored in place, and clears phase/CURRENT. All three take --dry-run and
+      --json and REQUIRE --actor. Refusals and gates:
+      `goals/reference/phases.md`.
+
   perry-goals draft create|show|update|approve|abandon|finalize …
       A planning draft, plans/okr/<date>-<slug>.md (TASK-444, DESIGN-020 §
       5.5); `draft` must be the first argument. Flags per mode, the approval
@@ -1541,9 +1552,8 @@ def current_phase(state_root: Path) -> str:
     picked a different phase from the one Perry reads would append edges
     nothing resolves.
     """
-    pointer = state_root / "phase" / "CURRENT"
-    slug = pointer.read_text().strip() if pointer.exists() else ""
-    if not slug or slug in {"(none)", "none", "—"}:
+    _, slug = phase_pointer(state_root)
+    if not slug:
         raise Refused(
             "there is no current phase (`phase/CURRENT` is empty or missing), "
             "so there is no linkage graph to write. `/perry goals "
@@ -4342,10 +4352,15 @@ DRAFT_FLAGS = {mode: tuple(flags.split()) for mode, flags in {
     "update": _DRAFT_WRITE + " --body-file --step --answered --status --ask",
     "approve": _DRAFT_WRITE, "abandon": _DRAFT_WRITE}.items()}
 DRAFT_OPTIONAL = set("--answered --ask --dry-run --json --body-file --step --status".split())
+#: What `draft finalize` still has no writer for. The KR add/restate/withdraw
+#: clause that stood here was retired on 2026-09-20: TASK-264 closed on
+#: 2026-09-18 and `perry-goals kr add|restate|withdraw` exists (ADR-022), so
+#: naming it as missing sent every reader looking for a writer that was two
+#: days old. The phase lifecycle is not listed either, for the same reason —
+#: `perry-goals phase new|activate|close` is below (TASK-474).
 DRAFT_MISSING = [
     "an overall-OKR authoring writer (mission, objectives, version block); "
-    "the perry-okr importer reads an existing OKR.md and authors nothing",
-    "a KR add/restate/withdraw writer (TASK-264, not built)"]
+    "the perry-okr importer reads an existing OKR.md and authors nothing"]
 
 
 def refusal(msg: str, **details) -> Refused:  # typed details for `--json`
@@ -4558,6 +4573,326 @@ def draft_command(mode: str, v: dict) -> dict:
         return publish_plan(path, rel, meta, body, v["--expect-sha256"], dry)
 
 
+# ---------------------------------------------------------------------------
+# The phase lifecycle (TASK-474)
+#
+# `goals/reference/phases.md` carried two instructions that could not both be
+# obeyed: § Writing it forbids hand-writing a phase document or `phase/CURRENT`,
+# and § score-phase step 7 instructs clearing `phase/CURRENT`. Neither had a
+# writer, so the documented way to end a phase was the edit the same page
+# prohibits. These three verbs are that writer.
+#
+# **Creation activates.** `new` writes the document and the pointer in one
+# locked operation, because the same page requires the writer's result to
+# identify "the ten-section phase prose and the activated phase pointer".
+# The sentence one section earlier — a draft "does not reserve a number, set a
+# start date, make a phase active or change `phase/CURRENT`" — governs the CHAT
+# DRAFT that precedes approval, not the writer that follows it. Reading it as
+# the writer's contract is what the spec for this row had to correct before
+# implementation.
+PHASE_FLAGS = {m: tuple(f.split()) for m, f in {
+    "new": "--root --slug --body-file --actor --dry-run --json",
+    "activate": "--root --phase --actor --dry-run --json",
+    "close": "--root --phase --actor --dry-run --json"}.items()}
+#: Per mode, because `--phase` is required to activate (the caller must say
+#: which) and optional to close (it defaults to the active one). A single
+#: global optional-set, which `draft` can afford, cannot express that.
+PHASE_REQUIRED = {"new": ("--slug", "--body-file", "--actor"),
+                  "activate": ("--phase", "--actor"),
+                  "close": ("--actor",)}
+#: `current_phase` above already treats these as "no current phase"; the
+#: writer has to agree with the reader or it would clear a pointer the reader
+#: thinks is empty and set one it thinks is full.
+PHASE_NONE = {"", "(none)", "none", "\u2014"}
+PHASE_SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
+
+
+def phase_docs(state_root: Path) -> list[tuple[str, str, Path]]:
+    """`(NNN, slug, path)` per phase document, lowest number first.
+
+    Non-recursive on purpose: `phase/snapshots/` holds copies of these same
+    documents, and a snapshot counted here would push the next number past a
+    number nothing used.
+    """
+    out = []
+    for f in sorted((state_root / "phase").glob("[0-9][0-9][0-9]-*.md")):
+        num, _, slug = f.stem.partition("-")
+        out.append((num, slug, f))
+    return out
+
+
+def phase_cap() -> int:
+    """The tier-1 hard cap, from the schema rather than a second copy of 300."""
+    for f in lib.load_schema(Refused).get("files", []):
+        if f.get("id") == "phase":
+            cap = f.get("cap")
+            if isinstance(cap, int):
+                return cap
+            break
+    raise Refused("schema/state-schema.json declares no integer `cap` for the "
+                  "`phase` file, so its tier-1 limit cannot be read. Nothing "
+                  "was written")
+
+
+def phase_pointer(state_root: Path) -> tuple[Path, str]:
+    """`(the CURRENT file, the active `<NNN>-<slug>` or '')`.
+
+    **The one place inside this tool that reads the pointer sentinel.**
+    `current_phase` above delegates here rather than keeping a second
+    copy: `tests/test_blank_cell_is_one_rule.py § EXEMPT` already
+    records this set as "three copies of one rule", and a writer adding
+    a fourth is how that note becomes four. It stays a literal rather
+    than `lib.is_blank_cell` for the reason the same note gives —
+    `(none)` is the set's principal member and is not a declared blank
+    spelling, so the shared rule would silently drop it.
+    """
+    f = state_root / "phase" / "CURRENT"
+    slug = f.read_text().strip() if f.exists() else ""
+    return f, ("" if slug in PHASE_NONE else slug)
+
+
+def phase_header(text: str, field: str) -> tuple[int, str] | None:
+    """`(line index, current value)` for a `> **<field>**: …` header line."""
+    for n, line in enumerate(text.splitlines()):
+        m = re.match(rf"(>\s*\*\*{re.escape(field)}\*\*:)(.*)$", line)
+        if m:
+            return n, m.group(2).strip()
+    return None
+
+
+def splice_header(text: str, field: str, value: str) -> str:
+    """Rewrite one header line's value, leaving every other byte alone.
+
+    The same discipline `Okr.splice_cell` uses and for the same reason
+    (DESIGN-005 § 5.5): a writer that round-trips a tier-1 document through a
+    parsed model returns a file that still lints and no longer reads the way
+    its author wrote it.
+    """
+    hit = phase_header(text, field)
+    if hit is None:
+        raise Refused(f"no `> **{field}**:` header line to rewrite. "
+                      f"Nothing was written")
+    n, _ = hit
+    lines = text.split("\n")
+    lines[n] = re.sub(rf"(>\s*\*\*{re.escape(field)}\*\*:).*$",
+                      rf"\g<1> {value}", lines[n])
+    return "\n".join(lines)
+
+
+def parse_phase(argv: list[str]) -> tuple[str, dict]:
+    """`(mode, {flag: value})`; anything malformed exits 2, by name."""
+    def usage(msg: str):
+        print(f"perry-goals phase: {msg} (try --help)", file=sys.stderr)
+        sys.exit(2)
+    mode, vals, i = (argv or [""])[0], {}, 1
+    if mode not in PHASE_FLAGS:
+        usage(f"expected a mode: {' / '.join(PHASE_FLAGS)}")
+    while i < len(argv):
+        t = argv[i]
+        if t not in PHASE_FLAGS[mode] or t in vals:
+            usage(f"`phase {mode}` takes each of {' '.join(PHASE_FLAGS[mode])} "
+                  f"at most once, not {t!r}")
+        if t in ("--dry-run", "--json"):
+            vals[t] = True
+        elif i + 1 >= len(argv) or argv[i + 1].startswith("--"):
+            usage(f"{t} takes a value")
+        else:
+            i += 1
+            vals[t] = argv[i]
+            if lib.empty_root_error(t, argv[i]):
+                usage(lib.empty_root_error(t, argv[i]))
+        i += 1
+    missing = [f for f in PHASE_REQUIRED[mode] if f not in vals]
+    actor = vals.get("--actor", "-")
+    for bad, msg in ((missing, f"`phase {mode}` needs {' '.join(missing)}"),
+                     (not actor.strip() or set(actor) & {"\n", "\r"},
+                      "--actor must be a non-empty single line (USER-950)")):
+        if bad:
+            usage(msg)
+    return mode, vals
+
+
+def phase_command(mode: str, v: dict) -> dict:
+    project_root = (Path(v["--root"]).expanduser().resolve() if v.get("--root")
+                    else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
+    state_root = P.resolve_state_root(project_root).resolve()
+    if not state_root.is_relative_to(project_root):
+        raise Refused(f"state root {state_root} is outside {project_root}")
+    lib.refuse_write_unless_installed(
+        project_root, ("phase/CURRENT", ".perry/events.jsonl"), Refused)
+    dry = bool(v.get("--dry-run"))
+    today = date.today().isoformat()
+    with project_lock(state_root):
+        docs = phase_docs(state_root)
+        by_num = {num: (slug, f) for num, slug, f in docs}
+        pointer, active = phase_pointer(state_root)
+        if mode == "new":
+            if not any((state_root / n).exists() for n in ("OKR.md", "okr.jsonl")):
+                raise refusal(
+                    "no overall OKR exists under this state root (neither "
+                    "`OKR.md` nor `okr.jsonl`), and a phase is a tactical "
+                    "commitment against one. `/perry goals init` writes it "
+                    "first", missing_prerequisite="overall OKR")
+            if active:
+                raise refusal(
+                    f"phase {active} is still active. A phase is not replaced "
+                    f"silently: close it with `perry-goals phase close` or "
+                    f"choose to keep it", active=active)
+            slug = v["--slug"]
+            if not PHASE_SLUG_RE.match(slug):
+                raise refusal(
+                    f"--slug {slug!r} is not a short hyphenated slug "
+                    f"(lower-case letters, digits and single hyphens)",
+                    slug=slug)
+            num = f"{max((int(n) for n, _, _ in docs), default=0) + 1:03d}"
+            # `pid` is built once and every later path derives from it.
+            # Spelling `f"{num}-{slug}"` inline instead binds each of
+            # `target` / `payload` / `snap` to a hyphen constant, and
+            # `tests/sweep_blank_cell_sites.py` keys its `bound` map by
+            # BARE NAME across the module — so a local `payload` here was
+            # reported as a blank-spelling site inside `cmd_kr_add`, a
+            # function this row never touched.
+            pid = f"{num}-{slug}"
+            target = state_root / "phase" / (pid + ".md")
+            if target.exists():
+                raise refusal(f"phase/{target.name} already exists",
+                              existing=target.name)
+            body = read_body(v["--body-file"], target)
+            text = body if body.endswith("\n") else body + "\n"
+            for field, value in (("Started", today), ("Status", "active")):
+                if phase_header(text, field) is None:
+                    raise refusal(
+                        f"the body carries no `> **{field}**:` header line; "
+                        f"start from goals/state/phase_TEMPLATE.md",
+                        missing_header=field)
+                text = splice_header(text, field, value)
+            cap, lines = phase_cap(), len(text.splitlines())
+            if lines > cap:
+                raise refusal(
+                    f"phase/{target.name} would be {lines} lines, over the "
+                    f"tier-1 hard cap of {cap}. Move narrative into "
+                    f"`evidence/<YYYY-MM>/phase-{num}-<topic>.md` and link it",
+                    lines=lines, cap=cap)
+            if not dry:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                write_atomic(state_root, target, text)
+                write_atomic(state_root, pointer, pid + "\n")
+            payload = {"mode": mode, "phase": pid,
+                      "path": f"phase/{target.name}", "file": str(target),
+                      "lines": lines, "cap": cap, "started": today,
+                      "status": "active", "activated": True}
+        elif mode == "activate":
+            num = v["--phase"]
+            if num not in by_num:
+                raise refusal(
+                    f"no phase document numbered {num} — this project has "
+                    f"{', '.join(n for n, _, _ in docs) or 'none'}",
+                    known=[n for n, _, _ in docs])
+            slug, target = by_num[num]
+            pid = f"{num}-{slug}"
+            if active == pid:
+                raise refusal(f"phase {active} is already the active one",
+                              active=active)
+            # **A scored phase does not reopen.** Without this the pointer
+            # could name a document whose `Status` says `scored`, which is a
+            # state the enum has no word for — and `close` would then refuse
+            # forever, because its own guard is exactly that Status. Found by
+            # exercising the verbs in sequence, not by reading them.
+            scored = phase_header(target.read_text(), "Status")
+            if scored is not None and scored[1] == "scored":
+                raise refusal(
+                    f"phase {pid} is scored; a scored phase is "
+                    f"terminal and is not reactivated. `phase new` opens the "
+                    f"next one", status="scored")
+            if active:
+                raise refusal(
+                    f"phase {active} is still active. Close it first; this "
+                    f"command does not replace one phase with another",
+                    active=active)
+            if not dry:
+                write_atomic(state_root, pointer, pid + "\n")
+            payload = {"mode": mode, "phase": pid,
+                      "path": f"phase/{target.name}", "file": str(target),
+                      "activated": True}
+        else:  # close
+            num = v.get("--phase") or (active.partition("-")[0] if active else "")
+            if not num:
+                raise refusal(
+                    "there is no active phase to close and --phase names none",
+                    active="")
+            if num not in by_num:
+                raise refusal(
+                    f"no phase document numbered {num} — this project has "
+                    f"{', '.join(n for n, _, _ in docs) or 'none'}",
+                    known=[n for n, _, _ in docs])
+            slug, target = by_num[num]
+            pid = f"{num}-{slug}"
+            if active != pid:
+                raise refusal(
+                    f"phase {pid} is not the active phase "
+                    f"({active or 'none'} is). Only the active phase closes",
+                    active=active)
+            text = target.read_text()
+            hit = phase_header(text, "Status")
+            if hit is None:
+                raise refusal("the phase document carries no "
+                              "`> **Status**:` header line to flip")
+            if hit[1] == "scored":
+                raise refusal(f"phase {pid} is already scored",
+                              status="scored")
+            snap = (state_root / "phase" / "snapshots"
+                    / (today + "-" + pid + "-final.md"))
+            if snap.exists():
+                raise refusal(f"a final snapshot already exists at "
+                              f"phase/snapshots/{snap.name}",
+                              existing=snap.name)
+            if not dry:
+                snap.parent.mkdir(parents=True, exist_ok=True)
+                write_atomic(state_root, snap, text)
+                write_atomic(state_root, target,
+                             splice_header(text, "Status", "scored"))
+                write_atomic(state_root, pointer, "(none)\n")
+            payload = {"mode": mode, "phase": pid,
+                      "path": f"phase/{target.name}", "file": str(target),
+                      "snapshot": f"phase/snapshots/{snap.name}",
+                      "status": "scored", "activated": False}
+        payload["written"] = not dry
+        payload["actor"] = v["--actor"].strip()
+        if not dry:
+            payload["event_written"] = append_event(project_root, {
+                "ts": lib.event_stamp(), "event": f"phase-{mode}",
+                "phase": payload["phase"], "path": payload["path"],
+                "actor": payload["actor"]})
+    return payload
+
+
+def phase_main(argv: list[str]) -> int:
+    if "--help" in argv or "-h" in argv:
+        print(__doc__.strip())
+        return 0
+    mode, v = parse_phase(argv)
+    try:
+        try:
+            payload = phase_command(mode, v)
+        except OSError as exc:
+            raise refusal(f"{type(exc).__name__}: {exc}", io_error=True)
+    except Refused as exc:
+        if v.get("--json"):
+            print(json.dumps({"refused": str(exc), **getattr(exc, "details", {})},
+                             ensure_ascii=False, indent=2))
+        else:
+            print(f"perry-goals: refused — {exc}", file=sys.stderr)
+        return 1
+    if v.get("--json"):
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"perry-goals: {'wrote' if payload['written'] else 'would write'} "
+              f"{payload['path']} · phase {payload['phase']} · "
+              f"{'active' if payload.get('activated') else payload['status']}"
+              + (f" · snapshot {payload['snapshot']}" if "snapshot" in payload else ""))
+    return 0
+
+
 def draft_main(argv: list[str]) -> int:
     if "--help" in argv or "-h" in argv:
         print(__doc__.strip())
@@ -4565,7 +4900,7 @@ def draft_main(argv: list[str]) -> int:
     mode, v = parse_draft(argv)
     try:
         try:
-            result = draft_command(mode, v)
+            payload = draft_command(mode, v)
         except OSError as exc:
             raise refusal(f"{type(exc).__name__}: {exc}", io_error=True)
     except Refused as exc:
@@ -4578,12 +4913,12 @@ def draft_main(argv: list[str]) -> int:
     if v.get("--json") or mode == "show":
         # `show` is always the payload: the body verbatim, for the agent to
         # read and summarize. This tool summarizes nothing.
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        print(f"perry-goals: {'wrote' if result['written'] else 'did not write'}"
-              f" {result['path']} · {result['status']} · sha256 "
-              f"{result.get('sha256', 'unchanged')}"
-              + (" · finalize unavailable" * (result["status"] == "approved")))
+        print(f"perry-goals: {'wrote' if payload['written'] else 'did not write'}"
+              f" {payload['path']} · {payload['status']} · sha256 "
+              f"{payload.get('sha256', 'unchanged')}"
+              + (" · finalize unavailable" * (payload["status"] == "approved")))
     return 0
 
 
@@ -4760,6 +5095,8 @@ def handoff_line(cid: str) -> str:
 def main(argv: list[str]) -> int:
     if argv[:1] == ["draft"]:
         return draft_main(argv[1:])
+    if argv[:1] == ["phase"]:
+        return phase_main(argv[1:])
     try:
         args = parse(argv)
     except Refused as exc:

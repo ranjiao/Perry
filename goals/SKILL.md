@@ -28,7 +28,7 @@ This `SKILL.md` is intentionally lean: it holds what runs on **every** invocatio
 |---|---|
 | `reference/setup.md` | `init`, `revise` (overall `OKR.md` creation + versioning) |
 | `reference/elicitation.md` | `init`, `revise`, `plan-phase`, `commit`: horizon/spine routing, answer reuse, premise/escape and shared questions → visible draft; no finalize claim |
-| `reference/planning.md` | `init`, and `/perry plan` on an existing draft: the `plans/` draft saved, reviewed, approved and resumed through `perry-goals draft`; finalize unavailable |
+| `reference/planning.md` | `init`, and `/perry plan` on an existing draft: the `plans/` draft saved, reviewed, approved and resumed through `perry-goals draft`; overall-OKR finalize unavailable |
 | `reference/phases.md` | `plan-phase`, `score-phase`, `snapshot` (the phase cadence + the ten mandatory sections) |
 | `reference/weekly.md` | `plan-week` (the PMO hand-off) |
 | `reference/linkage.md` | `link` — owning `linkage.jsonl`: accepting PMO's attribution hand-off, aliases, unlinked |
@@ -121,7 +121,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 
 | Subcommand | One-line | Reference |
 |---|---|---|
-| `init` | First-OKR question bank → saved `plans/` draft, review + rubric, explicit approval; finalize unavailable | `reference/setup.md` + `reference/planning.md` |
+| `init` | First-OKR question bank → saved `plans/` draft, review + rubric, explicit approval; overall-OKR finalize unavailable | `reference/setup.md` + `reference/planning.md` |
 | `revise` | Discuss material changes → proposed new version; reviewed approval and an available writer are separate requirements | `reference/setup.md` |
 | `commit <promise>` | Use shared discussion for missing terms (≤3 questions); an explicit approved create/amend uses **`bin/perry-goals commit`** for `OKR.md § Commitments`. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/elicitation.md` + `reference/phases.md` |
 | `plan-phase <slug>` | Shared discussion (≤5 questions) → ten-section phase draft, reusing approved overall goals and prior learning. Approval and an available phase writer are required to activate; no manual phase/CURRENT or KR writes. Relevant commitments are context, not automatically renewed | `reference/phases.md` + `reference/elicitation.md` |

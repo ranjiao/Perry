@@ -39,8 +39,9 @@ overall template. Unknown state never proves this is a first OKR.
    draft. Surface ≤3 advisory issues, preserving the solo-project qualification.
    A refusal uses the bank's escape; a fully pasted OKR skips the interview.
 4. Stop at the reviewed or approved draft: say "draft approved; overall
-   finalize is unavailable". `draft finalize` refuses and names the missing
-   writers. Do not hand-append canonical goal stores, hand-author `OKR.md` for
+   finalize is unavailable". `draft finalize` refuses and names the one
+   writer still missing — the overall-OKR author. A *phase* draft does
+   finalize, through `perry-goals phase new`. Do not hand-append canonical goal stores, hand-author `OKR.md` for
    an importer, or auto-run `plan-phase`.
 
 ### Structural contract

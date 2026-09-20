@@ -98,12 +98,22 @@ false the moment any of those bytes change, even though the file still says
 current content and ask for a fresh approval. A hand-typed status or hash is
 not consent. Any `update` returns an approved draft to `drafted`.
 
-## Finalize is unavailable
+## Finalize is unavailable for the overall OKR
 
-`draft finalize` exits 1 with `written: false` and the missing writers: an
-overall-OKR authoring writer, and the KR add/restate/withdraw writer
-(`TASK-264`). Nothing is written. Do not hand-author `OKR.md` and import it,
-and do not finalize on startup — not even a validly approved draft.
+`draft finalize` exits 1 with `written: false` and the one writer still
+missing: an overall-OKR authoring writer, for the mission, the objectives and
+the version block. Nothing is written. Do not hand-author `OKR.md` and import
+it, and do not finalize on startup — not even a validly approved draft.
+
+Two writers this page used to list as missing now exist, and naming them here
+sent readers looking for code that was already shipped:
+
+- **KR add / restate / withdraw** — the `kr` verb's three modes, landed
+  with `TASK-264` and `ADR-022`, appending to `linkage.jsonl` for a
+  phase KR and `okr.jsonl` for an overall one.
+- **The phase lifecycle** — `perry-goals phase new|activate|close`
+  (`TASK-474`). An approved *phase* draft finalizes through it today;
+  `goals/reference/phases.md § Writing it` has the procedure.
 
 ## Where it shows
 

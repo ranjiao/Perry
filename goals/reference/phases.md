@@ -293,14 +293,40 @@ Before any supported finalize, preserve these existing gates:
   phase records, not product versions. Drafting or closing a phase allocates
   nothing; without policy, continue normally.
 
-**Finalize is a separate implementation boundary (TASK-444).** Verify the owning
-phase/goal writer and approved-draft flow actually support the requested operation.
-On this baseline the phase finalize path is unavailable: disclose it and stop,
-even after the user approves the draft. Do not hand-write a phase document or
-`phase/CURRENT`, hand-append Objective/KR records, feed a fabricated canonical
-file to a generic import/render command, or use `perry-goals link` as a KR-creation
-substitute. A KR of an ACTIVE phase is added with the `kr add` verb (`## kr`
-below). A writer refusal stops with its actual message; no fallback writes.
+**Finalize the approved draft with the writer (TASK-474).** Once the user has
+approved the draft, hand the body to:
+
+```
+"$PERRY_HOME/bin/perry-goals" phase new --slug <slug> --body-file <path> --actor <who>
+```
+
+It assigns the next unused number, writes `phase/<NNN>-<slug>.md`, stamps
+`Started` and `Status`, and writes `phase/CURRENT` — one locked operation,
+because this page requires the writer's result to identify both the prose and
+the activated phase pointer. `--dry-run` shows the number and line count and
+writes nothing. It refuses, and writes nothing, when there is no overall OKR,
+when a phase is still active, when the slug is not a short hyphenated one, and
+when the document would exceed the tier-1 hard cap the schema declares.
+
+The rest of the lifecycle: `phase activate --phase <NNN>` re-points `CURRENT`
+at an existing document — refused while another phase is active, and refused on
+a scored one, which is terminal. `phase close [--phase <NNN>]` snapshots to
+`phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>-final.md`, flips `Status` to
+`scored` in place, and clears `phase/CURRENT`; it is `score-phase` step 6 and
+step 7 as one write, and it computes no scores.
+
+**Still do not hand-write any of it.** Not the phase document, not
+`phase/CURRENT`, not an appended Objective/KR record, not a fabricated
+canonical file fed to a generic import/render command, and not `perry-goals
+link` as a KR-creation substitute. A KR of an ACTIVE phase is added with the
+`kr add` verb (`## kr` below). A writer refusal stops with its actual message;
+no fallback writes.
+
+**What still has no writer**: the overall OKR itself — mission, objectives and
+the version block. `perry-goals draft finalize` on the `okr/first` route
+therefore still refuses, and `/perry goals init` still ends at an approved
+draft. A phase is a tactical commitment against an overall OKR, so `phase new`
+refuses when there is none.
 
 The eventual writer's returned result must identify the ten-section phase prose
 and the activated phase pointer. Its Objective fields are `phase`, `id`, `title`;

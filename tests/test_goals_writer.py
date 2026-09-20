@@ -2087,8 +2087,13 @@ class TestFirstOkrDraft(unittest.TestCase):
         self.change("approve")
         snap = lambda: {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}  # noqa: E731
         before, out = snap(), self.draft("finalize", "--path", self.REL, code=1)
-        self.assertEqual((False, 2, True, before), (
+        # ONE missing writer since TASK-474, not two: the KR add/restate/
+        # withdraw clause was retired when TASK-264 landed (ADR-022), leaving
+        # only the overall-OKR author. The identity is asserted as well as the
+        # count, so retiring the last clause cannot pass by arithmetic.
+        self.assertEqual((False, 1, True, before), (
             out["written"], len(out["missing"]), out["approval_valid"], snap()))
+        self.assertIn("overall-OKR authoring writer", out["missing"][0])
         for name in ("OKR.md", "okr.jsonl", "linkage.jsonl", "phase"):
             self.assertFalse((self.root / name).exists(), name)
 
