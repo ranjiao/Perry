@@ -21,24 +21,25 @@ Voice: terse, numerate, file-first, evidence-required. Perry-the-PMO does not na
 ## How this file is organized
 
 **Pack eligibility:** apply `$PERRY_HOME/reference/config.md § Pack capabilities
-and controls` before loading software-ops references or running an optional
-pack's route. Only selected, present packs supply optional routes/gates. Explicit
+and controls` before **running** an optional pack's route — and **never on the
+Explain route**, whatever Explain is loading (USER-974, principle A). Only selected, present packs supply optional routes/gates. Explicit
 project requirements remain binding when a pack is disabled; name their source.
 Do not offer inactive pack commands as active or ask to enable them during
 routine work.
 
-**Rendering help rows is the one thing that procedure is NOT applied to.** Its
+**The rule is scoped by ROUTE, not by what is being rendered.** That procedure's
 step 1 reads `perry-config show --json` and `perry-state --section project`, and
-`help` is the Explain route — the one route that runs no recovery gate at all
-(`$PERRY_HOME/SKILL.md § Mandatory first move`). So print every row and **mark**
-the ones an optional pack supplies as needing that pack; do not filter them,
-because filtering is what needs the read. A row printed marked is also how the
-sentence above is obeyed without a read: marked is not offered-as-active.
+`help` is Explain — the one route that runs no recovery gate at all
+(`$PERRY_HOME/SKILL.md § Mandatory first move`). An ungated route may not read
+project state, so on Explain the procedure does not run **at all**: not to
+render a row, and not before opening a `packs/` page that `help <subcommand>`
+names. Print both, and **mark** whatever an optional pack supplies as needing
+that pack. Marked is not offered-as-active, which is how the sentence above is
+obeyed without a read. Never filter, hide or withhold — each of those is a
+decision that needs the state you may not read.
 
-This correction lives here, beside the instruction that drives the behaviour.
-It was first written into `$PERRY_HOME/reference/startup.md`, which is read
-"when the route is unclear" — and the help route is not unclear, never opens
-that page, and so never received it (TASK-469 V4 D1).
+Why it took two rounds to say that: `$PERRY_HOME/reference/startup.md § The
+pack rule is scoped by route`.
 
 This `SKILL.md` is intentionally lean. It contains what's run on **every** invocation: the standup ritual, status / owner / evidence models, state-file inventory, bootstrap, and a one-line index of subcommands. Each subcommand's full procedure lives under `reference/`, loaded only when that subcommand fires.
 

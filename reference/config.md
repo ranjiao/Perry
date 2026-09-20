@@ -165,7 +165,11 @@ This uses the existing project setting record, with no new namespace or file.
 
 Use this procedure for “what else can Perry help with?”, “show optional
 features”, “turn off software checks” or “enable release support”; the user
-need not know the word *pack*. `/perry help` also points here. This is a
+need not know the word *pack*. `/perry help` points here **for the
+descriptions below, not for step 1**: help is the Explain route and runs no
+recovery gate, so it may not read project state (USER-974, principle A). The
+reads in step 1 belong to the discovery operation itself — "what else can Perry
+do?" — which is a Query and runs the gates. This is a
 project-scoped configuration operation, not a marketplace or host installation.
 Discovery reads only; routine work never asks whether to enable a pack.
 
@@ -230,8 +234,10 @@ those preserved facts; it does not reset them or allocate a version.
 ### Conditional consumers
 
 Before loading a pack route or applying its defaults, use the active test above.
-Work help hides inactive pack commands from its executable index; discovery may
-still describe them as available/inactive. Direct requests for an inactive route
+Work help **marks** pack commands as needing their pack; it does not hide them
+(USER-974, principle A). Hiding is a decision about which pack is active, and
+that decision needs a read help is not allowed to make. Discovery, which is a
+Query, still describes them as available/inactive. Direct requests for an inactive route
 explain its state and the control procedure, without silently enabling it. In
 routine work, skip disabled optional checks without an enablement question.
 

@@ -19,7 +19,8 @@ The goal-setting lane inside the one **Perry** skill. It drives the execution la
 ## How this file is organized
 
 For optional capabilities and their controls, read `$PERRY_HOME/reference/config.md
-§ Pack capabilities and controls`. Software-ops defaults apply only when selected
+§ Pack capabilities and controls` — **never on the Explain route**, which runs no
+recovery gate and so may not read project state (USER-974, principle A). Software-ops defaults apply only when selected
 and present; disabling them preserves explicit project requirements and records.
 
 This `SKILL.md` is intentionally lean: it holds what runs on **every** invocation — the snapshot ritual, the subcommand index, state-file ownership, and the style rules. Each subcommand's full procedure lives under `reference/`, loaded only when that subcommand fires.
