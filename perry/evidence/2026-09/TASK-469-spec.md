@@ -22,6 +22,8 @@ One authoritative startup-routing procedure, aligned router/lane references and 
 
 SKILL.md; goals/SKILL.md; work/SKILL.md; decide/SKILL.md; reference/snapshot.md; reference/host-capabilities.md; relevant existing routing/pointer tests.
 
+**Widened on 2026-09-20 to include `reference/config.md`**, and recorded here rather than done quietly. USER-974 chose principle A: the pack-eligibility procedure never runs on the Explain route, and pack-dependent content — rows **and** reference pages — is shown *marked* rather than filtered or withheld. Two sites in `reference/config.md` are part of that rule and contradict it: `:168` sends `/perry help`, an Explain request, to a discovery procedure whose step 1 reads `perry-config show --json` and `perry-state --section project`; `:232` instructs work help to **hide** inactive pack commands, which both requires that read and is the opposite of marking. Rounds 1 and 2 both FAILed on this category with the file out of scope; fixing only the sites inside the old scope a third time would ship a third incomplete category fix. The root-cause read in step 1 stays as it is for the *discovery* operation, which is a Query and legitimately reads.
+
 ## Acceptance criteria
 
 1. Define explanation/help, bounded state query and state mutation paths. Explanation-only requests load needed instructional material without project dashboard, update check, mode loading or project-state reads.
