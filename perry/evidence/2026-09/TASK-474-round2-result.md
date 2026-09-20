@@ -52,9 +52,20 @@ both sides of each, every file restored and md5-verified.
 | F2 cap gate back to `splitlines()` | killed — cap-boundary test and the structural guard |
 | F3 hash narrowed to `phase/` (the reviewer's M-C) | killed — both hash controls |
 | F4 already-scored refusal deleted (the reviewer's M-E) | killed — the new refusal test |
-| F5 `activate` gate order restored | killed — the active-phase refusal test |
+| F5 `activate` gate order restored | **NOT KILLED — this row was false, corrected 2026-09-20** |
 
-**No survivors — on the third attempt, not the first.** The first two attempts
+**Correction, 2026-09-20, after round 2's V4.** The F5 row above was wrong and
+the "no survivors" claim below was wrong with it. The mutant labelled "gate
+order restored" replaced `if active:` with `if False:` — it DELETED the
+active-phase gate rather than reordering the two gates. It therefore killed on
+the gate's existence, which a test does cover, and said nothing about its
+order, which is what F5 is. Reverting the order exactly — both gates present,
+scored checked first — is green at module level and across the affected tier.
+Round 2's reviewer found this; I reproduced it before accepting it. F5's fix
+ships with no regression surface, and this file claimed otherwise.
+
+**No survivors — on the third attempt, not the first** (but see the correction
+above: five of the six, not six).** The first two attempts
 are the useful part of this round:
 
 1. **`F1b` survived.** With both functions splitting the same way, the
