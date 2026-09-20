@@ -83,10 +83,24 @@ class Fixture(unittest.TestCase):
              "--root", str(d)],
             capture_output=True, text=True, cwd=ROOT)
 
+    #: Criterion 7 names four paths, not one. The first version of
+    #: `phase_hash` covered only `phase/`, and the evidence table marked the
+    #: criterion "Met" on a true sentence about a different set — a mutation
+    #: making a refusal overwrite both stores stayed green (TASK-474 V4 F3).
+    CRITERION_7_PATHS = ("phase", "linkage.jsonl", "okr.jsonl")
+
     def phase_hash(self, d: pathlib.Path) -> str:
-        """Every byte under `phase/`, including `CURRENT` and the snapshots."""
+        """Every byte of every path criterion 7 names.
+
+        `phase/` (documents, `CURRENT` and `snapshots/`), plus `linkage.jsonl`
+        and `okr.jsonl`, which the criterion names in as many words.
+        """
         h = hashlib.sha256()
-        for f in sorted((d / "phase").rglob("*")):
+        targets: list[pathlib.Path] = []
+        for name in self.CRITERION_7_PATHS:
+            root = d / name
+            targets.extend(sorted(root.rglob("*")) if root.is_dir() else [root])
+        for f in targets:
             if f.is_file():
                 h.update(f.relative_to(d).as_posix().encode())
                 h.update(f.read_bytes())
@@ -272,6 +286,233 @@ class TestTheSharedWriterRules(Fixture):
                 self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
                 self.assertIn("--actor", proc.stderr)
                 self.assertEqual(before, self.phase_hash(d))
+
+
+class TestTheHashCoversWhatCriterionSevenNames(Fixture):
+    """The control for `phase_hash`. Without it F3 recurs silently."""
+
+    #: What criterion 7 NAMES, written out here rather than read from
+    #: `CRITERION_7_PATHS`. The first version of this control iterated the
+    #: constant, so narrowing the constant narrowed the control with it and
+    #: the reviewer's M-C survived the fix that was supposed to kill it. A
+    #: test whose expectation is the value under test asserts nothing.
+    NAMED_BY_CRITERION_7 = ("phase", "linkage.jsonl", "okr.jsonl")
+
+    def test_the_constant_lists_what_criterion_seven_names(self):
+        self.assertEqual(tuple(Fixture.CRITERION_7_PATHS),
+                         self.NAMED_BY_CRITERION_7)
+
+    def test_every_named_path_changes_the_hash(self):
+        d = self.project()
+        for name in self.NAMED_BY_CRITERION_7:
+            with self.subTest(path=name):
+                target = d / name
+                if target.is_dir():
+                    target = next(f for f in sorted(target.rglob("*"))
+                                  if f.is_file())
+                before = self.phase_hash(d)
+                # An ABSENT path is the case worth covering, not one to skip:
+                # `okr.jsonl` does not exist in this fixture, and a refusal
+                # that CREATED it must move the hash just as one that edits an
+                # existing file does.
+                original = target.read_bytes() if target.is_file() else None
+                target.write_bytes((original or b"") + b"\n# touched\n")
+                self.assertNotEqual(before, self.phase_hash(d),
+                                    f"{name} is outside the hash")
+                if original is None:
+                    target.unlink()
+                else:
+                    target.write_bytes(original)
+                self.assertEqual(before, self.phase_hash(d))
+
+
+class TestExoticLineBreaks(Fixture):
+    """TASK-474 V4 F1. `str.splitlines()` breaks on nine boundaries that
+    `"\n"` does not, so a document carrying one shifted the header index.
+
+    Both failure shapes are covered, because they are different bugs wearing
+    one cause: one form feed rewrote the WRONG line and reported success; two
+    ran the index off the end and crashed after the first of close's three
+    writes had landed, leaving the phase permanently unclosable.
+    """
+
+    EXOTIC = "\x0b\x0c\x1c\x1d\x1e\x85  \r"
+
+    def body_with(self, d, char, count):
+        """The template with `count` exotic breaks ABOVE the header block."""
+        text = TEMPLATE.read_text()
+        head, _, rest = text.partition("\n")
+        out = d / "exotic.md"
+        out.write_text(head + char * count + "\n" + rest)
+        return str(out)
+
+    def test_new_stamps_both_headers_whatever_the_body_breaks_on(self):
+        for char in self.EXOTIC:
+            for count in (1, 2):
+                with self.subTest(char=repr(char), count=count):
+                    d = self.project(active=None)
+                    proc = self.run_phase(
+                        d, "new", "--slug", "exotic", "--body-file",
+                        self.body_with(d, char, count), "--actor", "t",
+                        "--json")
+                    self.assertEqual(proc.returncode, 0,
+                                     proc.stdout + proc.stderr)
+                    doc = (d / "phase" / "003-exotic.md").read_text()
+                    # Assert on the HEADER lines, not on the whole document:
+                    # the template legitimately carries a second
+                    # `{{YYYY-MM-DD}}` in its Retro section, and the first
+                    # version of this test read that one and called the
+                    # stamping broken when it was not.
+                    self.assertRegex(
+                        doc, r"> \*\*Started\*\*: \d{4}-\d{2}-\d{2}",
+                        "Started was reported stamped and is not")
+                    self.assertRegex(
+                        doc, r"> \*\*Status\*\*: active(?![ ]\|)",
+                        "Status was reported stamped and is not")
+
+    def test_close_never_half_writes_on_such_a_document(self):
+        for char in self.EXOTIC:
+            with self.subTest(char=repr(char)):
+                d = self.project()
+                doc = d / "phase" / "002-release-pipeline.md"
+                head, _, rest = doc.read_text().partition("\n")
+                doc.write_text(head + char * 2 + "\n" + rest)
+                proc = self.run_phase(d, "close", "--actor", "t")
+                self.assertNotIn("Traceback", proc.stderr)
+                self.assertIn(proc.returncode, (0, 1), proc.stderr)
+                if proc.returncode == 0:
+                    self.assertIn("> **Status**: scored", doc.read_text())
+                else:
+                    snaps = d / "phase" / "snapshots"
+                    self.assertIn("> **Status**: active", doc.read_text())
+                    self.assertEqual(
+                        (d / "phase" / "CURRENT").read_text().strip(),
+                        "002-release-pipeline")
+                    self.assertEqual(
+                        list(snaps.glob("*")) if snaps.is_dir() else [], [],
+                        "a refusal left close's snapshot behind")
+
+
+class TestTheCapBoundary(Fixture):
+    """TASK-474 V4 F2. The gate must count the way the linter that owns the
+    cap counts, or it writes a document the project immediately rejects.
+
+    The original test used a 581-line body — 281 lines clear of the only
+    place the two counts disagree.
+    """
+
+    def body_of_exactly(self, d, lines):
+        text = TEMPLATE.read_text()
+        have = len(text.split("\n"))
+        out = d / "body_n.md"
+        out.write_text(text + "filler\n" * (lines - have) if lines > have
+                       else "\n".join(text.split("\n")[:lines]))
+        return str(out)
+
+    def test_at_the_cap_the_gate_and_the_linter_agree(self):
+        cap = 300
+        for n in (cap - 1, cap, cap + 1):
+            with self.subTest(lines=n):
+                d = self.project(active=None)
+                proc = self.run_phase(d, "new", "--slug", "sized",
+                                      "--body-file",
+                                      self.body_of_exactly(d, n),
+                                      "--actor", "t")
+                lint = subprocess.run(
+                    [sys.executable, str(ROOT / "bin" / "perry-lint"),
+                     "--root", str(d)],
+                    capture_output=True, text=True, cwd=ROOT)
+                if proc.returncode == 0:
+                    self.assertNotIn(
+                        "size-cap", lint.stdout + lint.stderr,
+                        f"wrote a document its own linter rejects at {n}")
+                else:
+                    self.assertIn("tier-1 hard cap", proc.stderr)
+
+
+class TestEveryRefusalCriterionFiveNames(Fixture):
+    """TASK-474 V4 F4. Criterion 5 names two refusals for `close`; only one
+    had a test, and deleting the other left the whole affected tier green."""
+
+    def test_close_is_refused_on_a_phase_that_is_already_scored(self):
+        d = self.project()
+        self.assertEqual(
+            self.run_phase(d, "close", "--actor", "t").returncode, 0)
+        # Re-pointing by hand is the only way to reach this gate: `activate`
+        # refuses a scored phase (criterion 4).
+        (d / "phase" / "CURRENT").write_text("002-release-pipeline\n")
+        self.assertIn("already scored",
+                      self.refused(d, "close", "--actor", "t"))
+
+
+class TestOneSpellingOfTheLineBreakRule(Fixture):
+    """The structural half of F1, so a fourth spelling cannot land quietly.
+
+    `bin/perry-goals` already carried this rule twice in prose — Okr.render's
+    docstring and the note naming tests/test_one_line_break_rule.py. Prose
+    did not stop the third one.
+    """
+
+    def test_the_phase_functions_never_call_splitlines(self):
+        source = (ROOT / "bin" / "perry-goals").read_text()
+        start = source.index("def phase_docs(")
+        end = source.index("COMMANDS = {", start)
+        offenders = [
+            line.strip() for line in source[start:end].split("\n")
+            if ".splitlines()" in line
+            and not line.lstrip().startswith(("#", "*"))
+            and "`" not in line]
+        self.assertEqual(offenders, [],
+                         "the phase lifecycle must split lines the one way "
+                         "bin/perry-lint and Okr.render do")
+
+
+class TestSpliceHeaderRefusesAnIndexItCannotTrust(Fixture):
+    """The re-check in `splice_header` is unreachable through the CLI — both
+    functions split the same way now, so the index is right by construction.
+
+    That is exactly why it needs a direct test: a guard with no reachable
+    caller is a guard no mutation can kill, and one the next refactor can
+    delete without anything noticing. The mutation that proved this survived
+    is in the round-2 result.
+    """
+
+    def module(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        import inproc
+        return inproc.load("perry-goals")
+
+    def test_a_bad_index_refuses_instead_of_returning_the_text_unchanged(self):
+        mod = self.module()
+        text = TEMPLATE.read_text()
+        original = mod.phase_header
+        try:
+            # Off the end, and in range but pointing at the wrong line. The
+            # first raises IndexError without the guard, the second silently
+            # returns the text unchanged — so `assertRaises(Refused)` alone
+            # scores the first as an ERROR, which review.md rule 2 does not
+            # accept as a kill. Both arms below fail as assertions.
+            for index, shape in ((10_000, "past the end"), (0, "the wrong line")):
+                with self.subTest(shape=shape):
+                    mod.phase_header = lambda t, f, _i=index: (_i, "")
+                    try:
+                        mod.splice_header(text, "Status", "scored")
+                    except mod.Refused as exc:
+                        self.assertIn("header it was located as", str(exc))
+                    except Exception as exc:                 # noqa: BLE001
+                        self.fail(f"splice_header let "
+                                  f"{type(exc).__name__} escape instead of "
+                                  f"refusing an index {shape}: {exc}")
+                    else:
+                        self.fail(f"splice_header accepted an index {shape} "
+                                  f"and reported success")
+        finally:
+            mod.phase_header = original
+
+    def test_the_ordinary_path_still_works_after_the_monkeypatch(self):
+        mod = self.module()
+        out = mod.splice_header(TEMPLATE.read_text(), "Status", "scored")
+        self.assertIn("> **Status**: scored", out)
 
 
 if __name__ == "__main__":
