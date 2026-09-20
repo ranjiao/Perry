@@ -431,7 +431,30 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
              'write_atomic(ctx["state_root"], path, '
              'append_linkage_records(ctx, [record]))',
              # `publish_plan` (TASK-444): a `plans/okr/*.md` draft past `assert_owned`.
-             "lib.write_atomic(path, text)"],
+             "lib.write_atomic(path, text)",
+             # `phase_command` (TASK-474), six sites, all inside one
+             # `project_lock` and all through this tool's own `write_atomic`,
+             # so all behind `assert_owned`. None of them can reach `OKR.md`:
+             # every destination is under `phase/`, which the hand-off
+             # contract gives to this lane, and the phase writer neither
+             # reads nor renders the overall OKR — it only asks whether one
+             # EXISTS, because a phase is a commitment against one.
+             #
+             # `new` — the document, then the pointer that activates it.
+             # Ordered so a crash between them leaves a document nothing
+             # points at, which `phase activate` can finish, rather than a
+             # pointer naming a document that does not exist, which every
+             # reader of `phase/CURRENT` would refuse on.
+             "write_atomic(state_root, target, text)",
+             'write_atomic(state_root, pointer, pid + "\\n")',
+             # `activate` — the pointer alone; the document already exists.
+             'write_atomic(state_root, pointer, pid + "\\n")',
+             # `close` — the snapshot first, then the in-place `Status` flip,
+             # then the cleared pointer. The snapshot leads for the same
+             # reason: it is the copy that makes the other two recoverable.
+             "write_atomic(state_root, snap, text)",
+             "write_atomic(state_root, target,",
+             'write_atomic(state_root, pointer, "(none)\\n")'],
             "a write call site was added or moved; check it is gated")
 
 

@@ -244,8 +244,11 @@ class TestTheSweepIsTheGuard(unittest.TestCase):
         # principal member `(none)` is not a declared blank spelling and the
         # schema does not carry it, so routing these through `is_blank_cell`
         # would silently drop it. Filed as its own row.
-        ("bin/perry-goals", "current_phase", ("none", "\u2014")):
-            "`phase/CURRENT` pointer sentinel -- see the note above.",
+        ("bin/perry-goals", "phase_pointer", ("none", "\u2014")):
+            "`phase/CURRENT` pointer sentinel -- see the note above. It moved "
+            "from `current_phase` to `phase_pointer` with TASK-474, which "
+            "made that the tool's single reader of the sentinel rather than "
+            "adding a fourth copy beside it.",
         ("bin/perry-lint", "check_cross_file", ("none", "\u2014")):
             "`phase/CURRENT` pointer sentinel -- see the note above.",
         ("viewer/parsers.py", "load_snapshot", ("none", "\u2014")):
