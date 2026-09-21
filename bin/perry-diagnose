@@ -1008,7 +1008,7 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
     }
 
 
-def perry_owned_globs() -> list[str]:
+def perry_owned_globs() -> list[tuple[str, str]]:
     """Paths Perry itself declares as state files, read from the schema so this
     script does not carry a second copy of that list.
 
@@ -1021,12 +1021,12 @@ def perry_owned_globs() -> list[str]:
         "BOARD.md", "OKR.md", "PROJECT_STATE.md",
         "ARCHITECTURE.md", "phase/*", "design/*", "runbook/*", ".perry/*",
     ]
-    schema = PERRY_HOME / "schema" / "state-schema.json"
+    schema, anchors = PERRY_HOME / "schema" / "state-schema.json", {}
     try:
         declared = json.loads(read_text(schema)).get("files", [])
-        found = [f["path"] for f in declared if f.get("path")]
+        found = {f["path"]: f.get("anchor", "state") for f in declared if f.get("path")}
         if found:
-            globs = found
+            globs, anchors = list(found), found
     except Exception:
         pass
     # Directories Perry writes into that the schema does not enumerate as a
@@ -1036,7 +1036,8 @@ def perry_owned_globs() -> list[str]:
         "handoff/*", "knowledge/*", "knowledge/*/*", "inputs/*", "decisions/*",
         "phase/snapshots/*", ".perry/*", ".perry/*/*",
     ]
-    return globs
+    # Each glob with its `files[].anchor`: `code` resolves at the code root (TASK-477).
+    return [(g, anchors.get(g, "state")) for g in globs]
 
 
 PERRY_DIR_NAMES = {
@@ -2639,9 +2640,10 @@ def diagnose(root: Path, max_files: int) -> dict:
     is_perry = P.installed(root)
     perry_owned: set[str] = set()
     if is_perry:
-        prefix = "" if state_root == root else f"{state_root.relative_to(root)}/"
-        for g in perry_owned_globs():
-            pattern = g if g.startswith(".perry") else f"{prefix}{g}"
+        code_root = lib.anchor_root(root, state_root, "code")
+        for g, anchor in perry_owned_globs():
+            rel = os.path.relpath(code_root if anchor == "code" else state_root, root)
+            pattern = g if g.startswith(".perry") or rel == "." else f"{rel}/{g}"
             perry_owned |= {m for m in inv["md"] if fnmatch.fnmatch(m, pattern)}
 
     docs = scan_docs(root, inv, tier0_paths, perry_owned)
