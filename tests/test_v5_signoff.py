@@ -635,6 +635,11 @@ class TestHistoryIsNotRewritten(unittest.TestCase):
             sigs += read_signatures(path.read_text())
         return sigs
 
+    def evidence(self, e):
+        """State-root-relative, or repo-relative if it starts `perry/`."""
+        p = e["evidence"]
+        return PERRY_HOME / (p if p.startswith("perry/") else "perry/" + p)
+
     def test_every_v5_close_in_the_log_still_reads(self):
         """The property the count of three was standing in for."""
         events = self.v5_events()
@@ -644,7 +649,7 @@ class TestHistoryIsNotRewritten(unittest.TestCase):
                 self.assertTrue(e.get("evidence"),
                                 "a V5 close lost its evidence path")
                 self.assertTrue(
-                    (PERRY_HOME / "perry" / e["evidence"]).exists(),
+                    self.evidence(e).exists(),
                     f"{e['evidence']} is gone; a signature points at nothing")
 
     def test_a_close_predating_the_format_was_not_back_filled(self):
@@ -656,10 +661,9 @@ class TestHistoryIsNotRewritten(unittest.TestCase):
         """
         old = [e for e in self.v5_events() if "signoff" not in e]
         self.assertTrue(old, "the pre-format closes vanished from the log")
-        state_root = PERRY_HOME / "perry"
         for e in old:
             with self.subTest(tid=e["id"]):
-                text = (state_root / e["evidence"]).read_text()
+                text = self.evidence(e).read_text()
                 self.assertRegex(text, r"\d{4}-\d{2}-\d{2}",
                                  "the signature lost its date")
                 self.assertTrue(
