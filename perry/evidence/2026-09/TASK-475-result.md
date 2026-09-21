@@ -75,6 +75,29 @@ Not changed, recorded by the reviewer: `krs` on a phase with objectives and no
 KR still refuses with a message that points to `plan-phase`; `goals/SKILL.md`
 has no index row for `objective add`.
 
+## Round 3 — USER-979, after two V4 FAILs
+
+Round 2's V4 (`TASK-475-round2-v4-review.md`) FAILed on F2: `objective add`
+matched a record's phase by exact slug, while every reader groups a phase's
+records by number. After a hand rename of the phase document with `CURRENT`
+repointed, a second O1 was written, `krs` listed it twice and `perry-state`
+double-counted. Two older sites in `kr add` had the same comparison: its
+objective lookup (a false "it has none") and its per-objective KR cap (which a
+rename let a fifth KR past). review.md § 6 stopped a third round; the user
+authorised one covering all three sites (USER-979).
+
+All three now compare `parsers.linkage_phase_number` on both sides. Not
+`linkage_records_for_phase`, the readers' selector: it answers `None` for a
+phase with objectives and no KR yet, which is exactly the state `objective add`
+creates — tried first, and it turned five existing tests red.
+
+Tests, one per site (`TestARenamedPhaseIsTheSamePhase`): objective add refuses
+an id filed under the old slug; kr add finds an objective filed under it; the
+cap counts KRs filed under it. All three fail against the round-2 code on a
+`git archive` copy and pass on the fix.
+
+Full suite on the branch head with main merged in: 158 modules / 4459 tests, green.
+
 ## Architecture trigger: none
 
 Listed boundary paths: false (`bin/perry-goals`, `goals/reference/phases.md`,
@@ -85,7 +108,7 @@ document: none changed.
 
 ## Not claimed
 
-- No V4 of round 2 yet.
+- No V4 of round 3 yet.
 - The schema's `objective` record note still says "Written by `goals` at
   `plan-phase`"; not edited (schema edits need consent). It remains true of the
   lane, not of a single step.
