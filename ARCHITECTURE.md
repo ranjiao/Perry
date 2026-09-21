@@ -98,8 +98,8 @@ there is no cross-project registry).
 - **Doesn't own**: how a tool reaches that shape.
 
 ### `SKILL.md` + `goals/` `work/` `decide/` — the lanes
-- **Purpose**: the router (222 lines, tier 0, read on every invocation) and
-  three lane files loaded on demand.
+- **Purpose**: the router (tier 0, read on every invocation; its byte cap is
+  `tests/test_router_budget.py`'s) and three lane files loaded on demand.
 - **Owns**: procedure — what an agent does, in what order, and when it stops to
   ask the user. A lane **renders** the next step `perry-state --section next`
   returns: **in a standup's TL;DR and in its next-step position** it does not
@@ -112,7 +112,8 @@ there is no cross-project registry).
   bootstrap and first-run prompts; and a hint in a rendered dashboard row.
   First-time setup is the largest of them: on a directory with no Perry state
   `R-setup` recommends only `/perry`, and the order setup recommends after
-  that is the router's own (`SKILL.md`, first-time setup step 5). The rule is
+  that is the router's own (`reference/first-run.md § The recommended order for
+  a new project`, which the router's first-time setup points to). The rule is
   about the one position the next block owns, not about naming a command.
 - **Doesn't own**: any number, or which step to recommend. Every figure a lane
   prints comes from a `bin/` call, and so does the recommendation.
@@ -246,6 +247,9 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
 - **Rationale**: two parsers of `BOARD.md` disagreed in production twice, and
   the disagreement was invisible until a round-trip test one project later.
 - **Check**: `grep -rn "def parse_" bin/ | grep -v perry_store | grep -v _md_store`
+- **Known exceptions**: `bin/perry-context-budget` reads one key
+  (`session_context_ceiling`) of `.perry/config.jsonl` directly, because it
+  must work outside a Perry project (USER-971, 2026-09-18).
 
 ### NN-2 — The store is truth; the projection is rendered
 - **Severity**: hard
@@ -309,7 +313,10 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   open for this yet.
 - **OQ-2 — What is the module document's contract?** This file links
   `bin/ARCHITECTURE.md`, and nothing yet declares its shape, its cap, its owner,
-  or what happens when it drifts from the code beside it.
+  or what happens when it drifts from the code beside it. *Partly answered
+  2026-09-21 (USER-978):* a component §2 declares no module document for has
+  none — an architecture reviewer does not count its absence as missing
+  context. Shape, cap, owner and drift stay open.
 - **OQ-3 — Should `perry-lint` check mermaid?** `perry-state` already counts
   fenced mermaid blocks (`mermaid_count`) and nothing consumes the number.
 - **OQ-4 — May `--compact` be accepted with `--section next`?** *Proposed*
@@ -353,6 +360,16 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   rule.
 
 ## §8. Change log
+
+- 2026-09-21 · v1 · USER-978, after two architecture reviews came back BLOCKED
+  (`perry/evidence/2026-09/2026-09-21-architecture-review-task-471.md`,
+  `…-architecture-review-entry-skills.md`):
+  - §6 NN-1 gains the Known exception USER-971 decided on 2026-09-18 and that
+    was never written: `perry-context-budget`'s direct read of one config key.
+  - §7 OQ-2 records that a component with no declared module document has none.
+  - §2, descriptive: the router's line count is dropped (it was 222, then 181 —
+    a number that drifts is not architecture), and the new-project order is
+    cited where TASK-470 moved it, `reference/first-run.md`.
 
 - 2026-09-15 · v1 · TASK-442, descriptive (NN-6), on its branch:
   - §2 `bin/` owns the next-step recommendation: `perry-state --section next`

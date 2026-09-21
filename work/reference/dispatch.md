@@ -334,7 +334,8 @@ All false → record `Architecture trigger: none` with the six facts in merge
 evidence, and run no architecture reviewer or COMPLIANCE block. A diff confined
 to `perry/` (including `perry/evidence/`) has no trigger. Any true → fresh review.
 Any unknown → record what is missing and resolve it before acceptance; unknown
-is never false. Missing root/module context or an unconfirmed component cannot
+is never false. A component root §2 declares no module document for has none;
+that is not missing context (USER-978). Missing root/module context or an unconfirmed component cannot
 silently produce a pass. A spec saying `(none)` cannot suppress a diff trigger.
 
 1. **Executor selection** (unchanged host eligibility):

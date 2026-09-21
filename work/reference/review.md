@@ -560,7 +560,8 @@ Component mapping: <agent selection from the confirmed §2 component list>
 Touched module documents: <paths and cited versions; explicitly list missing>
 
 Check the diff and component mapping yourself. Read other root sections only
-on demand (for example §5 for a contract version). Missing documents, unclear
+on demand (for example §5 for a contract version). A component root §2
+declares no module document for has none, and that is not missing. Missing documents, unclear
 component membership or unknown trigger facts are unresolved, not safe. Do not
 infer a new rule from silence, and do not use an author's compliance verdict.
 For each relevant rule, answer holds / contradicts / not touched, citing the

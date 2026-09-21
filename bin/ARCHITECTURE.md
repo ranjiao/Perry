@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: user (§6, §7)
 > Version: v1
-> Last reviewed: 2026-09-15
+> Last reviewed: 2026-09-21
 > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
 > Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
@@ -74,6 +74,10 @@ another one; nothing is imported.
 `perry-codex-preflight` shells out to `codex exec` to check the CLI answers
 before a dispatch depends on it. It is the only dependency in this directory
 (`codex`, `git`, `timeout`) and the only thing here that touches a model.
+`perry-context-budget` also reads outside the project — host transcripts, above
+— but runs no external program and calls no model. It is also the one tool that
+reads a state file itself: one key of `.perry/config.jsonl`, the NN-1 Known
+exception in the root document (USER-971).
 
 ## §3. Boundaries & dependencies
 
@@ -193,6 +197,12 @@ R5, and `board` names a held file on stderr as one that can be deleted.
   document's §7 asks the same thing about the module contract.
 
 ## §8. Change log
+
+- 2026-09-21 · v1 · USER-978: § 2 "The one tool that reaches outside" names
+  `perry-context-budget`'s outside reads and its direct config read (NN-1 Known
+  exception, USER-971). The 2026-09-18 rewrite of § 2 "What
+  `perry-context-budget` reads outside the project" (TASK-471, `6bb4dc6f`) had
+  no entry here; this is it.
 
 - 2026-09-15 · v1 · TASK-442: §1 records that `perry-state --section next`
   owns the next-step recommendation, evaluated from `reference/next-rules.json`
