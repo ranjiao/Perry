@@ -555,7 +555,10 @@ class TestThePointerHasOneReader(unittest.TestCase):
         """A regression guard, not a proof that no other reader exists. It
         scans every file under `bin/` and `viewer/` for a line naming
         `"CURRENT"` followed within five lines by a read. It catches a revert
-        of the perry-task and perry-state sites directly. perry-goals' old
+        of the perry-task sites directly. perry-state's old code only called
+        `.exists()`, which it does not look for; `test_state_does_not_warn_
+        after_a_close` below catches that revert (both checked by running the
+        reverts, architecture re-review 5, E1). perry-goals' old
         read went through a helper, which it cannot see: it goes red on that
         revert only because the old code's comment contained `read_text()`.
         `test_blank_cell_is_one_rule`'s check for a literal "no phase" set is
