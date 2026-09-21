@@ -1,5 +1,7 @@
 # TASK-475 V4 review — `perry-goals objective add`
 
+> PMO edit, 2026-09-21: the fixture's KR id (phase NNN = 005) was replaced by the placeholder `P<NNN>-O1-KR1` in 4 place(s), because a concrete id that resolves to nothing fails this repository's own dangling-id check (`test_diagnose`). No finding, verdict or line of reasoning changed.
+
 Date: 2026-09-21. Reviewer: Review Agent (Claude Opus 5), fresh context; I did not write this code.
 Range: `801cf912..4414ddee` (72e819c2, b0f301f6, b9680b8f, 132aa1b5, b329b7e1, 3ba47d05, 4414ddee;
 d24e3991 and 4438041c are TASK-473's and are out of scope).
@@ -38,11 +40,11 @@ repository's `perry/`.
 On the fixture with a new `005-fresh` phase that is current, active and has no objective
 record:
 
-1. `kr add P005-O1-KR1 --objective O1` is refused with "it has none".
+1. `kr add P<NNN>-O1-KR1 --objective O1` is refused with "it has none".
 2. `objective add O1` succeeds and appends
    `{"kind": "objective", "phase": "005-fresh", "id": "O1", "title": "first title"}` as the
    last line.
-3. `kr add` then exits 0, and `krs --json` returns `[("O1", "first title", ["P005-O1-KR1"])]`.
+3. `kr add` then exits 0, and `krs --json` returns `[("O1", "first title", ["P<NNN>-O1-KR1"])]`.
 
 ## Mutation — 13 of 13 guards red
 
@@ -123,7 +125,7 @@ asserts that both files are unchanged.
 - **Readers of `kind: objective` in `linkage.jsonl`, enumerated by grep over `bin/` and
   `viewer/`.**
   - `viewer/parsers.py:4338` (`linkage_from_store`) and `:4484` (`linkage_records_for_phase`).
-    `P.load_linkage(root, "005")` returns `ok=True`, `O1`, `"first title"`, `[P005-O1-KR1]`.
+    `P.load_linkage(root, "005")` returns `ok=True`, `O1`, `"first title"`, `[P<NNN>-O1-KR1]`.
   - `perry-goals` `krs` reads through parsers and lists the objective and the KR.
   - `perry-state --json` reads through parsers (`bin/perry-state:1847`). The title and KR
     are in its payload.
@@ -197,7 +199,7 @@ rung: V4
 result: FAIL
 grade: FAIL — Deliverable "refusals for … reused id" + Verification "each refusal writes nothing"
 criteria: perry/journal/2026-09/2026-09-21.md
-checked: on a git-archive copy of 4414ddee: verification end to end on a fresh phase (objective add O1 → kr add P005-O1-KR1 → krs lists it); 13/13 guard mutants red with restores compared to git show; all linkage writers enumerated on an unparseable store; every reader of kind objective (parsers, krs, perry-state, perry-lint, kr add); all 5 other append_linkage_records callers on an absent store; no new write site; architecture trigger facts; affected tier 79/2293 green
+checked: on a git-archive copy of 4414ddee: verification end to end on a fresh phase (objective add O1 → kr add P<NNN>-O1-KR1 → krs lists it); 13/13 guard mutants red with restores compared to git show; all linkage writers enumerated on an unparseable store; every reader of kind objective (parsers, krs, perry-state, perry-lint, kr add); all 5 other append_linkage_records callers on an absent store; no new write site; architecture trigger facts; affected tier 79/2293 green
 not-checked: full suite; viewer UI; locking; SkyTonight; actor/installed-gate registrations by mutation; Windows
 proof: bin/perry-goals:4402 kr_store_records → :3879-3880 `load_linkage_store(...) or []` turns an unparseable linkage.jsonl into no records, so the reuse guard at :4406 cannot fire; `objective add O1` on a store with one bad line whose phase already has O1 exits 0 and appends a duplicate O1 and an objective_add event
 === END VERDICT ===
