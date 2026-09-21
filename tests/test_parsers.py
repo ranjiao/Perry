@@ -563,9 +563,9 @@ class StateExtractor(unittest.TestCase):
             self.assertFalse(perry_state(tmp)["installed"])
 
     def test_architecture_is_read_at_the_code_root(self):
-        """DESIGN-017 A2: the document is read at `code_repo_path`, or the
-        project root when unset — never a stale state-root copy. A legacy
-        `Status: draft` reads as "" and warns nothing; `Last reviewed` ages."""
+        """DESIGN-017 A2: fields and tier-1 cap come from `code_repo_path`, or the project
+        root when unset — never a stale state-root copy. A legacy `Status: draft` reads
+        as "" and warns nothing; `Last reviewed` ages."""
         from config_store import config_jsonl
         stale, fresh = ("v2", "2020-01-01"), ("", date.today().isoformat())
         for code, doc, want in (("", "ARCHITECTURE.md", stale), ("code", "code/ARCHITECTURE.md", fresh),
@@ -576,15 +576,18 @@ class StateExtractor(unittest.TestCase):
                     (root / d).mkdir()
                 (root / ".perry/config.jsonl").write_text(
                     config_jsonl({"State root": "perry", "Code repo path": code}))
-                (root / "perry/ARCHITECTURE.md").write_text(text)
+                (root / "perry/ARCHITECTURE.md").write_text("> Version: decoy · Last reviewed: 2000-01-01\n" * 600)
                 if doc:
-                    (root / doc).write_text(text if want in (stale, None) else f"> Last reviewed: {fresh[1]}\n")
+                    (root / doc).write_text(text if want in (stale, None) else f"> Last reviewed: {fresh[1]}\n" * 600)
                 payload = perry_state(root)
                 a, warned = payload["architecture"], " ".join(payload["warnings"])
                 self.assertEqual((a["exists"], a["status"], a["version"], a["last_reviewed"]),
                                  (want is not None, "", *(want or ("", ""))))
                 self.assertNotIn("Status: draft", warned)
                 self.assertEqual("ARCHITECTURE.md last reviewed" in warned, want == stale)
+                self.assertEqual([(c["lines"] > 500, c["over"]) for c in payload["operations"]["tier1_caps"]
+                                  if c["file"] == "ARCHITECTURE.md"], [] if want is None else [(want == fresh,) * 2])
+                self.assertEqual("ARCHITECTURE.md is 601 lines, over its tier-1 cap" in warned, want == fresh)
 
 
 class TheFixtureAnswersFromItsOwnLogOnly(unittest.TestCase):
