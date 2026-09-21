@@ -1306,7 +1306,8 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
             ))
 
     # phase/CURRENT resolves
-    # `parsers.read_phase_pointer`, the pointer's one reader (NN-1, USER-980).
+    # `parsers.read_phase_pointer`, the pointer reader for `bin/` and `viewer/`
+    # (NN-1, USER-980; `release/` holds a recorded exception, USER-981).
     phase_file = None
     slug = P.read_phase_pointer(root)
     if slug:

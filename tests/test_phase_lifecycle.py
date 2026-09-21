@@ -534,8 +534,9 @@ class TestTheParserReadsWhatTheWriterReports(Fixture):
 
 
 class TestThePointerHasOneReader(unittest.TestCase):
-    """USER-980: `parsers.read_phase_pointer` is the one reader of
-    `phase/CURRENT`; perry-goals and perry-lint call it."""
+    """USER-980: `parsers.read_phase_pointer` is the reader of `phase/CURRENT`
+    for `bin/` and `viewer/`; `release/manage.py` reads it at git refs under a
+    recorded NN-1 exception (USER-981)."""
 
     def test_every_no_phase_spelling_reads_as_none(self):
         sys.path.insert(0, str(ROOT / "viewer"))
@@ -551,14 +552,19 @@ class TestThePointerHasOneReader(unittest.TestCase):
         self.assertEqual(parsers.read_phase_pointer(d), "003-x")
 
     def test_nothing_else_reads_the_pointer_value(self):
-        """A regression guard for the five sites fixed, not a proof that no
-        other reader exists. It scans every file under `bin/` and `viewer/`
-        for a line naming `"CURRENT"` followed within five lines by a read.
+        """A regression guard, not a proof that no other reader exists. It
+        scans every file under `bin/` and `viewer/` for a line naming
+        `"CURRENT"` followed within five lines by a read. It catches a revert
+        of the perry-task and perry-state sites directly. perry-goals' old
+        read went through a helper, which it cannot see: it goes red on that
+        revert only because the old code's comment contained `read_text()`.
+        `test_blank_cell_is_one_rule`'s check for a literal "no phase" set is
+        what catches that revert on purpose.
 
-        It cannot see (architecture re-review 3 planted each): other spellings
-        of the name (`'CURRENT'`, `"phase/CURRENT"`), a read before the name or
-        more than five lines after it, a read through a subprocess, or a read
-        at a git ref. `release/manage.py` reads the pointer the last way, under
+        It cannot see (architecture re-reviews 3 and 4 planted each): other
+        spellings of the name (`'CURRENT'`, `"phase/CURRENT"`), a read before
+        the name or more than five lines after it, a read through a helper
+        function or a subprocess, or a read at a git ref. `release/manage.py` reads the pointer the last way, under
         a recorded NN-1 exception (USER-981), and is outside the scan."""
         readers = []
         files = [p for d in ("bin", "viewer") for p in (ROOT / d).rglob("*")

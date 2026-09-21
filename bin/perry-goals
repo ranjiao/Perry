@@ -4734,7 +4734,7 @@ def phase_pointer(state_root: Path) -> tuple[Path, str]:
     `current_phase` above delegates here. The value is
     `parsers.read_phase_pointer`'s, which owns the "no phase" set.
     """
-    # `parsers.read_phase_pointer`, the pointer's one reader (NN-1,
+    # `parsers.read_phase_pointer`, the pointer reader for `bin/` and `viewer/` (NN-1,
     # USER-980); this tool no longer carries its own "no phase" set.
     return (state_root / "phase" / "CURRENT",
             P.read_phase_pointer(state_root))
