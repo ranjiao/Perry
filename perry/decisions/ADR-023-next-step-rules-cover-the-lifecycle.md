@@ -81,3 +81,12 @@ with UD 13–15:
   user silences it. That calls for UD 14's declaration option.
 - A rule placed below `R-dispatchable` is never seen on busy boards. That calls
   for re-ordering, or for narrowing `R-dispatchable`.
+
+## Correction (2026-09-21, USER-996)
+
+The phase close order in Chosen and Consequences was reversed. `end-phase-retro`
+runs before `score-phase`, which marks the phase `scored` and clears
+`phase/CURRENT`. So `R-phase-closable` stays, narrowed to phases with no retro
+recorded. `R-phase-scorable` recommends `score-phase` once the retro exists.
+`R-retro-due` is dropped. The rule file grows from 18 to 30 (twelve new), and
+twelve fact rows are added. `DESIGN-020 § 9` carries the same correction.

@@ -517,8 +517,8 @@ a fact · **✗** no source.
 | 4 week | `work friday-review` | Friday, or the weekly is late | ✓ | R-review-due |
 | 5 mid-phase | `work mid-phase-review` | half the phase elapsed | ✗ no duration (UD 13) | none, user-initiated until UD 13 is revisited |
 | 5 mid-phase | `goals snapshot` | no snapshot in 14 days | ✗ snapshot date | R-phase-heartbeat (unknown) |
-| 6 close | `goals score-phase` | met ratio ≥ 0.8, nothing unmeasured | ✓ | **R-phase-scorable** (replaces R-phase-closable's command) |
-| 6 close | `work end-phase-retro` | phase scored and no retro evidence for it | ◐ phase status; evidence path | **R-retro-due** (new) |
+| 6 close | `work end-phase-retro` | met ratio ≥ 0.8, nothing unmeasured, and no retro recorded for this phase | ✓ ratio; ◐ retro evidence path | R-phase-closable (narrowed) |
+| 6 close | `goals score-phase` | as above, and this phase's retro is recorded | ◐ retro evidence path | **R-phase-scorable** (new) |
 
 | Event | Subcommand | Fires when | Fact | Rule |
 |---|---|---|---|---|
@@ -552,7 +552,7 @@ file so a guard can tell "unlisted" from "deliberately absent":
 |---|---|---|
 | `phase.krs_unstaffed`, `phase.first_unstaffed_kr` | active, non-withdrawn commit KRs of the current phase with zero linkage edges, less those whose position is measured and met | 1 |
 | `phase.kr_progress.undeclared`, `phase.first_undeclared_kr` | commit KRs whose position is `undeclared` (DESIGN-022 § 5.2) | 1 |
-| `phase.scored`, `phase.retro_recorded` | the phase record's scored status; whether an evidence file for this phase's retro exists (a path check, not a read) | 1 |
+| `phase.retro_recorded` | whether this phase's retro evidence (`evidence/<YYYY-MM>/retro.md`, `end-phase-retro`) exists and names the phase in a declared header field — a path and a field, not prose | 1 |
 | `today.journal_has_midweek` | today's journal carries the heading `midweek-check` declares (a schema-declared heading, not prose) | 1 |
 | `board.review_owed`, `board.first_review_owed` | rows at `review` with rung V4 and no verdict block naming them | 2 |
 | `board.closable`, `board.first_closable` | rows at `review` whose latest verdict block reads PASS | 2 |
@@ -571,8 +571,8 @@ prose: headings, enums, dates and paths only (`ADR-007`).
 
 #### Rule order after all three batches
 
-Overlays as today, then: R-setup · R-no-okr · R-no-phase · **R-phase-scorable**
-· **R-retro-due** · **R-kr-unstaffed** · **R-checks-undeclared** ·
+Overlays as today, then: R-setup · R-no-okr · R-no-phase · R-phase-closable
+· **R-phase-scorable** · **R-kr-unstaffed** · **R-checks-undeclared** ·
 R-week-unplanned · **R-rollover** · **R-review-owed** · **R-closable-row** ·
 R-sla-breach · R-wip-over-limit · R-queue-/pipeline-commitment-due ·
 R-asks-waiting · **R-blocked-stale** · **R-dispatchable** · R-review-due ·
@@ -615,7 +615,7 @@ rubric checks, the questions are wrong and the rest is decoration.
 | D | Draft file, edit/approve, resume through the interrupted scan, finalize through writers. Depends on `TASK-264` | TASK-NNN (new), `TASK-264` | Coding Agent |
 | E | Phase, week and commitments routes; routing by spine; escape hatch and premise challenge on the draft | re-point `TASK-192`, `TASK-193`, `TASK-194` | Coding Agent |
 | F | `/perry plan` entrance (UD 6) | TASK-NNN (new) | Coding Agent |
-| G | § 5.10 batch 1 — lifecycle: R-kr-unstaffed, R-checks-undeclared (with the `goals check` index row), R-phase-scorable / R-retro-due, R-midweek; `plan-week` step 1 takes unstaffed KRs first; the coverage guard; one fixture per rule, each reddened by deleting its rule; `next-contract.md` minor | TASK-NNN (new) | Coding Agent |
+| G | § 5.10 batch 1 — lifecycle: R-kr-unstaffed, R-checks-undeclared (with the `goals check` index row), R-phase-closable narrowed and R-phase-scorable, R-midweek; `plan-week` step 1 takes unstaffed KRs first; the coverage guard; one fixture per rule, each reddened by deleting its rule; `next-contract.md` minor | TASK-NNN (new) | Coding Agent |
 | H | § 5.10 batch 2 — execution loop: verdict and spec-header facts through `viewer/parsers.py`; R-review-owed, R-closable-row, R-dispatchable, R-blocked-stale; fixtures | TASK-NNN (new) | Coding Agent |
 | I | § 5.10 batch 3 — calendar and operations: R-rollover, R-inputs-waiting, R-cadence-overdue, R-risk-raised, R-architecture-stale; fixtures | TASK-NNN (new) | Coding Agent |
 
@@ -676,6 +676,18 @@ their scope survives here and ids are never reissued.
   because `R-week-unplanned`'s fact has no source, and the enumeration found
   twelve more stages or events no rule covered. No other section's decisions
   change; § 5.3's table is superseded in order by § 5.10 and kept as written.
+
+- 2026-09-21 — **Correction to the entry above** (USER-996). The phase close
+  order was reversed. `work/reference/subcommands.md § end-phase-retro` runs
+  when `score-phase` is about to run, and writes `retro.md`, which score-phase
+  reads. `goals/reference/phases.md` score-phase step 6 marks the phase
+  `scored` and clears `phase/CURRENT`, so after scoring no active phase is left
+  and `R-no-phase` fires first. A retro recommended after scoring could never
+  surface. Now `R-phase-closable` stays, narrowed to "no retro recorded for
+  this phase", and `R-phase-scorable` recommends `score-phase` once the retro
+  exists. `R-retro-due` and the `phase.scored` fact are dropped. That leaves
+  twelve new rules and one narrowed one, thirty in all, and thirteen fact rows
+  less one.
 
 ## 10. References
 
