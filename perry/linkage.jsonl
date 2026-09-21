@@ -424,3 +424,4 @@
 {"kind": "measurement", "kr": "P004-O2-KR2", "okr_version": "", "check": "hand-appends-after", "value": 0, "asserted_at": "2026-09-21T09:01:08Z", "evidence": "evidence/2026-09/phase004-census-hand-appends-2026-09-21.md", "computed": false, "actor": "pmo"}
 {"kind": "measurement", "kr": "P004-O3-KR2", "okr_version": "", "check": "decisions-recorded-pct", "value": 83.6, "asserted_at": "2026-09-21T09:01:08Z", "evidence": "evidence/2026-09/phase004-census-decisions-2026-09-21.md", "computed": false, "actor": "pmo"}
 {"kind": "unlinked", "task": "TASK-476", "phase": "004-guided", "declared_at": "2026-09-21T09:39:17Z", "actor": "pmo", "via": "add"}
+{"kind": "unlinked", "task": "TASK-477", "phase": "004-guided", "declared_at": "2026-09-21T10:59:39Z", "actor": "pmo", "via": "add"}
