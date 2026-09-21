@@ -114,6 +114,15 @@ Usage:
       not written. A withdrawn KR is terminal and its id is never reused.
       All three take `--dry-run` and REQUIRE `--actor` and `--reason`.
 
+  perry-goals objective add <O-ID> --text "<title>" --reason "<why>" --actor <who>
+      TASK-475. Appends one `objective` record — `phase`, `id`, `title` — to
+      `linkage.jsonl` for the CURRENT phase, and one `objective_add` event.
+      The phase's objectives are what `kr add --objective` resolves against,
+      and `phase new` writes none, so this runs after `phase new` and before
+      the phase's first `kr add`. File order is objective order. Refused on a
+      scored phase, an id that is not `O<n>`, and an id the phase already has.
+      Takes `--dry-run`; REQUIRES `--actor` and `--reason`.
+
   perry-goals phase new --slug <slug> --body-file <path> --actor <who>
   perry-goals phase activate --phase <NNN> --actor <who>
   perry-goals phase close [--phase <NNN>] --actor <who>
@@ -3376,6 +3385,14 @@ KR_WRITER_USAGE = {
 }
 
 
+#: `objective add` (TASK-475). Only `add`: the store declares no objective
+#: revision kind, and an objective id, like a KR id, is never reused.
+KR_WRITER_USAGE["objective"] = ("perry-goals objective add <O-ID> --text "
+                                "\"<title>\" --reason \"…\" --actor <who>")
+KR_WRITER_FLAGS["objective"] = ("--root", "--json", "--dry-run", "--actor",
+                                "--text", "--reason")
+
+
 def linkage_record_spec(kind: str) -> dict:
     """The schema's declaration of one `linkage.jsonl` record kind — read, not
     restated, so the id and slug shapes refused here are `perry-lint`'s."""
@@ -4340,6 +4357,81 @@ def cmd_kr(args, ctx) -> dict:
     return cmd_kr_revise(args, ctx, op, kr_token)
 
 
+def cmd_objective(args, ctx) -> dict:
+    """`objective add <O-ID>` — one phase `objective` record, one event.
+
+    The missing step between `phase new`, which writes the phase's prose and
+    pointer and no record, and `kr add`, which refuses an `--objective` the
+    phase does not declare. Without it a phase opened by the writer could
+    carry no KR at all, and the procedure forbids appending one by hand.
+
+    Refused, writing nothing, when: the op is not `add` or the id is missing;
+    `--text` or `--reason` is missing or spans lines; there is no current
+    phase, or it is scored; the id does not match the schema's pattern; the
+    phase already declares that id.
+    """
+    if len(args.rest) != 2 or args.rest[0] != "add":
+        raise Refused(
+            f"`objective` takes `add` and one <O-ID>; got "
+            f"{' '.join(args.rest) or 'nothing'}. Usage: "
+            f"{KR_WRITER_USAGE['objective']}. Nothing was written")
+    oid = check_writable(args.rest[1], "<O-ID>")
+    title = check_writable(required_flag(args, "text", "--text", "objective"),
+                           "--text")
+    reason = (args.reason or "").strip()
+    if not reason or "\n" in reason or "\r" in reason:
+        raise Refused(
+            f"`objective add` needs --reason \"<why>\" on one line; "
+            f"{'none was given' if not reason else 'it contains a line break'}"
+            f". Usage: {KR_WRITER_USAGE['objective']}. Nothing was written")
+    slug = current_phase(ctx["state_root"])
+    doc = ctx["state_root"] / "phase" / f"{slug}.md"
+    status = (P.parse_phase(slug, doc.read_text(encoding="utf-8")).status
+              if doc.is_file() else "")
+    if status.strip().lower() == "scored":
+        raise Refused(
+            f"`objective add` refused: phase {slug} is scored (`phase/{slug}"
+            f".md` **Status**), and history is not revised. Open the next "
+            f"phase with `perry-goals phase new`. Nothing was written")
+    spec = linkage_record_spec("objective")
+    pattern = spec["fields"]["id"]["pattern"]
+    if not re.fullmatch(pattern, oid):
+        raise Refused(f"`{oid}` is not an objective id (`{pattern}`), e.g. "
+                      f"`O1`. Nothing was written")
+    path = linkage_store_path(ctx["state_root"])
+    records = kr_store_records(ctx, "phase")
+    have = [str(r.get("id") or "") for r in records
+            if r.get("kind") == "objective"
+            and str(r.get("phase") or "") == slug]
+    if oid in have:
+        raise Refused(
+            f"phase {slug} already declares objective {oid} (it has "
+            f"{', '.join(have)}); objective ids are never reused. Choose "
+            f"another id. Nothing was written")
+    values = {"kind": "objective", "phase": slug, "id": oid, "title": title}
+    record = {f: values[f] for f in spec["fields"] if f in values}
+    event = {"ts": lib.event_stamp(), "event": "objective_add",
+             "actor": args.actor, "file": P.LINKAGE_STORE, "phase": slug,
+             "objective": oid, "reason": reason}
+    result = {"mode": "objective", "op": "add", "objective": oid,
+              "phase": slug, "file": str(path), "record": record,
+              "event": event,
+              "diff": [f"+{P.LINKAGE_STORE}  "
+                       f"{json.dumps(record, ensure_ascii=False)}"]}
+    if args.dry_run:
+        result.update({"dry_run": True, "written": False,
+                       "event_written": False})
+        return result
+    prior = path.read_text(encoding="utf-8") if path.is_file() else ""
+    if prior and not prior.endswith("\n"):
+        prior += "\n"
+    write_atomic(ctx["state_root"], path,
+                 prior + json.dumps(record, ensure_ascii=False) + "\n")
+    result["written"] = True
+    result["event_written"] = append_event(ctx["project_root"], event)
+    return result
+
+
 # ── draft: a first-OKR planning draft (TASK-444, DESIGN-020 § 5.5) ────────
 # Frontmatter validated by `parsers § parse_plan`; the body is copied and
 # hashed, never read. Only okr/first is written, and never a canonical goal.
@@ -4989,7 +5081,7 @@ def draft_main(argv: list[str]) -> int:
 
 COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link,
             "krs": cmd_krs, "measure": cmd_measure, "check": cmd_check,
-            "kr": cmd_kr}
+            "kr": cmd_kr, "objective": cmd_objective}
 
 
 # The existing dispatch has two reads; all other commands enter the write
@@ -5293,6 +5385,15 @@ def main(argv: list[str]) -> int:
     elif args.cmd == "krs":
         print(render_overall_krs(result) if result.get("level") == "overall"
               else render_krs(result))
+    elif args.cmd == "objective":
+        verb = "would write" if args.dry_run else "wrote"
+        print(f"perry-goals: {verb} {Path(result['file']).name} — objective "
+              f"add {result['objective']} · phase {result['phase']}")
+        for line in result["diff"]:
+            print(f"  {line}")
+        if not args.dry_run and not result.get("event_written"):
+            print("  ⚠ the record was written and the event was not — see the "
+                  "warning above", file=sys.stderr)
     elif args.cmd == "kr":
         verb = "would write" if args.dry_run else "wrote"
         where = (f" ({result['okr_version']})" if result.get("okr_version")

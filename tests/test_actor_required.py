@@ -400,6 +400,12 @@ class TestGoalsActorContract(unittest.TestCase):
             self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
             root = KW.make_project(tmp / "p")
             yield "kr/" + op, root, ["kr", op, *tail, "--reason", "fixture"]
+        # TASK-475: `objective add`.
+        tmp = Path(tempfile.mkdtemp(prefix="goals-actor-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        root = KW.make_project(tmp / "p")
+        yield "objective/add", root, ["objective", "add", "O2", "--text", "new",
+                                      "--reason", "fixture"]
 
     def test_every_mode_refuses_absent_empty_blank_and_multiline_before_writing(self):
         seen = set()
