@@ -515,6 +515,20 @@ class TestTheProjectRootIsTheSharedOne(Fixture):
              "--dry-run"], capture_output=True, text=True, cwd=sub, env=env)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
+    def test_the_main_path_walks_up_too(self):
+        """`perry-goals list`, the same inline lookup in the older main path."""
+        d = self.project()
+        sub = d / "phase"
+        env = {k: v for k, v in os.environ.items() if k != "PERRY_PROJECT"}
+        here = subprocess.run([sys.executable, str(GOALS), "list", "--json"],
+                              capture_output=True, text=True, cwd=sub, env=env)
+        there = subprocess.run([sys.executable, str(GOALS), "list", "--json",
+                                "--root", str(d)], capture_output=True,
+                               text=True, cwd=ROOT, env=env)
+        self.assertEqual(there.returncode, 0, there.stderr)
+        self.assertEqual(here.returncode, 0, here.stderr)
+        self.assertEqual(json.loads(here.stdout), json.loads(there.stdout))
+
 
 class TestOneSpellingOfTheLineBreakRule(Fixture):
     """The structural half of F1, so a fourth spelling cannot land quietly.
