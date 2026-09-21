@@ -304,8 +304,14 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
 
 ## §7. Open questions
 
-- **OQ-1 — The schema anchors this file in the wrong place.** ANSWERED for
-  where it lives, open for the fix. `schema/state-schema.json § files[id=architecture]`
+- **OQ-1 — The schema anchors this file in the wrong place.** *Closed
+  2026-09-21 (USER-987).* TASK-451 (DESIGN-017 A1, main 6d471770) anchors
+  `ARCHITECTURE.md` at the code root in `schema/state-schema.json`; TASK-452
+  (A2, main 5d661ec6) makes `perry-state` read and cap-check it there, and
+  `--section architecture` reports `exists: true` on this repository. The one
+  remaining reader that ignores the code anchor, `perry-diagnose`'s ownership
+  scan, is TASK-477. The text below is the question as it stood.
+  ANSWERED for where it lives, open for the fix. `schema/state-schema.json § files[id=architecture]`
   and `§ claims` both anchor `ARCHITECTURE.md` at the STATE root;
   `packs/software-ops/architecture.md` says "at the project root". The user
   settled the question on 2026-09-09: an architecture document describes code,
@@ -364,6 +370,9 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   rule.
 
 ## §8. Change log
+
+- 2026-09-21 · v1 · USER-987: §7 OQ-1 closed after TASK-451 and TASK-452;
+  its text is kept. No other section is edited.
 
 - 2026-09-21 · v1 · USER-981, after architecture re-review 3: §6 NN-1 gains a
   second Known exception, `release/manage.py`'s git-ref reads of
