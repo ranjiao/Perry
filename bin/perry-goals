@@ -4689,10 +4689,6 @@ PHASE_FLAGS = {m: tuple(f.split()) for m, f in {
 PHASE_REQUIRED = {"new": ("--slug", "--body-file", "--actor"),
                   "activate": ("--phase", "--actor"),
                   "close": ("--actor",)}
-#: `current_phase` above already treats these as "no current phase"; the
-#: writer has to agree with the reader or it would clear a pointer the reader
-#: thinks is empty and set one it thinks is full.
-PHASE_NONE = {"", "(none)", "none", "\u2014"}
 PHASE_SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 
@@ -4726,21 +4722,13 @@ def phase_cap() -> int:
 def phase_pointer(state_root: Path) -> tuple[Path, str]:
     """`(the CURRENT file, the active `<NNN>-<slug>` or '')`.
 
-    **The one place inside this tool that reads the pointer sentinel.**
-    `current_phase` above delegates here rather than keeping a second
-    copy: `tests/test_blank_cell_is_one_rule.py § EXEMPT` already
-    records this set as "three copies of one rule", and a writer adding
-    a fourth is how that note becomes four. It stays a literal rather
-    than `lib.is_blank_cell` for the reason the same note gives —
-    `(none)` is the set's principal member and is not a declared blank
-    spelling, so the shared rule would silently drop it.
+    `current_phase` above delegates here. The value is
+    `parsers.read_phase_pointer`'s, which owns the "no phase" set.
     """
-    f = state_root / "phase" / "CURRENT"
-    # `phase_text`, not `read_text()`, even for a one-token pointer: one
-    # reader shape for every phase read leaves no exception to argue
-    # about later. The value is stripped, so the two agree here anyway.
-    slug = phase_text(f).strip() if f.exists() else ""
-    return f, ("" if slug in PHASE_NONE else slug)
+    # `parsers.read_phase_pointer`, the pointer's one reader (NN-1,
+    # USER-980); this tool no longer carries its own "no phase" set.
+    return (state_root / "phase" / "CURRENT",
+            P.read_phase_pointer(state_root))
 
 
 def phase_text(path: Path) -> str:
@@ -4777,6 +4765,26 @@ def phase_header(text: str, field: str) -> tuple[int, str] | None:
         if m:
             return n, m.group(2).strip()
     return None
+
+
+def refuse_unless_parsed(pid: str, text: str, *, status: str,
+                         started: str = "") -> None:
+    """Refuse unless `parsers.parse_phase` reads `text` as this command is
+    about to report it — the reader decides, the writer only splices."""
+    doc = P.parse_phase(pid, text)
+    got = (doc.status.strip().lower(), doc.started.strip())
+    if got[0] != status or (started and got[1] != started):
+        raise refusal(
+            f"after writing, phase/{pid}.md would read as Status "
+            f"{doc.status.strip() or '(none)'!r}"
+            + (f", Started {doc.started.strip() or '(none)'!r}" if started
+               else "")
+            + f" to every reader, not {status!r}"
+            + (f" / {started!r}" if started else "")
+            + ". Its header is spelled in a way this writer does not rewrite, "
+            "or a commented-out header sits above the real one; use "
+            "`> **Status**:` and `> **Started**:` lines",
+            parsed_status=doc.status, parsed_started=doc.started)
 
 
 def splice_header(text: str, field: str, value: str) -> str:
@@ -4924,6 +4932,12 @@ def phase_command(mode: str, v: dict) -> dict:
                     f"tier-1 hard cap of {cap}. Move narrative into "
                     f"`evidence/<YYYY-MM>/phase-{num}-<topic>.md` and link it",
                     lines=lines, cap=cap)
+            # **The parser must read what this reports** (NN-1, NN-3;
+            # USER-978). `splice_header` stamps the first `> **F**:` line it
+            # finds; a body whose real header is spelled another way, below a
+            # stamped comment, read as `scored` to every reader while this
+            # said `active` (architecture re-review, 2026-09-21, P7).
+            refuse_unless_parsed(pid, text, status="active", started=today)
             if not dry:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 write_atomic(state_root, target, text)
@@ -5008,11 +5022,14 @@ def phase_command(mode: str, v: dict) -> dict:
                 raise refusal(f"a final snapshot already exists at "
                               f"phase/snapshots/{snap.name}",
                               existing=snap.name)
+            closed = splice_header(text, "Status", "scored")
+            # Same check (P5): the flip must be the line the parser reads,
+            # not a commented-out one above it.
+            refuse_unless_parsed(pid, closed, status="scored")
             if not dry:
                 snap.parent.mkdir(parents=True, exist_ok=True)
                 write_atomic(state_root, snap, text)
-                write_atomic(state_root, target,
-                             splice_header(text, "Status", "scored"))
+                write_atomic(state_root, target, closed)
                 write_atomic(state_root, pointer, "(none)\n")
             payload = {"mode": mode, "phase": pid,
                       "path": f"phase/{target.name}", "file": str(target),

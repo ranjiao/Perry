@@ -3021,6 +3021,27 @@ def _parse_okr_objectives(body: str,
 # ── phase/<slug>.md ───────────────────────────────────────────────────────
 
 
+#: What `phase/CURRENT` holds when no phase is active. `(none)` is the
+#: principal member and is not a declared blank spelling, so this set is not
+#: `is_blank_cell`'s and must not be routed through it.
+PHASE_POINTER_NONE = frozenset({"", "(none)", "none", "\u2014"})
+
+
+def read_phase_pointer(state_root) -> str:
+    """The active phase's `<NNN>-<slug>` from `phase/CURRENT`, or `''`.
+
+    **The one reader of the pointer** (NN-1, USER-980). `load_snapshot`,
+    `perry-lint` and `perry-goals` each used to read it with their own copy of
+    the "no phase" set; `tests/test_blank_cell_is_one_rule.py` recorded them as
+    three copies of one rule.
+    """
+    p = Path(state_root) / "phase" / "CURRENT"
+    if not p.exists():
+        return ""
+    slug = p.read_bytes().decode("utf-8", errors="replace").strip()
+    return "" if slug in PHASE_POINTER_NONE else slug
+
+
 def parse_phase(slug: str, text: str) -> Phase:
     # Section labels are bilingual: a project's document language may be English
     # or 中文 (per .perry/config.jsonl), so the phase file can use either set of
@@ -5212,21 +5233,19 @@ def load_snapshot(root: Path = STATE_ROOT, *, kr_fold=None) -> PMOSnapshot:
 
     phase = None
     linkage = Linkage()
-    cur_pointer = root / "phase" / "CURRENT"
-    if cur_pointer.exists():
-        slug = cur_pointer.read_text().strip()
-        if slug and slug not in {"(none)", "none", "—"}:
-            phase_file = root / "phase" / f"{slug}.md"
-            if phase_file.exists():
-                phase = parse_phase(slug, phase_file.read_text())
-            # **The store is the only authority.** DESIGN-015 § 5.6 site 6 —
-            # what `perry-state`'s attribution reader is built on. There is no
-            # fallback file to name any more: ADR-019 deleted
-            # `phase/<NNN>-linkage.md` and moved `metric`, `due` and the
-            # objective titles into `linkage.jsonl` with the rest, so the
-            # phase NUMBER is the whole of what `load_linkage` needs.
-            number = (phase.number if phase else "") or slug.split("-")[0]
-            linkage = load_linkage(root, number, kr_fold=kr_fold)
+    slug = read_phase_pointer(root)
+    if slug:
+        phase_file = root / "phase" / f"{slug}.md"
+        if phase_file.exists():
+            phase = parse_phase(slug, phase_file.read_text())
+        # **The store is the only authority.** DESIGN-015 § 5.6 site 6 —
+        # what `perry-state`'s attribution reader is built on. There is no
+        # fallback file to name any more: ADR-019 deleted
+        # `phase/<NNN>-linkage.md` and moved `metric`, `due` and the
+        # objective titles into `linkage.jsonl` with the rest, so the
+        # phase NUMBER is the whole of what `load_linkage` needs.
+        number = (phase.number if phase else "") or slug.split("-")[0]
+        linkage = load_linkage(root, number, kr_fold=kr_fold)
 
     # **THE RULE: once `BOARD.md § Top risks` is a table, that table is the
     # register and `PROJECT_STATE.md` is no longer merged into it.**

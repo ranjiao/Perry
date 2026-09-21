@@ -37,6 +37,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -498,6 +499,62 @@ class TestStatusIsReadByTheOneReader(Fixture):
                 (d / "phase" / "CURRENT").write_text("003-scored\n")
                 self.assertIn("already scored",
                               self.refused(d, "close", "--actor", "t"))
+
+
+class TestTheParserReadsWhatTheWriterReports(Fixture):
+    """The architecture re-review (2026-09-21, BLOCKED): scored-ness was the
+    parser's answer, but WHICH line to rewrite was still the writer's regex,
+    and the two could pick different lines."""
+
+    COMMENTED = "<!--\n> **Status**: active\n> **Started**: 2020-01-01\n-->\n"
+
+    def test_close_refuses_when_the_flip_lands_on_a_commented_line(self):
+        """P5: the real header spelled `> Status: active`, a commented-out
+        bold one above it. The splice hit the comment; close reported
+        scored and the parser still read active."""
+        d = self.project()
+        doc = d / "phase" / "002-release-pipeline.md"
+        text = doc.read_text().replace("> **Status**: active",
+                                       "> Status: active", 1)
+        doc.write_text(self.COMMENTED + text)
+        self.assertIn("would read as Status",
+                      self.refused(d, "close", "--actor", "t"))
+
+    def test_new_refuses_when_the_stamp_lands_on_a_commented_line(self):
+        """P7: new reported active/today while the parser read scored."""
+        d = self.project(active=None)
+        body = pathlib.Path(self.body(d))
+        text = body.read_text()
+        text = re.sub(r"> \*\*Status\*\*:.*", "> Status: scored", text, 1)
+        text = re.sub(r"> \*\*Started\*\*:.*", "> Started: 2020-01-01", text, 1)
+        body.write_text(self.COMMENTED + text)
+        self.assertIn("would read as Status", self.refused(
+            d, "new", "--slug", "commented", "--body-file", str(body),
+            "--actor", "t"))
+
+
+class TestThePointerHasOneReader(unittest.TestCase):
+    """USER-980: `parsers.read_phase_pointer` is the one reader of
+    `phase/CURRENT`; perry-goals and perry-lint call it."""
+
+    def test_every_no_phase_spelling_reads_as_none(self):
+        sys.path.insert(0, str(ROOT / "viewer"))
+        import parsers
+        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-pointer-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / "phase").mkdir()
+        self.assertEqual(parsers.read_phase_pointer(d), "")  # absent
+        for text in ("", "\n", "(none)\n", "none", "\u2014\n", "  \r\n"):
+            (d / "phase" / "CURRENT").write_text(text, encoding="utf-8")
+            self.assertEqual(parsers.read_phase_pointer(d), "", repr(text))
+        (d / "phase" / "CURRENT").write_text("003-x\r\n", encoding="utf-8")
+        self.assertEqual(parsers.read_phase_pointer(d), "003-x")
+
+    def test_no_tool_keeps_its_own_no_phase_set(self):
+        for rel in ("bin/perry-goals", "bin/perry-lint"):
+            src = (ROOT / rel).read_text(encoding="utf-8")
+            self.assertIn("read_phase_pointer(", src, rel)
+            self.assertNotIn('"(none)", "none"', src, rel)
 
 
 class TestTheProjectRootIsTheSharedOne(Fixture):
