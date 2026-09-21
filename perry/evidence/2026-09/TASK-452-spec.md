@@ -3,7 +3,8 @@
 Date: 2026-09-17. Owner: Coding Agent. Priority: P1. Required verification: V4.
 > Touches architecture: bin state consumer and existing parser, DESIGN-017 A2.
 > Dispatch mode: auto
-> Executor: codex
+> Executor: claude-subagent
+> Executor note: changed from codex on 2026-09-21 (USER-986).
 > Subjective verification: independent review against the written bounded criteria
 > Deployed: no
 
