@@ -54,6 +54,27 @@ full suite **158 modules / 4447 tests green** (log last line read before
 merging), merged at `3ba47d05` — whose tree is byte-identical to the one tested.
 Main was red between `b9680b8f` and `3ba47d05`.
 
+## Round 2 — the V4 FAIL, and main red a second time
+
+Round 1's V4 (`TASK-475-v4-review.md`) FAILed on one input: with an
+unparseable line in `linkage.jsonl`, `objective add O1` read the store as
+empty through `kr_store_records`, so the reused-id refusal never fired — exit
+0, a duplicate O1 record and an event. Every other linkage writer refuses that
+input. Fixed on `coding/objective-add-r2` (`c6d706ea`): an existing store that
+will not parse is refused, as `resolve_kr_for_writer` refuses it, with
+`test_an_unreadable_store`. Mutation on a `git archive` copy: the guard deleted
+→ red, on that test; restore checked with `git show`.
+
+**Main was red again, from `a0e5e51a`.** The verdict quoted the fixture's KR id
+`P<NNN>-O1-KR1` with NNN = 005 in concrete form; merged to main, it failed
+`test_diagnose`'s dangling-id check. The PMO merged the verdict without a suite
+run. The id was replaced by the placeholder in the verdict file, with a note at
+its top; no finding changed.
+
+Not changed, recorded by the reviewer: `krs` on a phase with objectives and no
+KR still refuses with a message that points to `plan-phase`; `goals/SKILL.md`
+has no index row for `objective add`.
+
 ## Architecture trigger: none
 
 Listed boundary paths: false (`bin/perry-goals`, `goals/reference/phases.md`,
@@ -64,7 +85,7 @@ document: none changed.
 
 ## Not claimed
 
-- No V4.
+- No V4 of round 2 yet.
 - The schema's `objective` record note still says "Written by `goals` at
   `plan-phase`"; not edited (schema edits need consent). It remains true of the
   lane, not of a single step.
