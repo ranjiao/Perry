@@ -75,9 +75,9 @@ another one; nothing is imported.
 before a dispatch depends on it. It is the only dependency in this directory
 (`codex`, `git`, `timeout`) and the only thing here that touches a model.
 `perry-context-budget` also reads outside the project — host transcripts, above
-— but runs no external program and calls no model. It is also the one tool that
-reads a state file itself: one key of `.perry/config.jsonl`, the NN-1 Known
-exception in the root document (USER-971).
+— but runs no external program and calls no model. It is also the one tool
+with a recorded NN-1 exception: it reads one key of `.perry/config.jsonl`
+itself (root §6 NN-1, USER-971).
 
 ## §3. Boundaries & dependencies
 
@@ -97,6 +97,11 @@ Rules, each with a scar behind it:
 
 - **A tool never parses a state file itself.** `parsers` is the reader; `lib`
   re-exports `resolve_state_root` from it rather than holding a second body.
+  The one recorded exception is `perry-context-budget`'s config read (root §6
+  NN-1). Not the only direct read: on 2026-09-21 an architecture re-review
+  found `perry-lint` reading `asks.jsonl`, `perry-tasks` reading `tasks.jsonl`
+  and `perry-task` reading `okr.jsonl` themselves. None is recorded as an
+  exception, and whether each is an NN-1 parse is not yet decided.
 - **A tool never imports another tool** — except `perry-tasks` and `perry-task`,
   which load each other as modules through one cached loader, because the board
   writer and the store renderer must be the same function.
@@ -198,6 +203,10 @@ R5, and `board` names a held file on stderr as one that can be deleted.
 
 ## §8. Change log
 
+- 2026-09-21 · v1 · correction: § 2 said `perry-context-budget` is "the one
+  tool that reads a state file itself", which the re-review showed untrue; it is
+  the one with a recorded exception. § 3's rule now names that exception and the
+  three unrecorded direct reads the re-review found.
 - 2026-09-21 · v1 · USER-978: § 2 "The one tool that reaches outside" names
   `perry-context-budget`'s outside reads and its direct config read (NN-1 Known
   exception, USER-971). The 2026-09-18 rewrite of § 2 "What

@@ -239,20 +239,13 @@ class TestTheSweepIsTheGuard(unittest.TestCase):
         ("viewer/parsers.py", "state_root_for", ("-", "\u2014")):
             "the `State root` PATH setting, whose set is dominated by `.` and "
             "`./`. Widening it would accept a path that means nothing.",
-        # The `phase/CURRENT` pointer sentinel, three copies of one rule.
-        # In category as a duplicate, NOT in category as a cell: the set's
-        # principal member `(none)` is not a declared blank spelling and the
-        # schema does not carry it, so routing these through `is_blank_cell`
-        # would silently drop it. Filed as its own row.
-        ("bin/perry-goals", "phase_pointer", ("none", "\u2014")):
-            "`phase/CURRENT` pointer sentinel -- see the note above. It moved "
-            "from `current_phase` to `phase_pointer` with TASK-474, which "
-            "made that the tool's single reader of the sentinel rather than "
-            "adding a fourth copy beside it.",
-        ("bin/perry-lint", "check_cross_file", ("none", "\u2014")):
-            "`phase/CURRENT` pointer sentinel -- see the note above.",
-        ("viewer/parsers.py", "load_snapshot", ("none", "\u2014")):
-            "`phase/CURRENT` pointer sentinel -- see the note above.",
+        # The `phase/CURRENT` pointer sentinel. It was three copies of one
+        # rule (perry-goals, perry-lint, load_snapshot) until USER-980 made
+        # `parsers.read_phase_pointer` its one reader. Not a cell: the set's
+        # principal member `(none)` is not a declared blank spelling, so
+        # routing it through `is_blank_cell` would silently drop it. The set
+        # is now the module constant `PHASE_POINTER_NONE`, compared by name,
+        # so the sweep finds no literal site to exempt.
     }
 
     def test_no_site_decides_blankness_for_itself(self):

@@ -452,8 +452,10 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
              # `close` — the snapshot first, then the in-place `Status` flip,
              # then the cleared pointer. The snapshot leads for the same
              # reason: it is the copy that makes the other two recoverable.
+             # The flipped text is spliced first and checked with
+             # `parsers.parse_phase` before any write (USER-978).
              "write_atomic(state_root, snap, text)",
-             "write_atomic(state_root, target,",
+             "write_atomic(state_root, target, closed)",
              'write_atomic(state_root, pointer, "(none)\\n")'],
             "a write call site was added or moved; check it is gated")
 
