@@ -3105,5 +3105,18 @@ class TestModeScannerReportsItsOwnAbsence(unittest.TestCase):
                 self.assertTrue(p["work_modes"]["tracks"])
 
 
+class TheCodeAnchorPlacesArchitectureWhereTheCodeIs(unittest.TestCase):
+    """TASK-477: a `files[]` path with `anchor: code` is Perry's at the code root; the rest at the state root."""
+    def test_each_declared_path_is_owned_at_its_own_anchor(self):
+        docs, state = ("ARCHITECTURE.md", "perry/ARCHITECTURE.md", "code/ARCHITECTURE.md"), ("perry/OKR.md", "perry/phase/001-a.md")
+        for code, owned in (("", docs[0]), ("code", docs[2])):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as td:
+                config_store.write_config(td, {"State root": "perry", "Code repo path": code})
+                for rel in docs + state:
+                    write(Path(td), rel, f"# {rel}\n")
+                orphans = set(scan(Path(td))["documents"]["orphans"])
+                self.assertEqual(orphans & set(docs + state), set(docs) - {owned})
+
+
 if __name__ == "__main__":
     unittest.main()
