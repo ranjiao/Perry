@@ -1,0 +1,92 @@
+INPUTS {"base": {"ref": "main", "sha": "37e5de120e3c5db1d8f1e54297034ca3d63bda76"}, "candidates": [{"name": "delivery", "ref": "codex/task-451-phase004-20260917", "sha": "232c3e928b7f1468396795e6fb4cff21971aa940"}], "schema": 1, "status": "pending", "tier": "full"}
+merge-check · base main @ 37e5de12
+  delivery 232c3e92  
+
+  … merging 1 candidate(s) onto 37e5de12
+TESTED TREE 2eea78fb584cb3072c717dcd04fcff4a303ee864
+  … running full on the merged result
+
+[1m0. tree guard — recording /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-wcthmdgb/tree[0m
+  · recorded
+
+[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+perry-lint · templates in /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-wcthmdgb/tree
+  ✓ clean — every state file matches schema/state-schema.json
+
+[1m2. parser / extractor / linter contract tests[0m
+
+158 modules · 4460 tests · 211.7s · 4 workers
+
+durations: 162 recorded · 162 on disk · 158 stamped at an ancestor ref · 0 stale · 0 unstamped · 4 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ all green[0m
+
+[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+  ✓ all bin/ scripts OK
+
+[1m4. sample projects lint clean (English and Chinese)[0m
+perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-wcthmdgb/tree/tests/fixtures/sample-project
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Architecture (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Implementation plan (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Risks & mitigations (not yet blocking at Status: in_review; required at locked)
+  ⚠ evidence [NS-01] `evidence/` holds 2 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `evidence/`. Both are reversible; the first is one command. Evidence: evidence/2026-08/REL-001-spec.md, evidence/2026-08/REL-002-spec.md
+  ⚠ inputs [NS-01] `inputs/` holds 1 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `inputs/`. Both are reversible; the first is one command. Evidence: inputs/vendor-api.md
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+
+  0 error(s), 9 warning(s)
+  · tasks store: 4 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 5 record(s), all valid
+  · linkage store: 13 record(s), 0 malformed
+  · specs: 2 of 2 declare no scope for `dispatch.md` step 4.2 to read — nobody can say those rows were screened (`perry-lint --specs --json` names every one)
+  · bounds: 2 of 2 spec(s) carry no `## Bound` — a round against those has no finite set to check and no last element (`perry-lint --specs --json` names every one)
+  · summaries: all 3 open row(s) carry one that is not just the title again
+perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-wcthmdgb/tree/tests/fixtures/sample-project-zh
+  ✓ clean — every state file matches schema/state-schema.json
+  · tasks store: 3 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 7 record(s), all valid
+  · no `linkage.jsonl` — the linkage store is unchecked, not clean
+  · no `*-spec.md` under evidence/ — the dispatch pre-flight has nothing to read here
+  · summaries: all 3 open row(s) carry one that is not just the title again
+
+[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+  ✓ nothing under /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-wcthmdgb/tree moved
+
+[32m✓ all green[0m
+PERRY_CHECK	guard:snapshot	0
+PERRY_CHECK	lint:templates	0
+PERRY_CHECK	syntax:bin/perry-state	0
+PERRY_CHECK	help:bin/perry-state	0
+PERRY_CHECK	syntax:bin/perry-lint	0
+PERRY_CHECK	help:bin/perry-lint	0
+PERRY_CHECK	syntax:bin/perry-diagnose	0
+PERRY_CHECK	help:bin/perry-diagnose	0
+PERRY_CHECK	syntax:bin/perry-explain	0
+PERRY_CHECK	help:bin/perry-explain	0
+PERRY_CHECK	syntax:bin/perry-restore-check	0
+PERRY_CHECK	help:bin/perry-restore-check	0
+PERRY_CHECK	syntax:templates/knowledge-base/bin/kb-lint	0
+PERRY_CHECK	help:templates/knowledge-base/bin/kb-lint	0
+PERRY_CHECK	syntax:templates/ops/bin/deliverable-lint	0
+PERRY_CHECK	help:templates/ops/bin/deliverable-lint	0
+PERRY_CHECK	bash:bin/perry-detect-host	0
+PERRY_CHECK	bash:bin/perry-update-check	0
+PERRY_CHECK	bash:bin/perry-dispatch-limit	0
+PERRY_CHECK	bash:bin/perry-codex-preflight	0
+PERRY_CHECK	lint:fixture-en	0
+PERRY_CHECK	lint:fixture-zh	0
+PERRY_CHECK	guard:verify	0
+RECEIPT {"artifact_sha256": "ec9f861ec7b598ab38fe1be013c8f6680feeaa373ab64c61f1c02b3790036326", "artifact_verified": false, "base": {"ref": "main", "sha": "37e5de120e3c5db1d8f1e54297034ca3d63bda76"}, "candidates": [{"name": "delivery", "ref": "codex/task-451-phase004-20260917", "sha": "232c3e928b7f1468396795e6fb4cff21971aa940"}], "code_identity": "86d481bf4d34fb7f6de3e4f12eaf4b7413c35718d6942ad70439bb924472c447", "measured_modules": ["test_a_write_refuses_where_nothing_is_installed.py", "test_actor_required.py", "test_add_declares_unlinked.py", "test_add_refuses_without_an_answer.py", "test_add_writes_the_edge.py", "test_amend_matches_create.py", "test_answered_ask_is_legible.py", "test_architecture_rules.py", "test_ask_is_a_node.py", "test_asks_list.py", "test_asks_store.py", "test_attribution_buckets.py", "test_bin_argument_contract.py", "test_bin_surface.py", "test_blank_cell_is_one_rule.py", "test_board_from_declarations.py", "test_board_less_gaps.py", "test_board_less_project_is_recognised.py", "test_board_less_reads_and_writes.py", "test_board_names_its_sources.py", "test_board_render.py", "test_cadence.py", "test_cadence_store.py", "test_churn.py", "test_claims.py", "test_compact_payload.py", "test_config_store_readers.py", "test_context_budget.py", "test_contract_invariance.py", "test_contract_key_parity.py", "test_contract_page_snippets.py", "test_count_fields.py", "test_decide_status_enum.py", "test_decide_writer.py", "test_decoration_changes_nothing.py", "test_design_handoff.py", "test_diagnose.py", "test_dispatch_limit_honesty.py", "test_duplicate_ids_are_refused.py", "test_empty_config_store.py", "test_empty_declared_store.py", "test_entrance.py", "test_escalation_boundaries.py", "test_escalation_union.py", "test_escaped_pipe_corpus.py", "test_events_feed.py", "test_evidence_relation.py", "test_explain_typed_tasks.py", "test_glossary.py", "test_goals_contract.py", "test_goals_kr_revisions.py", "test_goals_kr_writer.py", "test_goals_objective_add.py", "test_goals_writer.py", "test_handed_back_root.py", "test_header_index_is_the_only_fold.py", "test_header_rule_harness.py", "test_heading_defines.py", "test_heading_title.py", "test_host_support.py", "test_i18n.py", "test_i18n_one_table.py", "test_id_families.py", "test_installed_is_one_predicate.py", "test_intake_signal.py", "test_intake_store.py", "test_knowledge_cards.py", "test_knowledge_promotion.py", "test_kr_checks.py", "test_kr_progress_provenance.py", "test_linkage_store_declared.py", "test_linkage_store_readers.py", "test_linkage_task_exists.py", "test_linkage_writer.py", "test_live_state_expectations.py", "test_md_store.py", "test_measured_krs_declare_a_target.py", "test_missing_defaults.py", "test_module_run_guard.py", "test_next_closing.py", "test_next_section.py", "test_ns_collision.py", "test_okr_krs_render.py", "test_okr_store_is_the_source.py", "test_one_choke_point.py", "test_one_header_rule.py", "test_one_heading_predicate.py", "test_one_line_break_rule.py", "test_one_primitive.py", "test_one_startable_rule.py", "test_overall_kr_grammar.py", "test_ownership.py", "test_parsers.py", "test_perry_task_writes_are_what_it_writes.py", "test_phase_kr_declared_once.py", "test_phase_lifecycle.py", "test_pointers_resolve.py", "test_prioritize.py", "test_procedures_call_the_tool.py", "test_procedures_read_the_contract.py", "test_project_root_resolution.py", "test_purge.py", "test_queue_sla.py", "test_reference_pages_are_reachable.py", "test_register_minters.py", "test_register_store_invariant.py", "test_register_substitution.py", "test_release_core.py", "test_release_update.py", "test_restore_check.py", "test_resume.py", "test_retired_tolerance.py", "test_review_verdicts.py", "test_risks.py", "test_risks_store.py", "test_role_cards.py", "test_role_delegation.py", "test_role_on_rows.py", "test_router_budget.py", "test_row_integrity.py", "test_rung_vocabulary.py", "test_same_action_linkage.py", "test_scratch_is_per_agent.py", "test_selection.py", "test_semantics_on_every_payload.py", "test_shipped_vocabulary.py", "test_slow_selector.py", "test_spec_scannability.py", "test_stage_separators.py", "test_stale_blocked.py", "test_starts_write_the_config_store_first.py", "test_startup_routing.py", "test_state_cost.py", "test_state_root_unset.py", "test_store_drift.py", "test_store_is_canonical.py", "test_store_is_the_write_target.py", "test_store_population_agrees.py", "test_stranded_rows.py", "test_summary_is_asked_for.py", "test_task_store.py", "test_task_store_read_cutover.py", "test_task_summary.py", "test_task_writer_contracts.py", "test_task_writer_core.py", "test_task_writer_dependencies.py", "test_task_writer_intake.py", "test_task_writer_modes.py", "test_tiers.py", "test_track_attribution.py", "test_track_axes.py", "test_track_move.py", "test_track_register_source.py", "test_tracks_source_documented.py", "test_unlinked_declaration.py", "test_v5_signoff.py", "test_wip_and_stages.py", "test_work_modes.py"], "schema": 1, "scratch_commit": "287d4f336f7c962d8fd426a9490ed5ae58748f2f", "status": "green", "tier": "full", "tree": "2eea78fb584cb3072c717dcd04fcff4a303ee864", "unmeasured_modules": ["test_durations_provenance.py", "test_merge_gate.py", "test_parallel_runner.py", "test_tree_guard.py"]}
+✓ exact merged tree passed full; recheck refs before merge
