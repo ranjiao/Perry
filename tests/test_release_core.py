@@ -186,11 +186,9 @@ class Release(unittest.TestCase):
             manage.check_base(self.root, deleted, head)
 
     def test_range_that_introduces_the_record_checks_from_its_first_add(self):
-        for branch in ('side', 'merged'):
-            self.git('checkout', '-q', '-b', branch, self.pre)
-            self.write(branch + '.txt', branch)
-            self.save()
-        self.git('merge', '-q', '--no-ff', '--no-commit', 'side')
+        side = self.git('commit-tree', f'{self.pre}^{{tree}}', '-p', self.pre, '-m', 'side')
+        self.git('checkout', '-q', '-b', 'merged', self.pre)
+        self.git('merge', '-q', '--no-ff', '--no-commit', side)
         self.rows([BASELINE])
         merge = self.save()
         self.write('product.txt', 'later')
@@ -201,8 +199,7 @@ class Release(unittest.TestCase):
         self.rows([dict(BASELINE, notes='rewritten')])
         with self.assertRaisesRegex(manage.Refused, 'rewritten'):
             manage.check_base(self.root, self.pre, self.save())
-        for p in (manage.RECORDS, *manage.PROJECTIONS):
-            (self.root / p).unlink()
+        self.git('rm', '-q', manage.RECORDS, *manage.PROJECTIONS)
         self.save()
         self.rows([dict(BASELINE, notes='rewritten')])
         self.write('product.txt', 'readded')
@@ -215,6 +212,29 @@ class Release(unittest.TestCase):
         self.write('product.txt', 'after')
         with self.assertRaisesRegex(manage.Refused, 'first introduction'):
             manage.check_base(self.root, self.pre, self.save())
+
+    def test_a_merge_dropping_the_record_neither_hides_its_add_nor_erases_history(self):
+        side = self.git('commit-tree', f'{self.pre}^{{tree}}', '-p', self.pre, '-m', 'side')
+        self.write('product.txt', 'patched')
+        self.allocate()
+        self.save()
+        self.git('merge', '-q', '--no-ff', '--no-commit', side)
+        self.git('rm', '-q', manage.RECORDS, *manage.PROJECTIONS)
+        dropped = self.save()
+        self.rows([dict(BASELINE, notes='rewritten')])
+        self.write('product.txt', 'readded')
+        head = self.save()
+        with self.assertRaisesRegex(manage.Refused, 'rewritten'):
+            manage.check_base(self.root, self.pre, head)
+        with self.assertRaisesRegex(manage.Refused, 'lost existing'):
+            manage.check_base(self.root, dropped, head)
+
+    def test_skewed_commit_dates_do_not_reorder_the_introduction(self):
+        self.write('product.txt', 'patched')
+        self.allocate()
+        with patch.dict('os.environ', GIT_COMMITTER_DATE='2001-01-01T00:00:00Z'):
+            head = self.save()
+        self.assertEqual(manage.check_base(self.root, self.pre, head)['introduced'], self.base)
 
     def test_phase_pointer_clear_and_matching_new_phase(self):
         self.write(manage.PHASE_POINTER, '(none)\n')

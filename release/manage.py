@@ -266,11 +266,11 @@ def check_base(root: Path, base: str, head: str) -> dict:
         new = current[len(before):]
     else:
         # Only a genuinely pre-versioned ancestor gets the first-introduction
-        # exception; deleting/reintroducing records later cannot reset history.
-        if git(root, "log", "--format=%H", base_sha, "--", RECORDS).strip():
+        # exception; deleting/reintroducing later cannot reset history (--full-history: nor a merge).
+        if git(root, "log", "--full-history", "--format=%H", base_sha, "--", RECORDS).strip():
             raise Refused("base lost existing release history; baseline cannot be reintroduced")
         # No base ancestor held it: the ancestry-first commit touching it (merges too) adds it.
-        adds = git(root, "log", "--reverse", "--topo-order", "--format=%H",
+        adds = git(root, "log", "--reverse", "--topo-order", "--full-history", "--format=%H",
                    f"{base_sha}..{head_sha}", "--", RECORDS).split()
         intro = adds[0].decode() if adds else head_sha
         first = checked(root, intro)  # validate() makes row 1 the 0.1.0 baseline
