@@ -721,6 +721,8 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
     DISPATCH = PERRY_HOME / "work" / "reference" / "dispatch.md"
     BOUNDARIES = PERRY_HOME / "work" / "reference" / "git-boundaries.md"
     DELEGATE = PERRY_HOME / "work" / "reference" / "delegate.md"
+    REVIEW = PERRY_HOME / "work" / "reference" / "review.md"
+    CONSTRAINTS = PERRY_HOME / "work" / "reference" / "review-constraints.md"
 
     def seen(self, path: Path) -> str:
         return visible(path.read_text(encoding="utf-8"))
@@ -849,6 +851,49 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
                      "## Role ≠ executor"),
             "free": [],
         },
+        # TASK-472's three execution contracts, as one contiguous span so
+        # there is no gap between them to insert a retraction into. It runs
+        # from the scratch-file rule through the end of the waiting rule, and
+        # it is normative throughout — every incident sentence in it is the
+        # reason a rule reads the way it does, not detachable rationale.
+        #
+        # This entry replaced a SECOND mechanism. TASK-472 first shipped
+        # `tests/test_review_contracts.py`, which pinned three paragraphs by
+        # digest — the design this class's own comment records as having been
+        # tried and failed at round 3, because a pin on a paragraph's bytes
+        # does not stop a contradiction placed BESIDE it. Measured before the
+        # module was deleted: adding "**When this does not apply.** On a long
+        # run, dropping failing output to keep the log readable is the
+        # accepted practice." three lines below a pinned paragraph left that
+        # module green. A span has no beside.
+        "review-constraints.md § the three execution contracts": {
+            "path": "CONSTRAINTS",
+            "span": ("## Your scratch files are yours alone",
+                     "## Do not run the write side against what you are reviewing"),
+            "free": [],
+        },
+        # The brief's shape and the rule that a changed base re-opens scope,
+        # through to the four rules' own heading.
+        "review.md § 2 the prompt": {
+            "path": "REVIEW",
+            "span": ("## 2 · The prompt", "### The four rules"),
+            "free": [],
+        },
+        # What a round re-runs, and when. The flake rule lives here.
+        "review.md § what the reviewer runs": {
+            "path": "REVIEW",
+            "span": ("### What the reviewer runs", "## 3 · The verdict block"),
+            "free": [],
+        },
+        # § 6 entire, including what to write when the round after the answered
+        # ask still does not PASS, and the clause forbidding the author of the
+        # work from raising its own threshold.
+        "review.md § 6 two FAILs": {
+            "path": "REVIEW",
+            "span": ("## 6 · Two FAILs is a decision, not a third round",
+                     "## Completion routing"),
+            "free": [],
+        },
     }
 
     #: sha256 of `governed_text(name)`. When one of these fails legitimately,
@@ -880,6 +925,31 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         # span 3,036 chars / 39 lines — all pinned, no free block
         "delegate.md § required fields + roleless path":
             "867706de4988717819124856ae579749f412d0d44d32e800904cf07a1a0e5f58",
+        # TASK-472, new spans, first pin. **The text is this row's own and the
+        # diff was read before these were pasted** — the span is entirely new
+        # prose, so the diff is the span. span 2,710 chars / 55 lines — all
+        # pinned, no free block. It holds: scratch directories are derived
+        # from the repository and unique per session; failing output is never
+        # discarded and a truncated JSON document is never fed back as a valid
+        # contract; the host's completion event is preferred to a bare `&`,
+        # polling is bounded, and a tool-call count is not a model-turn count.
+        "review-constraints.md § the three execution contracts":
+            "fff8131276b9abb073cf16d08e233ace4697bc7b68d5696f7745236dc2aa821e",
+        # span 1,499 chars / 32 lines — the brief carries both ends of the
+        # range as SHAs and names the base the criteria exist on; a changed
+        # base re-opens the round's scope to the invariants the findings touch.
+        "review.md § 2 the prompt":
+            "ac927a3ead4ea615d60e19ed4ae8a6b514b29469f37bee39f218b64c96a88ed1",
+        # span 2,400 chars / 42 lines — the affected tier, the reason required
+        # before re-running everything, and the filed-flake procedure (re-run
+        # the module alone, then the full suite once, citing the row).
+        "review.md § what the reviewer runs":
+            "3cf990286441162e03d42ec426342b8e5f9742c93ae8f1405d9d85b5cc480a21",
+        # span 4,784 chars / 89 lines — § 6 entire, including what to write
+        # when the round after an ANSWERED ask still does not PASS, and the
+        # clause that the author of the work may not raise its own threshold.
+        "review.md § 6 two FAILs":
+            "2e5ed71cbe73d21460fd7d9b5311da59b949fc0e380c0909db5d380b3e694ad3",
     }
 
     def governed_text(self, name: str) -> str:
