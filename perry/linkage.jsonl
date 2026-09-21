@@ -426,3 +426,4 @@
 {"kind": "unlinked", "task": "TASK-476", "phase": "004-guided", "declared_at": "2026-09-21T09:39:17Z", "actor": "pmo", "via": "add"}
 {"kind": "unlinked", "task": "TASK-477", "phase": "004-guided", "declared_at": "2026-09-21T10:59:39Z", "actor": "pmo", "via": "add"}
 {"kind": "unlinked", "task": "TASK-478", "phase": "004-guided", "declared_at": "2026-09-21T12:16:56Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-479", "kr": "P004-O1-KR1", "declared_at": "2026-09-21T13:10:37Z", "actor": "pmo", "via": "add"}
