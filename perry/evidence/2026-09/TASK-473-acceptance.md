@@ -346,3 +346,9 @@ report addressed them.
 
 **The iteration is still not accepted**, on criterion 4 and on the unmeasured
 runtime criteria.
+
+**Row closed 2026-09-21 at V3, by the user's decision in chat.** The row's
+deliverable — this report — is delivered; the iteration's acceptance is **not**
+granted and stays open on criterion 4 and runtime criteria 1–3. V3, not V4: the
+report was written by an independent reviewer, but no one reviewed the report
+itself. Reopening either gap is a new row.
