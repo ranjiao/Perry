@@ -225,11 +225,24 @@ Restore: `bin/perry-restore-check 293fba87 SKILL.md work/SKILL.md work/reference
 - **A baseline full run at `359a7be1` is not claimed.** It was started, and I edited the tree while it ran; its tree guard correctly reported `SKILL.md` and `reference/first-run.md` changed. Step 2 had printed 4,434 tests green before the guard ran, but the edits may have landed during step 2, so that run is evidence of nothing. Log kept: `$PERRY_SCRATCH/suite-base.log`.
 - `git diff --check 359a7be1..293fba87`: clean.
 
-## Decisions needed
+## Decisions taken — USER-975, 2026-09-21
 
-1. **Router ≤ 12,288 (missed: 15,308).** What is left is the signed contract section (1,925 bytes, V5), the route table and steps −2 to 3 (4,402, ordering-critical), the frontmatter the host reads (1,140), and the vocabulary carve-out (≈1,300). Reaching 12 KiB needs one of: (a) moving the carve-out's exclusion list and its test pointer to a reference page, which means changing `tests/test_shipped_vocabulary.py`, whose round-4 design pins that list to `SKILL.md` on purpose (≈800 bytes; not enough alone); (b) condensing steps −2 to 3 or the signed section, which the brief forbids. Decision: accept the miss, or authorise (a) and a re-scoped target.
-2. **dispatch ≤ 80,037 (missed: 95,750).** The remaining mass is the governed `dispatch.md § The tree the agent works in` + claude-subagent span (≈11 KB, byte-pinned under USER-914), preflight step 4 (the safety judgement, ≈10 KB, a gate), and the integration gates at the end of `dispatch.md` — `Full merge acceptance` and `§ Architecture review (the independent gate)`, ≈5.5 KB — which run when a candidate is integrated, after `dispatch` has left the row at `review`. Moving those two out of the dispatch load set is the largest defensible cut, but it moves a gate, and deciding that integration is a separately declared route is not mine to make. Decision needed: whether integration gets its own declared entry (and bill), after which `dispatch.md` could point at it.
-3. **Iteration targets are not enforced.** No test holds the router at 12 KiB, the lanes at 24 KiB or the bills at their −30 % figures; `work/SKILL.md` sits 13 bytes under its target and `close-task` 92 under. Whether to turn any of these into caps is a decision under DESIGN-017 § 5.4, not an implementation step.
+The user answered in chat; the PMO recorded it as USER-975 on main (`9093a838`).
+
+1. **Router ≤ 12,288 — missed at 15,308 (−24.9 % vs −39.7 %): accepted as a recorded exception.**
+   What remains is the signed contract section, the route table and steps −2 to 3, the host-read
+   frontmatter and the vocabulary carve-out. Option (a), moving the carve-out list, was declined:
+   it saves ≈800 bytes and would still miss.
+2. **dispatch ≤ 80,037 — missed at 95,750 (−16.3 % vs −30 %): accepted as a recorded exception.**
+   The two integration gates (`Full merge acceptance`, `§ Architecture review`) **stay in
+   `dispatch.md`**; no integration route is split off, so no gate moves.
+3. **Sign-off rationale paragraph moved to `reference/hand-off-contract.md`: accepted.** Signer, date,
+   checked scope, invariant and ownership table remain byte-identical in `SKILL.md`, as the
+   relocation map says; the paragraph is verbatim at its new home.
+
+Still open, and not this row's to decide: **the iteration targets are not enforced** by any test —
+`work/SKILL.md` is 13 bytes under its target and `close-task` 92 under. Making any of them a cap is
+a DESIGN-017 § 5.4 decision.
 
 ## Not claimed
 
