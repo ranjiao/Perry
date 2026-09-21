@@ -193,7 +193,7 @@ Repeat:
    - `dispatches_done >= max_dispatches` → exit
    - `now - start_time >= max_duration` → exit
    - `failures >= max_failures` → exit
-   - **Context ceiling** — the budget checkpoint, `subcommands.md § Budget
+   - **Context ceiling** — the budget checkpoint, `budget-boundary.md § Budget
      boundary`, with the run's ceiling. This check sits between one
      iteration's completions and the next dispatch, so it is both of that
      section's checkpoints:
