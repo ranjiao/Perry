@@ -26,6 +26,7 @@ COVERS = (
 
 import json
 import sys
+import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -159,5 +160,4 @@ class TestRefusals(ObjectiveProject):
 
 
 if __name__ == "__main__":
-    import unittest
     unittest.main()
