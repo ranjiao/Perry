@@ -248,10 +248,20 @@ class TestTheCheckIsWiredIn(unittest.TestCase):
 
     SKILL = (PERRY_HOME / "SKILL.md").read_text()
     ADOPTION = (PERRY_HOME / "reference" / "adoption.md").read_text()
+    # TASK-470 moved the procedure's body to `reference/first-run.md § The
+    # procedure`; the router keeps the gate and names that section. Both halves
+    # are read: the router must still send First-time setup there, and the
+    # section it names is what the assertions below grade.
+    FIRST_RUN = (PERRY_HOME / "reference" / "first-run.md").read_text()
 
     def setup_section(self) -> str:
         start = self.SKILL.index("## First-time setup")
-        return self.SKILL[start:self.SKILL.index("\n## ", start + 10)]
+        router = self.SKILL[start:self.SKILL.index("\n## ", start + 10)]
+        self.assertIn("reference/first-run.md § The procedure", router,
+                      "the router's First-time setup no longer sends the "
+                      "agent to the procedure these assertions grade")
+        start = self.FIRST_RUN.index("## The procedure")
+        return self.FIRST_RUN[start:self.FIRST_RUN.index("\n## ", start + 10)]
 
     def test_first_time_setup_runs_the_check(self):
         self.assertIn("--claims", self.setup_section(),

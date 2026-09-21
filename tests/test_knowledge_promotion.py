@@ -686,7 +686,7 @@ class TestTheCapturePointsCiteTheOneProcedure(Base):
 
     def test_each_capture_point_routes_to_it(self):
         for rel, anchor in (
-                ("work/reference/subcommands.md", "### `close-task <id>`"),
+                ("work/reference/task-close.md", "### `close-task <id>`"),
                 ("work/reference/subcommands.md", "### `end-phase-retro`"),
                 ("packs/software-ops/incidents.md",
                  "### `/pmo incident close <slug>`")):

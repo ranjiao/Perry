@@ -295,7 +295,7 @@ stop with a reviewable draft, even if the user says “approved.” Approval nev
 manufactures a writer. The explicit commitment writer remains available for
 supported, explicitly authorized terms, subject to its refusals.
 
-Run `$PERRY_HOME/reference/input-quality.md § 2` for a phase, otherwise § 1,
+Run `$PERRY_HOME/reference/input-quality-rubrics.md § 2` for a phase, otherwise § 1,
 once against this actual draft
 where applicable; for a commitments-only draft state which Objective/KR checks
 are inapplicable rather than inventing an OKR or a replacement rubric.

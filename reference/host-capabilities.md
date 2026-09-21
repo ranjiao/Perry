@@ -68,7 +68,7 @@ If a spec pins a native executor for another host, refuse rather than silently r
 **Claude Code is always `unknown`, main session included.** On Desktop the
 main session and its subagents share the id, `CLAUDE_CODE_CHILD_SESSION=1` and
 `AI_AGENT`; no plain-CLI signal is verified. `unknown` is not a clean budget:
-follow `work/reference/subcommands.md § Budget boundary`. The only Claude
+follow `work/reference/budget-boundary.md § Budget boundary`. The only Claude
 verdict is `--session <file>`, labelled `explicit`: the caller's assertion,
 never a checkpoint's gate. Detail: `bin/README.md § perry-context-budget`.
 

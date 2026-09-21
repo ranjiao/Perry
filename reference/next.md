@@ -334,8 +334,8 @@ command: changing the rule table is outside this task.
 | `work` | `end-phase-retro` | `work/reference/subcommands.md` | `end-phase-retro` |
 | `work` | `risk` | `work/reference/subcommands.md` | `risk` |
 | `work` | `add-task` | `work/reference/subcommands.md` | `add-task` |
-| `work` | `close-task` | `work/reference/subcommands.md` | `close-task` |
-| `work` | `drop-task` | `work/reference/subcommands.md` | `drop-task` |
+| `work` | `close-task` | `work/reference/task-close.md` | `close-task` |
+| `work` | `drop-task` | `work/reference/task-close.md` | `drop-task` |
 | `work` | `coordinate` | `work/reference/subcommands.md` | `coordinate` |
 | `work` | `handoff` | `work/reference/subcommands.md` | `handoff` |
 | `work` | `rollover` | `work/reference/subcommands.md` | `rollover` |

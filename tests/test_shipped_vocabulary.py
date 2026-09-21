@@ -1159,10 +1159,14 @@ class TestTheReadmesNameTheFourModes(unittest.TestCase):
         Pinned against the router's declaration rather than a literal, so
         moving the default again fails here instead of drifting.
         """
-        m = re.search(r"write `State root:\s*([^\s`]+)`", read("SKILL.md"))
+        # TASK-470 moved First-time setup's steps, and with them this
+        # declaration, from the router to `reference/first-run.md § The
+        # procedure`, which the router's `§ First-time setup` names.
+        m = re.search(r"write `State root:\s*([^\s`]+)`",
+                      read("reference/first-run.md"))
         self.assertIsNotNone(
-            m, "SKILL.md no longer declares the default state root — this "
-               "test would otherwise pass against nothing")
+            m, "reference/first-run.md no longer declares the default state "
+               "root — this test would otherwise pass against nothing")
         default = m.group(1)
         for doc in self.READMES:
             with self.subTest(doc=doc):

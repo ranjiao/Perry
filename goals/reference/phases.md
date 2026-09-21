@@ -273,7 +273,7 @@ not create planning files or claim resume support on its own.
 Follow `elicitation.md`'s **Premises, edits and approval** on this current phase
 draft: state the chosen focus, overall alignment, exclusions and appetite
 assumptions; let disagreement update the relevant section and dependent proposals.
-Then run `$PERRY_HOME/reference/input-quality.md § 2 Phase OKR` once on the
+Then run `$PERRY_HOME/reference/input-quality-rubrics.md § 2 Phase OKR` once on the
 resulting draft, surfacing at most three advisory issues with concrete rewrites.
 Approval of the overall OKR, a prior phase or an individual edited section is
 not approval of this phase. A later material edit invalidates prior draft approval.

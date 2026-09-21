@@ -146,7 +146,7 @@ With arg: locate the row for `<subcommand>`, print it, then read the matching `#
 ### `init` — first-time bootstrap of the whole lane
 Run once per project. The config store first, then two halves, and **both halves are required** — `init` used to do only the first:
 
-0. **`.perry/config.jsonl`, when it does not exist.** A decide-only start is a start: `design/` and `decisions/` alone do not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so without the store every session would offer first-time setup again. Ask the preference questions `$PERRY_HOME/SKILL.md § First-time setup` step 3 asks, then write the answers before any other file:
+0. **`.perry/config.jsonl`, when it does not exist.** A decide-only start is a start: `design/` and `decisions/` alone do not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so without the store every session would offer first-time setup again. Ask the preference questions `$PERRY_HOME/reference/first-run.md § The procedure` step 3 asks, then write the answers before any other file:
 
    ```
    "$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"
@@ -178,7 +178,7 @@ Start a new design doc. Prompts:
 
 Writes `design/<DESIGN-ID>-<slug>.md` from `state/design_TEMPLATE.md` with `Status: draft`. Walks the user through Problem → Goals → Non-Goals as the first writing pass; leaves User Decisions / Architecture / etc. for follow-up sessions.
 
-**Input-quality pass** on that first writing pass: run `$PERRY_HOME/reference/input-quality.md § 3 Design doc` against Problem / Goals / Non-Goals (concrete problem, substantive Non-Goals, testable numbered Goals). Surface ≤3 issues, advisory + override. Catching a thin Non-Goals here means `lock` isn't the first time the user hears about it.
+**Input-quality pass** on that first writing pass: run `$PERRY_HOME/reference/input-quality-rubrics.md § 3 Design doc` against Problem / Goals / Non-Goals (concrete problem, substantive Non-Goals, testable numbered Goals). Surface ≤3 issues, advisory + override. Catching a thin Non-Goals here means `lock` isn't the first time the user hears about it.
 
 ### `resolve <DESIGN-ID>`
 
@@ -197,7 +197,7 @@ Move a doc from `in_review` → `locked`. Pre-flight checks:
 - User Decisions table has zero TBD / blank rows.
 - Implementation plan section has at least one proposed task.
 
-If any check fails, refuse the move and print the gap list. **Then run the advisory input-quality pass** (`$PERRY_HOME/reference/input-quality.md § 3`) over the whole doc — the hard checks above are the *floor* (empty section / open decision = refuse); the pass adds the softer coaching (alternatives considered, implications spelled out, risks name detection + mitigation) as ≤3 suggestions the user can fix or override. Advisory only — a clean-floor doc still locks even if the user overrides a suggestion. On success: set `Status: locked`, fill `Locked: <today>`, then **print the implementation tasks to chat** in PMO's `add-task` schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope). **Use `AskUserQuestion`** (header `"Hand-off"`, options = `Hand to PMO now (Recommended) | Edit before handing off | Skip — manual paste later`) to collect the user's hand-off decision.
+If any check fails, refuse the move and print the gap list. **Then run the advisory input-quality pass** (`$PERRY_HOME/reference/input-quality-rubrics.md § 3`) over the whole doc — the hard checks above are the *floor* (empty section / open decision = refuse); the pass adds the softer coaching (alternatives considered, implications spelled out, risks name detection + mitigation) as ≤3 suggestions the user can fix or override. Advisory only — a clean-floor doc still locks even if the user overrides a suggestion. On success: set `Status: locked`, fill `Locked: <today>`, then **print the implementation tasks to chat** in PMO's `add-task` schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope). **Use `AskUserQuestion`** (header `"Hand-off"`, options = `Hand to PMO now (Recommended) | Edit before handing off | Skip — manual paste later`) to collect the user's hand-off decision.
 
 ### `revise <DESIGN-ID>`
 For material changes after lock that don't warrant a new doc (small architecture refinements, decision updates that don't break implementation). Walks: what's changing, why, which Implementation plan items are affected. Bumps the `Date:` (keeps `Locked:`), appends a `## Changes` entry. Writes the accompanying ADR itself — `decisions/` is this lane's directory (`$PERRY_HOME/SKILL.md § The hand-off contract`). Use `adr <topic>` with `Type: Design`.

@@ -50,7 +50,7 @@ These three are not narrative — they're machinery. "It will log on success" is
 
 ## `close-task` gate (the enforcement)
 
-When `/pmo close-task <id>` fires (see `$PERRY_HOME/work/reference/subcommands.md § close-task`), before flipping to `done`:
+When `/pmo close-task <id>` fires (see `$PERRY_HOME/work/reference/task-close.md § close-task`), before flipping to `done`:
 
 1. Open `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. Grep for `Deployed:`.
 2. If `Deployed: yes`:

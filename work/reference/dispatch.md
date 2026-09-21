@@ -10,7 +10,7 @@ See `dispatch-preflight.md § 0 · Whether to dispatch at all`.
 
 ## Pre-flight (any failure → refuse and fall back to `delegate`)
 
-First the before-dispatch budget checkpoint, `subcommands.md § Budget boundary`: `OVER` dispatches nothing. Then `dispatch-preflight.md § Pre-flight (any failure → refuse and fall back to delegate)`.
+First the before-dispatch budget checkpoint, `budget-boundary.md § Budget boundary`: `OVER` dispatches nothing. Then `dispatch-preflight.md § Pre-flight (any failure → refuse and fall back to delegate)`.
 
 ## Dispatch
 
@@ -378,7 +378,7 @@ this does not change dispatch safety or automatically close the task.
 
 ## On completion (notification arrives)
 
-0. **Release the concurrency slot first thing**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`. Do this BEFORE any verification work, so a slow verification step doesn't keep blocking other dispatches. (Stale markers auto-clean after `PERRY_DISPATCH_STALE_TTL` seconds — **default 4h**, raised from 1h by TASK-160 because the sweep was reaping markers 72 minutes into live runs and the cap silently stopped being the cap — covering the case where PMO crashed mid-completion. **Every reap now prints `⚠️  Reaped dispatch slot: <marker>` on stderr.** If you see that line while the agent it names is still running, the cap is short by one for the rest of that run: treat it as a real event, not noise, and raise `PERRY_DISPATCH_STALE_TTL` for the session rather than dispatching into the gap.)
+0. **Release the concurrency slot first thing**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`. Do this BEFORE any verification work, so a slow verification step doesn't keep blocking other dispatches. (Stale markers auto-clean after `PERRY_DISPATCH_STALE_TTL` seconds — **default 4h** (why 4h: `dispatch-notes.md § Why the stale TTL is 4h`) — covering the case where PMO crashed mid-completion. **Every reap now prints `⚠️  Reaped dispatch slot: <marker>` on stderr.** If you see that line while the agent it names is still running, the cap is short by one for the rest of that run: treat it as a real event, not noise, and raise `PERRY_DISPATCH_STALE_TTL` for the session rather than dispatching into the gap.)
 1. Read the agent's RESULT block. Required fields:
    - `Branch: <name>` — always. It is what the primary checkout merges (`git-boundaries.md`), so it is required on every project whatever the push answer is.
    - `PR URL:` — **only where the project's hook permits a push.** Where `git push` / `origin` are escalated, the compliant agent opened no PR and has no truthful value for this field; requiring one there would make the honest answer unwritable and step 4 below gates the `review` transition on required fields being present. On such a project the field is `n/a — push is escalated on this project`, and that is a complete answer rather than an excuse.
@@ -407,14 +407,14 @@ this does not change dispatch safety or automatically close the task.
    - PR URL + branch + commit SHA
 6. `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status review --next "user verifies subjective items: <…>"` — row, journal line and event together. Then record the evidence path, executor and cycle time in the dispatch evidence file, which is where per-run detail belongs.
 7. Surface to user: pass/fail summary + 1-line subjective verification ask.
-8. The after-task budget checkpoint: `subcommands.md § Budget boundary`.
+8. The after-task budget checkpoint: `budget-boundary.md § Budget boundary`.
 
 ## Failure handling (mark `review`, no auto-retry)
 
 - Executor crashed / non-zero exit / timeout → release the slot (`bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`), write evidence with raw output, status `review`, surface failure summary, ask user retry / fix manually / drop.
 - ff-only PR push failed → same, with manual-resolution hint.
 - Agent declared `done` but tests failed → same.
-- The release call MUST run on every failure path, not just success — otherwise a failed dispatch leaks a slot until stale-TTL expires, which since TASK-160 is 4h rather than 1h. The sweep is the backstop for a crashed agent, not a substitute for releasing: it is deliberately slower than the longest cycle this project has measured (2h15m), so a leaked slot is a slot lost for the rest of the afternoon.
+- The release call MUST run on every failure path, not just success — otherwise a failed dispatch leaks a slot until stale-TTL expires (4h). The sweep is the backstop for a crashed agent, not a substitute for releasing.
 
 ## Cost / quota awareness
 

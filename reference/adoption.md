@@ -222,7 +222,7 @@ Ordering matters and is fixed, because attribution depends on goals existing:
 1. **Goals first.** Render the strawman OKR — Objectives and KRs drawn from
    evidence, each showing its citation — then run the *normal* `okr init`
    interview with those as the starting draft. The user rewrites freely. The
-   input-quality pass (`reference/input-quality.md § 1`) runs as it always does.
+   input-quality pass (`reference/input-quality-rubrics.md § 1`) runs as it always does.
    Do not skip the interview because the strawman looks good.
 2. **Phase second.** The current phase is the one inference that is genuinely
    strong: recent commit activity is a reliable statement of what is being worked
@@ -266,7 +266,7 @@ Write in dependency order, each through its owning subcommand:
 
 | Candidate kind | Target | Written by |
 |---|---|---|
-| — | `.perry/config.jsonl` | `perry-config set` (language, chat language, repo layout, state root — `SKILL.md § First-time setup` step 3). **First, whatever `--only` names.** It is what makes the project installed (`schema/README.md § installed`); `--only=design,knowledge,arch` writes nothing else that counts, and would otherwise be offered first-time setup on every session |
+| — | `.perry/config.jsonl` | `perry-config set` (language, chat language, repo layout, state root — `reference/first-run.md § The procedure` step 3). **First, whatever `--only` names.** It is what makes the project installed (`schema/README.md § installed`); `--only=design,knowledge,arch` writes nothing else that counts, and would otherwise be offered first-time setup on every session |
 | `objective`, `kr` | `OKR.md` | `/perry goals init` |
 | `phase`, phase KRs | `phase/001-<slug>.md` + `linkage.jsonl` | `/perry goals plan-phase` |
 | `design` | `design/<ID>-<slug>.md` | `/perry decide new` |
