@@ -136,6 +136,14 @@ class TestRefusals(ObjectiveProject):
         self.assertRefused(["objective", "add", "O2", "--text", "t",
                             "--reason", "a\nb"], "line break")
 
+    def test_an_unreadable_store(self):
+        # Round 1's V4: read as empty, an unparseable store let a second O1
+        # through, exit 0, record and event written.
+        with self.linkage.open("a") as f:
+            f.write("<<<<<<< HEAD\n")
+        self.assertRefused(["objective", "add", "O1", "--text", "t",
+                            "--reason", "r"], "cannot be read as JSONL")
+
     def test_a_scored_phase(self):
         (self.root / "phase" / "CURRENT").write_text("002-old\n")
         self.assertRefused(["objective", "add", "O2", "--text", "t",

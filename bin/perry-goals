@@ -4399,7 +4399,16 @@ def cmd_objective(args, ctx) -> dict:
     if not re.fullmatch(pattern, oid):
         raise Refused(f"`{oid}` is not an objective id (`{pattern}`), e.g. "
                       f"`O1`. Nothing was written")
-    records = kr_store_records(ctx, "phase")
+    records = P.load_linkage_store(ctx["state_root"])
+    if records is None and linkage_store_path(ctx["state_root"]).exists():
+        # Read as empty, the duplicate-id refusal below would never fire and
+        # a second O1 would be appended (TASK-475 V4 round 1, F1).
+        raise Refused(
+            f"{P.LINKAGE_STORE} cannot be read as JSONL, and a record "
+            f"appended to a store Perry cannot read is one no reader will "
+            f"see. `perry-lint{lib.root_flag(ctx['project_root'])}` names "
+            f"the line. Nothing was written")
+    records = [r for r in records or [] if isinstance(r, dict)]
     have = [str(r.get("id") or "") for r in records
             if r.get("kind") == "objective"
             and str(r.get("phase") or "") == slug]
