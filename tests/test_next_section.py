@@ -801,9 +801,7 @@ class TestKrProgress(unittest.TestCase):
                                      [k["state"] for k in payload["linkage"]["objectives"][0]["krs"][:len(values)]])
                     counts, why = STATE.next_kr_progress(payload)
                     self.assertEqual((dict(commit_total=2, measured=measured,
-                                           met=met, unmeasured=2-measured), ""),
-                                     ({k: counts[k] for k in ("commit_total", "measured",
-                                       "met", "unmeasured")}, why))
+                                           met=met, unmeasured=2-measured), ""), (counts, why))
                     self.assertEqual(met == 2, "R-phase-closable" in
                                      recommended(payload["next"]))
         for extra, measured, met in (([], 0, None), ([check(kr=k1)], 0, None),

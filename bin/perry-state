@@ -2320,22 +2320,22 @@ def next_kr_progress(payload: dict) -> tuple[dict, str]:
         return {}, (f"the linkage store describes phase "
                     f"{linkage.get('phase') or '(none)'}, not the current phase "
                     f"{phase.get('slug')}")
-    krs = [kr for o in linkage.get("objectives") or [] for kr in o.get("krs") or []]
-    counts = lib.objective_kr_summary(krs)
-    # TASK-479, DESIGN-020 § 5.10: a commit KR with no task edge is unstaffed
-    # unless it is measured and met (UD 14); `undeclared` is its position.
-    commit = [k for k in krs if not k.get("stretch")
-              and k.get("status") != "withdrawn"]
-    unstaffed = [k for k in commit if not k.get("tasks") and not (
-        k.get("state") in ("measured", "due") and k.get("met") is True)]
-    undeclared = [k for k in commit if k.get("state") == "undeclared"]
+    counts = lib.objective_kr_summary([
+        kr for o in linkage.get("objectives") or [] for kr in o.get("krs") or []])
     return {"commit_total": counts["total"], "measured": counts["measured"],
             "met": counts["met"],
-            "unmeasured": counts["total"] - counts["measured"],
-            "undeclared": counts["by_state"]["undeclared"],
-            "unstaffed": len(unstaffed),
-            "first_unstaffed": unstaffed[0] if unstaffed else {},
-            "first_undeclared": undeclared[0] if undeclared else {}}, ""
+            "unmeasured": counts["total"] - counts["measured"]}, ""
+
+
+def next_kr_lifecycle(krs) -> dict:
+    """TASK-479, DESIGN-020 § 5.10: the active commit KRs with no task edge,
+    less those measured and met (UD 14), and those whose position is
+    `undeclared` — each list in linkage order, over `next_kr_progress`'s KRs."""
+    commit = [k for k in krs if not k.get("stretch")
+              and k.get("status") != "withdrawn"]
+    return {"unstaffed": [k for k in commit if not k.get("tasks") and not (
+                k.get("state") in ("measured", "due") and k.get("met") is True)],
+            "undeclared": [k for k in commit if k.get("state") == "undeclared"]}
 
 
 def next_kr_withdrawn(payload: dict) -> list[dict]:
@@ -2405,19 +2405,18 @@ def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
             unknown[path] = why
         else:
             facts[path] = counts.get(key)
-    for path, key in (("phase.kr_progress.undeclared", "undeclared"),
-                      ("phase.krs_unstaffed", "unstaffed")):
-        if why:
-            unknown[path] = why
-        else:
-            facts[path] = counts.get(key)
-    for kind in ("unstaffed", "undeclared"):
-        first = counts.get(f"first_{kind}") or {}
-        for suffix, field in (("", "id"), ("_title", "title")):
+    life = next_kr_lifecycle([k for o in (payload.get("linkage") or {}).get(
+        "objectives") or [] for k in o.get("krs") or []]) if counts else {}
+    for kind, count in (("unstaffed", "phase.krs_unstaffed"),
+                        ("undeclared", "phase.kr_progress.undeclared")):
+        found = life.get(kind) or [{}]
+        for path, value in ((count, len(life[kind]) if life else None),
+                            (f"phase.first_{kind}_kr", found[0].get("id")),
+                            (f"phase.first_{kind}_kr_title", found[0].get("title"))):
             if why:
-                unknown[f"phase.first_{kind}_kr{suffix}"] = why
+                unknown[path] = why
             else:
-                facts[f"phase.first_{kind}_kr{suffix}"] = first.get(field)
+                facts[path] = value
     # A header field of `evidence/<YYYY-MM>/retro.md`, read by
     # `parsers.retro_phases` into `history.retros` (NN-1); `None` with no phase.
     slug = phase.get("slug")
