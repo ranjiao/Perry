@@ -185,6 +185,23 @@ class Release(unittest.TestCase):
         with self.assertRaisesRegex(manage.Refused, 'reintroduced'):
             manage.check_base(self.root, deleted, head)
 
+    def test_range_that_introduces_the_record_checks_from_its_introduction(self):
+        self.write('product.txt', 'later')
+        self.allocate()
+        head = self.save()
+        result = manage.check_base(self.root, self.pre, head)
+        self.assertEqual((result['introduced'], result['new_versions']), (self.base, ['0.1.0', '0.1.1']))
+        self.rows([dict(BASELINE, notes='rewritten')])
+        with self.assertRaisesRegex(manage.Refused, 'rewritten'):
+            manage.check_base(self.root, self.pre, self.save())
+        self.git('checkout', '-q', '-b', 'extra', self.pre)
+        self.rows([BASELINE])
+        self.allocate()
+        self.save()
+        self.write('product.txt', 'after')
+        with self.assertRaisesRegex(manage.Refused, 'first introduction'):
+            manage.check_base(self.root, self.pre, self.save())
+
     def test_phase_pointer_clear_and_matching_new_phase(self):
         self.write(manage.PHASE_POINTER, '(none)\n')
         cleared = self.save()

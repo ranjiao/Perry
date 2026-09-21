@@ -269,8 +269,18 @@ def check_base(root: Path, base: str, head: str) -> dict:
         # exception; deleting/reintroducing records later cannot reset history.
         if git(root, "log", "--format=%H", base_sha, "--", RECORDS).strip():
             raise Refused("base lost existing release history; baseline cannot be reintroduced")
-        if len(current) != 1 or current[0]["kind"] != "baseline":
+        # The introducing commit is the ancestry-first add in base..head over
+        # full history, so an introduction merged in from a side branch counts.
+        adds = git(root, "log", "--reverse", "--topo-order", "--diff-filter=A", "--format=%H",
+                   f"{base_sha}..{head_sha}", "--", RECORDS).split()
+        intro = adds[0].decode() if adds else head_sha
+        first = checked(root, intro)
+        if len(first) != 1 or first[0]["kind"] != "baseline":
             raise Refused("first introduction must contain only the 0.1.0 baseline")
+        if intro != head_sha:
+            later = check_base(root, intro, head_sha)
+            return dict(later, base=base_sha, introduced=intro,
+                        new_versions=[first[0]["version"], *later["new_versions"]])
         new = current
     def pointer(sha):
         present = git(root, "ls-tree", "--name-only", sha, "--", PHASE_POINTER).strip()
