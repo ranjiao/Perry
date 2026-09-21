@@ -8,7 +8,7 @@ rules from `reference/next-rules.json`, the same answer for the same state.
 
 What this module holds, and the mutation each part answers:
 
-- **Five fixture projects, each with its primary rule written here** — installed
+- **Eight fixture projects, each with its primary rule written here** — installed
   with no OKR, an OKR with no phase, an active phase whose week plan cannot be
   told, a closable phase, and a queue track. `TestDeletingARuleReddensItsFixture`
   removes each one's rule from a COPY of the rule file and requires the primary
@@ -153,7 +153,7 @@ def new_root(owner) -> pathlib.Path:
 
 
 def build(owner, name: str) -> pathlib.Path:
-    """One of the five fixture projects, written under a temporary root."""
+    """One of the fixture projects, written under a temporary root."""
     root = new_root(owner)
     tracks = None
     if name == "queue_track":
@@ -175,18 +175,41 @@ def build(owner, name: str) -> pathlib.Path:
     (root / "phase" / f"{PHASE_SLUG}.md").write_text(PHASE_MD, encoding="utf-8")
     objective = {"kind": "objective", "phase": PHASE_SLUG, "id": "O1",
                  "title": "Hold still"}
-    if name == "active_phase_week_unknown":
+    # TASK-479: a KR with no edge is unstaffed and one with no check is
+    # undeclared, so each fixture names its edges and checks. Closable KRs
+    # are measured and met with no task: the UD 14 exemption.
+    staffed, declared = ["P001-O1-KR1"], ["P001-O1-KR1"]
+    if name in ("active_phase_week_unknown", "checks_undeclared"):
         krs = [kr("P001-O1-KR1", target=3)]
-    else:   # closable_phase
+        declared = [] if name == "checks_undeclared" else declared
+    elif name == "kr_unstaffed":
+        krs = [kr("P001-O1-KR1", target=3, current=3), kr("P001-O1-KR2", target=3)]
+        staffed, declared = [], ["P001-O1-KR2"]
+    else:   # closable_phase, phase_scorable
         krs = [kr("P001-O1-KR1", target=3, current=3),
                kr("P001-O1-KR2", target=0, current=0),
                kr("P001-O1-KR3", target=5, stretch=True)]
+        staffed = []
     checks = [row for k in krs if "current" in k for row in
               (check(kr=k["id"], direction="at_least", target=k["target"]),
                measurement(k["current"], kr=k["id"]))]
-    (root / "linkage.jsonl").write_text(jsonl([objective, *krs, *checks]),
+    checks += [check(kr=k["id"], direction="at_least", target=k["target"])
+               for k in krs if "current" not in k and k["id"] in declared]
+    edges = [{"kind": "edge", "task": "TASK-001", "kr": k, "actor": "goals",
+              "declared_at": "2026-09-02T00:00:00Z", "via": "link"} for k in staffed]
+    (root / "linkage.jsonl").write_text(jsonl([objective, *krs, *checks, *edges]),
                                         encoding="utf-8")
+    if name == "phase_scorable":
+        retro(root, PHASE_SLUG)
     return root
+
+
+def retro(root: pathlib.Path, slug: str) -> None:
+    """`end-phase-retro`'s file, with the header `score-phase` step 5 names."""
+    (root / "evidence" / "2026-09").mkdir(parents=True, exist_ok=True)
+    (root / "evidence" / "2026-09" / "retro.md").write_text(
+        f"# Retro\n\n> Phase: #{slug} · started 2026-09-01 · scored —\n",
+        encoding="utf-8")
 
 
 def payload_of(root: pathlib.Path, *extra: str) -> dict:
@@ -206,6 +229,9 @@ EXPECTED = {
     "active_phase_week_unknown": "R-review-due",
     "closable_phase": "R-phase-closable",
     "queue_track": "R-sla-breach",
+    "phase_scorable": "R-phase-scorable",
+    "kr_unstaffed": "R-kr-unstaffed",
+    "checks_undeclared": "R-checks-undeclared",
 }
 
 
@@ -248,6 +274,9 @@ EXPECTED_COMMAND = {
     "active_phase_week_unknown": "/perry work friday-review",
     "closable_phase": "/perry work end-phase-retro",
     "queue_track": "/perry work triage",
+    "phase_scorable": "/perry goals score-phase",
+    "kr_unstaffed": "/perry goals plan-week",
+    "checks_undeclared": "/perry goals check P001-O1-KR1",
 }
 
 
@@ -300,7 +329,8 @@ class TestEachFixtureHasItsPrimary(Fixtures):
     def test_the_closable_phase_counts_commit_key_results_only(self):
         block = self.next_of("closable_phase")
         self.assertEqual(["installed=true", "phase.status=active",
-                          "phase.kr_progress.met_ratio=1"],
+                          "phase.kr_progress.met_ratio=1",
+                          "phase.retro_recorded=false"],
                          block["primary"]["facts"])
         self.assertIn("2 of 2 commit key results in phase 001",
                       block["primary"]["reason"])
@@ -429,6 +459,59 @@ class TestAnUnknownFactNeverFires(Fixtures):
         self.assertNotIn("R-phase-closable", recommended(block))
 
 
+class TestTheLifecycleRules(Fixtures):
+    """TASK-479, DESIGN-020 § 5.10 batch 1: acceptance criteria 1-5."""
+
+    def test_an_unstaffed_kr_is_named_with_its_title_and_edges_silence_it(self):
+        block = self.next_of("kr_unstaffed")
+        self.assertIn("1 commit key result(s) in phase 001 have no task, starting "
+                      "with P001-O1-KR2 (key result P001-O1-KR2)",
+                      block["primary"]["reason"])
+        staffed = copy.deepcopy(self.payloads["kr_unstaffed"])
+        for k in staffed["linkage"]["objectives"][0]["krs"]:
+            k["tasks"] = ["TASK-001"]
+        got = STATE.build_next(staffed, today=WEDNESDAY)
+        self.assertNotIn("R-kr-unstaffed", recommended(got))
+        self.assertIsNotNone(got["primary"])
+
+    def test_a_measured_and_met_kr_with_no_task_is_not_unstaffed(self):
+        """UD 14. KR1 of `kr_unstaffed` and every closable KR have no task."""
+        for name, count in (("closable_phase", 0), ("kr_unstaffed", 1)):
+            facts, _u = STATE.next_facts(self.payloads[name], WEDNESDAY)
+            with self.subTest(fixture=name):
+                self.assertEqual(count, facts["phase.krs_unstaffed"])
+        self.assertEqual("P001-O1-KR2", STATE.next_facts(
+            self.payloads["kr_unstaffed"], WEDNESDAY)[0]["phase.first_unstaffed_kr"])
+
+    def test_an_undeclared_check_is_named_with_its_title(self):
+        block = self.next_of("checks_undeclared")
+        self.assertIn("starting with P001-O1-KR1 (key result P001-O1-KR1)",
+                      block["primary"]["reason"])
+
+    def test_only_a_retro_naming_this_phase_makes_it_scorable(self):
+        root = build(self, "closable_phase")
+        retro(root, "000-another")
+        self.assertEqual("R-phase-closable", STATE.build_next(
+            payload_of(root), today=WEDNESDAY)["primary"]["rule"])
+        retro(root, PHASE_SLUG)
+        self.assertEqual("R-phase-scorable", STATE.build_next(
+            payload_of(root), today=WEDNESDAY)["primary"]["rule"])
+
+    def test_midweek_is_declared_with_its_fact_unknown(self):
+        """No journal heading or record marks a mid-week check, so on a
+        Wednesday `R-midweek` is listed under its fact and never fires;
+        deleting the rule removes it from the list."""
+        doc = rules_doc()
+        for rules, listed in ((doc["rules"], ["R-midweek"]),
+                              ([r for r in doc["rules"] if r["id"] != "R-midweek"], None)):
+            block = self.next_of("closable_phase", rules_path=write_rules(
+                self, {**doc, "rules": rules}))
+            unknown = {u["fact"]: u["rules"] for u in block["unknown"]}
+            with self.subTest(listed=listed):
+                self.assertEqual(listed, unknown.get("today.journal_has_midweek"))
+                self.assertNotIn("R-midweek", recommended(block))
+
+
 class TestOverlaysComeFirst(Fixtures):
 
     @classmethod
@@ -498,7 +581,7 @@ class TestTheShape(Fixtures):
             block = self.next_of(name)
             with self.subTest(fixture=name):
                 self.assertEqual(self.KEYS, set(block))
-                self.assertEqual("perry-next/1.0", block["contract"])
+                self.assertEqual("perry-next/1.1", block["contract"])
                 self.assertEqual(["goals", "phase", "week", "review"],
                                  [p["step"] for p in block["position"]])
                 self.assertLessEqual(len(block["alternates"]), 2)
@@ -612,7 +695,12 @@ class TestTheRuleFile(unittest.TestCase):
                     "R-pipeline-commitment-due": "pipeline"}
     #: Rules DESIGN-020 does not name, each with its spine and the rule it
     #: follows. The heartbeat carries `goals/SKILL.md`'s old prompt (round 3).
-    ADDITIONS = {"R-phase-heartbeat": ("project", "R-review-due")}
+    #: TASK-479 adds DESIGN-020 § 5.10 batch 1 in its declared place.
+    ADDITIONS = {"R-phase-heartbeat": ("project", "R-midweek"),
+                 "R-phase-scorable": ("project", "R-phase-closable"),
+                 "R-kr-unstaffed": ("project", "R-phase-scorable"),
+                 "R-checks-undeclared": ("project", "R-kr-unstaffed"),
+                 "R-midweek": ("any", "R-review-due")}
 
     def setUp(self):
         self.doc = rules_doc()
@@ -713,7 +801,9 @@ class TestKrProgress(unittest.TestCase):
                                      [k["state"] for k in payload["linkage"]["objectives"][0]["krs"][:len(values)]])
                     counts, why = STATE.next_kr_progress(payload)
                     self.assertEqual((dict(commit_total=2, measured=measured,
-                                           met=met, unmeasured=2-measured), ""), (counts, why))
+                                           met=met, unmeasured=2-measured), ""),
+                                     ({k: counts[k] for k in ("commit_total", "measured",
+                                       "met", "unmeasured")}, why))
                     self.assertEqual(met == 2, "R-phase-closable" in
                                      recommended(payload["next"]))
         for extra, measured, met in (([], 0, None), ([check(kr=k1)], 0, None),

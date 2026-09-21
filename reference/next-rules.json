@@ -1,5 +1,5 @@
 {
-  "contract": "perry-next/1.0",
+  "contract": "perry-next/1.1",
   "note": "The rule table `perry-state --section next` evaluates (DESIGN-020 § 5.3, TASK-442). Overlays first, which always win; then `rules` in declared order. The first rule that fires is the primary; the next two that recommend a different command are the alternates. A predicate over a fact the payload cannot tell does not fire, and the fact is listed in `unknown[]`. Predicates compare typed values only — a fact path, an operator from `eq ne lt le gt ge in exists nonempty`, and a literal or a `{\"threshold\": name}` — combined with `all` / `any`. Each rule id is explained in `reference/next.md`. A command still reached through its direct entrance (`/perry goals init`, `plan-phase`, `plan-week`) moves to `/perry plan` when DESIGN-020 phase F ships that entrance.",
   "thresholds": {
     "phase_closable_ratio": {
@@ -95,13 +95,54 @@
       "when": {"all": [
         {"fact": "installed", "op": "eq", "value": true},
         {"fact": "phase.status", "op": "eq", "value": "active"},
-        {"fact": "phase.kr_progress.met_ratio", "op": "ge", "value": {"threshold": "phase_closable_ratio"}}
+        {"fact": "phase.kr_progress.met_ratio", "op": "ge", "value": {"threshold": "phase_closable_ratio"}},
+        {"fact": "phase.retro_recorded", "op": "eq", "value": false}
       ]},
       "spine": "project",
       "lane": "work",
       "command": "/perry work end-phase-retro",
-      "reason": "{phase.kr_progress.met} of {phase.kr_progress.measured} commit key results in phase {phase.number} are met, so the phase can close",
+      "reason": "{phase.kr_progress.met} of {phase.kr_progress.measured} commit key results in phase {phase.number} are met, so the phase can close, starting with its retro",
       "after": ["close-task", "link"]
+    },
+    {
+      "id": "R-phase-scorable",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "phase.status", "op": "eq", "value": "active"},
+        {"fact": "phase.kr_progress.met_ratio", "op": "ge", "value": {"threshold": "phase_closable_ratio"}},
+        {"fact": "phase.retro_recorded", "op": "eq", "value": true}
+      ]},
+      "spine": "project",
+      "lane": "goals",
+      "command": "/perry goals score-phase",
+      "reason": "phase {phase.number}'s retro is recorded and {phase.kr_progress.met} of {phase.kr_progress.measured} commit key results are met, so it can be scored",
+      "after": ["end-phase-retro", "close-task", "link"]
+    },
+    {
+      "id": "R-kr-unstaffed",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "phase.status", "op": "eq", "value": "active"},
+        {"fact": "phase.krs_unstaffed", "op": "gt", "value": 0}
+      ]},
+      "spine": "project",
+      "lane": "goals",
+      "command": "/perry goals plan-week",
+      "reason": "{phase.krs_unstaffed} commit key result(s) in phase {phase.number} have no task, starting with {phase.first_unstaffed_kr} ({phase.first_unstaffed_kr_title})",
+      "after": ["plan-phase", "link", "close-task"]
+    },
+    {
+      "id": "R-checks-undeclared",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "phase.status", "op": "eq", "value": "active"},
+        {"fact": "phase.kr_progress.undeclared", "op": "gt", "value": 0}
+      ]},
+      "spine": "project",
+      "lane": "goals",
+      "command": "/perry goals check {phase.first_undeclared_kr}",
+      "reason": "{phase.kr_progress.undeclared} commit key result(s) in phase {phase.number} declare no check, starting with {phase.first_undeclared_kr} ({phase.first_undeclared_kr_title})",
+      "after": ["plan-phase", "link"]
     },
     {
       "id": "R-week-unplanned",
@@ -191,6 +232,19 @@
       "command": "/perry work friday-review",
       "reason": "today is {today.weekday} and the last weekly report is {history.latest_weekly_label}",
       "after": ["close-task", "handoff"]
+    },
+    {
+      "id": "R-midweek",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "today.weekday", "op": "eq", "value": "Wednesday"},
+        {"fact": "today.journal_has_midweek", "op": "eq", "value": false}
+      ]},
+      "spine": "any",
+      "lane": "work",
+      "command": "/perry work midweek-check",
+      "reason": "today is Wednesday and today's journal has no mid-week check",
+      "after": ["close-task", "add-task"]
     },
     {
       "id": "R-phase-heartbeat",

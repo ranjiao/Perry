@@ -1,4 +1,4 @@
-# `perry-state --section next` — `perry-next/1.0`
+# `perry-state --section next` — `perry-next/1.1`
 
 Where a project stands on Perry's sequence, and the one step to take next. It
 is computed on every call from values `perry-state` already reads, plus the
@@ -29,7 +29,7 @@ a `--lane` outside the three lanes.
 ```jsonc
 {
   "next": {
-    "contract": "perry-next/1.0",   // check this before anything else
+    "contract": "perry-next/1.1",   // check this before anything else
     "semantics": [],                 // meaning changes, oldest minor first
     "position": [ /* below */ ],
     "primary": {
@@ -118,6 +118,25 @@ empty.
 | `value` | number | the value used |
 | `source` | string | `schema` when `schema/state-schema.json § thresholds` declares the name, which is read and never written; `rule-file` otherwise |
 
+## Fact names
+
+A fact name appears in `primary.facts[]`, `alternates[].facts[]` and
+`unknown[].fact`. `1.1` adds these, and removes none (TASK-479, DESIGN-020
+§ 5.10 batch 1):
+
+- `phase.krs_unstaffed` (int): active commit key results of the current
+  phase with no linked task, less those measured and met.
+- `phase.first_unstaffed_kr`, `phase.first_unstaffed_kr_title` (string or
+  null): the first of them, and its title.
+- `phase.kr_progress.undeclared` (int): commit key results whose position is
+  `undeclared`.
+- `phase.first_undeclared_kr`, `phase.first_undeclared_kr_title` (string or
+  null): the first of them, and its title.
+- `phase.retro_recorded` (bool, null with no phase): an
+  `evidence/<YYYY-MM>/retro.md` whose `> Phase:` header names the current phase.
+- `today.journal_has_midweek` (bool): always in `unknown[]` in `1.1`, because
+  nothing declares a mid-week heading.
+
 ## What this contract does not promise
 
 - **Which rule fires on a given project.** That depends on the project's state
@@ -133,3 +152,4 @@ empty.
 | Version | Change |
 |---|---|
 | 1.0 | First release (TASK-442, DESIGN-020 phase A). |
+| 1.1 | Adds the fact names above (TASK-479). No key or meaning changes, so `semantics` stays `[]`. |

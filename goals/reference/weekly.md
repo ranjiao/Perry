@@ -6,6 +6,8 @@ Loaded when `/okr plan-week` fires. The most-used OKR subcommand, and the one pl
 
 1. Read `phase/<current-NNN>-<slug>.md` (via `phase/CURRENT`). Identify the current ISO week's row in the week-by-week breakdown.
 
+   **When `phase.krs_unstaffed > 0`** (`"$PERRY_HOME/bin/perry-state" --section next` names it, `R-kr-unstaffed`), the unstaffed key results come first: each one, with the phase document's Projects seeds for it, is the first input to the candidate tasks in step 2. `--section linkage` carries each key result's `tasks`, `state` and `met`; one with no `tasks` that is not measured and met is unstaffed (DESIGN-020 UD 14). The rest of this procedure is unchanged.
+
 2. Translate each commitment into 1–2 concrete tasks. **Resolve each task's KR by ID through `linkage.jsonl`, never by guessing from the Project name** (resolution order + the ask in `$PERRY_HOME/reference/okr-linkage.md`). If the phase-file Project name differs from what the user says now, confirm they're the same Project and append the alias to the registry before tagging. If the KR can't be resolved to exactly one → `AskUserQuestion` (candidate KRs); never fuzzy-match.
 
    Each task gets:

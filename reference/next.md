@@ -107,6 +107,9 @@ Each fact is a value `perry-state` already computes, or the clock
 | `okr.present`, `okr.version` | `okr` |
 | `phase.status`, `phase.number`, `phase.day` | `phase` |
 | `phase.kr_progress.*` | `linkage.objectives[].krs[]`: `current`, `target` and `stretch` of the current phase's key results |
+| `phase.krs_unstaffed`, `phase.first_unstaffed_kr`, `phase.first_unstaffed_kr_title` | `linkage.objectives[].krs[]`: active commit key results with no `tasks`, less those measured and met (DESIGN-020 UD 14) |
+| `phase.kr_progress.undeclared`, `phase.first_undeclared_kr`, `phase.first_undeclared_kr_title` | `linkage.objectives[].krs[]`: commit key results whose `state` is `undeclared` |
+| `phase.retro_recorded` | `history.retros[]`: `evidence/<YYYY-MM>/retro.md` files whose `> Phase:` header field names this phase (`viewer/parsers.py § retro_phases`) |
 | `week.iso`, `today.date`, `today.weekday` | the clock |
 | `history.*` | `history`: `latest_weekly`, `latest_handoff`, `latest_handoff_days`, `latest_journal_days` |
 | `user_input_queue.*` | `user_input_queue.count` and `.oldest` |
@@ -131,6 +134,9 @@ commit key result, or when any of them is unmeasured. A key result whose
 - `commitments.due` — `perry-state` does not compute which commitments are due.
 - `phase.days_since_snapshot` — `perry-state` computes no date for the last
   phase snapshot.
+- `today.journal_has_midweek` — `midweek-check` writes prose into today's
+  journal, and no heading, record or event marks it. Declaring one is a
+  `schema/state-schema.json` change (TASK-479).
 
 ## The rules
 
@@ -175,10 +181,32 @@ not phases.
 
 ### R-phase-closable
 
-At least 80% of the phase's measured commit key results are met, and none is
-unmeasured. The phase can close: `end-phase-retro`, then the close sequence
-(DESIGN-012). If any key result has no current value, the command cannot tell,
-and says so.
+At least 80% of the phase's measured commit key results are met, none is
+unmeasured, and no retro names this phase yet. The phase can close, and its
+retro comes first: `end-phase-retro` writes `evidence/<YYYY-MM>/retro.md`,
+which `score-phase` reads (DESIGN-020 § 9, 2026-09-21). If any key result has
+no current value, the command cannot tell, and says so.
+
+### R-phase-scorable
+
+The same phase, once a `retro.md` whose `> Phase:` header names it exists.
+`score-phase` marks the phase scored and clears `phase/CURRENT`, so it is the
+last step. A retro naming another phase does not count. One file per month
+means two phases scored in one month share a path: the later retro replaces
+the earlier.
+
+### R-kr-unstaffed
+
+A phase is active and a commit key result has no linked task, so no work is
+aimed at it. `plan-week` takes the unstaffed key results as its first input.
+A key result that is measured and met needs no task and is not counted
+(DESIGN-020 UD 14). The reason names the first one with its title.
+
+### R-checks-undeclared
+
+A phase is active and a commit key result declares no check, so its progress
+can never be measured and the phase can never be shown closable.
+`goals check` declares one (DESIGN-022 § 5.6).
 
 ### R-week-unplanned
 
@@ -221,6 +249,13 @@ It is Friday, no weekly report exists, or the newest report is older than last
 week. The weekly report is where a week's work is summed up, and a lapsed one is
 the first sign the cadence has stopped.
 
+### R-midweek
+
+It is Wednesday and today's journal has no mid-week check. Nothing marks a
+mid-week check in the journal, so `today.journal_has_midweek` is unknown and
+the rule never fires; on a Wednesday it is listed in `unknown[]`. It fires once
+a declared heading or record gives the fact a source.
+
 ### R-phase-heartbeat
 
 A phase that runs for `phase_heartbeat_days` (default 14) with no snapshot has
@@ -228,8 +263,8 @@ no frozen record to compare its end against. `goals/SKILL.md` used to prompt
 `/perry goals snapshot` at that age, and this rule keeps the prompt. Nothing in
 the payload dates the last snapshot, so the rule never fires. It reports
 `phase.days_since_snapshot` as unknown on every project with an active phase.
-DESIGN-020 § 5.3 has no place for it, so it sits after R-review-due, the other
-cadence rule. ARCHITECTURE.md §7 asks whether it should survive.
+DESIGN-020 § 5.3 has no place for it, so it sits after the other cadence
+rules, where § 5.10 keeps it (after R-midweek). ARCHITECTURE.md §7 asks whether it should survive.
 
 ### R-handoff-stale
 
@@ -312,6 +347,7 @@ command: changing the rule table is outside this task.
 | `goals` | `plan-phase` | `goals/reference/phases.md` | `plan-phase` |
 | `goals` | `score-phase` | `goals/reference/phases.md` | `score-phase` |
 | `goals` | `snapshot` | `goals/reference/phases.md` | `snapshot` |
+| `goals` | `check` | `goals/reference/phases.md` | `check` |
 | `goals` | `plan-week` | `goals/reference/weekly.md` | `plan-week` |
 | `goals` | `link` | `goals/reference/linkage.md` | `link` |
 | `goals` | `pivot` | `goals/reference/pivots.md` | `pivot` |
