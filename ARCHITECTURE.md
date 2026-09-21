@@ -18,15 +18,15 @@ applied it to itself: `perry-state --section architecture` reported
 
 WHERE THIS FILE LIVES, and it is a correction. It was first written to
 `perry/ARCHITECTURE.md`, because `schema/state-schema.json § files[id=architecture]`
-anchors it at the STATE root. The user moved it here on 2026-09-09: `perry/` is
+then anchored it at the STATE root. The user moved it here on 2026-09-09: `perry/` is
 Perry's runtime state — board, journal, evidence, stores — and an architecture
 document describes CODE. It belongs where someone reading the code will find it,
 which is the repository root, beside the directories it maps.
 
-The cost of being right is that the tooling cannot see it yet:
-`perry-state --section architecture` reports `exists: false` while this file
-sits here. §7's first open question carries that, and it is a defect in the
-schema rather than in this file's location.
+The tooling followed on 2026-09-21: TASK-451 anchors this file at the code
+root in the schema, TASK-452 makes `perry-state --section architecture` read
+it here (`exists: true`), and TASK-477 makes `perry-diagnose` count it as
+Perry's. §7's first open question is closed.
 
 An open question is referred to by its SECTION, never by its id. `OQ-` is not
 one of `lib.PERRY_CITATION_FAMILIES` — a closed set, on purpose — so
@@ -308,9 +308,9 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   2026-09-21 (USER-987).* TASK-451 (DESIGN-017 A1, main 6d471770) anchors
   `ARCHITECTURE.md` at the code root in `schema/state-schema.json`; TASK-452
   (A2, main 5d661ec6) makes `perry-state` read and cap-check it there, and
-  `--section architecture` reports `exists: true` on this repository. The one
-  remaining reader that ignores the code anchor, `perry-diagnose`'s ownership
-  scan, is TASK-477. The text below is the question as it stood.
+  `--section architecture` reports `exists: true` on this repository. `perry-diagnose`'s
+  ownership scan, the last reader that ignored the code anchor, was fixed by
+  TASK-477 (main a2a12a8f). The text below is the question as it stood.
   ANSWERED for where it lives, open for the fix. `schema/state-schema.json § files[id=architecture]`
   and `§ claims` both anchor `ARCHITECTURE.md` at the STATE root;
   `packs/software-ops/architecture.md` says "at the project root". The user
@@ -370,6 +370,10 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   rule.
 
 ## §8. Change log
+
+- 2026-09-21 · v1 · USER-989, after TASK-477: §7 OQ-1's closure names
+  TASK-477 as done. Descriptive: the preamble comment says the tooling now
+  finds this file. No other section is edited.
 
 - 2026-09-21 · v1 · USER-987: §7 OQ-1 closed after TASK-451 and TASK-452;
   its text is kept. No other section is edited.
