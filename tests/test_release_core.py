@@ -185,13 +185,27 @@ class Release(unittest.TestCase):
         with self.assertRaisesRegex(manage.Refused, 'reintroduced'):
             manage.check_base(self.root, deleted, head)
 
-    def test_range_that_introduces_the_record_checks_from_its_introduction(self):
+    def test_range_that_introduces_the_record_checks_from_its_first_add(self):
+        for branch in ('side', 'merged'):
+            self.git('checkout', '-q', '-b', branch, self.pre)
+            self.write(branch + '.txt', branch)
+            self.save()
+        self.git('merge', '-q', '--no-ff', '--no-commit', 'side')
+        self.rows([BASELINE])
+        merge = self.save()
         self.write('product.txt', 'later')
         self.allocate()
-        head = self.save()
-        result = manage.check_base(self.root, self.pre, head)
-        self.assertEqual((result['introduced'], result['new_versions']), (self.base, ['0.1.0', '0.1.1']))
+        result = manage.check_base(self.root, self.pre, self.save())
+        self.assertEqual((result['base'], result['introduced'], result['new_versions']),
+                         (self.pre, merge, ['0.1.0', '0.1.1']))
         self.rows([dict(BASELINE, notes='rewritten')])
+        with self.assertRaisesRegex(manage.Refused, 'rewritten'):
+            manage.check_base(self.root, self.pre, self.save())
+        for p in (manage.RECORDS, *manage.PROJECTIONS):
+            (self.root / p).unlink()
+        self.save()
+        self.rows([dict(BASELINE, notes='rewritten')])
+        self.write('product.txt', 'readded')
         with self.assertRaisesRegex(manage.Refused, 'rewritten'):
             manage.check_base(self.root, self.pre, self.save())
         self.git('checkout', '-q', '-b', 'extra', self.pre)
