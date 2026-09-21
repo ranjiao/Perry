@@ -247,9 +247,13 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
 - **Rationale**: two parsers of `BOARD.md` disagreed in production twice, and
   the disagreement was invisible until a round-trip test one project later.
 - **Check**: `grep -rn "def parse_" bin/ | grep -v perry_store | grep -v _md_store`
-- **Known exceptions**: `bin/perry-context-budget` reads one key
-  (`session_context_ceiling`) of `.perry/config.jsonl` directly, because it
-  must work outside a Perry project (USER-971, 2026-09-18).
+- **Known exceptions**:
+  - `bin/perry-context-budget` reads one key (`session_context_ceiling`) of
+    `.perry/config.jsonl` directly, because it must work outside a Perry
+    project (USER-971, 2026-09-18).
+  - `release/manage.py` reads `phase/CURRENT` at two git refs with its own
+    "no phase" set: the pointer reader in `viewer/parsers.py` serves a working
+    tree, and `release/` does not import `viewer/` (USER-981, 2026-09-21).
 
 ### NN-2 — The store is truth; the projection is rendered
 - **Severity**: hard
@@ -360,6 +364,11 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   rule.
 
 ## §8. Change log
+
+- 2026-09-21 · v1 · USER-981, after architecture re-review 3: §6 NN-1 gains a
+  second Known exception, `release/manage.py`'s git-ref reads of
+  `phase/CURRENT`. The pointer reader's claims in `viewer/parsers.py` and its
+  test are narrowed to what they cover.
 
 - 2026-09-21 · v1 · USER-978, after two architecture reviews came back BLOCKED
   (`perry/evidence/2026-09/2026-09-21-architecture-review-task-471.md`,
