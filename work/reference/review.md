@@ -199,10 +199,23 @@ You are reviewing <TASK-ID> at V4. You did not write this code and you are not
 being asked to agree with it.
 
 Acceptance criteria: <path>              ← the only authority for PASS/FAIL
-Under review:        <paths / commit range>
+Under review:        <base SHA>..<head SHA>  ← exact, both ends, never a branch name alone
+Base the criteria exist on: <SHA>        ← usually the same; say so when it is not
 
 <one paragraph: what the change claims to do>
 ```
+
+**Both ends of the range, as SHAs.** A branch name moves, and a round that
+cites one has no reproducible subject. And **the base the round works from has
+to carry the criteria file**: on 2026-09-20 a review worktree's base predated
+the row's own spec, so `perry-lint --reviews` reported `citation-not-on-branch`
+against every exhibit the verdict named — the findings were sound and the
+citations unresolvable until the document landed somewhere that carried them.
+
+**A changed base re-opens the round's scope.** If the base moved, or the change
+widened, the re-review covers the changed findings *and every invariant they
+touch* — not just the lines that differ. A round scoped to a diff it did not
+re-derive is a round checking yesterday's question.
 
 Then the four rules below, verbatim. Each one was bought with a round that did
 not converge.
@@ -307,6 +320,20 @@ a result with no selection block did not run a tier, and what it ran is then
 unknown. A mutation round re-runs the tier after each mutation — that is the
 point of a 40-second loop — and a mutation that comes back green is a finding,
 rule 2, whatever the tier.
+
+**Do not re-run the full suite without a reason.** A reason is a new change, a
+failure, or a concern the last run left open — not unease. The tier exists so a
+round can iterate in forty seconds instead of two minutes, and a round that
+reaches for `--tier full` after every mutant has given that back.
+
+**A filed flake is not a reason to re-run everything.** Re-run the named module
+**alone** first; `bin/perry-task list --all --json` says whether a row already
+records it. If it passes alone, you have your attribution and you re-run the
+full suite **once**, to obtain the claim the gate needs — and you cite the row.
+On 2026-09-20 one filed flake (TASK-272) cost two full re-runs on one day, both
+on the merge gate, and the expensive part was not the wall clock: it was that
+the reader has to stop and prove it is the known flake every single time, on
+the one gate where a real red would matter most.
 
 **A red in `affected` is a red. A green in `affected` is not a green suite**,
 and a verdict may not say it is. It ran the modules the change selects; it says
@@ -466,6 +493,40 @@ that the current code holds both, name your recommendation with its reason,
 and say what is already true (which tool computes the rule today, what is
 merged, what is not). The user picks a principle; the next round applies it
 everywhere and PASSes.
+
+### When the next round does not PASS
+
+It happened on 2026-09-20, to two rows at once. Both filed the ask, both asks
+were answered, both applied the chosen principle, and both FAILed again — on
+ordinary defects with named fixes: a patch that handled a character at the end
+of a line and not in the middle of one, and a guard added at three of four
+sites. Two independent reviewers said the same thing without conferring: the
+rule fires on a count and its **diagnosis** — "failing on a PRINCIPLE nobody
+has picked" — no longer described the situation, because the principle had been
+picked and was working.
+
+**The stop still stands.** What changes is what you write, and this is the
+whole of it:
+
+- **Do not re-ask the principle.** It is answered; re-asking it invites a
+  different answer to the same question and spends the user's judgement on
+  something already spent. Cite the answered ask by id.
+- **Name the unresolved criteria and nothing else.** Which numbered criteria
+  are open, what each one's named fix is, and who found it. If a reviewer
+  already demonstrated the fix, say that — it is the difference between "we do
+  not know how" and "we have not done it".
+- **Say plainly that there is no fork.** A row that manufactures two readings
+  to fit this template produces a question the user cannot answer, and the next
+  round re-derives a principle nobody was confused about.
+- **Then offer the three real choices**: raise the threshold
+  (`review_fail_rounds_before_escalation`, and only where the findings are
+  genuinely narrowing), close the row with the defects recorded, or hand the
+  fix to someone who has not authored it.
+
+**One party may not raise that threshold: the author of the work.** An agent
+that widens its own gate to admit its own output has removed the only thing
+standing between it and its own confidence. Recommend it, with the convergence
+evidence, and let the user turn the knob.
 
 **Two is a measured default, not a law.** It is
 `schema § thresholds.review_fail_rounds_before_escalation`; a project sets its

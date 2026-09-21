@@ -51,6 +51,62 @@ result you cannot explain is a reason to stop and read, not a reason to
 signal** — the wrong output was a shared-path collision, and killing processes
 could not have fixed it.
 
+## Your scratch files are yours alone
+
+A round writes harnesses, mutant tables and captured output. **Derive their
+directory from the repository and make it unique to this session; never a
+fixed name under a shared root.**
+
+```
+scratch="${TMPDIR:-/tmp}/perry-$(git rev-parse --short HEAD)-$$"
+mkdir -p "$scratch"
+```
+
+Two incidents, one shape. The `pkill` incident above began as "an unexpected
+tree name in its own output", which was a **shared-path collision**. On
+2026-09-20 it happened again with no signal sent: two review rounds ran
+concurrently, the second overwrote the first's harness in a shared scratch
+directory **while a mutant was live in the tree**, and the first round only
+knew because it restored from `git show` and checked. Nothing escaped, and
+nothing about the collision was visible in either round's own output.
+
+A mutation round is the worst case for this: between planting and restoring,
+the tree is deliberately wrong, and a harness that changes underneath you can
+make a survivor look like a kill or the reverse.
+
+## Report what failed, in full
+
+**Never discard failing output.** A harness that keeps stdout on success and
+drops it on failure is worse than one that keeps nothing: it is silent exactly
+when you need it, and the round pays for the information twice — once by not
+having it, once by re-running to get it back. On 2026-09-20 a round lost two
+mutants' output this way and needed three isolated re-runs to recover what one
+capture would have held.
+
+- **Success**: the status line and the evidence paths. Not the whole log.
+- **Failure**: the exit code, enough of the diagnostic to act on, and the path
+  to the full log — which still exists.
+- **Structured output**: filter it *structurally* (`--json` into a parser) or
+  keep it whole. **Never feed a truncated JSON document back as if it were a
+  valid one**; a half-parsed contract is a wrong answer wearing a schema.
+
+## Let the host tell you it finished
+
+A suite run, a mutation loop or a build is long. **If the host tracks
+background work and notifies on completion, start it that way and wait for the
+notification.** Launching the same command with a bare `&` opts out of the
+notification you would otherwise have been given, and the round then pays for
+it with a polling loop it wrote by hand.
+
+Where no completion event exists, poll with a **bounded** loop and a delay
+matched to how long the work actually takes — not a fixed one-second tick.
+Record how many calls you made and how long you waited; that number is part of
+the round's cost.
+
+Do not build a scheduler, and do not report a tool-call count as if it were a
+model-turn count. They are different quantities and only one of them is what a
+round costs.
+
 ## Do not run the write side against what you are reviewing
 
 A Perry tool that writes — `perry-task`, `perry-goals`, `perry-decide` —
