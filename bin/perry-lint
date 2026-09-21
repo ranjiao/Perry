@@ -1306,18 +1306,17 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
             ))
 
     # phase/CURRENT resolves
-    cur = root / "phase" / "CURRENT"
+    # `parsers.read_phase_pointer`, the pointer's one reader (NN-1, USER-980).
     phase_file = None
-    if cur.exists():
-        slug = cur.read_text().strip()
-        if slug and slug not in {"(none)", "none", "—", ""}:
-            phase_file = root / "phase" / f"{slug}.md"
-            if not phase_file.exists():
-                findings.append(Finding(
-                    "error", "phase/CURRENT", "current-phase-resolves",
-                    f"points at {slug!r} but phase/{slug}.md does not exist",
-                ))
-                phase_file = None
+    slug = P.read_phase_pointer(root)
+    if slug:
+        phase_file = root / "phase" / f"{slug}.md"
+        if not phase_file.exists():
+            findings.append(Finding(
+                "error", "phase/CURRENT", "current-phase-resolves",
+                f"points at {slug!r} but phase/{slug}.md does not exist",
+            ))
+            phase_file = None
 
     # **The phase's KR set is no longer read here at all** — TASK-157.
     #
