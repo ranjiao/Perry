@@ -1,7 +1,7 @@
 # DESIGN-020: Perry has a sequence and never tells the user where they are in it
 
 > Status: locked
-> Date: 2026-09-14 · Locked: 2026-09-14
+> Date: 2026-09-21 · Locked: 2026-09-14
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: O3-KR1, O3-KR2 (`perry/OKR.md` v3, Objective 3 — the skill is the product, and it is written well enough to be one)
 > Supersedes: DESIGN-011   · Superseded by: —
@@ -168,6 +168,9 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | 10 | How hard the push is | name the gap, offer a rewrite, once | **once** — inherited, DESIGN-011 UD 2 | 2026-08-28 |
 | 11 | Does plan-phase share the bank | yes | **yes** — inherited, DESIGN-011 UD 3 | 2026-08-28 |
 | 12 | Where the premise challenge sits | after questions, before the draft is approved | **before approval** — inherited, DESIGN-011 UD 4, restated for the draft stage | 2026-08-28 |
+| 13 | Phase length as a hard trigger (mid-phase review, due-date close) | declare a duration now (schema edit) / defer | **defer to the next phase** — no phase record gains a field in this revision (USER-990) | 2026-09-21 |
+| 14 | A KR that legitimately has no task | exempt when measured and met / a per-KR "no task needed" declaration (schema edit) | **exempt when measured and met** — no schema change (USER-990) | 2026-09-21 |
+| 15 | Scope of the rule-table extension | batch 1 only / all three batches in one revision | **all three in one revision, implemented batch by batch** (USER-990) | 2026-09-21 |
 
 **On 1 and 2.** Answered by Ran Jiao in session, 2026-09-14: recommendations
 are both proactive ("the current work is done; next, run `/perry …`") and
@@ -204,6 +207,14 @@ entirely.
 
 **On 8.** A per-rule snooze needs a store of snoozes. A project setting is one
 config record, and the passive block stays available either way.
+
+**On 13–15.** Answered by Ran Jiao in chat, 2026-09-21 (USER-990), after the
+coverage enumeration in § 5.10. A phase record declares a start and no end, so
+`mid-phase-review` and a due-date close have no fact to fire on; declaring one
+is a `phase` schema change and waits for the next phase. A KR measured by a
+cadence (`P004-O1-KR3`) has no task by design; excluding measured-and-met KRs
+costs one prompt at phase start and no schema. Writing all three batches now
+fixes the rule order once, so later batches do not re-litigate it.
 
 ## 5. Architecture
 
@@ -474,6 +485,122 @@ What this design changes, so implementation and review know where to look.
   asked for one plan — the ceremony § 1.3's abandoned tools are criticised for.
   The recommendation offers the next step; it does not take it.
 
+### 5.10 Lifecycle coverage (revision 2026-09-21)
+
+Phase A shipped fifteen rules. Enumerating every `goals`, `work` and `decide`
+subcommand against the project's lifecycle found two gaps. The case that
+prompted it: **a new phase with no tasks gets no recommendation**.
+`R-week-unplanned` was meant to cover it, and `week.planned` has no source, so
+it never fires, and nothing else fires either. The fix is a stage-by-stage
+coverage table. Every subcommand is either named by a rule or listed as never
+recommended, and a guard keeps it that way.
+
+**Principle, unchanged.** `perry-state` decides only what is *due*, from typed
+facts. Splitting a KR into tasks, judging a draft and writing a retro are agent
+work, and the rule only says that they are due. The block still shows one
+primary and at most two alternates, however many rules the table holds.
+
+#### Stage table — what fires, and on what
+
+Marks: **✓** a declared `NEXT_FACTS` fact today · **◐** in the payload but not
+a fact · **✗** no source.
+
+| Stage | Subcommand | Fires when | Fact | Rule |
+|---|---|---|---|---|
+| 0 install | router `setup` | not installed | ✓ `installed` | R-setup |
+| 1 goals | `goals init` | no OKR | ✓ `okr.present` | R-no-okr |
+| 2 phase | `goals plan-phase` | OKR, no active phase | ✓ `phase.status` | R-no-phase |
+| 3 staff the phase | `goals plan-week` (from KRs) | an active commit KR has no linked task and is not measured-and-met (UD 14) | ◐ linkage edges | **R-kr-unstaffed** (new) |
+| 3 staff the phase | `goals check` (new index row) | an active commit KR declares no check (DESIGN-022 § 5.6) | ◐ KR position `undeclared` | **R-checks-undeclared** (new) |
+| 4 week | `goals plan-week` / `work monday-plan` | no plan for this ISO week | ✗ `week.planned` | R-week-unplanned (fires once TASK-444 gives it a source) |
+| 4 week | `work midweek-check` | Wednesday, and today's journal has no midweek heading | ✓ weekday; ◐ declared heading | **R-midweek** (new) |
+| 4 week | `work friday-review` | Friday, or the weekly is late | ✓ | R-review-due |
+| 5 mid-phase | `work mid-phase-review` | half the phase elapsed | ✗ no duration (UD 13) | none, user-initiated until UD 13 is revisited |
+| 5 mid-phase | `goals snapshot` | no snapshot in 14 days | ✗ snapshot date | R-phase-heartbeat (unknown) |
+| 6 close | `goals score-phase` | met ratio ≥ 0.8, nothing unmeasured | ✓ | **R-phase-scorable** (replaces R-phase-closable's command) |
+| 6 close | `work end-phase-retro` | phase scored and no retro evidence for it | ◐ phase status; evidence path | **R-retro-due** (new) |
+
+| Event | Subcommand | Fires when | Fact | Rule |
+|---|---|---|---|---|
+| review owed | `work review <id>` | a row at `review` requires V4 and no verdict block names it | ◐ `perry-lint --reviews` knows | **R-review-owed** (new) |
+| closable | `work close-task <id>` | a row at `review` whose latest verdict is PASS | ◐ same reader | **R-closable-row** (new) |
+| dispatchable | `work dispatch <id>` | a startable P0/P1 row whose spec declares `Dispatch mode: auto` | ◐ `startable`; ✗ spec header fact | **R-dispatchable** (new) |
+| stale block | `work triage` | a `blocked_stale` row | ◐ task list | **R-blocked-stale** (new) |
+| SLA / WIP / cap | `work triage` | as today | ✓ | R-sla-breach, R-wip-over-limit, R-board-over-cap |
+| asks | `work nudge` | an ask idle ≥ 5 days | ✓ | R-asks-waiting |
+| handoff | `work handoff` | as today | ✓ | R-handoff-stale |
+| design | `decide handoff <id>` | a locked design with no rows | ✓ | R-design-unhanded |
+| month | `work rollover` | today's month has no `journal/<YYYY-MM>/` directory and an earlier month does | ✗ (filesystem) | **R-rollover** (new) |
+| inputs | `work digest <path>` | a file waits in `inputs/` | ◐ `operations.inputs` | **R-inputs-waiting** (new) |
+| cadence | `work triage` | a declared cadence item is overdue | ◐ `cadence.overdue` | **R-cadence-overdue** (new) |
+| risk | `work risk` | the top risk's severity ranks above `watch` | ◐ `risks.top.severity` | **R-risk-raised** (new) |
+| architecture | `work architecture-audit` | `last_reviewed` older than a threshold, pack active | ◐ `architecture.last_reviewed` | **R-architecture-stale** (new) |
+
+**Never recommended**, only user- or procedure-initiated, and listed in the rule
+file so a guard can tell "unlisted" from "deliberately absent":
+
+- `goals`: `revise`, `commit`, `link`, `pivot`, `krs`, `dashboard`, `help`.
+- `work`: `add-task`, `drop-task`, `delegate`, `autopilot`, `coordinate`,
+  `bootstrap`, `status` (= `friday-review`), `health-check`, `runbook-check`,
+  `incident*`, `architecture init/review/diff`, `help`.
+- `decide`: `init`, `new`, `resolve`, `lock`, `revise`, `supersede`, `drop`,
+  `adr`, `status`, `help`.
+
+#### New facts
+
+| Fact | Derivation (deterministic) | Batch |
+|---|---|---|
+| `phase.krs_unstaffed`, `phase.first_unstaffed_kr` | active, non-withdrawn commit KRs of the current phase with zero linkage edges, less those whose position is measured and met | 1 |
+| `phase.kr_progress.undeclared`, `phase.first_undeclared_kr` | commit KRs whose position is `undeclared` (DESIGN-022 § 5.2) | 1 |
+| `phase.scored`, `phase.retro_recorded` | the phase record's scored status; whether an evidence file for this phase's retro exists (a path check, not a read) | 1 |
+| `today.journal_has_midweek` | today's journal carries the heading `midweek-check` declares (a schema-declared heading, not prose) | 1 |
+| `board.review_owed`, `board.first_review_owed` | rows at `review` with rung V4 and no verdict block naming them | 2 |
+| `board.closable`, `board.first_closable` | rows at `review` whose latest verdict block reads PASS | 2 |
+| `board.dispatchable`, `board.first_dispatchable` | startable P0/P1 rows whose spec header declares `Dispatch mode: auto` | 2 |
+| `board.blocked_stale` | rows the task list marks `blocked_stale` | 2 |
+| `month.rollover_due` | today's `journal/<YYYY-MM>/` is absent and an earlier month's exists | 3 |
+| `operations.inputs`, `operations.first_input` | files under `inputs/` | 3 |
+| `cadence.overdue_count`, `cadence.first_overdue` | from `cadence.overdue` | 3 |
+| `risks.top_rank` | the top risk's severity rank from `schema/state-schema.json § thresholds` | 3 |
+| `architecture.days_since_review` | today minus `architecture.last_reviewed` | 3 |
+
+Verdict blocks and spec headers are read through `viewer/parsers.py`, the one
+reader (NN-1). The reader `perry-lint --reviews` uses today moves there, or is
+imported from there. A second reader is not an option. Nothing new is read from
+prose: headings, enums, dates and paths only (`ADR-007`).
+
+#### Rule order after all three batches
+
+Overlays as today, then: R-setup · R-no-okr · R-no-phase · **R-phase-scorable**
+· **R-retro-due** · **R-kr-unstaffed** · **R-checks-undeclared** ·
+R-week-unplanned · **R-rollover** · **R-review-owed** · **R-closable-row** ·
+R-sla-breach · R-wip-over-limit · R-queue-/pipeline-commitment-due ·
+R-asks-waiting · **R-blocked-stale** · **R-dispatchable** · R-review-due ·
+**R-midweek** · **R-inputs-waiting** · **R-cadence-overdue** · **R-risk-raised**
+· R-phase-heartbeat · R-handoff-stale · R-design-unhanded · R-board-over-cap ·
+**R-architecture-stale**.
+
+The reasons for the order:
+- **Lifecycle before execution.** A phase with nothing staffed has nothing to
+  dispatch.
+- **Finish before start.** Review and close come before dispatch, so a board
+  does not widen while verdicts wait.
+- **Cadence and hygiene last.** They are rarely the most important thing, and
+  as alternates they still show.
+
+`R-dispatchable` would fire on most boards: 74 rows are startable today. That
+is why it sits below every finishing rule, and why its predicate needs the
+spec's explicit `Dispatch mode: auto`. The recommendation never runs the
+dispatch, and dispatch keeps its own safety screen.
+
+#### The guard this adds
+
+A test enumerates every lane's Subcommand index. Each command must be either
+some rule's `command` or on the never-recommended list, and a command on both
+is an error. The closing-step inventory in `tests/test_next_closing.py`
+already classifies read-only commands. The new list extends it and does not
+start a second list.
+
 ## 6. Implementation plan
 
 Phases A and B ship value on their own. Phase C's transcript is the gate for D
@@ -488,6 +615,9 @@ rubric checks, the questions are wrong and the rest is decoration.
 | D | Draft file, edit/approve, resume through the interrupted scan, finalize through writers. Depends on `TASK-264` | TASK-NNN (new), `TASK-264` | Coding Agent |
 | E | Phase, week and commitments routes; routing by spine; escape hatch and premise challenge on the draft | re-point `TASK-192`, `TASK-193`, `TASK-194` | Coding Agent |
 | F | `/perry plan` entrance (UD 6) | TASK-NNN (new) | Coding Agent |
+| G | § 5.10 batch 1 — lifecycle: R-kr-unstaffed, R-checks-undeclared (with the `goals check` index row), R-phase-scorable / R-retro-due, R-midweek; `plan-week` step 1 takes unstaffed KRs first; the coverage guard; one fixture per rule, each reddened by deleting its rule; `next-contract.md` minor | TASK-NNN (new) | Coding Agent |
+| H | § 5.10 batch 2 — execution loop: verdict and spec-header facts through `viewer/parsers.py`; R-review-owed, R-closable-row, R-dispatchable, R-blocked-stale; fixtures | TASK-NNN (new) | Coding Agent |
+| I | § 5.10 batch 3 — calendar and operations: R-rollover, R-inputs-waiting, R-cadence-overdue, R-risk-raised, R-architecture-stale; fixtures | TASK-NNN (new) | Coding Agent |
 
 `TASK-177` and `TASK-190`…`TASK-194` implement the superseded `DESIGN-011`.
 At lock they are re-pointed to this design by the `work` lane, not dropped —
@@ -506,6 +636,10 @@ their scope survives here and ids are never reissued.
 | The new claimed path needs a schema edit | Phase D cannot start without it | consent is part of UD 5 |
 | A dispatched agent session is handed a "run it now?" prompt with no human to answer | dispatch transcripts | the closing step is skipped inside dispatched sessions |
 | The bank and the rubric disagree about what a good KR is (`DESIGN-011` risk 5) | a test that every rubric check in § 1 has a question whose `Produces:` covers it | the bank cites the rubric row it serves |
+| A new rule fires on almost every project and buries the rest (`R-dispatchable`: 74 startable rows here) | fixture of a busy board: its primary is the finishing rule, not dispatch | § 5.10 order; dispatch needs the spec's explicit `Dispatch mode: auto` |
+| `R-kr-unstaffed` nags about a cadence-measured KR | fixture: a measured-and-met KR with no task does not fire | UD 14 exemption; unmeasured cadence KRs fire once at phase start, by choice |
+| A lane gains a subcommand and nobody classifies it | the coverage guard reddens | every index command is a rule's `command` or on the never-recommended list |
+| Verdict or spec facts grow a second reader | NN-1 review at integration | both are read through `viewer/parsers.py` (§ 5.10) |
 
 ## 8. Open questions
 
@@ -532,6 +666,16 @@ their scope survives here and ids are never reissued.
   always come from a deterministic command; without a named place for
   conversational context, an agent either ignores what the user just said or
   quietly swaps the recommendation.
+
+- 2026-09-21 — **Architecture refinement** (USER-992; decisions USER-990 → UD
+  13–15; accepted USER-994; `ADR-023`). § 5.10 adds the lifecycle coverage table, thirteen fact rows and
+  thirteen new rules in three batches (§ 6 G–I), a new rule order, a
+  never-recommended list and the guard that keeps every lane subcommand
+  classified; `R-phase-closable` becomes `R-phase-scorable` plus
+  `R-retro-due`. Why: a new phase with no tasks got no recommendation
+  because `R-week-unplanned`'s fact has no source, and the enumeration found
+  twelve more stages or events no rule covered. No other section's decisions
+  change; § 5.3's table is superseded in order by § 5.10 and kept as written.
 
 ## 10. References
 

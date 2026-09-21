@@ -62,3 +62,23 @@ this repository. Record the exact commit and line delta.
 
 `.github/workflows/`, `release/records.jsonl`, `VERSION`, `CHANGELOG.md`,
 publishing, tags, `git push`, re-running CI, live PMO state, main integration.
+
+## Amendment 1 — round 3 (2026-09-21, USER-993)
+
+After two V4 FAILs (`TASK-478-review/round1-v4.md`, `round2-v4.md`) the user
+chose a third round. Changes to the criteria above:
+
+- **Deliverable, widened:** the "base lost existing release history" check
+  (`release/manage.py` ~line 270) is no longer unchanged — it and the
+  introducing-commit lookup both walk the record's history with
+  `--full-history`, so a merge that drops the record neither hides the first
+  add nor erases the base's history.
+- **Criterion 6:** a range where a merge drops the record after it was added
+  and allocated, and a later commit re-adds a changed baseline, is refused as
+  rewritten — the same verdict as the same history without the merge (round-2
+  shapes 3, 5, 5b, 5c).
+- **Criterion 7:** a base whose history lost the record through a dropping merge
+  is refused as "base lost existing release history" (round-2 F2).
+- **Criterion 8:** a clock-skewed range where date order would list a child
+  before the add is accepted (pins `--topo-order`).
+- **Bound:** net Python/test physical lines ≤ **+60** against the base (was +40).
