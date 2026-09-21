@@ -76,7 +76,7 @@ before a dispatch depends on it. It is the only tool here that depends on
 `codex` and the only thing here that touches a model.
 `perry-context-budget` also reads outside the project — host transcripts, above
 — and runs one program, `bin/perry-detect-host` through `bash`; it calls no
-model. It is also the one tool
+model. It is also the one tool in `bin/`
 with a recorded NN-1 exception: it reads one key of `.perry/config.jsonl`
 itself (root §6 NN-1, USER-971).
 
@@ -98,8 +98,8 @@ Rules, each with a scar behind it:
 
 - **A tool never parses a state file itself.** `parsers` is the reader; `lib`
   re-exports `resolve_state_root` from it rather than holding a second body.
-  The one recorded exception is `perry-context-budget`'s config read (root §6
-  NN-1). Not the only direct read: on 2026-09-21 an architecture re-review
+  The one recorded exception in `bin/` is `perry-context-budget`'s config read
+  (root §6 NN-1; `release/manage.py` holds the other, outside `bin/`). Not the only direct read: on 2026-09-21 an architecture re-review
   found `perry-lint` reading `asks.jsonl`, `perry-tasks` reading `tasks.jsonl`
   and `perry-task` reading `okr.jsonl` themselves. None is recorded as an
   exception, and whether each is an NN-1 parse is not yet decided.
@@ -206,8 +206,9 @@ R5, and `board` names a held file on stderr as one that can be deleted.
 
 - 2026-09-21 · v1 · correction (re-review 2): § 2 said `perry-context-budget`
   "runs no external program" — it runs `bin/perry-detect-host` through `bash` —
-  and that `perry-codex-preflight` is the only tool depending on `git`, which
-  five others also run. Both corrected.
+  and listed `git` among `perry-codex-preflight`'s dependencies — it runs none,
+  and several other tools here do. Both corrected. (An earlier wording gave a
+  count; two greps disagreed on it, so the text carries none.)
 - 2026-09-21 · v1 · correction: § 2 said `perry-context-budget` is "the one
   tool that reads a state file itself", which the re-review showed untrue; it is
   the one with a recorded exception. § 3's rule now names that exception and the

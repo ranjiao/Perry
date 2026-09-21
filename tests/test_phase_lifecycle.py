@@ -551,13 +551,18 @@ class TestThePointerHasOneReader(unittest.TestCase):
         self.assertEqual(parsers.read_phase_pointer(d), "003-x")
 
     def test_nothing_else_reads_the_pointer_value(self):
-        """Derived, not listed: every line in `bin/` and `viewer/` that names
-        the `CURRENT` file, and whether a read follows within five lines. The
-        listed version of this test named two tools and two more still read
-        the value themselves (architecture re-review 2, 2026-09-21)."""
+        """A regression guard for the five sites fixed, not a proof that no
+        other reader exists. It scans every file under `bin/` and `viewer/`
+        for a line naming `"CURRENT"` followed within five lines by a read.
+
+        It cannot see (architecture re-review 3 planted each): other spellings
+        of the name (`'CURRENT'`, `"phase/CURRENT"`), a read before the name or
+        more than five lines after it, a read through a subprocess, or a read
+        at a git ref. `release/manage.py` reads the pointer the last way, under
+        a recorded NN-1 exception (USER-981), and is outside the scan."""
         readers = []
-        files = [p for p in (ROOT / "bin").iterdir() if p.is_file()] + \
-            [ROOT / "viewer" / "parsers.py"]
+        files = [p for d in ("bin", "viewer") for p in (ROOT / d).rglob("*")
+                 if p.is_file() and "__pycache__" not in p.parts]
         for path in files:
             try:
                 lines = path.read_text(encoding="utf-8").split("\n")

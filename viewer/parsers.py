@@ -3030,12 +3030,12 @@ PHASE_POINTER_NONE = frozenset({"", "(none)", "none", "\u2014"})
 def read_phase_pointer(state_root) -> str:
     """The active phase's `<NNN>-<slug>` from `phase/CURRENT`, or `''`.
 
-    **The one reader of the pointer's value** (NN-1, USER-980). Five sites in
-    four tools used to read it themselves, with three copies of the "no phase"
-    set among them. `tests/test_phase_lifecycle.py §
-    TestThePointerHasOneReader` derives the claim over every file in `bin/`
-    and `viewer/` rather than listing callers — the first version of this
-    docstring listed three and missed two.
+    The pointer reader for `bin/` and `viewer/` (NN-1, USER-980): five sites
+    in four tools there used to read the value themselves, with three copies
+    of the "no phase" set. `release/manage.py` reads it at git refs, which a
+    working-tree reader cannot serve, under a recorded NN-1 exception
+    (USER-981). `tests/test_phase_lifecycle.py § TestThePointerHasOneReader`
+    guards the sites fixed here; its docstring says what it cannot see.
     """
     p = Path(state_root) / "phase" / "CURRENT"
     if not p.exists():
