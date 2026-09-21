@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
@@ -55,6 +56,13 @@ def load_bin_module(name: str):
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
     return mod
+
+
+def perry_state(root) -> dict:
+    """`bin/perry-state --root <root> --json`, parsed; a non-zero exit raises."""
+    return json.loads(subprocess.run(
+        [sys.executable, str(PERRY_HOME / "bin" / "perry-state"), "--root", str(root),
+         "--json"], capture_output=True, text=True, check=True).stdout)
 
 
 class TemplateContract(unittest.TestCase):
@@ -493,12 +501,7 @@ class StateExtractor(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        out = subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-state"),
-             "--root", str(FIXTURE), "--json"],
-            capture_output=True, text=True, check=True,
-        )
-        cls.payload = json.loads(out.stdout)
+        cls.payload = perry_state(FIXTURE)
 
     def test_top_level_keys(self):
         for key in ("schema", "installed", "project", "okr", "phase", "board",
@@ -547,29 +550,41 @@ class StateExtractor(unittest.TestCase):
 
     def test_missing_hook_is_warned(self):
         import shutil
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
             (proj / ".perry" / "hook.md").unlink()
-            out = subprocess.run(
-                [sys.executable, str(PERRY_HOME / "bin" / "perry-state"),
-                 "--root", str(proj), "--json"],
-                capture_output=True, text=True, check=True,
-            )
-            payload = json.loads(out.stdout)
+            payload = perry_state(proj)
             self.assertFalse(payload["project"]["hook"]["high_stakes_armed"])
             self.assertIn("high-stakes", " ".join(payload["warnings"]))
 
     def test_no_state_project_reports_not_installed(self):
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
-            out = subprocess.run(
-                [sys.executable, str(PERRY_HOME / "bin" / "perry-state"),
-                 "--root", tmp, "--json"],
-                capture_output=True, text=True, check=True,
-            )
-            self.assertFalse(json.loads(out.stdout)["installed"])
+            self.assertFalse(perry_state(tmp)["installed"])
+
+    def test_architecture_is_read_at_the_code_root(self):
+        """DESIGN-017 A2: the document is read at `code_repo_path`, or the
+        project root when unset — never a stale state-root copy. A legacy
+        `Status: draft` reads as "" and warns nothing; `Last reviewed` ages."""
+        from config_store import config_jsonl
+        stale, fresh = ("v2", "2020-01-01"), ("", date.today().isoformat())
+        for code, doc, want in (("", "ARCHITECTURE.md", stale), ("code", "code/ARCHITECTURE.md", fresh),
+                                ("code", "ARCHITECTURE.md", None), ("", None, None)):
+            with self.subTest(code=code, doc=doc), tempfile.TemporaryDirectory() as tmp:
+                root, text = Path(tmp), "> Version: v2 · Last reviewed: 2020-01-01 · Status: **draft**\n"
+                for d in ("code", "perry", ".perry"):
+                    (root / d).mkdir()
+                (root / ".perry/config.jsonl").write_text(
+                    config_jsonl({"State root": "perry", "Code repo path": code}))
+                (root / "perry/ARCHITECTURE.md").write_text(text)
+                if doc:
+                    (root / doc).write_text(text if want in (stale, None) else f"> Last reviewed: {fresh[1]}\n")
+                payload = perry_state(root)
+                a, warned = payload["architecture"], " ".join(payload["warnings"])
+                self.assertEqual((a["exists"], a["status"], a["version"], a["last_reviewed"]),
+                                 (want is not None, "", *(want or ("", ""))))
+                self.assertNotIn("Status: draft", warned)
+                self.assertEqual("ARCHITECTURE.md last reviewed" in warned, want == stale)
 
 
 class TheFixtureAnswersFromItsOwnLogOnly(unittest.TestCase):
@@ -622,12 +637,7 @@ class TheFixtureAnswersFromItsOwnLogOnly(unittest.TestCase):
         return host / "tests" / "fixtures" / "sample-project"
 
     def _design(self, root):
-        out = subprocess.run(
-            [sys.executable, str(PERRY_HOME / "bin" / "perry-state"),
-             "--root", str(root), "--json"],
-            capture_output=True, text=True, check=True,
-        )
-        payload = json.loads(out.stdout)["design"]
+        payload = perry_state(root)["design"]
         refs = {d["id"]: d["impl_refs"] for d in payload["docs"]}
         return [d["id"] for d in payload["pending_handoff"]], refs
 
@@ -707,7 +717,6 @@ class Linter(unittest.TestCase):
         `perry-task list --json § conformance.off_enum_status`
         (`schema/task-list-contract.md`), so that is what this asks."""
         import shutil
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
@@ -734,7 +743,6 @@ class Linter(unittest.TestCase):
 
     def test_catches_duplicate_linkage_names(self):
         import shutil
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
@@ -750,7 +758,6 @@ class Linter(unittest.TestCase):
         the KR id already encodes it — so the disagreement is now between the
         id and the phase's `objective` records."""
         import shutil
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
@@ -764,7 +771,6 @@ class Linter(unittest.TestCase):
 
     def test_catches_a_task_under_two_krs(self):
         import shutil
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
@@ -776,7 +782,6 @@ class Linter(unittest.TestCase):
 
     def test_catches_a_prose_target_coerced_into_a_number_field(self):
         import shutil
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
@@ -787,7 +792,6 @@ class Linter(unittest.TestCase):
 
     def test_catches_locked_design_with_no_plan(self):
         import shutil
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             shutil.copytree(FIXTURE, proj)
@@ -801,7 +805,6 @@ class Linter(unittest.TestCase):
         """A folder that is not a Perry project cannot hold malformed Perry
         state. Reporting someone's own design/ doc as a broken design doc is the
         linter claiming a namespace nobody gave it."""
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "theirs"
             (proj / "design").mkdir(parents=True)
@@ -814,7 +817,6 @@ class Linter(unittest.TestCase):
 
     def test_state_root_relocates_every_file_but_dot_perry(self):
         import shutil
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             proj.mkdir()
@@ -845,7 +847,6 @@ class Linter(unittest.TestCase):
         """Two readers silently pointed outside the project is worse than one
         ignored field."""
         import parsers as P
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp) / "p"
             (proj / ".perry").mkdir(parents=True)
@@ -920,10 +921,7 @@ class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
             # the ages are `Asked` dates in the same order (USER-001 oldest,
             # USER-003 newest) and "the oldest unanswered" is still USER-002.
             import_board(root, "asks-write")
-            r = subprocess.run(
-                ["python3", str(PERRY_HOME / "bin" / "perry-state"),
-                 "--root", str(root), "--json"], capture_output=True, text=True)
-            return json.loads(r.stdout)
+            return perry_state(root)
 
     def test_an_answered_row_is_not_counted(self):
         q = self.payload()["user_input_queue"]

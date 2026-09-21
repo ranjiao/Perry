@@ -1747,8 +1747,10 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         return bare
 
     # `kr_fold` (DESIGN-022 § 5.7): every KR this payload carries is read
-    # folded, so a restated KR reports its new words and target.
-    snap = P.load_snapshot(root, kr_fold=lib.fold_kr_records)
+    # folded, so a restated KR reports its new words and target. `code_root`:
+    # `ARCHITECTURE.md` is read at the code root, not the state root (DESIGN-017 A2).
+    snap = P.load_snapshot(root, kr_fold=lib.fold_kr_records,
+                           code_root=lib.anchor_root(perry_root, root, "code"))
     board = snap.board
     warnings: list[str] = []
 
@@ -1982,12 +1984,9 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     for s in sunsets:
         warnings.append(f"{s['id']} sunset criteria passed {s['days_past']}d ago — run /perry decide adr --expire {s['id']}.")
 
-    if snap.arch_meta.exists:
-        if snap.arch_meta.status.lower().startswith("draft"):
-            warnings.append("ARCHITECTURE.md is still Status: draft.")
-        rev = days_since(snap.arch_meta.last_reviewed)
-        if rev is not None and rev > 180:
-            warnings.append(f"ARCHITECTURE.md last reviewed {rev}d ago — run /perry work architecture review.")
+    rev = days_since(snap.arch_meta.last_reviewed)
+    if rev is not None and rev > 180:
+        warnings.append(f"ARCHITECTURE.md last reviewed {rev}d ago — run /perry work architecture review.")
 
     payload = {
         "schema": 1,
