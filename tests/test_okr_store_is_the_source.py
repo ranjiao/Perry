@@ -443,8 +443,9 @@ class TestTheGateRunsOnEveryWritePath(SourceCase):
              # `new` — the document, then the pointer that activates it.
              # Ordered so a crash between them leaves a document nothing
              # points at, which `phase activate` can finish, rather than a
-             # pointer naming a document that does not exist, which every
-             # reader of `phase/CURRENT` would refuse on.
+             # pointer naming a document that does not exist, which
+             # `perry-lint` reports as an error (`load_snapshot` continues
+             # with no phase; D5 of the fourth architecture re-review).
              "write_atomic(state_root, target, text)",
              'write_atomic(state_root, pointer, pid + "\\n")',
              # `activate` — the pointer alone; the document already exists.

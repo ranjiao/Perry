@@ -114,7 +114,10 @@ class TestARenamedPhaseIsTheSamePhase(ObjectiveProject):
     """TASK-475 V4 round 2, F2, and its two siblings in `kr add` (USER-979).
     Readers group a phase's records by NUMBER; the writers matched the exact
     slug. After the document is renamed and CURRENT repointed, the records
-    filed under the old slug are still the phase's to every reader."""
+    filed under the old slug are still the phase's to `parsers`' linkage
+    readers and to perry-goals. Not to `perry-state`, which compares the exact
+    slug and reports that the store describes another phase — recorded by the
+    fourth architecture re-review (D3), not changed here."""
 
     def renamed(self):
         self.fresh_phase()

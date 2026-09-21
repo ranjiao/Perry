@@ -3035,7 +3035,8 @@ def read_phase_pointer(state_root) -> str:
     of the "no phase" set. `release/manage.py` reads it at git refs, which a
     working-tree reader cannot serve, under a recorded NN-1 exception
     (USER-981). `tests/test_phase_lifecycle.py § TestThePointerHasOneReader`
-    guards the sites fixed here; its docstring says what it cannot see.
+    is a regression guard for some of the sites fixed here; its docstring
+    says which, and what it cannot see.
     """
     p = Path(state_root) / "phase" / "CURRENT"
     if not p.exists():

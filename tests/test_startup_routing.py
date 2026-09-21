@@ -301,9 +301,11 @@ class TestTheHelpRouteIsNotSentToReadState(unittest.TestCase):
     behaviour, which is the whole of D1.
     """
 
-    #: Every file that names the pack procedure, and so must carry the route
-    #: rule. Enumerated rather than sampled: rounds 1 and 2 each fixed the one
-    #: site they were shown and the category outlived both.
+    #: The entry files that carry the route rule for the pack procedure. NOT
+    #: every file that names the procedure: the fourth architecture re-review
+    #: (D4) found about ten more pages naming it, `reference/router-
+    #: subcommands.md § /perry help` among them, and `decide/SKILL.md` here
+    #: carries the rule without naming the procedure.
     PACK_SITES = ("SKILL.md", "goals/SKILL.md", "work/SKILL.md",
                   "decide/SKILL.md", "reference/config.md")
 

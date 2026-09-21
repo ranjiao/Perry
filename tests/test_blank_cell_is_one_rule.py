@@ -241,7 +241,7 @@ class TestTheSweepIsTheGuard(unittest.TestCase):
             "`./`. Widening it would accept a path that means nothing.",
         # The `phase/CURRENT` pointer sentinel. It was three copies of one
         # rule (perry-goals, perry-lint, load_snapshot) until USER-980 made
-        # `parsers.read_phase_pointer` its one reader. Not a cell: the set's
+        # `parsers.read_phase_pointer` the reader for `bin/` and `viewer/`. Not a cell: the set's
         # principal member `(none)` is not a declared blank spelling, so
         # routing it through `is_blank_cell` would silently drop it. The set
         # is now the module constant `PHASE_POINTER_NONE`, compared by name,
