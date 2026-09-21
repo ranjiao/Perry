@@ -35,3 +35,19 @@ The KR names "empty project" and "phase without a week plan". The fixtures are
 per `test_every_fixture_is_an_installed_project`) and
 `active_phase_week_unknown`, whose primary is R-review-due because week plans
 have no source until TASK-444. Recorded as a wording gap, not a miss.
+
+## P004-O3-KR1 — the rendered snapshot (added after the first eight measurements)
+
+Rendered in the chat language (中文) per `reference/snapshot.md § Step 4`, from `perry-state --compact` and `--section next` read after the writes above. Counted with `len(text.split("\n"))` and `len(text)` on the text with its trailing newline stripped: **7 lines, 329 characters**.
+
+```
+🅿 Perry · Perry · 2026-09-21
+当前位置：OKR v4 ✓ · Phase 004 第 7 天 ✓ · W39 周计划：未知 · 周报 W38 ✓
+进度：12 个 KR 中 5 个已测量；O1-KR1 5/5、O3-KR3 p90 344（≤400）达标，O2-KR3 0/2；4 个未测量，O4 三个未声明检查项
+任务：open 90 · P0=0 · P1=59 · P2=31 · blocked=2
+待你决策：0
+下一步：/perry work triage — 2 个队列项超 SLA，最久的是 TASK-270（perry-config unset 可清空配置存储）
+详情：说「看快照详情」——目标、备选、未知原因与来源
+```
+
+Side observation, not a row: `perry-state --compact` still reports `attribution.kr_currents.measured: 0` after these measurements, while `perry-goals krs --json` reports five KRs `measured`. The two read different fields; the dashboard above uses the latter.
