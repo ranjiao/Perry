@@ -72,10 +72,11 @@ another one; nothing is imported.
 ### The one tool that reaches outside
 
 `perry-codex-preflight` shells out to `codex exec` to check the CLI answers
-before a dispatch depends on it. It is the only dependency in this directory
-(`codex`, `git`, `timeout`) and the only thing here that touches a model.
+before a dispatch depends on it. It is the only tool here that depends on
+`codex` and the only thing here that touches a model.
 `perry-context-budget` also reads outside the project — host transcripts, above
-— but runs no external program and calls no model. It is also the one tool
+— and runs one program, `bin/perry-detect-host` through `bash`; it calls no
+model. It is also the one tool
 with a recorded NN-1 exception: it reads one key of `.perry/config.jsonl`
 itself (root §6 NN-1, USER-971).
 
@@ -203,6 +204,10 @@ R5, and `board` names a held file on stderr as one that can be deleted.
 
 ## §8. Change log
 
+- 2026-09-21 · v1 · correction (re-review 2): § 2 said `perry-context-budget`
+  "runs no external program" — it runs `bin/perry-detect-host` through `bash` —
+  and that `perry-codex-preflight` is the only tool depending on `git`, which
+  five others also run. Both corrected.
 - 2026-09-21 · v1 · correction: § 2 said `perry-context-budget` is "the one
   tool that reads a state file itself", which the re-review showed untrue; it is
   the one with a recorded exception. § 3's rule now names that exception and the
