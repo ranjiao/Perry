@@ -35,6 +35,7 @@ COVERS = ("bin/perry-goals", "goals/reference/phases.md",
 
 import hashlib
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -465,6 +466,54 @@ class TestEveryRefusalCriterionFiveNames(Fixture):
         (d / "phase" / "CURRENT").write_text("002-release-pipeline\n")
         self.assertIn("already scored",
                       self.refused(d, "close", "--actor", "t"))
+
+
+class TestStatusIsReadByTheOneReader(Fixture):
+    """The 2026-09-21 architecture review (BLOCKED, NN-1): `phase_header`
+    matched only `> **Status**:`, while `parsers.parse_phase` also reads
+    `Status:` and `状态`. A scored phase spelled either way was reactivated."""
+
+    SPELLINGS = ("> Status: scored", "> **状态**: scored")
+
+    def scored_as(self, d, spelling):
+        doc = d / "phase" / "003-scored.md"
+        doc.write_text((d / "phase" / "002-release-pipeline.md").read_text()
+                       .replace("> **Status**: active", spelling, 1))
+        self.assertIn(spelling, doc.read_text())
+        return doc
+
+    def test_activate_refuses_a_scored_phase_in_either_spelling(self):
+        for spelling in self.SPELLINGS:
+            with self.subTest(spelling=spelling):
+                d = self.project(active=None)
+                self.scored_as(d, spelling)
+                self.assertIn("is scored", self.refused(
+                    d, "activate", "--phase", "003", "--actor", "t"))
+
+    def test_close_refuses_a_scored_phase_in_either_spelling(self):
+        for spelling in self.SPELLINGS:
+            with self.subTest(spelling=spelling):
+                d = self.project(active=None)
+                self.scored_as(d, spelling)
+                (d / "phase" / "CURRENT").write_text("003-scored\n")
+                self.assertIn("already scored",
+                              self.refused(d, "close", "--actor", "t"))
+
+
+class TestTheProjectRootIsTheSharedOne(Fixture):
+    """The same review, § 3 Forbidden / bin NN-B3: the phase verbs resolved
+    the root inline and never walked up, so a run from a subdirectory refused
+    a project `lib.resolve_project_root` finds."""
+
+    def test_a_run_from_a_subdirectory_finds_the_project(self):
+        d = self.project()
+        sub = d / "phase" / "snapshots"
+        sub.mkdir(parents=True, exist_ok=True)
+        env = {k: v for k, v in os.environ.items() if k != "PERRY_PROJECT"}
+        proc = subprocess.run(
+            [sys.executable, str(GOALS), "phase", "close", "--actor", "t",
+             "--dry-run"], capture_output=True, text=True, cwd=sub, env=env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
 
 class TestOneSpellingOfTheLineBreakRule(Fixture):

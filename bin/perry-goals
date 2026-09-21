@@ -4845,8 +4845,10 @@ def parse_phase(argv: list[str]) -> tuple[str, dict]:
 
 
 def phase_command(mode: str, v: dict) -> dict:
-    project_root = (Path(v["--root"]).expanduser().resolve() if v.get("--root")
-                    else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
+    # `lib.resolve_project_root`, not a third copy of its order: the inline
+    # form never walked up, so a run from a subdirectory refused a project
+    # every other tool finds (root § 3 Forbidden, bin NN-B3; USER-978).
+    project_root = lib.resolve_project_root(v.get("--root"))
     state_root = P.resolve_state_root(project_root).resolve()
     if not state_root.is_relative_to(project_root):
         raise Refused(f"state root {state_root} is outside {project_root}")
@@ -4957,8 +4959,12 @@ def phase_command(mode: str, v: dict) -> dict:
             # state the enum has no word for — and `close` would then refuse
             # forever, because its own guard is exactly that Status. Found by
             # exercising the verbs in sequence, not by reading them.
-            scored = phase_header(phase_text(target), "Status")
-            if scored is not None and scored[1] == "scored":
+            # Status is READ through `parsers.parse_phase`, the one reader
+            # (NN-1, USER-978): this file's own `phase_header` knew only
+            # `> **Status**:`, so `> Status: scored` or `> **状态**: scored`
+            # read as unscored and the phase was reactivated.
+            status = P.parse_phase(pid, phase_text(target)).status
+            if status.strip().lower() == "scored":
                 raise refusal(
                     f"phase {pid} is scored; a scored phase is "
                     f"terminal and is not reactivated. `phase new` opens the "
@@ -4987,13 +4993,15 @@ def phase_command(mode: str, v: dict) -> dict:
                     f"({active or 'none'} is). Only the active phase closes",
                     active=active)
             text = phase_text(target)
-            hit = phase_header(text, "Status")
-            if hit is None:
-                raise refusal("the phase document carries no "
-                              "`> **Status**:` header line to flip")
-            if hit[1] == "scored":
+            # Whether it is scored is the parser's answer (NN-1, USER-978);
+            # which line to rewrite is the writer's, and a spelling it cannot
+            # rewrite is refused rather than guessed at.
+            if P.parse_phase(pid, text).status.strip().lower() == "scored":
                 raise refusal(f"phase {pid} is already scored",
                               status="scored")
+            if phase_header(text, "Status") is None:
+                raise refusal("the phase document carries no "
+                              "`> **Status**:` header line to flip")
             snap = (state_root / "phase" / "snapshots"
                     / (today + "-" + pid + "-final.md"))
             if snap.exists():
@@ -5294,8 +5302,7 @@ def main(argv: list[str]) -> int:
     try:
         if args.level and args.level not in ("overall", "phase"):
             raise Refused(f"--level {args.level!r} is not `overall` or `phase`")
-        project_root = (Path(args.root).expanduser().resolve() if args.root
-                        else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
+        project_root = lib.resolve_project_root(args.root)
         state_root = P.resolve_state_root(project_root)
         if args.cmd == "list":
             result = build(project_root, state_root, args.level)
