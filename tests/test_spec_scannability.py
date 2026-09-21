@@ -925,16 +925,19 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         # span 3,036 chars / 39 lines — all pinned, no free block
         "delegate.md § required fields + roleless path":
             "867706de4988717819124856ae579749f412d0d44d32e800904cf07a1a0e5f58",
-        # TASK-472, new spans, first pin. **The text is this row's own and the
-        # diff was read before these were pasted** — the span is entirely new
-        # prose, so the diff is the span. span 2,710 chars / 55 lines — all
-        # pinned, no free block. It holds: scratch directories are derived
-        # from the repository and unique per session; failing output is never
-        # discarded and a truncated JSON document is never fed back as a valid
-        # contract; the host's completion event is preferred to a bare `&`,
-        # polling is bounded, and a tool-call count is not a model-turn count.
+        # TASK-472 round 2 re-pin. **The diff was read before this digest was
+        # pasted** — 8 lines out, 31 in, two changes and nothing else moved:
+        # (1) the scratch recipe built from `git rev-parse` and `$$` is GONE,
+        # replaced by a pointer to the canonical `perry-scratch-derivation`
+        # block in dispatch.md — the removed recipe was a second spelling of
+        # that byte-pinned rule, and its `$$` broke the log-path promise the
+        # next section makes; (2) a new section, "Batch what is independent;
+        # sequence what is not", which is criterion 1's first half — round 1's
+        # result claimed it was stated and it was stated nowhere.
+        # Previous pin: fff8131276b9abb073cf16d08e233ace4697bc7b68d5696f7745236dc2aa821e
+        # span 4,212 chars / 78 lines — all pinned, no free block.
         "review-constraints.md § the three execution contracts":
-            "fff8131276b9abb073cf16d08e233ace4697bc7b68d5696f7745236dc2aa821e",
+            "acb5fec79d76f02dcdef1b13a4f92cbd98f332944f407bdf936c2a98ff060d39",
         # span 1,499 chars / 32 lines — the brief carries both ends of the
         # range as SHAs and names the base the criteria exist on; a changed
         # base re-opens the round's scope to the invariants the findings touch.

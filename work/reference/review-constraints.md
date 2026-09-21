@@ -53,14 +53,21 @@ could not have fixed it.
 
 ## Your scratch files are yours alone
 
-A round writes harnesses, mutant tables and captured output. **Derive their
-directory from the repository and make it unique to this session; never a
-fixed name under a shared root.**
+A round writes harnesses, mutant tables and captured output. **Put them under
+the one scratch derivation Perry has: `$PERRY_HOME/work/reference/dispatch.md §
+The tree the agent works in`, the block headed `perry-scratch-derivation`.**
+Re-derive it in each command rather than remembering a name. Its uniqueness
+comes from the worktree directory, not from anything you add, which is why it
+survives across commands and a log path you report is still there when someone
+opens it.
 
-```
-scratch="${TMPDIR:-/tmp}/perry-$(git rev-parse --short HEAD)-$$"
-mkdir -p "$scratch"
-```
+There is deliberately no second recipe on this page. The first version of this
+section had one, built from `git rev-parse --short HEAD` and `$$`: both are
+contributed by the caller, which is the thing that block says must not be the
+mechanism, and `$$` changes on every shell invocation — so the log path the next
+section promises would not have survived to the next command. It was a second
+spelling of a byte-pinned rule, marked *do not edit without re-reading
+TASK-421*, and the V4 round caught it (TASK-472).
 
 Two incidents, one shape. The `pkill` incident above began as "an unexpected
 tree name in its own output", which was a **shared-path collision**. On
@@ -73,6 +80,22 @@ nothing about the collision was visible in either round's own output.
 A mutation round is the worst case for this: between planting and restoring,
 the tree is deliberately wrong, and a harness that changes underneath you can
 make a survivor look like a kill or the reverse.
+
+## Batch what is independent; sequence what is not
+
+**Reads that do not depend on each other go out together**, in one turn:
+listing files, reading several pages, running two unrelated read-only commands.
+Doing them one per turn costs a full turn each for no information the previous
+one supplied.
+
+**Everything with an order stays in order**: a mutation and the run that tests
+it, a restore and the check that verifies it, a write and the read that
+confirms it, anything that needs someone's approval first. Batching those does
+not save a turn — it produces a result you cannot attribute, because you no
+longer know which state the check saw.
+
+The test is one question: *does this step need the output of that one?* If not,
+batch them. If so, do not, however much faster it would look.
 
 ## Report what failed, in full
 

@@ -4,7 +4,8 @@ Date: 2026-09-21. Author: PMO Agent (Claude Opus 5). Not reviewed: V4 is owed.
 Nothing was run against this repository's own `perry/` state.
 
 - **Base, frozen before editing:** `1c28cce7`.
-- **Branch:** `coding/task-472`, head `fcba4fe9`.
+- **Branch:** `coding/task-472`, head `fcba4fe9` (round 1);
+  `coding/task-472-round2` on base `e4e092ec` (round 2, § Round 2 below).
 - **Baseline:** taken in a **separate, untouched** checkout at the frozen base —
   157 modules / 4434 tests green. The first attempt was taken in the working
   tree and the tree guard failed it, correctly: the suite was running while this
@@ -120,20 +121,67 @@ savings. What exists is a trace of one day's observed waste, which is criterion
 Whether the contracts recover more than 6,444 bytes per round is the question,
 and on this host it cannot be answered.
 
+## Round 2 — the three FAIL findings, and what stays open
+
+The round-1 V4 FAILed on three findings. Each is fixed on
+`coding/task-472-round2`; nothing else in the row changed.
+
+| Finding | Fix |
+|---|---|
+| Criterion 1's *batch* half was not written anywhere | `review-constraints.md § Batch what is independent; sequence what is not` — independent reads go out together; a step that needs another's output waits for it. One question decides: *does this step need that step's output?* |
+| A second scratch recipe (`--short HEAD` + `$$`) | Removed. The page now points at the pinned block in `dispatch.md` and says why it carries no copy: a second spelling is the defect. |
+| Criterion 6's two traces did not exist | `TASK-472-traces.md`, rebuilt row by row from the logs on disk, one small-change trace and one reviewed-delivery trace. |
+
+The constraints span was re-pinned (`fff81312…` → `acb5fec7…`).
+
+**The traces do not support a saving.** TASK-474's delivery ran the full suite
+10 times; 3 were red, two of them the suite catching real defects and one the
+filed flake. Criterion 6's flake rule is what was already done on that run — it
+would have saved **zero** full runs there. It writes the practice down; this
+evidence does not show it makes review cheaper.
+
+**Mutations, round 2** — aimed at the property each is named for, `__pycache__`
+purged, a whole second waited, every restore checked against `git show`:
+
+| Mutant | Result |
+|---|---|
+| M1 batch rule deleted | killed |
+| M2 batch rule inverted | killed |
+| M3 second recipe re-added | killed |
+| M4 the wrong pinned block named | killed |
+| **M5 a retraction placed after the span's end anchor** | **SURVIVED** |
+
+**M5 is the known gap, and it is left open on purpose.** The span pins the text
+between its anchors; a sentence after the end anchor is outside it, and on this
+page no second layer catches it. The round-1 reviewer named this and did not
+charge it as a FAIL; no criterion asks for the guard. Extending the guard and
+calling it closed is the exact over-claim this row has now retracted twice, so
+it is recorded here instead.
+
+**`review.md:554` is a separate brief, not a duplicate.** It is the
+integration-architecture reviewer's prompt, a different reviewer with a
+different job. It is ungoverned, like most of the page.
+
+**Scratch directories were shared in fact.** Assembling the traces showed that
+half the logs in this session's scratch directory were written by review agents
+— reviewer and author had shared one directory for two days. That is criterion
+1's incident happening again during the row that writes criterion 1, and it is
+recorded as evidence, not fixed here.
+
 ## Not claimed
 
 - The slow tier was not run.
-- No V4.
+- No V4 of round 2 yet.
 - No runtime measurement, per the above. Runtime acceptance stays open.
-- **Criterion 1's *batch independent reads* half is not stated at all.** This
+- *(Round 1; fixed in round 2.)* **Criterion 1's *batch independent reads* half is not stated at all.** This
   file claimed it "is stated in the contract"; the V4 grepped both changed
   files, 799 lines, for `batch|parallel|independent read|sequential` and found
   nothing, and I reproduced that. The criterion is unmet, not merely unmeasured.
-- **Criterion 6's two traces do not exist.** The spec's `## Bound` names one
+- *(Round 1; fixed in round 2.)* **Criterion 6's two traces do not exist.** The spec's `## Bound` names one
   small-change trace and one reviewed-delivery trace. What this file offers is a
   five-bullet incident list under that name. Declining to claim a token benefit
   is honest and separate; a bounded command trace needs no telemetry.
-- **The scratch derivation is a second spelling of a canonical one.**
+- *(Round 1; fixed in round 2.)* **The scratch derivation is a second spelling of a canonical one.**
   `dispatch.md:117` carries a byte-pinned block marked *do not edit without
   re-reading TASK-421*, whose next sentence is "The agent contributes nothing to
   the uniqueness, and that is the whole mechanism." The derivation this row
