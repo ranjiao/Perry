@@ -347,7 +347,7 @@ Two rules make this safe for every reader:
 
 1. **`.perry/` is anchored at the project root.** It holds the pointer, so it
    cannot sit behind the pointer. Schema entries declare this with
-   `"anchor": "project"`; everything else is `"anchor": "state"`.
+   `"anchor": "project"`; the architecture documents `"anchor": "code"`; the rest `"anchor": "state"`.
 2. **One resolver.** `viewer/parsers.py § resolve_state_root` is the single
    implementation, used by `bin/perry-state`, `bin/perry-lint`, `bin/perry-task`
    and `bin/perry-diagnose`. A

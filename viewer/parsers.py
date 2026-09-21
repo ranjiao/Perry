@@ -4035,9 +4035,7 @@ def parse_arch_meta(text: str) -> ArchMeta:
     lm = re.search(r"Last reviewed:\s*([^*·\n]+)", text)
     if lm:
         meta.last_reviewed = lm.group(1).strip()
-    sm = re.search(r"Status:\s*\*{0,2}([^*·\n]+)", text)
-    if sm:
-        meta.status = sm.group(1).strip()
+    # A legacy `Status:` is left unread: `status` stays "" (DESIGN-017 decision 4).
 
     meta.section_count = len(re.findall(r"^## §", text, re.M))
     meta.mermaid_count = text.count("```mermaid")
@@ -5206,8 +5204,10 @@ def project_name(project_root: Path) -> str:
     return Path(project_root).name or "Perry"
 
 
-def load_snapshot(root: Path = STATE_ROOT, *, kr_fold=None) -> PMOSnapshot:
-    """The whole project state, read from `root` — which is the STATE root.
+def load_snapshot(root: Path = STATE_ROOT, *, kr_fold=None, code_root=None) -> PMOSnapshot:
+    """The whole project state, read from `root` — which is the STATE root —
+    except `ARCHITECTURE.md`, read from `code_root` when a caller hands one in
+    (`bin/lib § anchor_root`, DESIGN-017 A2; this module may not import it).
 
     Every caller already passed a state root: `bin/perry-state` resolves one
     before calling, and every test hands one in. What was wrong was the
@@ -5232,7 +5232,7 @@ def load_snapshot(root: Path = STATE_ROOT, *, kr_fold=None) -> PMOSnapshot:
     # it, and `perry-tasks board` / `perry-lint` name it as deletable.
     okr_text = read(root / "OKR.md")
     project_state_text = read(root / "PROJECT_STATE.md")
-    architecture_text = read(root / "ARCHITECTURE.md")
+    architecture_text = read((code_root or root) / "ARCHITECTURE.md")
 
     phase = None
     linkage = Linkage()
