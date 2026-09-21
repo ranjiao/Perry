@@ -1,27 +1,9 @@
-"""Contract tests for `claims[]` — the paths Perry occupies in someone else's project.
+"""Claims are occupied territory; files are validation contracts.
 
-The claim under test: **there is exactly one authoritative list of what Perry
-writes into a project it does not own, and every other consumer reads it.**
-
-This exists because the list used to live in three places that disagreed. The
-schema's `files[]` knew 13 paths, `SKILL.md` prose knew 5, `reference/adoption.md`
-prose knew the same 5, and the PMO/OKR skills wrote seven directories that
-appeared in none of them. A project owning `evidence/` or `knowledge/` therefore
-collided silently even on the adopt path, because the collision check was prose
-enumerating a subset of a list that was itself incomplete.
-
-`claims[]` answers a different question from `files[]` and the distinction is
-what makes two lists correct rather than redundant:
-
-  files[]  — what Perry VALIDATES. A file glob with a template, a cap, a
-             heading contract. `journal/<YYYY-MM>/<YYYY-MM-DD>.md`.
-  claims[] — what Perry OCCUPIES. The directory a user's own folder collides
-             with. `journal/`.
-
-No prefix of that glob is the claim, which is why folding one into the other
-does not work. See `perry/design/DESIGN-002-namespace-collision.md`.
-
-Run: python3 -m unittest discover -s tests   (or ./tests/run)
+Automatic file selection must be covered by a claim. Agent-selected component
+architecture documents are the explicit exception: validation does not claim
+arbitrary component directories. Project, state and code anchors stay distinct.
+Run: python3 tests/parallel test_claims -j 4
 """
 
 from __future__ import annotations
@@ -47,6 +29,8 @@ import sys
 import subprocess
 import pathlib
 import unittest
+import tempfile
+import inproc
 from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
@@ -74,7 +58,7 @@ class TestClaimsShape(unittest.TestCase):
             for field in ("path", "kind", "owner", "anchor"):
                 self.assertIn(field, c, f"claim {c.get('path')!r} missing {field}")
             self.assertIn(c["kind"], ("file", "dir"), c["path"])
-            self.assertIn(c["anchor"], ("state", "project"), c["path"])
+            self.assertIn(c["anchor"], ("state", "project", "code"), c["path"])
             self.assertIn(c["owner"], ("perry", "goals", "work", "decide", "user"), c["path"])
             if c["kind"] == "dir":
                 self.assertTrue(c["path"].endswith("/"),
@@ -83,15 +67,10 @@ class TestClaimsShape(unittest.TestCase):
             seen.add(c["path"])
 
     def test_perry_dir_is_the_only_project_anchored_territory(self):
-        """`.perry/` holds the State root pointer, so it cannot sit behind it.
-        Anything else anchored at the project root would be unmovable too, which
-        would make the escape hatch useless for it.
+        """Only .perry/ is project-anchored; architecture uses the code root.
 
-        Read as *one* territory, not one entry. `.perry/events.jsonl` is
-        anchored at the project root because that is where `bin/perry-task`
-        writes it, and it sits INSIDE `.perry/` — it adds no second immovable
-        place, it names a file in the immovable one. A project-anchored claim
-        outside `.perry/` is what this forbids, and that is what is asserted."""
+        State-root relocation must still reach all state-anchored claims.
+        """
         project = [c["path"] for c in CLAIMS if c["anchor"] == "project"]
         self.assertIn(".perry/", project, "the anchor itself is unclaimed")
         outside = [p for p in project if not p.startswith(".perry/")]
@@ -107,31 +86,64 @@ class TestClaimsShape(unittest.TestCase):
 
 
 class TestClaimsCoverFiles(unittest.TestCase):
-    """Every validated file must sit inside claimed territory.
-
-    This is the drift guard. Adding a state file without declaring the ground it
-    stands on is how the old prose lists fell behind in the first place."""
+    """Automatic validation claims territory; explicit module selection does not."""
 
     def test_every_schema_file_is_covered(self):
         for spec in SCHEMA["files"]:
-            path, anchor = spec["path"], spec.get("anchor", "state")
-            with self.subTest(file=path):
-                self.assertIsNotNone(
-                    covering_claim(path, anchor),
-                    f"files[id={spec['id']}] path {path!r} is under no claim — "
-                    f"add one to claims[] or the collision check will not see it")
+            claim = covering_claim(spec["path"], spec.get("anchor", "state"))
+            with self.subTest(file=spec["id"]):
+                if spec["id"] == "architecture-module":
+                    self.assertIsNone(claim)
+                    self.assertEqual(spec["selection"], "explicit")
+                else:
+                    self.assertIsNotNone(claim)
+                    if claim["owner"] != "perry":
+                        self.assertEqual(spec["owner"], claim["owner"])
 
-    def test_claim_owner_agrees_with_file_owner(self):
-        for spec in SCHEMA["files"]:
-            path, anchor = spec["path"], spec.get("anchor", "state")
-            claim = covering_claim(path, anchor)
-            if claim is None or claim["owner"] == "perry":
-                continue
-            with self.subTest(file=path):
-                self.assertEqual(
-                    spec["owner"], claim["owner"],
-                    f"{path}: files[] says owner={spec['owner']}, "
-                    f"claims[] says {claim['owner']}")
+    def test_architecture_declarations_and_selected_components(self):
+        lint = inproc.load("perry-lint")
+        root_spec, module = [next(f for f in SCHEMA["files"] if f["id"] == kind)
+                             for kind in ("architecture", "architecture-module")]
+        for spec, cap in ((root_spec, 500), (module, 600)):
+            self.assertEqual((spec["anchor"], spec["cap"], spec["cap_kind"]),
+                             ("code", cap, "hard"))
+            self.assertEqual(spec["owner"], "perry")
+        self.assertEqual(covering_claim("ARCHITECTURE.md", "code")["owner"], "perry")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            state = root / "perry"
+            state.mkdir()
+            self.assertEqual(lint.lib.anchor_root(root, state, "code"), root)
+            (root / ".perry").mkdir()
+            (root / ".perry/config.jsonl").write_text(json.dumps(
+                {"kind": "setting", "key": "code_repo_path", "value": "code"}) + "\n")
+            code = root / "code"
+            for component in ("component", "foreign"):
+                (code / component).mkdir(parents=True)
+                (code / component / "ARCHITECTURE.md").write_text("x\n" * 600)
+            (code / "ARCHITECTURE.md").write_text("## §1 Mission\n")
+            self.assertEqual(lint.lib.anchor_root(root, state, "code"), code)
+            rows, _ = lint.check_claims(root, SCHEMA, state)
+            self.assertEqual(next(r for r in rows if r["path"] == "ARCHITECTURE.md")
+                             ["rel"], "code/ARCHITECTURE.md")
+            self.assertEqual(lint.iter_targets(code, root_spec), [code / "ARCHITECTURE.md"])
+            self.assertEqual(lint.iter_targets(code, module), [])
+            selected = lint.iter_targets(code, module, ["component/ARCHITECTURE.md"])
+            self.assertEqual(selected, [code / "component/ARCHITECTURE.md"])
+            self.assertIn("size-cap", [f.rule for f in lint.check_file(
+                selected[0], "component/ARCHITECTURE.md", module, SCHEMA["enums"], False)])
+            (code / "escape").symlink_to(state, target_is_directory=True)
+            for bad in ("../ARCHITECTURE.md", "ARCHITECTURE.md", "missing/ARCHITECTURE.md",
+                        "escape/ARCHITECTURE.md", str(selected[0])):
+                with self.assertRaises(ValueError):
+                    lint.iter_targets(code, module, [bad])
+            result = subprocess.run([sys.executable, str(PERRY_HOME / "bin/perry-lint"),
+                                     "--root", str(root), "--architecture-module",
+                                     "component/ARCHITECTURE.md", "--json"],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("code/component/ARCHITECTURE.md", result.stdout)
+            self.assertNotIn("code/foreign/ARCHITECTURE.md", result.stdout)
 
 
 class TestClaimsCoverWhatTheSkillsWrite(unittest.TestCase):

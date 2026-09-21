@@ -248,7 +248,7 @@ def buckets(project_root: Path, state_root: Path, repo: Path) -> list[dict]:
     schema = lib.load_schema(Refused)
     out: list[dict] = []
     for claim in schema.get("claims") or []:
-        anchor = project_root if claim.get("anchor") == "project" else state_root
+        anchor = lib.anchor_root(project_root, state_root, claim.get("anchor", "state"))
         target = (anchor / claim["path"]).resolve()
         try:
             rel = target.relative_to(repo).as_posix()
