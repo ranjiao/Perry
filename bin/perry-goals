@@ -3624,7 +3624,8 @@ def append_linkage_records(ctx, records: list[dict]) -> str:
     project lock `main` holds.
     """
     path = linkage_store_path(ctx["state_root"])
-    text = path.read_text(encoding="utf-8")
+    # Absent only before a project's first phase objective (TASK-475).
+    text = path.read_text(encoding="utf-8") if path.is_file() else ""
     if text and not text.endswith("\n"):
         text += "\n"
     return text + "".join(json.dumps(r, ensure_ascii=False) + "\n"
@@ -4398,7 +4399,6 @@ def cmd_objective(args, ctx) -> dict:
     if not re.fullmatch(pattern, oid):
         raise Refused(f"`{oid}` is not an objective id (`{pattern}`), e.g. "
                       f"`O1`. Nothing was written")
-    path = linkage_store_path(ctx["state_root"])
     records = kr_store_records(ctx, "phase")
     have = [str(r.get("id") or "") for r in records
             if r.get("kind") == "objective"
@@ -4413,23 +4413,11 @@ def cmd_objective(args, ctx) -> dict:
     event = {"ts": lib.event_stamp(), "event": "objective_add",
              "actor": args.actor, "file": P.LINKAGE_STORE, "phase": slug,
              "objective": oid, "reason": reason}
-    result = {"mode": "objective", "op": "add", "objective": oid,
-              "phase": slug, "file": str(path), "record": record,
-              "event": event,
-              "diff": [f"+{P.LINKAGE_STORE}  "
-                       f"{json.dumps(record, ensure_ascii=False)}"]}
-    if args.dry_run:
-        result.update({"dry_run": True, "written": False,
-                       "event_written": False})
-        return result
-    prior = path.read_text(encoding="utf-8") if path.is_file() else ""
-    if prior and not prior.endswith("\n"):
-        prior += "\n"
-    write_atomic(ctx["state_root"], path,
-                 prior + json.dumps(record, ensure_ascii=False) + "\n")
-    result["written"] = True
-    result["event_written"] = append_event(ctx["project_root"], event)
-    return result
+    # Through the phase KR writer's own path: one gated write to the
+    # register, then the event — a second write site would be a second
+    # mechanism for one job (`test_okr_store_is_the_source` pins the list).
+    return write_kr_change(args, ctx, "phase", record, event, {
+        "mode": "objective", "op": "add", "objective": oid, "phase": slug})
 
 
 # ── draft: a first-OKR planning draft (TASK-444, DESIGN-020 § 5.5) ────────

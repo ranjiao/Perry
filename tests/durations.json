@@ -204,6 +204,10 @@
       "sec": 1.462,
       "source": "merge-a6396ee335f3-2026-09-18T09:38:36.002761+00:00"
     },
+    "test_goals_objective_add.py": {
+      "sec": null,
+      "source": null
+    },
     "test_goals_kr_writer.py": {
       "sec": 1.25,
       "source": "merge-a6396ee335f3-2026-09-18T09:38:36.002761+00:00"
