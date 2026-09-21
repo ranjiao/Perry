@@ -51,10 +51,23 @@ Eleven guards reported OK while that row's headline deliverable stood retracted.
 the log readable is the accepted practice."* three lines below a pinned
 paragraph left `test_review_contracts.py` **green**. Identical defect.
 
-So the module was deleted and the four regions became `GOVERNED` spans, which
-pin *the span minus its declared free blocks* — there is no gap between regions
-to insert into. Same six mutations under the existing mechanism: **all killed,
-including the one the deleted module survived.**
+So the module was deleted and the four regions became `GOVERNED` spans. Same six
+mutations under the existing mechanism: all killed, including the one the
+deleted module survived.
+
+**"There is no gap between regions to insert into" was false, and the V4
+disproved it. Corrected 2026-09-21.** A retraction planted immediately *after* a
+span's end anchor — outside the span by construction — leaves the whole suite
+green. I reproduced it. The reviewer found six for six that way, and four more
+outside these two pages entirely, including in `review.md`'s own second,
+ungoverned copy of the reviewer prompt. 577 of the 799 lines are ungoverned.
+
+The older spans survive that attack only because a **second layer** exists: the
+`worktree|isolation` vocabulary-containment check, which fires on any mention
+outside a span anywhere in `work/reference/`. **This row shipped one layer of a
+two-layer mechanism and described it as closed.** That is the same error as the
+one it had just corrected one paragraph above — over-stating a guard — made
+while writing the correction.
 
 Writing a second mechanism for a job an existing one does is the defect this
 codebase keeps meeting: two line-break spellings in `bin/perry-goals`, three
@@ -112,6 +125,19 @@ and on this host it cannot be answered.
 - The slow tier was not run.
 - No V4.
 - No runtime measurement, per the above. Runtime acceptance stays open.
-- Criterion 1's *batch independent reads* half is stated in the contract but is
-  a behaviour of the agent following it, and nothing here measures whether a
-  round actually batches.
+- **Criterion 1's *batch independent reads* half is not stated at all.** This
+  file claimed it "is stated in the contract"; the V4 grepped both changed
+  files, 799 lines, for `batch|parallel|independent read|sequential` and found
+  nothing, and I reproduced that. The criterion is unmet, not merely unmeasured.
+- **Criterion 6's two traces do not exist.** The spec's `## Bound` names one
+  small-change trace and one reviewed-delivery trace. What this file offers is a
+  five-bullet incident list under that name. Declining to claim a token benefit
+  is honest and separate; a bounded command trace needs no telemetry.
+- **The scratch derivation is a second spelling of a canonical one.**
+  `dispatch.md:117` carries a byte-pinned block marked *do not edit without
+  re-reading TASK-421*, whose next sentence is "The agent contributes nothing to
+  the uniqueness, and that is the whole mechanism." The derivation this row
+  wrote into `review-constraints.md:61` is built from `git rev-parse --short
+  HEAD` and `$$` — both agent-contributed — and `$$` changes on every shell
+  invocation, so the log path this row's own criterion 2 promises "still exists"
+  does not.
