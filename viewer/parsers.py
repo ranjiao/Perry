@@ -3030,10 +3030,12 @@ PHASE_POINTER_NONE = frozenset({"", "(none)", "none", "\u2014"})
 def read_phase_pointer(state_root) -> str:
     """The active phase's `<NNN>-<slug>` from `phase/CURRENT`, or `''`.
 
-    **The one reader of the pointer** (NN-1, USER-980). `load_snapshot`,
-    `perry-lint` and `perry-goals` each used to read it with their own copy of
-    the "no phase" set; `tests/test_blank_cell_is_one_rule.py` recorded them as
-    three copies of one rule.
+    **The one reader of the pointer's value** (NN-1, USER-980). Five sites in
+    four tools used to read it themselves, with three copies of the "no phase"
+    set among them. `tests/test_phase_lifecycle.py §
+    TestThePointerHasOneReader` derives the claim over every file in `bin/`
+    and `viewer/` rather than listing callers — the first version of this
+    docstring listed three and missed two.
     """
     p = Path(state_root) / "phase" / "CURRENT"
     if not p.exists():

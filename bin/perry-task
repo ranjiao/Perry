@@ -2908,9 +2908,8 @@ def _register_state(state_root: Path) -> tuple[str, str]:
     records = P.load_linkage_store(state_root)
     if records is None:
         return ("unparseable", "")
-    pointer = state_root / "phase" / "CURRENT"
-    slug = pointer.read_text(encoding="utf-8").strip() if pointer.exists() else ""
-    number = P.linkage_phase_number(slug)
+    # `parsers.read_phase_pointer`, the pointer's one reader (NN-1, USER-980).
+    number = P.linkage_phase_number(P.read_phase_pointer(state_root))
     if number:
         for rec in records:
             if (isinstance(rec, dict) and rec.get("kind") == "kr"
@@ -2927,9 +2926,8 @@ def _current_store_phase(state_root: Path) -> str:
     spelling is what is written, so a declaration cannot carry a slug no
     record in the file uses.
     """
-    pointer = state_root / "phase" / "CURRENT"
-    slug = pointer.read_text(encoding="utf-8").strip() if pointer.exists() else ""
-    number = P.linkage_phase_number(slug)
+    # `parsers.read_phase_pointer`, the pointer's one reader (NN-1, USER-980).
+    number = P.linkage_phase_number(P.read_phase_pointer(state_root))
     if not number:
         return ""
     for rec in (P.load_linkage_store(state_root) or []):

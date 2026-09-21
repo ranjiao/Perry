@@ -550,11 +550,54 @@ class TestThePointerHasOneReader(unittest.TestCase):
         (d / "phase" / "CURRENT").write_text("003-x\r\n", encoding="utf-8")
         self.assertEqual(parsers.read_phase_pointer(d), "003-x")
 
-    def test_no_tool_keeps_its_own_no_phase_set(self):
-        for rel in ("bin/perry-goals", "bin/perry-lint"):
-            src = (ROOT / rel).read_text(encoding="utf-8")
-            self.assertIn("read_phase_pointer(", src, rel)
-            self.assertNotIn('"(none)", "none"', src, rel)
+    def test_nothing_else_reads_the_pointer_value(self):
+        """Derived, not listed: every line in `bin/` and `viewer/` that names
+        the `CURRENT` file, and whether a read follows within five lines. The
+        listed version of this test named two tools and two more still read
+        the value themselves (architecture re-review 2, 2026-09-21)."""
+        readers = []
+        files = [p for p in (ROOT / "bin").iterdir() if p.is_file()] + \
+            [ROOT / "viewer" / "parsers.py"]
+        for path in files:
+            try:
+                lines = path.read_text(encoding="utf-8").split("\n")
+            except (UnicodeDecodeError, IsADirectoryError):
+                continue
+            for i, line in enumerate(lines):
+                if '"CURRENT"' not in line:
+                    continue
+                # Six lines: the one real reader, in parsers, reads four
+                # lines after it names the file — and is this test's positive
+                # control that the window can see a read at all.
+                window = "\n".join(lines[i:i + 6])
+                if re.search(r"read_text\(|read_bytes\(|open\(", window):
+                    readers.append(f"{path.relative_to(ROOT)}:{i + 1}")
+        self.assertEqual(readers, ["viewer/parsers.py:" + str(next(
+            i + 1 for i, l in enumerate((ROOT / "viewer" / "parsers.py")
+                                        .read_text(encoding="utf-8")
+                                        .split("\n"))
+            if '"CURRENT"' in l))])
+
+    def test_state_does_not_warn_after_a_close(self):
+        """Re-review 2, P11: `perry-state` read "the file exists" as "points
+        at a phase", so after every `phase close` (which writes `(none)`) it
+        warned that CURRENT points at a missing phase file."""
+        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-pointer-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        dest = d / "p"
+        shutil.copytree(SAMPLE, dest)
+        close = subprocess.run([sys.executable, str(GOALS), "phase", "close",
+                                "--actor", "t", "--root", str(dest)],
+                               capture_output=True, text=True)
+        self.assertEqual(close.returncode, 0, close.stderr)
+        state = subprocess.run([sys.executable, str(ROOT / "bin" / "perry-state"),
+                                "--json", "--root", str(dest)],
+                               capture_output=True, text=True,
+                               env={k: v for k, v in os.environ.items()
+                                    if k != "PERRY_PROJECT"})
+        self.assertEqual(state.returncode, 0, state.stderr[-400:])
+        self.assertNotIn("points at a phase file that does not exist",
+                         state.stdout)
 
 
 class TestTheProjectRootIsTheSharedOne(Fixture):

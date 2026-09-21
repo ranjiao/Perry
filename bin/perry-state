@@ -1935,8 +1935,9 @@ def build(root: Path, project_root: Path | None = None) -> dict:
                 f"{c['file']} is {c['lines']} lines, over its tier-1 cap of {c['cap']} — split before the next write."
             )
 
-    cur_pointer = root / "phase" / "CURRENT"
-    if cur_pointer.exists() and not snap.phase:
+    # The pointer's VALUE, through its one reader (NN-1, USER-980): the file
+    # existing is not "points at a phase" — `phase close` writes `(none)`.
+    if P.read_phase_pointer(root) and not snap.phase:
         warnings.append("phase/CURRENT points at a phase file that does not exist.")
 
     hook = hook_profile(perry_root)
