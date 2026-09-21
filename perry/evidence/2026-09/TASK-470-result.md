@@ -244,6 +244,34 @@ Still open, and not this row's to decide: **the iteration targets are not enforc
 `work/SKILL.md` is 13 bytes under its target and `close-task` 92 under. Making any of them a cap is
 a DESIGN-017 § 5.4 decision.
 
+## Round 2 — the V4 FAIL, and what changed
+
+Round 1's V4 (`TASK-470-v4-review.md`, `3115d09c`) FAILed on criterion 4, graded ROW: one routine-path rule was
+stranded. At base, `work/SKILL.md` step 0 said *"Headings and column headers localize through the glossary in
+`schema/state-schema.json § i18n`"*. Round 1 dropped that clause; the rule then lived only in `reference/i18n.md`,
+which none of add-task, close-task or dispatch loads. **The relocation map above claimed every clause of step 0 was
+kept. That claim was false.** The reviewer reproduced it; the PMO reproduced it again before fixing.
+
+Branch `coding/task-470-round2`, base `3115d09c`. Full suite on the fix: 157 modules / 4,434 tests, green.
+
+| Change | Where | Bytes |
+|---|---|---:|
+| Clause restored, verbatim, in step 0 | `work/SKILL.md` | +97 |
+| The pack paragraph's `Why:` pointer (rationale only) moved | `work/SKILL.md` → `work/reference/lane-notes.md § Why the pack rule is scoped by route` | −77 |
+| "before continuing" → "first" in step 0's missing-config line | `work/SKILL.md` | −12 |
+| F2: autopilot's context-ceiling check cited `subcommands.md § Budget boundary`, reachable only through the stub | `work/reference/autopilot.md` → `budget-boundary.md § Budget boundary` | 0 |
+
+`work/SKILL.md`: 24,563 → **24,571** (target ≤ 24,576). Bills: add-task 68,275 → 68,283, close-task 64,905 → 64,913
+(84 bytes of margin), dispatch 95,750 → 95,758; snapshot and plan-phase unchanged.
+
+The `Why:` pointer is the only thing removed to make room, and it pointed at rationale; `reference/startup.md` is
+still reached from the router's Route-first step. **No guard exists for the restored clause, and none is added:** it
+is a semantic rule, and code does not judge document meaning. Its protection is the V4.
+
+Not fixed, recorded by the reviewer and not charged: F3, `add-task.md:151` still describing a scan removed on
+2026-09-04 (older than this row); the section-citation guard not seeing a citation wrapped across two lines (older
+than this row).
+
 ## Not claimed
 
 - **Runtime token savings are unmeasured.** These are static declared bytes of shipped files, not tokens, not a transcript, not a session (USER-972: no runtime usage is measured on this host). Bytes are not substituted for tokens anywhere here.

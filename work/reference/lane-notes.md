@@ -16,6 +16,12 @@ not a command the user can type; translate it when quoting a command back to
 them. Rationale for the single entrance: `$PERRY_HOME/SKILL.md § One skill,
 three lanes`.
 
+## Why the pack rule is scoped by route
+
+From the pack-eligibility paragraph near the top of `work/SKILL.md`, whose
+"Why:" pointer moved here in TASK-470 round 2 to make room for a restored rule:
+`$PERRY_HOME/reference/startup.md § The pack rule is scoped by route`.
+
 ## `perry-task` is the writer
 
 From `§ How this file is organized`.
