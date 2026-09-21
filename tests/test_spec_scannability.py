@@ -852,7 +852,10 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
             "free": [],
         },
         # TASK-472's three execution contracts, as one contiguous span so
-        # there is no gap between them to insert a retraction into. It runs
+        # no retraction can sit BETWEEN them. One placed just before the
+        # start anchor or just after the end anchor is NOT caught here, and
+        # this page has no second layer that would: TASK-472-result.md
+        # § Round 2 (M5) records it as a known, unfixed gap. It runs
         # from the scratch-file rule through the end of the waiting rule, and
         # it is normative throughout — every incident sentence in it is the
         # reason a rule reads the way it does, not detachable rationale.
@@ -865,7 +868,8 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         # module was deleted: adding "**When this does not apply.** On a long
         # run, dropping failing output to keep the log readable is the
         # accepted practice." three lines below a pinned paragraph left that
-        # module green. A span has no beside.
+        # module green. A span closes the gaps between the rules it covers;
+        # it does not close the page around itself (M5 above).
         "review-constraints.md § the three execution contracts": {
             "path": "CONSTRAINTS",
             "span": ("## Your scratch files are yours alone",

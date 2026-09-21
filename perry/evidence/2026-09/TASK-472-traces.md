@@ -5,7 +5,8 @@ Date: 2026-09-21. Author: PMO Agent (Claude Opus 5).
 Round 1 did not produce these. It shipped a five-bullet incident list under the
 name, and the V4 was right that a bounded command trace needs no telemetry.
 These are built from the suite logs on disk, not from memory, and every count
-below can be re-derived from them.
+below can be re-derived from them — **except Trace 2's baseline**, which has
+no log behind it (corrected 2026-09-21 after the round-2 V4; see there).
 
 ## Method, and what it cannot show
 
@@ -49,15 +50,17 @@ catching defects that then got fixed — and are not waste by any definition.
 | Step | Runs |
 |---|---|
 | Re-pin a span digest after a prose edit | 1 targeted module (`test_spec_scannability`, 71 tests, 4.4 s) — no full suite |
-| Final verification | *(appended when run)* |
-| Merge-result verification | *(appended when run)* |
+| Final verification | 1 full suite on `009a8a31` — 157 modules / 4,434 tests, 108.2 s, green |
+| Merge-result verification | 1 full suite on `78a9c5fa`, in a separate clean worktree — 157 / 4,434, 127.4 s, green |
 
 ## Trace 2 — a small change
 
 **Baseline**: across 2026-09-20, small prose edits in this session were already
 followed by a targeted module before any full suite — e.g. TASK-469 round 3's
 budget move ran `test_startup_routing` and `test_context_budget` (61 tests)
-first. **After**: the digest re-pin above, one targeted module.
+first. *That 61-test pass is from this session's own account, not a log: the
+only TASK-469 round-3 logs on disk are two full runs, the first red on
+`test_context_budget`. The baseline is therefore unverified.* **After**: the digest re-pin above, one targeted module.
 
 **There is no meaningful difference between these two**, and saying so is the
 point of recording it.
@@ -114,3 +117,9 @@ One slip: the result file was edited in this tree while that run was in
 flight — the failure the tree guard caught in round 1. The guard passed, most
 likely because its final check ran before the write landed. The full run on
 the merge result covers the final content, so no extra run was spent on it.
+
+## Not counted
+
+Neither trace counts reviewer commands, repeated reads or tool calls — only
+suite runs. The spec's Deliverable asks about those too; this file does not
+answer it. Recorded after the round-2 V4, which noted it and did not charge it.
