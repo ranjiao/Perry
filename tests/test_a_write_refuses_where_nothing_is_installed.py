@@ -94,6 +94,9 @@ GATED = {
     ("perry-goals", "kr"): ["kr", "add", "P001-O1-KR9", "--objective", "O1",
                             "--text", "x", "--reason", "r",
                             "--actor", "gate-test"],
+    # TASK-475: appends a phase `objective` record to `linkage.jsonl`.
+    ("perry-goals", "objective"): ["objective", "add", "O9", "--text", "x",
+                                   "--reason", "r", "--actor", "gate-test"],
 }
 
 

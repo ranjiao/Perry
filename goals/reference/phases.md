@@ -315,6 +315,21 @@ a scored one, which is terminal. `phase close [--phase <NNN>]` snapshots to
 `scored` in place, and clears `phase/CURRENT`; it is `score-phase` step 6 and
 step 7 as one write, and it computes no scores.
 
+**Then register the phase's objectives, then its KRs (TASK-475).** `phase
+new` writes no objective record, and `kr add --objective O` refuses an
+objective the phase does not declare, so each approved objective goes in first,
+in the order the phase document lists them — file order is objective order:
+
+```
+"$PERRY_HOME/bin/perry-goals" objective add O1 --text "<title>" --reason "<why>" --actor <who>
+"$PERRY_HOME/bin/perry-goals" kr add P<NNN>-O1-KR1 --objective O1 --text "…" --reason "…" --actor <who>
+```
+
+`objective add` writes to the CURRENT phase only, and refuses a scored phase,
+an id that is not `O<n>`, and an id the phase already declares — ids are never
+reused. There is no objective restate or withdraw: get the title right before
+writing it.
+
 **Still do not hand-write any of it.** Not the phase document, not
 `phase/CURRENT`, not an appended Objective/KR record, not a fabricated
 canonical file fed to a generic import/render command, and not `perry-goals
