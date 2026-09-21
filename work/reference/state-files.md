@@ -6,6 +6,32 @@ The fixed set of files PMO maintains, plus the hard / soft caps on each. Loaded 
 - Touching ARCHITECTURE.md, runbooks, incidents (the optional lazy-created trees).
 - Adding a per-project hook that introduces a new file or directory.
 
+## Two file models
+
+Moved here from `work/SKILL.md § Two file models` on 2026-09-21 (TASK-470), unchanged; the lane keeps the one-line form of each axis and the tier-1 refusal rule. Why two axes: `lane-notes.md § Why two file models`.
+
+### Axis A — temporal layers (BOARD / journal / evidence)
+
+PMO **state** files split across three layers with different lifecycles:
+
+| Layer | File(s) | Lifetime | Read frequency | Write pattern |
+|---|---|---|---|---|
+| **Live** | the task store — read with `perry-tasks board` | now (closed work leaves the board) | every standup | mutated by `perry-task` as state changes |
+| **History** | `journal/<YYYY-MM>/<YYYY-MM-DD>.md` | append-only per day | only on demand or by weekly/retro subcommands | one file per day; **append-only after the day ends** |
+| **Artifact** | `evidence/<YYYY-MM>/<TASK-ID>-*.md` | per task | only when verifying a `done` claim or writing a retro | one file per task deliverable (incl. `<TASK-ID>-spec.md` for P0/P1 — see `reference/subcommands.md` § add-task) |
+
+The task store is the PMO's **working memory**; `perry-tasks board` is how it is read. It must always be true, current, and small. The journal is the audit trail. Evidence is the deliverable.
+
+### Axis B — audience tiers (who reads this file)
+
+EVERY Perry file falls into exactly one of three tiers based on **who reads it**. Tier determines size cap, format, and edit pattern.
+
+- **Tier 1 — user-read-and-edit** (`OKR.md`, `phase/<NNN>-<slug>.md`, `ARCHITECTURE.md`, `runbook/<component>.md`, `.perry/{config,hook}.md`). Strategic; the user must read it raw, so each has a **hard line cap**. When a write would exceed it, OKR / PMO **refuses the write** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/<topic>-appendix.md` or `architecture/sections/§N-<topic>.md`), leaving the main file as a §-index + 1-paragraph summaries. This preserves tier 1's "readable in one sitting" property.
+- **Tier 2 — agent-internal state** (the task store, `journal/`, `evidence/`, `decisions/`, `incidents/`, `weekly/`, `handoff/`, `PROJECT_STATE.md`, `phase/snapshots/`, `architecture/audit-history/`, `knowledge/`). No user-read constraint, so no hard cap — only the soft SKILL.md ~300 limit, which are context-budget driven, not readability driven.
+- **Tier 3 — the consumption surface.** Perry does **not** write this tier. Reading state richly is the frontend's job, and the frontend is **aiMark** (`~/proj/aimark`), which watches the project directory and renders it live. Perry's obligation to tier 3 is to write tier 1/2 in the declared structure so a reader can parse it — see `$PERRY_HOME/schema/README.md`.
+
+**Per-file caps and the structural contract each file must satisfy** live in `$PERRY_HOME/schema/state-schema.json` (checked by `bin/perry-lint`); the full inventory is in `reference/state-files.md`. `bin/perry-state` reports current cap usage in `operations.tier1_caps`, so the standup sees an overrun before the next write hits it.
+
 ## File inventory
 
 All at the **project root** unless noted. Greppable, version-controlled.
@@ -37,7 +63,7 @@ All at the **project root** unless noted. Greppable, version-controlled.
 
 ### Tier 1 caps (PMO/OKR REFUSES to write past these)
 
-Tiers are about **who reads the file**: tier 1 the user reads raw (hard caps), tier 2 the agent reads for its own purposes (soft caps), tier 3 is the consumption surface — which Perry does not write. See `work/SKILL.md § Two file models` and `$PERRY_HOME/schema/README.md`.
+Tiers are about **who reads the file**: tier 1 the user reads raw (hard caps), tier 2 the agent reads for its own purposes (soft caps), tier 3 is the consumption surface — which Perry does not write. See `§ Two file models` above and `$PERRY_HOME/schema/README.md`.
 
 - `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `phase/snapshots/okr-vN.md`; main file keeps current version + version log.
 - `ARCHITECTURE.md` ≤ **500** lines. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file keeps §-section TOC + 1-paragraph summaries.

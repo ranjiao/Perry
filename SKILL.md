@@ -52,13 +52,6 @@ Each lane's files are the ownership table below; each lane's SKILL.md carries it
 > `perry/evidence/2026-08/TASK-026-spec.md`; approved as written, without
 > per-line reconciliation against `schema/state-schema.json § files[].owner`
 > — `tests/test_ownership.py` covers that agreement mechanically.
->
-> Recorded at this precision on purpose. V5's whole value is saying **what was
-> actually checked**; writing "reviewed" or inflating it into a line-by-line
-> audit would make the rung a label instead of a record. `perry-lint` cannot
-> check this section at all — a wrong contract shows up later as silent
-> cross-lane writes, not as a lint error, which is why it is the one thing in
-> Perry that requires a human gate.
 
 **The invariant, unchanged since Perry had three registered skills:**
 
@@ -72,7 +65,7 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 | **`work`** (`work/`) | `tasks.jsonl` + its 4 register stores (`perry-tasks board` prints them), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
 | **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
 
-**Two changes from the previous contract, and why neither needed a second signature**: `reference/hand-off-contract.md`.
+**Two changes from the previous contract, and why neither needed a second signature; why the sign-off is recorded at this precision**: `reference/hand-off-contract.md`.
 
 **What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing `tasks.jsonl`; `work` writing `decisions/`; `decide` writing `journal/`.
 
@@ -144,42 +137,7 @@ The rest is `reference/snapshot.md`: **3b** mode files, **3c** pack glossary, **
 
 When `/perry` runs in a project with no Perry state files at all **and step 2 found neither a recovery hazard nor an interrupted run**. If a dossier or diagnosis exists with a non-terminal `stage`, this does not run — the user already answered these questions.
 
-1. Briefly explain Perry (≤3 sentences).
-
-2. **Run the namespace check before asking anything**, silently:
-
-   ```
-   python3 "$PERRY_HOME/bin/perry-lint" --claims --root . --json
-   ```
-
-   Read-only, exit 0 always. It resolves every path in
-   `schema/state-schema.json § claims[]` against this folder and returns
-   `collisions` plus a `suggested_state_root`.
-
-   - **`collisions: 0`** → write `State root: perry` and **ask nothing** — the
-     clean case must cost zero questions.
-     ``reference/first-run.md § Why `perry` is the default state root, not `.` ``.
-   - **`collisions > 0`** → add State root as a **third question in the same
-     `AskUserQuestion` call** below. No extra round trip.
-
-   Never enumerate the claimed paths here; run the check
-   (`reference/first-run.md § Why the namespace check runs before anything is asked`).
-
-3. **Confirm the project-wide preferences; write them to `.perry/config.jsonl` first** (`reference/first-run.md § Writing the config store`). One `AskUserQuestion` call: two questions, or three when step 2 found a collision:
-   - **Document language** (header `"Language"`): `English | 中文 | other`, `(Recommended)` on whichever the user has been typing. Each `description` gives the consequence: files get this language; IDs and status words stay English.
-   - **Repo layout** (header `"Repo layout"`): `Single repo (Recommended) | Split repo (PMO ↔ code)`.
-   - **State root** (header `"State root"`) — **only when** step 2 reported a
-     collision. `Put Perry's files under <suggested>/ (Recommended) | Use the
-     project root anyway | Another directory`. Name the colliding path and its
-     owner in the question; the user cannot evaluate the options otherwise.
-
-   **Don't ask about chat language.** Set it to `follow user` and mirror what the user types. Document language governs **files**, chat language **replies**. Wordings: `reference/first-run.md`.
-
-4. **New project or existing one** — `AskUserQuestion`, header `"Starting point"`: `New project — start from goals (Recommended if the folder is nearly empty) | Existing project — analyze what's here first`. The second routes to **`/perry adopt`**. **Then offer tracks, once, and only when it would change something.** `reference/first-run.md § New project or existing one, and when to offer tracks`.
-
-5. **Recommend the order** — `/perry goals init` → `/perry goals plan-phase <slug>` → `/perry work` → `/perry decide init` → `/perry goals plan-week`. **Do not skip `/perry decide init`**: it creates the decision files, which `work`'s bootstrap correctly refuses to write. `reference/first-run.md § The recommended order for a new project`.
-
-6. Ask "Run `/perry goals init` now?" — if yes, read `$PERRY_HOME/goals/SKILL.md` and follow its `init`. If no, stop.
+Read `reference/first-run.md § The procedure` and follow its six steps in order: the namespace check runs before any question, and the answers go to `.perry/config.jsonl` before any other file.
 
 ## Router subcommands
 
@@ -188,45 +146,36 @@ Handled here, not in a lane. `adopt` and `diagnose` span all three lanes, so the
 | Subcommand | Rule | Reference |
 |---|---|---|
 | `snapshot` | Default. | `reference/snapshot.md` + `reference/host-capabilities.md` + `reference/i18n.md` + `reference/next.md` |
-| `/perry adopt [--depth=quick\|standard\|deep] [--only=…] [--resume] [--recheck]` | **Evidence proposes, the user declares.** Five resumable stages: scan, harvest, infer, confirm, commit. Writes one file of its own, `.perry/adoption/<YYYY-MM-DD>-dossier.md`. Read references first. | `reference/adoption.md` + `reference/adoption-sources.md` |
-| `/perry diagnose [--depth=…] [--only=…] [--dry-run] [--resume] [--recheck]` | `adopt` converts a project **into** Perry; `diagnose` asks whether its working structure is sound at all, on any folder. **Every prescription traces to a finding, and every finding to a measurement or an answer the user gave.** Six stages: scan, read, interview, prescribe, execute, recheck. **Zero findings** and pure **subtraction** are first-class. Read reference first. | `reference/diagnose.md` |
-| `/perry help [<lane>]` | The three lanes and when to use each. With a lane name or alias, render that lane's own `help`. The Explain route: no snapshot. | — |
+| `/perry adopt [--depth=quick\|standard\|deep] [--only=…] [--resume] [--recheck]` | **Evidence proposes, the user declares.** Writes only `.perry/adoption/<YYYY-MM-DD>-dossier.md`. Read references first. | `reference/adoption.md` + `reference/adoption-sources.md` |
+| `/perry diagnose [--depth=…] [--only=…] [--dry-run] [--resume] [--recheck]` | **Every prescription traces to a finding, and every finding to a measurement or an answer the user gave.** Zero findings and pure subtraction are first-class. Read reference first. | `reference/diagnose.md` |
+| `/perry help [<lane>]` | The three lanes; with a lane, that lane's `help`. Explain route: no snapshot. | — |
 
 ### `/perry relocate <path>` — moving Perry's state root
 
-`/perry relocate <path>` · `/perry relocate . --dry-run`
-
-Moves every path Perry claims under a new state root and sets `State root` with `perry-config set`; `.perry/` never moves. It **refuses on a dirty tree**, computes the moves from `schema/state-schema.json § claims[]`, confirms every `from → to` first, never moves a file it did not put there, and never deletes. `NS-01` recommends it. Steps: `reference/router-subcommands.md § /perry relocate`.
+Moves every claimed path under a new `State root`; `.perry/` never moves. It **refuses on a dirty tree**, computes the moves from `schema/state-schema.json § claims[]`, confirms every `from → to` first, and never deletes. Steps: `reference/router-subcommands.md § /perry relocate`.
 
 Setup and relocate finish with [the closing step](reference/next.md#closing-step) after writes. <!-- next-close: router setup --> <!-- next-close: router relocate -->
 
 ## Configuration
 
-`.perry/config.jsonl` holds the settings (`perry-config set`); prose belongs in `.perry/hook.md`. Setup writes the store first. Field **names** stay English in every language, because this file declares the language and must be readable before it is known. An optional `## Tracks` table turns on `pipeline` / `queue` / `inquiry` mode; absent means one implicit `main` track, mode `project`.
-
-Read `reference/config.md` for repo layout, state root, tracks, and pack controls. For “what else can Perry do?” or enabling/disabling optional capabilities, use its discovery procedure. Absent Packs selects software-ops; explicit empty disables it. Pack activation does not configure release automation.
+`.perry/config.jsonl` holds the settings (`perry-config set`); prose belongs in `.perry/hook.md`. Field **names** stay English in every language. Repo layout, state root, tracks and pack controls — including “what else can Perry do?” and enabling or disabling optional capabilities — are `reference/config.md`.
 
 ## Style rules
 
 Reasoning and examples: `reference/style.md § Style rules`.
 - **Lead with the dashboard, not narration.** Numbers, IDs, paths. **Cite the file** for every claim. **Never invent state**: print `—` and ask.
-- **An ID never travels alone.** The first time an ID appears in user-facing output it carries its human name — `REL-002 ("Flake detector") is blocked on USER-014 ("Confirm staging env default")`, never `REL-002 blocked on USER-014`. A table with a Title column satisfies this. `bin/perry-explain <ID>` resolves one. Full rule: `reference/user-load.md`.
+- **An ID never travels alone.** The first time an ID appears in user-facing output it carries its human name — `REL-002 ("Flake detector")`, never a bare `REL-002`. A table with a Title column satisfies this. `bin/perry-explain <ID>` resolves one. Full rule: `reference/user-load.md`.
 - **Never ask a question the user cannot evaluate.** Reframe in consequences, decide it yourself and say so, or narrow to two: `reference/user-load.md § The three exits`.
 - **Don't duplicate child skills' logic.** This file routes; the children own their domains.
 - **Never mint an example ID that resolves to nothing.** Use the placeholder form (`SRC-n`, `TASK-NNN`, `<DESIGN-ID>`); a concrete one is a dangling reference `LOAD-02` reports.
-- **Write in the configured languages.** Chat replies follow `Chat language`, files follow `Document language`. IDs, enum values, paths, slugs and command names stay English in every language, and a quoted artifact is never translated. **A file stays in one language end to end. A chat reply mixes**: a technical term with no settled equivalent stays English — `交付了 contract 2.0`, not `交付了契约 2.0` — and an English idiom is never translated word for word, but replaced by a plain description of what happened. `reference/i18n.md § Writing chat prose in a language that is not English` has the specifics.
+- **Write in the configured languages.** Chat replies follow `Chat language`, files follow `Document language`. IDs, enum values, paths, slugs and command names stay English in every language, and a quoted artifact is never translated. **A file stays in one language end to end. A chat reply mixes**: a technical term with no settled equivalent stays English, and an English idiom is replaced by a plain description, never translated word for word — `reference/i18n.md § Writing chat prose in a language that is not English`.
 
 ## User-prompt convention, per-project hooks, auto-update
 
-- **Host-native choice UI** over free text whenever a choice has **2-4 distinct options**: Claude Code uses `AskUserQuestion`, OpenCode uses `question`, and Codex uses the numbered free-text fallback in `reference/host-capabilities.md § Prompt rendering`. Keep the same labels, recommendations, consequence-oriented descriptions, and selected value. Cap open decisions at three. It is **not** a permission grant. Conventions: `reference/style.md § User-prompt convention (AskUserQuestion)`.
+- **Host-native choice UI** over free text whenever a choice has **2-4 distinct options** (`reference/host-capabilities.md § Prompt rendering`). Cap open decisions at three. It is **not** a permission grant. `reference/style.md § User-prompt convention (AskUserQuestion)`.
 - **Per-project hooks** live at `<project_root>/.perry/hook.md`; hook blocks go in the *children's* SKILL.md files, so this router stays project-agnostic. `reference/style.md § Per-project hooks (optional)`
-- **Auto-update** is step 0 of the ritual: once per 7 days, fetch-and-report-only in dev mode, always exit 0. `reference/style.md § Auto-update`
+- **Auto-update** is step 0: `reference/style.md § Auto-update`.
 
 ## See also
 
-- [README.md](README.md) · [INSTALL.md](INSTALL.md) — overview and install.
-- [schema/README.md](schema/README.md) — the state-file contract, validated by `perry-lint`.
-- [goals/SKILL.md](goals/SKILL.md) · [work/SKILL.md](work/SKILL.md) · [decide/SKILL.md](decide/SKILL.md) — the three lanes.
-- Extracted from this router: [snapshot.md](reference/snapshot.md), [first-run.md](reference/first-run.md), [config.md](reference/config.md), [router-subcommands.md](reference/router-subcommands.md), [style.md](reference/style.md), [hand-off-contract.md](reference/hand-off-contract.md)
-- Pipelines: [adoption.md](reference/adoption.md), [adoption-sources.md](reference/adoption-sources.md), [diagnose.md](reference/diagnose.md), [project-archetypes.md](reference/project-archetypes.md), [templates/](templates/)
-- Shared: [i18n.md](reference/i18n.md), [user-load.md](reference/user-load.md), [host-capabilities.md](reference/host-capabilities.md), [input-quality.md](reference/input-quality.md), [okr-linkage.md](reference/okr-linkage.md)
+[README.md](README.md) · [INSTALL.md](INSTALL.md) · [schema/README.md](schema/README.md) (the state-file contract). Extracted from this router: `reference/snapshot.md`, `reference/first-run.md`, `reference/config.md`, `reference/router-subcommands.md`, `reference/style.md`, `reference/hand-off-contract.md`.

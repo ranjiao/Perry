@@ -1,27 +1,47 @@
-# First-time setup — the parts the router points at
+# First-time setup — the procedure and its reasons
 
 Tier 1. Loaded on demand from `SKILL.md § First-time setup`, which keeps the
-namespace check and the `AskUserQuestion` block and points here for the rest.
+gate that decides whether this runs at all. This page is the one body of the
+procedure: run its steps in order.
 
-Extracted from `SKILL.md` on 2026-08-18 (TASK-064) to keep the tier-0
-router inside its byte budget. The prose is carried over unchanged.
+Extracted from `SKILL.md` on 2026-08-18 (TASK-064); steps 1–3 followed on
+2026-09-21 (TASK-470), carried over unchanged, and the router's one-line
+summaries of steps 4–6 were dropped in favour of the bodies below.
 
-## Why `perry` is the default state root, not `.`
+## The procedure
 
-**`perry` is the default, not `.`.** Two shapes in circulation is two code
-paths a reader can disagree about, and one already did: `bin/perry-goals`
-passed the project root where the state root was wanted, and the bug was
-invisible on every `.`-rooted project — including the test fixture. A
-subdirectory also removes the whole namespace-collision class rather than
-detecting it, which is what the check above exists for.
+1. Briefly explain Perry (≤3 sentences).
 
-## Why the namespace check runs before anything is asked
+2. **Run the namespace check before asking anything**, silently:
 
-Without this step Perry claims a namespace it was not given. The escape
-hatch used to be offered only on the adopt path, so a greenfield `/perry` in
-a folder that already owned `design/` wrote straight over it with no question
-asked — and every later lint run reported the user's own file as a malformed
-Perry design doc. Never enumerate the claimed paths here; run the check.
+   ```
+   python3 "$PERRY_HOME/bin/perry-lint" --claims --root . --json
+   ```
+
+   Read-only, exit 0 always. It resolves every path in
+   `schema/state-schema.json § claims[]` against this folder and returns
+   `collisions` plus a `suggested_state_root`.
+
+   - **`collisions: 0`** → write `State root: perry` and **ask nothing** — the
+     clean case must cost zero questions.
+     ``reference/first-run.md § Why `perry` is the default state root, not `.` ``.
+   - **`collisions > 0`** → add State root as a **third question in the same
+     `AskUserQuestion` call** below. No extra round trip.
+
+   Never enumerate the claimed paths here; run the check
+   (`reference/first-run.md § Why the namespace check runs before anything is asked`).
+
+3. **Confirm the project-wide preferences; write them to `.perry/config.jsonl` first** (`reference/first-run.md § Writing the config store`). One `AskUserQuestion` call: two questions, or three when step 2 found a collision:
+   - **Document language** (header `"Language"`): `English | 中文 | other`, `(Recommended)` on whichever the user has been typing. Each `description` gives the consequence: files get this language; IDs and status words stay English.
+   - **Repo layout** (header `"Repo layout"`): `Single repo (Recommended) | Split repo (PMO ↔ code)`.
+   - **State root** (header `"State root"`) — **only when** step 2 reported a
+     collision. `Put Perry's files under <suggested>/ (Recommended) | Use the
+     project root anyway | Another directory`. Name the colliding path and its
+     owner in the question; the user cannot evaluate the options otherwise.
+
+   **Don't ask about chat language.** Set it to `follow user` and mirror what the user types. Document language governs **files**, chat language **replies**. Wordings: `reference/first-run.md`.
+
+Steps 4–6 are the next two sections, in order.
 
 ## New project or existing one, and when to offer tracks
 
@@ -51,7 +71,7 @@ Perry design doc. Never enumerate the claimed paths here; run the check.
 
 ## Writing the config store
 
-`SKILL.md § First-time setup` step 3's answers go into `.perry/config.jsonl`
+Step 3's answers (`§ The procedure`) go into `.perry/config.jsonl`
 **before any other file**, through the tool and never by hand. The store is the
 first write of every start: a project whose only files are markdown is not
 installed (`schema/README.md § installed`), so it would be sent back to
@@ -66,3 +86,20 @@ first-time setup on every session.
 
 `State root` is `perry` unless step 2 found a collision and the user chose
 otherwise. `Chat language` is never asked; it is `follow user`.
+
+## Why `perry` is the default state root, not `.`
+
+**`perry` is the default, not `.`.** Two shapes in circulation is two code
+paths a reader can disagree about, and one already did: `bin/perry-goals`
+passed the project root where the state root was wanted, and the bug was
+invisible on every `.`-rooted project — including the test fixture. A
+subdirectory also removes the whole namespace-collision class rather than
+detecting it, which is what the check above exists for.
+
+## Why the namespace check runs before anything is asked
+
+Without this step Perry claims a namespace it was not given. The escape
+hatch used to be offered only on the adopt path, so a greenfield `/perry` in
+a folder that already owned `design/` wrote straight over it with no question
+asked — and every later lint run reported the user's own file as a malformed
+Perry design doc. Never enumerate the claimed paths here; run the check.

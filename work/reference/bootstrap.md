@@ -12,7 +12,7 @@ If the user declines, stop. If the user accepts, follow this procedure.
 
 ## Procedure
 
-0. **Write `.perry/config.jsonl` first, when it does not exist.** Before any markdown: `PROJECT_STATE.md` and the other markdown alone do not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so a bootstrap that wrote only those would be offered again on every session. If top-level `/perry` first-time setup has not run, ask its preference questions (`$PERRY_HOME/SKILL.md § First-time setup` step 3) and write the answers with the tool:
+0. **Write `.perry/config.jsonl` first, when it does not exist.** Before any markdown: `PROJECT_STATE.md` and the other markdown alone do not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so a bootstrap that wrote only those would be offered again on every session. If top-level `/perry` first-time setup has not run, ask its preference questions (`$PERRY_HOME/reference/first-run.md § The procedure` step 3) and write the answers with the tool:
 
    ```
    "$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"

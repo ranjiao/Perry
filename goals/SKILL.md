@@ -35,7 +35,7 @@ This `SKILL.md` is intentionally lean: it holds what runs on **every** invocatio
 | `reference/linkage.md` | `link` — owning `linkage.jsonl`: accepting PMO's attribution hand-off, aliases, unlinked |
 | `reference/pivots.md` | `pivot`, `dashboard` |
 | `reference/hooks.md` | Configuring `.perry/hook.md` for a project |
-| `$PERRY_HOME/reference/input-quality.md` (shared) | `init`, `plan-phase`, `plan-week` — the advisory quality pass |
+| `$PERRY_HOME/reference/input-quality.md` + `$PERRY_HOME/reference/input-quality-rubrics.md` (shared) | `init`, `plan-phase`, `plan-week` — the advisory quality pass |
 | `$PERRY_HOME/reference/okr-linkage.md` (shared) | Any attribution question. The "never guess — resolve by ID or ask" gate |
 | `$PERRY_HOME/reference/host-capabilities.md` (shared) | Per-host choice rendering (`AskUserQuestion`, OpenCode `question`, Codex free text) |
 
@@ -189,7 +189,7 @@ TL;DR and next-step position are the next block's (`$PERRY_HOME/ARCHITECTURE.md 
 ## Style rules (do not violate)
 
 - **Show the snapshot first.** No "Let me think about your goals…" preamble.
-- **KRs must be measurable.** Reject anything qualitative — push for number + unit + deadline. The full rubric (outcome-not-output, baseline present, Objective carries no metric, no sandbagging) lives in `$PERRY_HOME/reference/input-quality.md § 1`; run it at `init` / `plan-phase` / `plan-week`. Advisory + override — surface ≤3 issues, never silently rewrite the user's goal prose.
+- **KRs must be measurable.** Reject anything qualitative — push for number + unit + deadline. The full rubric (outcome-not-output, baseline present, Objective carries no metric, no sandbagging) lives in `$PERRY_HOME/reference/input-quality-rubrics.md § 1`; run it at `init` / `plan-phase` / `plan-week`. Advisory + override — surface ≤3 issues, never silently rewrite the user's goal prose.
 - **Cap phase KRs at 4 per Objective.** Solo project; more is dilution.
 - **Tier 1 hard size caps (REFUSE writes that exceed)** — see `work/SKILL.md § Axis B`:
   - `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `phase/snapshots/okr-vN.md`; main file keeps current version + version log only.

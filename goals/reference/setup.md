@@ -6,7 +6,7 @@ Loaded when `/okr init` or `/okr revise` fires. Not loaded on routine snapshots.
 
 Run when `OKR.md` doesn't exist.
 
-0. **Write the config store first, when `.perry/config.jsonl` does not exist.** A goals-only start is a start: `OKR.md` alone does not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so without the store every session would offer first-time setup again. Ask the preference questions `$PERRY_HOME/SKILL.md § First-time setup` step 3 asks, then write the answers before any other file:
+0. **Write the config store first, when `.perry/config.jsonl` does not exist.** A goals-only start is a start: `OKR.md` alone does not make a project installed (`$PERRY_HOME/schema/README.md § installed`), so without the store every session would offer first-time setup again. Ask the preference questions `$PERRY_HOME/reference/first-run.md § The procedure` step 3 asks, then write the answers before any other file:
 
    ```
    "$PERRY_HOME/bin/perry-config" set --root . "Document language" "<language>"
@@ -35,7 +35,7 @@ overall template. Unknown state never proves this is a first OKR.
    remaining unknowns in the body.
 3. Follow the bank's **Premises, edits and approval**: surface meaningful
    premises, incorporate disagreement into affected draft sections, then run
-   `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` once on the resulting
+   `$PERRY_HOME/reference/input-quality-rubrics.md § 1 Overall OKR` once on the resulting
    draft. Surface ≤3 advisory issues, preserving the solo-project qualification.
    A refusal uses the bank's escape; a fully pasted OKR skips the interview.
 4. Stop at the reviewed or approved draft: say "draft approved; overall

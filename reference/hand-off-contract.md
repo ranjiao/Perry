@@ -10,6 +10,21 @@ around them. The ownership set the signature was given against is
 byte-identical before and after the move, which is the same test the section
 itself applies to its own earlier edit below.
 
+## Why the sign-off is recorded at this precision
+
+Moved here from the router's sign-off block on 2026-09-21 (TASK-470); the
+signature record itself — who, when, what was checked and what was not — stayed
+in `SKILL.md` byte-identical.
+
+Recorded at this precision on purpose. V5's whole value is saying **what was
+actually checked**; writing "reviewed" or inflating it into a line-by-line
+audit would make the rung a label instead of a record. `perry-lint` cannot
+check this section at all — a wrong contract shows up later as silent
+cross-lane writes, not as a lint error, which is why it is the one thing in
+Perry that requires a human gate.
+
+## Two changes from the previous contract
+
 **Two changes from the previous contract, and why.**
 
 1. **`decisions/` moves from `work` to `decide`.** A settled

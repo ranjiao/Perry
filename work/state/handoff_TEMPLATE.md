@@ -8,7 +8,7 @@
 
 ## 0. Resume point
 
-Required at a budget boundary (`work/reference/subcommands.md § Budget boundary`); ≤ 8 KiB in all; cite evidence by path, never paste logs.
+Required at a budget boundary (`work/reference/budget-boundary.md § Budget boundary`); ≤ 8 KiB in all; cite evidence by path, never paste logs.
 
 | Field | Value |
 |---|---|
@@ -112,7 +112,7 @@ When you (PMO Agent in a new session) resume tomorrow, **read these files first*
 2. `evidence/{{YYYY-MM}}/{{the most active TASK-ID}}.md` (latest evidence)
 3. **This file** (`handoff/{{YYYY-MM-DD}}.md`)
 
-After a budget boundary, first verify § 0 per `work/reference/subcommands.md § Budget boundary` (Resuming).
+After a budget boundary, first verify § 0 per `work/reference/budget-boundary.md § Budget boundary` (Resuming).
 
 Then have the user say: "已读今日总结, [{{key topic}}] 进展如何" — and continue from there.
 

@@ -5,13 +5,7 @@
 Dispatch has a **fixed cost that does not scale down with the change**: a
 separate checkout, a pinned base, a brief, a baseline the agent must measure for
 itself, a result document, a merge, and a verification pass by whoever merges
-it. It also has failure modes the change itself does not have. Measured across
-**eight dispatches in one session on 2026-09-07**: **seven were handed a base
-~500 commits stale** (`TASK-381`), **two collided in a shared scratchpad**
-(`TASK-373`), **one left a planted mutation in its tree** when it stopped, and
-**one reddened the suite by following its scratch-location brief exactly**
-(`TASK-385`). Four of those are rows that exist only because work was
-dispatched.
+it. It also has failure modes the change itself does not have. Measured: `dispatch-notes.md § What dispatch cost in one session`.
 
 **Do it inline when all three hold:**
 
@@ -43,9 +37,9 @@ is not.
 3. Spec contains `Executor: claude-subagent | opencode-subagent | codex` (not `manual`). **If spec is `Dispatch mode: auto` but `Executor` is missing**, use the host-native choice UI for a one-shot choice; do NOT silently default. Offer `claude-subagent | codex | manual` on Claude Code, `opencode-subagent | codex | manual` on OpenCode, and `codex | manual` on Codex CLI. Persist the answer only if the user explicitly says "save this for next time". A spec pinned to another host's native executor is a hard host mismatch: refuse and request a spec edit or `/perry work delegate`. Matrix: `../../reference/host-capabilities.md`.
 4. **Safety re-validation — you perform this judgement, and no command performs it for you.**
 
-   Until 2026-09-04 this step was `"$PERRY_HOME/bin/perry-state" --escalation-scan <spec>` and the exit code was the verdict. That command is gone. `USER-916`: *"不要用python代码来检查文件语义。应该去掉这个检查逻辑，让agent自己来判断gate."* — Python is not to judge a document's meaning, `ADR-007` decision 3 says the Python layer never parses a document at all, and five rounds of trying to make the match correct ended with the measurement that settles it: **formatting alone moved the verdict in both directions.** A bold marker or a sentence-final full stop cleared a declared write to the claim surface; bolding an own-tree path `**perry/evidence/…**` made the gate *refuse*, because the head `**perry` contains a `*`. A reader has no such failure mode. The judgement is yours.
+   No command renders this verdict: `perry-state --escalation-scan` was removed on 2026-09-04 (`USER-916`; `ADR-007` decision 3 — Python never judges a document's meaning). Why: `dispatch-notes.md § Why no command performs step 4`. The judgement is yours.
 
-   **This is not "read the list and eyeball it".** That is what the step said before TASK-107 and it refused two dispatches in one day over the words "original" and "adopted". Work the five steps below in order, and write the answer down where the user can see it. A gate whose reasoning is not written is not reviewable.
+   **This is not "read the list and eyeball it".** Work the five steps below in order, and write the answer down where the user can see it. A gate whose reasoning is not written is not reviewable.
 
    ### 4.1 — Get the list, and check it is armed
 
@@ -124,7 +118,7 @@ is not.
 
    **Not from the hook's bullets, and stated here rather than added there.** `.perry/hook.md`'s content is the user's, and this file does not edit it. But a round whose `Files in scope` names `.perry/hook.md`, `work/state/hook_TEMPLATE.md`, or this step of this file is a round that changes what Perry refuses to do unsupervised — in this project, and for `hook_TEMPLATE.md` in every project Perry adopts afterwards. **Escalate it and say why.** An agent that may widen its own gate has no gate.
 
-   This is what refuses `TASK-107`, whose `Files in scope` reads *"`.perry/hook.md`, `work/state/hook_TEMPLATE.md` — the matching rule sentence"* and whose `Deliverable` item 5 says the dropped forms *"are added to `.perry/hook.md` and to the template's defaults"*. It is **not** refused by the nine high-stakes fragments its `Deliverable` quotes — those are tell 2, and a procedure that refused on them is the same procedure that refuses `TASK-244` on the word `setup`.
+   The worked case (`TASK-107`): `dispatch-notes.md § 4.5 applied`.
 
    If the user would rather have this as a hook bullet, that is theirs to add and this paragraph then defers to it; if they would rather not have it at all, strike this sub-step. It is written down so that the verdict is reproducible either way.
 

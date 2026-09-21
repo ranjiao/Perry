@@ -7,7 +7,7 @@ After OKR `plan-week` (or any other source) proposes a task and the user approve
 
 **Write the `--summary`, and write it for a stranger.** This is the one field on the row whose whole job is to be legible to somebody who was not here. The title is shorthand — `D009 step 3 — the O-1 mint and the write-back to the store` is perfectly clear to the two of you and says nothing to the person who opens the board in three weeks. The summary is what `perry-explain <ID>` prints and what a front-end renders, so a row without one is a row nobody can pick up without re-reading a design document.
 
-`perry-task add` **refuses without it** — the same hard refusal `--deliverable` and `--verification` already carry, and for the same reason. It is a hard gate rather than an advisory because **the advisory version has already been tried on this exact field and measured**: `--summary` was an optional flag from contract 1.11, nothing asked for it and nothing checked it, and it reached 25 of 114 open rows. `DESIGN-003 § 4` decision 4's "advisory first, hard gate next" does not apply here, because its stated reason is retroactive invalidation and `add` has no retroactive half — it governs only rows minted from now on. The rows minted before are reported, not refused, by `perry-lint --summaries`.
+`perry-task add` **refuses without it** — the same hard refusal `--deliverable` and `--verification` already carry, and for the same reason (why a hard gate: `add-task-notes.md § Why --summary is a hard gate`).
 
 Two or three sentences of plain language: *why this row exists* and *what is true when it is done*. Cite the design or decision it comes from if there is one — a leading `DESIGN-012 § 5.1.` then the explanation is this project's house style and is encouraged, not penalised. What `add` refuses is **structural only**: a summary that folds to the title again, one containing no sentence, one under five words. It does not judge whether the prose reads well, and you should not write to please it — write to be understood.
 
@@ -20,7 +20,7 @@ Two or three sentences of plain language: *why this row exists* and *what is tru
 
 - resolved → `/perry goals link <TASK-ID> <KR-ID>` (appends the edge to that KR's `tasks[]`), and pass the same id to `perry-task add --actor <actor> --kr <KR-ID>` below
 - a name confirmed as an existing Project → `/perry goals link --alias <PROJECT-ID> "<name>"`
-- unresolved, or the user is unavailable → pass **`--unlinked` on the `perry-task add` below**, which declares in the row's own creating action that it serves no key result. **Do not omit both flags: `add` refuses a row that answers neither** (TASK-439), and omitting `--kr` was what this bullet used to say — it filed the row behind a warning and left it in `never_answered` permanently, because a later `perry-goals link` writes `via: "link"`, which `P003-O3-KR2` excludes by design. Declaring at `add` is the only form the KR counts. `/perry goals link --unlinked <TASK-ID>` remains the path for a row that is *already* filed. The tool records `KR linkage: unlinked` in the definition block itself, which is what keeps the row out of every KR roll-up until the standup surfaces it. **`--unlinked` is a declaration to mean, not a way past the refusal** — if the KR simply has not been looked up yet, look it up and pass `--kr`; `reference/okr-linkage.md` forbids guessing one, and the record `--unlinked` writes cannot be withdrawn by any `perry-task` command. (This sentence also claimed the declaration stays VISIBLE — naming `perry-lint`, then `perry-state § attribution`. Both were measured false and the claim was deleted under `USER-928` answer C: `linkage-unlinked-exists` warns only on an id that is **not** a row in `tasks.jsonl`, and `attribution.declared_unlinked` is scoped to `phase/CURRENT` — 143 standing declarations on Perry's own board, 116 reported. No reader reports a healthy standing declaration from a past phase.) This bullet used to say "write the BOARD row with `attribution: unlinked`" — there is no such column in `schema/state-schema.json` and there never was, so the instruction produced either a cell nothing reads or a widened board nobody asked for.
+- unresolved, or the user is unavailable → pass **`--unlinked` on the `perry-task add` below**, which declares in the row's own creating action that it serves no key result. **Do not omit both flags: `add` refuses a row that answers neither** (TASK-439). Declaring at `add` is the only form the KR counts. `/perry goals link --unlinked <TASK-ID>` remains the path for a row that is *already* filed. The tool records `KR linkage: unlinked` in the definition block itself, which is what keeps the row out of every KR roll-up until the standup surfaces it. **`--unlinked` is a declaration to mean, not a way past the refusal** — if the KR simply has not been looked up yet, look it up and pass `--kr`; `reference/okr-linkage.md` forbids guessing one, and the record `--unlinked` writes cannot be withdrawn by any `perry-task` command. What this bullet used to say, and why each was withdrawn: `add-task-notes.md § The unlinked bullet's history`.
 
 Print the exact command — **in its `/perry <lane> …` form**, since this string is quoted to the user and `/okr` is a withdrawn host command that `setup` deletes and that collides with `lark-okr`. Don't edit `phase/` yourself.
 
@@ -35,11 +35,9 @@ Print the exact command — **in its `/perry <lane> …` form**, since this stri
 
 **Add the column if the board has none.** You cannot set a cell in a column with no header, and `BOARD_TEMPLATE.md` ships six columns — so the first non-`project` row on a board also adds the headers it needs, in the same edit. `perry-task add` and `route` do this via `ensure_columns`; nothing is expected of you.
 
-(An earlier draft justified this as "the same clause `close-task` already has for `Verification`." There is no such clause. `Verification` is a declared *optional* column in `schema/state-schema.json`, but `close-task` removes the row rather than stamping it — the rung is written to the journal line and the event, which is where `perry-task list` reads it from. The back-reference pointed at a precedent that never existed; the rule stands on its own.)
-
 A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-mode board must carry `Stage` and `Arrived`. They are optional in the schema so that no pre-DESIGN-003 board is invalidated, **not** so a mode track can skip them — a track that does is missing the clock its own triage reads.
 
-**An existing row changes track with `perry-task track <ID> --actor <actor> --track <track>`, never by hand.** The table above is about creation, and for a long time creation and `route` were the only two entrances a track had — so a project that declared a second track started it empty and had no tool path for the work already on the board. Moving a row is one command and it re-stamps the destination's clock in the same write: onto a `queue` track it sets `Stage` to the first post-intake stage and `Arrived` (carrying an existing one rather than restamping it, so a move cannot erase an in-flight breach); onto a staged non-queue track it sets `Stage` and `Stage since`; onto a track that reads neither it **clears** `Stage` / `Stage since` / `Arrived` and writes what they held into the journal line and the event. A track with no record in `.perry/config.jsonl` (`perry-config show`) is refused by name, with the declared ones listed — the tool does not create a track, because a typo that invented one would be counted as real by every reader afterwards. Editing the `Track` cell by hand instead drops the clock, which is the same defect this section records for `Arrived` one paragraph up.
+**An existing row changes track with `perry-task track <ID> --actor <actor> --track <track>`, never by hand.** Moving a row is one command and it re-stamps the destination's clock in the same write: onto a `queue` track it sets `Stage` to the first post-intake stage and `Arrived` (carrying an existing one rather than restamping it, so a move cannot erase an in-flight breach); onto a staged non-queue track it sets `Stage` and `Stage since`; onto a track that reads neither it **clears** `Stage` / `Stage since` / `Arrived` and writes what they held into the journal line and the event. A track with no record in `.perry/config.jsonl` (`perry-config show`) is refused by name, with the declared ones listed — the tool does not create a track, because a typo that invented one would be counted as real by every reader afterwards. Editing the `Track` cell by hand instead drops the clock, which is the same defect this section records for `Arrived` one paragraph up.
 
 **Creating a queue-mode row also creates the intake register, `intake.jsonl`, if it is absent** — printed by `perry-tasks board` as `## Intake`, with its three columns (`Arrived`, `Request`, `Outcome`). Intake is the organ queue mode is built on and the first thing `triage` walks; a register nothing creates means step 0 no-ops forever, and `modes/queue.md`'s warning about a track "whose intake is always empty while work is clearly happening" would describe the guaranteed default rather than a risk.
 
@@ -54,10 +52,7 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    ```
 
    **`--summary`, `--deliverable` and `--verification` are all required and
-   all three are refused if absent.** They used to be shown as optional here
-   while two of them were already hard refusals in the tool, so the block a
-   reader copied did not run — which is the shape TASK-325 exists to stop one
-   field further along.
+   all three are refused if absent.**
 
    It mints the ID from board ∪ journal ∪ events (never reused, never
    accidentally gapped), stamps the timestamp at call time, sets `Stage` /
@@ -76,13 +71,9 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    second id family appearing on a board that had one, with no way to ask for
    the first (TASK-060, reported by aiMark).
 
-   Perry stops at *exactly one* and does not take the most common. A real board
-   here carries 36 families in its task tables, declared in its own
-   `## ID prefixes` section, and they are not stylistic — `IPS-*` / `ALLOC-*` /
-   `DUE-*` mean one workstream and `TECH-*` / `DATA-*` another, filed in
-   separate sections. Picking the plurality winner would mint an id that
-   asserts a workstream nobody chose, and an id is permanent. A `TASK-001` on
-   such a board is visibly Perry's and claims nothing.
+   Perry stops at *exactly one* and does not take the most common: an id is
+   permanent, and a plurality winner asserts a workstream nobody chose
+   (`add-task-notes.md § Why exactly one prefix`).
 
    ```
    "$PERRY_HOME/bin/perry-task" add --actor <actor> --title "…" --deliverable "…" \
@@ -99,12 +90,8 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    would collide with rows the tool writes itself. `route` takes `--prefix` and
    adopts by the same rule; both verbs mint, so both had to.
 
-   Do not hand-write the row. Every field above was one an agent supplied and
-   got wrong at least once: malformed pipes, a reused ID, a timestamp that was
-   an assertion, a clock nobody wound. `perry-state` reports a hand-written row
-   as `unrecorded` at the next standup — reported, not refused, because editing
-   your own markdown is legitimate; but it is visible, and that visibility is
-   the point.
+   Do not hand-write the row. `perry-state` reports a hand-written row as
+   `unrecorded` at the next standup — reported, not refused, but visible.
 
    **On a board that does not use `P0`/`P1`/`P2`**, name the project's own
    heading instead:
@@ -114,21 +101,16 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
        --verification "…" --group "Open — 工程线"
    ```
 
-   A real year-old project files work under headings like that, and `add`
-   refused it outright until TASK-019/020's review found it. Perry will **not**
+   Perry will **not**
    create a priority section on such a board — rewriting a project's structure
    is an Anti-Goal — but it will add the columns it needs to write a row,
    widening existing rows with empty cells rather than dropping the data that
    does not fit. Run `add` without `--group` to see the sections a board
    actually offers; the refusal lists them.
 
-   **`route` takes `--group` too, and means the same thing by it.** It did not
-   until TASK-053: the flag parsed and `route` never read it, so the intake
-   drain could not run at all on a board with no `## P0`/`## P1`/`## P2` — and
-   the refusal that told the user to pass the heading to `--group` was telling
-   them to pass it to a flag that verb threw away. Both verbs resolve the
-   landing section through one function now, so a board Perry can `add` into
-   is a board Perry can `route` into.
+   **`route` takes `--group` too, and means the same thing by it.** Both verbs
+   resolve the landing section through one function, so a board Perry can
+   `add` into is a board Perry can `route` into.
 
    **Refusals are outcomes, not errors.** The tool exits 1 and writes nothing on
    a missing title, an undeclared track, a priority outside `P0`/`P1`/`P2`, a
@@ -151,12 +133,6 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    change. Absent `--kr`, the KR linkage line reads `unlinked`, which is the
    gate above landing in the record instead of in an agent's memory.
 
-   **This step used to hand the block to the agent, and the agent did not
-   produce it.** Measured the day the tool learned to: `## New tasks
-   added` appeared three times in the journal of the day *before* and zero
-   times after, so every tool-created task was one title and nothing else.
-   That is ADR-007 rule 3 stated as a defect — the fields were supplied to the
-   tool and the document was then expected to appear from somewhere.
 3. **For P0 and P1 tasks**, ALSO write `evidence/<YYYY-MM>/<TASK-ID>-spec.md` carrying the same *fields* as the journal block PLUS the dispatch-routing fields below — **in `## ` sections, not in the journal block's bullets.** BOARD's Evidence column points at this spec file. P2 / backlog / watch may rely on the journal entry alone — promote a P2 to P1 → write the spec at promotion time.
 
    **`Files in scope`, `Deliverable` and `Out of scope` are `## ` headings, with the text underneath them.** Not `### `, not `- **Deliverable**: …`. The spec body is `## ` sections throughout; these three are the ones a machine reads:
@@ -172,9 +148,9 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    What this deliberately does not touch.
    ```
 
-   **Why the shape is load-bearing, and not a style rule.** `dispatch` pre-flight step 4 re-validates the spec against `.perry/hook.md § High-stakes operations` by reading exactly those three sections (`work/reference/dispatch-preflight.md` step 4), and its reader — `viewer/parsers.py § _section` — matches `^## <heading>` and nothing else. A scope written as an `h3` or as a bullet is invisible to it. **The spec does not then fail the gate; it disarms it.** Every high-stakes fragment is matched against the empty string, and the scan returns `touches: {}`, `verdict: pass`, **exit 0 — byte-identical to a spec that was read in full and found genuinely clean.** Measured 2026-09-02: a spec whose `Deliverable` named `git push origin main`, `rm -rf` and `gh release` scanned `pass`/exit 0 in the bullet shape and `refuse`/exit 3 on five fragments with the identical words under `## Deliverable`; 45 of this project's own 135 specs are in the first state. `perry-lint --specs` — and the default `perry-lint --root .` — now reports a spec that presents the gate no scope, so the empty scan is visible; but the check reports it, it does not undo it, and the spec is only safe if it is written in the shape above.
+   **The shape is load-bearing, not a style rule.** `dispatch` pre-flight step 4 screens the spec against `.perry/hook.md § High-stakes operations` by reading exactly those three sections (`work/reference/dispatch-preflight.md` step 4), and its reader — `viewer/parsers.py § _section` — matches `^## <heading>` and nothing else. A scope written as an `h3` or as a bullet is invisible to it. **The spec does not then fail the gate; it disarms it.** Every high-stakes fragment is matched against the empty string, and the scan returns `touches: {}`, `verdict: pass`, **exit 0 — byte-identical to a spec that was read in full and found genuinely clean.** `perry-lint --specs` (and the default `perry-lint --root .`) reports such a spec; the report does not undo it, and the spec is only safe in the shape above.
 
-   **This step used to say the spec "contains the same schema" as the journal block, and that sentence is what produced the 45.** `bin/perry-task § cmd_add` renders the journal definition block as bullets, and that is correct *there*: the block sits under `### <ID> — <title>` inside `## New tasks added`, so a `## Deliverable` in it would close the section it lives in and cut one day's journal in half. The journal keeps its bullets; the spec takes `## ` headings. Same fields, two shapes, because the two files have two readers — a person scrolling a day, and a safety gate matching sections. "The same schema" was read as "the same shape", which is the only reading the rendered block supports, and following it disarmed the gate. Do not copy the journal block into a spec; write the sections.
+   **The journal keeps its bullets; the spec takes `## ` headings.** Same fields, two shapes: the journal block lives under `### <ID> — <title>` inside `## New tasks added`, where a `## Deliverable` would cut the day's journal in half. Do not copy the journal block into a spec; write the sections. The measurements behind both paragraphs: `add-task-notes.md § Why the spec shape is load-bearing`.
 
    **Required header fields in every spec file** (used by `dispatch` and `close-task`):
    The software-ops `Touches architecture`, `Deployed`, `Runbook` and
