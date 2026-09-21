@@ -313,3 +313,36 @@ every invocation, and the dispatch load set is 95,758 B.
   verdicts for that.
 - TASK-474, which rode in TASK-469's round-3 merge, is outside this row.
 - Plain-CLI Claude identity (R-M1) remains unverified, as TASK-471 recorded.
+
+## Addendum — 2026-09-21, after the report (PMO Agent)
+
+Written by the PMO, not by this report's reviewer: what changed on criterion 5
+after the report, and what did not. The report's own verdicts above are left
+as written.
+
+**Criterion 5 — now met with recorded exceptions.**
+
+- *Byte misses:* close-task −28.04 % against `820da3b1` accepted as an
+  exception, and the dispatch figure updated to 95,758 B (USER-977), beside the
+  router and dispatch exceptions of USER-975.
+- *Architecture review:* run for TASK-469, TASK-470 and TASK-471, and for
+  TASK-474, which also changed `goals/SKILL.md` and was not in this report's
+  list. The first two reviews were BLOCKED; the fixes the user decided —
+  USER-978, USER-980, USER-981 — took five further re-reviews, the fifth and
+  sixth on wording alone. **Re-review 6 PASSED** at `6c2cbc79`:
+  `2026-09-21-architecture-review-{entry-skills,task-471}.md`,
+  `2026-09-21-architecture-rereview{,-2,-3,-4,-5,-6}` in this directory
+  (the first re-review is two files, `-entry-skills` and `-task-471`).
+- *Receipts:* still only TASK-468 has an on-disk integrated receipt; the
+  others' full-suite results are logs under the author's scratch directory and
+  the figures quoted in merge commits and journals. Unchanged.
+
+**Criterion 4 — unchanged, still FAIL (open).** S7 still has no fixture; the
+S1, S2 and S6 prose meaning-flips still survive the suite. Nothing after the
+report addressed them.
+
+**Criteria 1–3 — unchanged, UNMEASURED; runtime acceptance stays OPEN**
+(USER-976).
+
+**The iteration is still not accepted**, on criterion 4 and on the unmeasured
+runtime criteria.
