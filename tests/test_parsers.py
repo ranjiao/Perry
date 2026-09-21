@@ -576,7 +576,7 @@ class StateExtractor(unittest.TestCase):
                     (root / d).mkdir()
                 (root / ".perry/config.jsonl").write_text(
                     config_jsonl({"State root": "perry", "Code repo path": code}))
-                (root / "perry/ARCHITECTURE.md").write_text("> Version: decoy · Last reviewed: 2000-01-01\n" * 600)
+                (root / "perry/ARCHITECTURE.md").write_text("> Version: decoy · Last reviewed: 2000-01-01\n" * 700)
                 if doc:
                     (root / doc).write_text(text if want in (stale, None) else f"> Last reviewed: {fresh[1]}\n" * 600)
                 payload = perry_state(root)
