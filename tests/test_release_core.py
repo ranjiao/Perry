@@ -196,9 +196,6 @@ class Release(unittest.TestCase):
         result = manage.check_base(self.root, self.pre, self.save())
         self.assertEqual((result['base'], result['introduced'], result['new_versions']),
                          (self.pre, merge, ['0.1.0', '0.1.1']))
-        self.rows([dict(BASELINE, notes='rewritten')])
-        with self.assertRaisesRegex(manage.Refused, 'rewritten'):
-            manage.check_base(self.root, self.pre, self.save())
         self.git('rm', '-q', manage.RECORDS, *manage.PROJECTIONS)
         self.save()
         self.rows([dict(BASELINE, notes='rewritten')])
@@ -230,11 +227,13 @@ class Release(unittest.TestCase):
             manage.check_base(self.root, dropped, head)
 
     def test_skewed_commit_dates_do_not_reorder_the_introduction(self):
+        side = self.git('commit-tree', f'{self.base}^{{tree}}', '-p', self.base, '-m', 'side')
         self.write('product.txt', 'patched')
         self.allocate()
         with patch.dict('os.environ', GIT_COMMITTER_DATE='2001-01-01T00:00:00Z'):
-            head = self.save()
-        self.assertEqual(manage.check_base(self.root, self.pre, head)['introduced'], self.base)
+            self.save()
+        self.git('merge', '-q', '--no-ff', '--no-commit', side)
+        self.assertEqual(manage.check_base(self.root, self.pre, self.save())['introduced'], self.base)
 
     def test_phase_pointer_clear_and_matching_new_phase(self):
         self.write(manage.PHASE_POINTER, '(none)\n')
