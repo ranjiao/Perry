@@ -4182,9 +4182,12 @@ def cmd_kr_add(args, ctx, kr_id: str) -> dict:
                 f"`{kr_id}` names phase {named.group(1)}, and the current "
                 f"phase is {slug}. A phase KR is added to the current phase: "
                 f"re-run with `P{number}-…`. Nothing was written")
+        # By phase NUMBER, as every reader groups a phase's records
+        # (`parsers.linkage_records_for_phase`) — not by exact slug, which
+        # after a rename disagreed with the readers (USER-979).
         objectives = [str(r.get("id") or "") for r in records
                       if r.get("kind") == "objective"
-                      and str(r.get("phase") or "") == slug]
+                      and P.linkage_phase_number(r.get("phase")) == number]
         if objective not in objectives:
             raise Refused(
                 f"--objective {objective!r} is not an objective of phase "
@@ -4244,9 +4247,10 @@ def cmd_kr_add(args, ctx, kr_id: str) -> dict:
 
     if level == "phase":
         views, _f = lib.kr_revisions(records, store)
+        number = P.linkage_phase_number(target["phase"])
         active = [str(r.get("id") or "") for r in records
                   if r.get("kind") == "kr"
-                  and str(r.get("phase") or "") == target["phase"]
+                  and P.linkage_phase_number(r.get("phase")) == number
                   and str(r.get("objective") or "") == objective
                   and lib.kr_status(views.get(lib.kr_revision_key(r, store)))
                   ["status"] == "active"]
@@ -4409,9 +4413,14 @@ def cmd_objective(args, ctx) -> dict:
             f"see. `perry-lint{lib.root_flag(ctx['project_root'])}` names "
             f"the line. Nothing was written")
     records = [r for r in records or [] if isinstance(r, dict)]
+    # By phase NUMBER, as every reader groups them (TASK-475 V4 round 2,
+    # F2): an exact-slug match let a second O1 in after a rename. Not
+    # `linkage_records_for_phase`: it answers None for a phase with
+    # objectives and no KR yet, which is exactly the state this verb makes.
+    number = P.linkage_phase_number(slug)
     have = [str(r.get("id") or "") for r in records
             if r.get("kind") == "objective"
-            and str(r.get("phase") or "") == slug]
+            and P.linkage_phase_number(r.get("phase")) == number]
     if oid in have:
         raise Refused(
             f"phase {slug} already declares objective {oid} (it has "

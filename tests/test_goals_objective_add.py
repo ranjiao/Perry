@@ -110,6 +110,42 @@ class TestEndToEnd(ObjectiveProject):
         self.assertEqual([r["id"] for r in self.lines(self.linkage)], ["O1"])
 
 
+class TestARenamedPhaseIsTheSamePhase(ObjectiveProject):
+    """TASK-475 V4 round 2, F2, and its two siblings in `kr add` (USER-979).
+    Readers group a phase's records by NUMBER; the writers matched the exact
+    slug. After the document is renamed and CURRENT repointed, the records
+    filed under the old slug are still the phase's to every reader."""
+
+    def renamed(self):
+        self.fresh_phase()
+        self.add("O1", "first")
+        old = self.root / "phase" / f"{FRESH}.md"
+        old.rename(self.root / "phase" / "005-renamed.md")
+        (self.root / "phase" / "CURRENT").write_text("005-renamed\n")
+
+    def test_objective_add_refuses_an_id_filed_under_the_old_slug(self):
+        self.renamed()
+        self.assertRefused(["objective", "add", "O1", "--text", "t",
+                            "--reason", "r"], "already declares objective O1")
+
+    def test_kr_add_finds_the_objective_filed_under_the_old_slug(self):
+        self.renamed()
+        self.ok("kr", "add", "P005-O1-KR1", "--objective", "O1",
+                "--text", "k", "--reason", "r")
+
+    def test_the_kr_cap_counts_krs_filed_under_the_old_slug(self):
+        self.fresh_phase()
+        self.add("O1", "first")
+        for n in range(1, 5):
+            self.ok("kr", "add", f"P005-O1-KR{n}", "--objective", "O1",
+                    "--text", "k", "--reason", "r")
+        old = self.root / "phase" / f"{FRESH}.md"
+        old.rename(self.root / "phase" / "005-renamed.md")
+        (self.root / "phase" / "CURRENT").write_text("005-renamed\n")
+        self.assertRefused(["kr", "add", "P005-O1-KR5", "--objective", "O1",
+                            "--text", "k", "--reason", "r"], "already")
+
+
 class TestRefusals(ObjectiveProject):
 
     def test_an_id_the_phase_already_declares(self):
