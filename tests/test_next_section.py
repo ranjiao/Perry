@@ -205,11 +205,14 @@ def build(owner, name: str) -> pathlib.Path:
 
 
 def retro(root: pathlib.Path, slug: str) -> None:
-    """`end-phase-retro`'s file, with the header `score-phase` step 5 names."""
+    """`end-phase-retro`'s file, its header taken from that procedure's own
+    template, so the procedure and `parsers.retro_phases` cannot drift apart."""
+    page = (ROOT / "work/reference/subcommands.md").read_text(encoding="utf-8")
+    section = page.split("### `end-phase-retro`", 1)[1].split("\n### ", 1)[0]
+    header = re.search(r"`(> Phase: [^`]+)`", section).group(1)
     (root / "evidence" / "2026-09").mkdir(parents=True, exist_ok=True)
-    (root / "evidence" / "2026-09" / "retro.md").write_text(
-        f"# Retro\n\n> Phase: #{slug} · started 2026-09-01 · scored —\n",
-        encoding="utf-8")
+    (root / "evidence" / "2026-09" / "retro.md").write_text("# Retro\n\n" + header.replace(
+        "<NNN>-<slug>", slug).replace("<start-date>", "2026-09-01") + "\n", encoding="utf-8")
 
 
 def payload_of(root: pathlib.Path, *extra: str) -> dict:
