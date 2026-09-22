@@ -197,6 +197,7 @@ For version/release setup requests, or an applicable approved project release po
 | `triage` | Walk BOARD top-to-bottom; flag stale / inflated / evidence-less rows | `reference/planning.md` |
 | `delegate <task-id> <role>` | Render manual prompt for user to paste into another session | `reference/delegate.md` |
 | `dispatch <task-id>` | Fully automated: spec → executor → verify → evidence → BOARD/journal | `reference/dispatch.md` |
+| `review <task-id>` | Dispatch a V4 fresh-context review against written criteria → a verdict block in `evidence/` | `reference/review.md` |
 | `autopilot [--max-dispatches=N] [--max-duration=Th] [--max-failures=F] [--dry-run]` | Dispatch every safe row until the budget exhausts; first run is a forced dry-run; never auto-`done` | `reference/autopilot.md` |
 | `digest <path> [--refresh] [--paste]` | Read `inputs/<path>`, write a structured digest, move both to `knowledge/<topic>/` | `reference/digests.md` |
 | `status` (= `friday-review`) | This week's status report → `weekly/<YYYY-WW>.md` | `reference/subcommands.md` + `reference/reporting-format.md` |

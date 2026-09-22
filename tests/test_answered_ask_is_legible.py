@@ -271,8 +271,11 @@ class TestNoEdgeWasReDecided(unittest.TestCase):
         DECISION. `satisfied` must be `dependency_satisfied`'s own answer, not
         a second spelling of it that could drift — TASK-148 paid for that once
         with `startable` and TASK-162 nearly paid for it again."""
-        source = (PERRY_HOME / "bin" / "perry-task").read_text()
+        # `bin/lib` since TASK-483, and `perry-task` holds no copy.
+        source = (PERRY_HOME / "bin" / "lib" / "__init__.py").read_text()
+        task = (PERRY_HOME / "bin" / "perry-task").read_text()
         self.assertEqual(source.count("def dependency_satisfied("), 1)
+        self.assertEqual(task.count("def dependency_satisfied("), 0)
         self.assertEqual(source.count('task["blocked_by"] = ['), 1,
                          "the edge rule has more than one home again")
 

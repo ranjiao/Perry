@@ -416,7 +416,7 @@ class TestTheParserItself(unittest.TestCase):
         """`checked:` runs to several lines routinely. A parser that ends the
         field at the newline silently truncates the one line whose job is to
         tell the next round what it need not redo."""
-        blocks = self.mod.parse_verdicts(
+        blocks = self.mod.P.parse_verdicts(
             "=== VERDICT ===\n"
             "task: TASK-001\nrung: V4\nresult: PASS\n"
             "criteria: evidence/2026-08/TASK-001-spec.md\n"
@@ -431,12 +431,12 @@ class TestTheParserItself(unittest.TestCase):
     def test_a_repeated_key_keeps_the_last_value(self):
         """A corrected verdict is written by writing the line again. Keeping
         the first would read the correction back as the thing it corrected."""
-        blocks = self.mod.parse_verdicts(
+        blocks = self.mod.P.parse_verdicts(
             "=== VERDICT ===\nresult: FAIL\nresult: PASS\n=== END VERDICT ===\n")
         self.assertEqual(blocks[0][0]["result"], "PASS")
 
     def test_the_line_number_points_at_the_block(self):
-        blocks = self.mod.parse_verdicts(
+        blocks = self.mod.P.parse_verdicts(
             "intro\n\n=== VERDICT ===\nresult: PASS\n=== END VERDICT ===\n")
         self.assertEqual(blocks[0][1], 3)
 

@@ -1,4 +1,4 @@
-# `perry-state --section next` — `perry-next/1.2`
+# `perry-state --section next` — `perry-next/1.3`
 
 Where a project stands on Perry's sequence, and the one step to take next. It
 is computed on every call from values `perry-state` already reads, plus the
@@ -29,7 +29,7 @@ a `--lane` outside the three lanes.
 ```jsonc
 {
   "next": {
-    "contract": "perry-next/1.2",   // check this before anything else
+    "contract": "perry-next/1.3",   // check this before anything else
     "semantics": [],                 // meaning changes, oldest minor first
     "position": [ /* below */ ],
     "primary": {
@@ -140,6 +140,20 @@ A fact name appears in `primary.facts[]`, `alternates[].facts[]` and
 titled `midweek-check` ran in the current ISO week; unknown only when that
 store cannot be read (TASK-482).
 
+`1.3` adds these, and removes none (TASK-483, DESIGN-020 § 5.10 batch 2):
+
+- `board.review_owed` (int): open rows at `review`, rung V4, that no verdict
+  block names.
+- `board.closable` (int): open V4 rows at `review` whose latest verdict block
+  naming them reads `result: PASS` at `rung: V4`.
+- `board.dispatchable` (int): open `not_started`, startable P0/P1 rows whose
+  spec header declares `Dispatch mode: auto`.
+- `board.blocked_stale` (int): open rows marked `blocked_stale`.
+- `board.first_<name>`, `board.first_<name>_title` (string or null) for each
+  of the four: the first such row by priority then id, and its title.
+
+All four are `null` on a payload with no `board.execution`.
+
 ## What this contract does not promise
 
 - **Which rule fires on a given project.** That depends on the project's state
@@ -157,3 +171,4 @@ store cannot be read (TASK-482).
 | 1.0 | First release (TASK-442, DESIGN-020 phase A). |
 | 1.1 | Adds the fact names above (TASK-479). No key or meaning changes, so `semantics` stays `[]`. |
 | 1.2 | Replaces the never-told `today.journal_has_midweek` with `week.midweek_checked` (TASK-482). No key changes, so `semantics` stays `[]`. |
+| 1.3 | Adds the `board.*` execution-loop fact names above (TASK-483). No key or meaning changes, so `semantics` stays `[]`. |

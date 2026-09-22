@@ -1551,6 +1551,46 @@ def encode(obj):
     return obj
 
 
+def _natural(text: str) -> tuple:
+    return tuple((0, int(t)) if t.isdigit() else (1, t)
+                 for t in re.split(r"(\d+)", text))
+
+
+def execution_rows(root: Path, board) -> list[dict]:
+    """TASK-483, DESIGN-020 § 5.10 batch 2: each open row with what the
+    execution-loop facts read, by priority then id. `startable` and
+    `blocked_stale` come from `bin/lib`'s edge and startability rules, the
+    ones `perry-task list` runs; verdict blocks and the spec's `Dispatch mode`
+    are read by `viewer/parsers.py` (NN-1). `verdicts[]` is in declared order,
+    oldest first: path in natural order (month directory, then digit runs as
+    numbers, so `round10` follows `round9`), then the block's line."""
+    rows = {r["id"]: {"id": r["id"], "title": r.get("title") or "",
+                      "status": r.get("status") or "",
+                      "priority": r.get("priority") or "",
+                      "verification": (r.get("verification") or "").strip().upper(),
+                      "open": r.get("status") not in lib.CLOSED_STATUSES,
+                      "depends_on": list(r.get("depends_on") or []), "blocks": []}
+            for r in P.load_task_store(root) or [] if r.get("id")}
+    lib.resolve_dependency_edges(rows, lib.ask_nodes(board.user_input_queue, answered))
+    lib.resolve_startability(rows.values())
+    named: dict[str, list] = {}
+    for path, fields, line in sorted(P.verdict_blocks(root),
+                                     key=lambda b: (_natural(b[0]), b[2])):
+        named.setdefault(fields.get("task", ""), []).append(
+            {"path": path, "line": line, "rung": fields.get("rung", "").upper(),
+             "result": fields.get("result", "")})
+    out = []
+    for r in sorted((r for r in rows.values() if r["open"]),
+                    key=lambda r: (r["priority"] or "~", _natural(r["id"]))):
+        spec, header = P.spec_header_fields(root, r["id"])
+        mode = re.match(r"[a-z]*", header.get("dispatch mode", "").strip("`* ").lower())
+        out.append({**{k: r[k] for k in ("id", "title", "status", "priority",
+                                         "verification", "startable", "blocked_stale")},
+                    "spec": spec, "dispatch_mode": mode.group(0),
+                    "verdicts": named.get(r["id"], [])})
+    return out
+
+
 def encode_risk(r):
     """One risk, with its age computed rather than stored.
 
@@ -2098,6 +2138,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "drift": reconcile_drift(project_root, snap.board,
                                      read_event_log(project_root)),
             "tasks": [encode(t) for t in all_tasks],
+            "execution": execution_rows(root, board),
         },
         "attribution": {
             "linked": linked,
@@ -2221,7 +2262,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
 
 
 #: The contract the `next` block publishes. `schema/next-contract.md`.
-NEXT_CONTRACT = "perry-next/1.2"
+NEXT_CONTRACT = "perry-next/1.3"
 
 #: The declared rule table. Shipped with Perry, never with a project: it is
 #: vocabulary, like `schema/`, and reading it is not a read of project state.
@@ -2266,6 +2307,11 @@ NEXT_FACTS = (
     "user_input_queue.oldest_idle_days",
     "design.pending_handoff_count", "design.first_pending_id",
     "board.lines", "board.cap", "board.over_cap_by",
+    "board.review_owed", "board.first_review_owed", "board.first_review_owed_title",
+    "board.closable", "board.first_closable", "board.first_closable_title",
+    "board.dispatchable", "board.first_dispatchable",
+    "board.first_dispatchable_title", "board.blocked_stale",
+    "board.first_blocked_stale", "board.first_blocked_stale_title",
     "project.spines",
     "queue.sla_breaches", "queue.oldest_breach_id",
     "pipeline.wip_breaches",
@@ -2523,6 +2569,24 @@ def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
     facts["board.over_cap_by"] = (board["lines"] - board["cap"]
                                   if _number(board.get("lines"))
                                   and _number(board.get("cap")) else None)
+    # TASK-483: the execution loop, over `board.execution` (`execution_rows`).
+    # Closable reads the LATEST block naming the row, in that list's order.
+    rows = board.get("execution")
+    review = [r for r in rows or [] if r["status"] == "review"]
+    for kind, found in (
+            ("review_owed", [r for r in review
+                             if r["verification"] == "V4" and not r["verdicts"]]),
+            ("closable", [r for r in review if r["verification"] == "V4"
+                          and r["verdicts"] and r["verdicts"][-1]["result"] == "PASS"
+                          and r["verdicts"][-1]["rung"] == "V4"]),
+            ("dispatchable", [r for r in rows or [] if r["status"] == "not_started"
+                              and r["startable"] and r["priority"] in ("P0", "P1")
+                              and r["dispatch_mode"] == "auto"]),
+            ("blocked_stale", [r for r in rows or [] if r["blocked_stale"]])):
+        first = found[0] if found else {}
+        facts[f"board.{kind}"] = len(found) if rows is not None else None
+        facts[f"board.first_{kind}"] = first.get("id")
+        facts[f"board.first_{kind}_title"] = first.get("title")
 
     tracks = ((payload.get("project") or {}).get("config") or {}).get("tracks") or []
     facts["project.spines"] = sorted({(t.get("mode") or "project").strip().lower()
