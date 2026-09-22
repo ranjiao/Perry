@@ -88,8 +88,9 @@ them as they are. Translate them only when the chat language is not English.
   `all` is false as soon as one part is false. `any` is true as soon as one
   part is true. The same state always gives the same block.
 - **Predicates compare typed values only**: a fact path, an operator
-  (`eq ne lt le gt ge in exists nonempty`) and a literal or
-  `{"threshold": name}`. No rule reads prose (ARCHITECTURE.md § NN-4).
+  (`eq ne lt le gt ge in contains exists nonempty`; `contains` is `in`'s mirror,
+  for a fact that is a list) and a literal or `{"threshold": name}`. No rule
+  reads prose (ARCHITECTURE.md § NN-4).
 - **Thresholds** come from `schema/state-schema.json § thresholds` when a name
   is declared there, which is read and never written. Otherwise they come from
   the rule file, with a note. `conformance.thresholds[]` says which source each
@@ -117,7 +118,11 @@ Each fact is a value `perry-state` already computes, or the clock
 | `design.pending_handoff_count`, `design.first_pending_id` | `design.pending_handoff` |
 | `board.lines`, `board.cap`, `board.over_cap_by` | `board` |
 | `board.review_owed`, `board.closable`, `board.dispatchable`, `board.blocked_stale`, each with `board.first_<name>` and `board.first_<name>_title` | `board.execution[]`: each open task record, ordered by priority then id, with `startable` and `blocked_stale` from the rule `perry-task list` uses (`bin/lib § resolve_startability`), its `verdicts[]` and its spec's `dispatch_mode`, both read by `viewer/parsers.py` (`verdict_blocks`, `spec_header_fields`) |
-| `project.spines` | `project.config.tracks[].mode` |
+| `project.spines`, `project.packs` | `project.config`: `tracks[].mode`, and `packs[].name` — what the project declares (`software-ops` when it names none), never what this installation holds |
+| `operations.inputs`, `operations.first_input` | `operations.inputs` / `inputs_oldest`: files under `inputs/`, oldest first; the name `work digest` takes |
+| `cadence.overdue_count`, `cadence.first_overdue` | `cadence.overdue[]`, oldest first; its id, or title where it has none. Unknown when the store is unreadable |
+| `risks.top_rank` | `risks.top.severity_rank` — the marker the statement **declares**; `""` when it declares none, or no risk is open |
+| `architecture.days_since_review` | today minus `ARCHITECTURE.md`'s `Last reviewed` — the integer the stale-review warning uses; unknown with no document or date |
 | `queue.sla_breaches`, `queue.oldest_breach_id` | `project.config.tracks[]`: `sla_check`, `sla_breaches` |
 | `pipeline.wip_breaches` | `project.config.tracks[]`: `wip`, `wip_breaches` |
 
@@ -294,6 +299,23 @@ It is Wednesday and no mid-week check is recorded for this ISO week.
 row titled `midweek-check`, so `week.midweek_checked` reads that row's
 `last_run`; a run from an earlier week does not count (TASK-482).
 
+### R-inputs-waiting
+
+A file waits in `inputs/`. `work digest <path>` reads `inputs/<path>`, so the
+command names the oldest file by that name.
+
+### R-cadence-overdue
+
+A declared recurring item is past its `Next due`. A cell that cannot be read
+is in `cadence.undated`, not `overdue`: a finding, never an assumed due date.
+
+### R-risk-raised
+
+The top open risk **declares** a high marker (`H`, `高`, `🔴`). Only `high`
+fires: `medium` and `low` say this is not the one to act on now, and `""` is
+no declaration. Ranking a statement that merely *sounds* urgent would be the
+tool deciding what prose means (ARCHITECTURE.md § NN-4).
+
 ### R-phase-heartbeat
 
 A phase that runs for `phase_heartbeat_days` (default 14) with no snapshot has
@@ -302,7 +324,7 @@ no frozen record to compare its end against. `goals/SKILL.md` used to prompt
 the payload dates the last snapshot, so the rule never fires. It reports
 `phase.days_since_snapshot` as unknown on every project with an active phase.
 DESIGN-020 § 5.3 has no place for it, so it sits after the other cadence
-rules, where § 5.10 keeps it (after R-midweek). ARCHITECTURE.md §7 asks whether it should survive.
+rules, where § 5.10 keeps it (after R-risk-raised). ARCHITECTURE.md §7 asks whether it should survive.
 
 ### R-handoff-stale
 
@@ -321,6 +343,15 @@ follows from it. Hand-off prints the tasks for `work` to add.
 The board is longer than its cap. Past the cap it stops being read, and triage
 pushes detail into evidence. No board file is measured any more, so
 `board.lines` is `0` and this rule is quiet on every store-backed project.
+
+### R-architecture-stale
+
+Past `architecture_review_days` (180) a document nobody has re-read stops
+describing the code; the standup warns there, this offers the audit. It is the
+`software-ops` pack's discipline, and that pack is the **default**: only a
+project whose `Packs` cell names others, or is blank, is exempt. No document,
+or an unreadable `Last reviewed`, leaves the fact unknown. Last in the order:
+Perry's slowest clock must not outrank this week.
 
 ## Closing step
 

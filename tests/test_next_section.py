@@ -179,7 +179,7 @@ def build(owner, name: str) -> pathlib.Path:
     # undeclared, so each fixture names its edges and checks. Closable KRs
     # are measured and met with no task: the UD 14 exemption.
     staffed, declared = ["P001-O1-KR1"], ["P001-O1-KR1"]
-    if name in ("active_phase_week_unknown", "checks_undeclared") or name in LOOP:
+    if name in ("active_phase_week_unknown", "checks_undeclared") or name in WRITES:
         krs = [kr("P001-O1-KR1", target=3)]
         declared = [] if name == "checks_undeclared" else declared
     elif name == "kr_unstaffed":
@@ -201,7 +201,7 @@ def build(owner, name: str) -> pathlib.Path:
                                         encoding="utf-8")
     if name == "phase_scorable":
         retro(root, PHASE_SLUG)
-    for write in LOOP.get(name, ()):
+    for write in WRITES.get(name, ()):
         write(root)
     return root
 
@@ -255,6 +255,55 @@ LOOP = {"review_owed": (OWED,), "closable_row": PASSED, "dispatchable": READY,
         "busy_board": (OWED, *PASSED, *READY)}
 
 
+def cadence_rows(*records: dict):
+    """TASK-484: records, not `perry-task cadence-done` — which also writes
+    today's journal line and would fire `R-handoff-stale` in every fixture."""
+    def write(root):
+        with (root / "cadence.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(jsonl(list(records)))
+    return write
+
+
+def cadence(rid: str, title: str, *, next_due: str, last_run="", order=0) -> dict:
+    return {"id": rid, "title": title, "owner": "PMO Agent", "order": order,
+            "frequency": "weekly", "next_due": next_due, "last_run": last_run,
+            "last_evidence": ""}
+
+
+def day(offset: int) -> str:
+    """Relative to the REAL today, which `cadence_report` and `days_since` read."""
+    return (date.today() + timedelta(days=offset)).isoformat()
+
+
+ARCHITECTURE_MD = ("# Architecture — fixture\n\n> Version: v1\n"
+                   "> Last reviewed: {reviewed}\n\n## §1. Mission & scope\n\n"
+                   "Hold still.\n")
+
+#: Batch 3's rules all sit below `R-review-due` and `R-midweek`, so a fixture
+#: showing one of them firing must first be quiet on those two: this week's
+#: weekly report, and its recorded mid-week check. Neither is a fact any
+#: batch-3 rule reads, so silencing them proves nothing away.
+QUIET = (text(f"weekly/{STATE.iso_week(WEDNESDAY)}.md", "# Weekly\n"),
+         cadence_rows(cadence("CAD-000", "midweek-check",
+                              next_due=day(30), last_run="2026-09-14")))
+
+#: DESIGN-020 § 5.10 batch 3 (TASK-484), each over the quiet active phase.
+OPERATIONS = {
+    "inputs_waiting": (*QUIET, text("inputs/a-brief.md", "# A brief\n")),
+    "cadence_overdue": (*QUIET, cadence_rows(cadence(
+        "CAD-001", "weekly close", next_due=day(-9), order=1))),
+    "risk_raised": (*QUIET, text("risks.jsonl", json.dumps({
+        "kind": "risk", "id": "RX-001", "opened": "2026-09-01",
+        "risk": "H · the notarization certificate expires this month",
+        "status": "open", "order": 0}) + "\n")),
+    "architecture_stale": (*QUIET, text("ARCHITECTURE.md", ARCHITECTURE_MD.format(
+        reviewed=day(-400)))),
+}
+
+#: Every fixture's writes, after `build` has laid down its phase and KRs.
+WRITES = {**LOOP, **OPERATIONS}
+
+
 def retro(root: pathlib.Path, slug: str) -> None:
     """`end-phase-retro`'s file, its header taken from that procedure's own
     template, so the procedure and `parsers.retro_phases` cannot drift apart."""
@@ -291,6 +340,10 @@ EXPECTED = {
     "dispatchable": "R-dispatchable",
     "blocked_stale": "R-blocked-stale",
     "busy_board": "R-review-owed",
+    "inputs_waiting": "R-inputs-waiting",
+    "cadence_overdue": "R-cadence-overdue",
+    "risk_raised": "R-risk-raised",
+    "architecture_stale": "R-architecture-stale",
 }
 
 
@@ -341,6 +394,10 @@ EXPECTED_COMMAND = {
     "dispatchable": "/perry work dispatch TASK-013",
     "blocked_stale": "/perry work triage",
     "busy_board": "/perry work review TASK-011",
+    "inputs_waiting": "/perry work digest a-brief.md",
+    "cadence_overdue": "/perry work triage",
+    "risk_raised": "/perry work risk",
+    "architecture_stale": "/perry work architecture-audit",
 }
 
 
@@ -356,8 +413,14 @@ class TestEachFixtureOffersItsCommand(Fixtures):
                 self.assertEqual(command, block["primary"]["command"])
 
     def test_the_command_reaches_the_published_payload_unchanged(self):
-        """`--section next` is what a lane runs, so the pin holds there too."""
+        """`--section next` is what a lane runs, so the pin holds there too.
+        Not for batch 3's four: their rules sit below `R-review-due` and
+        `R-midweek`, which fire on the REAL weekday this subprocess reads, so a
+        written pin here would go red on a calendar. `TestTheShape` holds the
+        published block to the payload's own for all of them."""
         for name, command in EXPECTED_COMMAND.items():
+            if name in OPERATIONS:
+                continue
             proc = inproc.run("perry-state", ["--section", "next", "--root",
                                               str(self.roots[name])], cwd=ROOT)
             with self.subTest(fixture=name):
@@ -589,9 +652,14 @@ class TestTheLifecycleRules(Fixtures):
                                (self.midweek_run(root, "--on", "2026-09-09"), True),
                                (self.midweek_run(root, "--on", "2026-09-14"), False)):
             block = STATE.build_next(payload, today=WEDNESDAY)
+            # `cadence-done` stamps the next due a week out, so the row this
+            # procedure writes is itself overdue once that week has passed —
+            # TASK-484 gave that its own rule. Read, not pinned to a date.
+            instead = ("R-cadence-overdue" if payload["cadence"]["overdue"]
+                       else "R-handoff-stale")
             with self.subTest(fires=fires):
                 self.assertEqual(["R-phase-closable", "R-review-due", "R-midweek"
-                                  if fires else "R-handoff-stale"], recommended(block))
+                                  if fires else instead], recommended(block))
                 self.assertNotIn("week.midweek_checked",
                                  [u["fact"] for u in block["unknown"]])
                 self.assertNotIn("R-midweek", recommended(STATE.build_next(
@@ -712,6 +780,116 @@ class TestTheExecutionLoop(Fixtures):
         self.assertEqual("R-dispatchable", got["primary"]["rule"])
 
 
+class TestCadenceAndOperations(Fixtures):
+    """TASK-484, DESIGN-020 § 5.10 batch 3: acceptance criteria 1-4. Each is a
+    PAIR — the state that fires the rule, and the nearest state that must not.
+    `EXPECTED` pins each fixture's primary and command and
+    `TestDeletingARuleReddensItsFixture` removes each new rule from a copy; the
+    negative half is here, where no pin can supply it."""
+
+    def over(self, *writes, settings=None) -> tuple[dict, dict, dict]:
+        """`(facts, unknown, block)` over the quiet active phase plus `writes`."""
+        root = build(self, "active_phase_week_unknown")
+        if settings:
+            config_store.write_config(root, settings=settings)
+        for write in writes:
+            write(root)
+        got = payload_of(root)
+        return (*STATE.next_facts(got, WEDNESDAY),
+                STATE.build_next(got, today=WEDNESDAY))
+
+    def pair(self, name: str, *facts: str) -> tuple:
+        return tuple(STATE.next_facts(self.payloads[name], WEDNESDAY)[0][f]
+                     for f in facts)
+
+    def test_a_waiting_input_and_a_late_cadence_row_each_name_the_first_one(self):
+        """Criteria 1 and 2, one shape: a count and the first item it names.
+        `EXPECTED_COMMAND` pins `/perry work digest a-brief.md`, so what is here
+        is the negative — an empty `inputs/`, a row still inside its period."""
+        for name, rule, counted, first, want, quiet in (
+                ("inputs_waiting", "R-inputs-waiting", "operations.inputs",
+                 "operations.first_input", (1, "a-brief.md"),
+                 (lambda root: (root / "inputs").mkdir(),)),
+                ("cadence_overdue", "R-cadence-overdue", "cadence.overdue_count",
+                 "cadence.first_overdue", (1, "CAD-001"),
+                 (cadence_rows(cadence("CAD-001", "weekly close",
+                                       next_due=day(9), order=1)),))):
+            facts, _u, block = self.over(*QUIET, *quiet)
+            with self.subTest(fixture=name):
+                self.assertIn(want[1], self.next_of(name)["primary"]["reason"])
+                self.assertEqual(want, self.pair(name, counted, first))
+                self.assertEqual((0, None), (facts[counted], facts[first]))
+                self.assertNotIn(rule, recommended(block))
+
+    def test_only_a_declared_marker_ranks_a_risk_and_no_marker_is_not_unknown(self):
+        """Criterion 3. One statement, six front tokens. `""` is an ANSWER: the
+        rank comes from a DECLARED marker, never from the sentence (NN-4)."""
+        self.assertIn("high", self.next_of("risk_raised")["primary"]["reason"])
+        def register(prefix):
+            return text("risks.jsonl", json.dumps({
+                "kind": "risk", "id": "RX-001", "opened": "2026-09-01",
+                "risk": prefix + "the notarization certificate expires this month",
+                "status": "open", "order": 0}) + "\n")
+        for prefix, rank, fires in (("H · ", "high", True), ("🔴 ", "high", True),
+                                    ("M · ", "medium", False), ("L · ", "low", False),
+                                    ("URGENT: ", "", False), ("", "", False)):
+            facts, unknown, block = self.over(*QUIET, register(prefix))
+            with self.subTest(prefix=prefix or "(none)"):
+                self.assertEqual(rank, facts["risks.top_rank"])
+                self.assertNotIn("risks.top_rank", unknown)
+                self.assertEqual(fires, "R-risk-raised" in recommended(block))
+        facts, unknown, _b = self.over(*QUIET)      # and with no risk at all
+        self.assertEqual("", facts["risks.top_rank"])
+        self.assertNotIn("risks.top_rank", unknown)
+
+    def test_a_stale_architecture_needs_the_age_the_document_and_the_pack(self):
+        """Criterion 4. Three silences: a fresh review, no `ARCHITECTURE.md`
+        (unknown — never a guessed age), and a project without the pack."""
+        days = rules_doc()["thresholds"]["architecture_review_days"]["value"]
+        self.assertEqual((180, 400, ["software-ops"]), (days, *self.pair(
+            "architecture_stale", "architecture.days_since_review", "project.packs")))
+        def document(reviewed):
+            return text("ARCHITECTURE.md", ARCHITECTURE_MD.format(reviewed=reviewed))
+        # The warning and the rule cross on the SAME day. The warning used to
+        # wait one longer (`> 180` against `ge 180`), so at exactly the
+        # threshold the audit was recommended by a standup silent about it.
+        for age, both in ((days - 1, False), (days, True)):
+            root = build(self, "active_phase_week_unknown")
+            for write in (*QUIET, document(day(-age))):
+                write(root)
+            got = payload_of(root)
+            with self.subTest(age=age):
+                self.assertEqual((both, both), (
+                    "ARCHITECTURE.md last reviewed" in " ".join(got["warnings"]),
+                    "R-architecture-stale" in recommended(
+                        STATE.build_next(got, today=WEDNESDAY))))
+        for writes, says in (((), "ARCHITECTURE.md"), ((document("soon"),), "soon")):
+            facts, unknown, block = self.over(*QUIET, *writes)
+            with self.subTest(says=says):
+                self.assertNotIn("architecture.days_since_review", facts)
+                self.assertIn(says, unknown["architecture.days_since_review"])
+                self.assertEqual(["R-architecture-stale"], {
+                    u["fact"]: u["rules"] for u in block["unknown"]}[
+                        "architecture.days_since_review"])
+                self.assertNotIn("R-architecture-stale", recommended(block))
+        facts, _u, block = self.over(*QUIET, document(day(-400)), settings={
+            **config_store.DEFAULT_SETTINGS, "Packs": "other-pack"})
+        self.assertEqual((["other-pack"], 400), (
+            facts["project.packs"], facts["architecture.days_since_review"]))
+        self.assertNotIn("R-architecture-stale", recommended(block))
+
+    def test_an_unreadable_cadence_store_leaves_both_facts_unknown(self):
+        """The register's own failure mode, which `R-midweek` already has: a
+        store nothing can parse is reported, never counted as zero overdue."""
+        facts, unknown, block = self.over(text("cadence.jsonl", "{not json\n"))
+        for fact in ("cadence.overdue_count", "cadence.first_overdue"):
+            self.assertNotIn(fact, facts)
+            self.assertIn("cadence.jsonl", unknown[fact])
+        self.assertEqual(["R-cadence-overdue"], {
+            u["fact"]: u["rules"] for u in block["unknown"]}["cadence.overdue_count"])
+        self.assertNotIn("R-cadence-overdue", recommended(block))
+
+
 class TestOverlaysComeFirst(Fixtures):
 
     @classmethod
@@ -781,7 +959,7 @@ class TestTheShape(Fixtures):
             block = self.next_of(name)
             with self.subTest(fixture=name):
                 self.assertEqual(self.KEYS, set(block))
-                self.assertEqual("perry-next/1.3", block["contract"])
+                self.assertEqual("perry-next/1.4", block["contract"])
                 self.assertEqual(["goals", "phase", "week", "review"],
                                  [p["step"] for p in block["position"]])
                 self.assertLessEqual(len(block["alternates"]), 2)
@@ -896,7 +1074,10 @@ class TestTheRuleFile(unittest.TestCase):
     #: Rules DESIGN-020 does not name, each with its spine and the rule it
     #: follows. The heartbeat carries `goals/SKILL.md`'s old prompt (round 3).
     #: TASK-479 adds DESIGN-020 § 5.10 batch 1 in its declared place.
-    ADDITIONS = {"R-phase-heartbeat": ("project", "R-midweek"),
+    #: TASK-484 adds batch 3 and moves nothing: the three event rules land
+    #: between R-midweek and R-phase-heartbeat, and R-architecture-stale is
+    #: last, both as § 5.10's order has them.
+    ADDITIONS = {"R-phase-heartbeat": ("project", "R-risk-raised"),
                  "R-phase-scorable": ("project", "R-phase-closable"),
                  "R-kr-unstaffed": ("project", "R-phase-scorable"),
                  "R-checks-undeclared": ("project", "R-kr-unstaffed"),
@@ -904,7 +1085,11 @@ class TestTheRuleFile(unittest.TestCase):
                  "R-review-owed": ("any", "R-week-unplanned"),
                  "R-closable-row": ("any", "R-review-owed"),
                  "R-blocked-stale": ("any", "R-asks-waiting"),
-                 "R-dispatchable": ("any", "R-blocked-stale")}
+                 "R-dispatchable": ("any", "R-blocked-stale"),
+                 "R-inputs-waiting": ("any", "R-midweek"),
+                 "R-cadence-overdue": ("any", "R-inputs-waiting"),
+                 "R-risk-raised": ("any", "R-cadence-overdue"),
+                 "R-architecture-stale": ("any", "R-board-over-cap")}
 
     def setUp(self):
         self.doc = rules_doc()
@@ -922,7 +1107,8 @@ class TestTheRuleFile(unittest.TestCase):
             self.assertEqual(sequence.index(follows) + 1, sequence.index(rid))
             self.assertEqual(spine, {r["id"]: r["spine"]
                                      for r in self.doc["rules"]}[rid])
-        self.assertEqual("R-board-over-cap", sequence[-1])
+        self.assertEqual("R-architecture-stale", sequence[-1])
+        self.assertEqual("R-board-over-cap", sequence[-2])
         spines = {r["id"]: r["spine"] for r in self.doc["rules"]}
         for rid, spine in self.REPLACEMENTS.items():
             self.assertEqual(spine, spines[rid])
@@ -956,6 +1142,19 @@ class TestTheRuleFile(unittest.TestCase):
                     self.assertTrue(self.doc["thresholds"][entry["name"]]
                                     ["note"].strip())
 
+    def test_the_architecture_age_is_one_number_and_the_rule_says_at_or_over(self):
+        """TASK-484 correction. The stale-review warning is raised before any
+        rule is evaluated, so the number lives twice; the rule file's note
+        claimed a test kept the two equal and none did. This is the rule's half
+        — `TestCadenceAndOperations` holds the warning's."""
+        rule = next(r for r in self.doc["rules"] if r["id"] == "R-architecture-stale")
+        clause = next(c for c in rule["when"]["all"]
+                      if c.get("fact") == "architecture.days_since_review")
+        self.assertEqual(({"threshold": "architecture_review_days"}, "ge"),
+                         (clause["value"], clause["op"]))   # at or over, both sides
+        self.assertEqual(STATE.ARCHITECTURE_REVIEW_DAYS,
+                         self.doc["thresholds"]["architecture_review_days"]["value"])
+
     def test_a_rule_naming_something_that_is_not_a_fact_is_an_error(self):
         problems = STATE.next_rule_problems(
             {"id": "R-x", "when": {}, "spine": "any", "lane": "work",
@@ -970,6 +1169,11 @@ class TestTheRuleFile(unittest.TestCase):
         with self.assertRaises(STATE._RuleError):
             STATE.next_evaluate({"fact": "board.lines", "op": "gt",
                                  "value": "3"}, {"board.lines": 5}, {}, {})
+        # `contains` (TASK-484) is the mirror of `in`: a list fact and a scalar.
+        for have, truth in ((["a", "b"], True), (["a"], False), ([], False)):
+            self.assertEqual(truth, STATE._compare("contains", have, "b"))
+        with self.assertRaises(STATE._RuleError):
+            STATE._compare("contains", "ab", "b")
         truth, _f, _u = STATE.next_evaluate(
             {"fact": "installed", "op": "eq", "value": 1},
             {"installed": True}, {}, {})

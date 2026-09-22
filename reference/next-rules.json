@@ -1,6 +1,6 @@
 {
-  "contract": "perry-next/1.3",
-  "note": "The rule table `perry-state --section next` evaluates (DESIGN-020 § 5.3, TASK-442). Overlays first, which always win; then `rules` in declared order. The first rule that fires is the primary; the next two that recommend a different command are the alternates. A predicate over a fact the payload cannot tell does not fire, and the fact is listed in `unknown[]`. Predicates compare typed values only — a fact path, an operator from `eq ne lt le gt ge in exists nonempty`, and a literal or a `{\"threshold\": name}` — combined with `all` / `any`. Each rule id is explained in `reference/next.md`. A command still reached through its direct entrance (`/perry goals init`, `plan-phase`, `plan-week`) moves to `/perry plan` when DESIGN-020 phase F ships that entrance.",
+  "contract": "perry-next/1.4",
+  "note": "The rule table `perry-state --section next` evaluates (DESIGN-020 § 5.3, TASK-442). Overlays first, which always win; then `rules` in declared order. The first rule that fires is the primary; the next two that recommend a different command are the alternates. A predicate over a fact the payload cannot tell does not fire, and the fact is listed in `unknown[]`. Predicates compare typed values only — a fact path, an operator from `eq ne lt le gt ge in contains exists nonempty` (`in` asks whether a scalar fact is one of a declared list; `contains` asks whether a list fact holds a declared scalar), and a literal or a `{\"threshold\": name}` — combined with `all` / `any`. Each rule id is explained in `reference/next.md`. A command still reached through its direct entrance (`/perry goals init`, `plan-phase`, `plan-week`) moves to `/perry plan` when DESIGN-020 phase F ships that entrance.",
   "thresholds": {
     "phase_closable_ratio": {
       "value": 0.8,
@@ -21,6 +21,10 @@
     "phase_heartbeat_days": {
       "value": 14,
       "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. The default `goals/SKILL.md` used for its heartbeat prompt. A project's own `phase_heartbeat_days` setting is not in the payload, so it is not read."
+    },
+    "architecture_review_days": {
+      "value": 180,
+      "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. The age at which `bin/perry-state` warns that `ARCHITECTURE.md` is overdue for review, so the recommendation arrives WITH the warning rather than at some second age. The warning does not read this file — it is raised before any rule is evaluated — so the number lives twice: here, and as `bin/perry-state § ARCHITECTURE_REVIEW_DAYS`. Two tests guard the halves separately: `tests/test_next_section.py § TestTheRuleFile` reads both numbers and fails when they differ, and pins THIS rule's `ge`; `§ TestCadenceAndOperations` builds a project at exactly this age and fails unless the warning and the rule both speak on that one day, which is what catches a warning comparing `>` instead."
     }
   },
   "overlays": [
@@ -295,6 +299,42 @@
       "after": ["close-task", "add-task"]
     },
     {
+      "id": "R-inputs-waiting",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "operations.inputs", "op": "gt", "value": 0}
+      ]},
+      "spine": "any",
+      "lane": "work",
+      "command": "/perry work digest {operations.first_input}",
+      "reason": "{operations.inputs} file(s) wait undigested in inputs/, the oldest being {operations.first_input}",
+      "after": ["digest", "triage"]
+    },
+    {
+      "id": "R-cadence-overdue",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "cadence.overdue_count", "op": "gt", "value": 0}
+      ]},
+      "spine": "any",
+      "lane": "work",
+      "command": "/perry work triage",
+      "reason": "{cadence.overdue_count} cadence item(s) are past their next due date, the oldest being {cadence.first_overdue}",
+      "after": ["triage", "midweek-check", "friday-review"]
+    },
+    {
+      "id": "R-risk-raised",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "risks.top_rank", "op": "in", "value": ["high"]}
+      ]},
+      "spine": "any",
+      "lane": "work",
+      "command": "/perry work risk",
+      "reason": "the top open risk carries a {risks.top_rank}-severity marker",
+      "after": ["triage", "friday-review"]
+    },
+    {
       "id": "R-phase-heartbeat",
       "when": {"all": [
         {"fact": "installed", "op": "eq", "value": true},
@@ -346,6 +386,19 @@
       "command": "/perry work triage",
       "reason": "the board is {board.over_cap_by} line(s) over its {board.cap}-line cap",
       "after": ["add-task"]
+    },
+    {
+      "id": "R-architecture-stale",
+      "when": {"all": [
+        {"fact": "installed", "op": "eq", "value": true},
+        {"fact": "project.packs", "op": "contains", "value": "software-ops"},
+        {"fact": "architecture.days_since_review", "op": "ge", "value": {"threshold": "architecture_review_days"}}
+      ]},
+      "spine": "any",
+      "lane": "work",
+      "command": "/perry work architecture-audit",
+      "reason": "ARCHITECTURE.md was last reviewed {architecture.days_since_review} days ago",
+      "after": []
     }
   ]
 }

@@ -69,6 +69,13 @@ except ImportError as exc:  # pragma: no cover - install-shape problem
 # ── helpers ───────────────────────────────────────────────────────────────
 
 
+#: The age at which `ARCHITECTURE.md` is overdue for review. Named, not spelled
+#: inline, because `reference/next-rules.json § thresholds` declares the same
+#: number for `R-architecture-stale` and `tests/test_next_section.py` reads both
+#: and fails when they differ. Both compare AT or over, so neither fires first.
+ARCHITECTURE_REVIEW_DAYS = 180
+
+
 def days_since(value: str) -> int | None:
     m = re.search(r"\d{4}-\d{2}-\d{2}", value or "")
     if not m:
@@ -2039,8 +2046,11 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     for s in sunsets:
         warnings.append(f"{s['id']} sunset criteria passed {s['days_past']}d ago — run /perry decide adr --expire {s['id']}.")
 
+    # ONE age for the architecture document: this warning had it first, and
+    # `architecture.days_since_review` now publishes the same integer (TASK-484)
+    # rather than letting `next_facts` date the file a second time.
     rev = days_since(snap.arch_meta.last_reviewed)
-    if rev is not None and rev > 180:
+    if rev is not None and rev >= ARCHITECTURE_REVIEW_DAYS:
         warnings.append(f"ARCHITECTURE.md last reviewed {rev}d ago — run /perry work architecture review.")
 
     payload = {
@@ -2245,7 +2255,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             },
             "docs": [encode(d) for d in snap.design],
         },
-        "architecture": encode(snap.arch_meta),
+        "architecture": {**encode(snap.arch_meta), "days_since_review": rev},
         "operations": {
             **encode(snap.ops),
             "tier1_caps": caps,
@@ -2273,7 +2283,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
 
 
 #: The contract the `next` block publishes. `schema/next-contract.md`.
-NEXT_CONTRACT = "perry-next/1.3"
+NEXT_CONTRACT = "perry-next/1.4"
 
 #: The declared rule table. Shipped with Perry, never with a project: it is
 #: vocabulary, like `schema/`, and reading it is not a read of project state.
@@ -2284,8 +2294,8 @@ NEXT_LANES = ("goals", "work", "decide")
 
 NEXT_SPINES = ("project", "pipeline", "queue", "inquiry", "any")
 NEXT_RULE_LANES = NEXT_LANES + ("router",)
-NEXT_OPERATORS = ("eq", "ne", "lt", "le", "gt", "ge", "in", "exists",
-                  "nonempty")
+NEXT_OPERATORS = ("eq", "ne", "lt", "le", "gt", "ge", "in", "contains",
+                  "exists", "nonempty")
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
             "Saturday", "Sunday")
 
@@ -2323,7 +2333,10 @@ NEXT_FACTS = (
     "board.dispatchable", "board.first_dispatchable",
     "board.first_dispatchable_title", "board.blocked_stale",
     "board.first_blocked_stale", "board.first_blocked_stale_title",
-    "project.spines",
+    "project.spines", "project.packs",
+    "operations.inputs", "operations.first_input",
+    "cadence.overdue_count", "cadence.first_overdue",
+    "risks.top_rank", "architecture.days_since_review",
     "queue.sla_breaches", "queue.oldest_breach_id",
     "pipeline.wip_breaches",
     "commitments.due",
@@ -2599,9 +2612,51 @@ def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
         facts[f"board.first_{kind}"] = first.get("id")
         facts[f"board.first_{kind}_title"] = first.get("title")
 
-    tracks = ((payload.get("project") or {}).get("config") or {}).get("tracks") or []
+    config = (payload.get("project") or {}).get("config") or {}
+    tracks = config.get("tracks") or []
     facts["project.spines"] = sorted({(t.get("mode") or "project").strip().lower()
                                       for t in tracks}) if installed else []
+    # The packs the project DECLARES (`parse_config` defaults to `software-ops`),
+    # not the ones whose manifest this `PERRY_HOME` holds: an installation
+    # missing one has not changed what the project opted into.
+    facts["project.packs"] = sorted(
+        p.get("name") or "" for p in config.get("packs") or []) if installed else []
+
+    # ── DESIGN-020 § 5.10 batch 3 (TASK-484) ──────────────────────────────
+    # Every value below is one this payload already carries: `operations` and
+    # `cadence` are sections of it, `risks.top.severity_rank` is
+    # `parsers.split_severity_marker`'s reading of a marker the statement
+    # DECLARES, and `architecture.days_since_review` is the same `days_since`
+    # the stale-review warning is raised from. Nothing is inferred from prose
+    # (NN-4) and nothing opens a file (NN-1) — which is why `first_input` is the
+    # name under `inputs/`, not a built path: that is what `digest` takes.
+    ops = payload.get("operations") or {}
+    facts["operations.inputs"] = ops.get("inputs") if installed else None
+    facts["operations.first_input"] = ops.get("inputs_oldest") or None
+
+    if cadence.get("store_unreadable"):
+        for path in ("cadence.overdue_count", "cadence.first_overdue"):
+            unknown[path] = "cadence.jsonl could not be read"
+    else:
+        late = cadence.get("overdue") or []
+        facts["cadence.overdue_count"] = len(late) if installed else None
+        facts["cadence.first_overdue"] = (
+            late[0].get("id") or late[0].get("title") or None) if late else None
+
+    # `""` is an ANSWER, never an unknown: no marker means the project has not
+    # ranked this risk, and the tool will not rank it from the sentence.
+    facts["risks.top_rank"] = (((payload.get("risks") or {}).get("top") or {})
+                               .get("severity_rank") or "")
+
+    arch = payload.get("architecture") or {}
+    if arch.get("days_since_review") is None:
+        unknown["architecture.days_since_review"] = (
+            "the project has no ARCHITECTURE.md to date a review from"
+            if not arch.get("exists") else
+            f"ARCHITECTURE.md's `Last reviewed` reads "
+            f"{arch.get('last_reviewed') or '(nothing)'}, which is not a date")
+    else:
+        facts["architecture.days_since_review"] = arch["days_since_review"]
 
     queues = [t for t in tracks if (t.get("mode") or "").lower() == "queue"]
     runnable = [t for t in queues if (t.get("sla_check") or {}).get("runnable")]
@@ -2720,6 +2775,14 @@ def _compare(op: str, have, want) -> bool:
         if not isinstance(want, list):
             raise _RuleError("`in` needs a list value")
         return any(_same(have, w) for w in want)
+    # The mirror of `in`, for a fact that IS a list — `project.packs` is the
+    # first (TASK-484). Without it a rule over a pack has to bake that pack's
+    # name into `NEXT_FACTS` as a boolean: a vocabulary that grows per pack.
+    if op == "contains":
+        if not isinstance(have, list):
+            raise _RuleError(f"`contains` needs a list fact, got "
+                             f"{type(have).__name__}")
+        return any(_same(h, want) for h in have)
     if op in ("eq", "ne"):
         return _same(have, want) if op == "eq" else not _same(have, want)
     if have is None:

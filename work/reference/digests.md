@@ -229,7 +229,7 @@ PMO maintains this file automatically. Updated on every `/pmo digest`, archive o
 
 The standup ritual (in `SKILL.md § Mandatory first move`) gains:
 
-- A scan of `inputs/` for undigested files. Count + name of oldest. If ≥ 1, surface it in the dashboard line below — the suggestion does not go in the standup's next-step position, for the reason given under that line.
+- A scan of `inputs/` for undigested files. Count + name of oldest. If ≥ 1, surface it in the dashboard line below. The next-step position is the next block's, and since TASK-484 it carries a rule for this state — see under that line.
 - A scan of `knowledge/INDEX.md` for active + eternal + stale + archived counts.
 
 Dashboard line:
@@ -239,9 +239,11 @@ Dashboard line:
 📚 Knowledge : <active> active · <eternal> eternal · <stale> stale · <archived> archived
 ```
 
-When `inputs/` count > 0: the dashboard line above already says so, and that is where it stays. It does not go in the standup's next-step position, which is the next block's (`ARCHITECTURE.md` §2). The fact a rule would need exists — `perry-state` publishes `operations.inputs`, `operations.inputs_oldest` and `operations.inputs_oldest_days` — but `DESIGN-020 § 5.3`'s rule table is what `TASK-442` was bounded to, and it names no rule for this state, so the rule is a later row's work (`ARCHITECTURE.md` §7).
+When `inputs/` count > 0: the dashboard line above says so, **and the next-step position carries a recommendation too**. `R-inputs-waiting` (`reference/next-rules.json`, TASK-484, `DESIGN-020 § 5.10`) fires on `operations.inputs > 0` and offers `/perry work digest <oldest>`, naming the file by the name it has under `inputs/` — which is exactly what `digest <path>` takes. The lane does not decide that and must not drop it: it renders what `perry-state --section next` returns, in the order returned (`ARCHITECTURE.md` §2). The facts are `operations.inputs` and `operations.first_input`, derived from the `operations.inputs` / `operations.inputs_oldest` this same scan produces.
 
-When stale ≥ 3: the knowledge line above says so, and `end-phase-retro` or `mid-phase-review` triages the archive candidates when one runs. It does not go in the standup's next-step position either. Here the payload carries no count to key a rule on — `operations.knowledge_index` is the index file's header line, and the only staleness `perry-state` computes is per role card, under `roles.cards[].knowledge[]` — and `DESIGN-020 § 5.3`'s rule table is what `TASK-442` was bounded to, and it names no rule for this state (`ARCHITECTURE.md` §7).
+This paragraph used to say the opposite — that the suggestion stayed on the dashboard line because the rule table named no rule for the state. That was true while `TASK-442`'s bound held and stopped being true when TASK-484 shipped the rule; an architecture review caught the two disagreeing.
+
+When stale ≥ 3: the knowledge line above says so, and `end-phase-retro` or `mid-phase-review` triages the archive candidates when one runs. Unlike the inputs count above, this one does **not** reach the next-step position. Here the payload carries no count to key a rule on — `operations.knowledge_index` is the index file's header line, and the only staleness `perry-state` computes is per role card, under `roles.cards[].knowledge[]` — and `DESIGN-020 § 5.3`'s rule table is what `TASK-442` was bounded to, and it names no rule for this state (`ARCHITECTURE.md` §7).
 
 **Digests are NOT loaded into standup context** (per Q4). Only existence + counts. PMO Reads specific digests when the user's question or task makes them relevant.
 
