@@ -1,4 +1,4 @@
-# `perry-state --section next` — `perry-next/1.1`
+# `perry-state --section next` — `perry-next/1.2`
 
 Where a project stands on Perry's sequence, and the one step to take next. It
 is computed on every call from values `perry-state` already reads, plus the
@@ -29,7 +29,7 @@ a `--lane` outside the three lanes.
 ```jsonc
 {
   "next": {
-    "contract": "perry-next/1.1",   // check this before anything else
+    "contract": "perry-next/1.2",   // check this before anything else
     "semantics": [],                 // meaning changes, oldest minor first
     "position": [ /* below */ ],
     "primary": {
@@ -134,8 +134,11 @@ A fact name appears in `primary.facts[]`, `alternates[].facts[]` and
   null): the first of them, and its title.
 - `phase.retro_recorded` (bool, null with no phase): an
   `evidence/<YYYY-MM>/retro.md` whose `> Phase:` header names the current phase.
-- `today.journal_has_midweek` (bool): always in `unknown[]` in `1.1`, because
-  nothing declares a mid-week heading.
+
+`1.2` replaces `today.journal_has_midweek`, which `1.1` always listed in
+`unknown[]`, with `week.midweek_checked` (bool): a `cadence.jsonl` record
+titled `midweek-check` ran in the current ISO week; unknown only when that
+store cannot be read (TASK-482).
 
 ## What this contract does not promise
 
@@ -153,3 +156,4 @@ A fact name appears in `primary.facts[]`, `alternates[].facts[]` and
 |---|---|
 | 1.0 | First release (TASK-442, DESIGN-020 phase A). |
 | 1.1 | Adds the fact names above (TASK-479). No key or meaning changes, so `semantics` stays `[]`. |
+| 1.2 | Replaces the never-told `today.journal_has_midweek` with `week.midweek_checked` (TASK-482). No key changes, so `semantics` stays `[]`. |

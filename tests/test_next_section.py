@@ -500,19 +500,58 @@ class TestTheLifecycleRules(Fixtures):
         self.assertEqual("R-phase-scorable", STATE.build_next(
             payload_of(root), today=WEDNESDAY)["primary"]["rule"])
 
-    def test_midweek_is_declared_with_its_fact_unknown(self):
-        """No journal heading or record marks a mid-week check, so on a
-        Wednesday `R-midweek` is listed under its fact and never fires;
-        deleting the rule removes it from the list."""
-        doc = rules_doc()
-        for rules, listed in ((doc["rules"], ["R-midweek"]),
-                              ([r for r in doc["rules"] if r["id"] != "R-midweek"], None)):
-            block = self.next_of("closable_phase", rules_path=write_rules(
-                self, {**doc, "rules": rules}))
-            unknown = {u["fact"]: u["rules"] for u in block["unknown"]}
-            with self.subTest(listed=listed):
-                self.assertEqual(listed, unknown.get("today.journal_has_midweek"))
-                self.assertNotIn("R-midweek", recommended(block))
+    def midweek_run(self, root, *on: str) -> dict:
+        """TASK-482: `midweek-check`'s documented write, its commands read from
+        the procedure so the two cannot drift; the payload after it."""
+        page = (ROOT / "work/reference/subcommands.md").read_text(encoding="utf-8")
+        section = page.split("### `midweek-check`", 1)[1].split("\n### ", 1)[0]
+        self.assertIn("`perry-task cadence-done <id> --evidence ", section)
+        add = re.search(r"`perry-task (cadence-add [^`]+) --actor <actor>`", section).group(1).split()
+        def row(payload):
+            return next((c["id"] for c in payload["cadence"]["items"]
+                         if c["title"] == add[2]), None)
+        def task(argv):
+            proc = inproc.run("perry-task", argv + ["--root", str(root), "--actor", "t"])
+            self.assertEqual(0, proc.returncode, proc.stderr)
+        if row(payload_of(root)) is None:
+            task(add)
+        task(["cadence-done", row(payload_of(root)), "--evidence", "journal/x.md", *on])
+        return payload_of(root)
+
+    def test_midweek_fires_until_this_weeks_check_is_recorded(self):
+        """A Wednesday with no record, or only last week's, recommends
+        `R-midweek` as the second alternate; this week's record silences it,
+        and deleting the rule from a copy removes it where it fired."""
+        root = build(self, "closable_phase")
+        without = [r for r in rules_doc()["rules"] if r["id"] != "R-midweek"]
+        for payload, fires in ((payload_of(root), True),
+                               (self.midweek_run(root, "--on", "2026-09-09"), True),
+                               (self.midweek_run(root, "--on", "2026-09-14"), False)):
+            block = STATE.build_next(payload, today=WEDNESDAY)
+            with self.subTest(fires=fires):
+                self.assertEqual(["R-phase-closable", "R-review-due", "R-midweek"
+                                  if fires else "R-handoff-stale"], recommended(block))
+                self.assertNotIn("week.midweek_checked",
+                                 [u["fact"] for u in block["unknown"]])
+                self.assertNotIn("R-midweek", recommended(STATE.build_next(
+                    payload, today=WEDNESDAY, rules_path=write_rules(
+                        self, {**rules_doc(), "rules": without}))))
+
+    def test_the_documented_write_alone_makes_the_fact_true(self):
+        """No `--on`: the run is today, so it counts for this ISO week and
+        not for the next one."""
+        payload = self.midweek_run(build(self, "installed_no_okr"))
+        self.assertTrue(STATE.next_facts(payload, date.today())[0]["week.midweek_checked"])
+        self.assertFalse(STATE.next_facts(payload, date.today() + timedelta(days=7))[0][
+            "week.midweek_checked"])
+
+    def test_an_unreadable_cadence_store_leaves_the_fact_unknown(self):
+        root = build(self, "closable_phase")
+        (root / "cadence.jsonl").write_text("{not json\n", encoding="utf-8")
+        block = STATE.build_next(payload_of(root), today=WEDNESDAY)
+        unknown = {u["fact"]: u["rules"] for u in block["unknown"]}
+        self.assertEqual(["R-midweek"], unknown.get("week.midweek_checked"))
+        self.assertNotIn("R-midweek", recommended(block))
 
 
 class TestOverlaysComeFirst(Fixtures):
@@ -584,7 +623,7 @@ class TestTheShape(Fixtures):
             block = self.next_of(name)
             with self.subTest(fixture=name):
                 self.assertEqual(self.KEYS, set(block))
-                self.assertEqual("perry-next/1.1", block["contract"])
+                self.assertEqual("perry-next/1.2", block["contract"])
                 self.assertEqual(["goals", "phase", "week", "review"],
                                  [p["step"] for p in block["position"]])
                 self.assertLessEqual(len(block["alternates"]), 2)
