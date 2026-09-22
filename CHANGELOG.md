@@ -2,6 +2,26 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.21 — 2026-09-22
+
+patch · phase 004-guided · TASK-483 · delivery TASK-483-execution-next-rules
+
+### Changes
+
+- TASK-483 (USER-1001): `perry-state --section next` sees the execution loop. A row at `review` owed a V4 verdict is recommended for `/perry work review`; one whose latest V4 verdict (ordered by review round) is PASS for `/perry work close-task`; a startable P0/P1 row whose spec says `Dispatch mode: auto` for `/perry work dispatch`, after the finishing rules; a stale block for `/perry work triage`. Verdict blocks and spec headers are read through `viewer/parsers.py`; the dependency rule moved to `bin/lib`. `work review` is listed in the work subcommand index. `perry-next/1.3`.
+
+
+### Upgrade notes
+
+- `perry-next/1.3` adds the facts `board.review_owed`, `board.closable`, `board.dispatchable`, `board.blocked_stale` (each with a first id and title) and the payload key `board.execution[]`; nothing is removed.
+- A spec opts a row into R-dispatchable only with a single `Dispatch mode: auto` in its header block; two different values read as ambiguous.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.20 — 2026-09-22
 
 patch · phase 004-guided · TASK-482 · delivery TASK-482-midweek-fact
