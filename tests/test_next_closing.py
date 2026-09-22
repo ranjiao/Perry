@@ -25,9 +25,10 @@ def routes(text):
 
 #: The one classification of lane index commands, extending TASK-443's
 #: read-only inventory (DESIGN-020 § 5.10, TASK-479). `read-only`: no closing
-#: step. `never`: never recommended. `pending I`: a batch 3 rule will name it
-#: (batch 2 names `dispatch`, `close-task` and `review`, TASK-483). `week`:
-#: stage 4's rule names `goals plan-week` for it.
+#: step. `never`: never recommended. `week`: stage 4's rule names
+#: `goals plan-week` for it. Batch 2 named `dispatch`, `close-task` and
+#: `review` (TASK-483); batch 3 names `digest`, `risk` and `architecture-audit`
+#: and classifies `rollover` (TASK-484), so no `pending` class is left.
 UNCOVERED = {
     'goals': {'krs': 'read-only never', 'dashboard': 'read-only never',
               'help': 'read-only never', 'revise': 'never', 'commit': 'never',
@@ -38,8 +39,10 @@ UNCOVERED = {
              'status': 'never', 'health-check': 'never', 'runbook-check': 'never',
              'incident': 'never', 'architecture': 'never',
              'mid-phase-review': 'never', 'plan-week': 'week', 'monday-plan': 'week',
-             'digest': 'pending I', 'risk': 'pending I', 'rollover': 'pending I',
-             'architecture-audit': 'pending I'},
+             # `rollover` is the phase-transition procedure from step 1 onward,
+             # reached after `score-phase` through `R-no-phase`; § 5.10's month
+             # boundary would recommend it at the wrong time (TASK-484).
+             'rollover': 'never'},
     'decide': {'status': 'read-only never', 'handoff': 'read-only',
                'help': 'read-only never', **dict.fromkeys(
                    ('init', 'new', 'resolve', 'lock', 'revise', 'supersede',
@@ -109,7 +112,15 @@ class Routing(unittest.TestCase):
         self.assertEqual(coverage_errors(indexes, rules), [])
         self.assertIn('check', indexes['goals'])
         self.assertIn('review', indexes['work'])
-        self.assertNotIn('pending H', {k for c in UNCOVERED.values() for k in c.values()})
+        # TASK-484 closes the batch-3 backlog: nothing is parked any more, and
+        # the three commands it covers are named by rules rather than listed.
+        classes = {k for c in UNCOVERED.values() for k in c.values()}
+        self.assertFalse([c for c in classes if c.startswith('pending')], classes)
+        self.assertEqual('never', UNCOVERED['work']['rollover'])
+        named = {tuple(r['command'].split()[1:3]) for r in rules['rules']}
+        for token in ('digest', 'risk', 'architecture-audit'):
+            self.assertNotIn(token, UNCOVERED['work'])
+            self.assertIn(('work', token), named)
         # The guard reddens on an unclassified row and on a doubly named one.
         grown = {**indexes, 'goals': indexes['goals'] + ['frobnicate']}
         self.assertEqual(coverage_errors(grown, rules), [('goals', 'frobnicate', 'neither')])

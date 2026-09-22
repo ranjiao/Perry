@@ -1,4 +1,4 @@
-# `perry-state --section next` — `perry-next/1.3`
+# `perry-state --section next` — `perry-next/1.4`
 
 Where a project stands on Perry's sequence, and the one step to take next. It
 is computed on every call from values `perry-state` already reads, plus the
@@ -29,7 +29,7 @@ a `--lane` outside the three lanes.
 ```jsonc
 {
   "next": {
-    "contract": "perry-next/1.3",   // check this before anything else
+    "contract": "perry-next/1.4",   // check this before anything else
     "semantics": [],                 // meaning changes, oldest minor first
     "position": [ /* below */ ],
     "primary": {
@@ -154,6 +154,29 @@ store cannot be read (TASK-482).
 
 All four are `null` on a payload with no `board.execution`.
 
+`1.4` adds these, and removes none (TASK-484, DESIGN-020 § 5.10 batch 3):
+
+- `project.packs` (list of strings): the packs the project declares, sorted.
+  `["software-ops"]` where its configuration names none.
+- `operations.inputs` (int, null when not installed): files waiting under
+  `inputs/`.
+- `operations.first_input` (string or null): the oldest of them, by the name it
+  has under `inputs/` — the argument `work digest <path>` takes.
+- `cadence.overdue_count` (int, null when not installed): declared cadence
+  items past their next due date. Unknown only when the store cannot be read.
+- `cadence.first_overdue` (string or null): the oldest one's id, or its title
+  where the register stores no id.
+- `risks.top_rank` (string): the top open risk's `severity_rank` — `high`,
+  `medium`, `low`, or `""`. `""` is an answer, not an unknown: it means the
+  statement declares no severity marker, or there is no open risk.
+- `architecture.days_since_review` (int): today minus `ARCHITECTURE.md`'s
+  `Last reviewed`. Unknown when the document is absent or that field is not a
+  date.
+
+The predicate operator set the rule file may use also gains `contains`, the
+mirror of `in` for a fact that is a list. That is `reference/next-rules.json`'s
+vocabulary, not this payload's, and no emitted key changes with it.
+
 ## What this contract does not promise
 
 - **Which rule fires on a given project.** That depends on the project's state
@@ -172,3 +195,4 @@ All four are `null` on a payload with no `board.execution`.
 | 1.1 | Adds the fact names above (TASK-479). No key or meaning changes, so `semantics` stays `[]`. |
 | 1.2 | Replaces the never-told `today.journal_has_midweek` with `week.midweek_checked` (TASK-482). No key changes, so `semantics` stays `[]`. |
 | 1.3 | Adds the `board.*` execution-loop fact names above (TASK-483). No key or meaning changes, so `semantics` stays `[]`. |
+| 1.4 | Adds the cadence-and-operations fact names above, and `contains` to the rule file's operator set (TASK-484). No key or meaning changes, so `semantics` stays `[]`. |
