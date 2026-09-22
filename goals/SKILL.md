@@ -129,6 +129,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |
 | `link <TASK-ID> <KR-ID>` / `--alias` / `--unlinked` / `--project` | Accept PMO's attribution hand-off and write it into `linkage.jsonl` (the only writer in this lane). **`bin/perry-goals link` does the write**, appending; it refuses anything that does not resolve to exactly one KR and names the candidates | `reference/linkage.md` |
 | `krs` · `kr add`/`restate`/`withdraw` | Print KRs read-only: **`bin/perry-goals krs`** (`--phase <NNN>`, `--level overall`); the phase document has no KR table (TASK-157). Change one by appending, with its **`kr` verb**, never by hand (DESIGN-022 § 5.7) | `reference/phases.md` |
+| `check <KR>` | Declare KR checks, approved per Objective | `reference/phases.md` |
 | `pivot <reason>` | Mid-phase goal change (high-friction by design) | `reference/pivots.md` |
 | `dashboard` | Detailed view per Objective (computes status, projection) | `reference/pivots.md` |
 | `help [<subcommand>]` | Print this index; with arg, print + read the matching reference | (handled here) |

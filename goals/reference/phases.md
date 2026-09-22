@@ -426,6 +426,20 @@ and each refusal names the command that would pass. `--dry-run` shows the
 record first. `OKR.md` is not written: the overall KR rows are
 `krs --level overall`'s since TASK-236.
 
+## `check <KR-ID>`
+
+Declare how a KR is measured (DESIGN-022 § 5.6); its words do not change. Per
+Objective, propose each undeclared commit KR's checks and get the user's
+approval once (`AskUserQuestion`). Write only what was approved, one call each:
+
+```bash
+"$PERRY_HOME/bin/perry-goals" check <KR-ID> --id <S> --direction <D> \
+    --target <N> [--baseline <N>] --label "<words>" --actor goals
+```
+
+Then follow the [Closing step](../../reference/next.md#closing-step) with
+`--after check`. <!-- next-close: goals check -->
+
 ## `score-phase [<NNN>]`
 
 Close out a phase. Default: the current phase (read from `phase/CURRENT`). Cross-reference `evidence/<YYYY-MM>/` (for the calendar months the phase spanned) and the closed tasks (`perry-task list --all --json`).

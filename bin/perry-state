@@ -2202,6 +2202,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "latest_handoff": snap.handoff[0].date if snap.handoff else "",
             "latest_handoff_days": days_since(snap.handoff[0].date) if snap.handoff else None,
             "evidence_files": len(snap.evidence),
+            "retros": P.retro_phases(root),
         },
         "warnings": warnings,
     }
@@ -2216,7 +2217,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
 
 
 #: The contract the `next` block publishes. `schema/next-contract.md`.
-NEXT_CONTRACT = "perry-next/1.0"
+NEXT_CONTRACT = "perry-next/1.1"
 
 #: The declared rule table. Shipped with Perry, never with a project: it is
 #: vocabulary, like `schema/`, and reading it is not a read of project state.
@@ -2247,8 +2248,12 @@ NEXT_FACTS = (
     "phase.kr_progress.met", "phase.kr_progress.unmeasured",
     "phase.kr_progress.met_ratio", "phase.kr_progress.withdrawn",
     "phase.days_since_snapshot",
+    "phase.krs_unstaffed", "phase.first_unstaffed_kr",
+    "phase.first_unstaffed_kr_title", "phase.kr_progress.undeclared",
+    "phase.first_undeclared_kr", "phase.first_undeclared_kr_title",
+    "phase.retro_recorded",
     "week.iso", "week.planned",
-    "today.date", "today.weekday",
+    "today.date", "today.weekday", "today.journal_has_midweek",
     "history.latest_weekly", "history.latest_weekly_label",
     "history.weeks_since_weekly",
     "history.latest_handoff", "history.latest_handoff_label",
@@ -2322,6 +2327,17 @@ def next_kr_progress(payload: dict) -> tuple[dict, str]:
             "unmeasured": counts["total"] - counts["measured"]}, ""
 
 
+def next_kr_lifecycle(krs) -> dict:
+    """TASK-479, DESIGN-020 § 5.10: the active commit KRs with no task edge,
+    less those measured and met (UD 14), and those whose position is
+    `undeclared` — each list in linkage order, over `next_kr_progress`'s KRs."""
+    commit = [k for k in krs if not k.get("stretch")
+              and k.get("status") != "withdrawn"]
+    return {"unstaffed": [k for k in commit if not k.get("tasks") and not (
+                k.get("state") in ("measured", "due") and k.get("met") is True)],
+            "undeclared": [k for k in commit if k.get("state") == "undeclared"]}
+
+
 def next_kr_withdrawn(payload: dict) -> list[dict]:
     """The current phase's withdrawn commit KRs, each with its date and reason.
 
@@ -2389,6 +2405,25 @@ def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
             unknown[path] = why
         else:
             facts[path] = counts.get(key)
+    life = next_kr_lifecycle([k for o in (payload.get("linkage") or {}).get(
+        "objectives") or [] for k in o.get("krs") or []]) if counts else {}
+    for kind, count in (("unstaffed", "phase.krs_unstaffed"),
+                        ("undeclared", "phase.kr_progress.undeclared")):
+        found = life.get(kind) or [{}]
+        for path, value in ((count, len(life[kind]) if life else None),
+                            (f"phase.first_{kind}_kr", found[0].get("id")),
+                            (f"phase.first_{kind}_kr_title", found[0].get("title"))):
+            if why:
+                unknown[path] = why
+            else:
+                facts[path] = value
+    # A header field of `evidence/<YYYY-MM>/retro.md`, read by
+    # `parsers.retro_phases` into `history.retros` (NN-1); `None` with no phase.
+    slug = phase.get("slug")
+    facts["phase.retro_recorded"] = (any(
+        (r.get("phase") or "").lstrip("#") == slug
+        for r in (payload.get("history") or {}).get("retros") or [])
+        if slug else None)
     if why:
         unknown["phase.kr_progress.withdrawn"] = why
     else:
@@ -2421,6 +2456,10 @@ def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
                                "records a finalized week")
     facts["today.date"] = today.isoformat()
     facts["today.weekday"] = WEEKDAYS[today.weekday()]
+    # `midweek-check` writes prose into today's journal `## Notes`; no heading,
+    # record or event marks it, and declaring one is a schema edit (TASK-479).
+    unknown["today.journal_has_midweek"] = (
+        "midweek-check declares no journal heading or record to find")
 
     history = payload.get("history") or {}
     weekly = history.get("latest_weekly")

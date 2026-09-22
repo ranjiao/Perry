@@ -3711,6 +3711,17 @@ def walk_evidence(root: Path) -> list[EvidenceFile]:
     return out
 
 
+def retro_phases(root: Path) -> list[dict]:
+    """Each `evidence/<YYYY-MM>/retro.md` and the phase its `> Phase:` header
+    field names (`goals/reference/phases.md § score-phase` step 5), `""` when
+    it names none. A header field, read by `adr_header_fields`; the body is
+    never read. One path per month, so one file names at most one phase."""
+    return [{"path": p.relative_to(root).as_posix(),
+             "phase": adr_header_fields(p.read_text(encoding="utf-8",
+                                                    errors="replace")).get("phase", "")}
+            for p in sorted((root / "evidence").glob("*/retro.md")) if p.is_file()]
+
+
 def walk_journal(root: Path) -> list[JournalEntry]:
     out: list[JournalEntry] = []
     base = root / "journal"

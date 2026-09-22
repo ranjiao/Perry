@@ -23,6 +23,49 @@ def routes(text):
     return re.findall(r'^\| `(router|goals|work|decide)` \| `([^`]+)` \| `([^`]+)` \| `([^`]+)` \|$', text, re.M)
 
 
+#: The one classification of lane index commands, extending TASK-443's
+#: read-only inventory (DESIGN-020 § 5.10, TASK-479). `read-only`: no closing
+#: step. `never`: never recommended. `pending H`/`pending I`: a batch 2/3 rule
+#: will name it. `week`: stage 4's rule names `goals plan-week` for it.
+UNCOVERED = {
+    'goals': {'krs': 'read-only never', 'dashboard': 'read-only never',
+              'help': 'read-only never', 'revise': 'never', 'commit': 'never',
+              'link': 'never', 'pivot': 'never'},
+    'work': {'nudge': 'read-only', 'help': 'read-only never',
+             'add-task': 'never', 'drop-task': 'never', 'delegate': 'never',
+             'autopilot': 'never', 'coordinate': 'never', 'bootstrap': 'never',
+             'status': 'never', 'health-check': 'never', 'runbook-check': 'never',
+             'incident': 'never', 'architecture': 'never',
+             'mid-phase-review': 'never', 'plan-week': 'week', 'monday-plan': 'week',
+             'dispatch': 'pending H', 'close-task': 'pending H',
+             'digest': 'pending I', 'risk': 'pending I', 'rollover': 'pending I',
+             'architecture-audit': 'pending I'},
+    'decide': {'status': 'read-only never', 'handoff': 'read-only',
+               'help': 'read-only never', **dict.fromkeys(
+                   ('init', 'new', 'resolve', 'lock', 'revise', 'supersede',
+                    'drop', 'adr'), 'never')},
+}
+
+
+def index_commands(lane):
+    """First tokens of a lane's Subcommand index rows: declared cells only."""
+    text = (ROOT / lane / 'SKILL.md').read_text().split('## Subcommand index', 1)[1]
+    text = text.split('\n## ', 1)[0]
+    return [c.split()[0] for c in re.findall(r'^\| `([^`]+)`', text, re.M)]
+
+
+def coverage_errors(indexes, rules):
+    """Every index command is a rule's command or classified, never both."""
+    named = {tuple(r['command'].split()[1:3]) for r in rules['overlays'] + rules['rules']}
+    errors = []
+    for lane, commands in indexes.items():
+        for token in commands:
+            listed = UNCOVERED[lane].get(token, 'read-only') != 'read-only'
+            if ((lane, token) in named) == listed:
+                errors.append((lane, token, 'both' if listed else 'neither'))
+    return errors
+
+
 def routing_errors(text, read):
     errors = []
     for lane, command, source, after in routes(text):
@@ -40,7 +83,7 @@ class Routing(unittest.TestCase):
         self.assertEqual(routing_errors(page, lambda p: (ROOT / p).read_text()), [])
         expected = {
             'router': 'setup relocate adopt diagnose',
-            'goals': 'init revise commit plan-phase score-phase snapshot plan-week link pivot',
+            'goals': 'init revise commit plan-phase score-phase snapshot check plan-week link pivot',
             'decide': 'init new resolve lock revise supersede drop adr',
             'work': 'bootstrap plan-week triage status friday-review monday-plan midweek-check mid-phase-review end-phase-retro risk add-task close-task drop-task coordinate handoff rollover delegate dispatch autopilot digest review health-check architecture-audit runbook-check',
         }
@@ -52,19 +95,24 @@ class Routing(unittest.TestCase):
 
     def test_each_lane_index_command_is_explicitly_classified(self):
         declared = {(lane, command.split()[0]) for lane, command, _, _ in routes(PAGE.read_text())}
-        readonly = {'goals': {'krs', 'dashboard', 'help'},
-                    'work': {'nudge', 'help'},
-                    'decide': {'status', 'handoff', 'help'}}
-        for lane in readonly:
-            text = (ROOT / lane / 'SKILL.md').read_text().split('## Subcommand index', 1)[1]
-            text = text.split('\n## ', 1)[0]
-            # Parse declared table cells only, never classify procedure prose.
-            commands = re.findall(r'^\| `([^`]+)`', text, re.M)
+        for lane, listed in UNCOVERED.items():
+            readonly = {c for c, kind in listed.items() if 'read-only' in kind}
+            commands = index_commands(lane)
             self.assertTrue(commands)
-            for command in commands:
-                token = command.split()[0]
-                self.assertTrue((lane, token) in declared or token in readonly[lane],
+            for token in commands:
+                self.assertTrue((lane, token) in declared or token in readonly,
                                 f'{lane} {token}: classify new command in the closing inventory')
+
+    def test_every_index_command_is_recommended_or_classified_once(self):
+        rules = json.loads((ROOT / 'reference/next-rules.json').read_text())
+        indexes = {lane: index_commands(lane) for lane in UNCOVERED}
+        self.assertEqual(coverage_errors(indexes, rules), [])
+        self.assertIn('check', indexes['goals'])
+        # The guard reddens on an unclassified row and on a doubly named one.
+        grown = {**indexes, 'goals': indexes['goals'] + ['frobnicate']}
+        self.assertEqual(coverage_errors(grown, rules), [('goals', 'frobnicate', 'neither')])
+        doubled = {**rules, 'rules': rules['rules'] + [{'command': '/perry goals krs'}]}
+        self.assertEqual(coverage_errors(indexes, doubled), [('goals', 'krs', 'both')])
 
     def test_deleting_any_procedures_pointer_is_detected(self):
         page = PAGE.read_text()
