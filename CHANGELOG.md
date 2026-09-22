@@ -2,6 +2,46 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.18 — 2026-09-22
+
+patch · phase 004-guided · TASK-480 · delivery TASK-480-backlog-0.1.17-to-0.1.18
+
+### Changes
+
+Product deliveries integrated on main's first-parent line after f31c5d78 (0.1.17), up to 1e57b2f4:
+- TASK-474 (ac256a3a, 8b6078f7, ccf47608): `perry-goals phase new|activate|close` writes the phase lifecycle, so opening or closing a phase needs no hand edit of the phase file or `phase/CURRENT`.
+- TASK-471 (abfd6cd5): session budgets are checked at safe task boundaries; `perry-context-budget` exports no identity on any Claude Code session, so its gate reports `unknown` there and autopilot falls back to `--max-dispatches`.
+- TASK-469 (3f397a85, 728db267): the router sends explanations, state queries and mutations through a bounded startup; explanations read no project state, and the lanes no longer repeat the router's startup steps.
+- TASK-472 (25cb21d7, 78a9c5fa, e23065a0): execution and review contracts that bound tool output and repeated review work.
+- TASK-470 (dc3e1f51, ecfa2245): smaller runtime instructions and per-command load sets (router about 25% and work lane about 35% smaller); input-quality rubrics move to `reference/input-quality-rubrics.md`.
+- TASK-475 (b9680b8f, 3ba47d05, 7d7e9605, 80fda999): `perry-goals objective add` writes a phase objective; `objective add` and `kr add` select a phase by number and refuse an unreadable store.
+- USER-978/980/981 (16124fb0, b77b61ed, de595d1f, 0425f82d, c9262965, 6c2cbc79): every `phase/CURRENT` read in `bin/` goes through `viewer/parsers.py`, the phase writer checks the parser, and ARCHITECTURE.md records the release/ pointer exception to NN-1.
+- TASK-451 (db74c48a): the schema anchors ARCHITECTURE.md at the code root; `perry-lint --architecture-module PATH` lints a selected component architecture document.
+- TASK-476 (af328b36): test_v5_signoff resolves V5 evidence at the state or repo root.
+- TASK-452 (13733b21): `perry-state` finds ARCHITECTURE.md where the code is, not under the state root.
+- USER-987 (664ca039) and USER-989 (5651e663): ARCHITECTURE.md §7 OQ-1 closed and its preamble updated after TASK-451, TASK-452 and TASK-477.
+- TASK-477 (9259f0c6): `perry-diagnose` matches each Perry-owned path at its own anchor, so the code-root ARCHITECTURE.md is no longer reported as an orphan.
+- TASK-478 (e4e851a9): `release/manage.py check` accepts a range that introduces the release record together with later versions.
+- TASK-479 (672330db): `perry-state --section next` is `perry-next/1.1`, with next-step rules for unstaffed key results, undeclared checks, retro before score-phase, and a mid-week rule that stays unknown; `goals check <KR>` is listed in the goals subcommand index.
+- Test-harness commits (3e0255df, 6d471770, 67fa5e3c, 5d661ec6, adfa0720, a2a12a8f, 3d4f0906, cff4d22e, 502eba91 record merge-gate durations; 645791ea makes the fake GNU stat portable to Linux CI): no user-visible change.
+Combined allocation for deliveries since 0.1.17, USER-997; later deliveries are allocated one patch each.
+
+
+### Upgrade notes
+
+- A consumer of `perry-state --section next` sees contract `perry-next/1.1`. It only adds fact names; no key or meaning changes, and `semantics` stays `[]`. A consumer that matches the exact string `perry-next/1.0` must accept 1.1.
+- Open, activate and close phases with `perry-goals phase new|activate|close`, and add phase objectives with `perry-goals objective add`, rather than editing the phase file or `phase/CURRENT` by hand. `goals check <KR>` declares a key result's check; the new R-checks-undeclared rule recommends it for a commit key result that has none.
+- A project's ARCHITECTURE.md is read at the code root, not under the state root. `perry-state` and `perry-diagnose` look for it there, and `perry-diagnose` no longer calls it an orphan. A project with a separate state root that keeps ARCHITECTURE.md under that state root should move it to the code root. A legacy `Status:` line in ARCHITECTURE.md is no longer read, so `perry-state` no longer warns that it is still a draft.
+- On Claude Code the context-budget gate reports `unknown` in every session, main included, and autopilot relies on `--max-dispatches`.
+- The release check fix (TASK-478) changes only Perry's own CI; nothing to do for a user.
+Local allocation only; no public release.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.17 — 2026-09-18
 
 patch · phase 004-guided · TASK-468 · delivery TASK-468-20260918
