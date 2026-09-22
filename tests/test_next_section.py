@@ -506,7 +506,7 @@ class TestTheLifecycleRules(Fixtures):
         page = (ROOT / "work/reference/subcommands.md").read_text(encoding="utf-8")
         section = page.split("### `midweek-check`", 1)[1].split("\n### ", 1)[0]
         self.assertIn("`perry-task cadence-done <id> --evidence ", section)
-        add = re.search(r"`perry-task (cadence-add [^`]+)`", section).group(1).split()
+        add = re.search(r"`perry-task (cadence-add [^`]+) --actor <actor>`", section).group(1).split()
         def row(payload):
             return next((c["id"] for c in payload["cadence"]["items"]
                          if c["title"] == add[2]), None)
