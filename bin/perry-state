@@ -1556,14 +1556,24 @@ def _natural(text: str) -> tuple:
                  for t in re.split(r"(\d+)", text))
 
 
+def verdict_order(path: str, line: int) -> tuple:
+    """A verdict block's place in its task's history: the review round its
+    path names (`roundN`, `round-N`, `-rN`, `review/roundN…`; `final` after
+    every number; an unnumbered file is round 1), then month, then line."""
+    m = re.search(r"(?:^|[-_/])(?:(?:round-?|r)(\d+)|final)(?=[-_./])",
+                  path.split("/", 2)[-1])
+    return ((int(m.group(1)) if m.group(1) else float("inf")) if m else 1,
+            path.split("/")[1:2], _natural(path), line)
+
+
 def execution_rows(root: Path, board) -> list[dict]:
     """TASK-483, DESIGN-020 § 5.10 batch 2: each open row with what the
     execution-loop facts read, by priority then id. `startable` and
     `blocked_stale` come from `bin/lib`'s edge and startability rules, the
     ones `perry-task list` runs; verdict blocks and the spec's `Dispatch mode`
     are read by `viewer/parsers.py` (NN-1). `verdicts[]` is in declared order,
-    oldest first: path in natural order (month directory, then digit runs as
-    numbers, so `round10` follows `round9`), then the block's line."""
+    oldest first by `verdict_order`; `dispatch_mode` is the header's whole
+    value, `"ambiguous"` for two different ones."""
     rows = {r["id"]: {"id": r["id"], "title": r.get("title") or "",
                       "status": r.get("status") or "",
                       "priority": r.get("priority") or "",
@@ -1575,7 +1585,7 @@ def execution_rows(root: Path, board) -> list[dict]:
     lib.resolve_startability(rows.values())
     named: dict[str, list] = {}
     for path, fields, line in sorted(P.verdict_blocks(root),
-                                     key=lambda b: (_natural(b[0]), b[2])):
+                                     key=lambda b: verdict_order(b[0], b[2])):
         named.setdefault(fields.get("task", ""), []).append(
             {"path": path, "line": line, "rung": fields.get("rung", "").upper(),
              "result": fields.get("result", "")})
@@ -1583,10 +1593,11 @@ def execution_rows(root: Path, board) -> list[dict]:
     for r in sorted((r for r in rows.values() if r["open"]),
                     key=lambda r: (r["priority"] or "~", _natural(r["id"]))):
         spec, header = P.spec_header_fields(root, r["id"])
-        mode = re.match(r"[a-z]*", header.get("dispatch mode", "").strip("`* ").lower())
+        modes = sorted({m.lower() for m in header.get("dispatch mode", [])})
         out.append({**{k: r[k] for k in ("id", "title", "status", "priority",
                                          "verification", "startable", "blocked_stale")},
-                    "spec": spec, "dispatch_mode": mode.group(0),
+                    "spec": spec, "dispatch_mode": (modes or [""])[0]
+                    if len(modes) < 2 else "ambiguous",
                     "verdicts": named.get(r["id"], [])})
     return out
 

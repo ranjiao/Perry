@@ -232,12 +232,16 @@ def verdict(tid: str, result: str, name: str = "", rung: str = "V4"):
     return write
 
 
-def spec(tid: str, mode: str):
+def spec(tid: str, mode: str, month="2026-09", body=None):
+    return text(f"evidence/{month}/{tid}-spec.md", body or (
+        f"# {tid} — a row\n\nDate: 2026-09-16.\n> Dispatch mode: {mode} · "
+        f"Executor: claude-subagent\n\n## Bound\n\nOne row.\n"))
+
+
+def text(rel: str, body: str):
     def write(root):
-        (root / "evidence" / "2026-09").mkdir(parents=True, exist_ok=True)
-        (root / "evidence" / "2026-09" / f"{tid}-spec.md").write_text(
-            f"# {tid} — a row\n\nDate: 2026-09-16.\n> Dispatch mode: {mode} · "
-            f"Executor: claude-subagent\n\n## Bound\n\nOne row.\n", encoding="utf-8")
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(body, encoding="utf-8")
     return write
 
 
@@ -634,31 +638,63 @@ class TestTheExecutionLoop(Fixtures):
             self.payloads["busy_board"], WEDNESDAY)[0]))
 
     def test_a_fail_is_neither_owed_nor_closable_and_the_latest_block_decides(self):
-        for writes, closable in (((verdict("TASK-011", "FAIL"),), 0),
-                                 ((verdict("TASK-011", "PASS", "r/round1-v4.md"),
-                                   verdict("TASK-011", "FAIL", "r/round2-v4.md")), 0),
-                                 ((verdict("TASK-011", "FAIL", "r/round9-v4.md"),
-                                   verdict("TASK-011", "PASS", "r/round10-v4.md")), 1),
-                                 ((verdict("TASK-011", "PASS", rung="V3"),), 0)):
-            with self.subTest(closable=closable, blocks=len(writes)):
-                self.assertEqual((0, closable, 0, 0), self.counts(self.facts(OWED, *writes)))
+        """The latest block is the highest review round (`verdict_order`); an
+        unnumbered file is round 1, as this repository names them."""
+        r2, rr2 = "TASK-011-round2-v4-review.md", "TASK-011-v4-review-r2.md"
+        hidden = text("evidence/2026-09/c.md", "<!--\n=== VERDICT ===\ntask: TASK-011"
+                      "\nrung: V4\nresult: PASS\n=== END VERDICT ===\n-->\n")
+        for writes, owed, closable in (
+                ((verdict("TASK-011", "FAIL"),), 0, 0),
+                ((verdict("TASK-011", "FAIL", "r/round9-v4.md"),
+                  verdict("TASK-011", "PASS", "r/round10-v4.md")), 0, 1),
+                ((verdict("TASK-011", "PASS", rung="V3"),), 0, 0),
+                ((verdict("TASK-011", "FAIL"), verdict("TASK-011", "PASS", r2)), 0, 1),
+                ((verdict("TASK-011", "PASS"), verdict("TASK-011", "FAIL", r2)), 0, 0),
+                ((verdict("TASK-011", "PASS"), verdict("TASK-011", "FAIL", rr2)), 0, 0),
+                ((hidden,), 1, 0)):
+            with self.subTest(owed=owed, closable=closable, files=len(writes)):
+                self.assertEqual((owed, closable, 0, 0), self.counts(self.facts(OWED, *writes)))
         below = rows(row("TASK-014", "review", rung="V3"))
-        self.assertEqual((0, 0, 0, 0), self.counts(self.facts(
-            below, verdict("TASK-014", "PASS"))))
+        for writes in ((below,), (below, verdict("TASK-014", "PASS"))):
+            self.assertEqual((0, 0, 0, 0), self.counts(self.facts(*writes)))
 
     def test_only_an_auto_spec_on_a_startable_p0_or_p1_row_is_dispatchable(self):
-        for writes, count in (((rows(row("TASK-013", "not_started", priority="P0")),
-                                spec("TASK-013", "auto")), 1),
-                              ((rows(row("TASK-013", "not_started")),
-                                spec("TASK-013", "manual")), 0),
-                              ((rows(row("TASK-013", "not_started")),), 0),
-                              ((rows(row("TASK-013", "not_started", priority="P2")),
-                                spec("TASK-013", "auto")), 0),
-                              ((rows(row("TASK-012", "in_progress"), row(
-                                  "TASK-013", "not_started", depends=["TASK-012"])),
-                                spec("TASK-013", "auto")), 0)):
-            with self.subTest(count=count, writes=len(writes)):
-                self.assertEqual(count, self.facts(*writes)["board.dispatchable"])
+        """Criterion 2. The latest month's spec; the whole value; the header block only; two
+        different values read `ambiguous`, never `auto` (fails closed: dispatch
+        wants an explicit opt-in, `dispatch-preflight.md` step 2); a pending
+        ask edge blocks the row and an answered one does not."""
+        plain, waits = READY[0], rows(row("TASK-013", "not_started", depends=["USER-001"]))
+        def ask(answered):
+            return text("asks.jsonl", json.dumps({
+                "id": "USER-001", "needed": "q", "blocks": "TASK-013", "asked": "2026-09-10",
+                "status": "answered 2026-09-12" if answered else "pending",
+                "answered": answered, "order": 1}) + "\n")
+        two = "# T\n\n> Dispatch mode: {}\n> Dispatch mode: {}\n\n## Bound\n"
+        auto = spec("TASK-013", "auto")
+        for writes, count, mode in (
+                ((rows(row("TASK-013", "not_started", priority="P0")), auto), 1, "auto"),
+                ((rows(row("TASK-013", "not_started", priority="P2")), auto), 0, "auto"),
+                ((plain,), 0, ""),
+                ((rows(row("TASK-012", "in_progress"), row("TASK-013", "not_started",
+                  depends=["TASK-012"])), auto), 0, "auto"),
+                ((plain, spec("TASK-013", "auto", "2026-08"), spec("TASK-013", "manual")), 0, "manual"),
+                ((plain, spec("TASK-013", "manual", "2026-08"), auto), 1, "auto"),
+                ((plain, spec("TASK-013", "auto-review-only")), 0, "auto-review-only"),
+                ((plain, spec("TASK-013", "", body=two.format("auto", "manual"))), 0, "ambiguous"),
+                ((plain, spec("TASK-013", "", body=two.format("auto", "auto"))), 1, "auto"),
+                ((plain, spec("TASK-013", "", body="# T\n\nWhy it matters.\n\n"
+                                                   "Dispatch mode: auto\n")), 0, ""),
+                ((waits, ask(False), auto), 0, "auto"),
+                ((waits, ask(True), auto), 1, "auto")):
+            root = build(self, "active_phase_week_unknown")
+            for write in writes:
+                write(root)
+            payload = payload_of(root)
+            with self.subTest(count=count, mode=mode):
+                self.assertEqual(mode, next(r for r in payload["board"]["execution"]
+                                            if r["id"] == "TASK-013")["dispatch_mode"])
+                self.assertEqual(count, STATE.next_facts(payload, WEDNESDAY)[0][
+                    "board.dispatchable"])
 
     def test_a_busy_board_finishes_before_it_starts(self):
         """Criterion 4. The control: with `R-dispatchable` moved above the two

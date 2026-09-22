@@ -224,11 +224,15 @@ review was never sent or has not come back. `review` dispatches it
 
 A V4 row at `review` whose latest verdict block naming it reads `result: PASS`
 at `rung: V4`. `close-task` closes it through its own gate. "Latest" is the
-last in `board.execution[].verdicts[]`: the evidence path in natural order (the
-month directory first, digit runs compared as numbers), then the block's line.
-Its limit: two naming schemes in one month sort by their letters, so
-`TASK-1-review/round2.md` sorts before `TASK-1-v4-review.md` whatever was
-written first. A FAIL as the latest block makes the row neither closable nor
+last in `board.execution[].verdicts[]`, ordered by the review round the file's
+path names (`roundN`, `round-N`, `-rN`, a `review/roundN…` file; `final` after
+every number; an unnumbered file is round 1), then the month, then the block's
+line. On this repository it agrees with the order the files were added in, for
+every pair added in different commits. Its limits: round numbers are compared
+across documents as one series, so a round-2 file of one review and a round-6
+file of another that both name the row sort by number, not by date; two files
+of one round sort by month and path; and a round written only in prose
+(`third-pass.md`) reads as round 1. A FAIL as the latest block makes the row neither closable nor
 owed.
 
 ### R-sla-breach
@@ -269,8 +273,11 @@ rewritten by any read. Triage moves it on.
 ### R-dispatchable
 
 A `not_started`, startable P0 or P1 row whose spec
-(`evidence/<YYYY-MM>/<ID>-spec.md`, the latest month's) declares
-`Dispatch mode: auto` in its header. It would fire on most boards, so it sits
+(`evidence/<YYYY-MM>/<ID>-spec.md`, the latest month's) declares exactly
+`Dispatch mode: auto` in its header: the paragraphs under the title that are
+`>` blockquotes or open with a `Key: value` line, up to the first that is
+neither. Two different values there read `ambiguous` and never count. A spec
+whose header follows a prose paragraph is not read (one closed row here). It would fire on most boards, so it sits
 below every finishing rule, and `manual` or a missing spec never counts. The
 recommendation runs nothing: `dispatch` keeps its own safety screen.
 

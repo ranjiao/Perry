@@ -5187,19 +5187,27 @@ def verdict_blocks(state_root: Path) -> list[tuple[str, dict, int]]:
 
 def spec_header_fields(state_root: Path, task_id: str) -> tuple[str, dict]:
     """`(path, fields)` of `evidence/<YYYY-MM>/<task_id>-spec.md`, the latest
-    month's when two exist; `("", {})` with none. Fields are the `Key: value`
-    parts (split on ` · `) of each line, `> ` optional, above the first `## `
-    heading — keys lowercased, first value kept. A header, never the body."""
+    month's when two exist; `("", {})` with none. The header is the run of
+    paragraphs under the `# ` title that are `>` blockquotes or open with a
+    `Key: value` line, up to the first other paragraph or heading. Lines split
+    on ` · `; a lowercased key maps to every value it is given, in order."""
     found = sorted(Path(state_root).glob(f"evidence/*/{task_id}-spec.md"))
     if not found:
         return "", {}
-    out: dict[str, str] = {}
-    head = _strip_comments(found[-1].read_text(errors="replace"))
-    for line in re.split(r"^## ", head, maxsplit=1, flags=re.M)[0].split("\n"):
-        for part in re.split(r"\s+·\s+", line.strip().lstrip(">").strip()):
-            m = re.match(r"\**([A-Za-z][\w ]*?)\**\s*:\s*(.*)$", part)
-            if m:
-                out.setdefault(m.group(1).strip().lower(), m.group(2).strip())
+    key = re.compile(r"\**([A-Za-z][\w ]*?)\**\s*:\s*(.*)$")
+    text = re.sub(r"\A\s*# [^\n]*\n", "", _strip_comments(
+        found[-1].read_text(errors="replace")))
+    out: dict[str, list] = {}
+    for para in re.split(r"\n\s*\n", text.strip()):
+        para = re.split(r"^#", para, maxsplit=1, flags=re.M)[0].strip()
+        if not para or not (para[0] == ">" or key.match(para.split("\n")[0])):
+            break
+        for line in para.split("\n"):
+            for part in re.split(r"\s+·\s+", line.strip().lstrip(">").strip()):
+                m = key.match(part)
+                if m:
+                    out.setdefault(m.group(1).strip().lower(), []).append(
+                        m.group(2).strip().strip("`*").strip())
     return found[-1].relative_to(state_root).as_posix(), out
 
 # ── Top-level snapshot ────────────────────────────────────────────────────
