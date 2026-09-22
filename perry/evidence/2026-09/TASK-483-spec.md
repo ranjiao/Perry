@@ -107,3 +107,17 @@ between mutants. `git diff --check`. Record the exact commit and line delta.
 Batch 3 (DESIGN-020 § 6 I); running any dispatch or review; changing
 `perry-lint`'s findings; `schema/state-schema.json`; release allocation (the
 integrator's); live PMO state; publication; main integration.
+
+## Note after delivery (2026-09-22, PMO)
+
+- **Bound reading.** "Moved code counted once" means a move nets to zero: its
+  lines are added at the destination and removed at the source. The candidate's
+  `git diff --numstat` over Python and tests is +402 / −157 = **net +245**,
+  within +300.
+- **Spec error.** Deliverable 1 said `perry-lint` parses `> Dispatch mode:`
+  header lines. It does not; nothing under `bin/` read that field at the base.
+  `parsers.spec_header_fields` is therefore a new reader, not a moved one.
+- **Scope.** `tests/test_ask_is_a_node.py` and `tests/test_answered_ask_is_legible.py`
+  pinned the dependency rule's location in `bin/perry-task`. Moving it to
+  `bin/lib` (Deliverable 2) required updating them. This is read as the
+  "import path moves" allowance in Files in scope.
