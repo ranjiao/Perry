@@ -118,11 +118,11 @@ Each fact is a value `perry-state` already computes, or the clock
 | `design.pending_handoff_count`, `design.first_pending_id` | `design.pending_handoff` |
 | `board.lines`, `board.cap`, `board.over_cap_by` | `board` |
 | `board.review_owed`, `board.closable`, `board.dispatchable`, `board.blocked_stale`, each with `board.first_<name>` and `board.first_<name>_title` | `board.execution[]`: each open task record, ordered by priority then id, with `startable` and `blocked_stale` from the rule `perry-task list` uses (`bin/lib § resolve_startability`), its `verdicts[]` and its spec's `dispatch_mode`, both read by `viewer/parsers.py` (`verdict_blocks`, `spec_header_fields`) |
-| `project.spines`, `project.packs` | `project.config`: `tracks[].mode`, and `packs[].name` — what the project declares, never what this installation holds |
-| `operations.inputs`, `operations.first_input` | `operations.inputs` / `inputs_oldest`: files under `inputs/`, oldest first; the name `work digest <path>` takes |
-| `cadence.overdue_count`, `cadence.first_overdue` | `cadence.overdue[]`, oldest first; its id, or title where it has none. Unknown when `cadence.store_unreadable` |
+| `project.spines`, `project.packs` | `project.config`: `tracks[].mode`, and `packs[].name` — what the project declares (`software-ops` when it names none), never what this installation holds |
+| `operations.inputs`, `operations.first_input` | `operations.inputs` / `inputs_oldest`: files under `inputs/`, oldest first; the name `work digest` takes |
+| `cadence.overdue_count`, `cadence.first_overdue` | `cadence.overdue[]`, oldest first; its id, or title where it has none. Unknown when the store is unreadable |
 | `risks.top_rank` | `risks.top.severity_rank` — the marker the statement **declares**; `""` when it declares none, or no risk is open |
-| `architecture.days_since_review` | today minus `ARCHITECTURE.md`'s `Last reviewed`, the integer the stale-review warning uses; unknown with no document or no date |
+| `architecture.days_since_review` | today minus `ARCHITECTURE.md`'s `Last reviewed` — the integer the stale-review warning uses; unknown with no document or date |
 | `queue.sla_breaches`, `queue.oldest_breach_id` | `project.config.tracks[]`: `sla_check`, `sla_breaches` |
 | `pipeline.wip_breaches` | `project.config.tracks[]`: `wip`, `wip_breaches` |
 
@@ -302,13 +302,12 @@ row titled `midweek-check`, so `week.midweek_checked` reads that row's
 ### R-inputs-waiting
 
 A file waits in `inputs/`. `work digest <path>` reads `inputs/<path>`, so the
-command names the oldest file by that same name.
+command names the oldest file by that name.
 
 ### R-cadence-overdue
 
-A declared recurring item is past its `Next due`. A row whose cell cannot be
-read is in `cadence.undated`, not `overdue`: unreadable is a finding, never an
-assumed due date.
+A declared recurring item is past its `Next due`. A cell that cannot be read
+is in `cadence.undated`, not `overdue`: a finding, never an assumed due date.
 
 ### R-risk-raised
 
@@ -348,10 +347,11 @@ pushes detail into evidence. No board file is measured any more, so
 ### R-architecture-stale
 
 Past `architecture_review_days` (180) a document nobody has re-read stops
-describing the code; the standup warns there, this offers the audit. The
-discipline is the `software-ops` pack's, so a project declaring no pack never
-gets it; no document, or a `Last reviewed` that is not a date, leaves the fact
-unknown. Last in the order: Perry's slowest clock must not outrank this week.
+describing the code; the standup warns there, this offers the audit. It is the
+`software-ops` pack's discipline, and that pack is the **default**: only a
+project whose `Packs` cell names others, or is blank, is exempt. No document,
+or an unreadable `Last reviewed`, leaves the fact unknown. Last in the order:
+Perry's slowest clock must not outrank this week.
 
 ## Closing step
 

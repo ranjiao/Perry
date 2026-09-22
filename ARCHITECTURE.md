@@ -381,8 +381,9 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   now has `R-inputs-waiting`, so "a rule for none of the four" holds for three.
   The question's words are kept, and `work/reference/digests.md`, which said
   the recommendation stays off the next-step position, was rewritten to match
-  what ships. No other section is edited. (Named by its section, not its id:
-  the preamble's rule, which the two entries below predate.)
+  what ships. No other section is edited. (Named by its section, not its id, as
+  the preamble has asked since 2026-09-09; the two entries below were written
+  after that and name theirs.)
 
 - 2026-09-21 · v1 · USER-989, after TASK-477: §7 OQ-1's closure names
   TASK-477 as done. Descriptive: the preamble comment says the tooling now

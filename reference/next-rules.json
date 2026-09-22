@@ -24,7 +24,7 @@
     },
     "architecture_review_days": {
       "value": 180,
-      "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. The age at which `bin/perry-state` warns that `ARCHITECTURE.md` is overdue for review, so the recommendation arrives WITH the warning rather than at some second age. The warning does not read this file — it is raised before any rule is evaluated — so the number lives twice: here, and as `bin/perry-state § ARCHITECTURE_REVIEW_DAYS`. `tests/test_next_section.py § TestTheRuleFile` reads both and fails when they differ, and pins that both compare at-or-over (`ge`), so neither can fire a day before the other."
+      "note": "Declared here because `schema/state-schema.json § thresholds` has no entry. The age at which `bin/perry-state` warns that `ARCHITECTURE.md` is overdue for review, so the recommendation arrives WITH the warning rather than at some second age. The warning does not read this file — it is raised before any rule is evaluated — so the number lives twice: here, and as `bin/perry-state § ARCHITECTURE_REVIEW_DAYS`. Two tests guard the halves separately: `tests/test_next_section.py § TestTheRuleFile` reads both numbers and fails when they differ, and pins THIS rule's `ge`; `§ TestCadenceAndOperations` builds a project at exactly this age and fails unless the warning and the rule both speak on that one day, which is what catches a warning comparing `>` instead."
     }
   },
   "overlays": [

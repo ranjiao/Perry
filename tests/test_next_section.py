@@ -1142,11 +1142,11 @@ class TestTheRuleFile(unittest.TestCase):
                     self.assertTrue(self.doc["thresholds"][entry["name"]]
                                     ["note"].strip())
 
-    def test_the_architecture_age_is_one_number_and_one_boundary(self):
+    def test_the_architecture_age_is_one_number_and_the_rule_says_at_or_over(self):
         """TASK-484 correction. The stale-review warning is raised before any
         rule is evaluated, so the number lives twice; the rule file's note
-        claimed a test kept the two equal and none did — changing either
-        spelling reddened nothing."""
+        claimed a test kept the two equal and none did. This is the rule's half
+        — `TestCadenceAndOperations` holds the warning's."""
         rule = next(r for r in self.doc["rules"] if r["id"] == "R-architecture-stale")
         clause = next(c for c in rule["when"]["all"]
                       if c.get("fact") == "architecture.days_since_review")
