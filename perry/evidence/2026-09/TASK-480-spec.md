@@ -63,3 +63,16 @@ Notes files go in scratch outside the checkout.
 
 Tags, `release/manage.py prepare`/`publish`, `gh release`, `git push`, editing
 any existing record, code changes, live PMO state, main integration.
+
+## Amendment 1 — criterion 3 withdrawn (2026-09-22, PMO)
+
+Criterion 3 (`check --base <pinned base> --ref HEAD` exits 0) cannot hold for an
+allocation-only commit, and the spec was wrong to ask for it. Every product
+delivery is already in the pinned base, so the range holds only the release
+record and its projections. `release/manage.py check_base` (:302-303) refuses a
+new patch over that range, "PMO-only or synchronization changes do not allocate
+versions", as `release/README.md` states ("release projections alone do not
+count as a product delivery"). The check that governs CI is criterion 2: the push
+base is `origin/main` = `174f35b2`, which holds the unallocated deliveries. It
+exits 0. The defect is the PMO's, found by the author, who did not work around
+it. No other criterion changes.
