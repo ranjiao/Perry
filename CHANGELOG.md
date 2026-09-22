@@ -2,6 +2,27 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.23 — 2026-09-23
+
+patch · phase 004-guided · TASK-484 · delivery TASK-484-operations-next-rules
+
+### Changes
+
+- TASK-484 (USER-1002): `perry-state --section next` covers cadence and operations. A file waiting in `inputs/` is recommended for `/perry work digest <name>`; a cadence row past its next due for `/perry work triage`; the top open risk carrying a declared high-severity marker (`H`, `高`, `🔴`) for `/perry work risk`; an `ARCHITECTURE.md` reviewed 180 days ago or longer for `/perry work architecture-audit`, where the project's declared packs include `software-ops` — which they do by default, a project opting out only by naming other packs or leaving its `Packs` cell blank. Severity is read from a declared marker and never from the sentence: an unmarked risk ranks `""` and fires nothing. `work rollover` is classified never-recommended rather than given a rule — it is the phase-transition procedure, reached after `goals score-phase`, so a month boundary would start it at the wrong time. The standup's stale-architecture warning now compares at-or-over, so it and the rule speak on the same day. `perry-next/1.4`.
+
+
+### Upgrade notes
+
+- `perry-next/1.4` adds the facts `operations.inputs`, `operations.first_input`, `cadence.overdue_count`, `cadence.first_overdue`, `risks.top_rank`, `architecture.days_since_review` and `project.packs`, and the payload key `architecture.days_since_review`; nothing is removed.
+- The rule file's predicate operators gain `contains`, the mirror of `in` for a fact that is a list.
+- A project whose `ARCHITECTURE.md` is exactly 180 days past its last review now gets the standup warning on that day rather than the next, which is the same day the new `R-architecture-stale` recommends the audit.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.22 — 2026-09-23
 
 patch · phase 004-guided · TASK-427 · delivery TASK-413-427-autonomous
