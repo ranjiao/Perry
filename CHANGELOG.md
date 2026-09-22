@@ -2,6 +2,26 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.20 — 2026-09-22
+
+patch · phase 004-guided · TASK-482 · delivery TASK-482-midweek-fact
+
+### Changes
+
+- TASK-482 (USER-999): `R-midweek` can now fire. `/perry work midweek-check` ends by recording an occurrence on a cadence row titled `midweek-check` (`perry-task cadence-add` once, `cadence-done` each run); `perry-state` reports `week.midweek_checked` for the current ISO week, and on a Wednesday with no record it recommends `midweek-check`. The schema reserves that cadence title (`reserved_titles` on the `cadence.jsonl` claim). `perry-state --section next` is `perry-next/1.2`.
+
+
+### Upgrade notes
+
+- `perry-next/1.2` replaces the fact `today.journal_has_midweek` (always unknown in 1.1) with `week.midweek_checked`; `semantics` stays `[]`. A consumer matching the exact string `perry-next/1.1` must accept 1.2.
+- The cadence title `midweek-check` is reserved: a cadence row with that title is read as the mid-week check's record.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.19 — 2026-09-22
 
 patch · phase 004-guided · TASK-481 · delivery TASK-481-retro-phase-header
