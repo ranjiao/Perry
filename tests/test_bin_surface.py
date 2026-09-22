@@ -1438,5 +1438,33 @@ class TestDescribeAnswersForEveryDeclaredTool(unittest.TestCase):
                          {"--only", "--root"})
 
 
+
+
+
+class TestUnknownFlagSuggestions(unittest.TestCase):
+    """TASK-427: suggestions track declarations, not a second flag list."""
+
+    def test_subcommand_suggestions_include_new_declared_flags(self):
+        decl = {"name": "fixture", "flags": [{"name": "--fresh"}],
+                "subcommands": [{"name": "read", "flags": ["--fresh"]}]}
+        error = lib.parse_surface(decl, ["read", "--typo"])["error"]
+        self.assertIn("Accepted flags: ", error)
+        self.assertIn("--fresh", error)
+        self.assertIn("--help", error)
+        self.assertIn("--root", error)
+
+    def test_before_a_subcommand_the_message_names_the_tool_wide_set(self):
+        decl = {"name": "fixture", "flags": [{"name": "--fresh"}],
+                "subcommands": [{"name": "read", "flags": ["--fresh"]}]}
+        error = lib.parse_surface(decl, ["--typo", "read"])["error"]
+        self.assertIn("Declared flags (select a subcommand for its accepted set): ", error)
+        self.assertIn("--fresh", error)
+
+    def test_flat_scanner_lists_value_boolean_and_help_flags(self):
+        *_, error = lib.scan_argv(["--typo"], bools=("--quiet",),
+                                 values=("--output",))
+        self.assertIn("Accepted flags: --help, --output, --quiet, -h", error)
+
+
 if __name__ == "__main__":
     unittest.main()

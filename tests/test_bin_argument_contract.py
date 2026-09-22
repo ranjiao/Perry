@@ -138,6 +138,25 @@ class TestAnUndeclaredTokenIsRefused(unittest.TestCase):
                                  + out.stdout[:400] + out.stderr[:400])
                 self.assertIn("--xyzzy", out.stderr)
 
+    def test_unknown_flag_names_the_legal_flags_without_writing(self):
+        for tool, argv, present, absent in (
+                ("perry-task", ("add",), "--title", "--all"),
+                ("perry-task", ("list",), "--all", "--title"),
+                ("perry-config", ("show",), "--root", "--mode"),
+                ("perry-state", (), "--section", "--title")):
+            with self.subTest(tool=tool, argv=argv):
+                before = {p.relative_to(self.p.root): p.read_bytes()
+                          for p in self.p.root.rglob("*") if p.is_file()}
+                out = run(tool, *argv, "--root", str(self.p.root), "--wrte")
+                self.assertEqual(out.returncode, 2, out.stdout + out.stderr)
+                self.assertIn("Accepted flags: ", out.stderr)
+                flags = out.stderr.split("Accepted flags: ", 1)[1].splitlines()[0]
+                self.assertIn(present, flags.split(", "))
+                self.assertNotIn(absent, flags.split(", "))
+                after = {p.relative_to(self.p.root): p.read_bytes()
+                         for p in self.p.root.rglob("*") if p.is_file()}
+                self.assertEqual(before, after)
+
     def test_a_misspelled_write_flag_does_not_report_success(self):
         """`--wrte` was a silent no-op that exited 0 (DESIGN-016 § 1.1)."""
         out = run("perry-tasks", "render", "--root", str(self.p.root), "--wrte")
@@ -661,6 +680,39 @@ class TestListIsBounded(unittest.TestCase):
         self.assertTrue(payload["bound"]["truncated"])
         self.assertFalse(payload["bound"]["default"])
         self.assertIn("2 of 6", err, "the truncation was silent on stderr")
+
+    def test_mixed_status_totals_are_counted_before_truncation(self):
+        # Two terminal records sort before the four open ones. Counting only
+        # the returned window or treating every matching row as open is wrong.
+        evidence = self.p.root / "evidence" / "2026-09" / "closed.md"
+        evidence.parent.mkdir(parents=True, exist_ok=True)
+        evidence.write_text("Fixture completion evidence.\n")
+        code, result = self.p.run("done", "TASK-001", "--evidence",
+                                  "evidence/2026-09/closed.md", "--rung", "V3")
+        self.assertEqual(code, 0, result)
+        code, result = self.p.run("drop", "TASK-002", "--reason", "fixture drop")
+        self.assertEqual(code, 0, result)
+        for tid, status in (("TASK-003", "blocked"), ("TASK-004", "review"),
+                            ("TASK-005", "in_progress")):
+            code, result = self.p.run("status", tid, "--status", status,
+                                      "--reason", "fixture open state")
+            self.assertEqual(code, 0, result)
+        for limit in ("1", "3", "0"):
+            with self.subTest(limit=limit):
+                payload, err = self._list("--all", "--limit", limit)
+                self.assertEqual(payload["bound"]["total"], 6)
+                self.assertEqual(payload["bound"]["open_total"], 4)
+                self.assertEqual(payload["bound"]["closed_total"], 2)
+                if limit == "1":
+                    self.assertEqual(payload["open"], 0)
+                    self.assertEqual(payload["closed"], 1)
+                if limit != "0":
+                    self.assertIn("`bound.open_total` is 4", err)
+        payload, _err = self._list("--limit", "1")
+        self.assertEqual(payload["bound"]["total"], 4)
+        self.assertEqual(payload["bound"]["open_total"], 4)
+        self.assertEqual(payload["bound"]["closed_total"], 0)
+        self.assertEqual(payload["open"], 1)
 
     def test_the_default_bound_is_what_the_constant_says(self):
         """The number itself, asserted. Raising `LIST_DEFAULT_LIMIT` to a
