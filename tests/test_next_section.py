@@ -850,10 +850,19 @@ class TestCadenceAndOperations(Fixtures):
             "architecture_stale", "architecture.days_since_review", "project.packs")))
         def document(reviewed):
             return text("ARCHITECTURE.md", ARCHITECTURE_MD.format(reviewed=reviewed))
-        for age, fires in ((days - 1, False), (days, True)):
+        # The warning and the rule cross on the SAME day. The warning used to
+        # wait one longer (`> 180` against `ge 180`), so at exactly the
+        # threshold the audit was recommended by a standup silent about it.
+        for age, both in ((days - 1, False), (days, True)):
+            root = build(self, "active_phase_week_unknown")
+            for write in (*QUIET, document(day(-age))):
+                write(root)
+            got = payload_of(root)
             with self.subTest(age=age):
-                self.assertEqual(fires, "R-architecture-stale" in recommended(
-                    self.over(*QUIET, document(day(-age)))[2]))
+                self.assertEqual((both, both), (
+                    "ARCHITECTURE.md last reviewed" in " ".join(got["warnings"]),
+                    "R-architecture-stale" in recommended(
+                        STATE.build_next(got, today=WEDNESDAY))))
         for writes, says in (((), "ARCHITECTURE.md"), ((document("soon"),), "soon")):
             facts, unknown, block = self.over(*QUIET, *writes)
             with self.subTest(says=says):
@@ -1132,6 +1141,19 @@ class TestTheRuleFile(unittest.TestCase):
                 if entry["source"] == "rule-file":
                     self.assertTrue(self.doc["thresholds"][entry["name"]]
                                     ["note"].strip())
+
+    def test_the_architecture_age_is_one_number_and_one_boundary(self):
+        """TASK-484 correction. The stale-review warning is raised before any
+        rule is evaluated, so the number lives twice; the rule file's note
+        claimed a test kept the two equal and none did — changing either
+        spelling reddened nothing."""
+        rule = next(r for r in self.doc["rules"] if r["id"] == "R-architecture-stale")
+        clause = next(c for c in rule["when"]["all"]
+                      if c.get("fact") == "architecture.days_since_review")
+        self.assertEqual(({"threshold": "architecture_review_days"}, "ge"),
+                         (clause["value"], clause["op"]))   # at or over, both sides
+        self.assertEqual(STATE.ARCHITECTURE_REVIEW_DAYS,
+                         self.doc["thresholds"]["architecture_review_days"]["value"])
 
     def test_a_rule_naming_something_that_is_not_a_fact_is_an_error(self):
         problems = STATE.next_rule_problems(

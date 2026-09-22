@@ -367,9 +367,22 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   `operations.inputs_oldest_days` for the digests. Stale digests have no count
   in the payload, only per-card staleness under `roles.cards[].knowledge[]`,
   and the migration has no fact at all; those two need a fact as well as a
-  rule.
+  rule. *Partly answered 2026-09-23 (TASK-484):* one of the four now has its
+  rule — the undigested `inputs/` line, through `R-inputs-waiting` over the
+  facts `operations.inputs` and `operations.first_input`, and
+  `work/reference/digests.md` was rewritten to stop saying the opposite. The
+  expired-sunset ADR, the `DECISIONS.md` migration and the stale-digest count
+  stay open, and the sentence above holds for those three.
 
 ## §8. Change log
+
+- 2026-09-23 · v1 · TASK-484: §7's question about lane lines naming a command
+  with no rule gains a *Partly answered* clause — the undigested `inputs/` line
+  now has `R-inputs-waiting`, so "a rule for none of the four" holds for three.
+  The question's words are kept, and `work/reference/digests.md`, which said
+  the recommendation stays off the next-step position, was rewritten to match
+  what ships. No other section is edited. (Named by its section, not its id:
+  the preamble's rule, which the two entries below predate.)
 
 - 2026-09-21 · v1 · USER-989, after TASK-477: §7 OQ-1's closure names
   TASK-477 as done. Descriptive: the preamble comment says the tooling now

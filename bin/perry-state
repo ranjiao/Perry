@@ -69,6 +69,13 @@ except ImportError as exc:  # pragma: no cover - install-shape problem
 # ── helpers ───────────────────────────────────────────────────────────────
 
 
+#: The age at which `ARCHITECTURE.md` is overdue for review. Named, not spelled
+#: inline, because `reference/next-rules.json § thresholds` declares the same
+#: number for `R-architecture-stale` and `tests/test_next_section.py` reads both
+#: and fails when they differ. Both compare AT or over, so neither fires first.
+ARCHITECTURE_REVIEW_DAYS = 180
+
+
 def days_since(value: str) -> int | None:
     m = re.search(r"\d{4}-\d{2}-\d{2}", value or "")
     if not m:
@@ -2043,7 +2050,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # `architecture.days_since_review` now publishes the same integer (TASK-484)
     # rather than letting `next_facts` date the file a second time.
     rev = days_since(snap.arch_meta.last_reviewed)
-    if rev is not None and rev > 180:
+    if rev is not None and rev >= ARCHITECTURE_REVIEW_DAYS:
         warnings.append(f"ARCHITECTURE.md last reviewed {rev}d ago — run /perry work architecture review.")
 
     payload = {
