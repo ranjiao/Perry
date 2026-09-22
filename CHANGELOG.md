@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.19 — 2026-09-22
+
+patch · phase 004-guided · TASK-481 · delivery TASK-481-retro-phase-header
+
+### Changes
+
+- TASK-481 (USER-998): `end-phase-retro` opens `evidence/<YYYY-MM>/retro.md` with the `> Phase: #<NNN>-<slug> · started <date> · scored —` header, so `perry-state` sees the retro and `R-phase-scorable` recommends `score-phase`; `score-phase` step 5 sets the header's scored date and appends its summary instead of writing a new retro.
+
+
+### Upgrade notes
+
+- A retro written by `end-phase-retro` now carries the `> Phase:` header; an existing retro without it is not recognised by `phase.retro_recorded` until the header is added.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.18 — 2026-09-22
 
 patch · phase 004-guided · TASK-480 · delivery TASK-480-backlog-0.1.17-to-0.1.18
