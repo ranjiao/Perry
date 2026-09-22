@@ -689,6 +689,21 @@ their scope survives here and ids are never reissued.
   twelve new rules and one narrowed one, thirty in all, and thirteen fact rows
   less one.
 
+- 2026-09-23 — **`R-rollover` is not built** (TASK-484, batch 3). § 5.10's event
+  table, the fact row `month.rollover_due`, the rule order and § 6 row I all
+  declare it; the shipped batch classifies `rollover` **never-recommended**
+  instead, so those four places are out of date. Why: the trigger § 5.10 gives
+  it is a month boundary, but `work rollover` is the phase-transition procedure
+  — `work/reference/subcommands.md § rollover` opens "Runs when a phase has been
+  scored via `okr score-phase`" — and it is already reached after scoring,
+  through `R-no-phase`. A month boundary says nothing about whether the phase is
+  over, so the rule would start a transition on the wrong day. The deviation was
+  reasoned in `perry/evidence/2026-09/TASK-484-spec.md` § Deliverable 3 before
+  the work started, and the coverage guard in `tests/test_next_closing.py`
+  records `rollover` as `never` with that reason. Batch 3 therefore ships four
+  rules, not five; `reference/next-rules.json` declares 27 rules and 3 overlays,
+  which `perry-state --section next` reports as `rules_declared: 30`.
+
 ## 10. References
 
 - `perry/design/DESIGN-011-the-okr-is-elicited-not-collected.md` — superseded
