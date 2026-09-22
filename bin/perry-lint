@@ -2394,41 +2394,6 @@ def fail_grade(fields: dict) -> "str | None":
     return tok if tok in FAIL_GRADES else None
 
 
-_VERDICT_BLOCK = re.compile(
-    r"^===\s*VERDICT\s*===\s*$(.*?)^===\s*END VERDICT\s*===\s*$",
-    re.M | re.S)
-
-
-def parse_verdicts(text: str) -> list[tuple[dict, int]]:
-    """Every `=== VERDICT ===` block in a document, with its line number.
-
-    Returns `(fields, line)` pairs. A key repeated inside one block keeps the
-    LAST value, matching how every other `Key: value` block in Perry parses —
-    silently keeping the first would make a corrected verdict read as the
-    uncorrected one.
-
-    Continuation lines (indented under a key) are joined into that key, because
-    `checked:` routinely runs to several lines and a reviewer should not have
-    to fight the parser to write a full sentence.
-    """
-    out: list[tuple[dict, int]] = []
-    for m in _VERDICT_BLOCK.finditer(text):
-        line0 = text[:m.start()].count("\n") + 1
-        fields: dict[str, str] = {}
-        key = None
-        for raw in m.group(1).split("\n"):
-            if not raw.strip():
-                continue
-            kv = re.match(r"^([a-z][a-z-]*)\s*:\s*(.*)$", raw.strip())
-            if kv:
-                key = kv.group(1)
-                fields[key] = kv.group(2).strip()
-            elif key and raw[:1].isspace():
-                fields[key] = (fields[key] + " " + raw.strip()).strip()
-        out.append((fields, line0))
-    return out
-
-
 #: A trailing `:1204` or `:1204-1210` on a cited path. Stripped before the
 #: existence test, and the token is rejected if a `:` survives — a `proof:`
 #: reading `bin/perry-goals:927/:908/` is prose about two lines, not a path.
@@ -2737,7 +2702,8 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     for md in sorted(edir.rglob("*.md")) if edir.exists() else []:
         rel = md.relative_to(state_root).as_posix()
         text = strip_comments(md.read_text(errors="replace"))
-        for fields, line in parse_verdicts(text):
+        # `viewer/parsers.py § parse_verdicts` is the one reader (TASK-483).
+        for fields, line in P.parse_verdicts(text):
             tid = fields.get("task", "")
             seen.setdefault(tid, []).append((rel, fields, line))
 

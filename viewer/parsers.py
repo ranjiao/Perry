@@ -5135,6 +5135,81 @@ def spec_scope_sections(text: str) -> list[str]:
     return [label for label in SPEC_SCOPE_SECTIONS
             if _section(body, *alias("headings", label)).strip()]
 
+
+# ── Verdict blocks and spec header fields: the one reader (TASK-483, NN-1) ──
+# Moved here from `bin/perry-lint`, which imports them, so `perry-state` can
+# read the same blocks without a second parser (DESIGN-020 § 5.10 batch 2).
+
+_VERDICT_BLOCK = re.compile(
+    r"^===\s*VERDICT\s*===\s*$(.*?)^===\s*END VERDICT\s*===\s*$",
+    re.M | re.S)
+
+
+def parse_verdicts(text: str) -> list[tuple[dict, int]]:
+    """Every `=== VERDICT ===` block in a document, with its line number.
+
+    Returns `(fields, line)` pairs. A key repeated inside one block keeps the
+    LAST value, matching how every other `Key: value` block in Perry parses —
+    silently keeping the first would make a corrected verdict read as the
+    uncorrected one.
+
+    Continuation lines (indented under a key) are joined into that key, because
+    `checked:` routinely runs to several lines and a reviewer should not have
+    to fight the parser to write a full sentence.
+    """
+    out: list[tuple[dict, int]] = []
+    for m in _VERDICT_BLOCK.finditer(text):
+        line0 = text[:m.start()].count("\n") + 1
+        fields: dict[str, str] = {}
+        key = None
+        for raw in m.group(1).split("\n"):
+            if not raw.strip():
+                continue
+            kv = re.match(r"^([a-z][a-z-]*)\s*:\s*(.*)$", raw.strip())
+            if kv:
+                key = kv.group(1)
+                fields[key] = kv.group(2).strip()
+            elif key and raw[:1].isspace():
+                fields[key] = (fields[key] + " " + raw.strip()).strip()
+        out.append((fields, line0))
+    return out
+
+
+def verdict_blocks(state_root: Path) -> list[tuple[str, dict, int]]:
+    """`(path, fields, line)` for every verdict block under `evidence/`, HTML
+    comments dropped, in sorted-path order and then block order."""
+    edir = Path(state_root) / "evidence"
+    return [(md.relative_to(state_root).as_posix(), fields, line)
+            for md in (sorted(edir.rglob("*.md")) if edir.exists() else [])
+            for fields, line in parse_verdicts(
+                _strip_comments(md.read_text(errors="replace")))]
+
+
+def spec_header_fields(state_root: Path, task_id: str) -> tuple[str, dict]:
+    """`(path, fields)` of `evidence/<YYYY-MM>/<task_id>-spec.md`, the latest
+    month's when two exist; `("", {})` with none. The header is the run of
+    paragraphs under the `# ` title that are `>` blockquotes or open with a
+    `Key: value` line, up to the first other paragraph or heading. Lines split
+    on ` · `; a lowercased key maps to every value it is given, in order."""
+    found = sorted(Path(state_root).glob(f"evidence/*/{task_id}-spec.md"))
+    if not found:
+        return "", {}
+    key = re.compile(r"\**([A-Za-z][\w ]*?)\**\s*:\s*(.*)$")
+    text = re.sub(r"\A\s*# [^\n]*\n", "", _strip_comments(
+        found[-1].read_text(errors="replace")))
+    out: dict[str, list] = {}
+    for para in re.split(r"\n\s*\n", text.strip()):
+        para = re.split(r"^#", para, maxsplit=1, flags=re.M)[0].strip()
+        if not para or not (para[0] == ">" or key.match(para.split("\n")[0])):
+            break
+        for line in para.split("\n"):
+            for part in re.split(r"\s+·\s+", line.strip().lstrip(">").strip()):
+                m = key.match(part)
+                if m:
+                    out.setdefault(m.group(1).strip().lower(), []).append(
+                        m.group(2).strip().strip("`*").strip())
+    return found[-1].relative_to(state_root).as_posix(), out
+
 # ── Top-level snapshot ────────────────────────────────────────────────────
 
 

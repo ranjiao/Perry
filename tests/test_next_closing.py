@@ -25,8 +25,9 @@ def routes(text):
 
 #: The one classification of lane index commands, extending TASK-443's
 #: read-only inventory (DESIGN-020 § 5.10, TASK-479). `read-only`: no closing
-#: step. `never`: never recommended. `pending H`/`pending I`: a batch 2/3 rule
-#: will name it. `week`: stage 4's rule names `goals plan-week` for it.
+#: step. `never`: never recommended. `pending I`: a batch 3 rule will name it
+#: (batch 2 names `dispatch`, `close-task` and `review`, TASK-483). `week`:
+#: stage 4's rule names `goals plan-week` for it.
 UNCOVERED = {
     'goals': {'krs': 'read-only never', 'dashboard': 'read-only never',
               'help': 'read-only never', 'revise': 'never', 'commit': 'never',
@@ -37,7 +38,6 @@ UNCOVERED = {
              'status': 'never', 'health-check': 'never', 'runbook-check': 'never',
              'incident': 'never', 'architecture': 'never',
              'mid-phase-review': 'never', 'plan-week': 'week', 'monday-plan': 'week',
-             'dispatch': 'pending H', 'close-task': 'pending H',
              'digest': 'pending I', 'risk': 'pending I', 'rollover': 'pending I',
              'architecture-audit': 'pending I'},
     'decide': {'status': 'read-only never', 'handoff': 'read-only',
@@ -108,6 +108,8 @@ class Routing(unittest.TestCase):
         indexes = {lane: index_commands(lane) for lane in UNCOVERED}
         self.assertEqual(coverage_errors(indexes, rules), [])
         self.assertIn('check', indexes['goals'])
+        self.assertIn('review', indexes['work'])
+        self.assertNotIn('pending H', {k for c in UNCOVERED.values() for k in c.values()})
         # The guard reddens on an unclassified row and on a doubly named one.
         grown = {**indexes, 'goals': indexes['goals'] + ['frobnicate']}
         self.assertEqual(coverage_errors(grown, rules), [('goals', 'frobnicate', 'neither')])

@@ -179,7 +179,7 @@ def build(owner, name: str) -> pathlib.Path:
     # undeclared, so each fixture names its edges and checks. Closable KRs
     # are measured and met with no task: the UD 14 exemption.
     staffed, declared = ["P001-O1-KR1"], ["P001-O1-KR1"]
-    if name in ("active_phase_week_unknown", "checks_undeclared"):
+    if name in ("active_phase_week_unknown", "checks_undeclared") or name in LOOP:
         krs = [kr("P001-O1-KR1", target=3)]
         declared = [] if name == "checks_undeclared" else declared
     elif name == "kr_unstaffed":
@@ -201,7 +201,58 @@ def build(owner, name: str) -> pathlib.Path:
                                         encoding="utf-8")
     if name == "phase_scorable":
         retro(root, PHASE_SLUG)
+    for write in LOOP.get(name, ()):
+        write(root)
     return root
+
+
+def rows(*records: dict):
+    """TASK-483: task records for the execution-loop fixtures."""
+    def write(root):
+        with (root / "tasks.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(jsonl(list(records)))
+    return write
+
+
+def row(tid: str, status: str, *, rung="V4", priority="P1", depends=()) -> dict:
+    return {**task(tid, track="main", arrived=""), "status": status,
+            "verification": rung, "priority": priority, "group": priority,
+            "depends_on": list(depends)}
+
+
+def verdict(tid: str, result: str, name: str = "", rung: str = "V4"):
+    """A block in `work/reference/review.md § 3`'s shape, appended to `name`."""
+    def write(root):
+        path = root / "evidence" / "2026-09" / (name or f"{tid}-v4-review.md")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(f"\n=== VERDICT ===\ntask: {tid}\nrung: {rung}\nresult: {result}\n"
+                     f"criteria: evidence/2026-09/{tid}-spec.md\nchecked: all\n"
+                     f"not-checked: none\n=== END VERDICT ===\n")
+    return write
+
+
+def spec(tid: str, mode: str, month="2026-09", body=None):
+    return text(f"evidence/{month}/{tid}-spec.md", body or (
+        f"# {tid} — a row\n\nDate: 2026-09-16.\n> Dispatch mode: {mode} · "
+        f"Executor: claude-subagent\n\n## Bound\n\nOne row.\n"))
+
+
+def text(rel: str, body: str):
+    def write(root):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(body, encoding="utf-8")
+    return write
+
+
+OWED = rows(row("TASK-011", "review"))
+PASSED = (rows(row("TASK-012", "review")), verdict("TASK-012", "PASS"))
+READY = (rows(row("TASK-013", "not_started")), spec("TASK-013", "auto"))
+#: Each execution-loop fixture: an active phase, then these writes (TASK-483).
+LOOP = {"review_owed": (OWED,), "closable_row": PASSED, "dispatchable": READY,
+        "blocked_stale": (rows(row("TASK-020", "done"),
+                               row("TASK-021", "blocked", depends=["TASK-020"])),),
+        "busy_board": (OWED, *PASSED, *READY)}
 
 
 def retro(root: pathlib.Path, slug: str) -> None:
@@ -235,6 +286,11 @@ EXPECTED = {
     "phase_scorable": "R-phase-scorable",
     "kr_unstaffed": "R-kr-unstaffed",
     "checks_undeclared": "R-checks-undeclared",
+    "review_owed": "R-review-owed",
+    "closable_row": "R-closable-row",
+    "dispatchable": "R-dispatchable",
+    "blocked_stale": "R-blocked-stale",
+    "busy_board": "R-review-owed",
 }
 
 
@@ -280,6 +336,11 @@ EXPECTED_COMMAND = {
     "phase_scorable": "/perry goals score-phase",
     "kr_unstaffed": "/perry goals plan-week",
     "checks_undeclared": "/perry goals check P001-O1-KR1",
+    "review_owed": "/perry work review TASK-011",
+    "closable_row": "/perry work close-task TASK-012",
+    "dispatchable": "/perry work dispatch TASK-013",
+    "blocked_stale": "/perry work triage",
+    "busy_board": "/perry work review TASK-011",
 }
 
 
@@ -554,6 +615,103 @@ class TestTheLifecycleRules(Fixtures):
         self.assertNotIn("R-midweek", recommended(block))
 
 
+class TestTheExecutionLoop(Fixtures):
+    """TASK-483, DESIGN-020 § 5.10 batch 2: acceptance criteria 1-4."""
+
+    def facts(self, *writes) -> dict:
+        root = build(self, "active_phase_week_unknown")
+        for write in writes:
+            write(root)
+        return STATE.next_facts(payload_of(root), WEDNESDAY)[0]
+
+    def counts(self, facts: dict) -> tuple:
+        return tuple(facts[f"board.{k}"] for k in (
+            "review_owed", "closable", "dispatchable", "blocked_stale"))
+
+    def test_each_fixture_counts_its_one_row_and_names_it_with_its_title(self):
+        for name, first in (("review_owed", "TASK-011"), ("closable_row", "TASK-012"),
+                            ("dispatchable", "TASK-013"), ("blocked_stale", "TASK-021")):
+            block = self.next_of(name)
+            with self.subTest(fixture=name):
+                self.assertIn(f"{first} (row {first})", block["primary"]["reason"])
+        self.assertEqual((1, 1, 1, 0), self.counts(STATE.next_facts(
+            self.payloads["busy_board"], WEDNESDAY)[0]))
+
+    def test_a_fail_is_neither_owed_nor_closable_and_the_latest_block_decides(self):
+        """The latest block is the highest review round (`verdict_order`); an
+        unnumbered file is round 1, as this repository names them."""
+        r2, rr2 = "TASK-011-round2-v4-review.md", "TASK-011-v4-review-r2.md"
+        hidden = text("evidence/2026-09/c.md", "<!--\n=== VERDICT ===\ntask: TASK-011"
+                      "\nrung: V4\nresult: PASS\n=== END VERDICT ===\n-->\n")
+        for writes, owed, closable in (
+                ((verdict("TASK-011", "FAIL"),), 0, 0),
+                ((verdict("TASK-011", "FAIL", "r/round9-v4.md"),
+                  verdict("TASK-011", "PASS", "r/round10-v4.md")), 0, 1),
+                ((verdict("TASK-011", "PASS", rung="V3"),), 0, 0),
+                ((verdict("TASK-011", "FAIL"), verdict("TASK-011", "PASS", r2)), 0, 1),
+                ((verdict("TASK-011", "PASS"), verdict("TASK-011", "FAIL", r2)), 0, 0),
+                ((verdict("TASK-011", "PASS"), verdict("TASK-011", "FAIL", rr2)), 0, 0),
+                ((hidden,), 1, 0)):
+            with self.subTest(owed=owed, closable=closable, files=len(writes)):
+                self.assertEqual((owed, closable, 0, 0), self.counts(self.facts(OWED, *writes)))
+        below = rows(row("TASK-014", "review", rung="V3"))
+        for writes in ((below,), (below, verdict("TASK-014", "PASS"))):
+            self.assertEqual((0, 0, 0, 0), self.counts(self.facts(*writes)))
+
+    def test_only_an_auto_spec_on_a_startable_p0_or_p1_row_is_dispatchable(self):
+        """Criterion 2. The latest month's spec; the whole value; the header block only; two
+        different values read `ambiguous`, never `auto` (fails closed: dispatch
+        wants an explicit opt-in, `dispatch-preflight.md` step 2); a pending
+        ask edge blocks the row and an answered one does not."""
+        plain, waits = READY[0], rows(row("TASK-013", "not_started", depends=["USER-001"]))
+        def ask(answered):
+            return text("asks.jsonl", json.dumps({
+                "id": "USER-001", "needed": "q", "blocks": "TASK-013", "asked": "2026-09-10",
+                "status": "answered 2026-09-12" if answered else "pending",
+                "answered": answered, "order": 1}) + "\n")
+        two = "# T\n\n> Dispatch mode: {}\n> Dispatch mode: {}\n\n## Bound\n"
+        auto = spec("TASK-013", "auto")
+        for writes, count, mode in (
+                ((rows(row("TASK-013", "not_started", priority="P0")), auto), 1, "auto"),
+                ((rows(row("TASK-013", "not_started", priority="P2")), auto), 0, "auto"),
+                ((plain,), 0, ""),
+                ((rows(row("TASK-012", "in_progress"), row("TASK-013", "not_started",
+                  depends=["TASK-012"])), auto), 0, "auto"),
+                ((plain, spec("TASK-013", "auto", "2026-08"), spec("TASK-013", "manual")), 0, "manual"),
+                ((plain, spec("TASK-013", "manual", "2026-08"), auto), 1, "auto"),
+                ((plain, spec("TASK-013", "auto-review-only")), 0, "auto-review-only"),
+                ((plain, spec("TASK-013", "", body=two.format("auto", "manual"))), 0, "ambiguous"),
+                ((plain, spec("TASK-013", "", body=two.format("auto", "auto"))), 1, "auto"),
+                ((plain, spec("TASK-013", "", body="# T\n\nWhy it matters.\n\n"
+                                                   "Dispatch mode: auto\n")), 0, ""),
+                ((waits, ask(False), auto), 0, "auto"),
+                ((waits, ask(True), auto), 1, "auto")):
+            root = build(self, "active_phase_week_unknown")
+            for write in writes:
+                write(root)
+            payload = payload_of(root)
+            with self.subTest(count=count, mode=mode):
+                self.assertEqual(mode, next(r for r in payload["board"]["execution"]
+                                            if r["id"] == "TASK-013")["dispatch_mode"])
+                self.assertEqual(count, STATE.next_facts(payload, WEDNESDAY)[0][
+                    "board.dispatchable"])
+
+    def test_a_busy_board_finishes_before_it_starts(self):
+        """Criterion 4. The control: with `R-dispatchable` moved above the two
+        finishing rules, the same payload recommends the dispatch."""
+        block = self.next_of("busy_board")
+        self.assertIn(block["primary"]["rule"], ("R-review-owed", "R-closable-row"))
+        self.assertEqual(["R-review-owed", "R-closable-row", "R-dispatchable"],
+                         recommended(block))
+        doc = rules_doc()
+        moved = [r for r in doc["rules"] if r["id"] == "R-dispatchable"]
+        rest = [r for r in doc["rules"] if r["id"] != "R-dispatchable"]
+        at = [r["id"] for r in rest].index("R-review-owed")
+        got = self.next_of("busy_board", rules_path=write_rules(
+            self, {**doc, "rules": rest[:at] + moved + rest[at:]}))
+        self.assertEqual("R-dispatchable", got["primary"]["rule"])
+
+
 class TestOverlaysComeFirst(Fixtures):
 
     @classmethod
@@ -623,7 +781,7 @@ class TestTheShape(Fixtures):
             block = self.next_of(name)
             with self.subTest(fixture=name):
                 self.assertEqual(self.KEYS, set(block))
-                self.assertEqual("perry-next/1.2", block["contract"])
+                self.assertEqual("perry-next/1.3", block["contract"])
                 self.assertEqual(["goals", "phase", "week", "review"],
                                  [p["step"] for p in block["position"]])
                 self.assertLessEqual(len(block["alternates"]), 2)
@@ -742,7 +900,11 @@ class TestTheRuleFile(unittest.TestCase):
                  "R-phase-scorable": ("project", "R-phase-closable"),
                  "R-kr-unstaffed": ("project", "R-phase-scorable"),
                  "R-checks-undeclared": ("project", "R-kr-unstaffed"),
-                 "R-midweek": ("any", "R-review-due")}
+                 "R-midweek": ("any", "R-review-due"),
+                 "R-review-owed": ("any", "R-week-unplanned"),
+                 "R-closable-row": ("any", "R-review-owed"),
+                 "R-blocked-stale": ("any", "R-asks-waiting"),
+                 "R-dispatchable": ("any", "R-blocked-stale")}
 
     def setUp(self):
         self.doc = rules_doc()

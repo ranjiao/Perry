@@ -116,6 +116,7 @@ Each fact is a value `perry-state` already computes, or the clock
 | `user_input_queue.*` | `user_input_queue.count` and `.oldest` |
 | `design.pending_handoff_count`, `design.first_pending_id` | `design.pending_handoff` |
 | `board.lines`, `board.cap`, `board.over_cap_by` | `board` |
+| `board.review_owed`, `board.closable`, `board.dispatchable`, `board.blocked_stale`, each with `board.first_<name>` and `board.first_<name>_title` | `board.execution[]`: each open task record, ordered by priority then id, with `startable` and `blocked_stale` from the rule `perry-task list` uses (`bin/lib § resolve_startability`), its `verdicts[]` and its spec's `dispatch_mode`, both read by `viewer/parsers.py` (`verdict_blocks`, `spec_header_fields`) |
 | `project.spines` | `project.config.tracks[].mode` |
 | `queue.sla_breaches`, `queue.oldest_breach_id` | `project.config.tracks[]`: `sla_check`, `sla_breaches` |
 | `pipeline.wip_breaches` | `project.config.tracks[]`: `wip`, `wip_breaches` |
@@ -212,6 +213,28 @@ A phase is active and this ISO week has no plan. It cannot fire until
 `TASK-444` gives `week.planned` a source. Until then it adds `week.planned` to
 `unknown[]` on every project with an active phase.
 
+### R-review-owed
+
+A row at `review` carries rung V4 and no verdict block names it, so its fresh
+review was never sent or has not come back. `review` dispatches it
+(`work/reference/review.md`). Finishing work comes before starting more
+(DESIGN-020 § 5.10), so this sits above the triage and dispatch rules.
+
+### R-closable-row
+
+A V4 row at `review` whose latest verdict block naming it reads `result: PASS`
+at `rung: V4`. `close-task` closes it through its own gate. "Latest" is the
+last in `board.execution[].verdicts[]`, ordered by the review round the file's
+path names (`roundN`, `round-N`, `-rN`, a `review/roundN…` file; `final` after
+every number; an unnumbered file is round 1), then the month, then the block's
+line. On this repository it agrees with the order the files were added in, for
+every pair added in different commits. Its limits: round numbers are compared
+across documents as one series, so a round-2 file of one review and a round-6
+file of another that both name the row sort by number, not by date; two files
+of one round sort by month and path; and a round written only in prose
+(`third-pass.md`) reads as round 1. A FAIL as the latest block makes the row neither closable nor
+owed.
+
 ### R-sla-breach
 
 A `queue` track's rows have waited longer than its declared SLA. In a queue
@@ -240,6 +263,23 @@ reports `commitments.due` as unknown for the same reason.
 The oldest open question to the user has waited at least 5 days. That is the age
 at which `/perry work nudge` surfaces it. Work blocked on a person is usually the
 cheapest to unblock.
+
+### R-blocked-stale
+
+A row `perry-task list` reports with `blocked_stale: true` — the field is
+defined in `schema/task-list-contract.md`, and its stored status is not
+rewritten by any read. Triage moves it on.
+
+### R-dispatchable
+
+A `not_started`, startable P0 or P1 row whose spec
+(`evidence/<YYYY-MM>/<ID>-spec.md`, the latest month's) declares exactly
+`Dispatch mode: auto` in its header: the paragraphs under the title that are
+`>` blockquotes or open with a `Key: value` line, up to the first that is
+neither. Two different values there read `ambiguous` and never count. A spec
+whose header follows a prose paragraph is not read (one closed row here). It would fire on most boards, so it sits
+below every finishing rule, and `manual` or a missing spec never counts. The
+recommendation runs nothing: `dispatch` keeps its own safety screen.
 
 ### R-review-due
 

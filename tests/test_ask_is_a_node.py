@@ -361,14 +361,17 @@ class TestOneStatementOfTheEdgeRule(unittest.TestCase):
     """
 
     SOURCE = (PERRY_HOME / "bin" / "perry-task").read_text()
+    #: The rule's home since TASK-483, so `perry-state` reaches it too.
+    LIB = (PERRY_HOME / "bin" / "lib" / "__init__.py").read_text()
 
     def test_blocked_by_is_assigned_in_exactly_one_place(self):
-        assignments = self.SOURCE.count('task["blocked_by"] = [')
-        self.assertEqual(assignments, 1,
+        assignments = [src.count('task["blocked_by"] = [')
+                       for src in (self.LIB, self.SOURCE)]
+        self.assertEqual(assignments, [1, 0],
                          "the edge rule has more than one home again")
 
     def test_both_list_paths_call_the_one_resolver(self):
-        self.assertEqual(self.SOURCE.count("resolve_dependency_edges(\n"), 2,
+        self.assertEqual(self.SOURCE.count("lib.resolve_dependency_edges(\n"), 2,
                          "both `list` paths must reach the same rule")
 
 

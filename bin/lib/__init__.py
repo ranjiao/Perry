@@ -2438,6 +2438,123 @@ def withdrawn_krs(krs) -> list[dict]:
             and k.get("status") == "withdrawn"]
 
 
+# ── the dependency edge rule (moved from `bin/perry-task`, TASK-483) ──────
+#
+# **A move, not an edit**, so `bin/perry-state` reaches `startable` and
+# `blocked_stale` through the same edges `perry-task list` does. The TASK-162
+# block above `bin/perry-task § ask_register` argues why an ask is a node.
+
+
+def ask_nodes(queue, answered) -> dict[str, dict]:
+    """Every ask with an id → `{"answered", "needed", "status"}`, the register
+    `resolve_dependency_edges` resolves a `USER-` edge against. `answered` is
+    `bin/perry-state § answered`, passed in because `lib` imports no tool."""
+    return {u.id: {"answered": answered(u), "needed": u.needed_from_user,
+                   "status": u.status}
+            for u in queue if u.id}
+
+
+def dependency_satisfied(dep: str, tasks: dict, asks: dict) -> bool:
+    """Is this one declared edge resolved? The whole rule, in four lines.
+
+    A task that has closed, or an ask that has been answered. Anything else —
+    an open task, a pending ask, an id neither register carries — is NOT
+    satisfied, and that last clause is the one that matters most: *"I do not
+    know"* is not *"it is done"*, and reporting such a row startable is the one
+    error that sends somebody to work on something still blocked.
+    """
+    task = tasks.get(dep)
+    if task is not None:
+        return not task["open"]
+    return bool(asks.get(dep, {}).get("answered"))
+
+
+def resolved_edge(dep: str, tasks: dict, asks: dict) -> dict:
+    """One `depends_on` id, with what it IS attached to it (1.15).
+
+    **The edge declares its own kind, rather than a consumer deducing it from
+    three arrays the id is absent from.** `depends_on` stays exactly what it
+    was — a list of ids, unchanged, still the key every consumer reads — and
+    this is a parallel array beside it, because retyping that one would be a
+    major on the most-read key in the payload.
+
+    The alternative considered and rejected was putting answered asks back into
+    `asks.items`. That register is not a neutral list: its contract row says
+    *"the unanswered asks"*, `open` is documented as `len(items)`, and
+    `bin/perry-state § answered` exists because a dashboard once said *"2 items
+    waiting on you"* about two questions answered the same day. Widening
+    `items` either breaks `open == len(items)` or re-creates that count —
+    and `tests/test_diagnose.py § test_the_queue_register_reconciles_…` pins
+    `asks.open` against `perry-diagnose`'s queue register across two tools. A
+    key that keeps its name and changes what it holds is the 1.10 `status_text`
+    lesson; this row is not the place to repeat it.
+
+    `satisfied` is `dependency_satisfied`'s own answer, called and never
+    re-spelled, so this array cannot disagree with `blocked_by` about an edge.
+    `kind` is `task` | `ask` | `unknown`, and `unknown` is the honest third
+    value: a `DESIGN-`/`ADR-` handle and a mistyped id have no register, which
+    is the same thing `depends_on_unknown` says and is said here per edge.
+
+    `title` is the human text — a task's title, an ask's *Needed from user*
+    question — and `""` on an unknown id, because inventing one from a handle
+    is what `risks[].id` was corrected for at 1.6.
+    """
+    satisfied = dependency_satisfied(dep, tasks, asks)
+    task = tasks.get(dep)
+    if task is not None:
+        return {"id": dep, "kind": "task", "satisfied": satisfied,
+                "title": task["title"], "status": task["status"]}
+    ask = asks.get(dep)
+    if ask is not None:
+        return {"id": dep, "kind": "ask", "satisfied": satisfied,
+                "title": ask["needed"], "status": ask["status"]}
+    return {"id": dep, "kind": "unknown", "satisfied": satisfied,
+            "title": "", "status": ""}
+
+
+def resolve_dependency_edges(tasks: dict, asks: dict) -> list[dict]:
+    """Set `blocked_by` and `blocks` in place; return `depends_on_unknown`.
+
+    **One statement of the edge rule for both `list` paths**, for the reason
+    `bin/lib § resolve_startability` gives and TASK-148 paid for: these three
+    were written out at both call sites, ~200 lines apart, and TASK-141 had to
+    fix one rule twice. This one had to change in both places again, which is
+    the second time the same shape has asked for the same fix.
+
+    Takes the rows before `resolve_startability`, which reads the `blocked_by`
+    this fills in and decides nothing about the graph itself.
+
+    **The raw edge, not the transitive closure.** If A waits on B and B waits on
+    C, A becomes startable the moment B closes — B's own history is not A's
+    business. One hop is the whole computation.
+
+    `blocks` is the reverse edge and stays a TASK-to-TASK relation: an ask is a
+    node here, but it is not a row in `tasks[]`, and the reverse direction is
+    already on its own row in the `Blocks` cell `ask --blocks` writes.
+    """
+    for task in tasks.values():
+        task["depends_on_resolved"] = [resolved_edge(dep, tasks, asks)
+                                       for dep in task["depends_on"]]
+        # Derived from the SAME entries, so 1.14's graph cannot move under
+        # 1.15: an edge is in `blocked_by` exactly when its resolved entry says
+        # `satisfied: false`, and there is one place that decides that.
+        task["blocked_by"] = [edge["id"]
+                              for edge in task["depends_on_resolved"]
+                              if not edge["satisfied"]]
+    for task in sorted(tasks.values(), key=lambda row: row["id"]):
+        for dep in task["depends_on"]:
+            other = tasks.get(dep)
+            if other is not None and task["id"] not in other["blocks"]:
+                other["blocks"].append(task["id"])
+    unknown_rows = []
+    for task in sorted(tasks.values(), key=lambda row: row["id"]):
+        unknown = [dep for dep in task["depends_on"]
+                   if dep not in tasks and dep not in asks]
+        if unknown:
+            unknown_rows.append({"id": task["id"], "unknown": unknown})
+    return unknown_rows
+
+
 # ── the one question a dashboard asks ─────────────────────────────────────
 #
 # TASK-148. `bin/perry-task` stated this rule **twice**, ~200 lines apart, once
