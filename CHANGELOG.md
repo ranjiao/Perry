@@ -2,6 +2,26 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.22 — 2026-09-23
+
+patch · phase 004-guided · TASK-427 · delivery TASK-413-427-autonomous
+
+### Changes
+
+- TASK-427 (autonomous round, 2026-09-17): a tool that declares its flag surface now answers an undeclared flag with exit 2 and the accepted set, instead of exit 2 alone — for example `perry-task list --xyzzy` lists the flags `list` accepts. The message is derived from the same `SURFACE` declaration, so a newly declared flag appears without a second edit.
+- TASK-413 (same round): `perry-task list --json`'s `bound.open_total` and `bound.closed_total`, published to dashboards, are now asserted by the suite; before this nothing in `tests/` checked their values.
+
+
+### Upgrade notes
+
+- No action. A tool that declares no flag surface still answers `(try --help)`.
+
+
+### Breaking changes
+
+None.
+
+
 ## 0.1.21 — 2026-09-22
 
 patch · phase 004-guided · TASK-483 · delivery TASK-483-execution-next-rules
