@@ -429,3 +429,4 @@
 {"kind": "edge", "task": "TASK-479", "kr": "P004-O1-KR1", "declared_at": "2026-09-21T13:10:37Z", "actor": "pmo", "via": "add"}
 {"kind": "unlinked", "task": "TASK-480", "phase": "004-guided", "declared_at": "2026-09-22T02:37:29Z", "actor": "pmo", "via": "add"}
 {"kind": "unlinked", "task": "TASK-481", "phase": "004-guided", "declared_at": "2026-09-22T03:24:21Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-482", "kr": "P004-O1-KR1", "declared_at": "2026-09-22T03:25:41Z", "actor": "pmo", "via": "add"}
