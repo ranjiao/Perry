@@ -1918,6 +1918,10 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     open_risks = snap.open_top_risks
 
     cadence = cadence_report(board)
+    # TASK-482: `week.midweek_checked` is unknown only when this store is.
+    present = P.exists_or_unreadable(root / P.CADENCE_STORE)
+    cadence["store_unreadable"] = present is None or bool(
+        present and P.load_register_store(root, P.CADENCE_STORE) is None)
 
     locked_designs = [d for d in snap.design if d.status == "locked"]
     pending_handoff = [d for d in locked_designs if d.impl_refs == 0]
@@ -2217,7 +2221,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
 
 
 #: The contract the `next` block publishes. `schema/next-contract.md`.
-NEXT_CONTRACT = "perry-next/1.1"
+NEXT_CONTRACT = "perry-next/1.2"
 
 #: The declared rule table. Shipped with Perry, never with a project: it is
 #: vocabulary, like `schema/`, and reading it is not a read of project state.
@@ -2252,8 +2256,8 @@ NEXT_FACTS = (
     "phase.first_unstaffed_kr_title", "phase.kr_progress.undeclared",
     "phase.first_undeclared_kr", "phase.first_undeclared_kr_title",
     "phase.retro_recorded",
-    "week.iso", "week.planned",
-    "today.date", "today.weekday", "today.journal_has_midweek",
+    "week.iso", "week.planned", "week.midweek_checked",
+    "today.date", "today.weekday",
     "history.latest_weekly", "history.latest_weekly_label",
     "history.weeks_since_weekly",
     "history.latest_handoff", "history.latest_handoff_label",
@@ -2267,6 +2271,17 @@ NEXT_FACTS = (
     "pipeline.wip_breaches",
     "commitments.due",
 )
+
+
+def midweek_title() -> str:
+    """The cadence title `schema/state-schema.json § claims` reserves on
+    `cadence.jsonl` for `midweek-check` (TASK-482), or `""` unreadable."""
+    try:
+        claims = json.loads(SCHEMA_PATH.read_text()).get("claims") or []
+    except (OSError, ValueError):
+        return ""
+    return next((t for c in claims if c.get("path") == "cadence.jsonl"
+                 for t in c.get("reserved_titles") or {}), "")
 
 
 def iso_week(day: date) -> str:
@@ -2456,10 +2471,18 @@ def next_facts(payload: dict, today: date) -> tuple[dict, dict]:
                                "records a finalized week")
     facts["today.date"] = today.isoformat()
     facts["today.weekday"] = WEEKDAYS[today.weekday()]
-    # `midweek-check` writes prose into today's journal `## Notes`; no heading,
-    # record or event marks it, and declaring one is a schema edit (TASK-479).
-    unknown["today.journal_has_midweek"] = (
-        "midweek-check declares no journal heading or record to find")
+    # TASK-482: `midweek-check` ends with `perry-task cadence-done` on the
+    # cadence record the schema reserves for it; its run's ISO week is read.
+    cadence, title = payload.get("cadence") or {}, midweek_title()
+    if cadence.get("store_unreadable") or not title:
+        unknown["week.midweek_checked"] = (
+            "cadence.jsonl could not be read" if title else
+            "the schema reserves no cadence title for midweek-check")
+    else:
+        facts["week.midweek_checked"] = any(
+            (c.get("title") or "").strip() == title
+            and week_of(c.get("last_run")) == facts["week.iso"]
+            for c in cadence.get("items") or [])
 
     history = payload.get("history") or {}
     weekly = history.get("latest_weekly")

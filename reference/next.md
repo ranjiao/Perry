@@ -111,6 +111,7 @@ Each fact is a value `perry-state` already computes, or the clock
 | `phase.kr_progress.undeclared`, `phase.first_undeclared_kr`, `phase.first_undeclared_kr_title` | `linkage.objectives[].krs[]`: commit key results whose `state` is `undeclared` |
 | `phase.retro_recorded` | `history.retros[]`: `evidence/<YYYY-MM>/retro.md` files whose `> Phase:` header field names this phase (`viewer/parsers.py § retro_phases`) |
 | `week.iso`, `today.date`, `today.weekday` | the clock |
+| `week.midweek_checked` | `cadence.items[]`: a row titled `midweek-check` (the title `schema/state-schema.json` reserves) whose `last_run` is in `week.iso`; unknown only when `cadence.store_unreadable` |
 | `history.*` | `history`: `latest_weekly`, `latest_handoff`, `latest_handoff_days`, `latest_journal_days` |
 | `user_input_queue.*` | `user_input_queue.count` and `.oldest` |
 | `design.pending_handoff_count`, `design.first_pending_id` | `design.pending_handoff` |
@@ -134,9 +135,6 @@ commit key result, or when any of them is unmeasured. A key result whose
 - `commitments.due` — `perry-state` does not compute which commitments are due.
 - `phase.days_since_snapshot` — `perry-state` computes no date for the last
   phase snapshot.
-- `today.journal_has_midweek` — `midweek-check` writes prose into today's
-  journal, and no heading, record or event marks it. Declaring one is a
-  `schema/state-schema.json` change (TASK-479).
 
 ## The rules
 
@@ -251,10 +249,10 @@ the first sign the cadence has stopped.
 
 ### R-midweek
 
-It is Wednesday and today's journal has no mid-week check. Nothing marks a
-mid-week check in the journal, so `today.journal_has_midweek` is unknown and
-the rule never fires; on a Wednesday it is listed in `unknown[]`. It fires once
-a declared heading or record gives the fact a source.
+It is Wednesday and no mid-week check is recorded for this ISO week.
+`midweek-check` records its run with `perry-task cadence-done` on the cadence
+row titled `midweek-check`, so `week.midweek_checked` reads that row's
+`last_run`; a run from an earlier week does not count (TASK-482).
 
 ### R-phase-heartbeat
 

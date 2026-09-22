@@ -1,5 +1,5 @@
 {
-  "contract": "perry-next/1.1",
+  "contract": "perry-next/1.2",
   "note": "The rule table `perry-state --section next` evaluates (DESIGN-020 § 5.3, TASK-442). Overlays first, which always win; then `rules` in declared order. The first rule that fires is the primary; the next two that recommend a different command are the alternates. A predicate over a fact the payload cannot tell does not fire, and the fact is listed in `unknown[]`. Predicates compare typed values only — a fact path, an operator from `eq ne lt le gt ge in exists nonempty`, and a literal or a `{\"threshold\": name}` — combined with `all` / `any`. Each rule id is explained in `reference/next.md`. A command still reached through its direct entrance (`/perry goals init`, `plan-phase`, `plan-week`) moves to `/perry plan` when DESIGN-020 phase F ships that entrance.",
   "thresholds": {
     "phase_closable_ratio": {
@@ -238,12 +238,12 @@
       "when": {"all": [
         {"fact": "installed", "op": "eq", "value": true},
         {"fact": "today.weekday", "op": "eq", "value": "Wednesday"},
-        {"fact": "today.journal_has_midweek", "op": "eq", "value": false}
+        {"fact": "week.midweek_checked", "op": "eq", "value": false}
       ]},
       "spine": "any",
       "lane": "work",
       "command": "/perry work midweek-check",
-      "reason": "today is Wednesday and today's journal has no mid-week check",
+      "reason": "today is Wednesday and no mid-week check is recorded for {week.iso}",
       "after": ["close-task", "add-task"]
     },
     {

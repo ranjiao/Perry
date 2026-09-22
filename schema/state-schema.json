@@ -1469,6 +1469,7 @@
       "kind": "file",
       "owner": "work",
       "anchor": "state",
+      "reserved_titles": {"midweek-check": "TASK-482 (USER-999): the record `/perry work midweek-check` leaves, written by `perry-task cadence-add --title midweek-check` once and `cadence-done` on every run. `perry-state` reports `week.midweek_checked` true when a record whose `title` is exactly this has a `last_run` in the current ISO week."},
       "note": "the cadence STORE (ADR-007, TASK-237 deliverable 3b, user answer A of 2026-09-14) - the canonical record the `Cadence` section of `BOARD.md` is projected from. Keyed on the row's `ID`, like `risks.jsonl` and `asks.jsonl`. Every column of the section is stored - id, recurring task, owner, frequency, next due, last run, last evidence - plus `order`, and **every cell is stored as written**: prose in `Next due` and aperiodic frequencies (`continuous`, `hourly`, `per task`) are live data on real registers and are never normalised; `bin/perry-state § cadence_report` is what reads a date out of them. Written by `perry-task cadence-add` / `cadence-done`; `perry-tasks cadence-write --from-board` is the explicit import for a project whose cadence lives only on its board. State-root relative, beside `tasks.jsonl`."
     },
     {
