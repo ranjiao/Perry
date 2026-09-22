@@ -444,3 +444,4 @@
 {"kind": "measurement", "kr": "P004-O4-KR2", "okr_version": "", "check": "structural-rules", "value": 4, "asserted_at": "2026-09-22T04:06:05Z", "evidence": "evidence/2026-09/phase004-o4-census-2026-09-22.md", "computed": false, "actor": "pmo"}
 {"kind": "measurement", "kr": "P004-O1-KR1", "okr_version": "", "check": "fixture-states", "value": 5, "asserted_at": "2026-09-22T04:06:05Z", "evidence": "evidence/2026-09/phase004-o4-census-2026-09-22.md", "computed": false, "actor": "pmo"}
 {"kind": "edge", "task": "TASK-483", "kr": "P004-O1-KR1", "declared_at": "2026-09-22T07:38:11Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-484", "kr": "P004-O1-KR1", "declared_at": "2026-09-22T17:43:52Z", "actor": "pmo", "via": "add"}
