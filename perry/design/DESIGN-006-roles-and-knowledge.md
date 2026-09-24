@@ -510,6 +510,7 @@ call, because that is the question the consumer asked.
 - 2026-08-17 — § 6.1 handoff payload written into the doc — the PMO session
   consuming it is a different session; chat output would be invisible to it.
   Content is the lock-time `add-task` rendering, not new scope.
+- 2026-09-24 — DESIGN-023 (`ADR-025`): knowledge cards stay skill documents. Their write-time refusals (`bin/perry-knowledge`), the lint of § 5.3 and the escalation union of § 5.2 need phase H dispositions (DESIGN-023 § 8). The role half has had no Objective since OKR v4, and roles are not carried into the first template.
 
 ## 10. References
 

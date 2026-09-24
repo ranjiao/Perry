@@ -396,6 +396,7 @@ Phases A–C are the minimum that fixes the reported scenario. D–F can follow.
   as verbatim multi-line, but the reader rejected block scalars outright, so
   every real dossier would have failed lint — and `reference/adoption.md § 4`
   makes a clean lint the gate on adoption completing at all.
+- 2026-09-24 — DESIGN-023 (`ADR-025`): the discoverable, positioned and lossless contract stands as a skill procedure. Its code takes a phase H disposition: the schema enums, `perry-state --section interrupted`, and the step and stale-run lint all parse markdown frontmatter. DESIGN-023 § 8 names the interrupted-run gate as a safety gate, and a safety gate is replaced before its old code is deleted.
 
 ## 10. References
 

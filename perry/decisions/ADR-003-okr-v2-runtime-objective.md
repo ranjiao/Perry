@@ -1,10 +1,10 @@
 # ADR-003 — OKR v2 adds Objective 5 for the runtime layer (DESIGN-006)
 
-> Status: active
+> Status: superseded
 > Type: Process
 > Date: 2026-08-17
 > Deciders: Ran Jiao
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: ADR-021
 > Sunset: —
 
 ## Context

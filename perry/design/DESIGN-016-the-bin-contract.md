@@ -1,10 +1,10 @@
 # DESIGN-016: An agent that trusts `bin/README.md` reads 47k tokens and writes to the wrong project
 
-> Status: locked
+> Status: superseded
 > Date: 2026-09-04 · Locked: 2026-09-10
 > Author: PMO Agent   · Implementation owner: Coding Agent
 > Linked OKR: —
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: DESIGN-023
 > Revisits: `bin/README.md § Calling convention`, `bin/README.md § For an agent`, `SKILL.md` step 3
 
 ## 1. Problem
@@ -705,6 +705,7 @@ TASK-364 and TASK-367 are startable now.
 - 2026-09-10 — **locked, and the lock is retroactive.** All five User Decisions carry a Chosen value and a date, § 5 / § 6 / § 7 are present, and a locked copy lints with no new finding — so the gate is met. **What it does not mean is that this doc was locked before its implementation, because it was not.** `decide/SKILL.md` puts `locked` BEFORE the work: *"before non-trivial implementation fans out, it produces one locked document"*, and *"once a doc reaches Design locked, design hands off to pmo"*. All fourteen rows were opened, built and reviewed against a `draft`. The cost was paid and is visible in this section's own history: Decision 5 arrived on 2026-09-09, after phases A and B had shipped, and it rewrote C1 from a manifest file into a declaration — work that would not have been done twice against a locked doc. Nothing here is rewritten to hide that; the lock records that the architecture is frozen from today, and § 8's six open questions stay open, because an open question is not a User Decision and does not block a lock (`DESIGN-001` is locked carrying its own).
 
 - 2026-09-10 — **§ 8's boundary question is answered and leaves this document.** `USER-923`: redraw by object, and across all three of § 1.4's pairs rather than the acute one. The user's reason is architectural and not economic — two commands that differ by one character cannot coexist — and the cost is acceptable **because agents do the work**, which is the premise that did not hold when § 1.4 was written and called itself a finding rather than a proposal. The redraw is `DESIGN-018`; nothing in this document is edited for it, because a locked doc records what was decided when it was locked. Two things here become inputs to that one rather than history: § 1.4's prefix table, which is its evidence, and C5, which already made the STORE side register-parameterised and is therefore half of the move already shipped. One reservation is carried across as a constraint rather than an objection: under an object split a destructive maintenance verb sits beside an everyday one — `render --write` beside `add` — and § 1.5 is what that costs when it goes wrong.
+- 2026-09-24 — Superseded by DESIGN-023 (`ADR-025`). The per-tool SURFACE declaration, the `bin/perry` reader, `--compact` and the kept tool names leave with the old `bin/` (Goal 7). § 5's rule that `describe` reports shape only, identically across projects, carries into DESIGN-023 § 5.1, and the argument-contract lessons carry into its phase A. The follow-up design USER-923 pointed at was never written, and one kernel CLI makes its question moot.
 
 ## 10. References
 

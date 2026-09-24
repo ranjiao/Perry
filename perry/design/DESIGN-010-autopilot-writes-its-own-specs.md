@@ -239,6 +239,8 @@ and step 5 does not run.
 
 ## 9. Changes (append-only after lock)
 
+- 2026-09-24 — DESIGN-023 (`ADR-025`): the scout and its fail-closed method belong to the skill. The code path of § 5.2 and § 5.5, `perry-state --escalation-scan`, was removed on 2026-09-04 (USER-916, TASK-339), and this log never recorded it. After the split, machine authorship is the actor on the spec's attachment. TASK-188 and TASK-189 follow DESIGN-023 phase E.
+
 ## 10. References
 
 - `perry/evidence/2026-08/autopilot-2026-08-21-1455.md` — the empty run, with

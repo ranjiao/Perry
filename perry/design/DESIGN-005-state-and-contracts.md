@@ -1,13 +1,13 @@
 # DESIGN-005: Three domains, three different levels of finished
 
-> Status: locked
+> Status: superseded
 > Date: 2026-08-17 · Locked: 2026-08-17
 > Author: Perry maintainer   · Implementation owner: Coding Agent (Perry repo)
 > Linked OKR: O2-KR1, O2-KR2, O4-KR2 (`perry/OKR.md` v2). This line
 > previously read *"Perry has no `OKR.md`; declared unlinked, not guessed"*,
 > which was true when written and stopped being true when the OKR was
 > created the same day.
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: DESIGN-023
 > Requested scope: goal + decision + task, storage **and** interface, in one
 > design, each with deterministic state an external program can query.
 
@@ -391,6 +391,7 @@ that lets aimark start now, against step 0's contract, in parallel with all four
   had no `OKR.md` and stopped being true the day it was written.
 
   `DESIGN-004 § 5.3` is corrected by the same ADR and carries its own entry.
+- 2026-09-24 — Superseded by DESIGN-023 (`ADR-025`). Decision 1 (goals and decisions stay markdown) and decision 2 (JSONL; "(d) is not revisited") are reversed by DESIGN-023 decisions 2 and 4, and decision 5's one contract per domain becomes one versioned `describe`. Decision 4's contract rules carry into DESIGN-023 decision 11.
 
 ## 10. References
 

@@ -232,6 +232,8 @@ right before an id is minted into it.
 
 ## 9. Changes (append-only after lock)
 
+- 2026-09-24 — DESIGN-023 (`ADR-025`): decisions 1, 2 and 4 carry into the `objective` item type, and the phase F importer keeps the minted `O-` ids as labels. The mechanics of § 5.3–5.4 retire with their code: `perry_md_store`, `perry-okr render`, the viewer and contract 2.2.
+
 ## 10. References
 
 - `aimark/doc/perry-contract-gaps-4.md § 4` — the request, and its measured

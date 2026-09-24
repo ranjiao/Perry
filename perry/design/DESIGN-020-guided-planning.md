@@ -703,6 +703,7 @@ their scope survives here and ids are never reissued.
   records `rollover` as `never` with that reason. Batch 3 therefore ships four
   rules, not five; `reference/next-rules.json` declares 27 rules and 3 overlays,
   which `perry-state --section next` reports as `rules_declared: 30`.
+- 2026-09-24 — DESIGN-023 decision 5 and ADR-024 reverse the rule evaluator: the next-step recommendation becomes a skill procedure at DESIGN-023 phase G. This reaches Goal 3, User Decision 4, § 3's second non-goal, § 5.1–5.4, § 5.10, § 6 rows A, B and G–I, and the 2026-09-15 entry of § 9. Until phase G, `perry-state --section next` and `reference/next-rules.json` keep running, and the table is frozen. The planning flow, the question bank, draft → approve → finalize and `/perry plan` stay as skill content. User Decision 5's drafts are found by `perry-state` reading frontmatter, so TASK-444 goes to DESIGN-023's triage.
 
 ## 10. References
 

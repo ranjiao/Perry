@@ -1,10 +1,11 @@
 # DESIGN-019: A risk nothing brings back is a claim that rots in public
 
-> Status: draft
+> Status: dropped
 > Date: 2026-09-10 · Locked: —
 > Author: PMO Agent   · Implementation owner: Coding Agent
 > Linked OKR: —
 > Supersedes: —   · Superseded by: —
+> Drop reason: its mechanism — TopRisk, `perry-state`, `perry-lint` and User Decision 6's schema change — is code DESIGN-023 deletes, and its phase A is done (RX-001 cleared 2026-09-10). User Decisions 1–5 move to the template's risk type, which would demonstrate DESIGN-023 Goal 4 (`ADR-025`).
 > Revisits: `work/state/BOARD_TEMPLATE.md § Top risks`, `work/reference/subcommands.md § triage`, `viewer/parsers § TopRisk`
 
 ## 1. Problem
@@ -162,6 +163,7 @@ a live task is a task. The judgement half goes in `work/reference/subcommands.md
 ## 9. Changes (append-only after lock)
 
 - 2026-09-10 — created, with Decisions 1 to 5 answered in the same session.
+- 2026-09-24 — Dropped (`ADR-025`).
 
 ## 10. References
 

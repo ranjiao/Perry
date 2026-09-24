@@ -573,6 +573,7 @@ against the mode table in §5.1), G at V5.
   in the code. DESIGN-008 splits `Mode` into a `Spine` and a `Flow` leg with the
   four names surviving as presets; nothing in this document's own semantics
   changes, and a project that wrote `Mode: project` is untouched.
+- 2026-09-24 — DESIGN-023 (`ADR-025`): tracks, the four modes, rungs V0–V6, intake, recurrence, packs and the vocabulary are method. They become `templates/process/perry.json` plus skill prose. § 5.3 rule 1, that high-stakes work needs V5, is expressed with DESIGN-023's `when` guard (decision 9). The lint of § 5.3–5.4 and the markdown locations of § 5.2 and § 5.5 take phase H dispositions.
 
 ## 10. References
 

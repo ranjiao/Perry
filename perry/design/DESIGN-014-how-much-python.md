@@ -1,10 +1,10 @@
 # DESIGN-014: Perry is 90% Python and the product is the 10%
 
-> Status: locked
+> Status: superseded
 > Date: 2026-09-01 · Locked: 2026-09-01
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: O2-KR1 (`perry/OKR.md` v2, Objective 2 — every piece of state is queryable and writable by deterministic code). **`OKR.md` v3 is downstream of this doc, not upstream**: the user directed on 2026-09-01 that v3's third Objective becomes "the skill is the product", and that this question is settled before v3 is written.
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: DESIGN-023
 > Revisits: `perry/decisions/ADR-007-fields-are-typed-prose-is-not.md`, `perry/decisions/ADR-011-the-representation-layer-comes-out.md`, `perry/design/DESIGN-011-the-okr-is-elicited-not-collected.md`, `goals/reference/setup.md`
 > Sign-off: User Decisions 1-3 answered by Ran Jiao in session on 2026-09-01, so this went `draft` → `locked` without an `in_review` hold — that state exists to await exactly this sign-off (the `DESIGN-013` precedent, 2026-08-29). **All three took the recommendation**, so the option notes in § 4 stand as written rather than being restated; § 5.1 is amended for decision 1, which moves `perry-state` between categories.
 
@@ -418,6 +418,7 @@ not wait for any of this.
 
   `bin/perry-dispatch-limit`, which `§ 5.1` files under category C, measures
   223 of 297 lines TYPED with **zero** OBSOLETE.
+- 2026-09-24 — Superseded by DESIGN-023 (`ADR-025`). The three categories become two halves. Each User Decision is overtaken. Decision 1, to keep `perry-state`'s payload thinned, gives way to DESIGN-023 phase G. Decision 2, to build the KR writer, gives way to kernel items (decision 4). Decision 3, to keep `perry-diagnose`, gives way to Goal 7. § 7's rule that a removed check is first shown able to go red carries into DESIGN-023 phase H.
 
 ## 10. References
 

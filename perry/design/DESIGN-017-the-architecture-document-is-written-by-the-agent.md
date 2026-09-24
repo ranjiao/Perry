@@ -365,6 +365,7 @@ The tier is the file's location; no new metadata.
 
 - 2026-09-09 — created. Driver: the user's request for an architecture channel
   the agent maintains, and the discovery that Perry ships the opposite premise.
+- 2026-09-24 — DESIGN-023 (`ADR-025`): the authority split and the prose tiers hold; they are repository rules, not kernel ones. S1, S2 and S5, and plan rows A1, A2, B2 and E3, target `viewer/parsers.py`, the schema, `perry-state` and `perry-lint`, and are restated over `kernel/` at phase H. `kernel/ARCHITECTURE.md` is a module document under User Decision 3. Adding `kernel/` to `ARCHITECTURE.md § 2` and marking NN-1 and NN-2 needs the user's confirmation under NN-6 (DESIGN-023 phase A).
 
 ## 10. References
 

@@ -1,10 +1,10 @@
 # DESIGN-015: The linkage register is a store, and the edge is made at `add`
 
-> Status: locked
+> Status: superseded
 > Date: 2026-09-02 · Locked: 2026-09-02
 > Author: PMO Agent   · Implementation owner: Coding Agent
 > Linked OKR: P003-O3-KR2 (this design is what makes that KR reachable)
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: DESIGN-023
 
 ## 1. Problem
 
@@ -340,6 +340,7 @@ and should not.
 
   Not corrected in place: this document is `locked`, and `decide/SKILL.md §
   Status model` allows only a `## Changes` entry after that.
+- 2026-09-24 — Superseded by DESIGN-023 (`ADR-025`). `linkage.jsonl` becomes kernel relations between task and KR items (decision 4, § 5.1). § 5.3's rule that the edge is made in the same action as `add` carries: `item create` writes relations in the same transaction.
 
 ## 10. References
 

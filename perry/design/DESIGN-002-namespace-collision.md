@@ -309,6 +309,7 @@ remedy, so it is not optional polish.
   document counted. `tests/test_claims.py` caught `architecture/` and
   `incidents/` on its first run — both written by PMO, both missing from the
   count in §1. The drift guard found drift in the document that specified it.
+- 2026-09-24 — DESIGN-023 (`ADR-025`): decisions 2–4 stand, because documents still occupy the user's namespace. Decision 1's `claims[]` lives in `schema/state-schema.json`, and decision 5's `perry-lint --claims` goes with `perry-lint`; both need a new home at phase H. The claimed paths change: the `*.jsonl` stores move into the kernel store, and the store path and the export directory are added, each with its argument (DESIGN-023 § 5.3).
 
 ## 10. References
 

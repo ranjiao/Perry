@@ -442,6 +442,8 @@ guard that watches them is currently blind to that file class.
 
 ## 9. Changes (append-only after lock)
 
+- 2026-09-24 — DESIGN-023 (`ADR-025`): the orchestrator and its rule of no fourth writer survive as a skill procedure. `phase/CURRENT` (I1, I2) becomes a phase item's state, and § 5.3 and § 5.4's `cross_file` lint become kernel queries and template guards. User Decision 1's order was reversed by USER-996, recorded in DESIGN-020 § 9 — retro, then score — and the template follows that order (DESIGN-023 § 6, phase F).
+
 ## 10. References
 
 - `perry/evidence/2026-08/retro.md` — the phase #002 retro that surfaced this, 2026-08-28

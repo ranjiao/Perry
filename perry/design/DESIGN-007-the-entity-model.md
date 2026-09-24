@@ -1,10 +1,10 @@
 # DESIGN-007: The entity model — Goal, KR, Phase, Task, Agent, Run
 
-> Status: locked
+> Status: superseded
 > Date: 2026-08-19 · Locked: 2026-08-19
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: P002-O3-KR1 (phase 002 — `fields-are-typed`)
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: DESIGN-023
 > Revisits: `perry/design/DESIGN-006-roles-and-knowledge.md § 5.2`, `perry/design/DESIGN-006-roles-and-knowledge.md § 5.5`
 
 > **Signed off: Ran Jiao, 2026-08-19.**
@@ -827,6 +827,7 @@ needed and with its specified verification rung.
   `TASK-091` as the design-table value `2` even though the canonical Task store
   held the correct title; the user also needed a stable plain-language purpose
   distinct from both the short title and the mutable next action (ADR-009).
+- 2026-09-24 — Superseded by DESIGN-023 (`ADR-025`). Goal 1 (one document defines every entity) and § 5.3 (one JSONL per writer, rendered to markdown) are replaced by DESIGN-023's template, `describe` and `template show` (decision 1, § 5.1). The user dropped the decisions that were never built — the Agent store (2, 8), a spec for every task (5) and the Run (7, 10) — in DESIGN-023 decision 12. The task tree (1) survives as the `parent` relation.
 
 ## 10. References
 

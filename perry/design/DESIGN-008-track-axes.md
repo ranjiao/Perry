@@ -439,6 +439,7 @@ DESIGN-003 gained its § 5.9.
   mode files in both directions, the preset round-trip value by value, and the
   map's completeness and one-to-one-ness. No other section is touched, and
   `modes/` is untouched — annotating the mode files is step 3.
+- 2026-09-24 — DESIGN-023 (`ADR-025`): the split between spine and flow is still method. Steps 2–5 are not built on `bin/`. If O1-KR2 returns in OKR v5, they are built as template and skill content after the work-lane cutover. Per-track WIP and per-track default rungs use DESIGN-023's `when` guard and grouped `limit` (decision 9).
 
 ## 10. References
 

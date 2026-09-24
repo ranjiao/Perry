@@ -1,10 +1,10 @@
 # DESIGN-004: The write side has no tool
 
-> Status: locked
+> Status: superseded
 > Date: 2026-08-16 · Locked: 2026-08-16
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: — (Perry has no `OKR.md`; declared unlinked, not guessed)
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: DESIGN-023
 
 ## 1. Problem
 
@@ -491,6 +491,7 @@ it is the one that has to satisfy a person using a different program.
   being weakened. `§ 5.3` now names the task store rather than `BOARD.md` as
   the canonical half, and carries the incident inline so a reader meets it
   where the claim is made.
+- 2026-09-24 — Superseded by DESIGN-023 (`ADR-025`). Decisions 1–2 — a markdown write plus a disposable event log, with a `.db` rejected as a binary second truth — are replaced by one sqlite store whose events are its history (DESIGN-023 decision 2, § 5.3). The store never follows a branch, so the merge objection no longer applies, and the CLI and the export make it readable.
 
 ## 10. References
 

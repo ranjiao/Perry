@@ -318,6 +318,7 @@ caught six times — a check that cannot fail on the thing it names.
 `TASK-236` therefore depends on `TASK-181` and `TASK-182` as well as `TASK-235`.
 § 6 step 2's ordering is unchanged; what changed is that it now has an explicit
 precondition rather than an assumed one.
+- 2026-09-24 — DESIGN-023 (`ADR-025`): § 5.1's rule holds, and the kernel's store is the one store. The surfaces of § 5.2–5.4 — the `perry-goals` render, `perry-decide list`, the board render — become kernel queries in phases F and G. TASK-235, TASK-236 and TASK-237 implemented this design but do not cite its id, so `perry-state` counts it as pending handoff; it needs no tasks. § 7's known violation, prose in store fields, is decided before DESIGN-023's phase D import.
 
 ## 10. References
 

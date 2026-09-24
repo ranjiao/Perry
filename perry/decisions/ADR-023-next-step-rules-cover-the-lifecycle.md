@@ -1,10 +1,10 @@
 # ADR-023 — The next-step rule table covers every lifecycle stage and event, and every lane subcommand is classified
 
-> Status: active
+> Status: superseded
 > Type: Design
 > Date: 2026-09-21
 > Deciders: Ran Jiao
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: ADR-024
 > Sunset: —
 
 ## Context
