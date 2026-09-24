@@ -8,7 +8,7 @@
 
 ## §1. Mission & scope
 
-Twenty executables (the index `perry` included) and three libraries. Everything Perry reports as a number
+Twenty-one executables (the index `perry` and `perry-kernel`, the `kernel/` CLI's thin wrapper, included) and three libraries. Everything Perry reports as a number
 is computed here, and every write to a canonical file goes through here.
 
 The rule the directory exists to enforce: **a number Perry reports must be
@@ -137,7 +137,7 @@ Every converted tool carries one: `name`, `kind`, `summary`, `root_resolution`,
 `exit_codes`, `flags[]`, and `subcommands[]` with per-subcommand flag lists.
 It drives the parser, `--describe --json`, the generated usage block and
 `bin/perry list`. Six tools declare one (`perry-config`, `perry-diagnose`, `perry-okr`,
-`perry-state`, `perry-task`, `perry-tasks`); thirteen do not, and `perry list`
+`perry-state`, `perry-task`, `perry-tasks`); fourteen do not, and `perry list`
 says which.
 
 ### The registers — `perry-tasks`

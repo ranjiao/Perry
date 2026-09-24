@@ -58,8 +58,8 @@ there is no cross-project registry).
 ## §2. Components
 
 ### `bin/` — the deterministic tools
-- **Purpose**: read and write project state. Twenty executables plus three shared
-  libraries.
+- **Purpose**: read and write project state. Twenty-one executables plus three shared
+  libraries; `perry-kernel` is the `kernel/` CLI below.
 - **Owns**: every write to a canonical store, every computed number the standup
   prints, the argument contract those calls are made through, and the
   **next-step recommendation**: `perry-state --section next` evaluates the
@@ -74,8 +74,8 @@ there is no cross-project registry).
 
 ### `kernel/` — the PMO kernel (DESIGN-023)
 - **Purpose**: hold a project's structured state in one store per project anchor
-  and answer for it through one CLI, JSON in and JSON out. Specified, not built:
-  DESIGN-023 § 6 row B writes the code, and `bin/` stays the live writer until
+  and answer for it through one CLI, JSON in and JSON out. Built by DESIGN-023
+  § 6 row B, behind `bin/perry-kernel`; `bin/` stays the live writer until
   each lane cuts over.
 - **Owns**: the store (`<git-common-dir>/perry/<slug>.db`, or `<anchor>/.perry/perry.db`
   outside git) and its deterministic export under `<state root>/export/`; eight concepts and at
@@ -157,7 +157,7 @@ there is no cross-project registry).
 flowchart TD
     User([the one human]) -->|reads, decides| Lanes
     Lanes["SKILL.md · goals / work / decide<br/>procedure only"] -->|invokes| Bin
-    Bin["bin/ — 20 tools<br/>compute and write"] -->|imports| Parsers["viewer/parsers.py<br/>the one reader"]
+    Bin["bin/ — 21 tools<br/>compute and write"] -->|imports| Parsers["viewer/parsers.py<br/>the one reader"]
     Bin -->|imports| Lib["bin/lib · perry_store · perry_md_store"]
     Bin -->|validates against| Schema["schema/state-schema.json"]
     Parsers -->|reads| State[("perry/ · .perry/<br/>stores and projections")]
@@ -178,7 +178,7 @@ Forbidden, and each one has cost this project something:
   the field; the procedure does not count rows.
 - **A tool reaching another project.** Roots come from `--root`, then
   `$PERRY_PROJECT`, then the walk up — `ADR-002`, and `bin/lib § resolve_project_root`
-  is the one implementation. **Sunset (proposed, DESIGN-023)**: this becomes false at DESIGN-023 § 6 row H. Until then the kernel's resolver (`kernel/ARCHITECTURE.md` § 5.7, NN-K5) is the only second implementation and resolves in the same order, and `kernel/tests/test_resolver_agreement.py` holds the two in agreement over a shared set of fixture roots.
+  is the one implementation. **Sunset (proposed, DESIGN-023)**: this becomes false at DESIGN-023 § 6 row H. Until then the kernel's resolver (`kernel/ARCHITECTURE.md` § 5.7, NN-K5) is the only second implementation. It walks in the same order as `bin/lib § resolve_project_root` with a different predicate: it stops at the first `.perry/`, not the first installed project, and refuses (`anchor_not_found`) where `bin/lib` falls back to the working directory or takes a `--root` or `$PERRY_PROJECT` that holds no `.perry/`. `kernel/tests/test_resolver_agreement.py` pins that difference, and shows the two agree on a shared set of fixture roots.
 - **An agent writing `ARCHITECTURE.md`.** This file is the user's.
 
 ## §4. Data flow

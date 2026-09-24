@@ -22,8 +22,8 @@ does to the code.
 It deliberately does **not** read, parse, lint or render markdown (Goal 2). It does not run
 a command or spawn a process (decision 8), judge what a document means (decision 3), or
 recommend a next step (decision 5). It does not serve several users, run a server, sync
-machines or draw a UI (§ 3 Non-Goals). Status: specified, not built. DESIGN-023 § 6 row B
-writes the code, and row C writes the first template.
+machines or draw a UI (§ 3 Non-Goals). Status: built by DESIGN-023 § 6 row B; `bin/` stays
+the live writer until each lane cuts over, and row C writes the first template.
 
 ## §2. Components
 
@@ -571,7 +571,7 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
   report it, and § 5.1 makes `describe` byte-identical across projects; both cannot hold.
   This document keeps § 5.1 and puts the count on `events` (`unexported`), a departure
   from § 5.3 that needs a DESIGN-023 `## Changes` entry.
-- **OQ-K4 — Detection versus another session's write.** The store is shared. If another
+- **OQ-K4 — Detection versus another session's write. Resolved: the user answered on 2026-09-24 — an event of the run's own session fails the suite, another session's is reported — and `kernel/tests/livestore.py` implements it.** The store is shared. If another
   worktree writes during a test run, detection sees a leak and the run goes red. Prevention
   is exact. Whether detection should report the new events or fail the suite is open.
 - **OQ-K5 — Readings where DESIGN-023 is silent.** Each can be reversed. `limit.per` is a
