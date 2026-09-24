@@ -256,6 +256,16 @@ class Store:
 
     # ── reads ──────────────────────────────────────────────────────────────
 
+    def _loads(self, text, where: str):
+        """A stored JSON value, or store_corrupt: a row that cannot be read
+        back is damage, not an internal fault (§ 5.1)."""
+        try:
+            return json.loads(text)
+        except (TypeError, ValueError):
+            raise KernelError("store_corrupt",
+                              f"{self.path}: {where} cannot be read back",
+                              {"store": str(self.path), "row": where})
+
     def meta(self, key: str):
         rows = self.q("SELECT value FROM meta WHERE key = ?", (key,))
         return rows[0][0] if rows else None
@@ -276,7 +286,8 @@ class Store:
         if not rows:
             return None
         version, body, applied_seq, applied_at = rows[0]
-        return {"version": version, "template": json.loads(body),
+        return {"version": version,
+                "template": self._loads(body, f"template {version}"),
                 "applied_seq": applied_seq, "applied_at": applied_at}
 
     def item_row(self, item_id: str):
@@ -293,7 +304,7 @@ class Store:
         return rows[0][0] if rows else None
 
     def values(self, item_id: str) -> dict:
-        return {f: json.loads(v) for f, v in self.q(
+        return {f: self._loads(v, f"{item_id}.{f}") for f, v in self.q(
             "SELECT field, value FROM value WHERE item = ?", (item_id,))}
 
     def all_item_ids(self) -> list[str]:
@@ -360,14 +371,16 @@ class Store:
             "SELECT seq, at, actor, command, items, transition, changes, note, "
             "warnings FROM event ORDER BY seq")]
 
-    @staticmethod
-    def _event(row) -> dict:
+    def _event(self, row) -> dict:
         seq, at, actor, command, items, transition, changes, note, warn = row
+        where = f"event {seq}"
         return {"seq": seq, "at": at,
-                "actor": json.loads(actor) if actor is not None else None,
-                "command": command, "items": json.loads(items),
-                "transition": transition, "changes": json.loads(changes),
-                "note": note, "warnings": json.loads(warn)}
+                "actor": (self._loads(actor, where) if actor is not None
+                          else None),
+                "command": command, "items": self._loads(items, where),
+                "transition": transition,
+                "changes": self._loads(changes, where),
+                "note": note, "warnings": self._loads(warn, where)}
 
     # ── the one write path ────────────────────────────────────────────────
 
@@ -391,7 +404,8 @@ class Store:
         if key.startswith("field:"):
             rows = self.q("SELECT value FROM value WHERE item = ? AND "
                           "field = ?", (primary, key[len("field:"):]))
-            return json.loads(rows[0][0]) if rows else None
+            return (self._loads(rows[0][0], f"{primary}.{key[6:]}") if rows
+                    else None)
         if key.startswith("attach:"):
             present, digest = self.attachment_hash(primary,
                                                    key[len("attach:"):])

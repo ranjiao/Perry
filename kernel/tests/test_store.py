@@ -113,6 +113,22 @@ class TestRefusals(unittest.TestCase):
         r = sb.run("template", "show")
         self.assertEqual((r.code, r.code_name), (1, "store_corrupt"), r)
 
+    def test_a_row_that_cannot_be_read_back_is_corrupt(self):
+        sb = Sandbox(self).ready()
+        item = sb.create(fields={"bench": "north", "label": "x"})
+        conn = sqlite3.connect(str(sb.store))
+        conn.execute("UPDATE value SET value = '{broken' WHERE field = "
+                     "'label'")
+        conn.commit()
+        conn.close()
+        for words, data in ((("item", "get"), {"id": item}),
+                            (("query",), {}), (("export",), None)):
+            with self.subTest(command=words):
+                r = sb.run(*words, data=data)
+                self.assertEqual((r.code, r.code_name), (1, "store_corrupt"),
+                                 r)
+                self.assertEqual(r.details["row"], f"{item}.label")
+
     def test_a_held_write_lock_is_store_busy(self):
         sb = Sandbox(self).ready()
         holder = sqlite3.connect(str(sb.store), isolation_level=None)
