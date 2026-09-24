@@ -445,3 +445,13 @@
 {"kind": "measurement", "kr": "P004-O1-KR1", "okr_version": "", "check": "fixture-states", "value": 5, "asserted_at": "2026-09-22T04:06:05Z", "evidence": "evidence/2026-09/phase004-o4-census-2026-09-22.md", "computed": false, "actor": "pmo"}
 {"kind": "edge", "task": "TASK-483", "kr": "P004-O1-KR1", "declared_at": "2026-09-22T07:38:11Z", "actor": "pmo", "via": "add"}
 {"kind": "edge", "task": "TASK-484", "kr": "P004-O1-KR1", "declared_at": "2026-09-22T17:43:52Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-485", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:07Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-486", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:08Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-487", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:08Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-488", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:08Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-489", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:08Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-490", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:09Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-491", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:09Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-492", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:09Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-493", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:09Z", "actor": "pmo", "via": "add"}
+{"kind": "edge", "task": "TASK-494", "kr": "O3-KR4", "declared_at": "2026-09-24T11:42:10Z", "actor": "pmo", "via": "add"}
