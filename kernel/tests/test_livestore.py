@@ -116,6 +116,49 @@ class TestTheRunner(unittest.TestCase):
         """)
         self.assertEqual(red.returncode, 1, red.stdout + red.stderr)
 
+    def run_watching(self, session_expr: str):
+        """run.py over one passing probe test that writes one event to the
+        watched store, as the actor session `session_expr` evaluates to."""
+        watched = mkdtemp(self, "kernel-watched-") / "live.db"
+        start = mkdtemp(self, "kernel-runner-")
+        (start / "test_probe.py").write_text(textwrap.dedent(f"""
+            import io, json, os, sys, unittest
+            sys.path.insert(0, {str(KERNEL)!r})
+            from perry_kernel import cli
+
+            class T(unittest.TestCase):
+                def test_writes_the_watched_store(self):
+                    actor = {{"kind": "agent", "name": "probe",
+                              "session": {session_expr}}}
+                    code, out, err = cli.invoke(
+                        ["init", "--input", json.dumps(
+                            {{"actor": actor, "state_root": "s"}}),
+                         "--store", {str(watched)!r},
+                         "--root", {str(start)!r}],
+                        dict(os.environ), {str(start)!r}, io.StringIO(""))
+                    self.assertEqual(code, 0, out)
+        """))
+        (start / ".perry").mkdir()
+        env = clean_env()
+        env.pop("PERRY_KERNEL_TEST_SESSION", None)
+        return subprocess.run(
+            [sys.executable, str(KERNEL / "tests" / "run.py"), "--start",
+             str(start), "--live-store", str(watched)], cwd=str(REPO),
+            env=env, capture_output=True, text=True, timeout=120)
+
+    def test_a_leak_by_this_run_turns_the_run_red(self):
+        """F4: the exit code honours the live-store verdict, not only the
+        tests' — the probe test itself passes."""
+        leak = self.run_watching('os.environ["PERRY_KERNEL_TEST_SESSION"]')
+        self.assertIn("OK", leak.stderr)
+        self.assertIn("FAILED: event 1 (init", leak.stdout)
+        self.assertEqual(leak.returncode, 1, leak.stdout + leak.stderr)
+
+    def test_another_sessions_write_is_reported_and_the_run_stays_green(self):
+        other = self.run_watching('"another-worktree"')
+        self.assertIn("reported, not failed", other.stdout)
+        self.assertEqual(other.returncode, 0, other.stdout + other.stderr)
+
     def test_the_runner_exports_the_prevention_layer(self):
         probe = self.run_suite("""
             import os, unittest

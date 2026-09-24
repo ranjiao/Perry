@@ -4,6 +4,11 @@
     python3 kernel/tests/run.py              # the suite, and the check
     python3 kernel/tests/run.py -v           # verbose
     python3 kernel/tests/run.py --start DIR  # another directory of tests
+    python3 kernel/tests/run.py --live-store PATH  # watch PATH instead
+
+`--live-store` exists so the suite can show that a leak turns this runner
+red: `test_livestore` points it at a scratch store its probe writes to. It
+is never the way to run the suite.
 
 Prevention: every test names a temporary store, and this runner exports
 `PERRY_KERNEL_TESTING=1`, so a call that forgets `--store` is refused instead
@@ -31,7 +36,7 @@ REPO = HERE.parents[1]
 
 
 def main(argv: list[str]) -> int:
-    verbosity, start = 1, HERE
+    verbosity, start, watched = 1, HERE, None
     args = list(argv)
     while args:
         arg = args.pop(0)
@@ -39,6 +44,8 @@ def main(argv: list[str]) -> int:
             verbosity = 2
         elif arg == "--start" and args:
             start = Path(args.pop(0)).resolve()
+        elif arg == "--live-store" and args:
+            watched = Path(args.pop(0)).resolve()
         elif arg in ("-h", "--help"):
             print(__doc__.strip())
             return 0
@@ -55,7 +62,7 @@ def main(argv: list[str]) -> int:
     sys.path.insert(0, str(HERE))
     import livestore  # noqa: E402
 
-    live = livestore.live_store_path(REPO)
+    live = watched or livestore.live_store_path(REPO)
     before = livestore.snapshot(live)
 
     suite = unittest.defaultTestLoader.discover(str(start),
