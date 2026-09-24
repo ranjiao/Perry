@@ -289,8 +289,14 @@ def usage(prog: str, name: str | None = None) -> str:
                   "0 success, 1 refused, 2 bad invocation, 3 internal fault.",
                   f"The whole surface as JSON: {prog} describe"]
         return "\n".join(lines) + "\n"
-    lines = [f"usage: {prog} <command> [--input JSON|@FILE|-] [--store PATH] "
-             f"[--root PATH] [--dry-run] [--json]", "",
+    synopsis = " ".join(
+        f"[{f} {spec['takes']}]" if spec["takes"] else f"[{f}]"
+        for f, spec in (("--input", COMMAND_FLAGS["--input"]),
+                        ("--store", GLOBAL_FLAGS["--store"]),
+                        ("--root", GLOBAL_FLAGS["--root"]),
+                        ("--dry-run", COMMAND_FLAGS["--dry-run"]),
+                        ("--json", GLOBAL_FLAGS["--json"])))
+    lines = [f"usage: {prog} <command> {synopsis}", "",
              "The kernel: one store per project, JSON in and JSON out. It "
              "knows eight concepts",
              "and no method; every type, state, field and guard comes from the "
