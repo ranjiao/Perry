@@ -100,6 +100,44 @@ class TestExport(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in directory.iterdir()),
                          ["mine.txt"])
 
+    def test_a_leftover_temp_file_is_removed_not_foreign(self):
+        """A crash between writing a temp file and renaming it leaves the
+        kernel's own file behind; the next export removes it."""
+        from perry_kernel.commands import EXPORT_TEMP, export_temp_name
+        for name in ("items.jsonl", "events.jsonl"):
+            self.assertTrue(EXPORT_TEMP.match(export_temp_name(name)))
+        sb = populated(self)
+        directory = export_dir(sb)
+        directory.mkdir(parents=True)
+        stale = [".items.jsonl.4242.tmp", ".events.jsonl.1.tmp"]
+        for name in stale:
+            (directory / name).write_text("half written")
+        dry = sb.run("export", flags=["--dry-run"])
+        self.assertEqual(dry.env["effect"], "dry_run", dry)
+        self.assertEqual(sorted(p.name for p in directory.iterdir()),
+                         sorted(stale))
+        r = sb.run("export")
+        self.assertEqual(r.env["effect"], "written", r)
+        self.assertEqual(sorted(p.name for p in directory.iterdir()),
+                         ["events.jsonl", "items.jsonl"])
+        (directory / stale[0]).write_text("again")
+        r = sb.run("export")
+        self.assertEqual(r.env["effect"], "unchanged", r)
+        self.assertFalse((directory / stale[0]).exists())
+
+    def test_a_lookalike_is_still_foreign(self):
+        sb = populated(self)
+        directory = export_dir(sb)
+        directory.mkdir(parents=True)
+        for name in (".items.jsonl.tmp", "items.jsonl.12.tmp",
+                     ".notes.jsonl.12.tmp", ".items.jsonl.12.tmp.bak"):
+            with self.subTest(name=name):
+                (directory / name).write_text("mine")
+                r = sb.run("export")
+                self.assertEqual(r.code_name, "export_dir_foreign", r)
+                self.assertEqual(r.details["entries"], [name])
+                (directory / name).unlink()
+
     def test_dry_run_writes_nothing(self):
         sb = populated(self)
         r = sb.run("export", flags=["--dry-run"])

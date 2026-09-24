@@ -27,6 +27,9 @@ from .values import (ValueProblem, canonical, check_metric, check_scalar,
 DEFAULT_LIMIT = 50
 EXPORT_DIR = "export"
 EXPORT_FILES = ("items.jsonl", "events.jsonl")
+#: The temporary name `export` writes each file under before renaming it into
+#: place. One left behind by a crash is the kernel's own, not a foreign entry.
+EXPORT_TEMP = re.compile(r"^\.(?:items|events)\.jsonl\.[0-9]+\.tmp$")
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 EVENT_KEYS = ("seq", "at", "actor", "command", "items", "transition",
               "changes", "note", "warnings")
@@ -862,6 +865,10 @@ def _file_info(data: bytes) -> dict:
             "sha256": hashlib.sha256(data).hexdigest()}
 
 
+def export_temp_name(name: str) -> str:
+    return f".{name}.{os.getpid()}.tmp"
+
+
 def _export_dir(ctx: Ctx, state_root: str) -> Path:
     return ctx.anchor() / state_root / EXPORT_DIR
 
@@ -873,8 +880,11 @@ def cmd_export(ctx: Ctx) -> Outcome:
             raise KernelError("export_dir_foreign",
                               f"{directory} is not a directory",
                               {"dir": str(directory)})
+        leftovers = []
         if directory.is_dir():
-            foreign = sorted(set(os.listdir(directory)) - set(EXPORT_FILES))
+            entries = set(os.listdir(directory))
+            leftovers = sorted(e for e in entries if EXPORT_TEMP.match(e))
+            foreign = sorted(entries - set(EXPORT_FILES) - set(leftovers))
             if foreign:
                 raise KernelError("export_dir_foreign",
                                   f"{directory} holds {', '.join(foreign)}; "
@@ -892,11 +902,20 @@ def cmd_export(ctx: Ctx) -> Outcome:
         if ctx.dry_run:
             store.rollback()
             return Outcome("dry_run", result)
+        try:
+            # A leftover can only be stale: exports of this store are
+            # serialised by its write lock, which this command holds.
+            for name in leftovers:
+                (directory / name).unlink(missing_ok=True)
+        except OSError as exc:
+            raise KernelError("io_error", f"cannot remove a leftover export "
+                                          f"file: {exc.strerror}",
+                              {"path": str(exc.filename or directory)})
         if not same_bytes:
             try:
                 directory.mkdir(parents=True, exist_ok=True)
                 for n, b in blobs.items():
-                    tmp = directory / f".{n}.{os.getpid()}.tmp"
+                    tmp = directory / export_temp_name(n)
                     try:
                         tmp.write_bytes(b)
                         os.replace(tmp, directory / n)
