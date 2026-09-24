@@ -475,6 +475,7 @@ class Store:
                         raise KernelError(self._mismatch,
                                           f"event {seq}: {key} names no item "
                                           f"{end}", {"seq": seq, "key": key})
+                self._check_edge_shape(kind, src, dst, seq)
                 self.q("INSERT OR IGNORE INTO relation VALUES (?, ?, ?)",
                        (kind, src, dst))
             else:
@@ -508,6 +509,33 @@ class Store:
                        (primary, ref, after.get("hash")))
         else:
             raise KernelError("internal", f"unknown change key {key}")
+
+    def _check_edge_shape(self, kind: str, src: str, dst: str, seq: int):
+        """The shape every edge keeps, checked on the one path that writes
+        edges: `rel add`, both ends of `item create`'s relations, and
+        `import`'s replay. No self-edge, at most one `parent` per item, and no
+        `blocks` or `parent` cycle. A live write is refused with the rule's
+        own code; a replay that breaks one is `export_invalid`."""
+        replay = self._mismatch != "internal"
+        details = {"kind": kind, "from": src, "to": dst}
+
+        def refuse(code, message, **extra):
+            if replay:
+                raise KernelError(self._mismatch, f"event {seq}: {message}",
+                                  {"seq": seq, **details, **extra})
+            raise KernelError(code, message, {**details, **extra})
+
+        if src == dst:
+            refuse("relation_invalid", f"{src} cannot relate to itself")
+        if kind == "parent":
+            others = [d for _k, _s, d in self.edges(kind="parent", src=src)
+                      if d != dst]
+            if others:
+                refuse("relation_invalid", f"{src} already has a parent, "
+                                           f"{others[0]}", parent=others[0])
+        if kind in ("blocks", "parent") and self.reaches(kind, dst, src):
+            refuse("relation_cycle",
+                   f"{kind} {src} -> {dst} would close a cycle")
 
     def _raise_ceiling(self, prefix: str, n: int):
         now = self.ceiling(prefix)

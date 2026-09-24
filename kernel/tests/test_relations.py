@@ -4,9 +4,13 @@ transaction (§ 5.6; DESIGN-015 § 5.3: an edge made at create cannot half-land)
 
 from __future__ import annotations
 
+import shutil
 import unittest
 
+import test_export_import
 from support import ACTOR, Sandbox
+
+edit = test_export_import.TestImport.edit
 
 
 class RelCase(unittest.TestCase):
@@ -146,6 +150,114 @@ class TestCreateWithRelations(RelCase):
                          {"kind": "blocks", "to": self.a}])
         self.assertEqual(r.code_name, "relation_cycle", r)
         self.assertEqual(self.sb.ok("query")["total"], 3)
+
+
+class TestOneParentOnEveryPath(RelCase):
+    """F1: an item has at most one parent, whichever path writes the edge.
+
+    The paths that write a `parent` edge are `rel add`, `item create` with
+    `{kind: parent, to}` (the new item is the child), `item create` with
+    `{kind: parent, from}` (the new item is the parent of an existing one),
+    and `import`'s replay. All four go through `Store._check_edge_shape`."""
+
+    def setUp(self):
+        super().setUp()
+        self.sb.ok("rel", "add", data={"actor": ACTOR, "kind": "parent",
+                                       "from": self.a, "to": self.b})
+        self.seq = self.sb.seq()
+
+    def assert_nothing_landed(self):
+        self.assertEqual(self.sb.seq(), self.seq)
+        self.assertEqual(self.sb.get(self.a)["relations"], [
+            {"kind": "parent", "from": self.a, "to": self.b}])
+
+    def test_rel_add(self):
+        r = self.rel("add", "parent", self.a, self.c)
+        self.assertEqual((r.code, r.code_name), (1, "relation_invalid"), r)
+        self.assertEqual(r.details["parent"], self.b)
+        self.assert_nothing_landed()
+
+    def test_create_with_to(self):
+        r = self.sb.run("item", "create", data={
+            "actor": ACTOR, "type": "widget", "fields": {"bench": "north"},
+            "relations": [{"kind": "parent", "to": self.b},
+                          {"kind": "parent", "to": self.c}]})
+        self.assertEqual((r.code, r.code_name), (1, "relation_invalid"), r)
+        self.assert_nothing_landed()
+
+    def test_create_with_from_an_item_that_has_a_parent(self):
+        r = self.sb.run("item", "create", data={
+            "actor": ACTOR, "type": "widget", "fields": {"bench": "north"},
+            "relations": [{"kind": "parent", "from": self.a}]})
+        self.assertEqual((r.code, r.code_name), (1, "relation_invalid"), r)
+        self.assertEqual((r.details["from"], r.details["parent"]),
+                         (self.a, self.b))
+        self.assert_nothing_landed()
+        self.assertEqual(self.sb.create(), "W-004", "no id was consumed")
+
+    def test_create_with_from_an_orphan_is_allowed(self):
+        new = self.sb.ok("item", "create", data={
+            "actor": ACTOR, "type": "widget", "fields": {"bench": "north"},
+            "relations": [{"kind": "parent", "from": self.c},
+                          {"kind": "parent", "to": self.b}]})["item"]["id"]
+        self.assertEqual(self.sb.get(self.c)["relations"], [
+            {"kind": "parent", "from": self.c, "to": new}])
+
+    def test_import_replay(self):
+        def second_parent(items, events):
+            add = edit(events[-1], lambda o: o.update(
+                seq=len(events) + 1, command="rel add",
+                items=[self.a, self.c], transition=None, note=None,
+                warnings=[], changes=[{"key": f"rel:parent:{self.a}:{self.c}",
+                                       "before": False, "after": True}]))
+            return items, events + [add]
+        self.sb.ok("export")
+        r = replay(self, self.sb, second_parent)
+        self.assertEqual((r.code, r.code_name), (1, "export_invalid"), r)
+        self.assertEqual((r.details["seq"], r.details["parent"]),
+                         (self.seq + 1, self.b))
+
+
+class TestEdgeShapeOnImport(unittest.TestCase):
+    """The other two shape rules, which `import` used to replay unchecked."""
+
+    def test_a_self_edge_and_a_cycle_are_export_invalid(self):
+        for name, changes in (
+                ("self-edge", [{"key": "rel:blocks:W-001:W-001",
+                                "before": False, "after": True}]),
+                ("cycle", [{"key": "rel:blocks:W-002:W-001",
+                            "before": False, "after": True}])):
+            with self.subTest(name):
+                sb = Sandbox(self).ready()
+                a, b = sb.create(), sb.create()
+                sb.ok("rel", "add", data={"actor": ACTOR, "kind": "blocks",
+                                          "from": a, "to": b})
+                sb.ok("export")
+
+                def planted(items, events, changes=changes):
+                    return items, events + [edit(events[-1], lambda o: o.update(
+                        seq=len(events) + 1, items=[a, b], changes=changes))]
+                r = replay(self, sb, planted)
+                self.assertEqual(r.code_name, "export_invalid", r)
+                self.assertEqual(r.details["seq"], 6)
+
+
+def replay(testcase, sb, mutate):
+    """Copy `sb`'s export into a fresh project, edit it, and import it."""
+    other = Sandbox(testcase, state_root=sb.state_root)
+    src = sb.root / sb.state_root / "export"
+    dst = other.root / other.state_root / "export"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(src, dst)
+    items = (dst / "items.jsonl").read_text("utf-8").splitlines(True)
+    events = (dst / "events.jsonl").read_text("utf-8").splitlines(True)
+    items, events = mutate(items, events)
+    (dst / "items.jsonl").write_text("".join(items), "utf-8")
+    (dst / "events.jsonl").write_text("".join(events), "utf-8")
+    r = other.run("import", data={"state_root": other.state_root})
+    testcase.assertFalse(other.store.exists() and other.run(
+        "events", data={}).ok, "a refused import leaves no initialised store")
+    return r
 
 
 class TestAttachments(RelCase):

@@ -163,11 +163,11 @@ def field_changes(stored: dict, new: dict) -> list[dict]:
     return changes
 
 
-def check_edge(store: Store, norm: dict, kind: str, src: str, dst: str,
-               src_type: str, dst_type: str) -> None:
-    if src == dst:
-        raise KernelError("relation_invalid", f"{src} cannot relate to itself",
-                          {"kind": kind, "from": src, "to": dst})
+def check_edge_types(norm: dict, kind: str, src: str, dst: str,
+                     src_type: str, dst_type: str) -> None:
+    """A declared kind's end types. The shape every edge keeps — no
+    self-edge, one parent, no cycle — is `Store._check_edge_shape`'s, on the
+    one path that writes an edge."""
     decl = norm["relations"].get(kind)
     if decl is not None:
         if src_type not in decl["from"] or dst_type not in decl["to"]:
@@ -182,14 +182,6 @@ def require_relation_kind(norm: dict, kind: str) -> None:
     if kind not in tpl.relation_kinds(norm):
         raise KernelError("unknown_relation", f"no relation kind {kind}",
                           {"kind": kind})
-
-
-def check_cycles(store: Store, edges) -> None:
-    for kind, src, dst in edges:
-        if kind in ("blocks", "parent") and store.reaches(kind, dst, src):
-            raise KernelError("relation_cycle",
-                              f"{kind} {src} -> {dst} would close a cycle",
-                              {"kind": kind, "from": src, "to": dst})
 
 
 def check_attachment(ref, digest) -> None:
@@ -503,7 +495,6 @@ def cmd_item_create(ctx: Ctx) -> Outcome:
         new_id = f"{prefix}-{number:0{tdecl['digits']}d}"
 
         edges, others = [], []
-        parents = 0
         for n, rel in enumerate(data.get("relations", [])):
             if ("to" in rel) == ("from" in rel):
                 raise KernelError("input_invalid", f"relations[{n}] names "
@@ -519,17 +510,11 @@ def cmd_item_create(ctx: Ctx) -> Outcome:
             else:
                 src, dst, src_type, dst_type = other, new_id, other_type, \
                     type_name
-            check_edge(store, norm, kind, src, dst, src_type, dst_type)
+            check_edge_types(norm, kind, src, dst, src_type, dst_type)
             if (kind, src, dst) in edges:
                 raise KernelError("relation_invalid",
                                   f"relations[{n}] repeats an edge",
                                   {"index": n})
-            if kind == "parent" and src == new_id:
-                parents += 1
-                if parents > 1:
-                    raise KernelError("relation_invalid",
-                                      f"{new_id} would have a second parent",
-                                      {"index": n})
             edges.append((kind, src, dst))
             others.append(other)
 
@@ -555,7 +540,6 @@ def cmd_item_create(ctx: Ctx) -> Outcome:
         items = [new_id] + sorted(set(others), key=id_order)
         event = new_event(store, ctx, items, changes)
         store.apply_changes(event, mismatch="internal")
-        check_cycles(store, edges)
         run_guards(store, norm, ctx, event, tdecl["create_guards"], new_id,
                    tdecl["initial"])
         return finish(store, ctx, event,
@@ -649,17 +633,11 @@ def cmd_rel(ctx: Ctx) -> Outcome:
         if present == adding:
             return unchanged(store, ctx, result)
         if adding:
-            check_edge(store, norm, kind, src, dst, src_type, dst_type)
-            if kind == "parent" and store.edges(kind="parent", src=src):
-                raise KernelError("relation_invalid",
-                                  f"{src} already has a parent",
-                                  {"kind": kind, "from": src, "to": dst})
+            check_edge_types(norm, kind, src, dst, src_type, dst_type)
         event = new_event(store, ctx, [src, dst], [
             {"key": f"rel:{kind}:{src}:{dst}", "before": present,
              "after": adding}])
         store.apply_changes(event, mismatch="internal")
-        if adding:
-            check_cycles(store, [(kind, src, dst)])
         return finish(store, ctx, event, lambda: result)
 
 
