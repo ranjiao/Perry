@@ -255,6 +255,34 @@ class TestImport(unittest.TestCase):
             with self.subTest(case=name):
                 self.mutate_and_import(mutate, "export_invalid")
 
+    def test_a_gap_that_replays_cleanly_is_still_refused(self):
+        """F3: the gap check is the only thing that catches this one.
+
+        A relation added and then removed changes nothing a later export
+        shows, and both ends are touched again afterwards, so deleting the
+        two events leaves a history that replays without a before mismatch
+        and reproduces items.jsonl byte for byte. Only the seq run 1…n says
+        two events are missing."""
+        sb = Sandbox(self).ready()
+        a, b = sb.create(), sb.create()
+        edge = {"actor": ACTOR, "kind": "blocks", "from": a, "to": b}
+        sb.ok("rel", "add", data=edge)
+        sb.ok("rel", "remove", data=edge)
+        for item in (a, b):
+            sb.ok("item", "update", data={"actor": ACTOR, "id": item,
+                                          "set": {"label": "later"}})
+        sb.ok("export")
+        other = twin(self, sb)
+        path = export_dir(other) / "events.jsonl"
+        lines = path.read_text("utf-8").splitlines(True)
+        self.assertEqual([json.loads(x)["command"] for x in lines[4:6]],
+                         ["rel add", "rel remove"])
+        path.write_text("".join(lines[:4] + lines[6:]), "utf-8")
+        r = other.run("import", data={"state_root": other.state_root})
+        self.assertEqual((r.code, r.code_name), (1, "export_invalid"), r)
+        self.assertEqual(r.details, {"line": 5, "seq": 7})
+        self.assertIn("without a gap", r.env["error"]["message"])
+
     def test_replay_mismatch_names_the_first_differing_item(self):
         def tamper(items, events):
             items = list(items)
