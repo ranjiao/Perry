@@ -20,9 +20,10 @@ from . import template as tpl
 from .errors import KernelError
 from .paths import resolve_anchor, resolve_store
 from .store import Store, id_order, split_id
-from .values import (ValueProblem, canonical, check_metric, check_scalar,
-                     effective, merge_metric, metric_fraction, metric_met,
-                     same, with_derived)
+from .values import (INT_LIMIT, ValueProblem, canonical, check_metric,
+                     check_scalar, effective, input_problem, merge_metric,
+                     metric_fraction, metric_met, normalize_actor, same,
+                     with_derived)
 
 DEFAULT_LIMIT = 50
 EXPORT_DIR = "export"
@@ -873,32 +874,40 @@ def _export_dir(ctx: Ctx, state_root: str) -> Path:
     return ctx.anchor() / state_root / EXPORT_DIR
 
 
+def _io(what: str, exc: OSError, fallback) -> KernelError:
+    return KernelError("io_error", f"cannot {what}: {exc.strerror}",
+                       {"path": str(exc.filename or fallback)})
+
+
 def cmd_export(ctx: Ctx) -> Outcome:
     with ctx.open(write=True) as store:
         directory = _export_dir(ctx, store.meta("state_root"))
-        if directory.exists() and not directory.is_dir():
-            raise KernelError("export_dir_foreign",
-                              f"{directory} is not a directory",
-                              {"dir": str(directory)})
         leftovers = []
-        if directory.is_dir():
-            entries = set(os.listdir(directory))
-            leftovers = sorted(e for e in entries if EXPORT_TEMP.match(e))
-            foreign = sorted(entries - set(EXPORT_FILES) - set(leftovers))
-            if foreign:
+        try:
+            if directory.exists() and not directory.is_dir():
                 raise KernelError("export_dir_foreign",
-                                  f"{directory} holds {', '.join(foreign)}; "
-                                  f"the export writes only "
-                                  f"{' and '.join(EXPORT_FILES)}",
-                                  {"dir": str(directory), "entries": foreign})
-        blobs = dict(zip(EXPORT_FILES, serialise(store)))
+                                  f"{directory} is not a directory",
+                                  {"dir": str(directory)})
+            if directory.is_dir():
+                entries = set(os.listdir(directory))
+                leftovers = sorted(e for e in entries if EXPORT_TEMP.match(e))
+                foreign = sorted(entries - set(EXPORT_FILES) - set(leftovers))
+                if foreign:
+                    raise KernelError(
+                        "export_dir_foreign",
+                        f"{directory} holds {', '.join(foreign)}; the export "
+                        f"writes only {' and '.join(EXPORT_FILES)}",
+                        {"dir": str(directory), "entries": foreign})
+            blobs = dict(zip(EXPORT_FILES, serialise(store)))
+            same_bytes = all((directory / n).is_file()
+                             and (directory / n).read_bytes() == b
+                             for n, b in blobs.items())
+        except OSError as exc:
+            raise _io("read the export directory", exc, directory)
         seq = store.store_seq()
         result = {"dir": str(directory),
                   "files": {n: _file_info(b) for n, b in blobs.items()},
                   "last_export_seq": seq}
-        same_bytes = all((directory / n).is_file()
-                         and (directory / n).read_bytes() == b
-                         for n, b in blobs.items())
         if ctx.dry_run:
             store.rollback()
             return Outcome("dry_run", result)
@@ -908,9 +917,7 @@ def cmd_export(ctx: Ctx) -> Outcome:
             for name in leftovers:
                 (directory / name).unlink(missing_ok=True)
         except OSError as exc:
-            raise KernelError("io_error", f"cannot remove a leftover export "
-                                          f"file: {exc.strerror}",
-                              {"path": str(exc.filename or directory)})
+            raise _io("remove a leftover export file", exc, directory)
         if not same_bytes:
             try:
                 directory.mkdir(parents=True, exist_ok=True)
@@ -923,10 +930,7 @@ def cmd_export(ctx: Ctx) -> Outcome:
                         if tmp.exists():
                             tmp.unlink()
             except OSError as exc:
-                raise KernelError("io_error", f"cannot write the export: "
-                                              f"{exc.strerror}",
-                                  {"path": str(getattr(exc, 'filename', '')
-                                               or directory)})
+                raise _io("write the export", exc, directory)
         store.set_meta("last_export_seq", str(seq))
         store.commit()
         return Outcome("unchanged" if same_bytes else "written", result)
@@ -947,6 +951,10 @@ def _parse_lines(path: Path, name: str) -> tuple[bytes, list]:
             obj = json.loads(raw.decode("utf-8"),
                              object_pairs_hook=_no_duplicates,
                              parse_constant=_no_constants)
+        except RecursionError:
+            raise KernelError("export_invalid", f"{name} line {n} is nested "
+                                                f"too deeply",
+                              {"file": name, "line": n})
         except (ValueError, UnicodeDecodeError) as exc:
             raise KernelError("export_invalid", f"{name} line {n} is not "
                                                 f"JSON: {exc}",
@@ -955,6 +963,11 @@ def _parse_lines(path: Path, name: str) -> tuple[bytes, list]:
             raise KernelError("export_invalid", f"{name} line {n} is not an "
                                                 f"object",
                               {"file": name, "line": n})
+        problem = input_problem(obj)
+        if problem:
+            raise KernelError("export_invalid", f"{name} line {n}: "
+                                                f"{problem[0]}: {problem[1]}",
+                              {"file": name, "line": n, "key": problem[0]})
         rows.append(obj)
     return data, rows
 
@@ -972,6 +985,14 @@ def _no_constants(name):
     raise ValueError(f"{name} is not JSON")
 
 
+def _export_id(item_id) -> bool:
+    """An id's shape, numbered no higher than a live mint can reach safely:
+    the ceiling it seeds must still have room to grow inside sqlite's
+    integers."""
+    parts = split_id(item_id)
+    return bool(parts) and parts[1] <= INT_LIMIT
+
+
 def _event_shape(event: dict, n: int) -> None:
     def bad(message):
         raise KernelError("export_invalid", f"events.jsonl line {n}: {message}",
@@ -985,11 +1006,16 @@ def _event_shape(event: dict, n: int) -> None:
     if not isinstance(event["at"], str) or not isinstance(event["command"],
                                                           str):
         bad("at and command are strings")
-    if not (event["actor"] is None or isinstance(event["actor"], dict)):
-        bad("actor is an object or null")
+    actor = event["actor"]
+    if actor is not None:
+        try:
+            if not isinstance(actor, dict) or normalize_actor(actor) != actor:
+                bad("actor is null or {kind, name, session}")
+        except ValueProblem as exc:
+            bad(f"actor: {exc.message}")
     if not isinstance(event["items"], list) or not all(
-            split_id(i) for i in event["items"]):
-        bad("items is an array of item ids")
+            _export_id(i) for i in event["items"]):
+        bad(f"items is an array of item ids numbered up to {INT_LIMIT}")
     if len(set(event["items"])) != len(event["items"]):
         bad("items names an item twice")
     for key in ("transition", "note"):
@@ -1016,20 +1042,28 @@ def _event_shape(event: dict, n: int) -> None:
         elif key.startswith("ceiling:"):
             after = change["after"]
             if isinstance(after, bool) or not isinstance(after, int) or \
-                    after < 0:
-                bad("a ceiling is a non-negative integer")
+                    not 0 <= after <= INT_LIMIT:
+                bad(f"a ceiling is an integer from 0 to {INT_LIMIT}")
         elif key.startswith("rel:"):
             parts = key.split(":", 3)
-            if len(parts) != 4 or not isinstance(change["after"], bool):
+            if (len(parts) != 4 or not isinstance(change["after"], bool)
+                    or not all(_export_id(i) for i in parts[2:])):
                 bad(f"{key} is rel:<kind>:<from>:<to> with a boolean value")
         elif key.startswith("attach:"):
             after = change["after"]
-            if not (after is None or (isinstance(after, dict)
-                                      and set(after) == {"hash"})):
-                bad(f"{key} is null or {{hash}}")
-        elif key == "type" and change["before"] is None:
-            if not isinstance(change["after"], str):
-                bad("a type is a string")
+            if not (after is None or (
+                    isinstance(after, dict) and set(after) == {"hash"}
+                    and (after["hash"] is None
+                         or (isinstance(after["hash"], str)
+                             and HASH_RE.match(after["hash"]))))):
+                bad(f"{key} is null or {{hash}}, a sha256 hash or null")
+        elif key in ("type", "state", "state_root"):
+            # The store binds these as text; anything else is a malformed
+            # line, not a corrupt store.
+            if not isinstance(change["after"], str) or not (
+                    change["before"] is None
+                    or isinstance(change["before"], str)):
+                bad(f"{key} is a string, and its before a string or null")
 
 
 def refuse_if_not_empty(store: Store) -> None:
@@ -1051,7 +1085,10 @@ def cmd_import(ctx: Ctx) -> Outcome:
         with ctx.open(write=False) as existing:
             refuse_if_not_empty(existing)
     directory = anchor / state_root / EXPORT_DIR
-    missing = [n for n in EXPORT_FILES if not (directory / n).is_file()]
+    try:
+        missing = [n for n in EXPORT_FILES if not (directory / n).is_file()]
+    except OSError as exc:
+        raise _io("read the export directory", exc, directory)
     if missing:
         raise KernelError("export_missing",
                           f"{directory} has no {', '.join(missing)}",

@@ -55,6 +55,12 @@ KEYS = {
 }
 
 
+def _in(value, names) -> bool:
+    """Membership that a list or an object in the caller's template cannot
+    turn into a TypeError: only a string can name something."""
+    return isinstance(value, str) and value in names
+
+
 class Problems:
     def __init__(self):
         self.items: list[dict] = []
@@ -74,7 +80,7 @@ def _keys(obj, level: dict, path: str, problems: Problems, kind=None) -> bool:
         return False
     required = list(level["required"])
     optional = list(level["optional"])
-    if kind is not None and kind in level.get("by_kind", {}):
+    if _in(kind, level.get("by_kind", {})):
         required += level["by_kind"][kind]["required"]
         optional += level["by_kind"][kind]["optional"]
     legal = set(required) | set(optional)
@@ -218,7 +224,8 @@ def _guard(guard, path: str, problems: Problems, fields: dict,
             elif decl.get("kind") != "enum" or decl.get("ordered") is not True:
                 problems.add(f"{path}.at_least.{name}", "at_least names an "
                                                         "ordered enum")
-            elif not any(same(minimum, v) for v in decl.get("values", [])):
+            elif not isinstance(decl.get("values"), list) or not any(
+                    same(minimum, v) for v in decl["values"]):
                 problems.add(f"{path}.at_least.{name}",
                              f"{canonical(minimum)} is not one of its values")
     elif kind == "actor":
@@ -231,7 +238,8 @@ def _guard(guard, path: str, problems: Problems, fields: dict,
                                 or not guard["name"].strip()):
             problems.add(f"{path}.name", "a non-empty string")
     elif kind == "relations_closed":
-        if "relation" in guard and guard["relation"] not in relation_kinds:
+        if "relation" in guard and not _in(guard["relation"],
+                                           relation_kinds):
             problems.add(f"{path}.relation",
                          f"{canonical(guard['relation'])} is not a relation "
                          f"kind")
@@ -318,7 +326,7 @@ def validate(template) -> list[dict]:
             for n, s in enumerate(states):
                 _name(s, f"{path}.states[{n}]", problems)
         state_set = set(states)
-        if "initial" in decl and decl["initial"] not in state_set:
+        if "initial" in decl and not _in(decl["initial"], state_set):
             problems.add(f"{path}.initial", "not one of the type's states")
         if "terminal" in decl:
             _name_list(decl["terminal"], f"{path}.terminal", problems,
@@ -352,7 +360,7 @@ def validate(template) -> list[dict]:
             if "from" in tdecl:
                 _name_list(tdecl["from"], f"{tpath}.from", problems,
                            allowed=state_set)
-            if "to" in tdecl and tdecl["to"] not in state_set:
+            if "to" in tdecl and not _in(tdecl["to"], state_set):
                 problems.add(f"{tpath}.to", "not one of the type's states")
             tguards = tdecl.get("guards")
             if "guards" in tdecl and not isinstance(tguards, list):

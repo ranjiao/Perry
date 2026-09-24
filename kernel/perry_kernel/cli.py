@@ -16,7 +16,9 @@ from pathlib import Path
 from . import surface
 from .commands import HANDLERS, Ctx
 from .errors import KernelError
-from .values import ValueProblem, json_type, normalize_actor
+from .paths import resolve_path
+from .values import (SURROGATE, ValueProblem, input_problem, json_type,
+                     normalize_actor)
 
 PROG = "perry-kernel"
 
@@ -58,6 +60,11 @@ def parse(argv):
     name, rest = _match(words)
     if any(tok in surface.HELP_FLAGS for tok in argv):
         raise Help(name)
+    for n, tok in enumerate(argv):
+        if SURROGATE.search(tok):
+            # An undecodable byte in argv: no path or JSON can carry it.
+            raise KernelError("usage", f"argument {n + 1} is not valid UTF-8",
+                              {"index": n})
     if name is None:
         attempted = " ".join(words[:2]) if words else ""
         groups = sorted({c.split()[0] for c in surface.BY_NAME})
@@ -122,38 +129,57 @@ def _no_constants(name):
     raise ValueError(f"{name} is not JSON")
 
 
+def _decode(data, source: str) -> str:
+    """Input text. Bytes (stdin, a file) must be UTF-8; a bad byte is input
+    that is invalid, not an I/O fault."""
+    if isinstance(data, str):
+        return data
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise KernelError("input_invalid", f"{source} is not valid UTF-8 "
+                                           f"(byte {exc.start})",
+                          {"source": source, "byte": exc.start})
+
+
 def read_input(raw, cwd, stdin):
     if raw is None:
         return {}
     if raw == "-":
-        text = stdin.read() if stdin is not None else ""
         source = "stdin"
+        text = _decode(stdin.read() if stdin is not None else "", source)
     elif raw.startswith("@"):
         if raw == "@":
             raise KernelError("usage", "--input @ names no file",
                               {"flag": "--input"})
-        path = Path(raw[1:]).expanduser()
-        if not path.is_absolute():
-            path = Path(cwd) / path
+        path = resolve_path(raw[1:], cwd, "--input")
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
+            blob = path.read_bytes()
+        except OSError as exc:
             raise KernelError("io_error", f"cannot read {path}: "
-                                          f"{getattr(exc, 'strerror', exc)}",
+                                          f"{exc.strerror}",
                               {"path": str(path)})
         source = str(path)
+        text = _decode(blob, source)
     else:
         text, source = raw, "--input"
     try:
         data = json.loads(text, object_pairs_hook=_no_duplicates,
                           parse_constant=_no_constants)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
+        reason = ("it is nested too deeply" if isinstance(exc, RecursionError)
+                  else str(exc))
         raise KernelError("input_invalid", f"{source} is not one JSON object: "
-                                           f"{exc}", {"source": source})
+                                           f"{reason}", {"source": source})
     if not isinstance(data, dict):
         raise KernelError("input_invalid", f"{source} is a JSON "
                                            f"{json_type(data)}, not an object",
                           {"source": source})
+    problem = input_problem(data)
+    if problem:
+        raise KernelError("input_invalid", f"{source}: {problem[0]}: "
+                                           f"{problem[1]}",
+                          {"source": source, "key": problem[0]})
     return data
 
 
@@ -240,7 +266,12 @@ def envelope(name, *, ok, effect, events=(), store_seq=None, warnings=(),
 
 
 def _dump(obj) -> str:
-    return json.dumps(obj, ensure_ascii=False) + "\n"
+    text = json.dumps(obj, ensure_ascii=False) + "\n"
+    if SURROGATE.search(text):
+        # A last resort that the input checks keep unreachable: an envelope
+        # that UTF-8 cannot carry is escaped, never a traceback (NN-K6).
+        text = json.dumps(obj, ensure_ascii=True) + "\n"
+    return text
 
 
 def invoke(argv, environ, cwd, stdin=None, prog: str = PROG):
@@ -279,13 +310,19 @@ def invoke(argv, environ, cwd, stdin=None, prog: str = PROG):
 def main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     prog = os.path.basename(sys.argv[0]) if sys.argv and sys.argv[0] else PROG
-    code, out, err = invoke(argv, os.environ, os.getcwd(), sys.stdin,
-                            prog=prog or PROG)
+    if not prog or SURROGATE.search(prog):
+        prog = PROG
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        cwd = None  # the working directory was removed; paths.py says so
+    stdin = getattr(sys.stdin, "buffer", sys.stdin)
+    code, out, err = invoke(argv, os.environ, cwd, stdin, prog=prog)
     try:
         sys.stdout.buffer.write(out.encode("utf-8"))
         sys.stdout.flush()
         if err:
-            sys.stderr.buffer.write(err.encode("utf-8"))
+            sys.stderr.buffer.write(err.encode("utf-8", "backslashreplace"))
             sys.stderr.flush()
     except (BrokenPipeError, OSError):
         pass

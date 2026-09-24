@@ -29,6 +29,49 @@ def canonical(value) -> str:
                       ensure_ascii=False)
 
 
+#: What any JSON the kernel reads must satisfy before a command sees it, so
+#: that no input class can surface as `internal`: sqlite stores integers in
+#: 64 bits, UTF-8 cannot carry a lone surrogate, and nesting is bounded.
+SQL_INT_MIN, SQL_INT_MAX = -(2 ** 63), 2 ** 63 - 1
+MAX_DEPTH = 64
+SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def input_problem(value):
+    """`(path, message)` for the first part of `value` that cannot be kernel
+    input, or None. Walks iteratively, so depth cannot overflow the stack.
+    A message never quotes the offending value."""
+    stack = [(value, "", 1)]
+    while stack:
+        item, path, depth = stack.pop()
+        where = path or "(top)"
+        if depth > MAX_DEPTH:
+            return where, f"nested more than {MAX_DEPTH} levels deep"
+        if isinstance(item, str):
+            if SURROGATE.search(item):
+                return where, "a string holds a lone surrogate, which is " \
+                              "not Unicode text"
+        elif isinstance(item, bool) or item is None:
+            continue
+        elif isinstance(item, int):
+            if not SQL_INT_MIN <= item <= SQL_INT_MAX:
+                return where, "an integer is outside -2^63 to 2^63-1"
+        elif isinstance(item, float):
+            if not math.isfinite(item):
+                return where, "a number is not finite"
+        elif isinstance(item, list):
+            stack.extend((e, f"{path}[{n}]", depth + 1)
+                         for n, e in enumerate(item))
+        elif isinstance(item, dict):
+            for key, element in item.items():
+                if SURROGATE.search(key):
+                    return where, "a key holds a lone surrogate, which is " \
+                                  "not Unicode text"
+                stack.append((element, f"{path}.{key}" if path else key,
+                              depth + 1))
+    return None
+
+
 def json_type(value) -> str:
     if value is None:
         return "null"

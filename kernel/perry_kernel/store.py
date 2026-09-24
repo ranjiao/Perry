@@ -121,9 +121,14 @@ class Store:
         outside any transaction; a write decides again inside its own
         (`contents`), because another process can init in between (F6)."""
         p = Path(path)
-        if not p.exists():
+        try:
+            exists, is_dir = p.exists(), p.is_dir()
+        except OSError as exc:
+            raise KernelError("io_error", f"cannot inspect {p}: "
+                                          f"{exc.strerror}", {"path": str(p)})
+        if not exists:
             return "absent"
-        if p.is_dir():
+        if is_dir:
             raise KernelError("store_foreign", f"{p} is a directory",
                               {"store": str(p)})
         try:
