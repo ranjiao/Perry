@@ -57,6 +57,7 @@ statements it was fixing.
 | [`perry-update-check`](perry-update-check) | writes to the *skill*, not the project | Weekly throttled check that the Perry install is current with `origin/main`. |
 | [`perry-codex-preflight`](perry-codex-preflight) | cache only | Verifies the `codex` CLI is installed, recent enough and actually responds, before a dispatch depends on it. |
 | [`perry-dispatch-limit`](perry-dispatch-limit) | cache only | Reserves and frees concurrency slots so a session can't fan out unbounded dispatches. |
+| [`perry-kernel`](perry-kernel) | **write** + read | The DESIGN-023 kernel CLI: a thin wrapper over the `perry_kernel` package in `kernel/`, one store per project anchor, JSON in and JSON out. No lane writes through it yet; `bin/` stays the live writer until each lane cuts over. `perry-kernel describe` prints its surface, and [`kernel/ARCHITECTURE.md`](../kernel/ARCHITECTURE.md) is its specification. |
 
 **Seven tools write project files: `perry-task`, `perry-tasks`,
 `perry-goals`, `perry-okr`, `perry-config`, `perry-decide` and

@@ -217,8 +217,9 @@ S3_NOT_SCANNED = {
 
 #: Where a bare `import name` resolves inside this repository: the directories
 #: this code puts on `sys.path` — the root, `bin/` for the tools and their
-#: libraries, and a module's own directory for `viewer/` and `tests/`.
-S3_IMPORT_ROOTS = ("", "bin", "viewer", "tests")
+#: libraries, a module's own directory for `viewer/` and `tests/`, and
+#: `kernel/`, which `bin/perry-kernel` puts there for `perry_kernel`.
+S3_IMPORT_ROOTS = ("", "bin", "viewer", "tests", "kernel")
 
 S3_SKIP_REASON = (
     "S3 needs sys.stdlib_module_names, which Python 3.10 added; this is Python "
