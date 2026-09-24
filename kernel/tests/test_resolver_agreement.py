@@ -12,10 +12,17 @@ subprocess with a scrubbed environment, so its module-level reads and a
 `PERRY_HOME` pointing at another checkout cannot leak into this process.
 
 Where the two are designed to differ, the difference is pinned below rather
-than hidden: § 5.7's walk stops at the first directory holding `.perry/`, and
-`bin/lib` stops at the first *installed* one (`.perry/config.jsonl`, or
-`.perry/` plus a canonical store); with no anchor at all the kernel refuses
-(`anchor_not_found`) where `bin/lib` falls back to the working directory.
+than hidden. There are four, and each is pinned on both sides:
+
+1. the walk: the kernel stops at the first directory holding `.perry/`;
+   `bin/lib` stops at the first *installed* one (`.perry/config.jsonl`, or
+   `.perry/` plus a canonical store);
+2. no anchor on the walk: the kernel refuses (`anchor_not_found`); `bin/lib`
+   falls back to the working directory;
+3. a `--root` that holds no `.perry/`: the kernel refuses; `bin/lib` takes
+   it as given;
+4. a `$PERRY_PROJECT` that holds no `.perry/`: the kernel refuses; `bin/lib`
+   takes it as given.
 """
 
 from __future__ import annotations
@@ -153,20 +160,28 @@ class TestTheTwoResolversAgree(unittest.TestCase):
 class TestWhereTheyAreDesignedToDiffer(unittest.TestCase):
     """Pinned, so that a change to either side is seen rather than absorbed."""
 
-    def test_a_bare_anchor_and_no_anchor(self):
+    def test_the_four_differences(self):
         tmp = mkdtemp(self)
         outer = project(tmp / "outer")
         bare = outer / "bare"
         (bare / ".perry").mkdir(parents=True)  # no config, no store
         nothing = mkdtemp(self)
-        cases = [{"root": None, "env": None, "cwd": str(bare)},
-                 {"root": None, "env": None, "cwd": str(nothing)},
-                 {"root": str(nothing), "env": None, "cwd": str(outer)}]
+        cases = [
+            # 1. the walk's predicate
+            {"root": None, "env": None, "cwd": str(bare)},
+            # 2. no anchor on the walk
+            {"root": None, "env": None, "cwd": str(nothing)},
+            # 3. a --root with no .perry/
+            {"root": str(nothing), "env": None, "cwd": str(outer)},
+            # 4. a $PERRY_PROJECT with no .perry/
+            {"root": None, "env": str(nothing), "cwd": str(outer)},
+        ]
         self.assertEqual([kernel_answer(c) for c in cases],
                          [str(bare.resolve()), "<anchor_not_found>",
-                          "<anchor_not_found>"])
+                          "<anchor_not_found>", "<anchor_not_found>"])
         self.assertEqual(bin_lib_answers(cases),
-                         [str(outer), str(nothing), str(nothing)])
+                         [str(outer), str(nothing), str(nothing),
+                          str(nothing)])
 
 
 if __name__ == "__main__":
