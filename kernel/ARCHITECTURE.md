@@ -90,8 +90,8 @@ Forbidden:
   source for every type, state and field name in the shipped template. It matches whole
   words, case-sensitively. A collision is fixed by renaming on the kernel's side.
 - **Any other path.** The kernel reads only its store, its `--input` file, the `.git`
-  metadata and, on `import`, the export. It writes only the store and
-  `<state root>/export/`. Nothing but `import` reads the export.
+  metadata and the export. It writes only the store and `<state root>/export/`. Only
+  `import` loads the export; `export` reads its own files only to tell `unchanged` apart.
 
 ## §4. Data flow — what happens to one command
 
@@ -418,9 +418,9 @@ becomes the event's seq.
     which a derived path is refused (`store_live_under_test`), so a call that forgets
     `--store` fails instead of writing the shared store.
   - **Detection.** The harness reads the live store's highest event seq read-only before
-    and after the run; if it rose, the suite fails and names the new events. This is the
+    and after the run. A new event whose actor carries the run's own session fails the
+    suite; one from any other session is reported, not failed (OQ-K4). This is the
     kernel's `tests/tree_guard.py`, which cannot see inside `.git/` (DESIGN-023 § 5.3).
-    OQ-K4 covers another session's write during the run.
 
 ### 5.8 Export and import
 
@@ -447,7 +447,7 @@ becomes the event's seq.
 
   `import` writes no event of its own, so export, import and a second export are
   byte-identical (Goal 3).
-- **Only `import` reads the export.** Committing it is the user's choice (DESIGN-023
+- **Only `import` loads the export;** `export` reads it only to decide `unchanged`. Committing it is the user's choice (DESIGN-023
   § 5.3). `events` reports `unexported`, the events written since the last export (OQ-K3).
 
 ### 5.9 The argument for each new claimed path (ADR-016)
@@ -472,7 +472,7 @@ becomes the event's seq.
   name. It is not under `.perry/`, because committing it is the project's choice.
 - **The cost to a project that has a file of that name.** A project's own `export/` under
   its state root is kept: `export` refuses while any other entry is there
-  (`export_dir_foreign`). **Reversal:** delete the directory; only `import` reads it.
+  (`export_dir_foreign`). **Reversal:** delete the directory; only `import` loads it.
 
 Neither path is added to the current claims register, `schema/state-schema.json`: that is
 a schema change outside this row, and the file is deleted at row H.
@@ -586,7 +586,7 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 ## §8. Change log
 
-- 2026-09-24 · v1 · TASK-487: § 2 lists `rollup` among the derived fields, line 6 records the confirmed § 2 entry, and the executable is `bin/perry-kernel` (OQ-K6 closed).
+- 2026-09-24/25 · v1 · TASK-487: § 2 lists `rollup` among the derived fields, line 6 records the confirmed § 2 entry, and the executable is `bin/perry-kernel` (OQ-K6 closed). Round 2: § 1 says the kernel is built, and § 7 marks OQ-K4 resolved. Round 3: § 3, § 5.8 and § 5.9 say `export` also reads the export, to decide `unchanged`; § 5.7 says detection fails only on the run's own session.
 - 2026-09-24 · v1 · The user answered OQ-K1 with option (a): § 5.5 defines `rollup` over the
   `parent` children, and § 7 marks the question resolved.
 - 2026-09-24 · v1 · Written for DESIGN-023 § 6 row A, before any kernel code exists. It
