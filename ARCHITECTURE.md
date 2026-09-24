@@ -72,6 +72,22 @@ there is no cross-project registry).
   are the `SKILL.md` files'. These tools execute, compute and refuse.
 - **Module document**: [`bin/ARCHITECTURE.md`](bin/ARCHITECTURE.md)
 
+### `kernel/` — the PMO kernel (DESIGN-023)
+- **Purpose**: hold a project's structured state in one store per project anchor
+  and answer for it through one CLI, JSON in and JSON out. Specified, not built:
+  DESIGN-023 § 6 row B writes the code, and `bin/` stays the live writer until
+  each lane cuts over.
+- **Owns**: the store (`<git-common-dir>/perry/<slug>.db`, or
+  `<anchor>/.perry/perry.db` outside git) and its deterministic export under
+  `<state root>/export/`; eight concepts and at most twelve command groups; every
+  structural check a guard can decide without reading for meaning; and the
+  derived fields `startable`, `blocked_by`, and a metric's `met` and `fraction`.
+- **Doesn't own**: the method. Item types, states, fields and guards are the
+  process template, which the skill ships as data under `templates/process/`.
+  The kernel reads no markdown, runs no command, and names no skill path or
+  template-declared name.
+- **Module document**: [`kernel/ARCHITECTURE.md`](kernel/ARCHITECTURE.md)
+
 ### `release/` — Perry product versions and releases
 - **Purpose**: maintain Perry's own product versions and verified release updates.
 - **Owns**: typed release records, deterministic VERSION/CHANGELOG projections,
@@ -254,6 +270,7 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   - `release/manage.py` reads `phase/CURRENT` at two git refs with its own
     "no phase" set: the pointer reader in `viewer/parsers.py` serves a working
     tree, and `release/` does not import `viewer/` (USER-981, 2026-09-21).
+- **Sunset (proposed, DESIGN-023)**: becomes false at DESIGN-023 § 6 row H, when `bin/`, the state readers in `viewer/parsers.py` and the state files they read are deleted, and structured state lives only in the kernel's store, read and written through the kernel CLI. Until row H it holds for everything `bin/` still reads. Its successor is `kernel/ARCHITECTURE.md` § 3: nothing but the kernel opens the store, and nothing but `import` reads the export.
 
 ### NN-2 — The store is truth; the projection is rendered
 - **Severity**: hard
@@ -265,6 +282,7 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   absorbed: the store is what every reading reports.
 - **Rationale**: `ADR-007`. Absorbing a hand edit destroys the canonical value;
   overwriting it destroys the human's intent. Both must be visible.
+- **Sunset (proposed, DESIGN-023)**: becomes false at DESIGN-023 § 6 row H, when `perry-tasks board`, the `BOARD.md` import verbs and every projection are deleted with `bin/`. The store stays the truth, and nothing is projected from it: readings come from kernel `query`, and the only file derived from the store is the export, which only `import` reads (`kernel/ARCHITECTURE.md` § 5.8).
 
 ### NN-3 — A write that cannot do what it claims refuses
 - **Severity**: hard
@@ -375,6 +393,10 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
   stay open, and the sentence above holds for those three.
 
 ## §8. Change log
+
+- 2026-09-24 · v1 · TASK-486: §2 gains `kernel/` (DESIGN-023 row A), and §6 NN-1 and
+  NN-2 gain proposed sunset bullets. Both were confirmed by the user in session.
+  No other section is edited.
 
 - 2026-09-23 · v1 · TASK-484: §7's question about lane lines naming a command
   with no rule gains a *Proposed — partly answered* clause — the undigested
