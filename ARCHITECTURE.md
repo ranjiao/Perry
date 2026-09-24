@@ -142,7 +142,7 @@ there is no cross-project registry).
 - **Owns**: per-project variation. A track's mode, a pack's glossary. The
   next-step rules, declared as data that `bin/` evaluates.
 
-### `tests/` — 136 modules
+### `tests/` — 163 modules
 - **Purpose**: the contract, executable. Includes `tests/tree_guard.py`, which
   fails the suite if a run changed the checkout it ran in.
 - **Owns**: whether a claim in this repository is true.
@@ -162,7 +162,7 @@ flowchart TD
     Bin -->|validates against| Schema["schema/state-schema.json"]
     Parsers -->|reads| State[("perry/ · .perry/<br/>stores and projections")]
     Bin -->|writes| State
-    Tests["tests/ — 136 modules"] -.asserts.-> Bin
+    Tests["tests/ — 163 modules"] -.asserts.-> Bin
     Tests -.asserts.-> Parsers
     Tests -.asserts.-> Schema
     Outside([aiMark and other consumers]) -->|published payloads| Contracts["schema/*-contract.md"]
@@ -178,7 +178,7 @@ Forbidden, and each one has cost this project something:
   the field; the procedure does not count rows.
 - **A tool reaching another project.** Roots come from `--root`, then
   `$PERRY_PROJECT`, then the walk up — `ADR-002`, and `bin/lib § resolve_project_root`
-  is the one implementation. **Sunset (proposed, DESIGN-023)**: this becomes false at DESIGN-023 § 6 row H. Until then the kernel's resolver (`kernel/ARCHITECTURE.md` § 5.7, NN-K5) is the only second implementation. It walks in the same order as `bin/lib § resolve_project_root` with a different predicate: it stops at the first `.perry/`, not the first installed project, and refuses (`anchor_not_found`) where `bin/lib` falls back to the working directory or takes a `--root` or `$PERRY_PROJECT` that holds no `.perry/`. `kernel/tests/test_resolver_agreement.py` pins that difference, and shows the two agree on a shared set of fixture roots.
+  is the one implementation. **Sunset (proposed, DESIGN-023)**: this becomes false at DESIGN-023 § 6 row H. The kernel's resolver (`kernel/ARCHITECTURE.md` § 5.7, NN-K5) is the second implementation DESIGN-023 introduces. It walks in the same order as `bin/lib § resolve_project_root` with a different predicate — it stops at the first `.perry/`, not the first installed project — and it refuses (`anchor_not_found`) where `bin/lib` falls back to the working directory or takes a `--root` or `$PERRY_PROJECT` that holds no `.perry/`. `kernel/tests/test_resolver_agreement.py` pins those four differences on both sides and shows the two agree on a shared set of fixture roots. The copies that already exist are unchanged and go at row H: `bin/perry-state § resolve_root`, `viewer/parsers.py § _resolve_project_root`, the flag/env/cwd lines in `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`, `perry-context-budget` and `perry-explain`, and `perry-lint`'s flag-then-walk, which reads no `$PERRY_PROJECT`.
 - **An agent writing `ARCHITECTURE.md`.** This file is the user's.
 
 ## §4. Data flow
@@ -230,7 +230,7 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
 - **Input**: `<tool> <subcommand> [flags]`. Each tool declares its surface in
   `SURFACE`; the parser is driven by that declaration.
 - **Output**: exit 0 read or written · 1 refused, reason printed · 2 bad
-  invocation · 3 the bytes match and the store did not produce them.
+  invocation · 3 the bytes match and the store did not produce them. These two bullets describe the other `bin/` tools: `bin/perry-kernel` has no `SURFACE` (`describe` is its surface), and its exit 3 is an internal fault (`kernel/ARCHITECTURE.md` § 5.1).
 - **Invariant on the tool**: a flag reaches only the subcommands that declare
   it. Accepted-and-dropped is a defect (`DESIGN-016` goal 12).
 - **Invariant on the caller**: a refusal is an outcome, not a failure. Do not
@@ -393,7 +393,7 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
 
 ## §8. Change log
 
-- 2026-09-24 · v1 · TASK-487: §2's `kernel/` entry adds `rollup` to its derived fields (its Owns bullet is rewrapped, not reworded, to stay within the cap), and §3's third Forbidden line gains a proposed sunset clause, confirmed by the user on 2026-09-24 (NN-6). No other section is edited.
+- 2026-09-24/25 · v1 · TASK-487, three rounds, each confirmed by the user (NN-6): §2's `kernel/` entry adds `rollup` (its Owns bullet rewrapped to stay within the cap), says the kernel is built, and `bin/` counts 21 executables; §3's third Forbidden line gains a proposed sunset naming the four resolver differences its test pins and the copies row H removes; §2 and the §3 diagram count 163 test modules; §5's `bin/` contract says `perry-kernel` follows kernel §5.1. No other section is edited.
 - 2026-09-24 · v1 · TASK-486: §2 gains `kernel/` (DESIGN-023 row A), and §6 NN-1 and
   NN-2 gain proposed sunset bullets. Both were confirmed by the user in session.
   No other section is edited.
