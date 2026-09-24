@@ -102,6 +102,12 @@ class TestJsonInput(unittest.TestCase):
                      '{"limit": 1' + "0" * 5000 + "}"):
             with self.subTest(text=text[:40]):
                 self.refused(("query",), text)
+        # Where the key's own type check would not see it: a number field
+        # takes a number, so 1e400 is the finiteness rule's to refuse.
+        r = self.refused(("item", "create"), '{"actor": ' + json.dumps(ACTOR)
+                         + ', "type": "widget", "fields": {"bench": "north",'
+                         ' "weight_g": 1e400}}')
+        self.assertEqual(r.details["key"], "fields.weight_g")
         r = self.refused(("template", "apply"), json.dumps({
             "actor": ACTOR, "template": {**TEMPLATE, "version": 2 ** 63}}))
         self.assertEqual(r.details["key"], "template.version")
@@ -112,6 +118,11 @@ class TestJsonInput(unittest.TestCase):
     def test_nesting(self):
         self.refused(("query",), '{"ids": ' + nested(100000) + "}")
         self.refused(("query",), '{"ids": ' + nested(MAX_DEPTH) + "}")
+        # Where no type check would see it: a `where` value may be any JSON,
+        # so only the depth rule refuses this one.
+        r = self.refused(("query",), '{"type": "widget", "where": {"bench": ['
+                         + nested(MAX_DEPTH) + "]}}")
+        self.assertIn("levels deep", r.env["error"]["message"])
         r = self.sb.run("query", data='{"ids": ' + nested(MAX_DEPTH - 3) + "}")
         self.assertEqual(r.code_name, "input_invalid")  # wrong type, not depth
         self.assertIn("array", r.env["error"]["message"])
