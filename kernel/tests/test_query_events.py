@@ -137,6 +137,20 @@ class TestEvents(unittest.TestCase):
         sb.create()
         self.assertEqual(sb.ok("events", data={"limit": 1})["unexported"], 1)
 
+    def test_an_empty_filter_matches_nothing_in_query_and_events(self):
+        """Values within a filter are ORed, so an empty list is no value at
+        all. `events`'s `items` read `[]` as no filter, by truthiness."""
+        sb = Sandbox(self).ready()
+        sb.create()
+        for key in ("items", "keys", "commands"):
+            with self.subTest(events=key):
+                r = sb.ok("events", data={key: []})
+                self.assertEqual((r["total"], r["events"]), (0, []))
+        for key in ("ids", "state"):
+            with self.subTest(query=key):
+                self.assertEqual(sb.ok("query", data={key: []})["total"], 0)
+        self.assertEqual(sb.ok("events", data={})["total"], 3)
+
     def test_default_bound_is_fifty(self):
         sb = Sandbox(self).ready()
         for _ in range(50):

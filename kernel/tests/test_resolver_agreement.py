@@ -43,7 +43,7 @@ BIN_LIB = textwrap.dedent("""
     out = []
     for case in json.loads(sys.stdin.read()):
         os.environ.pop("PERRY_PROJECT", None)
-        if case["env"]:
+        if case["env"] is not None:
             os.environ["PERRY_PROJECT"] = case["env"]
         os.chdir(case["cwd"])
         out.append(str(lib.resolve_project_root(case["root"])))
@@ -63,7 +63,8 @@ def bin_lib_answers(cases: list[dict]) -> list[str]:
 
 
 def kernel_answer(case: dict) -> str:
-    environ = {"PERRY_PROJECT": case["env"]} if case["env"] else {}
+    environ = ({"PERRY_PROJECT": case["env"]} if case["env"] is not None
+               else {})
     try:
         return str(resolve_anchor(case["root"], environ, case["cwd"]))
     except KernelError as exc:
@@ -123,6 +124,9 @@ class TestTheTwoResolversAgree(unittest.TestCase):
             {"root": "../..", "env": None, "cwd": str(deep / "..")},
             {"root": None, "env": str(link), "cwd": str(elsewhere)},
             {"root": str(moved), "env": str(inner), "cwd": str(elsewhere)},
+            # An empty variable counts as unset on both sides: the walk.
+            {"root": None, "env": "", "cwd": str(deep)},
+            {"root": str(inner), "env": "", "cwd": str(deep)},
         ]
         return cases
 

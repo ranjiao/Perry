@@ -21,10 +21,22 @@ SLUG_SAFE = frozenset(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 
 def _abs(text: str, cwd: Path) -> Path:
+    if text == "":
+        # `Path("")` is the working directory: an empty value must never
+        # quietly become one (the flags are refused at parse, § 5.1).
+        raise KernelError("usage", "a path was given an empty value")
     path = Path(text).expanduser()
     if not path.is_absolute():
         path = Path(cwd) / path
     return path.resolve()
+
+
+def env_value(environ, name: str):
+    """An environment variable's value, or None when it is unset or empty.
+    An empty variable counts as unset, as it does for `bin/`
+    (`bin/lib § resolve_project_root` tests it for truth)."""
+    value = environ.get(name)
+    return value if value else None
 
 
 def _holds_anchor(directory: Path) -> bool:
@@ -38,10 +50,11 @@ def resolve_anchor(root_flag: str | None, environ, cwd) -> Path:
     """The project anchor: `--root`, else `PERRY_PROJECT`, else the first
     directory at or above `cwd` that holds `.perry/`."""
     cwd = Path(cwd)
-    if root_flag:
+    project = env_value(environ, "PERRY_PROJECT")
+    if root_flag is not None:
         chosen, source = _abs(root_flag, cwd), "--root"
-    elif environ.get("PERRY_PROJECT"):
-        chosen, source = _abs(environ["PERRY_PROJECT"], cwd), "PERRY_PROJECT"
+    elif project is not None:
+        chosen, source = _abs(project, cwd), "PERRY_PROJECT"
     else:
         start = cwd.resolve()
         for directory in (start, *start.parents):
@@ -113,12 +126,13 @@ def derived_store(anchor: Path) -> Path:
 def resolve_store(store_flag: str | None, environ, cwd, anchor_fn):
     """`(path, derived)`. `--store`, else `PERRY_STORE`, else derived from the
     anchor, which `anchor_fn()` resolves only when it is needed."""
-    if store_flag:
+    if store_flag is not None:
         return _abs(store_flag, Path(cwd)), False
-    if environ.get("PERRY_STORE"):
-        return _abs(environ["PERRY_STORE"], Path(cwd)), False
+    named = env_value(environ, "PERRY_STORE")
+    if named is not None:
+        return _abs(named, Path(cwd)), False
     path = derived_store(anchor_fn())
-    if environ.get("PERRY_KERNEL_TESTING"):
+    if env_value(environ, "PERRY_KERNEL_TESTING") is not None:
         raise KernelError("store_live_under_test",
                           "PERRY_KERNEL_TESTING is set and no store was named; "
                           "pass --store or PERRY_STORE",

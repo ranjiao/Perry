@@ -8,6 +8,8 @@ from unittest import mock
 
 from support import ACTOR, HUMAN, Sandbox, clean_env, mkdtemp
 
+from perry_kernel import surface
+
 ENVELOPE_KEYS = ["ok", "surface", "command", "effect", "events", "store_seq",
                  "warnings", "result", "error"]
 
@@ -179,6 +181,69 @@ class TestNothingUndeclaredIsAccepted(unittest.TestCase):
                                     stdin='{"id": "W-001"}').ok)
         r = self.sb.run("item", "get", data=f"@{self.sb.tmp / 'missing.json'}")
         self.assertEqual((r.code, r.code_name), (1, "io_error"), r)
+
+
+class TestAnEmptyValueIsRefused(unittest.TestCase):
+    """An empty value never falls through to the environment or the derived
+    store. Every value-taking flag, in both spellings, on a read and a write,
+    is `usage` with exit 2, and nothing is created."""
+
+    def test_every_value_flag_in_both_spellings(self):
+        sb = Sandbox(self).ready()
+        seq = sb.seq()
+        value_flags = sorted(f for f, spec in {
+            **surface.GLOBAL_FLAGS, **surface.COMMAND_FLAGS}.items()
+            if spec["takes"])
+        self.assertEqual(value_flags, ["--input", "--root", "--store"])
+        write = {"actor": ACTOR, "type": "widget",
+                 "fields": {"bench": "north"}}
+        # The environment names a usable store and project, so a value that
+        # fell through to it would succeed rather than refuse.
+        env = clean_env(PERRY_STORE=str(sb.store), PERRY_PROJECT=str(sb.root))
+        for flag in value_flags:
+            for spelling in ([flag, ""], [f"{flag}="]):
+                for words, data in ((("query",), {}),
+                                    (("item", "create"), write)):
+                    kw = {"data": None if flag == "--input" else data,
+                          "store": flag != "--store",
+                          "root": flag != "--root"}
+                    with self.subTest(flag=spelling, command=words):
+                        r = sb.run(*words, flags=spelling, env=env, **kw)
+                        self.assertEqual((r.code, r.code_name),
+                                         (2, "usage"), r)
+                        self.assertEqual(r.details["flag"], flag)
+                        self.assertIn("empty value", r.err)
+        r = sb.run("item", "get", data="@")
+        self.assertEqual((r.code, r.code_name), (2, "usage"), r)
+        self.assertEqual(sb.seq(), seq)
+
+    def test_the_path_layer_refuses_an_empty_value_too(self):
+        from perry_kernel import paths
+        from perry_kernel.errors import KernelError
+        for call in (lambda: paths.resolve_anchor("", {}, "/"),
+                     lambda: paths.resolve_store("", {}, "/", lambda: None)):
+            with self.assertRaises(KernelError) as caught:
+                call()
+            self.assertEqual(caught.exception.code, "usage")
+
+    def test_an_empty_environment_variable_counts_as_unset(self):
+        """As it does for `bin/`: `PERRY_STORE=` and `PERRY_PROJECT=` are
+        unset, never the working directory."""
+        sb = Sandbox(self)
+        deep = sb.root / "a" / "b"
+        deep.mkdir(parents=True)
+        data = {"actor": ACTOR, "state_root": "s"}
+        r = sb.run("init", data=data, store=False, root=False, cwd=deep,
+                   env=clean_env(PERRY_STORE="", PERRY_PROJECT=""))
+        self.assertEqual((r.code, r.code_name), (1, "store_live_under_test"),
+                         r)
+        self.assertEqual(r.details["derived"],
+                         str(sb.root / ".perry" / "perry.db"))
+        r = sb.run("init", data=data, root=False, cwd=deep,
+                   env=clean_env(PERRY_PROJECT=""))
+        self.assertTrue(r.ok, r)
+        self.assertEqual(r.result["anchor"], str(sb.root))
+        self.assertFalse((deep / "perry.db").exists())
 
 
 class TestTheEnvelope(unittest.TestCase):

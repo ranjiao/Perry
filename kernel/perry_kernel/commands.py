@@ -796,12 +796,12 @@ def cmd_events(ctx: Ctx) -> Outcome:
         events = store.events()
         last_export = store.meta("last_export_seq")
         last_export = int(last_export) if last_export is not None else None
-    items = set(data.get("items", []))
+    items = data.get("items")
     prefixes = data.get("keys")
     commands = data.get("commands")
     matches = []
     for event in events:
-        if items and not items & set(event["items"]):
+        if items is not None and not set(items) & set(event["items"]):
             continue
         if prefixes is not None and not any(
                 c["key"].startswith(p) for c in event["changes"]

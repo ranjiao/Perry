@@ -90,6 +90,11 @@ def parse(argv):
                                       {"flag": flag})
                 value = argv[i]
                 i += 1
+            if value == "":
+                raise KernelError("usage", f"{flag} was given an empty value; "
+                                           f"if it came from a shell variable, "
+                                           f"the variable is unset",
+                                  {"flag": flag})
         elif eq:
             raise KernelError("usage", f"{flag} takes no argument",
                               {"flag": flag})
@@ -124,6 +129,9 @@ def read_input(raw, cwd, stdin):
         text = stdin.read() if stdin is not None else ""
         source = "stdin"
     elif raw.startswith("@"):
+        if raw == "@":
+            raise KernelError("usage", "--input @ names no file",
+                              {"flag": "--input"})
         path = Path(raw[1:]).expanduser()
         if not path.is_absolute():
             path = Path(cwd) / path
