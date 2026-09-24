@@ -86,6 +86,9 @@ def _relations_closed(guard, view, store, norm):
 
 
 def _limit(guard, view, store, norm, target_state):
+    """Guards run after the command's changes are applied, so this item
+    already sits in `target_state` and `items_in` returns it: it counts
+    itself once, in the loop."""
     per = guard["per"]
     mine = {f: _effective(view, f) for f in per}
     count = 0
@@ -96,8 +99,6 @@ def _limit(guard, view, store, norm, target_state):
         other_view = item_view(store, norm, other)
         if all(same(_effective(other_view, f), mine[f]) for f in per):
             count += 1
-    if view["state"] != target_state:
-        count += 1  # counting this item
     if count > guard["max"]:
         return {"count": count, "max": guard["max"], "values": mine}
     return None

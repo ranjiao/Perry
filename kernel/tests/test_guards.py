@@ -208,6 +208,43 @@ class TestLimitWarn(GuardCase):
         self.assertEqual(r.env["warnings"][0]["when"], FLAG)
 
 
+class TestGuardsSeeTheItemInItsTargetState(unittest.TestCase):
+    """Why `_limit` has no "count this item if it is elsewhere" branch: every
+    guard is evaluated after the command's changes are applied, so the item
+    is always in the target state already, create and move alike."""
+
+    def test_the_view_is_always_in_the_target_state(self):
+        from unittest import mock
+        from perry_kernel import guards
+        seen = []
+        real = guards.item_view
+
+        def spy(store, norm, item_id):
+            view = real(store, norm, item_id)
+            seen.append(view["state"])
+            return view
+
+        real_evaluate = guards.evaluate
+
+        def evaluate(guard_list, **kw):
+            seen.clear()
+            out = real_evaluate(guard_list, **kw)
+            self.assertEqual(seen[0], kw["target_state"])
+            return out
+
+        sb = Sandbox(self).ready(piece_template({"go": [
+            {"kind": "limit", "max": 1, "per": [], "mode": "warn"}]},
+            create_guards=[{"kind": "limit", "max": 5, "per": [],
+                            "mode": "refuse"}]))
+        with mock.patch.object(guards, "item_view", spy), \
+                mock.patch.object(guards, "evaluate", evaluate):
+            item = sb.create("piece", {})
+            sb.move(item, "go")
+            sb.move(item, "back")
+            sb.move(item, "go")
+        self.assertTrue(seen)
+
+
 class TestGuardsTogether(unittest.TestCase):
 
     def test_every_failure_is_listed_and_nothing_lands(self):
