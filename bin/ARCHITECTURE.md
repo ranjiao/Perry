@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: user (§6, §7)
 > Version: v1
-> Last reviewed: 2026-09-21
+> Last reviewed: 2026-09-25
 > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
 > Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
@@ -47,8 +47,12 @@ flowchart TD
     subgraph index["the index"]
         Perry["perry<br/>list · describe · forward"]
     end
+    subgraph kernelcli["the kernel's CLI — no SURFACE, no bin/lib"]
+        Kernel["perry-kernel<br/>a thin wrapper over kernel/perry_kernel"]
+    end
     Perry -.reads SURFACE from.-> write
     Perry -.reads SURFACE from.-> read
+    Perry -.lists as undeclared.-> Kernel
 ```
 
 ### The three libraries
@@ -130,6 +134,9 @@ flowchart TD
 The refusal branches are the point of the diagram. Three of them were added by
 `DESIGN-016` after each had been measured as a silent success.
 
+`perry-kernel` does not take this path: it parses, resolves, locks and refuses
+as [`kernel/ARCHITECTURE.md`](../kernel/ARCHITECTURE.md) § 4 describes.
+
 ## §5. Contracts
 
 ### The declaration — `SURFACE`
@@ -155,7 +162,9 @@ R5, and `board` names a held file on stderr as one that can be deleted.
 
 ### Exit codes
 `0` read or written · `1` refused, reason printed · `2` bad invocation ·
-`3` the bytes match and the store did not produce them.
+`3` the bytes match and the store did not produce them. These are the other
+tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
+(`kernel/ARCHITECTURE.md` § 5.1).
 
 ## §6. Non-negotiables
 
@@ -182,6 +191,21 @@ R5, and `board` names a held file on stderr as one that can be deleted.
   `walk=False` because it judges the directory it is pointed at.
 - **Rationale**: three tools had the order inverted and two of them write; a
   write landed in a project the caller did not name.
+- **Sunset (proposed, DESIGN-023)**: carried from root `ARCHITECTURE.md` § 3, the
+  third Forbidden line, in the same words. This becomes false at DESIGN-023 § 6
+  row H. The kernel's resolver (`kernel/ARCHITECTURE.md` § 5.7, NN-K5) is the
+  second implementation DESIGN-023 introduces. It walks in the same order as
+  `bin/lib § resolve_project_root` with a different predicate — it stops at the
+  first `.perry/`, not the first installed project — and it refuses
+  (`anchor_not_found`) where `bin/lib` falls back to the working directory or
+  takes a `--root` or `$PERRY_PROJECT` that holds no `.perry/`.
+  `kernel/tests/test_resolver_agreement.py` pins those four differences on both
+  sides and shows the two agree on a shared set of fixture roots. The copies
+  that already exist are unchanged and go at row H: `bin/perry-state §
+  resolve_root`, `viewer/parsers.py § _resolve_project_root`, the flag/env/cwd
+  lines in `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`,
+  `perry-context-budget` and `perry-explain`, and `perry-lint`'s
+  flag-then-walk, which reads no `$PERRY_PROJECT`.
 
 ### NN-B4 — A tool's own document is short
 - **Severity**: soft
@@ -193,7 +217,7 @@ R5, and `board` names a held file on stderr as one that can be deleted.
 
 ## §7. Open questions
 
-- **OQ-B1 — The other thirteen tools.** Six declare a `SURFACE`. Converting the
+- **OQ-B1 — The other fourteen tools.** Six declare a `SURFACE`. Converting the
   rest is mechanical but not free, and `perry list` reports them as undeclared
   in the meantime. No row is open for it.
 - **OQ-B2 — Should `perry-task` be split?** 9,069 lines and 31 subcommands against `perry-okr`'s 68. The subcommands cover five different objects
@@ -204,6 +228,12 @@ R5, and `board` names a held file on stderr as one that can be deleted.
 
 ## §8. Change log
 
+- 2026-09-25 · v1 · TASK-487 (rounds 2 and 3): `bin/perry-kernel` joins the
+  directory. § 1 counts twenty-one executables and § 5 fourteen tools without a
+  `SURFACE` (round 2); § 2's diagram gains `perry-kernel`; § 4 and § 5 say it
+  follows `kernel/ARCHITECTURE.md` § 4 and § 5.1, so its exit 3 is an internal
+  fault; § 6 NN-B3 carries root § 3's proposed sunset in the same words, and
+  § 7 OQ-B1 counts fourteen — both decided by the user.
 - 2026-09-21 · v1 · correction (re-review 2): § 2 said `perry-context-budget`
   "runs no external program" — it runs `bin/perry-detect-host` through `bash` —
   and listed `git` among `perry-codex-preflight`'s dependencies — it runs none,

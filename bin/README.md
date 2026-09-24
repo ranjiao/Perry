@@ -28,8 +28,9 @@ is one line per tool, `perry describe <tool> [<subcommand>]` is the detail, and
 `perry <tool> …` runs one.
 
 **The table below is hand-maintained and is not that index.** Six tools declare
-a surface today and thirteen do not, so this table is the only place the other
-thirteen are described at all — and the price is that its cells can drift from
+a surface today and fourteen do not. One of the fourteen, `perry-kernel`,
+describes itself through `perry-kernel describe`, so this table is the only
+place the other thirteen are described at all — and the price is that its cells can drift from
 the tools, which is what DESIGN-016 § 1.6 counted. A first draft of this
 paragraph said the table was printed from the tools; a V4 review pointed out
 that this would have been a new false statement in the file whose false
@@ -59,10 +60,12 @@ statements it was fixing.
 | [`perry-dispatch-limit`](perry-dispatch-limit) | cache only | Reserves and frees concurrency slots so a session can't fan out unbounded dispatches. |
 | [`perry-kernel`](perry-kernel) | **write** + read | The DESIGN-023 kernel CLI: a thin wrapper over the `perry_kernel` package in `kernel/`, one store per project anchor, JSON in and JSON out. No lane writes through it yet; `bin/` stays the live writer until each lane cuts over. `perry-kernel describe` prints its surface, and [`kernel/ARCHITECTURE.md`](../kernel/ARCHITECTURE.md) is its specification. |
 
-**Seven tools write project files: `perry-task`, `perry-tasks`,
-`perry-goals`, `perry-okr`, `perry-config`, `perry-decide` and
-`perry-knowledge`.** Everything else in the read column never touches the
-project — including on failure. The list is longer than it was because the
+**Eight tools write project files: `perry-task`, `perry-tasks`,
+`perry-goals`, `perry-okr`, `perry-config`, `perry-decide`,
+`perry-knowledge` and `perry-kernel`.** Everything else in the read column never touches the
+project — including on failure. `perry-kernel` writes only its store (under the
+git common dir, or `<anchor>/.perry/perry.db` outside git) and
+`<state root>/export/` (`kernel/ARCHITECTURE.md` § 3). The list is longer than it was because the
 markdown files are becoming projections of stores (ADR-007), and a projection
 needs a tool that can regenerate it; each of the three new entries writes
 exactly one document and the store beside it, and refuses every other path. `perry-knowledge` is the narrowest:
@@ -87,12 +90,21 @@ The Python tools carry a shebang and the executable bit, so `python3 "$PERRY_HOM
 and `"$PERRY_HOME/bin/perry-lint"` are equivalent — both spellings appear in the
 docs and neither is wrong.
 
-**Which project?** Every project-scoped tool resolves its root the same way:
+**Which project?** A project-scoped tool resolves its root in this order:
 
 1. `--root <path>` if given;
 2. else `$PERRY_PROJECT`;
-3. else walk up from the cwd looking for the state files (`perry-diagnose` stops at
-   the cwd instead — it is designed to judge whatever folder you point it at).
+3. else walk up from the cwd to the first *installed* project — one with
+   `.perry/config.jsonl`, or a `.perry/` and a canonical store under its state
+   root (`parsers § installed`) — and use the cwd itself when none is found
+   (`perry-diagnose` stops at the cwd instead — it is designed to judge whatever
+   folder you point it at).
+
+That order is `bin/lib § resolve_project_root`'s. Some tools still carry their
+own copy, which root `ARCHITECTURE.md` § 3 lists: six skip the walk and use
+the cwd, and `perry-lint` reads no `$PERRY_PROJECT`. `perry-kernel` takes the
+same three steps but stops at the first `.perry/` and refuses where these fall
+back (`kernel/ARCHITECTURE.md` § 5.7).
 
 A tool never infers a project from anything else. That is [ADR-002](../perry/decisions/ADR-002-no-cross-project-registry.md).
 
@@ -115,7 +127,7 @@ read, so there is one list rather than four.
 | `0` | fine — read, or written, or (with `--dry-run`) would be |
 | `1` | refused, and the reason is printed; nothing was written |
 | `2` | bad invocation, or the schema could not be read |
-| `3` | the bytes match and the store did not produce them — `perry-okr diff` only (`bin/perry_md_store.py`). `identical: true` alone means the file reproduced itself, which is not the same answer (TASK-182) |
+| `3` | the bytes match and the store did not produce them — `perry-okr diff` only (`bin/perry_md_store.py`). `identical: true` alone means the file reproduced itself, which is not the same answer (TASK-182). `perry-kernel`'s `3` means something else: an internal fault, rolled back (`kernel/ARCHITECTURE.md` § 5.1) |
 
 `perry-lint` overloads `1` as "errors found", and `perry-explain` as "unknown ID".
 `perry-diagnose` exits `0` whatever it FINDS — an absent signal is a finding,
