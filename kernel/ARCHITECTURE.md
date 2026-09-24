@@ -306,15 +306,15 @@ declared command, then writes `current` with `item update` and passes the comman
 `note`. The event records it, so DESIGN-022's rule that only a command measures still holds.
 
 **The roll-up.** DESIGN-022 User Decision 2 folds several measured conditions into one
-answer, and the fold is fixed. `members` is the number of metric values folded, and
-`measured` is how many of them have a `current`. `met` is `null` when there are no members
-or any member is unmeasured; otherwise it is `true` when every member is met and `false`
-when any is not. `fraction` is the single member's `fraction` when there is exactly one
-member, and `null` otherwise. It is never a mean.
-
-DESIGN-022 does not say which metric values fold together once the measured things are
-separate items. That is **OQ-K1**, which is for the user. Until it is answered, every
-item's `rollup` key is `null`.
+answer. An item's `rollup` folds the metric fields of the items whose `parent` it is, one
+level down, whatever their state (OQ-K1, option (a), answered by the user on 2026-09-24).
+Every metric field declared on a child's type is one member, and an unset one is
+unmeasured; the item's own metric fields are not members, and no template key changes any
+of this. `rollup` is `null` when no child's type declares a metric field, and otherwise
+`{"members", "measured", "met", "fraction"}`. `measured` counts members with a `current`.
+`met` is `null` when any member is unmeasured, `true` when every member is met, and `false`
+otherwise. `fraction` is the single member's `fraction` when there is exactly one member,
+and `null` otherwise. It is never a mean.
 
 ### 5.6 Commands
 
@@ -474,9 +474,8 @@ becomes the event's seq.
   its state root is kept: `export` refuses while any other entry is there
   (`export_dir_foreign`). **Reversal:** delete the directory; only `import` reads it.
 
-This document does not add either path to the current claims register,
-`schema/state-schema.json`. That is a schema change outside this row's scope, and the file
-is deleted at row H.
+Neither path is added to the current claims register, `schema/state-schema.json`: that is
+a schema change outside this row, and the file is deleted at row H.
 
 ## §6. Non-negotiables
 
@@ -548,8 +547,8 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 ## §7. Open questions
 
-- **OQ-K1 — Which metric values fold together? This question is for the user.**
-  DESIGN-022 fixes the fold (§ 5.5). It does not say which values fold together once the
+- **OQ-K1 — Which metric values fold together? Resolved: the user chose (a) on
+  2026-09-24, and § 5.5 now defines `rollup`.** DESIGN-022 fixes the fold (§ 5.5). It does not say which values fold together once the
   measured things are items of their own (DESIGN-023 § 5.4). The options:
   - (a) **The `parent` children.** An item's `rollup` folds every metric field of the
     items whose `parent` it is. It needs no template key and fits § 5.4's separate types;
@@ -561,9 +560,9 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
   - (d) **No fold in the kernel.** The skill folds `query` output, against decision 8
     ("fixes how several … roll up") and root § 3 (a lane does not compute a number).
 
-  Two further questions follow from the answer: a second-level count, like DESIGN-022
-  § 5.2's per-grouping counts that exclude items by a field, and whether `count_by` may
-  count by `rollup.met`.
+  Two further questions follow from the answer and stay open: a second-level count, like
+  DESIGN-022 § 5.2's per-grouping counts that exclude items by a field, and whether
+  `count_by` may count by `rollup.met`.
 - **OQ-K2 — The age of a measurement.** DESIGN-022's `due` state needs the time at which
   `current` last changed. Either (a) the skill reads it from `events`
   (`keys: ["field:<name>"]`) and applies its own threshold, which works today, or (b) the
@@ -587,6 +586,8 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 ## §8. Change log
 
+- 2026-09-24 · v1 · The user answered OQ-K1 with option (a): § 5.5 defines `rollup` over the
+  `parent` children, and § 7 marks the question resolved.
 - 2026-09-24 · v1 · Written for DESIGN-023 § 6 row A, before any kernel code exists. It
   covers the concepts, template format 1, every command with its input, output and error
   codes, the metric formula and fold, the store, export and import, the claims' arguments,

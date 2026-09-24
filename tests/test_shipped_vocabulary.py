@@ -1287,7 +1287,10 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
                     # The user reads this one directly and no agent re-renders
                     # it before they do, which is what puts it on the enforced
                     # side of the carve-out rather than the exempt side.
-                    "ARCHITECTURE.md"}
+                    "ARCHITECTURE.md",
+                    # The user reads the kernel's documents directly, and no
+                    # agent re-renders them first.
+                    "kernel"}
         uncovered = []
         for p in sorted(PERRY_HOME.iterdir()):
             name = p.name
