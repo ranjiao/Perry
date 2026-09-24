@@ -3,37 +3,14 @@
 from __future__ import annotations
 
 import sqlite3
-import subprocess
 import time
 import unittest
 from pathlib import Path
 
-from support import ACTOR, Sandbox, clean_env, mkdtemp
+from support import ACTOR, Sandbox, clean_env, git, git_repo, mkdtemp
 
 from perry_kernel import paths
 from perry_kernel.store import APPLICATION_ID
-
-
-def git(cwd, *args):
-    env = clean_env(GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
-                    GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.invalid",
-                    GIT_COMMITTER_NAME="t",
-                    GIT_COMMITTER_EMAIL="t@example.invalid")
-    proc = subprocess.run(["git", *args], cwd=str(cwd), env=env,
-                          capture_output=True, text=True, timeout=60)
-    if proc.returncode != 0:
-        raise AssertionError(f"git {' '.join(args)}: {proc.stderr}")
-    return proc.stdout.strip()
-
-
-def git_repo(root: Path) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    git(root, "init", "-q", "-b", "main")
-    (root / ".perry").mkdir(exist_ok=True)
-    (root / ".perry" / "config.jsonl").write_text("{}\n")
-    git(root, "add", ".")
-    git(root, "commit", "-q", "-m", "init")
-    return root
 
 
 class TestInit(unittest.TestCase):

@@ -232,3 +232,30 @@ class Sandbox:
 
     def seq(self) -> int:
         return self.run("events", data={"limit": 1}).env["store_seq"]
+
+
+# ── temporary repositories ─────────────────────────────────────────────────
+
+
+def git(cwd, *args) -> str:
+    """Run git in a temporary repository, with no user configuration."""
+    env = clean_env(GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+                    GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.invalid",
+                    GIT_COMMITTER_NAME="t",
+                    GIT_COMMITTER_EMAIL="t@example.invalid")
+    proc = subprocess.run(["git", *args], cwd=str(cwd), env=env,
+                          capture_output=True, text=True, timeout=60)
+    if proc.returncode != 0:
+        raise AssertionError(f"git {' '.join(args)}: {proc.stderr}")
+    return proc.stdout.strip()
+
+
+def git_repo(root: Path) -> Path:
+    """A temporary repository whose top level is a project anchor."""
+    root.mkdir(parents=True, exist_ok=True)
+    git(root, "init", "-q", "-b", "main")
+    (root / ".perry").mkdir(exist_ok=True)
+    (root / ".perry" / "config.jsonl").write_text("{}\n")
+    git(root, "add", ".")
+    git(root, "commit", "-q", "-m", "init")
+    return root
