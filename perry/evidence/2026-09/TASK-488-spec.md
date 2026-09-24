@@ -24,6 +24,10 @@ The work lane's method, written as data:
   `when` guards;
 - WIP as a grouped `limit` in `warn` mode.
 
+Two requirements carried from rows the TASK-485 triage dropped (confirmed by the user 2026-09-24):
+- a queue row is born in its track's first declared stage, not the second (was TASK-137);
+- a V4 verdict is a typed record on the reviewed item, never a block parsed from review prose (was TASK-291).
+
 The phase also decides where tracks and project settings live
 (DESIGN-023 § 8). The decision is recorded here before the template is written.
 
@@ -42,3 +46,7 @@ The phase also decides where tracks and project settings live
 ## Bound
 
 The five work-lane types and the four acceptance criteria. One template file and its tests, and no kernel change. If the template cannot express a rule, stop and report (DESIGN-023 § 7, row 2).
+
+## Changes
+
+- 2026-09-24 — Two requirements carried from TASK-137 and TASK-291 (TASK-485 triage).

@@ -2,7 +2,7 @@
 
 Date: 2026-09-24. Owner: Coding Agent. Priority: P1. Required verification: V1.
 KR: O3-KR4. Design: `perry/design/DESIGN-023-a-kernel-and-a-skill.md § 5`, `§ 6` row A.
-> Dispatch mode: manual
+> Dispatch mode: auto
 > Executor: claude-subagent
 > Estimated cycle: medium
 > Subjective verification: the user confirms the `ARCHITECTURE.md § 2` addition and the NN-1/NN-2 marking
@@ -58,3 +58,7 @@ KR: O3-KR4. Design: `perry/design/DESIGN-023-a-kernel-and-a-skill.md § 5`, `§ 
 ## Bound
 
 The eight Deliverable items and the three acceptance criteria. One new file, plus the two `ARCHITECTURE.md` edits once the user confirms them. No code.
+
+## Changes
+
+- 2026-09-24 — `Dispatch mode: manual` → `auto`. The user directed the PMO in session to drive the DESIGN-023 rows, and confirmed this change.
