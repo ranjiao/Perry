@@ -275,7 +275,7 @@ decisions are really settled, belongs to the skill (decision 3).
   choice (DESIGN-002). Committing the export is the user's choice. A fresh
   clone restores from it with `import`, which refuses a store that is not
   empty and checks that replaying the events reproduces the items. Nothing
-  but `import` reads the export. `describe` reports how many events have been
+  but `import` reads the export. `events` reports how many events have been
   written since the last export.
 - **Claims.** The store path and the export directory are new claimed paths.
   Phase A records each one's argument (ADR-016).
@@ -379,7 +379,7 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
 | The kernel grows into a workflow engine | Goal 6's budget test fails | A new concept, command group or guard kind requires `revise` of this design |
 | A method rule the template cannot express, such as cadence, SLA or board sections, pushes a feature into the kernel | Phase C or F cannot represent a rule | The rule becomes a skill procedure, or the user approves a kernel change in a revision. Never inside a task |
 | Checks disappear quietly when `perry-lint` and `perry-diagnose` go | Phase H's table has one row per mode and per check | Each row is marked kernel, skill procedure or dropped, and the user signs off every dropped row |
-| The store sits inside `.git/`, where no one sees it, and is lost on re-clone | `describe` reports events since the last export | The export is committed, `import` restores it, and phase B tests the round trip |
+| The store sits inside `.git/`, where no one sees it, and is lost on re-clone | `events` reports events since the last export | The export is committed, `import` restores it, and phase B tests the round trip |
 | Two sources of truth during migration | A lane writes through both systems | Cutover is per lane, and the old writer turns read-only for that lane in the same change |
 | The rewrite stalls with both systems alive | Phase E not reached two weeks after phase B closes | `work` is cut over first and is usable on its own. `goals` and `decide` can follow later |
 | Process overhead grows back around the new code | The share of commits that touch only `perry/` | Decision 7 |
@@ -429,6 +429,7 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
   that DESIGN-023 contradicted DESIGN-004, DESIGN-005, DESIGN-015, DESIGN-022,
   ADR-002, ADR-006 and ADR-018 without saying so, and did not carry
   constraints the split must keep.
+- 2026-09-24 — § 5.3 and § 7: the count of events written since the last export is reported by `events`, not by `describe`. § 5.1 requires `describe` to be byte-identical across projects, and a count that differs per project breaks that. The conflict was found by the TASK-486 executor (`kernel/ARCHITECTURE.md` § 7), and the user saw the resolution in session.
 
 ## 10. References
 
