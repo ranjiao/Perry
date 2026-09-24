@@ -132,14 +132,21 @@ class TestJsonInput(unittest.TestCase):
         path.write_bytes(b'{"id": "\xff"}')
         r = self.refused(("item", "get"), f"@{path}")
         self.assertEqual(r.details["byte"], 8)
-        proc = subprocess.run(
-            [str(WRAPPER), "item", "get", "--input", "-", "--store",
-             str(self.sb.store), "--root", str(self.sb.root)],
-            input=b'{"id": "\xfe\xff"}', capture_output=True,
-            env=clean_env(), timeout=60)
-        env = json.loads(proc.stdout)
-        self.assertEqual((proc.returncode, env["error"]["code"]),
-                         (2, "input_invalid"), env)
+        # stdin is read as bytes. Under a strict text stdin — what
+        # PYTHONIOENCODING sets here, and a UTF-8 locale gives — reading it as
+        # text raised UnicodeDecodeError, which surfaced as `internal`.
+        for encoding in ("utf-8:strict", "utf-8:surrogateescape"):
+            with self.subTest(stdin=encoding):
+                proc = subprocess.run(
+                    [str(WRAPPER), "item", "get", "--input", "-", "--store",
+                     str(self.sb.store), "--root", str(self.sb.root)],
+                    input=b'{"id": "\xfe\xff"}', capture_output=True,
+                    env=clean_env(PYTHONIOENCODING=encoding), timeout=60)
+                env = json.loads(proc.stdout)
+                self.assertEqual((proc.returncode, env["error"]["code"]),
+                                 (2, "input_invalid"), env)
+                self.assertEqual(env["error"]["details"],
+                                 {"source": "stdin", "byte": 8})
 
 
 class TestOtherChannels(unittest.TestCase):
