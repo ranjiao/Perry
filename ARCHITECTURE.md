@@ -77,11 +77,10 @@ there is no cross-project registry).
   and answer for it through one CLI, JSON in and JSON out. Specified, not built:
   DESIGN-023 § 6 row B writes the code, and `bin/` stays the live writer until
   each lane cuts over.
-- **Owns**: the store (`<git-common-dir>/perry/<slug>.db`, or
-  `<anchor>/.perry/perry.db` outside git) and its deterministic export under
-  `<state root>/export/`; eight concepts and at most twelve command groups; every
-  structural check a guard can decide without reading for meaning; and the
-  derived fields `startable`, `blocked_by`, and a metric's `met` and `fraction`.
+- **Owns**: the store (`<git-common-dir>/perry/<slug>.db`, or `<anchor>/.perry/perry.db`
+  outside git) and its deterministic export under `<state root>/export/`; eight concepts and at
+  most twelve command groups; every structural check a guard can decide without reading for
+  meaning; and the derived fields `startable`, `blocked_by`, a metric's `met` and `fraction`, and `rollup`.
 - **Doesn't own**: the method. Item types, states, fields and guards are the
   process template, which the skill ships as data under `templates/process/`.
   The kernel reads no markdown, runs no command, and names no skill path or
@@ -179,7 +178,7 @@ Forbidden, and each one has cost this project something:
   the field; the procedure does not count rows.
 - **A tool reaching another project.** Roots come from `--root`, then
   `$PERRY_PROJECT`, then the walk up — `ADR-002`, and `bin/lib § resolve_project_root`
-  is the one implementation.
+  is the one implementation. **Sunset (proposed, DESIGN-023)**: this becomes false at DESIGN-023 § 6 row H. Until then the kernel's resolver (`kernel/ARCHITECTURE.md` § 5.7, NN-K5) is the only second implementation and resolves in the same order, and `kernel/tests/test_resolver_agreement.py` holds the two in agreement over a shared set of fixture roots.
 - **An agent writing `ARCHITECTURE.md`.** This file is the user's.
 
 ## §4. Data flow
@@ -394,6 +393,7 @@ only that lane's or that subcommand's rules, plus the overlays (TASK-442).
 
 ## §8. Change log
 
+- 2026-09-24 · v1 · TASK-487: §2's `kernel/` entry adds `rollup` to its derived fields (its Owns bullet is rewrapped, not reworded, to stay within the cap), and §3's third Forbidden line gains a proposed sunset clause, confirmed by the user on 2026-09-24 (NN-6). No other section is edited.
 - 2026-09-24 · v1 · TASK-486: §2 gains `kernel/` (DESIGN-023 row A), and §6 NN-1 and
   NN-2 gain proposed sunset bullets. Both were confirmed by the user in session.
   No other section is edited.

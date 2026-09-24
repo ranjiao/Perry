@@ -3,7 +3,7 @@
 > Written by: agent · Confirmed by: —
 > Version: v1
 > Last reviewed: 2026-09-24
-> Module document for the `kernel/` component. It is proposed for [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2, and the user has not confirmed it yet.
+> Module document for the `kernel/` component. [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2 names it; the user confirmed that entry on 2026-09-24 (merged in 34d7be63).
 > Cap: ≤ 600 lines. This is the kernel's specification, written before any kernel code exists (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
 
 ## §1. Mission & scope
@@ -40,15 +40,15 @@ writes the code, and row C writes the first template.
 | **Event** | `seq`, `at`, `actor`, `command`, `items[]`, `transition`, `changes[]` (each with a `key` and its `before` and `after` values), `note`, `warnings[]`. Events are append-only and are the store's history (ADR-022) |
 | **Attachment** | `item`, `ref` (a path or URL, kept verbatim), `hash` (optional, `sha256:<hex>`). The kernel never opens the target |
 
-`startable`, `blocked_by`, and a metric's `met` and `fraction` are derived when read and
-never stored (§ 5.5, § 5.6).
+`startable`, `blocked_by`, a metric's `met` and `fraction`, and an item's `rollup` are
+derived when read and never stored (§ 5.5, § 5.6).
 
 ### Layout (DESIGN-023 § 5.5)
 
-`kernel/` holds the `perry_kernel` package, its tests and this file. The executable is a
-thin wrapper of a few lines that imports `perry_kernel` and calls its `main()`. The package
-is cached as bytecode, so nothing is recompiled on every call. The executable's name is
-open (DESIGN-023 § 8, OQ-K6), so this document writes it as `kernel`.
+`kernel/` holds the `perry_kernel` package, its tests and this file. The executable,
+`bin/perry-kernel`, is a thin wrapper of a few lines that imports `perry_kernel` and calls its
+`main()`; the user named it on 2026-09-24 (OQ-K6), and row H renames it `bin/perry`. The
+package is cached as bytecode, so nothing is recompiled per call. This document writes `kernel`.
 
 ### The budget
 
@@ -582,10 +582,11 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
   an empty `blocked_by`. An `agent` actor must carry `session`. `--json` is accepted
   everywhere and changes nothing, because output is always JSON; refusing it would be
   NN-K4's stricter reading.
-- **OQ-K6 — The executable's name.** DESIGN-023 § 8's open question; not decided here.
+- **OQ-K6 — The executable's name. Closed:** the user named it `bin/perry-kernel` on 2026-09-24 (§ 2).
 
 ## §8. Change log
 
+- 2026-09-24 · v1 · TASK-487: § 2 lists `rollup` among the derived fields, line 6 records the confirmed § 2 entry, and the executable is `bin/perry-kernel` (OQ-K6 closed).
 - 2026-09-24 · v1 · The user answered OQ-K1 with option (a): § 5.5 defines `rollup` over the
   `parent` children, and § 7 marks the question resolved.
 - 2026-09-24 · v1 · Written for DESIGN-023 § 6 row A, before any kernel code exists. It
