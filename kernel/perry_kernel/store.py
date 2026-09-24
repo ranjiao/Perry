@@ -117,7 +117,9 @@ class Store:
     @staticmethod
     def probe(path) -> str:
         """`absent`, `empty` (no kernel content), `store`, or raises
-        store_foreign / store_version / store_corrupt."""
+        store_foreign / store_version / store_corrupt. A probe is a hint read
+        outside any transaction; a write decides again inside its own
+        (`contents`), because another process can init in between (F6)."""
         p = Path(path)
         if not p.exists():
             return "absent"
@@ -129,14 +131,21 @@ class Store:
         except sqlite3.Error as exc:
             raise _db_error(exc, p)
         try:
+            return Store._classify(conn, p)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _classify(conn, p) -> str:
+        """`empty` or `store` for the database `conn` has open, as that
+        connection sees it; raises store_foreign / version / corrupt."""
+        try:
             app = conn.execute("PRAGMA application_id").fetchone()[0]
             ver = conn.execute("PRAGMA user_version").fetchone()[0]
             names = [r[0] for r in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table'")]
         except sqlite3.Error as exc:
             raise _db_error(exc, p)
-        finally:
-            conn.close()
         if app == 0 and ver == 0 and not names:
             return "empty"
         if app != APPLICATION_ID:
@@ -152,6 +161,12 @@ class Store:
             raise KernelError("store_corrupt", f"{p}: the kernel's tables are "
                                                f"incomplete", {"store": str(p)})
         return "store"
+
+    def contents(self) -> str:
+        """`empty` or `store`, decided inside this store's open transaction:
+        a write that must know whether the store is initialised asks here,
+        under the lock, never from an earlier probe."""
+        return self._classify(self.conn, self.path)
 
     @classmethod
     def open(cls, path, *, write: bool) -> "Store":
@@ -212,12 +227,11 @@ class Store:
     def initialise(self):
         """The schema and the format marker, in the open transaction. The
         state root arrives by the `init` event's `state_root` change."""
-        c = self.conn
-        c.execute(f"PRAGMA application_id = {APPLICATION_ID}")
-        c.execute(f"PRAGMA user_version = {FORMAT}")
+        self.q(f"PRAGMA application_id = {APPLICATION_ID}")
+        self.q(f"PRAGMA user_version = {FORMAT}")
         for statement in SCHEMA:
-            c.execute(statement)
-        c.execute("INSERT INTO meta VALUES ('format', ?)", (str(FORMAT),))
+            self.q(statement)
+        self.q("INSERT INTO meta VALUES ('format', ?)", (str(FORMAT),))
 
     # ── the transaction ────────────────────────────────────────────────────
 

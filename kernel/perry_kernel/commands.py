@@ -324,8 +324,16 @@ def cmd_init(ctx: Ctx) -> Outcome:
     path, _derived = ctx.store_path()
     result = {"store": str(path), "anchor": str(anchor),
               "state_root": state_root, "journal_mode": "wal"}
-    if Store.probe(path) == "store":
-        with ctx.open(write=True) as store:
+    # The probe refuses a foreign file before anything writes to it; whether
+    # the store is initialised is decided again under the lock (F6).
+    probe = Store.probe(path)
+    if probe != "store" and ctx.dry_run:
+        ctx.store_seq = 0
+        return Outcome("dry_run", result)
+    store = ctx.open(write=True) if probe == "store" else Store.create(path)
+    with store:
+        if store.contents() == "store":
+            ctx.store_seq = store.store_seq()
             existing = store.meta("state_root")
             if existing != state_root:
                 raise KernelError(
@@ -334,10 +342,6 @@ def cmd_init(ctx: Ctx) -> Outcome:
                     {"store": str(path), "state_root": existing,
                      "requested": state_root})
             return unchanged(store, ctx, result)
-    if ctx.dry_run:
-        ctx.store_seq = 0
-        return Outcome("dry_run", result)
-    with Store.create(path) as store:
         store.initialise()
         ctx.store_seq = 0
         event = new_event(store, ctx, [], [
@@ -1009,18 +1013,24 @@ def _event_shape(event: dict, n: int) -> None:
                 bad("a type is a string")
 
 
+def refuse_if_not_empty(store: Store) -> None:
+    count = store.event_count()
+    if count:
+        raise KernelError("store_not_empty",
+                          f"{store.path} holds {count} event(s); import "
+                          f"needs an empty store", {"store": str(store.path)})
+
+
 def cmd_import(ctx: Ctx) -> Outcome:
     state_root = normalize_state_root(ctx.input["state_root"])
     anchor = ctx.anchor()
     path, _derived = ctx.store_path()
     probe = Store.probe(path)
     if probe == "store":
+        # A fast refusal, so that a full store is named before a missing
+        # export. The decision that counts is taken again under the lock.
         with ctx.open(write=False) as existing:
-            if existing.event_count():
-                raise KernelError("store_not_empty",
-                                  f"{path} holds {existing.event_count()} "
-                                  f"event(s); import needs an empty store",
-                                  {"store": str(path)})
+            refuse_if_not_empty(existing)
     directory = anchor / state_root / EXPORT_DIR
     missing = [n for n in EXPORT_FILES if not (directory / n).is_file()]
     if missing:
@@ -1056,7 +1066,11 @@ def cmd_import(ctx: Ctx) -> Outcome:
     store = (Store.open(path, write=True) if probe == "store"
              else Store.create(path, memory=memory))
     with store:
-        if probe != "store":
+        # Decided inside the write transaction: another process may have run
+        # init or import since the probe above (F6).
+        if store.contents() == "store":
+            refuse_if_not_empty(store)
+        else:
             store.initialise()
         ctx.store_seq = 0
         for event in events:
