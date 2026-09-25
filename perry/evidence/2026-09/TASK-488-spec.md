@@ -31,6 +31,19 @@ Two requirements carried from rows the TASK-485 triage dropped (confirmed by the
 The phase also decides where tracks and project settings live
 (DESIGN-023 § 8). The decision is recorded here before the template is written.
 
+## Carried from TASK-487, decided by the user 2026-09-25
+
+The first commit of this round, made before any template work, does two things:
+
+- **Root § 6, the NN-1 and NN-2 sunsets.** Change the wording "only `import`
+  reads the export" to "only `export`, to decide `unchanged`, and `import` read
+  the export". The user confirmed this correction.
+- **Split `kernel/ARCHITECTURE.md` by section.** It sits at its 600-line cap
+  and cannot describe the error classes TASK-487 round 3 added. Move § 5
+  Contracts into its own file under `kernel/architecture/`, following the root
+  document's overflow convention. Then add the missing `usage` and
+  `input_invalid` classes to kernel § 5.1.
+
 ## Out of scope
 - The goals and decide types (TASK-492).
 - The importer (TASK-489).

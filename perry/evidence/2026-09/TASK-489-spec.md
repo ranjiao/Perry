@@ -34,6 +34,14 @@ Rules:
 - Long prose `Next action` cells (DESIGN-013 § 7) are shown to the user and
   decided before the import runs.
 
+## Carried from TASK-487, decided by the user 2026-09-25
+
+The kernel's own `import` replays events, but it does not check the replayed
+field values, or a declared relation's end types, against the template that
+was in force when each event was written. Close that gap here, since this row
+is where import correctness is verified at V4. Add a test for each check, and
+show that each test goes red under a mutant of its check.
+
 ## Out of scope
 - OKR, design and ADR records (TASK-492).
 - Historic prose.
