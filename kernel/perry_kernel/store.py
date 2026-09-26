@@ -620,8 +620,10 @@ class Store:
         if src == dst:
             refuse("relation_invalid", f"{src} cannot relate to itself")
         if kind == "parent":
-            others = [d for _k, _s, d in self.edges(kind="parent", src=src)
-                      if d != dst]
+            # The edge being added is never among these: every path reaches
+            # here only once the change's `before` (false) has matched the
+            # store, so src -> dst does not exist yet.
+            others = [d for _k, _s, d in self.edges(kind="parent", src=src)]
             if others:
                 refuse("relation_invalid", f"{src} already has a parent, "
                                            f"{others[0]}", parent=others[0])

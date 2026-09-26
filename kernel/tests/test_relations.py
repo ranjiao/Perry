@@ -221,6 +221,29 @@ class TestOneParentOnEveryPath(RelCase):
 class TestEdgeShapeOnImport(unittest.TestCase):
     """The other two shape rules, which `import` used to replay unchecked."""
 
+    def test_re_adding_an_existing_parent_edge_never_reaches_the_shape_check(self):
+        """Why `_check_edge_shape` needs no `d != dst` filter (round 4, A3):
+        the edge being added never exists when the check runs. Live, `rel
+        add` of an existing edge is unchanged; replayed, an event that adds
+        it again says `before: false` against a stored true, and the before
+        comparison refuses it first."""
+        sb = Sandbox(self).ready()
+        a, b = sb.create(), sb.create()
+        edge = {"actor": ACTOR, "kind": "parent", "from": a, "to": b}
+        sb.ok("rel", "add", data=edge)
+        again = sb.run("rel", "add", data=edge)
+        self.assertEqual(again.env["effect"], "unchanged", again)
+        sb.ok("export")
+
+        def readd(items, events):
+            return items, events + [edit(events[-1], lambda o: o.update(
+                seq=len(events) + 1))]
+        r = replay(self, sb, readd)
+        self.assertEqual(r.code_name, "export_invalid", r)
+        self.assertEqual(r.details["key"], f"rel:parent:{a}:{b}")
+        self.assertIn("the event says it was false",
+                      r.env["error"]["message"])
+
     def test_a_self_edge_and_a_cycle_are_export_invalid(self):
         for name, changes in (
                 ("self-edge", [{"key": "rel:blocks:W-001:W-001",
