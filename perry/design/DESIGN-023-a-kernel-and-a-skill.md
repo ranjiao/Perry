@@ -430,6 +430,13 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
   ADR-002, ADR-006 and ADR-018 without saying so, and did not carry
   constraints the split must keep.
 - 2026-09-24 — § 5.3 and § 7: the count of events written since the last export is reported by `events`, not by `describe`. § 5.1 requires `describe` to be byte-identical across projects, and a count that differs per project breaks that. The conflict was found by the TASK-486 executor (`kernel/ARCHITECTURE.md` § 7), and the user saw the resolution in session.
+- 2026-09-26 — § 5.3: "Nothing but `import` reads the export" is too strong.
+  `export` also reads its own two files, to decide `unchanged`, and removes
+  only a temporary file named with the store's recorded token (TASK-487
+  rounds 3 and 4). The user decided on 2026-09-25 that the matching NN-1 and
+  NN-2 wording in root `ARCHITECTURE.md` § 6 will be corrected in TASK-488.
+  This entry records the same correction for this design. The TASK-487
+  round-3 architecture review found it.
 
 ## 10. References
 
