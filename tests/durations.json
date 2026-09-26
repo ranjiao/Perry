@@ -647,6 +647,10 @@
     "test_merge_gate.py": {
       "sec": null,
       "source": null
+    },
+    "test_kernel_suite.py": {
+      "sec": null,
+      "source": null
     }
   },
   "schema": 1,

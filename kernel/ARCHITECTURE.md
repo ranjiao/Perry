@@ -3,7 +3,7 @@
 > Written by: agent · Confirmed by: —
 > Version: v1
 > Last reviewed: 2026-09-24
-> Module document for the `kernel/` component. It is proposed for [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2, and the user has not confirmed it yet.
+> Module document for the `kernel/` component. [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2 names it; the user confirmed that entry on 2026-09-24 (merged in 34d7be63).
 > Cap: ≤ 600 lines. This is the kernel's specification, written before any kernel code exists (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
 
 ## §1. Mission & scope
@@ -22,8 +22,8 @@ does to the code.
 It deliberately does **not** read, parse, lint or render markdown (Goal 2). It does not run
 a command or spawn a process (decision 8), judge what a document means (decision 3), or
 recommend a next step (decision 5). It does not serve several users, run a server, sync
-machines or draw a UI (§ 3 Non-Goals). Status: specified, not built. DESIGN-023 § 6 row B
-writes the code, and row C writes the first template.
+machines or draw a UI (§ 3 Non-Goals). Status: built by DESIGN-023 § 6 row B; `bin/` stays
+the live writer until each lane cuts over, and row C writes the first template.
 
 ## §2. Components
 
@@ -40,15 +40,15 @@ writes the code, and row C writes the first template.
 | **Event** | `seq`, `at`, `actor`, `command`, `items[]`, `transition`, `changes[]` (each with a `key` and its `before` and `after` values), `note`, `warnings[]`. Events are append-only and are the store's history (ADR-022) |
 | **Attachment** | `item`, `ref` (a path or URL, kept verbatim), `hash` (optional, `sha256:<hex>`). The kernel never opens the target |
 
-`startable`, `blocked_by`, and a metric's `met` and `fraction` are derived when read and
-never stored (§ 5.5, § 5.6).
+`startable`, `blocked_by`, a metric's `met` and `fraction`, and an item's `rollup` are
+derived when read and never stored (§ 5.5, § 5.6).
 
 ### Layout (DESIGN-023 § 5.5)
 
-`kernel/` holds the `perry_kernel` package, its tests and this file. The executable is a
-thin wrapper of a few lines that imports `perry_kernel` and calls its `main()`. The package
-is cached as bytecode, so nothing is recompiled on every call. The executable's name is
-open (DESIGN-023 § 8, OQ-K6), so this document writes it as `kernel`.
+`kernel/` holds the `perry_kernel` package, its tests and this file. The executable,
+`bin/perry-kernel`, is a thin wrapper of a few lines that imports `perry_kernel` and calls its
+`main()`; the user named it on 2026-09-24 (OQ-K6), and row H renames it `bin/perry`. The
+package is cached as bytecode, so nothing is recompiled per call. This document writes `kernel`.
 
 ### The budget
 
@@ -73,7 +73,7 @@ flowchart TD
     Skill["skill — SKILL.md, lanes, templates/process/*.json<br/>markdown and data"] -->|"argv + JSON in"| CLI["kernel executable<br/>thin wrapper"]
     CLI -->|imports| Pkg["perry_kernel<br/>stdlib only"]
     Pkg -->|"sqlite3, WAL"| Store[("store<br/>&lt;git-common-dir&gt;/perry/&lt;slug&gt;.db")]
-    Pkg -->|"export writes · import reads"| Export[("&lt;state root&gt;/export/<br/>items.jsonl · events.jsonl")]
+    Pkg -->|"export writes and compares · import loads"| Export[("&lt;state root&gt;/export/<br/>items.jsonl · events.jsonl")]
     Pkg -.->|"reads .git and commondir<br/>for the path rule"| Git[(".git metadata")]
     CLI -->|"JSON out"| Skill
 ```
@@ -90,8 +90,8 @@ Forbidden:
   source for every type, state and field name in the shipped template. It matches whole
   words, case-sensitively. A collision is fixed by renaming on the kernel's side.
 - **Any other path.** The kernel reads only its store, its `--input` file, the `.git`
-  metadata and, on `import`, the export. It writes only the store and
-  `<state root>/export/`. Nothing but `import` reads the export.
+  metadata and the export. It writes only the store and `<state root>/export/`. Only
+  `import` loads the export; `export` reads its own files only to tell `unchanged` apart.
 
 ## §4. Data flow — what happens to one command
 
@@ -172,7 +172,7 @@ and `error` is `{"code", "message", "details"}`. Exit codes: `0` success · `1` 
 | `relation_cycle` | 1 | a `blocks` or `parent` edge would close a cycle |
 | `stale_write` | 1 | an item named in `expect` has moved: its `seq` is not the one the caller read |
 | `attachment_invalid` | 1 | an empty `ref`, a `ref` containing a line break, or a malformed `hash` |
-| `export_dir_foreign` | 1 | `<state root>/export/` holds an entry other than the kernel's two files |
+| `export_dir_foreign` | 1 | `<state root>/export/` holds an entry other than the kernel's two files and a temporary file named with the store's recorded token |
 | `export_missing` · `export_invalid` | 1 | `import` finds no export, or a line or a seq run that breaks § 5.8 |
 | `replay_mismatch` | 1 | replaying the events does not reproduce `items.jsonl`. The first differing id is named |
 | `internal` | 3 | an unexpected fault. The transaction was rolled back |
@@ -418,16 +418,16 @@ becomes the event's seq.
     which a derived path is refused (`store_live_under_test`), so a call that forgets
     `--store` fails instead of writing the shared store.
   - **Detection.** The harness reads the live store's highest event seq read-only before
-    and after the run; if it rose, the suite fails and names the new events. This is the
+    and after the run. A new event whose actor carries the run's own session fails the
+    suite; one from any other session is reported, not failed (OQ-K4). This is the
     kernel's `tests/tree_guard.py`, which cannot see inside `.git/` (DESIGN-023 § 5.3).
-    OQ-K4 covers another session's write during the run.
 
 ### 5.8 Export and import
 
 - **`export`** writes exactly two files, `<anchor>/<state_root>/export/items.jsonl` and
-  `events.jsonl`, and then records `last_export_seq`. It refuses (`export_dir_foreign`) if
-  the directory holds any other entry. Each file is written to a temporary name and
-  renamed into place.
+  `events.jsonl`, and then records `last_export_seq`. Each is written to a temporary name
+  carrying a token the store recorded at `init` or `import`, then renamed into place. It refuses (`export_dir_foreign`) if
+  the directory holds any other entry, except such a temporary file, left by a crashed export, which it removes.
 - **The bytes are deterministic.** Each line is one JSON object with sorted keys, `,` and
   `:` separators, UTF-8 without ASCII escaping and a `\n` ending, and numbers are written
   as stored. `items.jsonl` is sorted by prefix, then number, one
@@ -447,7 +447,7 @@ becomes the event's seq.
 
   `import` writes no event of its own, so export, import and a second export are
   byte-identical (Goal 3).
-- **Only `import` reads the export.** Committing it is the user's choice (DESIGN-023
+- **Only `import` loads the export;** `export` reads it only to decide `unchanged`. Committing it is the user's choice (DESIGN-023
   § 5.3). `events` reports `unexported`, the events written since the last export (OQ-K3).
 
 ### 5.9 The argument for each new claimed path (ADR-016)
@@ -471,8 +471,8 @@ becomes the event's seq.
   claim (DESIGN-002), so this is a subdirectory of an existing claim, not a new top-level
   name. It is not under `.perry/`, because committing it is the project's choice.
 - **The cost to a project that has a file of that name.** A project's own `export/` under
-  its state root is kept: `export` refuses while any other entry is there
-  (`export_dir_foreign`). **Reversal:** delete the directory; only `import` reads it.
+  its state root is kept: `export` refuses (`export_dir_foreign`) while any other entry is there,
+  and reads its own two files only to decide `unchanged`. **Reversal:** delete the directory; only `import` loads it.
 
 Neither path is added to the current claims register, `schema/state-schema.json`: that is
 a schema change outside this row, and the file is deleted at row H.
@@ -571,9 +571,9 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
   report it, and § 5.1 makes `describe` byte-identical across projects; both cannot hold.
   This document keeps § 5.1 and puts the count on `events` (`unexported`), a departure
   from § 5.3 that needs a DESIGN-023 `## Changes` entry.
-- **OQ-K4 — Detection versus another session's write.** The store is shared. If another
-  worktree writes during a test run, detection sees a leak and the run goes red. Prevention
-  is exact. Whether detection should report the new events or fail the suite is open.
+- **OQ-K4 — Detection versus another session's write. Resolved: the user answered on 2026-09-24 — an event of the run's own session fails the suite, another session's is reported — and `kernel/tests/livestore.py` implements it.** The store is shared. If another
+  worktree wrote during a test run, detection saw a leak and the run went red. Prevention
+  is exact. The question was whether detection should report the new events or fail the suite.
 - **OQ-K5 — Readings where DESIGN-023 is silent.** Each can be reversed. `limit.per` is a
   list, so decision 9's "a named field" can mean more than one. A metric is set once
   `current` is non-null. A flag is an `enum` of `[false, true]`. The slug is
@@ -582,10 +582,11 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
   an empty `blocked_by`. An `agent` actor must carry `session`. `--json` is accepted
   everywhere and changes nothing, because output is always JSON; refusing it would be
   NN-K4's stricter reading.
-- **OQ-K6 — The executable's name.** DESIGN-023 § 8's open question; not decided here.
+- **OQ-K6 — The executable's name. Closed:** the user named it `bin/perry-kernel` on 2026-09-24 (§ 2).
 
 ## §8. Change log
 
+- 2026-09-24/25 · v1 · TASK-487: § 2 lists `rollup` among the derived fields, line 6 records the confirmed § 2 entry, and the executable is `bin/perry-kernel` (OQ-K6 closed). Round 2: § 1 says the kernel is built, and § 7 marks OQ-K4 resolved. Round 3: § 3, § 5.8 and § 5.9 say `export` also reads the export, to decide `unchanged`; § 5.7 says detection fails only on the run's own session. Round 4: § 3's diagram says export compares and import loads; § 5.1, § 5.8 and § 5.9 say export removes only a temporary file named with the store's recorded token; § 7 OQ-K4 reads as answered.
 - 2026-09-24 · v1 · The user answered OQ-K1 with option (a): § 5.5 defines `rollup` over the
   `parent` children, and § 7 marks the question resolved.
 - 2026-09-24 · v1 · Written for DESIGN-023 § 6 row A, before any kernel code exists. It
