@@ -43,6 +43,16 @@ The first commit of this round, made before any template work, does two things:
   Contracts into its own file under `kernel/architecture/`, following the root
   document's overflow convention. Then add the missing `usage` and
   `input_invalid` classes to kernel § 5.1.
+- **After the split, bring the kernel document up to date with TASK-487's
+  rounds 3 and 4.** Found by the round-3 architecture review on 2026-09-26.
+  - Describe `id_exhausted` in § 5.1 and in `item create`'s error list
+    (§ 5.6, near :343).
+  - Describe the empty-variable rules: an empty `PERRY_STORE` is refused, an
+    empty `PERRY_PROJECT` counts as unset, and an empty `PERRY_KERNEL_TESTING`
+    counts as set. They go in § 5.1, § 5.7 and OQ-K5.
+  - Add `export_token` to the `meta` key list (§ 5.7, :413).
+  - § 5.9 should state the token exception.
+  - The kernel § 8 line (:589) must describe § 5.9 accurately.
 
 ## Out of scope
 - The goals and decide types (TASK-492).

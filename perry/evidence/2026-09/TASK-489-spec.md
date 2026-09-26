@@ -42,6 +42,21 @@ was in force when each event was written. Close that gap here, since this row
 is where import correctness is verified at V4. Add a test for each check, and
 show that each test goes red under a mutant of its check.
 
+Also carried from TASK-487's round-3 V4 review (`TASK-487-review-round3.md`):
+- **F1.** Decide whether a no-op `parent` change (`before: true`, `after: true`)
+  replays. a408a4db accepted it; 0b14b8dd returns `export_invalid`. Pin the
+  answer with a test, and correct the comment at
+  `kernel/perry_kernel/store.py:623–625`.
+- **F2.** Restore a test of the import id cap at `commands.py:1018`, using an id
+  of 17 or 18 digits above 2^53. D2's 18-digit bound now shadows the only
+  existing test of it.
+- **F3.** Test that export records a token for a store that has none
+  (`commands.py:907`).
+- **F4.** Test the `Store.open` retries (`store.py:239`, `:253`), and test the
+  deadline's upper bound (`:105`).
+- **F6.** A damaged `export_token` must give `store_corrupt`, not `io_error`
+  (`commands.py:901`).
+
 ## Out of scope
 - OKR, design and ADR records (TASK-492).
 - Historic prose.
