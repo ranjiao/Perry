@@ -8,7 +8,9 @@ cannot disagree with the writes it replays.
 from __future__ import annotations
 
 import json
+import random
 import sqlite3
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -80,6 +82,31 @@ def id_order(item_id: str):
     return parts if parts else (item_id, -1)
 
 
+def _deadline() -> float:
+    return time.monotonic() + BUSY_TIMEOUT_S
+
+
+def _busy(exc: sqlite3.Error) -> bool:
+    low = str(exc).lower()
+    return "locked" in low or "busy" in low
+
+
+def _retrying(fn, deadline: float):
+    """`fn()`, run again while sqlite answers busy or locked and `deadline`
+    has not passed. sqlite's busy handler waits out a lock another connection
+    holds, but it is not called where waiting could deadlock (two
+    connections upgrading one file's lock at once, as two first inits do):
+    SQLITE_BUSY then comes back at once. `store_busy` means the lock was not
+    acquired within 5 s, so the kernel waits the rest of the 5 s itself."""
+    while True:
+        try:
+            return fn()
+        except sqlite3.OperationalError as exc:
+            if not _busy(exc) or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.005 + random.random() * 0.02)
+
+
 def _db_error(exc: sqlite3.Error, path) -> KernelError:
     text = str(exc)
     low = text.lower()
@@ -125,8 +152,13 @@ class Store:
     def probe(path) -> str:
         """`absent`, `empty` (no kernel content), `store`, or raises
         store_foreign / store_version / store_corrupt. A probe is a hint read
-        outside any transaction; a write decides again inside its own
-        (`contents`), because another process can init in between (F6)."""
+        outside any write transaction; a write decides again inside its own
+        (`contents`), because another process can init in between (F6).
+
+        The header and the table list are read in ONE read snapshot. Read one
+        statement at a time, a concurrent init committing between them
+        showed `application_id` 0 beside `user_version` 1, and the store was
+        called foreign (round 4)."""
         p = Path(path)
         try:
             exists, is_dir = p.exists(), p.is_dir()
@@ -138,26 +170,35 @@ class Store:
         if is_dir:
             raise KernelError("store_foreign", f"{p} is a directory",
                               {"store": str(p)})
-        try:
+
+        def read_header():
             conn = Store._connect(p, create=False)
+            try:
+                conn.execute("BEGIN")
+                return Store._header(conn)
+            finally:
+                conn.close()  # ends the read transaction
+
+        try:
+            header = _retrying(read_header, _deadline())
         except sqlite3.Error as exc:
             raise _db_error(exc, p)
-        try:
-            return Store._classify(conn, p)
-        finally:
-            conn.close()
+        return Store._verdict(header, p)
 
     @staticmethod
-    def _classify(conn, p) -> str:
-        """`empty` or `store` for the database `conn` has open, as that
-        connection sees it; raises store_foreign / version / corrupt."""
-        try:
-            app = conn.execute("PRAGMA application_id").fetchone()[0]
-            ver = conn.execute("PRAGMA user_version").fetchone()[0]
-            names = [r[0] for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'")]
-        except sqlite3.Error as exc:
-            raise _db_error(exc, p)
+    def _header(conn):
+        """`(application_id, user_version, table names)`, read on `conn` in
+        whatever transaction it has open. sqlite errors propagate."""
+        app = conn.execute("PRAGMA application_id").fetchone()[0]
+        ver = conn.execute("PRAGMA user_version").fetchone()[0]
+        names = [r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'")]
+        return app, ver, names
+
+    @staticmethod
+    def _verdict(header, p) -> str:
+        """`empty` or `store`; raises store_foreign / version / corrupt."""
+        app, ver, names = header
         if app == 0 and ver == 0 and not names:
             return "empty"
         if app != APPLICATION_ID:
@@ -178,7 +219,11 @@ class Store:
         """`empty` or `store`, decided inside this store's open transaction:
         a write that must know whether the store is initialised asks here,
         under the lock, never from an earlier probe."""
-        return self._classify(self.conn, self.path)
+        try:
+            header = self._header(self.conn)
+        except sqlite3.Error as exc:
+            raise _db_error(exc, self.path)
+        return self._verdict(header, self.path)
 
     @classmethod
     def open(cls, path, *, write: bool) -> "Store":
@@ -188,27 +233,32 @@ class Store:
             raise KernelError("store_missing",
                               f"{path} has not been initialised; run init",
                               {"store": str(path)})
+        deadline = _deadline()
         try:
             conn = cls._connect(path, create=False)
-            mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+            mode = _retrying(lambda: conn.execute(
+                "PRAGMA journal_mode").fetchone()[0], deadline)
             if str(mode).lower() != "wal":
                 conn.close()
                 raise KernelError("store_corrupt",
                                   f"{path}: journal_mode is {mode}, not wal",
                                   {"store": str(path)})
-            conn.execute("PRAGMA synchronous = FULL")
+            _retrying(lambda: conn.execute("PRAGMA synchronous = FULL"),
+                      deadline)
             if conn.execute("PRAGMA synchronous").fetchone()[0] != 2:
                 conn.close()
                 raise KernelError("store_corrupt", f"{path}: synchronous=FULL "
                                                    f"could not be set",
                                   {"store": str(path)})
-            conn.execute("BEGIN IMMEDIATE" if write else "BEGIN")
-            store = cls(conn, path, write)
+            _retrying(lambda: conn.execute(
+                "BEGIN IMMEDIATE" if write else "BEGIN"), deadline)
             if not write:
                 # A deferred read transaction takes its snapshot at the first
                 # read; take it now.
-                store.meta("format")
-            return store
+                _retrying(lambda: conn.execute(
+                    "SELECT value FROM meta WHERE key = 'format'").fetchall(),
+                    deadline)
+            return cls(conn, path, write)
         except sqlite3.Error as exc:
             raise _db_error(exc, path)
 
@@ -216,19 +266,22 @@ class Store:
     def create(cls, path, *, memory: bool = False) -> "Store":
         """A new store's file, in WAL mode, inside an open write transaction.
         The schema is written by `initialise` in the same transaction."""
+        deadline = _deadline()
         try:
             if memory:
                 conn = cls._connect(":memory:", create=True)
             else:
                 Path(path).parent.mkdir(parents=True, exist_ok=True)
                 conn = cls._connect(path, create=True)
-                mode = conn.execute("PRAGMA journal_mode = WAL").fetchone()[0]
+                mode = _retrying(lambda: conn.execute(
+                    "PRAGMA journal_mode = WAL").fetchone()[0], deadline)
                 if str(mode).lower() != "wal":
                     conn.close()
                     raise KernelError("io_error", f"{path}: WAL mode refused",
                                       {"path": str(path)})
-                conn.execute("PRAGMA synchronous = FULL")
-            conn.execute("BEGIN IMMEDIATE")
+                _retrying(lambda: conn.execute("PRAGMA synchronous = FULL"),
+                          deadline)
+            _retrying(lambda: conn.execute("BEGIN IMMEDIATE"), deadline)
             return cls(conn, path, True)
         except OSError as exc:
             raise KernelError("io_error", f"cannot create {path}: "

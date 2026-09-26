@@ -43,9 +43,10 @@ DRIVER = textwrap.dedent("""
         open(marker + ".ready", "a").close()
         while not os.path.exists(go):
             time.sleep(0.002)
+    began = time.monotonic()
     code, out, err = cli.invoke(argv, os.environ, os.getcwd())
     sys.stdout.write(out)
-    sys.stderr.write(err)
+    sys.stderr.write(err + "elapsed=%.3f" % (time.monotonic() - began))
     sys.exit(code)
 """)
 
@@ -151,24 +152,151 @@ class TestAFreeForAll(RaceCase):
         out = []
         for proc in procs:
             stdout, stderr = proc.communicate(timeout=120)
-            out.append((proc.returncode, json.loads(stdout), stderr))
+            elapsed = float(stderr.rsplit("elapsed=", 1)[1])
+            out.append((proc.returncode, json.loads(stdout), stderr, elapsed))
         return out
 
     def test_concurrent_inits(self):
+        """Every outcome is one the document names for this race. It failed
+        1 run in about 106 under load with store_busy, and a stress of 5,760
+        racing inits showed 4 store_foreign: the probe read the header one
+        statement at a time and saw a concurrent init half-committed, and
+        sqlite answered SQLITE_BUSY at once, without waiting, where two
+        first inits upgrade one file's lock together. Both are fixed in the
+        store (TestTheProbeReadsOneSnapshot, TestBusyIsWaitedOut below).
+        `store_busy` stays a documented outcome, so it is accepted exactly
+        where the document says it happens: after 5 s without the lock."""
+        from perry_kernel.store import BUSY_TIMEOUT_S
         roots = ["state"] * (self.WRITERS - 2) + ["other", "other"]
         results = self.release([self.argv("init", data={
             "actor": ACTOR, "state_root": r}) for r in roots])
         effects = [env["effect"] if env["ok"] else env["error"]["code"]
-                   for _code, env, _err in results]
+                   for _code, env, _err, _sec in results]
         self.assertEqual(effects.count("written"), 1, results)
         winner = roots[effects.index("written")]
-        for root, (code, env, err) in zip(roots, results):
+        for root, (code, env, err, sec) in zip(roots, results):
+            got = env["effect"] if env["ok"] else env["error"]["code"]
+            if got == "store_busy":
+                self.assertGreaterEqual(sec, BUSY_TIMEOUT_S, (env, err))
+                continue
             want = ({"written", "unchanged"} if root == winner
                     else {"store_initialized"})
-            got = env["effect"] if env["ok"] else env["error"]["code"]
             self.assertIn(got, want, (root, env, err))
             self.assertNotEqual(code, 3, err)
         self.assertEqual(self.sb.seq(), 1)
+
+
+class Interposed:
+    """A sqlite connection whose `execute` calls `hook(sql)` after each
+    statement runs; everything else is the real connection's."""
+
+    def __init__(self, conn, hook):
+        self._conn = conn
+        self._hook = hook
+
+    def execute(self, sql, *args):
+        self._hook(sql, "before")
+        cursor = self._conn.execute(sql, *args)
+        self._hook(sql, "after")
+        return cursor
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
+def interposing(hook):
+    """Patch Store._connect so every connection is Interposed."""
+    from unittest import mock
+    real = Store._connect
+
+    def connect(path, *, create):
+        return Interposed(real(path, create=create), hook)
+    return mock.patch.object(Store, "_connect", staticmethod(connect))
+
+
+class TestTheProbeReadsOneSnapshot(unittest.TestCase):
+    """Another init commits between the probe's first and second header
+    reads. In one read snapshot the probe still sees the empty file it
+    started on; read one statement at a time it saw application_id 0 beside
+    user_version 1 and called a kernel store foreign."""
+
+    def test_an_init_landing_mid_probe(self):
+        import sqlite3
+        from support import ACTOR as actor, clean_env
+        from perry_kernel import cli
+        sb = Sandbox(self)
+        raw = sqlite3.connect(str(sb.store))
+        raw.execute("PRAGMA journal_mode = WAL")  # empty, and in WAL mode
+        raw.close()
+        argv = ["init", "--input", json.dumps({"actor": actor,
+                                                "state_root": "state"}),
+                "--store", str(sb.store), "--root", str(sb.root)]
+        fired = []
+
+        def hook(sql, when):
+            if (when == "after" and sql == "PRAGMA application_id"
+                    and not fired):
+                fired.append(True)
+                other = cli.invoke(argv, clean_env(), str(sb.root))
+                self.assertEqual(other[0], 0, other)
+        with interposing(hook):
+            code, out, err = cli.invoke(argv, clean_env(), str(sb.root))
+        env = json.loads(out)
+        self.assertTrue(fired)
+        self.assertEqual((code, env["effect"]), (0, "unchanged"), env)
+
+
+class TestBusyIsWaitedOut(unittest.TestCase):
+    """SQLITE_BUSY that comes back at once is retried until the 5 s
+    deadline; only then is it store_busy."""
+
+    def inject(self, times, statements):
+        import sqlite3
+        left = {"n": times}
+
+        def hook(sql, when):
+            if when == "before" and sql in statements and left["n"] > 0:
+                left["n"] -= 1
+                raise sqlite3.OperationalError("database is locked")
+        return interposing(hook), left
+
+    def test_a_few_immediate_busies_are_retried(self):
+        from support import ACTOR as actor, clean_env
+        from perry_kernel import cli
+        for statement in ("PRAGMA journal_mode = WAL", "BEGIN IMMEDIATE",
+                          "BEGIN"):
+            with self.subTest(statement=statement):
+                sb = Sandbox(self)
+                if statement == "BEGIN":
+                    sb.store.write_bytes(b"")  # so the probe opens it
+                patch, left = self.inject(3, {statement})
+                with patch:
+                    code, out, err = cli.invoke(
+                        ["init", "--input", json.dumps(
+                            {"actor": actor, "state_root": "state"}),
+                         "--store", str(sb.store), "--root", str(sb.root)],
+                        clean_env(), str(sb.root))
+                env = json.loads(out)
+                self.assertEqual((code, env["effect"]), (0, "written"), env)
+                self.assertEqual(left["n"], 0, "the busies were injected")
+
+    def test_busy_past_the_deadline_is_store_busy(self):
+        from unittest import mock
+        from support import ACTOR as actor, clean_env
+        from perry_kernel import cli, store as store_mod
+        sb = Sandbox(self)
+        patch, _left = self.inject(10 ** 9, {"BEGIN IMMEDIATE"})
+        began = time.monotonic()
+        with patch, mock.patch.object(store_mod, "BUSY_TIMEOUT_S", 0.3):
+            code, out, err = cli.invoke(
+                ["init", "--input", json.dumps({"actor": actor,
+                                                "state_root": "state"}),
+                 "--store", str(sb.store), "--root", str(sb.root)],
+                clean_env(), str(sb.root))
+        waited = time.monotonic() - began
+        env = json.loads(out)
+        self.assertEqual((code, env["error"]["code"]), (1, "store_busy"), env)
+        self.assertGreaterEqual(waited, 0.3)
 
 
 if __name__ == "__main__":
