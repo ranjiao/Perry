@@ -4,11 +4,19 @@ No kernel source file names a type, state or field of Perry's process
 template. The match is on whole words and is case-sensitive (§ 3), and a
 collision is fixed by renaming on the kernel's side.
 
-`templates/process/perry.json` does not exist until DESIGN-023 § 6 row C
-(TASK-488), so until then the names are the ones DESIGN-023 § 5.4 lists for
-it, plus the method words this row was told to keep out. When the template
-lands, every type, state and field it declares is added to the list, and
-TASK-488's own grep test takes this one over.
+The names are every type, state and field that `templates/process/perry.json`
+declares — the shipped template, written by DESIGN-023 § 6 row C (TASK-488) —
+read from the file, plus the words DESIGN-023 § 5.4 names for the types still
+to come and the method words row B was told to keep out. The file must exist:
+a scan whose names came only from the literal below would pass while the
+template grew names nobody checks.
+
+A collision is fixed by renaming on the kernel's side (§ 3). Row C could not
+change kernel code, so it renamed on the template's side instead: a task's
+`summary` is `gist`, a risk's text is `concern` and its `open` state `active`,
+an ask's `needed` is `question` and `asked` is `asked_on`, an intake row's
+`deferred` outcome is `postponed`, and every `reason` carries its verb
+(`block_reason`, `drop_reason`, `clear_reason`, `resolve_reason`).
 
 This module is the one kernel file that must spell the words it looks for,
 so it scans the package and the wrapper, not itself.
@@ -29,15 +37,19 @@ METHOD_WORDS = ("task", "ask", "risk", "intake", "cadence", "objective", "KR",
 SHIPPED_TEMPLATE = REPO / "templates" / "process" / "perry.json"
 
 
-def template_names() -> set[str]:
-    names = set(METHOD_WORDS)
-    if SHIPPED_TEMPLATE.is_file():
-        declared = json.loads(SHIPPED_TEMPLATE.read_text(encoding="utf-8"))
-        for type_name, decl in declared.get("types", {}).items():
-            names.add(type_name)
-            names.update(decl.get("states", []))
-            names.update(decl.get("fields", {}))
+def shipped_names() -> set[str]:
+    """Every type, state and field the shipped template declares."""
+    declared = json.loads(SHIPPED_TEMPLATE.read_text(encoding="utf-8"))
+    names = set()
+    for type_name, decl in declared["types"].items():
+        names.add(type_name)
+        names.update(decl["states"])
+        names.update(decl["fields"])
     return names
+
+
+def template_names() -> set[str]:
+    return set(METHOD_WORDS) | shipped_names()
 
 
 def hits(text: str, names) -> list[str]:
@@ -47,6 +59,19 @@ def hits(text: str, names) -> list[str]:
 
 
 class TestTheKernelNamesNoMethod(unittest.TestCase):
+
+    def test_the_names_come_from_the_shipped_template(self):
+        """Anti-vacuity: the scan reads the real file, and the file holds
+        the work lane's types, a state and a field of each."""
+        self.assertTrue(SHIPPED_TEMPLATE.is_file(), SHIPPED_TEMPLATE)
+        names = shipped_names()
+        for word in ("task", "ask", "risk", "intake", "cadence",
+                     "not_started", "answered", "cleared", "routed",
+                     "discontinued", "verification", "question", "concern",
+                     "routed_to", "next_due"):
+            self.assertIn(word, names)
+        self.assertGreater(len(names), 50)
+        self.assertLessEqual(names, template_names())
 
     def test_no_kernel_source_names_a_template_word(self):
         names = template_names()

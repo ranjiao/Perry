@@ -1,0 +1,194 @@
+{
+  "format": 1,
+  "name": "perry",
+  "version": 1,
+  "types": {
+    "task": {
+      "prefix": "TASK",
+      "digits": 3,
+      "states": ["not_started", "blocked", "in_progress", "review", "done", "dropped"],
+      "initial": "not_started",
+      "terminal": ["done", "dropped"],
+      "fields": {
+        "title": {"kind": "text"},
+        "gist": {"kind": "text"},
+        "deliverable": {"kind": "text"},
+        "verification_check": {"kind": "text"},
+        "owner": {"kind": "enum", "values": ["User", "PMO Agent", "Coding Agent", "Research Agent", "Review Agent", "User + Agent"]},
+        "priority": {"kind": "enum", "values": ["P0", "P1", "P2"]},
+        "group": {"kind": "text"},
+        "role": {"kind": "text"},
+        "track": {"kind": "text"},
+        "stage": {"kind": "text"},
+        "stage_since": {"kind": "date"},
+        "arrived": {"kind": "date"},
+        "commitment": {"kind": "text"},
+        "design_refs": {"kind": "list", "of": {"kind": "text"}},
+        "next_action": {"kind": "text"},
+        "evidence": {"kind": "text"},
+        "verification": {"kind": "enum", "values": ["V0", "V1", "V2", "V3", "V4", "V5", "V6"], "ordered": true},
+        "high_stakes": {"kind": "enum", "values": [false, true]},
+        "block_reason": {"kind": "text"},
+        "drop_reason": {"kind": "text"},
+        "review_result": {"kind": "enum", "values": ["FAIL", "PASS"], "ordered": true},
+        "review_grade": {"kind": "enum", "values": ["FAIL", "ROW"]},
+        "review_criteria": {"kind": "text"},
+        "review_checked": {"kind": "text"},
+        "review_not_checked": {"kind": "text"},
+        "review_proof": {"kind": "text"},
+        "reviewer": {"kind": "actor"},
+        "signer": {"kind": "actor"},
+        "signed_on": {"kind": "date"},
+        "signoff_checked": {"kind": "list", "of": {"kind": "text"}},
+        "signoff_not_checked": {"kind": "list", "of": {"kind": "text"}}
+      },
+      "create_guards": [
+        {"kind": "required", "fields": ["title", "gist", "deliverable", "verification_check"]},
+        {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}},
+        {"kind": "limit", "max": 3, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["review"]}},
+        {"kind": "limit", "max": 5, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["open"]}}
+      ],
+      "transitions": {
+        "start": {"from": ["not_started", "blocked", "review"], "to": "in_progress", "guards": [
+          {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}}
+        ]},
+        "block": {"from": ["not_started", "in_progress", "review"], "to": "blocked", "guards": [
+          {"kind": "required", "fields": ["block_reason"]},
+          {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}}
+        ]},
+        "submit": {"from": ["not_started", "blocked", "in_progress"], "to": "review", "guards": [
+          {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}}
+        ]},
+        "reset": {"from": ["blocked", "in_progress", "review"], "to": "not_started", "guards": [
+          {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}}
+        ]},
+        "restage_not_started": {"from": ["not_started"], "to": "not_started", "guards": [
+          {"kind": "required", "fields": ["stage", "stage_since"]},
+          {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}},
+          {"kind": "limit", "max": 3, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["review"]}},
+          {"kind": "limit", "max": 5, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["open"]}}
+        ]},
+        "restage_blocked": {"from": ["blocked"], "to": "blocked", "guards": [
+          {"kind": "required", "fields": ["stage", "stage_since"]},
+          {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}},
+          {"kind": "limit", "max": 3, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["review"]}},
+          {"kind": "limit", "max": 5, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["open"]}}
+        ]},
+        "restage_in_progress": {"from": ["in_progress"], "to": "in_progress", "guards": [
+          {"kind": "required", "fields": ["stage", "stage_since"]},
+          {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}},
+          {"kind": "limit", "max": 3, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["review"]}},
+          {"kind": "limit", "max": 5, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["open"]}}
+        ]},
+        "restage_review": {"from": ["review"], "to": "review", "guards": [
+          {"kind": "required", "fields": ["stage", "stage_since"]},
+          {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}},
+          {"kind": "limit", "max": 3, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["review"]}},
+          {"kind": "limit", "max": 5, "per": ["track", "stage"], "mode": "warn", "when": {"stage": ["open"]}}
+        ]},
+        "done": {"from": ["not_started", "blocked", "in_progress", "review"], "to": "done", "guards": [
+          {"kind": "required", "fields": ["evidence"], "at_least": {"verification": "V1"}},
+          {"kind": "required", "at_least": {"verification": "V5"}, "when": {"high_stakes": [true]}},
+          {"kind": "required", "fields": ["review_criteria", "reviewer"], "at_least": {"review_result": "PASS"}, "when": {"verification": ["V4"]}},
+          {"kind": "required", "fields": ["signer", "signed_on", "signoff_checked"], "when": {"verification": ["V5"]}},
+          {"kind": "actor", "actor_kind": "human", "when": {"verification": ["V5"]}}
+        ]},
+        "drop": {"from": ["not_started", "blocked", "in_progress", "review"], "to": "dropped", "guards": [
+          {"kind": "required", "fields": ["drop_reason"]},
+          {"kind": "required", "at_least": {"verification": "V1"}, "when": {"verification": ["V0"]}}
+        ]}
+      }
+    },
+    "ask": {
+      "prefix": "USER",
+      "digits": 3,
+      "states": ["pending", "answered"],
+      "initial": "pending",
+      "terminal": ["answered"],
+      "fields": {
+        "question": {"kind": "text"},
+        "asked_on": {"kind": "date"},
+        "answer": {"kind": "text"}
+      },
+      "create_guards": [
+        {"kind": "required", "fields": ["question", "asked_on"]}
+      ],
+      "transitions": {
+        "answer": {"from": ["pending"], "to": "answered", "guards": [
+          {"kind": "required", "fields": ["answer"]}
+        ]}
+      }
+    },
+    "risk": {
+      "prefix": "RX",
+      "digits": 3,
+      "states": ["active", "cleared"],
+      "initial": "active",
+      "terminal": ["cleared"],
+      "fields": {
+        "concern": {"kind": "text"},
+        "opened": {"kind": "date"},
+        "clear_reason": {"kind": "text"}
+      },
+      "create_guards": [
+        {"kind": "required", "fields": ["concern", "opened"]}
+      ],
+      "transitions": {
+        "clear": {"from": ["active"], "to": "cleared", "guards": [
+          {"kind": "required", "fields": ["clear_reason"]}
+        ]}
+      }
+    },
+    "intake": {
+      "prefix": "IN",
+      "digits": 3,
+      "states": ["pending", "routed", "dropped", "postponed"],
+      "initial": "pending",
+      "terminal": ["routed", "dropped", "postponed"],
+      "fields": {
+        "request": {"kind": "text"},
+        "arrived": {"kind": "date"},
+        "routed_to": {"kind": "ref", "to": ["task"]},
+        "resolve_reason": {"kind": "text"}
+      },
+      "create_guards": [
+        {"kind": "required", "fields": ["request", "arrived"]}
+      ],
+      "transitions": {
+        "route": {"from": ["pending"], "to": "routed", "guards": [
+          {"kind": "required", "fields": ["routed_to"]}
+        ]},
+        "drop": {"from": ["pending"], "to": "dropped", "guards": [
+          {"kind": "required", "fields": ["resolve_reason"]}
+        ]},
+        "postpone": {"from": ["pending"], "to": "postponed", "guards": [
+          {"kind": "required", "fields": ["resolve_reason"]}
+        ]}
+      }
+    },
+    "cadence": {
+      "prefix": "CAD",
+      "digits": 3,
+      "states": ["active", "discontinued"],
+      "initial": "active",
+      "terminal": ["discontinued"],
+      "fields": {
+        "title": {"kind": "text"},
+        "owner": {"kind": "text"},
+        "frequency": {"kind": "text"},
+        "last_run": {"kind": "date"},
+        "next_due": {"kind": "text"},
+        "last_evidence": {"kind": "text"}
+      },
+      "create_guards": [
+        {"kind": "required", "fields": ["title", "frequency", "next_due"]}
+      ],
+      "transitions": {
+        "record_run": {"from": ["active"], "to": "active", "guards": [
+          {"kind": "required", "fields": ["last_run", "last_evidence", "next_due"]}
+        ]}
+      }
+    }
+  },
+  "relations": {}
+}
