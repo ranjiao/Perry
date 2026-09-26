@@ -226,24 +226,50 @@ class TestAnEmptyValueIsRefused(unittest.TestCase):
                 call()
             self.assertEqual(caught.exception.code, "usage")
 
-    def test_an_empty_environment_variable_counts_as_unset(self):
-        """As it does for `bin/`: `PERRY_STORE=` and `PERRY_PROJECT=` are
-        unset, never the working directory."""
+    def test_an_empty_perry_store_is_refused_like_an_empty_flag(self):
+        """D4, the user's decision of 2026-09-25: `PERRY_STORE=` is `usage`,
+        as `--store ""` is. It used to count as unset, and with no
+        PERRY_KERNEL_TESTING the kernel then wrote the derived store. The
+        sandbox is outside git, so the derived path here is the anchor's own
+        `.perry/perry.db`, never the shared one."""
+        sb = Sandbox(self)
+        derived = sb.root / ".perry" / "perry.db"
+        data = {"actor": ACTOR, "state_root": "s"}
+        for testing in ("1", None):
+            with self.subTest(PERRY_KERNEL_TESTING=testing):
+                r = sb.run("init", data=data, store=False,
+                           env=clean_env(PERRY_STORE="",
+                                         PERRY_KERNEL_TESTING=testing))
+                self.assertEqual((r.code, r.code_name), (2, "usage"), r)
+                self.assertEqual(r.details, {"variable": "PERRY_STORE"})
+                self.assertFalse(derived.exists())
+        # The flag wins, so the variable is not read at all.
+        r = sb.run("init", data=data, env=clean_env(PERRY_STORE=""))
+        self.assertTrue(r.ok, r)
+        self.assertEqual(r.result["store"], str(sb.store))
+
+    def test_an_empty_perry_project_counts_as_unset(self):
+        """As `bin/lib` treats it: the walk runs, never the working
+        directory taken as a path."""
         sb = Sandbox(self)
         deep = sb.root / "a" / "b"
         deep.mkdir(parents=True)
-        data = {"actor": ACTOR, "state_root": "s"}
-        r = sb.run("init", data=data, store=False, root=False, cwd=deep,
-                   env=clean_env(PERRY_STORE="", PERRY_PROJECT=""))
-        self.assertEqual((r.code, r.code_name), (1, "store_live_under_test"),
-                         r)
-        self.assertEqual(r.details["derived"],
-                         str(sb.root / ".perry" / "perry.db"))
-        r = sb.run("init", data=data, root=False, cwd=deep,
-                   env=clean_env(PERRY_PROJECT=""))
+        r = sb.run("init", data={"actor": ACTOR, "state_root": "s"},
+                   root=False, cwd=deep, env=clean_env(PERRY_PROJECT=""))
         self.assertTrue(r.ok, r)
         self.assertEqual(r.result["anchor"], str(sb.root))
-        self.assertFalse((deep / "perry.db").exists())
+
+    def test_an_empty_perry_kernel_testing_is_set(self):
+        """The choice for the third variable: PERRY_KERNEL_TESTING is a
+        safety switch, so present counts, empty included, and a derived path
+        is refused. Failing safe costs a --store; the other reading could
+        reach the shared store."""
+        sb = Sandbox(self)
+        r = sb.run("init", data={"actor": ACTOR, "state_root": "s"},
+                   store=False, env=clean_env(PERRY_KERNEL_TESTING=""))
+        self.assertEqual((r.code, r.code_name), (1, "store_live_under_test"),
+                         r)
+        self.assertFalse((sb.root / ".perry" / "perry.db").exists())
 
 
 class TestTheEnvelope(unittest.TestCase):

@@ -58,15 +58,36 @@ def _abs(text: str, cwd, source: str = "a path") -> Path:
     return resolve_path(text, cwd, source)
 
 
-def env_value(environ, name: str):
-    """An environment variable's value, or None when it is unset or empty.
-    An empty variable counts as unset, as it does for `bin/`
-    (`bin/lib § resolve_project_root` tests it for truth)."""
+def env_value(environ, name: str, *, empty: str = "unset"):
+    """An environment variable's value, or None when it is unset.
+
+    What an EMPTY value means is decided per variable, and never by
+    truthiness at the call site (the user's decision, 2026-09-25):
+    - `PERRY_PROJECT` (empty="unset"): unset, as `bin/lib §
+      resolve_project_root` treats it, so the two resolvers agree;
+    - `PERRY_STORE` (empty="refuse"): `usage`, as `--store ""` is — an empty
+      value must never fall through to the derived, shared store.
+    `PERRY_KERNEL_TESTING` is read by `testing()`, not here."""
     value = environ.get(name)
-    if value and SURROGATE.search(value):
+    if value is None:
+        return None
+    if value == "":
+        if empty == "refuse":
+            raise KernelError("usage", f"{name} is set but empty; if it came "
+                                       f"from a shell variable, the variable "
+                                       f"is unset", {"variable": name})
+        return None
+    if SURROGATE.search(value):
         raise KernelError("usage", f"{name} is not valid UTF-8",
                           {"variable": name})
-    return value if value else None
+    return value
+
+
+def testing(environ) -> bool:
+    """Is `PERRY_KERNEL_TESTING` set? Present counts, empty included: it is
+    a safety switch, and one that is set but empty fails safe, refusing the
+    derived store rather than reaching it."""
+    return "PERRY_KERNEL_TESTING" in environ
 
 
 def _holds_anchor(directory: Path) -> bool:
@@ -174,11 +195,11 @@ def resolve_store(store_flag: str | None, environ, cwd, anchor_fn):
     anchor, which `anchor_fn()` resolves only when it is needed."""
     if store_flag is not None:
         return _abs(store_flag, cwd, "--store"), False
-    named = env_value(environ, "PERRY_STORE")
+    named = env_value(environ, "PERRY_STORE", empty="refuse")
     if named is not None:
         return _abs(named, cwd, "PERRY_STORE"), False
     path = derived_store(anchor_fn())
-    if env_value(environ, "PERRY_KERNEL_TESTING") is not None:
+    if testing(environ):
         raise KernelError("store_live_under_test",
                           "PERRY_KERNEL_TESTING is set and no store was named; "
                           "pass --store or PERRY_STORE",
