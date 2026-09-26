@@ -250,6 +250,21 @@ class TestImport(unittest.TestCase):
         self.assertTrue(other.run("import",
                                   data={"state_root": other.state_root}).ok)
 
+    def test_a_full_store_is_named_before_a_missing_export(self):
+        """B4: import's first, read-only emptiness check decides which of two
+        refusals a caller sees. A store that holds events and a state root
+        with no export is store_not_empty, not export_missing: the store is
+        the reason import cannot run, whatever the export holds. The check
+        is decided again under the write lock (F6)."""
+        sb = populated(self)
+        seq = sb.seq()
+        self.assertFalse(export_dir(sb).exists())
+        r = sb.run("import", data={"state_root": sb.state_root})
+        self.assertEqual((r.code, r.code_name), (1, "store_not_empty"), r)
+        r = sb.run("import", data={"state_root": "nowhere"})
+        self.assertEqual(r.code_name, "store_not_empty", r)
+        self.assertEqual(sb.seq(), seq)
+
     def test_export_missing(self):
         sb = Sandbox(self)
         r = sb.run("import", data={"state_root": "state"})
