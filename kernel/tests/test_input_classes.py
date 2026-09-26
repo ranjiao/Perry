@@ -28,6 +28,7 @@ import os
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
 from support import (ACTOR, TEMPLATE, WRAPPER, Sandbox, clean_env,
                      mkdtemp)
@@ -224,17 +225,71 @@ class TestOtherChannels(unittest.TestCase):
         self.assertEqual((proc.returncode, env["error"]["code"]),
                          (1, "io_error"), env)
 
+    #: What the working directory decides, and what it does not. A relative
+    #: --store and the walk read it; an absolute --store never does, so a
+    #: command that needs nothing else answers as it would anywhere
+    #: (round 4, D1: the first version expected io_error from the last case,
+    #: which was skipped on APFS and red on Linux).
+    CWD_CASES = (
+        ("relative --store", ["query", "--store", "never.db"],
+         (1, "io_error")),
+        ("the walk", ["init", "--input",
+                      json.dumps({"actor": ACTOR, "state_root": "state"}),
+                      "--store", "{abs}"], (1, "io_error")),
+        ("absolute --store", ["query", "--store", "{abs}"],
+         (1, "store_missing")),
+    )
+
+    def cwd_cases(self):
+        store = str(mkdtemp(self) / "absolute.db")
+        for name, argv, want in self.CWD_CASES:
+            yield name, [a.replace("{abs}", store) for a in argv], want, store
+
     def test_a_working_directory_that_is_not_utf8(self):
+        """Through the executable, where the file system allows the name:
+        Linux does, APFS refuses it (EILSEQ), and this case then skips."""
         base = mkdtemp(self)
         odd = os.path.join(os.fsencode(str(base)), b"odd-\xff")
         try:
             os.mkdir(odd)
         except OSError as exc:  # a file system that insists on UTF-8 names
-            self.skipTest(f"cannot make a non-UTF-8 directory name: {exc}")
+            self.skipTest(f"cannot make a non-UTF-8 directory name: {exc}; "
+                          f"test_the_same_cases_as_linux_sees_them runs them")
         os.mkdir(os.path.join(odd, b".perry"))
-        code, env = self.run_bytes([b"query", b"--store", b"/tmp/never.db"],
-                                   cwd=odd)
-        self.assertEqual((code, env["error"]["code"]), (1, "io_error"), env)
+        for name, argv, want, store in self.cwd_cases():
+            with self.subTest(name):
+                code, env = self.run_bytes([a.encode() for a in argv],
+                                           cwd=odd)
+                self.assertEqual((code, env["error"]["code"]), want, env)
+                self.assertFalse(Path(store).exists())
+
+    def test_the_same_cases_as_linux_sees_them(self):
+        """The same cases on every file system. On Linux, `os.getcwd()` of a
+        directory whose name is not UTF-8 returns the name with each bad
+        byte as a lone surrogate (surrogateescape); `main` passes that string
+        to the kernel. This drives `main` with `os.getcwd` patched to return
+        exactly that, so the answers above are checked here too."""
+        import contextlib
+        import io
+        from unittest import mock
+        from perry_kernel import cli
+        odd = os.fsdecode(os.path.join(os.fsencode(str(mkdtemp(self))),
+                                       b"odd-\xff"))
+        self.assertIn("\udcff", odd)
+        for name, argv, want, store in self.cwd_cases():
+            with self.subTest(name):
+                out = io.BytesIO()
+                fake_stdout = mock.Mock(buffer=out)
+                with mock.patch("os.getcwd", return_value=odd), \
+                        mock.patch.dict(os.environ, clean_env(), clear=True), \
+                        mock.patch("sys.stdout", fake_stdout), \
+                        mock.patch("sys.stderr", mock.Mock(
+                            buffer=io.BytesIO())), \
+                        contextlib.suppress(SystemExit):
+                    code = cli.main(argv)
+                env = json.loads(out.getvalue().decode("utf-8"))
+                self.assertEqual((code, env["error"]["code"]), want, env)
+                self.assertFalse(Path(store).exists())
 
 
 class TestTheTemplateValidatorNeverRaises(unittest.TestCase):
