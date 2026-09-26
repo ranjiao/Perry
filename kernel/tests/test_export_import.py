@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import json
 import shutil
+import sqlite3
+import subprocess
+import sys
+import textwrap
 import unittest
 
-from support import ACTOR, HUMAN, Sandbox
+from support import ACTOR, HUMAN, KERNEL, Sandbox, clean_env
 
 
 def populated(testcase) -> Sandbox:
@@ -28,6 +32,16 @@ def populated(testcase) -> Sandbox:
     sb.ok("item", "update", data={"actor": ACTOR, "id": b,
                                   "unset": ["bench"], "note": "why not"})
     return sb
+
+
+def sb_meta(sb: Sandbox, key: str):
+    conn = sqlite3.connect(str(sb.store))
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE key = ?",
+                           (key,)).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row else None
 
 
 def export_dir(sb: Sandbox):
@@ -100,42 +114,81 @@ class TestExport(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in directory.iterdir()),
                          ["mine.txt"])
 
-    def test_a_leftover_temp_file_is_removed_not_foreign(self):
-        """A crash between writing a temp file and renaming it leaves the
-        kernel's own file behind; the next export removes it."""
-        from perry_kernel.commands import EXPORT_TEMP, export_temp_name
-        for name in ("items.jsonl", "events.jsonl"):
-            self.assertTrue(EXPORT_TEMP.match(export_temp_name(name)))
+    CRASH = textwrap.dedent("""
+        import os, sys
+        sys.path.insert(0, sys.argv[1])
+        from perry_kernel import cli, commands
+        # The process dies, uncleaned, between writing a temp file and
+        # renaming it: what a crash or a kill -9 leaves behind.
+        commands.os.replace = lambda src, dst: os._exit(9)
+        cli.invoke(sys.argv[2:], os.environ, os.getcwd())
+    """)
+
+    def crash_an_export(self, sb):
+        proc = subprocess.run(
+            [sys.executable, "-c", self.CRASH, str(KERNEL), "export",
+             "--store", str(sb.store), "--root", str(sb.root)],
+            env=clean_env(), capture_output=True, text=True, timeout=60)
+        self.assertEqual(proc.returncode, 9, proc.stderr)
+
+    def test_a_crashed_exports_temp_file_is_removed(self):
+        """D5, the kernel's side: a temp file whose name carries the token
+        the store recorded at init is the kernel's own; the next export
+        removes it."""
         sb = populated(self)
+        token = sb_meta(sb, "export_token")
+        self.assertRegex(token, "^[0-9a-f]{16}$")
+        self.crash_an_export(sb)
         directory = export_dir(sb)
-        directory.mkdir(parents=True)
-        stale = [".items.jsonl.4242.tmp", ".events.jsonl.1.tmp"]
-        for name in stale:
-            (directory / name).write_text("half written")
+        left = sorted(p.name for p in directory.iterdir())
+        self.assertEqual(left, [f".items.jsonl.{token}.tmp"])
+        self.assertIsNone(sb_meta(sb, "last_export_seq"), "rolled back")
         dry = sb.run("export", flags=["--dry-run"])
         self.assertEqual(dry.env["effect"], "dry_run", dry)
-        self.assertEqual(sorted(p.name for p in directory.iterdir()),
-                         sorted(stale))
+        self.assertEqual(sorted(p.name for p in directory.iterdir()), left)
         r = sb.run("export")
         self.assertEqual(r.env["effect"], "written", r)
         self.assertEqual(sorted(p.name for p in directory.iterdir()),
                          ["events.jsonl", "items.jsonl"])
-        (directory / stale[0]).write_text("again")
+        self.assertEqual(sb_meta(sb, "export_token"), token)
+        # Left over again beside an export that is already current.
+        (directory / left[0]).write_text("half written")
         r = sb.run("export")
         self.assertEqual(r.env["effect"], "unchanged", r)
-        self.assertFalse((directory / stale[0]).exists())
+        self.assertFalse((directory / left[0]).exists())
 
-    def test_a_lookalike_is_still_foreign(self):
+    def test_import_records_a_token_too(self):
         sb = populated(self)
+        sb.ok("export")
+        other = twin(self, sb)
+        other.ok("import", data={"state_root": other.state_root})
+        token = sb_meta(other, "export_token")
+        self.assertRegex(token, "^[0-9a-f]{16}$")
+        self.assertNotEqual(token, sb_meta(sb, "export_token"))
+
+    def test_a_project_file_that_looks_like_a_temp_is_foreign_and_kept(self):
+        """D5, the project's side: export used to delete any
+        `.items.jsonl.<digits>.tmp` and report unchanged. Only a name
+        carrying the store's own token is the kernel's; every other entry is
+        refused, by a real export and by a dry run, and kept."""
+        sb = populated(self)
+        sb.ok("export")
         directory = export_dir(sb)
-        directory.mkdir(parents=True)
-        for name in (".items.jsonl.tmp", "items.jsonl.12.tmp",
-                     ".notes.jsonl.12.tmp", ".items.jsonl.12.tmp.bak"):
+        token = sb_meta(sb, "export_token")
+        other_token = "0" * 16 if token != "0" * 16 else "1" * 16
+        for name in (".items.jsonl.12.tmp", ".events.jsonl.1.tmp",
+                     f".items.jsonl.{other_token}.tmp", ".items.jsonl.tmp",
+                     "items.jsonl.12.tmp", ".notes.jsonl.12.tmp",
+                     f".items.jsonl.{token}.tmp.bak"):
             with self.subTest(name=name):
-                (directory / name).write_text("mine")
-                r = sb.run("export")
-                self.assertEqual(r.code_name, "export_dir_foreign", r)
-                self.assertEqual(r.details["entries"], [name])
+                (directory / name).write_text("the project's own")
+                for flags in ([], ["--dry-run"]):
+                    r = sb.run("export", flags=flags)
+                    self.assertEqual((r.code, r.code_name),
+                                     (1, "export_dir_foreign"), r)
+                    self.assertEqual(r.details["entries"], [name])
+                self.assertEqual((directory / name).read_text(),
+                                 "the project's own")
                 (directory / name).unlink()
 
     def test_dry_run_writes_nothing(self):

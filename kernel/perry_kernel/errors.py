@@ -56,7 +56,8 @@ ERRORS: dict[str, tuple[int, str]] = {
     "attachment_invalid": (1, "an empty ref, a ref containing a line break, a "
                               "duplicate ref, or a malformed hash"),
     "export_dir_foreign": (1, "the export directory holds an entry other than "
-                              "the kernel's two files"),
+                              "the kernel's two files and a temporary file "
+                              "named with the store's recorded token"),
     "export_missing": (1, "import finds no export"),
     "export_invalid": (1, "an export line or seq run is malformed, or a replayed "
                           "before value does not match"),

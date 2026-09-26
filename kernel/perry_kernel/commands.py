@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 from pathlib import Path, PurePosixPath
 
 from . import guards as guard_mod
@@ -28,9 +29,12 @@ from .values import (INT_LIMIT, ValueProblem, canonical, check_metric,
 DEFAULT_LIMIT = 50
 EXPORT_DIR = "export"
 EXPORT_FILES = ("items.jsonl", "events.jsonl")
-#: The temporary name `export` writes each file under before renaming it into
-#: place. One left behind by a crash is the kernel's own, not a foreign entry.
-EXPORT_TEMP = re.compile(r"^\.(?:items|events)\.jsonl\.[0-9]+\.tmp$")
+#: `export` writes each file under a temporary name and renames it into
+#: place. The name carries a token the store records when it is created
+#: (`init`, `import`), before any export can write, so a file left by a
+#: crashed export is one the kernel can prove it made. Nothing else in the
+#: directory is removed: every other entry is foreign (§ 5.8).
+EXPORT_TOKEN = "export_token"
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 EVENT_KEYS = ("seq", "at", "actor", "command", "items", "transition",
               "changes", "note", "warnings")
@@ -347,6 +351,7 @@ def cmd_init(ctx: Ctx) -> Outcome:
                      "requested": state_root})
             return unchanged(store, ctx, result)
         store.initialise()
+        store.set_meta(EXPORT_TOKEN, new_export_token())
         ctx.store_seq = 0
         event = new_event(store, ctx, [], [
             {"key": "state_root", "before": None, "after": state_root}])
@@ -873,8 +878,12 @@ def _file_info(data: bytes) -> dict:
             "sha256": hashlib.sha256(data).hexdigest()}
 
 
-def export_temp_name(name: str) -> str:
-    return f".{name}.{os.getpid()}.tmp"
+def new_export_token() -> str:
+    return secrets.token_hex(8)
+
+
+def export_temp_names(token: str) -> dict:
+    return {n: f".{n}.{token}.tmp" for n in EXPORT_FILES}
 
 
 def _export_dir(ctx: Ctx, state_root: str) -> Path:
@@ -889,6 +898,14 @@ def _io(what: str, exc: OSError, fallback) -> KernelError:
 def cmd_export(ctx: Ctx) -> Outcome:
     with ctx.open(write=True) as store:
         directory = _export_dir(ctx, store.meta("state_root"))
+        token = store.meta(EXPORT_TOKEN)
+        # A store made before the token existed has no provable temp name:
+        # this export records one, and until then nothing is removed.
+        provable = set(export_temp_names(token).values()) if token else set()
+        if token is None:
+            token = new_export_token()
+            store.set_meta(EXPORT_TOKEN, token)
+        temps = export_temp_names(token)
         leftovers = []
         try:
             if directory.exists() and not directory.is_dir():
@@ -897,7 +914,7 @@ def cmd_export(ctx: Ctx) -> Outcome:
                                   {"dir": str(directory)})
             if directory.is_dir():
                 entries = set(os.listdir(directory))
-                leftovers = sorted(e for e in entries if EXPORT_TEMP.match(e))
+                leftovers = sorted(entries & provable)
                 foreign = sorted(entries - set(EXPORT_FILES) - set(leftovers))
                 if foreign:
                     raise KernelError(
@@ -919,8 +936,9 @@ def cmd_export(ctx: Ctx) -> Outcome:
             store.rollback()
             return Outcome("dry_run", result)
         try:
-            # A leftover can only be stale: exports of this store are
-            # serialised by its write lock, which this command holds.
+            # A leftover carries this store's recorded token, so the kernel
+            # wrote it, and it is stale: exports of this store are serialised
+            # by its write lock, which this command holds.
             for name in leftovers:
                 (directory / name).unlink(missing_ok=True)
         except OSError as exc:
@@ -929,7 +947,7 @@ def cmd_export(ctx: Ctx) -> Outcome:
             try:
                 directory.mkdir(parents=True, exist_ok=True)
                 for n, b in blobs.items():
-                    tmp = directory / export_temp_name(n)
+                    tmp = directory / temps[n]
                     try:
                         tmp.write_bytes(b)
                         os.replace(tmp, directory / n)
@@ -1157,6 +1175,7 @@ def cmd_import(ctx: Ctx) -> Outcome:
                               f"{first_id}", {"id": first_id})
         last = len(events)
         store.set_meta("last_export_seq", str(last))
+        store.set_meta(EXPORT_TOKEN, new_export_token())
         result = {"dir": str(directory), "items": len(item_rows),
                   "events": last, "last_seq": last, "verified": True}
         if ctx.dry_run:
