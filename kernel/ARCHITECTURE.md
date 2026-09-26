@@ -73,7 +73,7 @@ flowchart TD
     Skill["skill — SKILL.md, lanes, templates/process/*.json<br/>markdown and data"] -->|"argv + JSON in"| CLI["kernel executable<br/>thin wrapper"]
     CLI -->|imports| Pkg["perry_kernel<br/>stdlib only"]
     Pkg -->|"sqlite3, WAL"| Store[("store<br/>&lt;git-common-dir&gt;/perry/&lt;slug&gt;.db")]
-    Pkg -->|"export writes · import reads"| Export[("&lt;state root&gt;/export/<br/>items.jsonl · events.jsonl")]
+    Pkg -->|"export writes and compares · import loads"| Export[("&lt;state root&gt;/export/<br/>items.jsonl · events.jsonl")]
     Pkg -.->|"reads .git and commondir<br/>for the path rule"| Git[(".git metadata")]
     CLI -->|"JSON out"| Skill
 ```
@@ -172,7 +172,7 @@ and `error` is `{"code", "message", "details"}`. Exit codes: `0` success · `1` 
 | `relation_cycle` | 1 | a `blocks` or `parent` edge would close a cycle |
 | `stale_write` | 1 | an item named in `expect` has moved: its `seq` is not the one the caller read |
 | `attachment_invalid` | 1 | an empty `ref`, a `ref` containing a line break, or a malformed `hash` |
-| `export_dir_foreign` | 1 | `<state root>/export/` holds an entry other than the kernel's two files |
+| `export_dir_foreign` | 1 | `<state root>/export/` holds an entry other than the kernel's two files and a temporary file named with the store's recorded token |
 | `export_missing` · `export_invalid` | 1 | `import` finds no export, or a line or a seq run that breaks § 5.8 |
 | `replay_mismatch` | 1 | replaying the events does not reproduce `items.jsonl`. The first differing id is named |
 | `internal` | 3 | an unexpected fault. The transaction was rolled back |
@@ -425,9 +425,9 @@ becomes the event's seq.
 ### 5.8 Export and import
 
 - **`export`** writes exactly two files, `<anchor>/<state_root>/export/items.jsonl` and
-  `events.jsonl`, and then records `last_export_seq`. It refuses (`export_dir_foreign`) if
-  the directory holds any other entry. Each file is written to a temporary name and
-  renamed into place.
+  `events.jsonl`, and then records `last_export_seq`. Each is written to a temporary name
+  carrying a token the store recorded at `init` or `import`, then renamed into place. It refuses (`export_dir_foreign`) if
+  the directory holds any other entry, except such a temporary file, left by a crashed export, which it removes.
 - **The bytes are deterministic.** Each line is one JSON object with sorted keys, `,` and
   `:` separators, UTF-8 without ASCII escaping and a `\n` ending, and numbers are written
   as stored. `items.jsonl` is sorted by prefix, then number, one
@@ -471,8 +471,8 @@ becomes the event's seq.
   claim (DESIGN-002), so this is a subdirectory of an existing claim, not a new top-level
   name. It is not under `.perry/`, because committing it is the project's choice.
 - **The cost to a project that has a file of that name.** A project's own `export/` under
-  its state root is kept: `export` refuses while any other entry is there
-  (`export_dir_foreign`). **Reversal:** delete the directory; only `import` loads it.
+  its state root is kept: `export` refuses (`export_dir_foreign`) while any other entry is there,
+  and reads its own two files only to decide `unchanged`. **Reversal:** delete the directory; only `import` loads it.
 
 Neither path is added to the current claims register, `schema/state-schema.json`: that is
 a schema change outside this row, and the file is deleted at row H.
@@ -572,8 +572,8 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
   This document keeps § 5.1 and puts the count on `events` (`unexported`), a departure
   from § 5.3 that needs a DESIGN-023 `## Changes` entry.
 - **OQ-K4 — Detection versus another session's write. Resolved: the user answered on 2026-09-24 — an event of the run's own session fails the suite, another session's is reported — and `kernel/tests/livestore.py` implements it.** The store is shared. If another
-  worktree writes during a test run, detection sees a leak and the run goes red. Prevention
-  is exact. Whether detection should report the new events or fail the suite is open.
+  worktree wrote during a test run, detection saw a leak and the run went red. Prevention
+  is exact. The question was whether detection should report the new events or fail the suite.
 - **OQ-K5 — Readings where DESIGN-023 is silent.** Each can be reversed. `limit.per` is a
   list, so decision 9's "a named field" can mean more than one. A metric is set once
   `current` is non-null. A flag is an `enum` of `[false, true]`. The slug is
@@ -586,7 +586,7 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 ## §8. Change log
 
-- 2026-09-24/25 · v1 · TASK-487: § 2 lists `rollup` among the derived fields, line 6 records the confirmed § 2 entry, and the executable is `bin/perry-kernel` (OQ-K6 closed). Round 2: § 1 says the kernel is built, and § 7 marks OQ-K4 resolved. Round 3: § 3, § 5.8 and § 5.9 say `export` also reads the export, to decide `unchanged`; § 5.7 says detection fails only on the run's own session.
+- 2026-09-24/25 · v1 · TASK-487: § 2 lists `rollup` among the derived fields, line 6 records the confirmed § 2 entry, and the executable is `bin/perry-kernel` (OQ-K6 closed). Round 2: § 1 says the kernel is built, and § 7 marks OQ-K4 resolved. Round 3: § 3, § 5.8 and § 5.9 say `export` also reads the export, to decide `unchanged`; § 5.7 says detection fails only on the run's own session. Round 4: § 3's diagram says export compares and import loads; § 5.1, § 5.8 and § 5.9 say export removes only a temporary file named with the store's recorded token; § 7 OQ-K4 reads as answered.
 - 2026-09-24 · v1 · The user answered OQ-K1 with option (a): § 5.5 defines `rollup` over the
   `parent` children, and § 7 marks the question resolved.
 - 2026-09-24 · v1 · Written for DESIGN-023 § 6 row A, before any kernel code exists. It
