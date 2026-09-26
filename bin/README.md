@@ -101,10 +101,23 @@ docs and neither is wrong.
    folder you point it at).
 
 That order is `bin/lib § resolve_project_root`'s. Some tools still carry their
-own copy, which root `ARCHITECTURE.md` § 3 lists: six skip the walk and use
-the cwd, and `perry-lint` reads no `$PERRY_PROJECT`. `perry-kernel` takes the
-same three steps but stops at the first `.perry/` and refuses where these fall
-back (`kernel/ARCHITECTURE.md` § 5.7).
+own copy, which root `ARCHITECTURE.md` § 3 lists:
+
+- `perry-state § resolve_root` takes the same three steps in its own code,
+  and `viewer/parsers.py § _resolve_project_root` takes steps 2 and 3 (it has
+  no flag);
+- `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`,
+  `perry-context-budget` and `perry-explain` skip step 3's walk and use the
+  cwd itself;
+- `perry-lint` skips step 2 everywhere — it reads no `$PERRY_PROJECT` — and
+  of its nine sites only one, the default lint, walks; its eight per-mode
+  branches (`--claims`, `--verification`, `--summaries`, `--glossary`,
+  `--reviews`, `--knowledge`, `--provenance`, `--specs`) take `--root` or
+  else the cwd.
+
+`perry-kernel` takes the same three steps but stops at the first `.perry/`,
+not the first installed project, and refuses where these fall back
+(`kernel/ARCHITECTURE.md` § 5.7).
 
 A tool never infers a project from anything else. That is [ADR-002](../perry/decisions/ADR-002-no-cross-project-registry.md).
 

@@ -204,8 +204,11 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
   that already exist are unchanged and go at row H: `bin/perry-state §
   resolve_root`, `viewer/parsers.py § _resolve_project_root`, the flag/env/cwd
   lines in `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`,
-  `perry-context-budget` and `perry-explain`, and `perry-lint`'s
-  flag-then-walk, which reads no `$PERRY_PROJECT`.
+  `perry-context-budget` and `perry-explain`, and `perry-lint`, which reads
+  no `$PERRY_PROJECT` at any of its nine sites: one, the default lint, walks,
+  and eight per-mode branches (`--claims`, `--verification`, `--summaries`,
+  `--glossary`, `--reviews`, `--knowledge`, `--provenance`, `--specs`) take
+  `--root` or else the cwd, with no walk.
 
 ### NN-B4 — A tool's own document is short
 - **Severity**: soft
@@ -228,6 +231,7 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
 
 ## §8. Change log
 
+- 2026-09-26 · v1 · TASK-487 round 4, decided by the user: § 6 NN-B3's sunset, like root § 3's, names `perry-lint`'s nine sites exactly — one walks, eight per-mode branches take `--root` or else the cwd — in place of "flag-then-walk".
 - 2026-09-25 · v1 · TASK-487 (rounds 2 and 3): `bin/perry-kernel` joins the
   directory. § 1 counts twenty-one executables and § 5 fourteen tools without a
   `SURFACE` (round 2); § 2's diagram gains `perry-kernel`; § 4 and § 5 say it

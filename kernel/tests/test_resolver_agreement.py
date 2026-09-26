@@ -2,8 +2,9 @@
 (acceptance criterion 12; root ARCHITECTURE.md § 3, the proposed sunset).
 
 Until DESIGN-023 § 6 row H, the kernel's anchor resolver (§ 5.7, NN-K5) is the
-only second implementation of the project-root order: `--root`, then
-`PERRY_PROJECT`, then the walk up. The kernel may not import `bin/`, so this
+second implementation of the project-root order that DESIGN-023 introduces
+(`--root`, then `PERRY_PROJECT`, then the walk up); the copies `bin/` already
+holds are root ARCHITECTURE.md § 3's list. The kernel may not import `bin/`, so this
 test holds the two together instead: over a shared set of fixture roots and
 starting points, both must name the same directory.
 
