@@ -115,3 +115,30 @@ These are recorded in the next rows' specs. No new row is opened.
   - F4: test the `Store.open` retries and the deadline's upper bound.
 - **TASK-488** (documents): F5, plus the architecture review's new descriptive
   mismatches (added to its spec on 2026-09-26).
+
+## Merge gate and merge
+
+**Merge gate.** From the primary checkout:
+
+```
+env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME python3 tests/merge-check --base main delivery=coding/task-487-kernel-core --tier full --record <scratch>/merge-487-20260926-111714
+```
+
+- The gate printed `✓ all green` and then `✓ exact merged tree passed full`.
+- Its receipt reports base main `999ca0ed`, candidate `0b14b8dd`, and tested
+  tree `8ba58a5d7191aa72a4090e501cb3dec5b3adc52c`.
+- It did not run the four slow-tier harness modules, by design.
+- The durations artifact stays in scratch and was **not imported** into
+  `tests/durations.json`. Importing it is deferred integration work.
+
+**Merge.**
+
+- Just before merging, the refs were rechecked: main was still `999ca0ed` and
+  the branch still `0b14b8dd`, so the binding held.
+- `git merge --no-ff coding/task-487-kernel-core` produced `afa054af`, whose
+  tree `8ba58a5d` is identical to the tree the gate tested.
+- The author's worktree was removed. Both `coding/task-487-kernel-core` and the
+  tool-made branch were deleted.
+- `.git/perry` is absent. Nothing was pushed.
+
+**TASK-487 closes at V4** on the round-3 PASS (`review.md § 5`).
