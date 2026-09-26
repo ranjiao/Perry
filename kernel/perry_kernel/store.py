@@ -58,12 +58,19 @@ TABLES = ("meta", "template", "item", "value", "relation", "attachment",
           "event", "ceiling")
 
 
+#: The longest number part an id can have: a type pads to at most 18 digits
+#: (`template.MAX_DIGITS`), and a minted number never passes 2^53, which has
+#: 16. Checked before `int()`, which refuses more than 4,300 digits by raising.
+MAX_ID_DIGITS = 18
+
+
 def split_id(item_id: str):
     """`(prefix, number)`, or None when `item_id` is not an id's shape."""
     if not isinstance(item_id, str) or "-" not in item_id:
         return None
     prefix, _, digits = item_id.partition("-")
-    if not prefix or not digits.isdigit() or not digits.isascii():
+    if (not prefix or not digits.isascii() or not digits.isdigit()
+            or len(digits) > MAX_ID_DIGITS):
         return None
     return prefix, int(digits)
 
@@ -288,6 +295,19 @@ class Store:
     def meta(self, key: str):
         rows = self.q("SELECT value FROM meta WHERE key = ?", (key,))
         return rows[0][0] if rows else None
+
+    def meta_seq(self, key: str):
+        """A meta value that holds an event seq, or None when unset. Text
+        that is not a short run of ASCII digits is damage, checked before
+        `int()` sees it."""
+        raw = self.meta(key)
+        if raw is None:
+            return None
+        if not (raw.isascii() and raw.isdigit() and len(raw) <= 19):
+            raise KernelError("store_corrupt", f"{self.path}: meta {key} "
+                                               f"cannot be read back",
+                              {"store": str(self.path), "row": f"meta {key}"})
+        return int(raw)
 
     def set_meta(self, key: str, value: str):
         self.q("INSERT INTO meta VALUES (?, ?) ON CONFLICT(key) DO UPDATE "

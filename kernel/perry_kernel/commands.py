@@ -802,8 +802,7 @@ def cmd_events(ctx: Ctx) -> Outcome:
                           {"key": "after_seq"})
     with ctx.open(write=False) as store:
         events = store.events()
-        last_export = store.meta("last_export_seq")
-        last_export = int(last_export) if last_export is not None else None
+        last_export = store.meta_seq("last_export_seq")
     items = data.get("items")
     prefixes = data.get("keys")
     commands = data.get("commands")

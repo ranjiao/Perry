@@ -346,6 +346,101 @@ class TestTheTemplateValidatorNeverRaises(unittest.TestCase):
         self.assertTrue(tpl.validate(candidate))
 
 
+class TestLongDigitRuns(unittest.TestCase):
+    """Round 4, D2: `int()` refuses more than 4,300 digits by raising, so an
+    id with a long number part reached `internal` from `store.split_id`.
+    Every `int()` the kernel applies to text it did not produce is listed
+    here with its bound:
+
+    | site | text | bound |
+    |---|---|---|
+    | `store.split_id` | an id from `--input` or an export | at most 18 digits (`MAX_ID_DIGITS`) |
+    | `Store.meta_seq` | `last_export_seq` read back from the store | ASCII digits, at most 19 |
+    | `values.valid_date` | a date field | the pattern allows exactly 4, 2 and 2 ASCII digits |
+
+    JSON numbers are parsed by `json.loads`, whose own limit raises
+    ValueError, which every parse site maps to a typed refusal."""
+
+    LONG = "W-" + "1" * 5000
+
+    def setUp(self):
+        self.sb = Sandbox(self).ready()
+        self.item = self.sb.create()
+
+    def test_the_bound_matches_the_template_cap(self):
+        from perry_kernel import store, template
+        self.assertEqual(store.MAX_ID_DIGITS, template.MAX_DIGITS)
+
+    def test_every_path_an_id_takes_in(self):
+        cases = [
+            (("item", "update"), {"actor": ACTOR, "id": self.item,
+                                  "set": {"label": "x"},
+                                  "expect": {self.LONG: 1}},
+             (1, "item_not_found")),
+            (("item", "create"), {"actor": ACTOR, "type": "widget",
+                                  "fields": {"bench": "north"},
+                                  "expect": {self.LONG: 1, self.item: 3}},
+             (1, "item_not_found")),
+            (("query",), {"after": self.LONG}, (2, "input_invalid")),
+            (("query",), {"ids": [self.LONG, self.item]},
+             (1, "item_not_found")),
+            (("item", "get"), {"id": self.LONG}, (1, "item_not_found")),
+            (("rel", "add"), {"actor": ACTOR, "kind": "blocks",
+                              "from": self.item, "to": self.LONG},
+             (1, "item_not_found")),
+        ]
+        for words, data, want in cases:
+            with self.subTest(command=words, data=sorted(data)):
+                r = self.sb.run(*words, data=data)
+                envelope_ok(self, r)
+                self.assertEqual((r.code, r.code_name), want, r)
+
+    def test_nineteen_digits_is_not_an_id_and_eighteen_is(self):
+        from perry_kernel.store import split_id
+        self.assertEqual(split_id("W-" + "0" * 17 + "7"), ("W", 7))
+        self.assertIsNone(split_id("W-" + "0" * 18 + "7"))
+        tpl = json.loads(json.dumps(TEMPLATE))
+        tpl["types"]["gauge"]["digits"] = 18
+        sb = Sandbox(self).ready(tpl)
+        first = sb.create("gauge")
+        self.assertEqual(first, "G-" + "0" * 17 + "1")
+        page = sb.ok("query", data={"after": first})
+        self.assertEqual(page["total"], 1)
+
+    def test_an_export_line_with_a_long_id(self):
+        from test_relations import replay
+        self.sb.ok("export")
+        for where in ("items", "rel"):
+            with self.subTest(where):
+                def mutate(items, events, where=where):
+                    event = json.loads(events[-1])
+                    event.update(seq=len(events) + 1, command="rel add",
+                                 transition=None, note=None, warnings=[])
+                    if where == "items":
+                        event.update(items=[self.LONG], changes=[])
+                    else:
+                        event.update(items=[self.item], changes=[{
+                            "key": f"rel:blocks:{self.item}:{self.LONG}",
+                            "before": False, "after": True}])
+                    return items, events + [json.dumps(event) + "\n"]
+                r = replay(self, self.sb, mutate)
+                envelope_ok(self, r)
+                self.assertEqual((r.code, r.code_name), (1, "export_invalid"),
+                                 r)
+
+    def test_a_last_export_seq_that_cannot_be_read_back(self):
+        import sqlite3
+        conn = sqlite3.connect(str(self.sb.store))
+        conn.execute("INSERT INTO meta VALUES ('last_export_seq', ?)",
+                     ("9" * 5000,))
+        conn.commit()
+        conn.close()
+        r = self.sb.run("events", data={})
+        envelope_ok(self, r)
+        self.assertEqual((r.code, r.code_name), (1, "store_corrupt"), r)
+        self.assertEqual(r.details["row"], "meta last_export_seq")
+
+
 class TestExportLines(unittest.TestCase):
     """The same classes arriving through `import`: export_invalid, never
     `internal` and never `store_corrupt`, which would blame the store."""
