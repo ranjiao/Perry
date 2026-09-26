@@ -100,7 +100,11 @@ def _holds_anchor(directory: Path) -> bool:
 def resolve_anchor(root_flag: str | None, environ, cwd) -> Path:
     """The project anchor: `--root`, else `PERRY_PROJECT`, else the first
     directory at or above `cwd` that holds `.perry/`."""
-    project = env_value(environ, "PERRY_PROJECT")
+    # The flag wins (NN-K5), so the environment is not read when it is
+    # given: a PERRY_PROJECT that could not be used must not refuse a
+    # command that named its project.
+    project = (env_value(environ, "PERRY_PROJECT") if root_flag is None
+               else None)
     if root_flag is not None:
         chosen, source = _abs(root_flag, cwd, "--root"), "--root"
     elif project is not None:

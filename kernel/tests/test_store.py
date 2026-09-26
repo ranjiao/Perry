@@ -227,6 +227,31 @@ class TestResolution(unittest.TestCase):
                 self.assertTrue(r.ok, r)
                 self.assertEqual(r.result["anchor"], str(want))
 
+    def test_a_flag_means_its_variable_is_never_read(self):
+        """NN-K5 all the way down: with --root given, a PERRY_PROJECT that
+        could not be used (not UTF-8, naming nothing) must not refuse the
+        command; with --store given, neither may a PERRY_STORE (not UTF-8,
+        empty). Round 4: an undecodable PERRY_PROJECT refused even when a
+        valid --root was given."""
+        sb = Sandbox(self)
+        data = {"actor": ACTOR, "state_root": "s"}
+        unusable = {"PERRY_PROJECT": ["/tmp/\udcff", str(sb.tmp / "nothing"),
+                                      ""],
+                    "PERRY_STORE": ["/tmp/\udcff", ""]}
+        for name, values in unusable.items():
+            for n, value in enumerate(values):
+                with self.subTest(variable=name, value=value):
+                    store = sb.tmp / f"{name}-{n}.db"
+                    r = sb.run("init", data=data, store=store,
+                               env=clean_env(**{name: value}))
+                    self.assertTrue(r.ok, r)
+                    self.assertEqual((r.result["anchor"], r.result["store"]),
+                                     (str(sb.root), str(store)))
+        # Without the flag the same variable is read and refused.
+        r = sb.run("init", data=data, root=False,
+                   env=clean_env(PERRY_PROJECT="/tmp/\udcff"))
+        self.assertEqual((r.code, r.code_name), (2, "usage"), r)
+
     def test_anchor_not_found_from_each_source(self):
         sb = Sandbox(self)
         bare = mkdtemp(self)
