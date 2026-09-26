@@ -500,6 +500,14 @@ def cmd_item_create(ctx: Ctx) -> Outcome:
                               {})
         prefix = tdecl["prefix"]
         number = (store.ceiling(prefix) or 0) + 1
+        if number > INT_LIMIT:
+            # The cap import holds ids and ceilings to (`_export_id`): a
+            # store never holds an id its own export could not import.
+            raise KernelError("id_exhausted",
+                              f"{type_name} ids have reached {INT_LIMIT}, the "
+                              f"highest an id may carry",
+                              {"type": type_name, "prefix": prefix,
+                               "ceiling": number - 1})
         new_id = f"{prefix}-{number:0{tdecl['digits']}d}"
 
         edges, others = [], []

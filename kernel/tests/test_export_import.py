@@ -308,6 +308,91 @@ class TestImport(unittest.TestCase):
         self.assertEqual(other.create(), "W-041")
         self.assertEqual(other.create("gauge"), "G-2")
 
+    def seeded(self, ceiling):
+        """A fresh store imported from `populated`'s export with the widget
+        ceiling seeded at `ceiling`; returns (sandbox, import result)."""
+        sb = populated(self)
+        sb.ok("export")
+        other = twin(self, sb)
+        path = export_dir(other) / "events.jsonl"
+        events = path.read_text("utf-8").splitlines(True)
+        seed = self.edit(events[-1], lambda o: o.update(
+            seq=len(events) + 1, command="seed ids", items=[],
+            transition=None, note=None, warnings=[],
+            changes=[{"key": "ceiling:W", "before": 2, "after": ceiling}]))
+        path.write_text("".join(events) + seed, "utf-8")
+        return other, other.run("import",
+                                data={"state_root": other.state_root})
+
+    def test_the_mint_stops_at_the_cap_import_holds(self):
+        """D3: import accepts ids and ceilings up to 2^53. The live mint used
+        not to stop there, so one create past an imported ceiling of 2^53
+        made a store whose own export import then refused."""
+        from perry_kernel.values import INT_LIMIT
+        other, r = self.seeded(INT_LIMIT - 1)
+        self.assertTrue(r.ok, r)
+        self.assertEqual(other.create(), f"W-{INT_LIMIT}")
+        seq = other.seq()
+        r = other.run("item", "create", data={
+            "actor": ACTOR, "type": "widget", "fields": {"bench": "north"}})
+        self.assertEqual((r.code, r.code_name), (1, "id_exhausted"), r)
+        self.assertEqual(r.details, {"type": "widget", "prefix": "W",
+                                     "ceiling": INT_LIMIT})
+        self.assertEqual(other.seq(), seq)
+        self.assertEqual(other.create("gauge"), "G-2", "other types go on")
+        # The store's own export still imports: the round trip holds at the
+        # cap.
+        other.ok("export")
+        third = twin(self, other)
+        self.assertTrue(third.ok("import", data={
+            "state_root": third.state_root})["verified"])
+        self.assertEqual(third.get(f"W-{INT_LIMIT}")["type"], "widget")
+
+    def test_an_imported_ceiling_is_bounded_both_ways(self):
+        """E9: the ceiling check in export lines, at its edges."""
+        from perry_kernel.values import INT_LIMIT
+        other, r = self.seeded(INT_LIMIT)
+        self.assertTrue(r.ok, r)
+        r = other.run("item", "create", data={
+            "actor": ACTOR, "type": "widget", "fields": {"bench": "north"}})
+        self.assertEqual(r.code_name, "id_exhausted", r)
+        for bad in (INT_LIMIT + 1, -1):
+            with self.subTest(ceiling=bad):
+                _other, r = self.seeded(bad)
+                self.assertEqual((r.code, r.code_name), (1, "export_invalid"),
+                                 r)
+                self.assertIn("a ceiling is an integer from 0",
+                              r.env["error"]["message"])
+
+    def test_an_attachment_hash_in_an_export_line_is_checked(self):
+        """E15: an attachment's hash in an export line is a sha256 or null,
+        as `attach add` requires; the replay does not take another."""
+        sb = populated(self)
+        sb.ok("export")
+        good = "sha256:" + "ab" * 32
+        for digest, code in ((good, None), ("md5:abc", "export_invalid"),
+                             ("sha256:" + "AB" * 32, "export_invalid"),
+                             (7, "export_invalid")):
+            with self.subTest(digest=digest):
+                other = twin(self, sb)
+                path = export_dir(other) / "events.jsonl"
+                events = path.read_text("utf-8").splitlines(True)
+                plant = self.edit(events[-1], lambda o: o.update(
+                    seq=len(events) + 1, command="attach add",
+                    items=["W-001"], transition=None, note=None, warnings=[],
+                    changes=[{"key": "attach:planted", "before": None,
+                              "after": {"hash": digest}}]))
+                path.write_text("".join(events) + plant, "utf-8")
+                r = other.run("import", data={"state_root": other.state_root})
+                if code is None:
+                    # A good hash gets past the line check; the planted
+                    # event is not in items.jsonl, so the replay differs.
+                    self.assertEqual(r.code_name, "replay_mismatch", r)
+                else:
+                    self.assertEqual((r.code, r.code_name), (1, code), r)
+                    self.assertIn("a sha256 hash or null",
+                                  r.env["error"]["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

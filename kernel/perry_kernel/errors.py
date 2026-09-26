@@ -38,6 +38,8 @@ ERRORS: dict[str, tuple[int, str]] = {
     "template_incompatible": (1, "the new version would strand stored data"),
     "item_not_found": (1, "an id in the input, a ref value or a relation end "
                           "does not exist"),
+    "id_exhausted": (1, "a type's ids have reached 2^53, the highest number "
+                        "an id may carry; none is left to mint"),
     "unknown_type": (1, "the applied template declares no such type"),
     "unknown_field": (1, "the applied template declares no such field"),
     "unknown_transition": (1, "the applied template declares no such transition"),
