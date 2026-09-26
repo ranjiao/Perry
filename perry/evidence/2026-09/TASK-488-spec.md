@@ -3,16 +3,22 @@
 Date: 2026-09-24. Owner: Coding Agent. Priority: P1. Required verification: V3.
 KR: O3-KR4. Design: `perry/design/DESIGN-023-a-kernel-and-a-skill.md § 5.4`, `§ 6` row C, `§ 8`.
 Depends on: TASK-487.
-> Dispatch mode: manual
+> Dispatch mode: auto
 > Executor: claude-subagent
 > Estimated cycle: medium
 > Subjective verification: (none)
-> Touches architecture: (none)
+> Touches architecture: §3 (the third Forbidden line's copy list), §6 NN-1, NN-2 (sunset wording), the kernel module document (split)
 > Deployed: no
 
 ## Files in scope
 - `templates/process/perry.json` — new.
 - `kernel/tests/` — a test that loads this template, and the grep test.
+- `kernel/ARCHITECTURE.md` and a new `kernel/architecture/` section file — the
+  split, and the document updates carried below.
+- Root `ARCHITECTURE.md` — three edits and nothing else: the NN-1 and NN-2
+  sunset wording, the § 3 copy list, and one § 8 line. It stays at 500 lines
+  or fewer.
+- `bin/ARCHITECTURE.md` — the NN-B3 copy list and one § 8 line.
 
 ## Deliverable
 The work lane's method, written as data:
@@ -54,6 +60,20 @@ The first commit of this round, made before any template work, does two things:
   - § 5.9 should state the token exception.
   - The kernel § 8 line (:589) must describe § 5.9 accurately.
 
+## Carried, decided by the user 2026-09-26
+
+- **The copy list gains `perry-churn`.** Add `bin/perry-churn § detect_perry`
+  (`:305–341`) to the "existing copies" in the root § 3 third Forbidden line and
+  in `bin/ARCHITECTURE.md` NN-B3. It walks up to the first `.perry/`, stops at
+  the git top level, and takes no `--root` and no environment variable. Keep
+  the root edit line-neutral.
+- **Record TASK-487's accepted choices in the kernel document** (the user
+  accepted all three):
+  - `id_exhausted` is part of the unreleased `surface` 1.0;
+  - export temp files are named with the store's recorded token, and only a
+    temp file carrying that token is removed;
+  - an empty `PERRY_KERNEL_TESTING` counts as set.
+
 ## Out of scope
 - The goals and decide types (TASK-492).
 - The importer (TASK-489).
@@ -64,12 +84,24 @@ The first commit of this round, made before any template work, does two things:
    guard refusing where the method refuses.
 3. The grep test finds no type, state or field name from the template anywhere
    in `kernel/` source (Goal 1).
-4. This spec records where tracks and settings live, with the reason.
+4. The RESULT proposes where tracks and settings live, with the reason. The
+   PMO records the user's answer in this spec. Until the user answers, the
+   template covers only the five types; it declares no tracks or settings.
+5. The first commit holds the carried document changes and nothing else.
+   `perry-lint --architecture-module` reports 0 errors for
+   `kernel/ARCHITECTURE.md` and for the new section file, and root
+   `ARCHITECTURE.md` is 500 lines or fewer.
+6. Every carried document item above is done, and the RESULT gives each one's
+   file:line.
 
 ## Bound
 
-The five work-lane types and the four acceptance criteria. One template file and its tests, and no kernel change. If the template cannot express a rule, stop and report (DESIGN-023 § 7, row 2).
+The five work-lane types and the six acceptance criteria: one template file and its tests, plus the carried document changes. No change to kernel code. If the template cannot express a rule, stop and report; do not change the kernel (DESIGN-023 § 7, row 2).
 
 ## Changes
 
 - 2026-09-24 — Two requirements carried from TASK-137 and TASK-291 (TASK-485 triage).
+- 2026-09-26 — `Dispatch mode: manual` → `auto`. Added the carried items from
+  TASK-487 (user decisions of 2026-09-25 and 2026-09-26), the new document
+  files in scope, and acceptance criteria 5 and 6. Criterion 4 now routes the
+  tracks and settings decision to the user.
