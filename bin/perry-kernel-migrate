@@ -1,0 +1,789 @@
+#!/usr/bin/env python3
+"""
+perry-kernel-migrate — a project's old stores, imported into a TEMPORARY
+kernel store and reconciled against it (DESIGN-023 § 6 row D, TASK-489).
+
+    perry-kernel-migrate --work <dir> [--root <project>] [--json]
+
+It reads `tasks.jsonl`, `asks.jsonl`, `risks.jsonl`, `intake.jsonl`,
+`cadence.jsonl` and `.perry/events.jsonl` through the existing readers, writes
+a synthetic kernel export under `<dir>/anchor/`, runs `bin/perry-kernel import`
+into `<dir>/store.db`, and reads the store back through the kernel to check
+DESIGN-023 row D's criteria 1–5. It writes nothing outside `<dir>`, which must
+be empty or absent and outside the project and any `.git`, and it names that
+store with `--store` on every kernel call. Exit 0 reconciled, 1 refused or not
+reconciled, 2 bad invocation. It is one-shot: row H deletes it with the rest
+of the old `bin/`. The mapping and its reasons: `bin/README.md §
+perry-kernel-migrate`.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / "viewer"))
+sys.path.insert(0, str(HERE))
+import lib  # noqa: E402
+import parsers as P  # noqa: E402
+import perry_store  # noqa: E402
+
+KERNEL = HERE / "perry-kernel"
+TEMPLATE = HERE.parent / "templates" / "process" / "perry.json"
+ACTOR = {"kind": "agent", "name": "perry-kernel-migrate",
+         "session": "perry-kernel-migrate"}
+KERNEL_TIME = "%Y-%m-%dT%H:%M:%SZ"
+
+#: DESIGN-023 decision 13, as TASK-489's spec carries it: which old register
+#: becomes which type, which old field keeps (or changes) its name, which old
+#: fields are consumed into the state, the dates, the relations and the
+#: attachments, and which are not carried. Every key of an old record is in
+#: exactly one of these, or must be blank: a populated key this table does not
+#: name is refused, so nothing is dropped that the report does not count.
+MAPPING = {
+    "tasks": {
+        "type": "task", "created": "created",
+        "fields": {"title": "title", "summary": "summary",
+                   "priority": "priority", "owner": "owner",
+                   "track": "track", "verification": "verification",
+                   "next_action": "next_action", "evidence": "evidence"},
+        "consumed": ("id", "status", "created", "depends_on", "design_refs"),
+        "dropped": ("group", "order", "commitment", "role", "stage",
+                    "arrived", "stage_since"),
+        "must_be_blank": ("parent",),
+    },
+    "asks": {
+        "type": "ask", "created": "asked",
+        "fields": {"needed": "question"},
+        "consumed": ("id", "status", "answered", "asked", "blocks"),
+        "dropped": ("order",),
+        "must_be_blank": (),
+    },
+    "risks": {
+        "type": "risk", "created": "opened",
+        "fields": {"risk": "concern"},
+        "consumed": ("id", "status", "opened", "cleared"),
+        "dropped": ("order",),
+        "must_be_blank": (),
+    },
+}
+#: The registers that hold no type (decision 13). A row in either stops the
+#: import: the spec says both are empty, and nothing here can place a row.
+NO_TYPE = ("intake", "cadence")
+#: § Decided 2026-09-29, option A: a closed task's `next_action` is not
+#: imported; an open task's is imported as it is.
+CLOSED = ("done", "dropped")
+#: The measure the long-cell decision was taken on: bytes of UTF-8.
+LONG_CELL_BYTES = 300
+
+
+class Refused(Exception):
+    """The import cannot go on. Nothing was written outside `--work`."""
+
+    def __init__(self, message, details=None):
+        super().__init__(message)
+        self.details = details or {}
+
+
+SURFACE = {
+    "name": "perry-kernel-migrate",
+    "kind": "read",
+    "summary": "import a project's old stores into a temporary kernel store "
+               "and reconcile the two (DESIGN-023 row D)",
+    "root_resolution": "standard",
+    "exit_codes": {"0": "imported and reconciled",
+                   "1": "refused, or not reconciled",
+                   "2": "bad invocation"},
+    "flags": [
+        {"name": "--work", "arg": "dir", "summary":
+         "an empty or absent directory outside the project; the export, the "
+         "anchor and the store go here and nowhere else (required)"},
+        {"name": "--json", "summary": "the reconciliation as one JSON object"},
+    ],
+    "subcommands": [],
+}
+
+
+# ── reading the old stores ─────────────────────────────────────────────────
+
+
+def blank(value) -> bool:
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
+def moment(value):
+    """`lib.ts_moment`, the one converter, as the kernel's time text."""
+    m = lib.ts_moment(value)
+    return m.strftime(KERNEL_TIME) if m else None
+
+
+def read_old(project_root: Path, state_root: Path) -> tuple[dict, list]:
+    stores, findings = perry_store.load_board_stores(state_root)
+    if findings:
+        raise Refused(f"{len(findings)} old record(s) do not validate; the "
+                      f"first: {findings[0]}", {"findings": findings})
+    for name in NO_TYPE:
+        if stores.get(name):
+            raise Refused(f"{name}.jsonl holds {len(stores[name])} row(s); "
+                          f"the template has no {name} type, and DESIGN-023 "
+                          f"decision 13 says the store is empty. Stopped.",
+                          {"register": name, "rows": len(stores[name])})
+    log = project_root / ".perry" / "events.jsonl"
+    events = P.load_register_store(project_root / ".perry", "events.jsonl")
+    if events is None:
+        if lib.exists_or_unreadable(log) is not False:
+            raise Refused(f"{log} cannot be read as JSONL; its ids seed the "
+                          f"ceilings, so the import does not guess",
+                          {"path": str(log)})
+        events = []
+    return stores, events
+
+
+# ── the snapshot (§ Decided 2026-09-29: one create, at most one move) ─────
+
+
+class Plan:
+    """Everything the import will write, and everything the report counts."""
+
+    def __init__(self, template: dict, stores: dict, events: list,
+                 run_at: str):
+        self.template = template
+        self.types = template["types"]
+        self.stores = stores
+        self.events = events
+        self.run_at = run_at
+        self.items: dict[str, dict] = {}
+        self.counts = {"dropped": {}, "skipped_next_action": {},
+                       "status_not_carried": {}, "time_rules": {},
+                       "verbatim_blank_markers": {}}
+        self.unresolved: list[dict] = []
+        self.self_edges: list[dict] = []
+        self.long_open_cells: list[dict] = []
+        self.move_before_create: list[str] = []
+        self.by_id = {}
+        for n, e in enumerate(events):
+            if isinstance(e, dict) and isinstance(e.get("id"), str):
+                self.by_id.setdefault(e["id"], []).append((n, e))
+        stamps = [moment(e.get("ts")) for e in events if isinstance(e, dict)]
+        stamps = [s for s in stamps if s]
+        self.log_start = min(stamps) if stamps else None
+
+    def bump(self, group: str, key: str, n: int = 1):
+        bucket = self.counts[group]
+        bucket[key] = bucket.get(key, 0) + n
+
+    # ── one record ────────────────────────────────────────────────────────
+
+    def add(self, register: str, rec: dict):
+        spec = MAPPING[register]
+        type_name = spec["type"]
+        tdecl = self.types[type_name]
+        item_id = rec.get("id")
+        number = self.number(item_id, tdecl)
+        if number is None:
+            raise Refused(f"{register}.jsonl holds id {item_id!r}, which is "
+                          f"not an id type {type_name} mints "
+                          f"({tdecl['prefix']}-<n> padded to "
+                          f"{tdecl.get('digits', 1)} digits)",
+                          {"register": register, "id": item_id})
+        if item_id in self.items:
+            raise Refused(f"{item_id} is held twice", {"id": item_id})
+        known = (set(spec["fields"]) | set(spec["consumed"])
+                 | set(spec["dropped"]) | set(spec["must_be_blank"]))
+        for key in sorted(rec):
+            if key in spec["dropped"] and not blank(rec[key]):
+                self.bump("dropped", f"{register}.{key}")
+            elif (key not in known or key in spec["must_be_blank"]) and \
+                    not blank(rec[key]):
+                raise Refused(f"{item_id}: {register}.jsonl field {key!r} "
+                              f"holds a value the mapping does not carry "
+                              f"and does not drop. Stopped.",
+                              {"id": item_id, "field": key})
+        state, status_text = self.state(register, rec, tdecl)
+        fields = {}
+        for old, new in spec["fields"].items():
+            value = rec.get(old)
+            if blank(value):
+                continue
+            if register == "tasks" and old == "next_action":
+                if state in CLOSED:
+                    self.bump("skipped_next_action", state)
+                    continue
+                size = len(value.encode("utf-8"))
+                if size > LONG_CELL_BYTES:
+                    self.long_open_cells.append(
+                        {"id": item_id, "state": state, "bytes": size})
+            if lib.is_blank_cell(value):
+                self.bump("verbatim_blank_markers", f"{type_name}.{new}")
+            fields[new] = value
+        if status_text:
+            self.bump("status_not_carried", register)
+        created_at, created_rule = self.created(item_id, rec.get(
+            spec["created"]), spec["created"])
+        self.bump("time_rules", f"create: {created_rule}")
+        item = {"id": item_id, "type": type_name, "number": number,
+                "prefix": tdecl["prefix"], "state": state, "fields": fields,
+                "register": register, "status": rec.get("status"),
+                "created_at": created_at, "created_rule": created_rule,
+                "attachments": [], "move": None}
+        if state != tdecl["initial"]:
+            item["move"] = self.move(item, rec, tdecl)
+        if register == "tasks":
+            refs = rec.get("design_refs") or []
+            for ref in refs:
+                if blank(ref):
+                    continue
+                if "\n" in ref or "\r" in ref:
+                    raise Refused(f"{item_id}: design ref {ref!r} holds a "
+                                  f"line break", {"id": item_id})
+                if ref not in item["attachments"]:
+                    item["attachments"].append(ref)
+        self.items[item_id] = item
+
+    @staticmethod
+    def number(item_id, tdecl):
+        if not isinstance(item_id, str):
+            return None
+        prefix, _, digits = item_id.partition("-")
+        if prefix != tdecl["prefix"] or not (digits.isascii()
+                                             and digits.isdigit()):
+            return None
+        n = int(digits)
+        if item_id != f"{prefix}-{n:0{tdecl.get('digits', 1)}d}":
+            return None
+        return n
+
+    def state(self, register, rec, tdecl) -> tuple[str, bool]:
+        """`(state, whether the status cell said more than the state)`."""
+        status = rec.get("status")
+        text = status.strip() if isinstance(status, str) else ""
+        if register == "tasks":
+            if text not in tdecl["states"]:
+                raise Refused(f"{rec['id']}: status {status!r} is not a "
+                              f"state of the task type", {"id": rec["id"]})
+            return text, False
+        if register == "asks":
+            answered = rec.get("answered")
+            if not isinstance(answered, bool) or \
+                    answered != P.ask_is_answered(status or ""):
+                raise Refused(f"{rec['id']}: answered is {answered!r} and "
+                              f"the status cell reads "
+                              f"{'answered' if P.ask_is_answered(status or '') else 'open'}; "
+                              f"the two disagree. Stopped.", {"id": rec["id"]})
+            state = "answered" if answered else "pending"
+            return state, text != state
+        if P.status_is_cleared(status or ""):
+            return "cleared", text != "cleared"
+        if text == "open":
+            return "open", False
+        raise Refused(f"{rec['id']}: risk status {status!r} is neither open "
+                      f"nor cleared", {"id": rec["id"]})
+
+    def created(self, item_id, raw, field) -> tuple[str, str]:
+        if not blank(raw):
+            at = moment(raw)
+            if at is None:
+                raise Refused(f"{item_id}: {field} {raw!r} is not a time "
+                              f"lib.ts_moment can read", {"id": item_id})
+            return at, field
+        stamps = [moment(e.get("ts")) for _n, e in self.by_id.get(item_id, [])]
+        stamps = [s for s in stamps if s]
+        if stamps:
+            return min(stamps), "first old event"
+        if self.log_start:
+            return self.log_start, "start of the old log"
+        return self.run_at, "import time"
+
+    def move(self, item, rec, tdecl) -> dict:
+        state = item["state"]
+        names = sorted(name for name, t in tdecl["transitions"].items()
+                       if tdecl["initial"] in t["from"] and t["to"] == state)
+        if len(names) != 1:
+            raise Refused(f"{item['id']}: {len(names)} transitions move a "
+                          f"{item['type']} from {tdecl['initial']} to {state}",
+                          {"id": item["id"], "transitions": names})
+        at, rule = None, None
+        for _n, e in reversed(self.by_id.get(item["id"], [])):
+            if str(e.get("to") or "") in tdecl["states"]:
+                at = moment(e.get("ts"))
+                if at:
+                    rule = "last old status event"
+                    break
+        if at is None and item["type"] == "risk" and not blank(
+                rec.get("cleared")):
+            at, rule = moment(rec["cleared"]), "cleared"
+        if at is None:
+            at, rule = item["created_at"], "creation date"
+        self.bump("time_rules", f"move: {rule}")
+        if at < item["created_at"]:
+            self.move_before_create.append(item["id"])
+        return {"transition": names[0], "from": tdecl["initial"],
+                "to": state, "at": at, "rule": rule}
+
+    # ── relations ─────────────────────────────────────────────────────────
+
+    def edges(self) -> list[tuple]:
+        """`blocks` edges, `(from, to)`: a task's `depends_on` (each entry
+        blocks the task) and an ask's `blocks` cell (the ask blocks each id
+        it names). The cell is split on commas and white space and each
+        token looked up among the imported ids; a token that is none of them
+        is reported, never guessed at."""
+        found = []
+        for rec in self.stores.get("tasks", []):
+            for dep in rec.get("depends_on") or []:
+                found.append(("tasks", rec["id"], "depends_on", dep,
+                              (dep, rec["id"])))
+        for rec in self.stores.get("asks", []):
+            cell = rec.get("blocks") or ""
+            if lib.is_blank_cell(cell):
+                continue
+            for token in re.split(r"[,\s]+", cell.strip()):
+                if token:
+                    found.append(("asks", rec["id"], "blocks", token,
+                                  (rec["id"], token)))
+        out = []
+        for register, owner, field, ref, (src, dst) in found:
+            if ref not in self.items:
+                self.unresolved.append({"register": register, "id": owner,
+                                        "field": field, "ref": ref})
+                continue
+            if src == dst:
+                self.self_edges.append({"register": register, "id": owner,
+                                        "field": field})
+                continue
+            if (src, dst) not in out:
+                out.append((src, dst))
+        return out
+
+    # ── the ids ever issued ───────────────────────────────────────────────
+
+    def ceilings(self) -> dict:
+        out = {}
+        for type_name, tdecl in sorted(self.types.items()):
+            prefix = tdecl["prefix"]
+            stored = [i["number"] for i in self.items.values()
+                      if i["type"] == type_name]
+            pat = re.compile(rf"{re.escape(prefix)}-(\d+)")
+            logged = {}
+            for e in self.events:
+                if not isinstance(e, dict) or not isinstance(e.get("id"), str):
+                    continue
+                m = pat.fullmatch(e["id"])
+                if m:
+                    logged[e["id"]] = int(m.group(1))
+            only_logged = sorted((i for i in logged if i not in self.items),
+                                 key=lambda i: logged[i])
+            issued = max(stored + list(logged.values()), default=None)
+            out[prefix] = {
+                "type": type_name, "stored_max": max(stored, default=None),
+                "issued_max": issued, "log_only_ids": only_logged,
+                "seed": (issued if issued is not None
+                         and issued > max(stored, default=0) else None)}
+        return out
+
+
+def canonical(value) -> str:
+    """The kernel's one serialisation (`kernel/ARCHITECTURE.md` § 5.8)."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False)
+
+
+def id_key(item_id: str):
+    prefix, _, digits = item_id.partition("-")
+    return prefix, int(digits)
+
+
+def build_export(plan: Plan, state_root: str) -> tuple[bytes, bytes, dict]:
+    """`(items.jsonl, events.jsonl, the event seq of each item's create)`,
+    byte for byte as the kernel's own `export` would write them."""
+    edges = plan.edges()
+    ceilings = plan.ceilings()
+    steps = []
+    for item in plan.items.values():
+        steps.append(((item["created_at"], 0, item["prefix"], item["number"]),
+                      "create", item))
+        if item["move"]:
+            at = max(item["move"]["at"], item["created_at"])
+            steps.append(((at, 1, item["prefix"], item["number"]), "move",
+                          item))
+    steps.sort(key=lambda s: s[0])
+    create_seq = {}
+    seq = 2
+    for _key, kind, item in steps:
+        seq += 1
+        if kind == "create":
+            create_seq[item["id"]] = seq
+    # Each edge lands in the create of whichever end is created later, as a
+    # live `item create` with `relations[]` would write it.
+    hosted: dict[str, list] = {}
+    for src, dst in edges:
+        host = src if create_seq[src] > create_seq[dst] else dst
+        hosted.setdefault(host, []).append((src, dst))
+
+    events = [
+        {"seq": 1, "at": plan.run_at, "actor": ACTOR, "command": "init",
+         "items": [], "transition": None,
+         "changes": [{"key": "state_root", "before": None,
+                      "after": state_root}],
+         "note": "perry-kernel-migrate (DESIGN-023 row D): a snapshot of "
+                 "the old stores", "warnings": []},
+        {"seq": 2, "at": plan.run_at, "actor": ACTOR,
+         "command": "template apply", "items": [], "transition": None,
+         "changes": [{"key": "template", "before": None,
+                      "after": plan.template}],
+         "note": None, "warnings": []},
+    ]
+    for _key, kind, item in steps:
+        seq = len(events) + 1
+        if kind == "create":
+            tdecl = plan.types[item["type"]]
+            mine = sorted(hosted.get(item["id"], []),
+                          key=lambda e: (id_key(e[0]), id_key(e[1])))
+            others = sorted({d if s == item["id"] else s for s, d in mine},
+                            key=id_key)
+            changes = [{"key": "type", "before": None, "after": item["type"]},
+                       {"key": "state", "before": None,
+                        "after": tdecl["initial"]}]
+            changes += [{"key": f"field:{f}", "before": None, "after": v}
+                        for f, v in sorted(item["fields"].items())]
+            changes += [{"key": f"rel:blocks:{s}:{d}", "before": False,
+                         "after": True} for s, d in mine]
+            changes += [{"key": f"attach:{r}", "before": None,
+                         "after": {"hash": None}}
+                        for r in sorted(item["attachments"])]
+            events.append({
+                "seq": seq, "at": item["created_at"], "actor": ACTOR,
+                "command": "item create", "items": [item["id"]] + others,
+                "transition": None, "changes": changes,
+                "note": f"from {item['register']}.jsonl; timed by "
+                        f"{item['created_rule']}", "warnings": []})
+        else:
+            move = item["move"]
+            events.append({
+                "seq": seq, "at": move["at"], "actor": ACTOR,
+                "command": "item move", "items": [item["id"]],
+                "transition": move["transition"],
+                "changes": [{"key": "state", "before": move["from"],
+                             "after": move["to"]}],
+                "note": f"status {item['status']!r} in "
+                        f"{item['register']}.jsonl; timed by {move['rule']}"
+                        if item["register"] == "tasks" else
+                        f"from {item['register']}.jsonl; timed by "
+                        f"{move['rule']}",
+                "warnings": []})
+    seeds = [(p, c) for p, c in sorted(ceilings.items())
+             if c["seed"] is not None]
+    if seeds:
+        events.append({
+            "seq": len(events) + 1, "at": plan.run_at, "actor": ACTOR,
+            "command": "seed ceilings", "items": [], "transition": None,
+            "changes": [{"key": f"ceiling:{p}", "before": c["stored_max"],
+                         "after": c["seed"]} for p, c in seeds],
+            "note": "the highest id each prefix issued in the old stores and "
+                    ".perry/events.jsonl, purged ids included",
+            "warnings": []})
+
+    # items.jsonl: the replayed items as the kernel serialises them.
+    last = {}
+    for e in events:
+        for item_id in e["items"]:
+            last[item_id] = e
+    lines = []
+    for item in sorted(plan.items.values(),
+                       key=lambda i: (i["prefix"], i["number"])):
+        tdecl = plan.types[item["type"]]
+        out_edges = sorted((d for s, d in edges if s == item["id"]),
+                           key=id_key)
+        lines.append({
+            "id": item["id"], "type": item["type"], "state": item["state"],
+            "fields": {f: item["fields"].get(f) for f in tdecl["fields"]},
+            "relations": [{"kind": "blocks", "to": d} for d in out_edges],
+            "attachments": [{"ref": r, "hash": None}
+                            for r in sorted(item["attachments"])],
+            "created_at": item["created_at"],
+            "updated_at": last[item["id"]]["at"],
+            "seq": last[item["id"]]["seq"]})
+    items_bytes = "".join(canonical(x) + "\n" for x in lines).encode("utf-8")
+    events_bytes = "".join(canonical(e) + "\n" for e in events).encode("utf-8")
+    return items_bytes, events_bytes, {"edges": edges, "ceilings": ceilings,
+                                       "events": events}
+
+
+# ── the kernel, always on the named temporary store ───────────────────────
+
+
+def kernel(words, data, *, store: Path, anchor: Path, dry_run=False) -> dict:
+    """One `bin/perry-kernel` call, with `--store` and `--root` named, and
+    `PERRY_KERNEL_TESTING` set so that a call that somehow lost its `--store`
+    is refused rather than derived to the shared store (§ 5.7)."""
+    argv = [sys.executable, str(KERNEL), *words, "--store", str(store),
+            "--root", str(anchor)]
+    if data is not None:
+        argv += ["--input", "-"]
+    if dry_run:
+        argv.append("--dry-run")
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("PERRY_STORE", "PERRY_PROJECT")}
+    env["PERRY_KERNEL_TESTING"] = "1"
+    proc = subprocess.run(argv, input=json.dumps(data) if data is not None
+                          else "", capture_output=True, text=True, env=env,
+                          timeout=1800)
+    try:
+        envelope = json.loads(proc.stdout)
+    except ValueError:
+        raise Refused(f"perry-kernel {' '.join(words)} printed no envelope "
+                      f"(exit {proc.returncode}): {proc.stderr.strip()[:300]}")
+    envelope["exit"] = proc.returncode
+    return envelope
+
+
+def probe_fields(tdecl: dict) -> dict:
+    """The fields a create guard requires, filled, so `item create --dry-run`
+    reaches the mint. The values are never stored: the create rolls back."""
+    need = []
+    for guard in tdecl.get("create_guards", []):
+        if guard["kind"] == "required":
+            need += guard.get("fields", [])
+    out = {}
+    for name in need:
+        decl = tdecl["fields"][name]
+        out[name] = (decl["values"][0] if decl["kind"] == "enum"
+                     else "ceiling probe")
+    return out
+
+
+# ── the run ────────────────────────────────────────────────────────────────
+
+
+def check_work(work: Path, project_root: Path) -> None:
+    if ".git" in work.parts:
+        raise Refused(f"--work {work} is inside a .git directory, where the "
+                      f"kernel's shared store lives. Name a scratch directory.")
+    if work == project_root or project_root in work.parents:
+        raise Refused(f"--work {work} is inside the project {project_root}; "
+                      f"nothing is written there. Name a scratch directory.")
+    if work in project_root.parents:
+        raise Refused(f"--work {work} holds the project {project_root}; "
+                      f"name an empty scratch directory.")
+    if work.exists() and (not work.is_dir() or any(work.iterdir())):
+        raise Refused(f"--work {work} is not an empty directory; the import "
+                      f"needs an empty store, and nothing there is replaced.")
+
+
+def run(project_root: Path, work: Path) -> dict:
+    project_root = project_root.resolve()
+    if not (project_root / ".perry").is_dir():
+        raise Refused(f"{project_root} holds no .perry/; it is not a Perry "
+                      f"project")
+    check_work(work, project_root)
+    state_root = Path(P.resolve_state_root(project_root)).resolve()
+    rel = state_root.relative_to(project_root).as_posix()
+    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    for spec in MAPPING.values():
+        if spec["type"] not in template["types"]:
+            raise Refused(f"{TEMPLATE} declares no type {spec['type']}")
+    stores, events = read_old(project_root, state_root)
+    run_at = datetime.now(timezone.utc).strftime(KERNEL_TIME)
+    plan = Plan(template, stores, events, run_at)
+    for register in MAPPING:
+        for rec in stores.get(register, []):
+            plan.add(register, rec)
+    items_bytes, events_bytes, built = build_export(plan, rel)
+
+    anchor = work / "anchor"
+    store = work / "store.db"
+    export = anchor / rel / "export"
+    (anchor / ".perry").mkdir(parents=True)
+    export.mkdir(parents=True)
+    (export / "items.jsonl").write_bytes(items_bytes)
+    (export / "events.jsonl").write_bytes(events_bytes)
+
+    def call(words, data, **kw):
+        return kernel(words, data, store=store, anchor=anchor, **kw)
+
+    imported = call(["import"], {"state_root": rel})
+    report = {
+        "project": str(project_root), "state_root": rel, "work": str(work),
+        "anchor": str(anchor), "store": str(store), "export": str(export),
+        "old": old_side(plan, stores, events),
+        "mapping": mapping_side(plan, built),
+        "ceilings": built["ceilings"],
+        "import": {"exit": imported["exit"], "ok": imported["ok"],
+                   "result": imported["result"], "error": imported["error"]},
+    }
+    if not imported["ok"]:
+        err = imported["error"] or {}
+        seq = (err.get("details") or {}).get("seq")
+        if isinstance(seq, int) and 1 <= seq <= len(built["events"]):
+            report["import"]["event_items"] = built["events"][seq - 1]["items"]
+        report["criteria"] = {}
+        report["reconciled"] = False
+        return report
+    report["kernel"], report["criteria"] = reconcile(plan, call, rel)
+    report["reconciled"] = all(report["criteria"].values())
+    return report
+
+
+def old_side(plan: Plan, stores: dict, events: list) -> dict:
+    by_type: dict = {}
+    for item in plan.items.values():
+        t = by_type.setdefault(item["type"], {})
+        t[item["state"]] = t.get(item["state"], 0) + 1
+    return {"records": {r: len(stores.get(r, [])) for r in
+                        ("tasks", "asks", "risks", "intake", "cadence")},
+            "by_type_and_state": by_type, "events": len(events),
+            "ids": len(plan.items)}
+
+
+def mapping_side(plan: Plan, built: dict) -> dict:
+    return {**plan.counts,
+            "relations": len(built["edges"]),
+            "attachments": sum(len(i["attachments"])
+                               for i in plan.items.values()),
+            "moves": sum(1 for i in plan.items.values() if i["move"]),
+            "unresolved_references": plan.unresolved,
+            "self_edges": plan.self_edges,
+            "move_before_create": plan.move_before_create,
+            "open_next_action_over_300_bytes": plan.long_open_cells,
+            "export_events": len(built["events"])}
+
+
+def reconcile(plan: Plan, call, rel: str) -> tuple[dict, dict]:
+    """DESIGN-023 row D's criteria 1–5, asked of the kernel store."""
+    kernel_side, criteria = {}, {}
+    counted = call(["query"], {"count_by": ["type", "state"], "limit": 1})
+    got: dict = {}
+    for row in counted["result"]["counts"]:
+        t = got.setdefault(row["key"]["type"], {})
+        t[row["key"]["state"]] = row["n"]
+    kernel_side["by_type_and_state"] = got
+    criteria["1_counts_per_type_and_state"] = (
+        got == old_side(plan, plan.stores, plan.events)["by_type_and_state"])
+
+    ids = sorted(plan.items, key=id_key)
+    found = call(["query"], {"ids": ids, "limit": 0})
+    resolved = {i["id"]: i["type"] for i in found["result"]["items"]}
+    missing = [i for i in ids if resolved.get(i) != plan.items[i]["type"]]
+    kernel_side["ids"] = {"asked": len(ids), "resolved": len(resolved),
+                          "missing_or_wrong_type": missing}
+    criteria["2_every_old_id_resolves"] = not missing and len(ids) == len(
+        resolved)
+
+    nexts, above = {}, True
+    issued = plan.ceilings()
+    for type_name, tdecl in sorted(plan.types.items()):
+        r = call(["item", "create"], {"actor": ACTOR, "type": type_name,
+                                      "fields": probe_fields(tdecl)},
+                 dry_run=True)
+        minted = r["result"]["item"]["id"] if r["ok"] else None
+        ceiling = issued[tdecl["prefix"]]["issued_max"]
+        ok = minted is not None and (ceiling is None
+                                     or id_key(minted)[1] > ceiling)
+        nexts[tdecl["prefix"]] = {"next_id": minted, "issued_max": ceiling,
+                                  "above": ok,
+                                  "error": None if r["ok"] else r["error"]}
+        above = above and ok
+    kernel_side["next_ids"] = nexts
+    criteria["3_next_id_above_every_issued_id"] = above
+
+    again = call(["import"], {"state_root": rel})
+    kernel_side["second_import"] = {"exit": again["exit"],
+                                    "code": (again["error"] or {}).get("code")}
+    criteria["4_import_refuses_a_store_that_is_not_empty"] = (
+        again["exit"] == 1
+        and kernel_side["second_import"]["code"] == "store_not_empty")
+
+    exported = call(["export"], None)
+    tail = call(["events"], {"limit": 1})
+    kernel_side["export"] = {"effect": exported["effect"],
+                             "error": exported["error"]}
+    kernel_side["events"] = {"total": tail["result"]["total"],
+                             "unexported": tail["result"]["unexported"]}
+    criteria["5_replay_reproduces_the_items"] = (
+        exported["effect"] == "unchanged")
+    return kernel_side, criteria
+
+
+# ── the command line ───────────────────────────────────────────────────────
+
+
+def summary(report: dict) -> str:
+    lines = [f"perry-kernel-migrate: {report['project']} "
+             f"(state root {report['state_root']})",
+             f"  store  {report['store']}", f"  export {report['export']}"]
+    imp = report["import"]
+    if not imp["ok"]:
+        lines.append(f"  import refused: {imp['error']['code']}: "
+                     f"{imp['error']['message']}")
+        if imp.get("event_items"):
+            lines.append(f"  the event names {', '.join(imp['event_items'])}")
+        return "\n".join(lines)
+    for name, value in report["criteria"].items():
+        lines.append(f"  {'PASS' if value else 'FAIL'}  {name}")
+    lines.append(f"  old by type and state: "
+                 f"{canonical(report['old']['by_type_and_state'])}")
+    lines.append(f"  next ids: " + ", ".join(
+        f"{p} {v['next_id']} (issued up to {v['issued_max']})"
+        for p, v in report["kernel"]["next_ids"].items()))
+    m = report["mapping"]
+    lines.append(f"  skipped next_action on closed tasks: "
+                 f"{canonical(m['skipped_next_action'])}")
+    lines.append(f"  dropped fields, populated rows: {canonical(m['dropped'])}")
+    lines.append(f"  unresolved references: {len(m['unresolved_references'])}"
+                 f"; open next_action cells over {LONG_CELL_BYTES} bytes: "
+                 f"{len(m['open_next_action_over_300_bytes'])}")
+    return "\n".join(lines)
+
+
+def main(argv: list[str]) -> int:
+    read = lib.parse_surface(SURFACE, argv)
+    if read["help"]:
+        print(lib.usage_lines(SURFACE))
+        print()
+        print(__doc__.strip())
+        return 0
+    if read["describe"]:
+        print(json.dumps(lib.describe_surface(SURFACE), ensure_ascii=False,
+                         indent=2))
+        return 0
+    if read["error"]:
+        print(f"perry-kernel-migrate: {read['error']}", file=sys.stderr)
+        return 2
+    if read["extra"]:
+        print(f"perry-kernel-migrate: takes no argument, got "
+              f"{read['extra'][0]!r}", file=sys.stderr)
+        return 2
+    work = read["values"].get("--work")
+    if not work:
+        print(lib.usage_lines(SURFACE), file=sys.stderr)
+        print("perry-kernel-migrate: --work <dir> is required: the store it "
+              "imports into is never the project's", file=sys.stderr)
+        return 2
+    as_json = "--json" in read["seen"]
+    try:
+        project_root = lib.resolve_project_root(read["values"].get("--root"))
+        report = run(project_root, Path(work).expanduser().resolve())
+    except Refused as exc:
+        if as_json:
+            print(json.dumps({"reconciled": False, "refused": str(exc),
+                              "details": exc.details}, ensure_ascii=False,
+                             indent=2))
+        print(f"perry-kernel-migrate: refused — {exc}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"perry-kernel-migrate: refused — {exc.strerror or exc}: "
+              f"{exc.filename or ''}", file=sys.stderr)
+        return 1
+    print(json.dumps(report, ensure_ascii=False, indent=2) if as_json
+          else summary(report))
+    return 0 if report["reconciled"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

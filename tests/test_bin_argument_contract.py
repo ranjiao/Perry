@@ -813,7 +813,11 @@ def run_tool(path: Path, *argv: str, env: dict | None = None):
 #: that reaches it is `perry-okr`, which names the flag nowhere in its own
 #: text. So the executable population is those 13 plus `perry-okr` — still 14,
 #: and derived rather than typed, so a tool that gains or loses `--root`
-#: changes this set without anyone remembering to.
+#: changes this set without anyone remembering to. TASK-489 added the
+#: fifteenth, `perry-kernel-migrate` (DESIGN-023 row D's one-shot importer),
+#: which takes `--root` through `lib.parse_surface`; `ROOT_READER_COUNT` is
+#: the one place the number is typed.
+ROOT_READER_COUNT = 15
 ROOT_READERS = tuple(sorted(
     [p.name for p in (PERRY_HOME / "bin").iterdir()
      if p.is_file() and os.access(p, os.X_OK) and p.suffix != ".md"
@@ -852,7 +856,7 @@ class TestHelpPrintsFromAnyPositionOnEveryTool(unittest.TestCase):
         # The position that was broken, over the population for which the
         # leading flag is legal: the fourteen `--root` readers.
         with tempfile.TemporaryDirectory() as tmp:
-            self.assertEqual(len(ROOT_READERS), 14, ROOT_READERS)
+            self.assertEqual(len(ROOT_READERS), ROOT_READER_COUNT, ROOT_READERS)
             for name in ROOT_READERS:
                 with self.subTest(tool=name):
                     r = run_tool(BIN / name, "--root", tmp, "-h")
@@ -1022,6 +1026,7 @@ class TestAnUndeclaredFlagIsRefusedWithASubcommandInFront(unittest.TestCase):
         "perry-detect-host": (), "perry-diagnose": (),
         "perry-dispatch-limit": ("list",), "perry-explain": ("TASK-001",),
         "perry-goals": ("krs",), "perry-kernel": ("describe",),
+        "perry-kernel-migrate": ("--work", "/nonexistent/perry-migrate-probe"),
         "perry-knowledge": ("list",),
         "perry-lint": (), "perry-okr": ("build",),
         "perry-restore-check": ("HEAD", "README.md"), "perry-state": (),
@@ -1295,7 +1300,7 @@ class TestAFlagWithItsValueMissingIsRefused(unittest.TestCase):
         """
         other = Project()
         other.run("add", "--title", "the project the caller did not name")
-        self.assertEqual(len(ROOT_READERS), 14, ROOT_READERS)
+        self.assertEqual(len(ROOT_READERS), ROOT_READER_COUNT, ROOT_READERS)
         for tool in ROOT_READERS:
             lead = self.LEAD.get(tool, ())
             with self.subTest(tool=tool):

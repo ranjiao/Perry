@@ -2,13 +2,13 @@
 
 > Written by: agent · Confirmed by: user (§6, §7)
 > Version: v1
-> Last reviewed: 2026-09-26
+> Last reviewed: 2026-09-29
 > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
 > Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
 ## §1. Mission & scope
 
-Twenty-one executables (the index `perry` and `perry-kernel`, the `kernel/` CLI's thin wrapper, included) and three libraries. Everything Perry reports as a number
+Twenty-two executables (the index `perry`, `perry-kernel`, the `kernel/` CLI's thin wrapper, and `perry-kernel-migrate`, DESIGN-023 row D's one-shot importer, included) and three libraries. Everything Perry reports as a number
 is computed here, and every write to a canonical file goes through here.
 
 The rule the directory exists to enforce: **a number Perry reports must be
@@ -50,9 +50,14 @@ flowchart TD
     subgraph kernelcli["the kernel's CLI — no SURFACE, no bin/lib"]
         Kernel["perry-kernel<br/>a thin wrapper over kernel/perry_kernel"]
     end
+    subgraph migrate["one-shot, deleted at DESIGN-023 row H"]
+        Migrate["perry-kernel-migrate<br/>old stores → a scratch kernel store"]
+    end
     Perry -.reads SURFACE from.-> write
     Perry -.reads SURFACE from.-> read
+    Perry -.reads SURFACE from.-> Migrate
     Perry -.lists as undeclared.-> Kernel
+    Migrate -->|"runs, --store and --root always named"| Kernel
 ```
 
 ### The three libraries
@@ -70,8 +75,21 @@ located by the session id Codex exports, and a Claude transcript only when a
 caller names it with `--session` (Claude's exported id cannot be bound).
 To learn which host it is under, it runs `bin/perry-detect-host` as a
 subprocess (10 s timeout; a failure reads as `unknown`) and depends only on
-that script's one-token output. It is the only `bin/` tool that executes
-another one; nothing is imported.
+that script's one-token output. It and `perry-kernel-migrate` (below) are
+the two `bin/` tools that execute another one; neither imports it.
+
+### What `perry-kernel-migrate` runs and writes
+
+DESIGN-023 row D's importer (TASK-489). It reads the old stores through
+`perry_store.load_board_stores`, `parsers.resolve_state_root` and
+`parsers.load_register_store` (for `.perry/events.jsonl`), and converts times
+with `lib.ts_moment`, so it adds no reader. It writes a synthetic kernel
+export under the `--work` directory it is given, which must be empty and
+outside the project and any `.git`, and runs `bin/perry-kernel import`,
+`query`, `item create --dry-run`, `export` and `events` as subprocesses, each
+naming `--store <work>/store.db` and `--root <work>/anchor`. It never writes
+the project. Row H deletes it with the rest of this directory; the mapping it
+applies is `bin/README.md § perry-kernel-migrate`.
 
 ### The one tool that reaches outside
 
@@ -143,9 +161,9 @@ as [`kernel/ARCHITECTURE.md`](../kernel/ARCHITECTURE.md) § 4 describes.
 Every converted tool carries one: `name`, `kind`, `summary`, `root_resolution`,
 `exit_codes`, `flags[]`, and `subcommands[]` with per-subcommand flag lists.
 It drives the parser, `--describe --json`, the generated usage block and
-`bin/perry list`. Six tools declare one (`perry-config`, `perry-diagnose`, `perry-okr`,
-`perry-state`, `perry-task`, `perry-tasks`); fourteen do not, and `perry list`
-says which.
+`bin/perry list`. Seven tools declare one (`perry-config`, `perry-diagnose`,
+`perry-kernel-migrate`, `perry-okr`, `perry-state`, `perry-task`,
+`perry-tasks`); fourteen do not, and `perry list` says which.
 
 ### The registers — `perry-tasks`
 Five verbs (`build verify write render diff`) over five registers (tasks,
@@ -233,6 +251,7 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
 
 ## §8. Change log
 
+- 2026-09-29 · v1 · TASK-489: `perry-kernel-migrate`, DESIGN-023 row D's one-shot importer, joins the directory. § 1 counts twenty-two executables; § 2's diagram gains it and its one run edge to `perry-kernel`, § 2 says it and `perry-context-budget` are the two tools that execute another, and a new subsection says what it runs and writes; § 5 counts seven tools that declare a `SURFACE`. § 7 OQ-B1 still says "Six declare a `SURFACE`": that section is the user's, so its count waits for the user.
 - 2026-09-26 · v1 · TASK-488, decided by the user on 2026-09-26: § 6 NN-B3's sunset, like root § 3's third Forbidden line, adds `bin/perry-churn § detect_perry` (`:305–341`) to the existing copies — it walks up to the first `.perry/`, stops at the git top level, and takes no `--root` and no environment variable.
 - 2026-09-26 · v1 · TASK-487 round 4, decided by the user: § 6 NN-B3's sunset, like root § 3's, names `perry-lint`'s nine sites exactly — one walks, eight per-mode branches take `--root` or else the cwd — in place of "flag-then-walk".
 - 2026-09-25 · v1 · TASK-487 (rounds 2 and 3): `bin/perry-kernel` joins the
