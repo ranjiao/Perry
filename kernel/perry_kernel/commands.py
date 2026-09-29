@@ -35,6 +35,10 @@ EXPORT_FILES = ("items.jsonl", "events.jsonl")
 #: crashed export is one the kernel can prove it made. Nothing else in the
 #: directory is removed: every other entry is foreign (§ 5.8).
 EXPORT_TOKEN = "export_token"
+#: The token's one shape (`new_export_token`). A stored token of any other
+#: shape is damage: it becomes part of a file name, so it is refused as
+#: `store_corrupt` before any name is built from it (TASK-489, F6).
+TOKEN_RE = re.compile(r"[0-9a-f]{16}")
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 EVENT_KEYS = ("seq", "at", "actor", "command", "items", "transition",
               "changes", "note", "warnings")
@@ -882,6 +886,21 @@ def new_export_token() -> str:
     return secrets.token_hex(8)
 
 
+def recorded_token(store: Store):
+    """The store's recorded export token, or None when it has none. Text of
+    any other shape than `new_export_token` writes is a row that cannot be
+    read back, so it is `store_corrupt`, as `Store.meta_seq` treats a damaged
+    seq (§ 5.1): read as it is, it became part of a temp file's name and
+    surfaced as `io_error`, which blames the file system (F6)."""
+    token = store.meta(EXPORT_TOKEN)
+    if token is not None and not TOKEN_RE.fullmatch(token):
+        raise KernelError("store_corrupt", f"{store.path}: meta {EXPORT_TOKEN} "
+                                           f"cannot be read back",
+                          {"store": str(store.path),
+                           "row": f"meta {EXPORT_TOKEN}"})
+    return token
+
+
 def export_temp_names(token: str) -> dict:
     return {n: f".{n}.{token}.tmp" for n in EXPORT_FILES}
 
@@ -898,7 +917,7 @@ def _io(what: str, exc: OSError, fallback) -> KernelError:
 def cmd_export(ctx: Ctx) -> Outcome:
     with ctx.open(write=True) as store:
         directory = _export_dir(ctx, store.meta("state_root"))
-        token = store.meta(EXPORT_TOKEN)
+        token = recorded_token(store)
         # A store made before the token existed has no provable temp name:
         # this export records one, and until then nothing is removed.
         provable = set(export_temp_names(token).values()) if token else set()
@@ -1091,6 +1110,105 @@ def _event_shape(event: dict, n: int) -> None:
                 bad(f"{key} is a string, and its before a string or null")
 
 
+def replay_check(store: Store):
+    """The check `import` runs on each replayed change, against the template
+    in force when the change's event was written: the last one the replay has
+    applied before it (TASK-489, carried from TASK-487).
+
+    The replay runs no guards, because the history was written under earlier
+    templates (§ 5.8, step 2), but a value no template allowed was never
+    written by a command. So each change is held to what a live write of it
+    would have been held to, and a change that breaks it is `export_invalid`:
+    - `type`: the template declares the type, and the id is one that type
+      mints, its prefix padded to its digits (an id of the wrong prefix, or
+      `W-1` beside a three-digit `W-001`, is not);
+    - `state`: a state of the item's type;
+    - `field:<name>`: a field of the item's type, and a value that fits its
+      kind (§ 5.3) in the form the kernel stores it;
+    - `rel:<kind>` being added: a kind the template knows, and ends whose
+      types a declared kind allows (`check_edge_types`).
+    Ends and items that do not exist are the store's to refuse
+    (`Store.apply_changes`), so this check steps aside for them."""
+    cache = {"version": None, "norm": None}
+
+    def in_force():
+        version = store.q("SELECT MAX(version) FROM template")[0][0]
+        if version != cache["version"]:
+            row = store.template_row()
+            cache["version"] = version
+            cache["norm"] = tpl.normalize(row["template"]) if row else None
+        return cache["norm"]
+
+    def check(event, primary, key, after):
+        seq = event["seq"]
+
+        def bad(message, **extra):
+            raise KernelError("export_invalid",
+                              f"event {seq}: {key}: {message}",
+                              {"seq": seq, "key": key, **extra})
+
+        if key.startswith("rel:"):
+            if not after:
+                return
+            _, kind, src, dst = key.split(":", 3)
+            norm = in_force()
+            if norm is None:
+                bad("no template is in force")
+            if kind not in tpl.relation_kinds(norm):
+                bad(f"the template in force declares no relation kind {kind}")
+            src_type, dst_type = store.item_type(src), store.item_type(dst)
+            if src_type is None or dst_type is None:
+                return
+            try:
+                check_edge_types(norm, kind, src, dst, src_type, dst_type)
+            except KernelError as exc:
+                bad(exc.message)
+            return
+        if key == "type":
+            norm = in_force()
+            if norm is None:
+                bad("no template is in force")
+            tdecl = norm["types"].get(after)
+            if tdecl is None:
+                bad(f"the template in force declares no type {after}")
+            _prefix, number = split_id(primary)
+            minted = f"{tdecl['prefix']}-{number:0{tdecl['digits']}d}"
+            if primary != minted:
+                bad(f"{primary} is not an id type {after} mints; its "
+                    f"number would be {minted}", id=primary)
+            return
+        if key != "state" and not key.startswith("field:"):
+            return
+        item_type = store.item_type(primary) if primary else None
+        if item_type is None:
+            return
+        tdecl = (in_force() or {"types": {}})["types"].get(item_type)
+        if tdecl is None:
+            bad(f"the template in force declares no type {item_type}")
+        if key == "state":
+            if after not in tdecl["states"]:
+                bad(f"{item_type} has no state {canonical(after)} in the "
+                    f"template in force")
+            return
+        field = key[len("field:"):]
+        decl = tdecl["fields"].get(field)
+        if decl is None:
+            bad(f"{item_type} declares no field {field} in the template in "
+                f"force")
+        if after is None:
+            return
+        try:
+            value = (check_metric(after) if decl["kind"] == "metric"
+                     else check_scalar(decl, after, lookup=store.item_type))
+        except ValueProblem as exc:
+            bad(exc.message)
+        if not same(value, after):
+            bad(f"the value is not in the form a live write stores "
+                f"({decl['kind']})")
+
+    return check
+
+
 def refuse_if_not_empty(store: Store) -> None:
     count = store.event_count()
     if count:
@@ -1154,8 +1272,9 @@ def cmd_import(ctx: Ctx) -> Outcome:
         else:
             store.initialise()
         ctx.store_seq = 0
+        check = replay_check(store)
         for event in events:
-            store.apply_event(event, mismatch="export_invalid")
+            store.apply_event(event, mismatch="export_invalid", check=check)
         produced, _ = serialise(store)
         if produced != items_bytes:
             want = items_bytes.split(b"\n")

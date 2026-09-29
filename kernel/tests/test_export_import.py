@@ -200,6 +200,81 @@ class TestExport(unittest.TestCase):
                           ["last_export_seq"])
 
 
+def set_meta(sb: Sandbox, key: str, value):
+    """Write (or, with None, delete) one meta row behind the kernel's back,
+    as damage or an older store would leave it."""
+    conn = sqlite3.connect(str(sb.store))
+    try:
+        if value is None:
+            conn.execute("DELETE FROM meta WHERE key = ?", (key,))
+        else:
+            conn.execute("INSERT INTO meta VALUES (?, ?) ON CONFLICT(key) DO "
+                         "UPDATE SET value = excluded.value", (key, value))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+class TestTheExportToken(unittest.TestCase):
+    """F3 and F6 (TASK-487 round 3; TASK-489). A store made before the token
+    existed has none, and its first export records one (§ 5.7). A stored
+    token of any other shape than the kernel writes is damage: `store_corrupt`,
+    not the `io_error` it used to surface as once it became part of a name."""
+
+    def tokenless(self) -> Sandbox:
+        sb = populated(self)
+        set_meta(sb, "export_token", None)
+        self.assertIsNone(sb_meta(sb, "export_token"))
+        return sb
+
+    def test_the_first_export_of_a_store_with_no_token_records_one(self):
+        sb = self.tokenless()
+        dry = sb.run("export", flags=["--dry-run"])
+        self.assertEqual(dry.env["effect"], "dry_run", dry)
+        self.assertIsNone(sb_meta(sb, "export_token"), "a dry run records "
+                                                       "nothing")
+        r = sb.run("export")
+        self.assertEqual(r.env["effect"], "written", r)
+        token = sb_meta(sb, "export_token")
+        self.assertRegex(token or "", "^[0-9a-f]{16}$")
+        self.assertEqual(sorted(p.name for p in export_dir(sb).iterdir()),
+                         ["events.jsonl", "items.jsonl"])
+        again = sb.run("export")
+        self.assertEqual(again.env["effect"], "unchanged", again)
+        self.assertEqual(sb_meta(sb, "export_token"), token)
+
+    def test_with_no_token_nothing_is_provably_the_kernels(self):
+        """Until a token is recorded no temp name is the store's own, so an
+        entry shaped like one is foreign and kept, and the refused export
+        records no token."""
+        sb = self.tokenless()
+        directory = export_dir(sb)
+        directory.mkdir(parents=True)
+        name = ".items.jsonl.0123456789abcdef.tmp"
+        (directory / name).write_text("not the kernel's")
+        r = sb.run("export")
+        self.assertEqual((r.code, r.code_name), (1, "export_dir_foreign"), r)
+        self.assertEqual(r.details["entries"], [name])
+        self.assertEqual((directory / name).read_text(), "not the kernel's")
+        self.assertIsNone(sb_meta(sb, "export_token"))
+
+    def test_a_damaged_token_is_store_corrupt(self):
+        for damaged in ("../../escape", "0123456789ABCDEF", "0123",
+                        "0123456789abcdef\n", "", "0123456789abcdef0",
+                        "0123456789abcdeg"):
+            with self.subTest(token=damaged):
+                sb = populated(self)
+                set_meta(sb, "export_token", damaged)
+                for flags in ([], ["--dry-run"]):
+                    r = sb.run("export", flags=flags)
+                    self.assertEqual((r.code, r.code_name),
+                                     (1, "store_corrupt"), r)
+                    self.assertEqual(r.details["row"], "meta export_token")
+                self.assertFalse(export_dir(sb).exists())
+                self.assertFalse((sb.root / "escape.tmp").exists())
+                self.assertEqual(sb_meta(sb, "export_token"), damaged)
+
+
 class TestImport(unittest.TestCase):
 
     def test_round_trip_is_byte_identical(self):

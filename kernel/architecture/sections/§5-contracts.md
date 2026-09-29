@@ -39,7 +39,7 @@ and `error` is `{"code", "message", "details"}`. Exit codes: `0` success · `1` 
 | `store_foreign` | 1 | the file at the store path is not a kernel store. It is never overwritten |
 | `store_version` | 1 | the store's format is newer than this kernel |
 | `store_busy` | 1 | the write lock was not acquired within 5 s |
-| `store_corrupt` | 1 | `sqlite3` reports damage, the kernel's tables are incomplete, `journal_mode=WAL` or `synchronous=FULL` cannot be set, or a row cannot be read back |
+| `store_corrupt` | 1 | `sqlite3` reports damage, the kernel's tables are incomplete, `journal_mode=WAL` or `synchronous=FULL` cannot be set, or a row cannot be read back, a recorded `export_token` that is not 16 lowercase hex characters included |
 | `store_live_under_test` | 1 | `PERRY_KERNEL_TESTING` is set, empty included, and the store path was derived, not named (§ 5.7) |
 | `store_initialized` | 1 | `init` on a store initialised with a different state root |
 | `store_not_empty` | 1 | `import` into a store that holds any event |
@@ -60,7 +60,7 @@ and `error` is `{"code", "message", "details"}`. Exit codes: `0` success · `1` 
 | `stale_write` | 1 | an item named in `expect` has moved: its `seq` is not the one the caller read |
 | `attachment_invalid` | 1 | an empty `ref`, a `ref` containing a line break, or a malformed `hash` |
 | `export_dir_foreign` | 1 | `<state root>/export/` holds an entry other than the kernel's two files and a temporary file named with the store's recorded token |
-| `export_missing` · `export_invalid` | 1 | `import` finds no export, or a line or a seq run that breaks § 5.8 |
+| `export_missing` · `export_invalid` | 1 | `import` finds no export, or a line, a seq run or a replayed change that breaks § 5.8 |
 | `replay_mismatch` | 1 | replaying the events does not reproduce `items.jsonl`. The first differing id is named |
 | `internal` | 3 | an unexpected fault. The transaction was rolled back |
 
@@ -298,7 +298,9 @@ becomes the event's seq.
 - **Transactions.** A write is one `BEGIN IMMEDIATE` transaction with a 5 s busy timeout
   (`store_busy`), so the lock spans the read, the decision and the write. A read is one
   snapshot. Under WAL, a reader in one worktree sees another worktree's commit at once
-  (Goal 5).
+  (Goal 5). Opening a store probes it and then begins the transaction, and every step
+  that meets a busy store is retried against one deadline set when the open starts, so
+  the probe and the open together wait out 5 s, not 5 s each.
 - **Ids.** The store keeps a ceiling per prefix. An id is minted inside the write
   transaction as `ceiling + 1`, so two writers cannot mint the same id. A ceiling is never
   lowered, an id is never reused, and no command deletes an item. A `ceiling:<prefix>`
@@ -337,7 +339,16 @@ becomes the event's seq.
   1. reads `<anchor>/<state_root>/export/`, and checks that the seqs run 1…n without a gap
      and that event 1 is the `init` for this `state_root` (`export_invalid`);
   2. replays every change by seq, checking that each `before` equals the replayed value,
-     without re-running guards, because the history was written under earlier templates;
+     without re-running guards, because the history was written under earlier templates.
+     Each change is held instead to the template in force when its event was written,
+     the last one the replay has applied, as a live write of it would have been: a
+     `type` the template declares, on an id that type mints (its prefix, padded to its
+     `digits`); a `state` of the item's type; a `field:` its type declares, with a value
+     that fits the field's kind (§ 5.3) in the form a live write stores; and, on an edge
+     being added, a relation kind the template knows, with ends a declared kind allows.
+     A relation change that flips nothing (`before` equal to `after`) is refused for
+     every kind, because no command writes one (NN-K8). Each refusal is `export_invalid`
+     and names the event's `seq` and the change's `key` (TASK-489);
   3. sets each ceiling to the higher of the largest id replayed and the largest
      `ceiling:<prefix>` value;
   4. serialises the replayed items as `export` would and compares them byte for byte with

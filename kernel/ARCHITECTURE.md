@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: —
 > Version: v1
-> Last reviewed: 2026-09-26
+> Last reviewed: 2026-09-29
 > Module document for the `kernel/` component. [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2 names it; the user confirmed that entry on 2026-09-24 (merged in 34d7be63).
 > Cap: ≤ 600 lines. This is the kernel's specification, written before any kernel code exists (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
 > Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`, the root document's convention under `kernel/`. § 5 is split out.
@@ -240,6 +240,13 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 ## §8. Change log
 
+- 2026-09-29 · v1 · TASK-489, the import items carried from TASK-487. In
+  `architecture/sections/§5-contracts.md`: § 5.8 step 2 says `import` holds each replayed
+  change to the template in force when its event was written, and refuses a relation
+  change that flips nothing for every kind (F1); § 5.1 says a damaged `export_token` is
+  `store_corrupt` (F6) and that `export_invalid` covers a replayed change; § 5.7 says an
+  open's probe and steps share one busy deadline (F4). No command, error code or key is
+  added, and `surface` stays 1.0.
 - 2026-09-29 · v1 · TASK-488 round 2, DESIGN-023 decision 13. § 3 says Goal 1's grep
   matches a template name as a string literal, not as a whole word. `describe`'s per-command
   description key is renamed `purpose` (`surface` stays 1.0, unreleased); § 5.6 names it.
