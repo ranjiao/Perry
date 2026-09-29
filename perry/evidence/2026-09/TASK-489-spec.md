@@ -57,6 +57,35 @@ Also carried from TASK-487's round-3 V4 review (`TASK-487-review-round3.md`):
 - **F6.** A damaged `export_token` must give `store_corrupt`, not `io_error`
   (`commands.py:901`).
 
+## Carried from DESIGN-023 decision 13, 2026-09-29
+
+The template has three types. Old records map onto them as follows:
+
+- **Tasks.**
+  - `title`, `summary`, `priority`, `owner`, `track`, `verification`,
+    `next_action` and `evidence` keep their names.
+  - `status` becomes the state.
+  - `depends_on` becomes `blocks` relations, and `design_refs` becomes
+    attachments.
+- **Asks.**
+  - `needed` becomes `question`.
+  - `status` and `answered` become the state.
+  - `blocks` becomes relations.
+- **Risks.**
+  - `risk` becomes `concern`.
+  - A `status` of `open` stays `open`, and one that begins `cleared` becomes
+    `cleared`.
+- **Dates.** `created`, `asked`, `opened`, `cleared`, `arrived` and
+  `stage_since` become the times of the imported events.
+- **Fields not imported.** `group`, `order`, `commitment`, `role` and `stage`
+  are not carried over. The report counts the rows that held a value in each
+  one. They stay readable in git history and in the old files.
+
+Import runs no guards. A row with no `verification` or no `summary` is imported
+as it is. The item types `intake` and `cadence` do not exist. Both stores hold
+no rows today. If a row appears in either before the importer runs, stop and
+report it.
+
 ## Out of scope
 - OKR, design and ADR records (TASK-492).
 - Historic prose.

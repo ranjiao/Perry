@@ -21,6 +21,8 @@ Depends on: TASK-487.
 - `bin/ARCHITECTURE.md` — the NN-B3 copy list and one § 8 line.
 
 ## Deliverable
+*Round 2 replaces this list with DESIGN-023 decision 13; see § Round 2 below.*
+
 The work lane's method, written as data:
 - the item types `task`, `ask`, `risk`, `intake` and `cadence`, with their
   fields, states and transitions as the work lane runs them today (DESIGN-023
@@ -74,9 +76,46 @@ The first commit of this round, made before any template work, does two things:
     temp file carrying that token is removed;
   - an empty `PERRY_KERNEL_TESTING` counts as set.
 
+## Round 2, decided 2026-09-29
+
+Round 1 (`TASK-488-dispatch-2026-09-26.md`) stopped on eleven rules the
+kernel cannot express. DESIGN-023 decisions 13 and 14 answer it: the method is
+pruned to fit the kernel, and the kernel does not change. This round rewrites
+`templates/process/perry.json` and its tests on the same branch. Commit
+`4dc3a4dc`, the carried document work, stays as it is.
+
+- **The template is exactly DESIGN-023 decision 13.** It has the types, fields,
+  states, relations and guards listed there, and nothing else. The task states
+  and the moves between them stay as round 1 wrote them, without the
+  `restage_*` transitions. Field names are plain: `summary`, `reason`, and the
+  risk state `open`.
+- **`track`** is an enum of `main` and `intake` (decision 14). There are no
+  per-track guards.
+- **The two carried requirements.**
+  - TASK-137, a queue row born in its track's first stage, no longer applies,
+    because there are no stages.
+  - TASK-291, the V4 verdict as a typed record, is met by `done` requiring
+    `verified_by` at V4. The review document is attached to the task, and no
+    field holds review prose.
+- **Goal 1's grep** in `kernel/tests/test_vocabulary.py` matches a name only
+  as a string literal (`"name"` or `'name'`) in kernel source. It keeps its
+  test that the names come from the shipped template. It also shows red on a
+  kernel file that spells one of those names as a literal.
+- **`tests/test_kernel_suite.py` `COVERS`** gains `templates/process/`, so a
+  template change selects the kernel suite.
+- **Criterion 5, for the section file.** `perry-lint --architecture-module`
+  accepts only `<component>/ARCHITECTURE.md`, and the old `bin/` is deleted at
+  phase H. The section file passes criterion 5 when the lint's module checks,
+  run on it from a scratch script, report 0 errors. Round 1 showed this.
+
 ## Out of scope
 - The goals and decide types (TASK-492).
 - The importer (TASK-489).
+- Any change to `kernel/perry_kernel/`.
+- Round 1's findings outside scope. The `SKILL.md:42` carve-out,
+  `templates/README.md` and `work/reference/task-close.md:34` go to TASK-490's
+  rewrite. The path quoting at `tests/selection.py:353` stays with the old
+  `bin/`.
 
 ## Acceptance criteria
 1. `template validate` accepts the file.
@@ -87,6 +126,12 @@ The first commit of this round, made before any template work, does two things:
 4. The RESULT proposes where tracks and settings live, with the reason. The
    PMO records the user's answer in this spec. Until the user answers, the
    template covers only the five types; it declares no tracks or settings.
+   *Round 1 met this. The answer is DESIGN-023 decision 14.*
+7. *(Round 2.)* The template's types, fields, states, relations and guards
+   are exactly DESIGN-023 decision 13's list. The RESULT enumerates them
+   against that list, one line each.
+8. *(Round 2.)* Each guard in decision 13 has a test that shows it refusing,
+   and a mutant of that guard turns its test red.
 5. The first commit holds the carried document changes and nothing else.
    `perry-lint --architecture-module` reports 0 errors for
    `kernel/ARCHITECTURE.md` and for the new section file, and root
@@ -105,3 +150,8 @@ The five work-lane types and the six acceptance criteria: one template file and 
   TASK-487 (user decisions of 2026-09-25 and 2026-09-26), the new document
   files in scope, and acceptance criteria 5 and 6. Criterion 4 now routes the
   tracks and settings decision to the user.
+- 2026-09-29 — Round 2 added, with criteria 7 and 8, following DESIGN-023
+  decisions 13 and 14. Criterion 5 is now met for the section file by a
+  scratch run of the lint's module checks. Out of scope now names the kernel
+  code and round 1's other findings. The five types become three: § 3 now
+  prunes the method, where it used to reproduce it.

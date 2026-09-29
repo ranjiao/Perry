@@ -6,7 +6,7 @@
 > Linked OKR: O3-KR1, O3-KR4 (`perry/OKR.md` v4, Objective 3 — changing Perry stays cheap, and its architecture stays where the user put it)
 > Supersedes: —   · Superseded by: —
 > Revisits: `DESIGN-014`, including its User Decisions 1 and 3 (its three categories of `bin/` become two halves; `perry-state` and `perry-diagnose` go), `DESIGN-013` (holds, sharpened to one home per concept), `DESIGN-004 § 4` and `DESIGN-005` decisions 1–2 (both rejected a database; decision 2), `DESIGN-007` (decision 12), `DESIGN-015` and `DESIGN-022` (decisions 4 and 8), `DESIGN-016` (the `bin/` contract), `DESIGN-020 § 9` and `ADR-023` (decision 5, now `ADR-024`), `ADR-006` and `ADR-019` (the store's medium and location, decision 2), `ADR-018` and `ADR-020` (decisions 7, 9 and 10), `ADR-002` (the store's scope). The reconciliation of every earlier design and ADR is `ADR-025`
-> Sign-off: User Decisions 1–7 answered by Ran Jiao in session on 2026-09-24 — 1 and 2 in discussion, 3–7 through the choice prompt, each taking the recommendation. Locked by the user the same day, `draft` → `locked` without an `in_review` hold, on the DESIGN-013 precedent. Before the lock, the input-quality pass added § 5.6 (affected surfaces) and § 5.7 (the rejected alternative). Revised the same day after a review of every earlier design and ADR (`ADR-025`): User Decisions 8–12 answered by Ran Jiao through the choice prompt, each taking the recommendation.
+> Sign-off: User Decisions 1–7 answered by Ran Jiao in session on 2026-09-24 — 1 and 2 in discussion, 3–7 through the choice prompt, each taking the recommendation. Locked by the user the same day, `draft` → `locked` without an `in_review` hold, on the DESIGN-013 precedent. Before the lock, the input-quality pass added § 5.6 (affected surfaces) and § 5.7 (the rejected alternative). Revised the same day after a review of every earlier design and ADR (`ADR-025`): User Decisions 8–12 answered by Ran Jiao through the choice prompt, each taking the recommendation. Revised 2026-09-29 after TASK-488 found eleven method rules the kernel cannot express: decision 14 was answered by Ran Jiao in session, and decision 13 was delegated by the user to the agent ("需要你自己思考以后决定怎么修改"; keep only the necessary fields and process logic).
 
 ## 1. Problem
 
@@ -62,7 +62,10 @@ Host tooling that is not project management at all shares the same `bin/`:
 1. **Two halves, one direction.** A kernel (code) and a skill (markdown). The
    skill calls the kernel. The kernel references no skill path and no name a
    process template defines. A test checks this by grepping the kernel source
-   for every type, state and field name in the shipped template.
+   for every type, state and field name in the shipped template, written as a
+   string literal. A kernel that special-cases a name must spell it as one; a
+   plain English word in a comment, or Python's `open`, is not a finding
+   (decision 13).
 2. **The kernel runs without markdown.** Its suite passes in a checkout with every
    `*.md` removed.
 3. **The kernel runs without an agent.** A scripted end-to-end test drives a full
@@ -94,8 +97,10 @@ Host tooling that is not project management at all shares the same `bin/`:
 - **A UI beyond the CLI.** `viewer/` is § 8.
 - **Markdown in the kernel.** The kernel never reads, parses, lints or renders
   markdown, in any mode.
-- **Changing the method.** The first template reproduces today's work, goals and
-  decide rules as they are. Pruning them is a separate decision.
+- **Reproducing the method as it is.** The first template keeps only the
+  fields and rules that the kernel's four guards express and that today's data
+  uses (decision 13). Any other rule goes to the skill or is dropped. It never
+  grows the kernel.
 - **Migrating historic prose.** The 196,031 lines of state markdown stay as
   documents. Only structured records are imported.
 - **Compatibility with pre-split projects.** They are upgraded by the importer,
@@ -119,6 +124,8 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | 10 | Verification for store and importer | V4 for B and D (Recommended) / V3 throughout | **V4 for B and D** | 2026-09-24 |
 | 11 | aiMark | Moves at phase E (Recommended) / Compatibility output | **Moves at phase E** | 2026-09-24 |
 | 12 | DESIGN-007's unbuilt decisions | Drop (Recommended) / Carry into template | **Drop** | 2026-09-24 |
+| 13 | The method in the first template | Prune it to what the kernel expresses (Recommended) / Grow the kernel to reproduce it / Keep the fields, move the rules to prose | **Prune it** (delegated to the agent) | 2026-09-29 |
+| 14 | Where tracks live | An enum in the template (Recommended) / Items | **An enum in the template** | 2026-09-29 |
 
 - **1.** The kernel knows items, types, fields, transitions, guards, relations,
   events and attachments. OKR, rungs and tracks are one process template, and
@@ -187,6 +194,69 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
   template has nothing to reproduce (§ 3). A later template can add a type,
   which would demonstrate Goal 4. The task tree (decision 1) is the `parent`
   relation and is kept.
+- **13.** TASK-488 wrote today's work lane as a template. It needed 31 task
+  fields, and it stopped on eleven rules the kernel cannot express
+  (`TASK-488-dispatch-2026-09-26.md`). Measured on 2026-09-29 over both
+  projects' stores (520 task rows):
+  - `commitment`, `role` and `parent` are never set;
+  - `stage`, `arrived` and `stage_since` are set on 48, 47 and 7 rows, all on
+    the one queue track;
+  - `order` is set on 22 rows, and `group` repeats `priority`;
+  - there are no cadence rows, and `intake.jsonl` is empty in this
+    repository, the only project that has one. Incoming requests are already
+    tasks on the `intake` track;
+  - both projects hold 6 risks in all.
+
+  Each of the eleven rules is unused, derivable from events, or a judgement
+  the skill already makes. None of them justifies a kernel capability. The work
+  template therefore holds:
+  - **Types.** `task`, `ask` and `risk`. There is no intake type and no cadence
+    type.
+  - **Task fields.** `title`, `summary`, `priority`, `owner`, `track`,
+    `verification`, `next_action`, `evidence`, `reason` and `verified_by`.
+    Dependencies are `blocks` relations, the task tree is `parent`, and the
+    spec, design and review documents are attachments. The time a task was
+    created or entered a state, and the date of a sign-off, are event times,
+    not fields.
+  - **Ask fields.** `question` and `answer`, with a `blocks` relation to the
+    tasks it holds up.
+  - **Risk fields.** `concern` and `reason`, with the states `open` and
+    `cleared`.
+  - **Rungs.** V1–V6 as an ordered enum. V0 is not a value, so no write can
+    store it.
+  - **Guards.** Creating a task requires `title`, `summary`, `priority` and
+    `verification`. `block`, `drop` and a risk's `clear` require `reason`.
+    `done` requires `evidence`. At V4 it also requires `verified_by`, the
+    reviewer; at V5 the actor must be a human. An ask requires `question`, and
+    answering it requires `answer`.
+
+  These leave the store:
+  - stages, per-track WIP, SLA and cycle;
+  - cadence recurrence and intake routing;
+  - the `high_stakes` flag;
+  - the seven review fields and four sign-off fields.
+
+  These stay with the skill:
+  - choosing a task's rung, including V5 for high-stakes work through the
+    dispatch pre-flight;
+  - whether a summary names an artifact and a check;
+  - reviewer freshness, and what a signer checked. Both are in documents
+    attached to the task.
+
+  Names stay plain: `summary`, `reason` and `open`, not the renames TASK-488
+  needed to pass Goal 1's word grep, which now matches string literals only.
+  `goals` and `decide` (phase F) are pruned by the same test. At phase H, a
+  kernel feature that no shipped template uses is removed.
+  - *Grow the kernel* adds five capabilities for rules with 0–48 rows of use:
+    guards with several conditions, a limit over a group of states, a
+    warn-only `required`, either-or requirements and batch writes.
+  - *Move the rules to prose* keeps the 31 fields with nothing to check them.
+- **14.** `track` is an enum in the template, `main` and `intake` today. It is a
+  label for filtering and has no mode, stages, WIP, SLA or cycle. A project that
+  needs another track changes the template (Goal 4). Settings such as the
+  languages and the state root stay in `.perry/config.jsonl`, which the skill
+  reads. Its `track` rows retire at phase E. As items, tracks would be out of
+  reach of every guard, since guards read only the item's own fields.
 
 ## 5. Architecture
 
@@ -299,14 +369,14 @@ decisions are really settled, belongs to the skill (decision 3).
   dropped (phase H): citation resolution, glossary, review verdicts,
   provenance.
 - The Perry method is `templates/process/perry.json`. Its item types are task,
-  ask, risk, intake, cadence, objective, KR, check, phase, design and ADR.
-  Rungs V0–V6 are an ordered enum field, as
-  `schema/state-schema.json § verification` declares them. V0 is always
-  refused, and guards sit on the `done` transition.
+  ask, risk, objective, KR, check, phase, design and ADR. Rungs V1–V6 are an
+  ordered enum field with the meanings `schema/state-schema.json §
+  verification` gives them. V0 is not a value, and guards sit on the `done`
+  transition (decision 13).
 - `journal/` stops being written at each lane's cutover, and the event log
-  becomes the history. A V5 sign-off's signer, date and what they checked are
-  fields on the item, written in the same transaction as the close. Existing
-  journal files stay as documents.
+  becomes the history. A V5 close is written by a human actor. Its event
+  records who signed and when, and what they checked is the sign-off document
+  attached to the task. Existing journal files stay as documents.
 - Host helpers (host detection, update check, context budget, dispatch limits)
   are not kernel. Where they go is § 8.
 
@@ -365,7 +435,7 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
 |---|---|---|---|
 | A | Kernel spec in `kernel/ARCHITECTURE.md`: the concepts, the template's JSON schema, the CLI surface, the error codes, the metric roll-up (decision 8) and the claims' arguments (§ 5.3). It carries DESIGN-016's lessons: `--root` and `--store` beat the environment, unknown keys are refused, queries are bounded by default, `--help` never executes, no tracebacks, and a no-op reads differently from a write. Adding `kernel/` to `ARCHITECTURE.md § 2` and marking NN-1 and NN-2 for phase H needs the user's confirmation (NN-6). In parallel, `work` triages the open rows (§ 5.6) with the reviews' task-level suggestions (ADR-025) | TBD at lock | Coding Agent; triage: `work` with the user |
 | B | Kernel core: store, items, transitions, the four guards with `when`, relations, events, attachments, `describe`, `--store`. Tests for Goals 2, 3, 5 and 6 and the live-store check | TBD at lock | Coding Agent; closes at V4 (decision 10) |
-| C | `templates/process/perry.json` for the work lane (task, ask, risk, intake, cadence), plus Goal 1's grep test | TBD at lock | Coding Agent |
+| C | `templates/process/perry.json` for the work lane (task, ask, risk; decision 13), plus Goal 1's grep test | TBD at lock | Coding Agent |
 | D | Importer from `tasks.jsonl`, the register stores and `.perry/events.jsonl`. Counts and ids are reconciled on this repository and on `~/proj/SkyTonight` (§ 5.6). Each prefix's id ceiling is seeded from every id ever issued, including purged task ids that survive only in the event log. Evidence is imported as one text field, never split into attachments by pattern (ADR-007). Long prose `Next action` cells are decided with the user before import (DESIGN-013 § 7) | TBD at lock | Coding Agent; closes at V4 (decision 10) |
 | E | Cut over `work`: rewrite `work/SKILL.md` and its references against the kernel. The old `perry-task` becomes read-only in the same change | TBD at lock | Coding Agent; the user approves the switch (closes at V3) |
 | F | `goals` per decisions 4 and 8. Objective and KR records share ids across OKR versions (`O3-KR1` exists in v2–v4), so the importer re-keys them and keeps each old id as a label. The phase-close order follows the shipped prose that DESIGN-020 § 9 adopted, not DESIGN-012 User Decision 1. `decide`: design and ADR metadata as items, with the documents attached. The ADR id ceiling is seeded from the existing filenames | TBD at lock | Coding Agent |
@@ -377,7 +447,7 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
 | Risk | Detection | Mitigation |
 |---|---|---|
 | The kernel grows into a workflow engine | Goal 6's budget test fails | A new concept, command group or guard kind requires `revise` of this design |
-| A method rule the template cannot express, such as cadence, SLA or board sections, pushes a feature into the kernel | Phase C or F cannot represent a rule | The rule becomes a skill procedure, or the user approves a kernel change in a revision. Never inside a task |
+| A method rule the template cannot express, such as cadence, SLA or board sections, pushes a feature into the kernel | Phase C or F cannot represent a rule | The rule is dropped or becomes a skill procedure (decision 13). A kernel change needs the user's approval in a revision, never inside a task |
 | Checks disappear quietly when `perry-lint` and `perry-diagnose` go | Phase H's table has one row per mode and per check | Each row is marked kernel, skill procedure or dropped, and the user signs off every dropped row |
 | The store sits inside `.git/`, where no one sees it, and is lost on re-clone | `events` reports events since the last export | The export is committed, `import` restores it, and phase B tests the round trip |
 | Two sources of truth during migration | A lane writes through both systems | Cutover is per lane, and the old writer turns read-only for that lane in the same change |
@@ -396,9 +466,6 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
 - The CLI's name. `bin/perry` is already DESIGN-016's forwarding index and
   keeps running during migration, so the kernel CLI cannot take that name
   before phase H.
-- `.perry/config.jsonl`: settings such as languages and the state root, and
-  tracks. Tracks are method and go to the template or become items. Settings
-  stay a JSON file the skill reads. Phase C decides.
 - The high-stakes list in `.perry/hook.md § High-stakes operations`. Code
   builds it from backticked spans today, and the dispatch pre-flight uses it.
   It is a safety gate (§ 7) and needs a structured home. Its database lines,
@@ -437,6 +504,18 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
   NN-2 wording in root `ARCHITECTURE.md` § 6 will be corrected in TASK-488.
   This entry records the same correction for this design. The TASK-487
   round-3 architecture review found it.
+- 2026-09-29 — Decisions 13 and 14 added. The following sections change to
+  match them:
+  - Goal 1's grep matches string literals;
+  - § 3's non-goal is now "reproducing the method as it is";
+  - § 5.4 drops the intake and cadence types, V0 and the sign-off fields;
+  - § 6 row C, and § 7's mitigation for an inexpressible rule;
+  - § 8 loses the `.perry/config.jsonl` question, which decision 14 answers.
+
+  Why: TASK-488 needed 31 task fields and hit eleven rules the kernel cannot
+  express. The user asked that the system keep only the necessary fields and
+  process logic, and delegated the choice. The kernel's code and concept
+  budget are unchanged.
 
 ## 10. References
 
