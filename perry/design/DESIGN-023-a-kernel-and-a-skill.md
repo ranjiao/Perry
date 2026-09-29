@@ -228,7 +228,10 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
     `verification`. `block`, `drop` and a risk's `clear` require `reason`.
     `done` requires `evidence`. At V4 it also requires `verified_by`, the
     reviewer; at V5 the actor must be a human. An ask requires `question`, and
-    answering it requires `answer`.
+    answering it requires `answer`. A risk requires `concern`.
+  - **One `reason` per task.** A blocked task already holds a reason, so a later
+    `drop` passes on it. The skill writes a fresh reason at every move that
+    asks for one, and the event keeps each old value.
 
   These leave the store:
   - stages, per-track WIP, SLA and cycle;
@@ -245,6 +248,10 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 
   Names stay plain: `summary`, `reason` and `open`, not the renames TASK-488
   needed to pass Goal 1's word grep, which now matches string literals only.
+  Where a template name still matches a kernel literal, the kernel renames
+  (`kernel/ARCHITECTURE.md` § 3). `describe`'s per-command `summary` key
+  becomes `purpose`, and the unreleased `surface` 1.0 changes with it. That is
+  the only kernel change this decision makes.
   `goals` and `decide` (phase F) are pruned by the same test. At phase H, a
   kernel feature that no shipped template uses is removed.
   - *Grow the kernel* adds five capabilities for rules with 0–48 rows of use:
@@ -516,6 +523,13 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
   express. The user asked that the system keep only the necessary fields and
   process logic, and delegated the choice. The kernel's code and concept
   budget are unchanged.
+- 2026-09-29 — Decision 13 gains three things: a risk requires `concern`; one
+  `reason` per task; and the kernel renames `describe`'s `summary` key to
+  `purpose`. That rename corrects the previous entry's "the kernel's code is
+  unchanged". TASK-488 round 2 found the task field `summary` as a string
+  literal in `kernel/perry_kernel/surface.py`. The kernel's own § 3 says a
+  collision is fixed on the kernel's side. The rename adds no concept and no
+  capability.
 
 ## 10. References
 

@@ -108,10 +108,27 @@ pruned to fit the kernel, and the kernel does not change. This round rewrites
   phase H. The section file passes criterion 5 when the lint's module checks,
   run on it from a scratch script, report 0 errors. Round 1 showed this.
 
+### Round 2, continued 2026-09-29
+
+The executor stopped at `4608b6b8`. The literal grep found `"summary"` in
+`kernel/perry_kernel/surface.py`: lines 56, 231, 280 and 306 hold `describe`'s
+per-command key. Decision 13 now settles it. The continuation:
+
+- **Rename the key.** `describe`'s `summary` key becomes `purpose` in
+  `surface.py` and `kernel/tests/test_budget.py`, and in every kernel document
+  that names the key. This is the only change to `kernel/perry_kernel/`.
+- **The risk create guard.** Creating a risk requires `concern`, with a
+  refusing test and a mutant that turns it red.
+- **`kernel/ARCHITECTURE.md` § 3.** The Forbidden line at `:89–91` says the
+  grep matches whole words. It now matches string literals, and the line must
+  say so. The line stays line-neutral.
+- **Keep the single `reason`.** `test_a_blocked_tasks_reason_satisfies_drop`
+  stays as the record of the behaviour decision 13 accepts.
+
 ## Out of scope
 - The goals and decide types (TASK-492).
 - The importer (TASK-489).
-- Any change to `kernel/perry_kernel/`.
+- Any change to `kernel/perry_kernel/` other than the `describe` key rename.
 - Round 1's findings outside scope. The `SKILL.md:42` carve-out,
   `templates/README.md` and `work/reference/task-close.md:34` go to TASK-490's
   rewrite. The path quoting at `tests/selection.py:353` stays with the old
@@ -155,3 +172,6 @@ The five work-lane types and the six acceptance criteria: one template file and 
   scratch run of the lint's module checks. Out of scope now names the kernel
   code and round 1's other findings. The five types become three: § 3 now
   prunes the method, where it used to reproduce it.
+- 2026-09-29 — Round 2 continued, after the `summary` collision. The kernel
+  may rename `describe`'s key, following decision 13's amendment. Also added:
+  the risk create guard, the kernel § 3 grep line, and the single `reason`.
