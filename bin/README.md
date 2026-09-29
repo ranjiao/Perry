@@ -871,8 +871,11 @@ highest id each prefix ever issued, the ids only the event log still holds
 (purged ones) included, seeds a `ceiling:` event when it is above the highest
 imported id.
 
-**It never writes a store it did not create.** `--work` must be empty or
-absent, outside the project and outside any `.git`. Every kernel call passes
+**It never writes a store it did not create.** Without `--work` it only
+plans: it reads the stores, builds the export in memory, prints what it would
+carry, drop and seed, and writes nothing (DESIGN-016 C3's default for a
+flag-only tool). `--work` must be empty or absent, outside the project and
+outside any `.git`. Every kernel call passes
 `--store <work>/store.db` and `--root <work>/anchor`, and runs with
 `PERRY_KERNEL_TESTING` set, so a call that lost its `--store` is refused
 rather than derived to the store every worktree shares (`kernel/ARCHITECTURE.md`

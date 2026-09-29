@@ -3,17 +3,20 @@
 perry-kernel-migrate — a project's old stores, imported into a TEMPORARY
 kernel store and reconciled against it (DESIGN-023 § 6 row D, TASK-489).
 
-    perry-kernel-migrate --work <dir> [--root <project>] [--json]
+    perry-kernel-migrate [--root <project>] [--json]                 plan only
+    perry-kernel-migrate [--root <project>] --work <dir> [--json]    import
 
 It reads `tasks.jsonl`, `asks.jsonl`, `risks.jsonl`, `intake.jsonl`,
-`cadence.jsonl` and `.perry/events.jsonl` through the existing readers, writes
-a synthetic kernel export under `<dir>/anchor/`, runs `bin/perry-kernel import`
-into `<dir>/store.db`, and reads the store back through the kernel to check
+`cadence.jsonl` and `.perry/events.jsonl` through the existing readers and
+builds a synthetic kernel export. Without `--work` it stops there, prints what
+the import would carry, drop and seed, and writes nothing. With it, it writes
+the export under `<dir>/anchor/`, runs `bin/perry-kernel import` into
+`<dir>/store.db`, and reads the store back through the kernel to check
 DESIGN-023 row D's criteria 1–5. It writes nothing outside `<dir>`, which must
 be empty or absent and outside the project and any `.git`, and it names that
-store with `--store` on every kernel call. Exit 0 reconciled, 1 refused or not
-reconciled, 2 bad invocation. It is one-shot: row H deletes it with the rest
-of the old `bin/`. The mapping and its reasons: `bin/README.md §
+store with `--store` on every kernel call. Exit 0 planned or reconciled, 1
+refused or not reconciled, 2 bad invocation. It is one-shot: row H deletes it
+with the rest of the old `bin/`. The mapping and its reasons: `bin/README.md §
 perry-kernel-migrate`.
 """
 
@@ -24,7 +27,6 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -97,13 +99,14 @@ SURFACE = {
     "summary": "import a project's old stores into a temporary kernel store "
                "and reconcile the two (DESIGN-023 row D)",
     "root_resolution": "standard",
-    "exit_codes": {"0": "imported and reconciled",
+    "exit_codes": {"0": "planned, or imported and reconciled",
                    "1": "refused, or not reconciled",
                    "2": "bad invocation"},
     "flags": [
         {"name": "--work", "arg": "dir", "summary":
-         "an empty or absent directory outside the project; the export, the "
-         "anchor and the store go here and nowhere else (required)"},
+         "import into a store here: an empty or absent directory outside the "
+         "project, where the export, the anchor and the store go and nowhere "
+         "else. Without it, plan only and write nothing"},
         {"name": "--json", "summary": "the reconciliation as one JSON object"},
     ],
     "subcommands": [],
@@ -576,12 +579,13 @@ def check_work(work: Path, project_root: Path) -> None:
                       f"needs an empty store, and nothing there is replaced.")
 
 
-def run(project_root: Path, work: Path) -> dict:
-    project_root = project_root.resolve()
+def planned(project_root: Path, work) -> tuple:
+    """Read the old stores and build the export in memory. Writes nothing."""
     if not (project_root / ".perry").is_dir():
         raise Refused(f"{project_root} holds no .perry/; it is not a Perry "
                       f"project")
-    check_work(work, project_root)
+    if work is not None:
+        check_work(work, project_root)
     state_root = Path(P.resolve_state_root(project_root)).resolve()
     rel = state_root.relative_to(project_root).as_posix()
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
@@ -589,12 +593,35 @@ def run(project_root: Path, work: Path) -> dict:
         if spec["type"] not in template["types"]:
             raise Refused(f"{TEMPLATE} declares no type {spec['type']}")
     stores, events = read_old(project_root, state_root)
-    run_at = datetime.now(timezone.utc).strftime(KERNEL_TIME)
-    plan = Plan(template, stores, events, run_at)
+    # The run's own time, through the one clock and the one converter.
+    plan = Plan(template, stores, events, moment(lib.event_stamp()))
     for register in MAPPING:
         for rec in stores.get(register, []):
             plan.add(register, rec)
     items_bytes, events_bytes, built = build_export(plan, rel)
+    return plan, rel, items_bytes, events_bytes, built
+
+
+def plan_only(project_root: Path) -> dict:
+    """The default with no `--work`: what the import would carry, drop and
+    seed, read from the old stores and written nowhere (DESIGN-016 C3: a
+    flag-only tool does its documented default)."""
+    project_root = project_root.resolve()
+    plan, rel, items_bytes, events_bytes, built = planned(project_root, None)
+    return {"project": str(project_root), "state_root": rel, "work": None,
+            "planned_only": True,
+            "old": old_side(plan, plan.stores, plan.events),
+            "mapping": mapping_side(plan, built),
+            "ceilings": built["ceilings"],
+            "export": {"items_bytes": len(items_bytes),
+                       "events_bytes": len(events_bytes)},
+            "criteria": {}, "reconciled": None}
+
+
+def run(project_root: Path, work: Path) -> dict:
+    project_root = project_root.resolve()
+    plan, rel, items_bytes, events_bytes, built = planned(project_root, work)
+    stores, events = plan.stores, plan.events
 
     anchor = work / "anchor"
     store = work / "store.db"
@@ -715,22 +742,33 @@ def reconcile(plan: Plan, call, rel: str) -> tuple[dict, dict]:
 
 def summary(report: dict) -> str:
     lines = [f"perry-kernel-migrate: {report['project']} "
-             f"(state root {report['state_root']})",
-             f"  store  {report['store']}", f"  export {report['export']}"]
-    imp = report["import"]
-    if not imp["ok"]:
-        lines.append(f"  import refused: {imp['error']['code']}: "
-                     f"{imp['error']['message']}")
-        if imp.get("event_items"):
-            lines.append(f"  the event names {', '.join(imp['event_items'])}")
-        return "\n".join(lines)
-    for name, value in report["criteria"].items():
-        lines.append(f"  {'PASS' if value else 'FAIL'}  {name}")
-    lines.append(f"  old by type and state: "
-                 f"{canonical(report['old']['by_type_and_state'])}")
-    lines.append(f"  next ids: " + ", ".join(
-        f"{p} {v['next_id']} (issued up to {v['issued_max']})"
-        for p, v in report["kernel"]["next_ids"].items()))
+             f"(state root {report['state_root']})"]
+    if report.get("planned_only"):
+        lines.append(f"  plan only: no --work, so nothing was written; the "
+                     f"export would hold {report['mapping']['export_events']} "
+                     f"events for {report['old']['ids']} items")
+        lines.append(f"  old by type and state: "
+                     f"{canonical(report['old']['by_type_and_state'])}")
+        lines.append("  ceilings: " + ", ".join(
+            f"{p} issued up to {c['issued_max']}"
+            for p, c in report["ceilings"].items()))
+    else:
+        lines += [f"  store  {report['store']}", f"  export {report['export']}"]
+        imp = report["import"]
+        if not imp["ok"]:
+            lines.append(f"  import refused: {imp['error']['code']}: "
+                         f"{imp['error']['message']}")
+            if imp.get("event_items"):
+                lines.append(f"  the event names "
+                             f"{', '.join(imp['event_items'])}")
+            return "\n".join(lines)
+        for name, value in report["criteria"].items():
+            lines.append(f"  {'PASS' if value else 'FAIL'}  {name}")
+        lines.append(f"  old by type and state: "
+                     f"{canonical(report['old']['by_type_and_state'])}")
+        lines.append(f"  next ids: " + ", ".join(
+            f"{p} {v['next_id']} (issued up to {v['issued_max']})"
+            for p, v in report["kernel"]["next_ids"].items()))
     m = report["mapping"]
     lines.append(f"  skipped next_action on closed tasks: "
                  f"{canonical(m['skipped_next_action'])}")
@@ -760,14 +798,18 @@ def main(argv: list[str]) -> int:
               f"{read['extra'][0]!r}", file=sys.stderr)
         return 2
     work = read["values"].get("--work")
-    if not work:
-        print(lib.usage_lines(SURFACE), file=sys.stderr)
-        print("perry-kernel-migrate: --work <dir> is required: the store it "
-              "imports into is never the project's", file=sys.stderr)
+    if work is not None and not work.strip():
+        print("perry-kernel-migrate: --work was given an empty value; name a "
+              "scratch directory", file=sys.stderr)
         return 2
     as_json = "--json" in read["seen"]
     try:
         project_root = lib.resolve_project_root(read["values"].get("--root"))
+        if work is None:
+            report = plan_only(project_root)
+            print(json.dumps(report, ensure_ascii=False, indent=2) if as_json
+                  else summary(report))
+            return 0
         report = run(project_root, Path(work).expanduser().resolve())
     except Refused as exc:
         if as_json:

@@ -83,9 +83,10 @@ the two `bin/` tools that execute another one; neither imports it.
 DESIGN-023 row D's importer (TASK-489). It reads the old stores through
 `perry_store.load_board_stores`, `parsers.resolve_state_root` and
 `parsers.load_register_store` (for `.perry/events.jsonl`), and converts times
-with `lib.ts_moment`, so it adds no reader. It writes a synthetic kernel
-export under the `--work` directory it is given, which must be empty and
-outside the project and any `.git`, and runs `bin/perry-kernel import`,
+with `lib.ts_moment`, so it adds no reader. Without `--work` it only plans and
+writes nothing. With it, it writes a synthetic kernel export under that
+directory, which must be empty and outside the project and any `.git`, and
+runs `bin/perry-kernel import`,
 `query`, `item create --dry-run`, `export` and `events` as subprocesses, each
 naming `--store <work>/store.db` and `--root <work>/anchor`. It never writes
 the project. Row H deletes it with the rest of this directory; the mapping it

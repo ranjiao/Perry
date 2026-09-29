@@ -474,19 +474,48 @@ class TestTheInvocation(Fixture):
                 self.assertFalse(self.work.exists())
 
     def test_bad_invocations_are_exit_2(self):
-        root = self.project()
         for argv, fragment in (
-                ([], "--work <dir> is required"),
-                (["--root", str(root)], "--work <dir> is required"),
                 (["--work", str(self.work), "--xyzzy"], "unknown argument"),
                 (["--work", str(self.work), "extra"], "takes no argument"),
                 (["--work"], "--work takes a value"),
+                (["--work", ""], "--work was given an empty value"),
                 (["--root", "", "--work", str(self.work)], "empty value")):
             with self.subTest(argv=argv):
                 r = migrate(*argv, cwd=self.tmp)
                 self.assertEqual(r.returncode, 2, r.stderr)
                 self.assertIn(fragment, r.stderr)
                 self.assertFalse(self.work.exists())
+
+    def test_without_work_it_plans_and_writes_nothing(self):
+        """The flag-only default (DESIGN-016 C3): the same plan the import
+        would write, reported, with nothing written anywhere."""
+        root = self.project()
+        before = fingerprint(root)
+        r = migrate("--root", str(root), "--json", cwd=self.tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        plan = json.loads(r.stdout)
+        self.assertTrue(plan["planned_only"])
+        self.assertIsNone(plan["reconciled"])
+        self.assertEqual(plan["old"]["ids"], 8)
+        self.assertEqual(plan["ceilings"]["TASK"]["seed"], 9)
+        self.assertEqual(plan["mapping"]["skipped_next_action"],
+                         {"done": 1, "dropped": 1})
+        self.assertEqual(fingerprint(root), before)
+        self.assertEqual(sorted(p.name for p in self.tmp.iterdir()), ["proj"])
+        text = migrate("--root", str(root), cwd=self.tmp)
+        self.assertEqual(text.returncode, 0, text.stderr)
+        self.assertIn("plan only", text.stdout)
+
+    def test_the_plan_stops_where_the_import_would(self):
+        root = self.project(risks=[risk("RX-001", "watching")])
+        r = migrate("--root", str(root), cwd=self.tmp)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("neither open nor cleared", r.stderr)
+
+    def test_a_bare_call_outside_a_project_is_refused(self):
+        r = migrate(cwd=self.tmp)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("holds no .perry/", r.stderr)
 
     def test_the_work_directory_must_be_empty_and_outside(self):
         root = self.project()
