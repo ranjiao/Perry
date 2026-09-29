@@ -298,9 +298,9 @@ becomes the event's seq.
 - **Transactions.** A write is one `BEGIN IMMEDIATE` transaction with a 5 s busy timeout
   (`store_busy`), so the lock spans the read, the decision and the write. A read is one
   snapshot. Under WAL, a reader in one worktree sees another worktree's commit at once
-  (Goal 5). Opening a store probes it and then begins the transaction, and every step
-  that meets a busy store is retried against one deadline set when the open starts, so
-  the probe and the open together wait out 5 s, not 5 s each.
+  (Goal 5). Opening a store probes it and then begins the transaction. The open's
+  deadline is set before it probes, so a probe that waited on a busy store leaves the
+  open's own retries only the rest of the 5 s, not a whole 5 s more.
 - **Ids.** The store keeps a ceiling per prefix. An id is minted inside the write
   transaction as `ceiling + 1`, so two writers cannot mint the same id. A ceiling is never
   lowered, an id is never reused, and no command deletes an item. A `ceiling:<prefix>`

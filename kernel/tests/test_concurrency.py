@@ -32,9 +32,9 @@ DRIVER = textwrap.dedent("""
     marker, argv, go = sys.argv[2], json.loads(sys.argv[3]), sys.argv[4]
     real = Store.probe
 
-    def probe(path, deadline=None):
+    def probe(path):
         try:
-            return real(path, deadline)
+            return real(path)
         finally:
             open(marker, "a").close()
 

@@ -246,7 +246,7 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
   rise and strand nothing, and a type is set once), and refuses a relation change that
   flips nothing for every kind (F1); § 5.1 says a damaged `export_token` is
   `store_corrupt` (F6) and that `export_invalid` covers a replayed change; § 5.7 says an
-  open's probe and steps share one busy deadline (F4). No command, error code or key is
+  open sets its busy deadline before it probes (F4). No command, error code or key is
   added, and `surface` stays 1.0.
 - 2026-09-29 · v1 · TASK-488 round 2, DESIGN-023 decision 13. § 3 says Goal 1's grep
   matches a template name as a string literal, not as a whole word. `describe`'s per-command

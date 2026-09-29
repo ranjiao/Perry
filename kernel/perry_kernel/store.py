@@ -149,7 +149,7 @@ class Store:
         return conn
 
     @staticmethod
-    def probe(path, deadline=None) -> str:
+    def probe(path) -> str:
         """`absent`, `empty` (no kernel content), `store`, or raises
         store_foreign / store_version / store_corrupt. A probe is a hint read
         outside any write transaction; a write decides again inside its own
@@ -158,12 +158,7 @@ class Store:
         The header and the table list are read in ONE read snapshot. Read one
         statement at a time, a concurrent init committing between them
         showed `application_id` 0 beside `user_version` 1, and the store was
-        called foreign (round 4).
-
-        `deadline` is the caller's, when the probe is one step of a longer
-        wait: `open` passes its own, so a probe and an open that both meet a
-        busy store wait out one 5 s deadline between them, not two (TASK-489,
-        F4)."""
+        called foreign (round 4)."""
         p = Path(path)
         try:
             exists, is_dir = p.exists(), p.is_dir()
@@ -185,8 +180,7 @@ class Store:
                 conn.close()  # ends the read transaction
 
         try:
-            header = _retrying(read_header,
-                               _deadline() if deadline is None else deadline)
+            header = _retrying(read_header, _deadline())
         except sqlite3.Error as exc:
             raise _db_error(exc, p)
         return Store._verdict(header, p)
@@ -234,10 +228,13 @@ class Store:
     @classmethod
     def open(cls, path, *, write: bool) -> "Store":
         """Open an initialised store and begin the command's transaction.
-        The probe and every step below share one deadline, so `store_busy`
-        comes within 5 s of the call, however many steps met a busy store."""
+
+        The deadline is set before the probe, not after it (TASK-489, F4): a
+        probe that waited out a busy store leaves the steps below only what
+        remains of the 5 s, so `store_busy` comes within 5 s of the call
+        rather than after the probe's wait and a whole deadline more."""
         deadline = _deadline()
-        state = cls.probe(path, deadline)
+        state = cls.probe(path)
         if state in ("absent", "empty"):
             raise KernelError("store_missing",
                               f"{path} has not been initialised; run init",
