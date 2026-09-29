@@ -11,7 +11,7 @@ Run: python3 -m unittest tests.test_kernel_suite
 
 from __future__ import annotations
 
-COVERS = ("kernel/", "bin/perry-kernel")
+COVERS = ("kernel/", "bin/perry-kernel", "templates/process/")
 
 import os
 import pathlib

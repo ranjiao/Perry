@@ -111,8 +111,8 @@ class TestDescribe(unittest.TestCase):
         for command in described["commands"]:
             with self.subTest(command=command["name"]):
                 self.assertEqual(sorted(command), [
-                    "errors", "flags", "input", "kind", "name", "result",
-                    "summary"])
+                    "errors", "flags", "input", "kind", "name", "purpose",
+                    "result"])
                 self.assertIn(command["kind"], ("read", "write"))
                 self.assertTrue(set(command["errors"]) <= set(ERRORS))
                 self.assertIn("usage", command["errors"])

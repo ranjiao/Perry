@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: user (§6, §7)
 > Version: v1
-> Last reviewed: 2026-09-25
+> Last reviewed: 2026-09-26
 > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
 > Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
@@ -204,7 +204,9 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
   that already exist are unchanged and go at row H: `bin/perry-state §
   resolve_root`, `viewer/parsers.py § _resolve_project_root`, the flag/env/cwd
   lines in `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`,
-  `perry-context-budget` and `perry-explain`, and `perry-lint`, which reads
+  `perry-context-budget` and `perry-explain`, `bin/perry-churn § detect_perry`,
+  which walks up to the first `.perry/`, stops at the git top level, and takes
+  no `--root` and no environment variable, and `perry-lint`, which reads
   no `$PERRY_PROJECT` at any of its nine sites: one, the default lint, walks,
   and eight per-mode branches (`--claims`, `--verification`, `--summaries`,
   `--glossary`, `--reviews`, `--knowledge`, `--provenance`, `--specs`) take
@@ -231,6 +233,7 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
 
 ## §8. Change log
 
+- 2026-09-26 · v1 · TASK-488, decided by the user on 2026-09-26: § 6 NN-B3's sunset, like root § 3's third Forbidden line, adds `bin/perry-churn § detect_perry` (`:305–341`) to the existing copies — it walks up to the first `.perry/`, stops at the git top level, and takes no `--root` and no environment variable.
 - 2026-09-26 · v1 · TASK-487 round 4, decided by the user: § 6 NN-B3's sunset, like root § 3's, names `perry-lint`'s nine sites exactly — one walks, eight per-mode branches take `--root` or else the cwd — in place of "flag-then-walk".
 - 2026-09-25 · v1 · TASK-487 (rounds 2 and 3): `bin/perry-kernel` joins the
   directory. § 1 counts twenty-one executables and § 5 fourteen tools without a

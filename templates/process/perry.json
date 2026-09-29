@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "name": "perry",
+  "version": 1,
+  "types": {
+    "task": {
+      "prefix": "TASK",
+      "digits": 3,
+      "states": ["not_started", "blocked", "in_progress", "review", "done", "dropped"],
+      "initial": "not_started",
+      "terminal": ["done", "dropped"],
+      "fields": {
+        "title": {"kind": "text"},
+        "summary": {"kind": "text"},
+        "priority": {"kind": "enum", "values": ["P0", "P1", "P2"]},
+        "owner": {"kind": "enum", "values": ["User", "PMO Agent", "Coding Agent", "Research Agent", "Review Agent", "User + Agent"]},
+        "track": {"kind": "enum", "values": ["main", "intake"]},
+        "verification": {"kind": "enum", "values": ["V1", "V2", "V3", "V4", "V5", "V6"], "ordered": true},
+        "next_action": {"kind": "text"},
+        "evidence": {"kind": "text"},
+        "reason": {"kind": "text"},
+        "verified_by": {"kind": "actor"}
+      },
+      "create_guards": [
+        {"kind": "required", "fields": ["title", "summary", "priority", "verification"]}
+      ],
+      "transitions": {
+        "start": {"from": ["not_started", "blocked", "review"], "to": "in_progress", "guards": []},
+        "block": {"from": ["not_started", "in_progress", "review"], "to": "blocked", "guards": [
+          {"kind": "required", "fields": ["reason"]}
+        ]},
+        "submit": {"from": ["not_started", "blocked", "in_progress"], "to": "review", "guards": []},
+        "reset": {"from": ["blocked", "in_progress", "review"], "to": "not_started", "guards": []},
+        "done": {"from": ["not_started", "blocked", "in_progress", "review"], "to": "done", "guards": [
+          {"kind": "required", "fields": ["evidence"]},
+          {"kind": "required", "fields": ["verified_by"], "when": {"verification": ["V4"]}},
+          {"kind": "actor", "actor_kind": "human", "when": {"verification": ["V5"]}}
+        ]},
+        "drop": {"from": ["not_started", "blocked", "in_progress", "review"], "to": "dropped", "guards": [
+          {"kind": "required", "fields": ["reason"]}
+        ]}
+      }
+    },
+    "ask": {
+      "prefix": "USER",
+      "digits": 3,
+      "states": ["pending", "answered"],
+      "initial": "pending",
+      "terminal": ["answered"],
+      "fields": {
+        "question": {"kind": "text"},
+        "answer": {"kind": "text"}
+      },
+      "create_guards": [
+        {"kind": "required", "fields": ["question"]}
+      ],
+      "transitions": {
+        "answer": {"from": ["pending"], "to": "answered", "guards": [
+          {"kind": "required", "fields": ["answer"]}
+        ]}
+      }
+    },
+    "risk": {
+      "prefix": "RX",
+      "digits": 3,
+      "states": ["open", "cleared"],
+      "initial": "open",
+      "terminal": ["cleared"],
+      "fields": {
+        "concern": {"kind": "text"},
+        "reason": {"kind": "text"}
+      },
+      "create_guards": [
+        {"kind": "required", "fields": ["concern"]}
+      ],
+      "transitions": {
+        "clear": {"from": ["open"], "to": "cleared", "guards": [
+          {"kind": "required", "fields": ["reason"]}
+        ]}
+      }
+    }
+  },
+  "relations": {}
+}

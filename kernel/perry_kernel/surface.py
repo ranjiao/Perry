@@ -53,7 +53,7 @@ WRITE_FLAGS = ("--input", "--dry-run")
 
 def command(name, kind, input_keys, result, errors, *, has_input=True,
             summary=""):
-    return {"name": name, "kind": kind, "summary": summary,
+    return {"name": name, "kind": kind, "purpose": summary,
             "input": input_keys if has_input else None,
             "result": list(result), "errors": list(dict.fromkeys(errors))}
 
@@ -228,7 +228,7 @@ def describe() -> dict:
         "concepts": list(CONCEPTS),
         "budget": dict(BUDGET),
         "commands": [{"name": c["name"], "kind": c["kind"],
-                      "summary": c["summary"], "flags": flags_of(c),
+                      "purpose": c["purpose"], "flags": flags_of(c),
                       "input": c["input"], "result": c["result"],
                       "errors": c["errors"]} for c in COMMANDS],
         "flags": {**GLOBAL_FLAGS, **COMMAND_FLAGS},
@@ -277,7 +277,7 @@ def usage(prog: str, name: str | None = None) -> str:
             parts.append(f"[{f} {takes}]" if takes else f"[{f}]")
         flags = " ".join(parts)
         lines = [f"usage: {prog} {c['name']} {flags}", "",
-                 f"{c['name']} ({c['kind']}): {c['summary']}.", ""]
+                 f"{c['name']} ({c['kind']}): {c['purpose']}.", ""]
         if c["input"] is None:
             lines.append("input: none (--input is refused)")
         else:
@@ -303,7 +303,7 @@ def usage(prog: str, name: str | None = None) -> str:
              "and no method; every type, state, field and guard comes from the "
              "applied template.", "", "commands:"]
     for c in COMMANDS:
-        lines.append(f"  {c['name']:<18} {c['kind']:<5}  {c['summary']}")
+        lines.append(f"  {c['name']:<18} {c['kind']:<5}  {c['purpose']}")
     lines += ["", "flags:"]
     for f, spec in {**GLOBAL_FLAGS, **COMMAND_FLAGS}.items():
         takes = f" {spec['takes']}" if spec["takes"] else ""
