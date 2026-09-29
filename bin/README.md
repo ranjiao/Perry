@@ -849,9 +849,11 @@ attachments. An ask's `needed` is `question`, its `status` and `answered` are
 the state, and its `Blocks` cell becomes `blocks` edges: the cell is split on
 commas and white space and each token looked up among the imported ids, so a
 key result such as `P003-O2-KR3` is reported as unresolved, never guessed at.
-A risk's `risk` is `concern`, and its status is `open` or `cleared`. An empty
-cell is unset; every other value is imported as it is, the blank marker `—`
-included. `group`, `order`, `commitment`, `role`, `stage`, `arrived` and
+A risk's `risk` is `concern`, and its status is `open` or `cleared`. A cell
+that says nothing, meaning an empty string or the blank marker `—`
+(`lib.is_blank_cell`, the one rule for it), is unset and not imported, in
+every mapped field. The report counts those cells per field. Every other value
+is imported as it is. `group`, `order`, `commitment`, `role`, `stage`, `arrived` and
 `stage_since` are not carried, nor is `next_action` on a `done` or `dropped`
 task (§ Decided 2026-09-29, option A), and the report counts the rows that
 held each. A populated key the mapping does not name, a `parent`, an intake or
@@ -863,9 +865,13 @@ written: nothing is dropped that the report does not count.
 timed at `created`, `asked` or `opened`, and, when it is not in its type's
 initial state, one `item move` by the one transition from that state, timed at
 the last old event for its id whose `to` is a state of its type, or at a
-risk's `cleared`, or at its creation. An item with no creation date is timed
-at its first old event, or else at the start of the old log, and its event's
-`note` says which rule timed it. Each `blocks` edge lands in the create of
+risk's `cleared`, or at its creation. A move is never timed before its
+create. It is timed at the later of those two times, and when that changed it,
+its `note` says so and keeps the time the rule gave.
+- A date-only field is read by `lib.ts_moment` as 00:00 UTC, which is 08:00 on
+  a +08:00 clock. The create's `note` says so.
+- An item with no creation date is timed at its first old event, or else at
+  the start of the old log, and its event's `note` says which rule timed it. Each `blocks` edge lands in the create of
 whichever end is created later, as a live `item create` would write it. The
 highest id each prefix ever issued, the ids only the event log still holds
 (purged ones) included, seeds a `ceiling:` event when it is above the highest

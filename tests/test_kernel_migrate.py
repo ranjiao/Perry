@@ -372,6 +372,92 @@ class TestTheDates(Fixture):
             ("item move", "2026-08-05T00:00:00Z", "start")])
 
 
+class TestABlankCellIsUnset(Fixture):
+    """Decided after round 1: the old store's blank marker `—`, and an empty
+    string, mean the field is unset, so neither is imported, whatever the
+    field. The report counts them per field and by spelling. A `—` on a
+    closed task's `next_action` is counted here, not as a skipped cell."""
+
+    def test_the_marker_and_the_empty_string_are_not_imported(self):
+        root = self.project(
+            tasks=[task("TASK-001", "not_started", evidence="—",
+                        next_action="—", summary="", owner="",
+                        priority="—", verification="V3"),
+                   task("TASK-002", "done", next_action="—",
+                        evidence="evidence/TASK-002.md", summary=" — "),
+                   task("TASK-003", "done", next_action="closed prose")],
+            asks=[ask("USER-001", "pending", False, needed="—")],
+            risks=[risk("RX-001", "open", risk="")])
+        report = self.run_ok(root)
+        fields = self.item("TASK-001")["fields"]
+        for name in ("evidence", "next_action", "summary", "owner",
+                     "priority"):
+            with self.subTest(field=name):
+                self.assertIsNone(fields[name])
+        self.assertEqual(fields["verification"], "V3")
+        self.assertIsNone(self.item("TASK-002")["fields"]["summary"])
+        self.assertEqual(self.item("TASK-002")["fields"]["evidence"],
+                         "evidence/TASK-002.md")
+        self.assertIsNone(self.item("USER-001")["fields"]["question"])
+        self.assertIsNone(self.item("RX-001")["fields"]["concern"])
+        unset = report["mapping"]["unset_cells"]
+        self.assertEqual(unset["tasks.evidence"], {"—": 1, "empty": 1})
+        self.assertEqual(unset["tasks.next_action"], {"—": 2})
+        self.assertEqual(unset["tasks.summary"], {"empty": 2, "—": 1})
+        self.assertEqual(unset["tasks.priority"], {"—": 1, "empty": 2})
+        self.assertEqual(unset["asks.needed"], {"—": 1})
+        self.assertEqual(unset["risks.risk"], {"empty": 1})
+        self.assertEqual(report["mapping"]["skipped_next_action"],
+                         {"done": 1}, "only the closed cell with text")
+
+
+class TestAMoveIsNeverBeforeItsCreate(Fixture):
+    """Decided after round 1: a move is timed at the later of its rule's
+    time and its item's create. An `asked` date is read as 00:00 UTC, and
+    an answer recorded before that instant on the same day would otherwise
+    move the ask before it exists, as USER-930 did."""
+
+    EVENTS = [
+        {"ts": "2026-08-09T20:00:00+00:00", "event": "answer",
+         "id": "USER-001", "from": "pending", "to": "answered"},
+        {"ts": "2026-08-12T09:00:00+00:00", "event": "answer",
+         "id": "USER-002", "from": "pending", "to": "answered"},
+    ]
+
+    def setUp(self):
+        super().setUp()
+        root = self.project(
+            tasks=[], risks=[], events=self.EVENTS,
+            asks=[ask("USER-001", "answered 2026-08-10: yes", True,
+                      asked="2026-08-10"),
+                  ask("USER-002", "answered 2026-08-12: no", True,
+                      asked="2026-08-10")])
+        self.report = self.run_ok(root)
+
+    def own(self, item_id):
+        return [e for e in self.events_of(item_id)
+                if e["items"][0] == item_id]
+
+    def test_the_move_is_clamped_to_the_create_and_says_so(self):
+        create, move = self.own("USER-001")
+        self.assertEqual((create["command"], create["at"]),
+                         ("item create", "2026-08-10T00:00:00Z"))
+        self.assertEqual((move["command"], move["at"]),
+                         ("item move", "2026-08-10T00:00:00Z"))
+        self.assertIn("(2026-08-09T20:00:00Z), clamped to its create",
+                      move["note"])
+        self.assertIn("a date, read as 00:00 UTC", create["note"])
+        self.assertEqual(self.report["mapping"]["clamped_moves"], [
+            {"id": "USER-001", "rule": "last old status event",
+             "rule_time": "2026-08-09T20:00:00Z",
+             "clamped_to": "2026-08-10T00:00:00Z"}])
+
+    def test_a_move_after_its_create_keeps_its_time(self):
+        _create, move = self.own("USER-002")
+        self.assertEqual(move["at"], "2026-08-12T09:00:00Z")
+        self.assertNotIn("clamped", move["note"])
+
+
 class TestTheCeilings(Fixture):
 
     def test_an_id_only_the_log_holds_seeds_the_ceiling(self):

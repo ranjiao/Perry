@@ -117,7 +117,17 @@ SURFACE = {
 
 
 def blank(value) -> bool:
-    return value is None or (isinstance(value, str) and not value.strip())
+    """A cell that says nothing, so it is unset (TASK-489, decided after
+    round 1): null, an empty string, or the old store's blank marker `—`,
+    which `lib.is_blank_cell` is the one rule for. Neither is imported."""
+    return value is None or (isinstance(value, str)
+                             and lib.is_blank_cell(value))
+
+
+def unset_spelling(value) -> str:
+    """How a blank cell was written, for the report's per-field counts."""
+    text = value.strip() if isinstance(value, str) else ""
+    return text if text else "empty"
 
 
 def moment(value):
@@ -163,12 +173,14 @@ class Plan:
         self.run_at = run_at
         self.items: dict[str, dict] = {}
         self.counts = {"dropped": {}, "skipped_next_action": {},
-                       "status_not_carried": {}, "time_rules": {},
-                       "verbatim_blank_markers": {}}
+                       "status_not_carried": {}, "time_rules": {}}
+        #: `{"<register>.<field>": {"empty": n, "—": m}}`: the mapped cells
+        #: that said nothing and were not imported, by how they were written.
+        self.unset: dict[str, dict] = {}
         self.unresolved: list[dict] = []
         self.self_edges: list[dict] = []
         self.long_open_cells: list[dict] = []
-        self.move_before_create: list[str] = []
+        self.clamped: list[dict] = []
         self.by_id = {}
         for n, e in enumerate(events):
             if isinstance(e, dict) and isinstance(e.get("id"), str):
@@ -213,6 +225,9 @@ class Plan:
         for old, new in spec["fields"].items():
             value = rec.get(old)
             if blank(value):
+                cell = self.unset.setdefault(f"{register}.{old}", {})
+                spelling = unset_spelling(value)
+                cell[spelling] = cell.get(spelling, 0) + 1
                 continue
             if register == "tasks" and old == "next_action":
                 if state in CLOSED:
@@ -222,18 +237,16 @@ class Plan:
                 if size > LONG_CELL_BYTES:
                     self.long_open_cells.append(
                         {"id": item_id, "state": state, "bytes": size})
-            if lib.is_blank_cell(value):
-                self.bump("verbatim_blank_markers", f"{type_name}.{new}")
             fields[new] = value
         if status_text:
             self.bump("status_not_carried", register)
-        created_at, created_rule = self.created(item_id, rec.get(
-            spec["created"]), spec["created"])
+        created_at, created_rule, created_note = self.created(
+            item_id, rec.get(spec["created"]), spec["created"])
         self.bump("time_rules", f"create: {created_rule}")
         item = {"id": item_id, "type": type_name, "number": number,
                 "prefix": tdecl["prefix"], "state": state, "fields": fields,
                 "register": register, "status": rec.get("status"),
-                "created_at": created_at, "created_rule": created_rule,
+                "created_at": created_at, "created_note": created_note,
                 "attachments": [], "move": None}
         if state != tdecl["initial"]:
             item["move"] = self.move(item, rec, tdecl)
@@ -288,20 +301,27 @@ class Plan:
         raise Refused(f"{rec['id']}: risk status {status!r} is neither open "
                       f"nor cleared", {"id": rec["id"]})
 
-    def created(self, item_id, raw, field) -> tuple[str, str]:
+    def created(self, item_id, raw, field) -> tuple[str, str, str]:
+        """`(time, rule, note)`. A date-only field is read by `lib.ts_moment`,
+        the one converter, as 00:00 UTC; the note says so, since that is
+        08:00 on this project's +08:00 clock."""
         if not blank(raw):
             at = moment(raw)
             if at is None:
                 raise Refused(f"{item_id}: {field} {raw!r} is not a time "
                               f"lib.ts_moment can read", {"id": item_id})
-            return at, field
+            if lib.is_iso_date(raw):
+                return at, field, (f"{field} {raw.strip()}, a date, read as "
+                                   f"00:00 UTC")
+            return at, field, field
         stamps = [moment(e.get("ts")) for _n, e in self.by_id.get(item_id, [])]
         stamps = [s for s in stamps if s]
         if stamps:
-            return min(stamps), "first old event"
+            return min(stamps), "first old event", "first old event"
         if self.log_start:
-            return self.log_start, "start of the old log"
-        return self.run_at, "import time"
+            return (self.log_start, "start of the old log",
+                    "start of the old log")
+        return self.run_at, "import time", "import time"
 
     def move(self, item, rec, tdecl) -> dict:
         state = item["state"]
@@ -324,10 +344,19 @@ class Plan:
         if at is None:
             at, rule = item["created_at"], "creation date"
         self.bump("time_rules", f"move: {rule}")
+        note = rule
+        # A move is never timed before its item's create (TASK-489, decided
+        # after round 1): it is timed at the later of its rule's time and the
+        # create's. Where that moved it, the event's note says so and keeps
+        # the time the rule gave.
         if at < item["created_at"]:
-            self.move_before_create.append(item["id"])
+            self.clamped.append({"id": item["id"], "rule": rule,
+                                 "rule_time": at,
+                                 "clamped_to": item["created_at"]})
+            note = f"{rule} ({at}), clamped to its create"
+            at = item["created_at"]
         return {"transition": names[0], "from": tdecl["initial"],
-                "to": state, "at": at, "rule": rule}
+                "to": state, "at": at, "rule": rule, "note": note}
 
     # ── relations ─────────────────────────────────────────────────────────
 
@@ -340,6 +369,8 @@ class Plan:
         found = []
         for rec in self.stores.get("tasks", []):
             for dep in rec.get("depends_on") or []:
+                if blank(dep):
+                    continue
                 found.append(("tasks", rec["id"], "depends_on", dep,
                               (dep, rec["id"])))
         for rec in self.stores.get("asks", []):
@@ -412,9 +443,8 @@ def build_export(plan: Plan, state_root: str) -> tuple[bytes, bytes, dict]:
         steps.append(((item["created_at"], 0, item["prefix"], item["number"]),
                       "create", item))
         if item["move"]:
-            at = max(item["move"]["at"], item["created_at"])
-            steps.append(((at, 1, item["prefix"], item["number"]), "move",
-                          item))
+            steps.append(((item["move"]["at"], 1, item["prefix"],
+                           item["number"]), "move", item))
     steps.sort(key=lambda s: s[0])
     create_seq = {}
     seq = 2
@@ -465,7 +495,7 @@ def build_export(plan: Plan, state_root: str) -> tuple[bytes, bytes, dict]:
                 "command": "item create", "items": [item["id"]] + others,
                 "transition": None, "changes": changes,
                 "note": f"from {item['register']}.jsonl; timed by "
-                        f"{item['created_rule']}", "warnings": []})
+                        f"{item['created_note']}", "warnings": []})
         else:
             move = item["move"]
             events.append({
@@ -475,10 +505,10 @@ def build_export(plan: Plan, state_root: str) -> tuple[bytes, bytes, dict]:
                 "changes": [{"key": "state", "before": move["from"],
                              "after": move["to"]}],
                 "note": f"status {item['status']!r} in "
-                        f"{item['register']}.jsonl; timed by {move['rule']}"
+                        f"{item['register']}.jsonl; timed by {move['note']}"
                         if item["register"] == "tasks" else
                         f"from {item['register']}.jsonl; timed by "
-                        f"{move['rule']}",
+                        f"{move['note']}",
                 "warnings": []})
     seeds = [(p, c) for p, c in sorted(ceilings.items())
              if c["seed"] is not None]
@@ -676,7 +706,8 @@ def mapping_side(plan: Plan, built: dict) -> dict:
             "moves": sum(1 for i in plan.items.values() if i["move"]),
             "unresolved_references": plan.unresolved,
             "self_edges": plan.self_edges,
-            "move_before_create": plan.move_before_create,
+            "unset_cells": plan.unset,
+            "clamped_moves": plan.clamped,
             "open_next_action_over_300_bytes": plan.long_open_cells,
             "export_events": len(built["events"])}
 
@@ -773,6 +804,9 @@ def summary(report: dict) -> str:
     lines.append(f"  skipped next_action on closed tasks: "
                  f"{canonical(m['skipped_next_action'])}")
     lines.append(f"  dropped fields, populated rows: {canonical(m['dropped'])}")
+    lines.append(f"  cells that said nothing, not imported: "
+                 f"{canonical(m['unset_cells'])}")
+    lines.append(f"  moves clamped to their create: {len(m['clamped_moves'])}")
     lines.append(f"  unresolved references: {len(m['unresolved_references'])}"
                  f"; open next_action cells over {LONG_CELL_BYTES} bytes: "
                  f"{len(m['open_next_action_over_300_bytes'])}")
