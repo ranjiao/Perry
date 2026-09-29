@@ -70,7 +70,9 @@
         "concern": {"kind": "text"},
         "reason": {"kind": "text"}
       },
-      "create_guards": [],
+      "create_guards": [
+        {"kind": "required", "fields": ["concern"]}
+      ],
       "transitions": {
         "clear": {"from": ["open"], "to": "cleared", "guards": [
           {"kind": "required", "fields": ["reason"]}

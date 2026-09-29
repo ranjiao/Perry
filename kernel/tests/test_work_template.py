@@ -102,7 +102,7 @@ DECISION_13 = {
         "states": ["open", "cleared"], "initial": "open",
         "terminal": ["cleared"],
         "fields": {"concern": TEXT, "reason": TEXT},
-        "create_guards": [],
+        "create_guards": [{"kind": "required", "fields": ["concern"]}],
         "transitions": {
             "clear": {"from": ["open"], "to": "cleared",
                       "guards": REQUIRE_REASON},
@@ -117,7 +117,7 @@ CREATE = {
                         "round-trip test passes on both boards.",
              "priority": "P1", "verification": "V3"},
     "ask": {"question": "Which staleness threshold?"},
-    "risk": {},
+    "risk": {"concern": "The store sits where no one sees it."},
 }
 
 #: What each transition needs in `set` to pass its guards, at the rung
@@ -444,14 +444,24 @@ class TestBlockAndDrop(WorkCase):
                                      set={"reason": "superseded"}))
 
     def test_a_blocked_tasks_reason_satisfies_drop(self):
-        """One field serves both moves: a blocked task holds the reason it
-        was blocked for, and `drop` from `blocked` passes on it. The kernel
-        cannot ask for a reason written by this move, so the skill writes
-        the drop's own reason in the same `item move`."""
+        """One `reason` per task, which decision 13 accepts (amended
+        2026-09-29): a blocked task holds the reason it was blocked for, and
+        `drop` from `blocked` passes on it. The kernel cannot ask for a
+        reason written by this move, so the skill writes a fresh one at every
+        move that asks for it, and the event keeps each old value."""
         item = self.new("task", "blocked")
         self.written(attempt(self.sb, item, "drop"))
         self.assertEqual(self.sb.get(item)["fields"]["reason"],
                          PASS[("task", "block")]["reason"])
+        fresh = self.new("task", "blocked")
+        self.written(attempt(self.sb, fresh, "drop",
+                             set={"reason": "superseded"}))
+        (event,) = [e for e in self.sb.events(items=[fresh])
+                    if e["transition"] == "drop"]
+        (change,) = [c for c in event["changes"]
+                     if c["key"] == "field:reason"]
+        self.assertEqual((change["before"], change["after"]),
+                         (PASS[("task", "block")]["reason"], "superseded"))
 
 
 class TestDone(WorkCase):
@@ -556,14 +566,17 @@ class TestAsk(WorkCase):
 
 class TestRisk(WorkCase):
 
-    def test_a_risk_needs_nothing_at_create(self):
-        """Decision 13 names no create guard for a risk."""
-        risk = self.written(self.create("risk", {}))
+    def test_a_risk_is_born_with_its_concern(self):
+        """Decision 13, amended 2026-09-29: a risk requires `concern`."""
+        for fields in ({}, {"concern": "   "}, {"reason": "no concern"}):
+            with self.subTest(fields=fields):
+                r = self.refused(self.create("risk", fields))
+                self.assertEqual(missing(r), ["concern"])
+        risk = self.written(self.create("risk", CREATE["risk"]))
         self.assertEqual(risk.result["item"]["state"], "open")
-        self.written(self.create("risk", {"concern": "the store is unseen"}))
 
     def test_a_risk_is_cleared_once_and_with_its_reason(self):
-        risk = self.new("risk", concern="The store sits where no one sees it.")
+        risk = self.new("risk")
         r = self.refused(attempt(self.sb, risk, "clear"))
         self.assertEqual(missing(r), ["reason"])
         self.written(attempt(self.sb, risk, "clear",
