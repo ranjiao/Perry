@@ -29,6 +29,28 @@ Depends on: TASK-489 and TASK-485 (the triage).
 
 aiMark moves in the same release (TASK-491).
 
+## Carried, 2026-09-29
+
+- **The method is DESIGN-023 decision 13.** The rewritten lane has no
+  procedures for stages, WIP, SLA, cadence or intake routing. An incoming
+  request is created as a task on the `intake` track. The skill chooses a
+  task's rung at creation, including V5 for high-stakes work through the
+  dispatch pre-flight.
+- **From TASK-488 round 1** (`TASK-488-dispatch-2026-09-26.md`, "Other
+  findings"). These are four places that describe the old method or omit the
+  new directory:
+  - `SKILL.md:42`'s carve-out does not describe `templates/process/`, which is
+    applied to the store rather than copied.
+  - `templates/README.md` does not describe it either.
+  - `work/reference/task-close.md:34` lists default rungs per mode, which no
+    longer exist.
+  - Root `ARCHITECTURE.md` § 2's `templates/` entry (`:136–143`) calls the
+    directory "the scaffolds a new project gets" and names "a track's mode".
+    A root § 2 edit falls under NN-6.
+- **From TASK-488's architecture review** (`TASK-488-review-round2.md`):
+  `bin/ARCHITECTURE.md:236` cites `bin/perry-churn:305–341`, but
+  `detect_perry` ends at `:342`.
+
 ## Out of scope
 - The goals and decide lanes (TASK-492).
 - Deleting old code (TASK-494).
@@ -44,4 +66,10 @@ aiMark moves in the same release (TASK-491).
 
 ## Bound
 
-The subcommands in `work/SKILL.md § Subcommand index` when the task starts, and the five acceptance criteria. It touches only the work lane's files, `bin/perry-task`'s write verbs and the two ADRs.
+The subcommands in `work/SKILL.md § Subcommand index` when the task starts, and the five acceptance criteria. It touches only the work lane's files, `bin/perry-task`'s write verbs and the two ADRs. It also touches the four carried document places above: `SKILL.md:42`, `templates/README.md`, root § 2's `templates/` entry and `bin/ARCHITECTURE.md:236`.
+
+## Changes
+
+- 2026-09-29 — Carried DESIGN-023 decision 13, TASK-488 round 1's findings
+  outside its scope, and one citation fix from TASK-488's architecture review.
+  The Bound widens to the four document places.

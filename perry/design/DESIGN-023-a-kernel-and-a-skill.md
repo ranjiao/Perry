@@ -6,7 +6,7 @@
 > Linked OKR: O3-KR1, O3-KR4 (`perry/OKR.md` v4, Objective 3 — changing Perry stays cheap, and its architecture stays where the user put it)
 > Supersedes: —   · Superseded by: —
 > Revisits: `DESIGN-014`, including its User Decisions 1 and 3 (its three categories of `bin/` become two halves; `perry-state` and `perry-diagnose` go), `DESIGN-013` (holds, sharpened to one home per concept), `DESIGN-004 § 4` and `DESIGN-005` decisions 1–2 (both rejected a database; decision 2), `DESIGN-007` (decision 12), `DESIGN-015` and `DESIGN-022` (decisions 4 and 8), `DESIGN-016` (the `bin/` contract), `DESIGN-020 § 9` and `ADR-023` (decision 5, now `ADR-024`), `ADR-006` and `ADR-019` (the store's medium and location, decision 2), `ADR-018` and `ADR-020` (decisions 7, 9 and 10), `ADR-002` (the store's scope). The reconciliation of every earlier design and ADR is `ADR-025`
-> Sign-off: User Decisions 1–7 answered by Ran Jiao in session on 2026-09-24 — 1 and 2 in discussion, 3–7 through the choice prompt, each taking the recommendation. Locked by the user the same day, `draft` → `locked` without an `in_review` hold, on the DESIGN-013 precedent. Before the lock, the input-quality pass added § 5.6 (affected surfaces) and § 5.7 (the rejected alternative). Revised the same day after a review of every earlier design and ADR (`ADR-025`): User Decisions 8–12 answered by Ran Jiao through the choice prompt, each taking the recommendation. Revised 2026-09-29 after TASK-488 found eleven method rules the kernel cannot express: decision 14 was answered by Ran Jiao in session, and decision 13 was delegated by the user to the agent ("需要你自己思考以后决定怎么修改"; keep only the necessary fields and process logic).
+> Sign-off: User Decisions 1–7 answered by Ran Jiao in session on 2026-09-24 — 1 and 2 in discussion, 3–7 through the choice prompt, each taking the recommendation. Locked by the user the same day, `draft` → `locked` without an `in_review` hold, on the DESIGN-013 precedent. Before the lock, the input-quality pass added § 5.6 (affected surfaces) and § 5.7 (the rejected alternative). Revised the same day after a review of every earlier design and ADR (`ADR-025`): User Decisions 8–12 answered by Ran Jiao through the choice prompt, each taking the recommendation. Revised 2026-09-29 after TASK-488 found eleven method rules the kernel cannot express: decision 14 was answered by Ran Jiao in session, and decision 13 was delegated by the user to the agent ("需要你自己思考以后决定怎么修改"; keep only the necessary fields and process logic). TASK-488's architecture review then asked whether that delegation covers the kernel changes decision 13 makes. Ran Jiao confirmed in session the same day ("A"), naming two: kernel § 3's grep line now matches string literals, and `describe`'s `summary` key is renamed `purpose`.
 
 ## 1. Problem
 
@@ -530,6 +530,17 @@ on 2026-09-01 and set out to thin it; on 2026-09-24 it is 42,958.
   literal in `kernel/perry_kernel/surface.py`. The kernel's own § 3 says a
   collision is fixed on the kernel's side. The rename adds no concept and no
   capability.
+- 2026-09-29 — The user confirmed the two kernel changes in decision 13 in
+  session, choosing option A. The first is kernel § 3's Forbidden line, whose
+  grep now matches string literals instead of whole words. The second is the
+  `describe` key rename. TASK-488's architecture review had returned BLOCKED
+  on both: § 7 requires the user's approval for a kernel change, and
+  DESIGN-017 § 5.1 requires it for a module's Forbidden lines. The review
+  judged that the delegation alone did not meet either rule
+  (`TASK-488-review-round2.md`). The user was shown the cost. Under string
+  literals, a template name used as a Python identifier in kernel source is
+  not caught. Option B was the alternative: keep round 1's names and leave
+  the kernel unchanged.
 
 ## 10. References
 
