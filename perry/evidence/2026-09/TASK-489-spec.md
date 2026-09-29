@@ -100,8 +100,11 @@ report it.
   2026-09-29:
   - in this repository, 160 of 488 cells are over 300 bytes, and the longest
     is 3,956;
-  - every one of those is on a `done` or `dropped` row;
-  - the longest cell on an open row is 351 bytes;
+  - 153 of those 160 are on `done` or `dropped` rows. The other 7 are open
+    rows of 318–351 bytes: TASK-238, 334, 220, 371, 393, 309 and 286. (This
+    list replaces an earlier sentence here, which said all 160 were closed.
+    The executor found the error. The user's option A already covers these 7,
+    because an open row is imported as it is.)
   - SkyTonight's longest is 158.
 
   A closed task's `next_action` is not imported. An open task's is imported
@@ -124,6 +127,12 @@ report it.
   id ceiling, purged ids included.
 - **Dispatch mode.** Changed from `manual` to `auto` once the long-cell
   decision was made.
+- **Two import rules, decided after round 1.**
+  - The old store's blank marker `—`, and an empty string, mean the field is
+    unset, so neither is imported.
+  - A move event is never timed before its item's create event.
+
+  Both keep stored data to what it means (DESIGN-023 decision 13).
 
 ## Out of scope
 - OKR, design and ADR records (TASK-492).
@@ -149,3 +158,4 @@ The stores listed under Deliverable, for two projects, and the six acceptance cr
 ## Changes
 
 - 2026-09-29 — Carried DESIGN-023 decision 13's field mapping. Added § Decided 2026-09-29. The Dates rule is now one create event and at most one move per item. `Dispatch mode: manual` → `auto`. Files in scope name the one-shot `bin/` importer, and the Bound names the live-store paths it must not touch.
+- 2026-09-29 — After round 1: the long-cell measurement is corrected, since 7 open rows are over 300 bytes, and option A still covers them. Two import rules added: the blank marker `—` means unset, and no move is timed before its create.
