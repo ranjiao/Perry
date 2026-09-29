@@ -249,8 +249,8 @@ everything), and `total` and `truncated` are always present.
 
 **`describe`** reports the command surface only, so it is byte-identical in every project:
 it never reads a store, a path or a clock.
-- Each entry of `commands[]` carries `name`, `kind` (`read` or `write`), its flags, its
-  input keys with JSON types and `required` markers, its `result` keys and its error codes.
+- Each entry of `commands[]` carries `name`, `kind` (`read` or `write`), `purpose`, its flags,
+  its input keys with JSON types and `required` markers, its `result` keys and its error codes.
 - `template_format` carries `format`, `field_kinds`, `guard_kinds`, the built-in relations
   and the template's key schema.
 - `surface` is versioned under DESIGN-005's rules (decision 11). Every key is always
