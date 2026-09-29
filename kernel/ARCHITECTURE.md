@@ -88,8 +88,8 @@ Forbidden:
   `os.spawn*` call. It finds the git common dir by reading `.git` and `commondir` (§ 5.7).
   The skill runs a measurement's command and writes the value (decision 8).
 - **Naming a skill path or a template-declared name.** Goal 1's test greps the kernel
-  source for every type, state and field name in the shipped template. It matches whole
-  words, case-sensitively. A collision is fixed by renaming on the kernel's side.
+  source for every type, state and field name in the shipped template as a string literal
+  (`"name"` or `'name'`), case-sensitively. A collision is fixed by renaming on the kernel's side.
 - **Any other path.** The kernel reads only its store, its `--input` file, the `.git`
   metadata and the export. It writes only the store and `<state root>/export/`. Only
   `import` loads the export; `export` reads its own files only to tell `unchanged` apart.
@@ -240,6 +240,9 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 ## §8. Change log
 
+- 2026-09-29 · v1 · TASK-488 round 2, DESIGN-023 decision 13. § 3 says Goal 1's grep
+  matches a template name as a string literal, not as a whole word. `describe`'s per-command
+  description key is renamed `purpose` (`surface` stays 1.0, unreleased); § 5.6 names it.
 - 2026-09-26 · v1 · TASK-488, the user's decisions of 2026-09-25 and 2026-09-26. § 5 moves
   whole to `architecture/sections/§5-contracts.md` under the overflow convention the header
   now names; § 5 here is a pointer. Then, in that file: § 5.1 describes `id_exhausted`
