@@ -342,8 +342,10 @@ becomes the event's seq.
      without re-running guards, because the history was written under earlier templates.
      Each change is held instead to the template in force when its event was written,
      the last one the replay has applied, as a live write of it would have been: a
-     `type` the template declares, on an id that type mints (its prefix, padded to its
-     `digits`); a `state` of the item's type; a `field:` its type declares, with a value
+     `template` whose version rises above the one in force and strands no stored data
+     (§ 5.2); a `type` set once, on an item that does not exist yet, that the template
+     declares, on an id that type mints (its prefix, padded to its `digits`); a `state`
+     of the item's type; a `field:` its type declares, with a value
      that fits the field's kind (§ 5.3) in the form a live write stores; and, on an edge
      being added, a relation kind the template knows, with ends a declared kind allows.
      A relation change that flips nothing (`before` equal to `after`) is refused for

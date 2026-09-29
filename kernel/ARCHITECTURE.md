@@ -242,8 +242,9 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 - 2026-09-29 · v1 · TASK-489, the import items carried from TASK-487. In
   `architecture/sections/§5-contracts.md`: § 5.8 step 2 says `import` holds each replayed
-  change to the template in force when its event was written, and refuses a relation
-  change that flips nothing for every kind (F1); § 5.1 says a damaged `export_token` is
+  change to the template in force when its event was written (a template change must
+  rise and strand nothing, and a type is set once), and refuses a relation change that
+  flips nothing for every kind (F1); § 5.1 says a damaged `export_token` is
   `store_corrupt` (F6) and that `export_invalid` covers a replayed change; § 5.7 says an
   open's probe and steps share one busy deadline (F4). No command, error code or key is
   added, and `surface` stays 1.0.

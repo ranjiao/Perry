@@ -1119,9 +1119,12 @@ def replay_check(store: Store):
     templates (§ 5.8, step 2), but a value no template allowed was never
     written by a command. So each change is held to what a live write of it
     would have been held to, and a change that breaks it is `export_invalid`:
-    - `type`: the template declares the type, and the id is one that type
-      mints, its prefix padded to its digits (an id of the wrong prefix, or
-      `W-1` beside a three-digit `W-001`, is not);
+    - `template`: its version rises above the one in force, and it strands
+      no stored data (`incompatibilities`), as `template apply` requires;
+    - `type`: set once, on an item that does not exist yet; the template
+      declares the type, and the id is one that type mints, its prefix
+      padded to its digits (an id of the wrong prefix, or `W-1` beside a
+      three-digit `W-001`, is not);
     - `state`: a state of the item's type;
     - `field:<name>`: a field of the item's type, and a value that fits its
       kind (§ 5.3) in the form the kernel stores it;
@@ -1164,7 +1167,23 @@ def replay_check(store: Store):
             except KernelError as exc:
                 bad(exc.message)
             return
+        if key == "template":
+            norm = in_force()
+            if norm is None:
+                return
+            applied = cache["version"]
+            if after["version"] <= applied:
+                bad(f"version {after['version']} is not above {applied}, the "
+                    f"version in force")
+            stranded = incompatibilities(store, norm, tpl.normalize(after))
+            if stranded:
+                bad(f"version {after['version']} would strand stored data: "
+                    f"{stranded[0]['message']}", problems=stranded)
+            return
         if key == "type":
+            if store.item_type(primary) is not None:
+                bad(f"{primary} exists already; an item's type is set once, "
+                    f"at its create")
             norm = in_force()
             if norm is None:
                 bad("no template is in force")

@@ -11,7 +11,9 @@ its own test, so a mutant of one check turns its own test red.
 
 The template in force is the one the replay has applied before the event, not
 the last one the export holds: a value that only a later version allows is
-refused where it stands and accepted after that version.
+refused where it stands and accepted after that version. So a replayed
+template change is held to what `template apply` holds a live one to (its
+version rises, and it strands nothing), and an item's type is set once.
 
 Also here, carried from TASK-487's round-3 review:
 - F1: a relation change that flips nothing is refused for every kind;
@@ -313,6 +315,58 @@ class TestTheRelations(Case):
     def test_a_built_in_kind_connects_any_types(self):
         _seq, r = self.add_edge("blocks", self.g, self.a)
         self.assert_imported(r)
+
+
+class TestTheTemplateChange(Case):
+    """A replayed `template` change is held to what `template apply` holds a
+    live one to: its version rises above the one in force, and it strands no
+    stored data (§ 5.2 "Apply" and "Compatibility"). Before, a version that
+    did not rise was a sqlite UNIQUE failure reported as `store_corrupt`, and
+    a lower one was stored and silently never in force."""
+
+    def plant_template(self, tpl, before):
+        ex = self.export()
+        seq = ex.plant([{"key": "template", "before": before, "after": tpl}],
+                       [], command="template apply", touch=False)
+        _other, r = ex.run()
+        return seq, r
+
+    def test_a_version_that_does_not_rise(self):
+        self.sb.apply(template(version=2))
+        for version in (2, 1):
+            with self.subTest(version=version):
+                changed = template(version=version, name="another")
+                seq, r = self.plant_template(changed, 2)
+                self.assert_refused(r, seq, "template",
+                                    f"version {version} is not above 2")
+
+    def test_a_version_that_strands_stored_data(self):
+        narrower = template(version=2)
+        narrower["types"]["widget"]["fields"]["bench"]["values"] = ["south"]
+        seq, r = self.plant_template(narrower, 1)
+        self.assert_refused(r, seq, "template", "would strand stored data")
+        self.assertEqual(r.details["problems"][0]["items"],
+                         [self.a, self.b])
+
+    def test_a_version_that_adds_imports(self):
+        wider = template(version=2)
+        wider["types"]["widget"]["fields"]["bench"]["values"] = [
+            "north", "south", "east"]
+        _seq, r = self.plant_template(wider, 1)
+        self.assert_imported(r)
+
+
+class TestATypeIsSetOnce(Case):
+
+    def test_a_second_create_of_an_existing_id(self):
+        """A `type` change for an item that exists. Before, the before
+        comparison passed (`before: widget`) and the insert failed as a
+        UNIQUE constraint, reported as `store_corrupt`."""
+        ex = self.export()
+        seq = ex.plant([{"key": "type", "before": "widget",
+                         "after": "widget"}], [self.a], command="item create")
+        _other, r = ex.run()
+        self.assert_refused(r, seq, "type", f"{self.a} exists already")
 
 
 class TestANoOpRelationChange(Case):
