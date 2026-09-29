@@ -4,15 +4,18 @@ Date: 2026-09-24. Owner: Coding Agent. Priority: P1. Required verification: V4
 (DESIGN-023 decision 10: an import defect loses state).
 KR: O3-KR4. Design: `perry/design/DESIGN-023-a-kernel-and-a-skill.md § 5.3`, `§ 5.6`, `§ 6` row D.
 Depends on: TASK-488.
-> Dispatch mode: manual
+> Dispatch mode: auto
 > Executor: claude-subagent
 > Estimated cycle: large
 > Subjective verification: the V4 fresh-context review; the user's call on long prose `Next action` cells
-> Touches architecture: (none)
+> Touches architecture: `bin/` gains one executable, the one-shot importer (`bin/ARCHITECTURE.md`; root § 2's tool count)
 > Deployed: no
 
 ## Files in scope
-- `kernel/`: the import path for today's stores.
+- `bin/perry-kernel-migrate` (new): the one-shot importer. See § Decided 2026-09-29.
+- `kernel/`: only the carried import-correctness items below. The kernel stays
+  free of every template and old-store name (Goal 1).
+- `tests/`: the importer's tests.
 - `perry/evidence/2026-09/TASK-489-reconcile-perry.md` and
   `TASK-489-reconcile-skytonight.md`, one reconciliation report per project.
 - Read-only: this repository's `perry/*.jsonl` and `.perry/events.jsonl`, and
@@ -75,16 +78,52 @@ The template has three types. Old records map onto them as follows:
   - `risk` becomes `concern`.
   - A `status` of `open` stays `open`, and one that begins `cleared` becomes
     `cleared`.
-- **Dates.** `created`, `asked`, `opened`, `cleared`, `arrived` and
-  `stage_since` become the times of the imported events.
-- **Fields not imported.** `group`, `order`, `commitment`, `role` and `stage`
-  are not carried over. The report counts the rows that held a value in each
+- **Dates.** An item's create event is timed at its creation date: `created`,
+  `asked` or `opened`. If the item is not in its type's initial state, one
+  move event takes it to its current state. That event is timed at the last
+  old status event for the id in `.perry/events.jsonl`, or at `cleared` for a
+  risk. If neither exists, it uses the creation date. `arrived` and
+  `stage_since` are not imported.
+- **Fields not imported.** `group`, `order`, `commitment`, `role`, `stage`,
+  `arrived` and `stage_since` are not carried over. Neither is `next_action`
+  on a `done` or `dropped` task (§ Decided 2026-09-29). The report counts the rows that held a value in each
   one. They stay readable in git history and in the old files.
 
 Import runs no guards. A row with no `verification` or no `summary` is imported
 as it is. The item types `intake` and `cadence` do not exist. Both stores hold
 no rows today. If a row appears in either before the importer runs, stop and
 report it.
+
+## Decided 2026-09-29
+
+- **Long `Next action` cells (the user's call, option A).** Measured on
+  2026-09-29:
+  - in this repository, 160 of 488 cells are over 300 bytes, and the longest
+    is 3,956;
+  - every one of those is on a `done` or `dropped` row;
+  - the longest cell on an open row is 351 bytes;
+  - SkyTonight's longest is 158.
+
+  A closed task's `next_action` is not imported. An open task's is imported
+  as it is. The report counts the skipped cells. The text stays in git history
+  and in the old `tasks.jsonl`.
+- **Where the importer lives (decided by the PMO).** It is a one-shot tool in
+  the old `bin/`, not kernel code, because it must name the old stores' fields
+  and the template's. It works in four steps:
+  1. It reads the old stores through the existing readers. Root § 3 forbids a
+     second parse.
+  2. It writes a synthetic export into a temporary anchor it creates.
+  3. It runs the kernel's own `bin/perry-kernel import` into a temporary store.
+     The kernel checks the replay (criterion 5).
+  4. It is deleted at phase H with the rest of the old `bin/`. Both projects
+     are migrated at phase E, before then.
+- **A snapshot, not a replay of history (decided by the PMO).** Each item gets
+  the events under "Dates" above, and no others. Old status and field history
+  is not converted into kernel events. `.perry/events.jsonl` and `journal/`
+  stay as read-only documents. The old event log still seeds each prefix's
+  id ceiling, purged ids included.
+- **Dispatch mode.** Changed from `manual` to `auto` once the long-cell
+  decision was made.
 
 ## Out of scope
 - OKR, design and ADR records (TASK-492).
@@ -105,4 +144,8 @@ report it.
 
 ## Bound
 
-The stores listed under Deliverable, for two projects, and the six acceptance criteria. Temporary stores only. Neither project's tracked files are written.
+The stores listed under Deliverable, for two projects, and the six acceptance criteria. Temporary stores only. Neither project's tracked files are written. No store and no export is created under either project's `.git/perry` or its state root.
+
+## Changes
+
+- 2026-09-29 — Carried DESIGN-023 decision 13's field mapping. Added § Decided 2026-09-29. The Dates rule is now one create event and at most one move per item. `Dispatch mode: manual` → `auto`. Files in scope name the one-shot `bin/` importer, and the Bound names the live-store paths it must not touch.
