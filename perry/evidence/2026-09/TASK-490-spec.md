@@ -50,6 +50,16 @@ aiMark moves in the same release (TASK-491).
 - **From TASK-488's architecture review** (`TASK-488-review-round2.md`):
   `bin/ARCHITECTURE.md:236` cites `bin/perry-churn:305–341`, but
   `detect_perry` ends at `:342`.
+- **From TASK-489's architecture review** (`TASK-489-review-round1.md`).
+  These counts are stale since TASK-489 added `bin/perry-kernel-migrate`. They
+  are the user's text, so the user confirms each edit before it lands:
+  - root `ARCHITECTURE.md:61` and `:160` should say 22 tools, not 21;
+  - root `:145` and `:165` should say 164 test modules, not 163;
+  - `bin/ARCHITECTURE.md:244` OQ-B1 should say "Seven" declare a `SURFACE`,
+    not "Six".
+
+  Also from that review: `bin/ARCHITECTURE.md:122–128` does not list the two
+  existing `read_events` readers, in `perry-task` and `perry-goals`.
 
 ## Out of scope
 - The goals and decide lanes (TASK-492).
@@ -66,10 +76,11 @@ aiMark moves in the same release (TASK-491).
 
 ## Bound
 
-The subcommands in `work/SKILL.md § Subcommand index` when the task starts, and the five acceptance criteria. It touches only the work lane's files, `bin/perry-task`'s write verbs and the two ADRs. It also touches the four carried document places above: `SKILL.md:42`, `templates/README.md`, root § 2's `templates/` entry and `bin/ARCHITECTURE.md:236`.
+The subcommands in `work/SKILL.md § Subcommand index` when the task starts, and the five acceptance criteria. It touches only the work lane's files, `bin/perry-task`'s write verbs and the two ADRs. It also touches the carried document places above: `SKILL.md:42`, `templates/README.md`, root § 2's `templates/` entry, `bin/ARCHITECTURE.md:236`, the root tool and test-module counts, OQ-B1 and `bin/ARCHITECTURE.md:122–128`. Each edit to the user's text waits for the user's confirmation.
 
 ## Changes
 
 - 2026-09-29 — Carried DESIGN-023 decision 13, TASK-488 round 1's findings
   outside its scope, and one citation fix from TASK-488's architecture review.
   The Bound widens to the four document places.
+- 2026-10-07 — Carried TASK-489's architecture-review drift: root tool and test-module counts, OQ-B1, and the `read_events` readers.

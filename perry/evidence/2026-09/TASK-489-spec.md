@@ -134,6 +134,56 @@ report it.
 
   Both keep stored data to what it means (DESIGN-023 decision 13).
 
+## Round 3, decided by the PMO 2026-10-07
+
+Round 1's V4 review failed on the blank rule (`TASK-489-review-round1.md`).
+The architecture review passed. Round 3 continues on `coding/task-489-importer`
+from `8649b63b`. Each rule below names the existing reader it uses, because
+root § 3 forbids a second parse.
+
+1. **Blank cells.** A cell is unset when `lib.is_blank_cell` says so. That is
+   the project's one blank rule, which `tests/test_blank_cell_is_one_rule.py`
+   pins. It replaces "only `—` and an empty string" in § Decided 2026-09-29.
+   Today's data holds only those two spellings. The report keeps its counts
+   per spelling.
+2. **Ask answers.**
+   - For an answered ask, `answer` is the text `parsers.ask_answer` returns.
+   - For a closed ask where that text is empty, such as `withdrawn …`,
+     `answer` is the status cell verbatim.
+3. **Risk state and reason.**
+   - A risk is `cleared` when `parsers.status_is_cleared` says so. This
+     replaces "begins with `cleared`".
+   - A cleared risk's `reason` is its status cell verbatim. No new parse is
+     written to cut the reason out.
+4. **References.**
+   - `blocks` and `depends_on` cells are split by the existing reader where
+     one exists. Otherwise they split on commas, semicolons and whitespace.
+   - A reference that does not resolve to an imported id makes the run "not
+     reconciled", with a non-zero exit.
+   - The one exception is a key-result id. It is listed under "for TASK-492",
+     which must restore those edges once key results are kernel items. Today
+     there are three: the asks that block `P003-O2-KR3`.
+5. **Kernel errors.** A kernel refusal during reconciliation is reported, the
+   run is "not reconciled", and no traceback is printed.
+6. **Id ceilings.** These read every id-bearing key of the old events: `id`,
+   `task` and `record.id`.
+7. **The importer's own checks.** Its checks for criteria 3 and 5 get tests
+   that show each one failing when it should. The round-1 mutants M8 and M9
+   survived.
+8. **Replay.** Replay checks an `attach:` ref the way a live write does, or a
+   test shows that it already does.
+9. **Documents.** These are the candidate's own module documents:
+   - the reports' sentence "nothing is lost";
+   - `bin/README.md:838` and the blank-rule wording, together with the
+     importer's docstring;
+   - `bin/ARCHITECTURE.md:83–86`, the template read;
+   - `kernel/ARCHITECTURE.md:74–82`, the importer as a caller of the CLI;
+   - `§5-contracts.md:314–319`, the importer's use of
+     `PERRY_KERNEL_TESTING`.
+
+   Root `ARCHITECTURE.md` and `bin/ARCHITECTURE.md` § 7 are the user's and are
+   not edited here (see TASK-490).
+
 ## Out of scope
 - OKR, design and ADR records (TASK-492).
 - Historic prose.
@@ -159,3 +209,4 @@ The stores listed under Deliverable, for two projects, and the six acceptance cr
 
 - 2026-09-29 — Carried DESIGN-023 decision 13's field mapping. Added § Decided 2026-09-29. The Dates rule is now one create event and at most one move per item. `Dispatch mode: manual` → `auto`. Files in scope name the one-shot `bin/` importer, and the Bound names the live-store paths it must not touch.
 - 2026-09-29 — After round 1: the long-cell measurement is corrected, since 7 open rows are over 300 bytes, and option A still covers them. Two import rules added: the blank marker `—` means unset, and no move is timed before its create.
+- 2026-10-07 — Round 3 added after round 1's V4 FAIL (`TASK-489-review-round1.md`): the one blank rule, ask answers, the risk state and reason, references, kernel errors, ceilings, the importer's self-checks, replay of `attach:` refs, and the candidate's own documents.
