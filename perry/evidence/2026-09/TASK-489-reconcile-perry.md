@@ -1,37 +1,59 @@
 # TASK-489 — reconciliation: this repository
 
-Spec: `TASK-489-spec.md`, criteria 1–5, as corrected on main at `da9d6066`
-(§ Decided 2026-09-29). Project `/Users/bytedance/proj/Perry`, state root
-`perry`. Round 2, run on 2026-09-29 by the Coding Agent with the importer at
-`coding/task-489-importer` 97ffc87f, into a fresh temporary store only.
+Spec: `TASK-489-spec.md`, criteria 1–5, with § Round 3 as decided by the PMO
+on main at `d2cae7ff`. Project `/Users/bytedance/proj/Perry`, state root
+`perry`. Round 3, run on 2026-10-07 by the Coding Agent with the importer at
+`coding/task-489-importer` a3bc4e80, into a fresh temporary store only.
 
 `$PERRY_SCRATCH` below is
-`/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/agent-a990cdfa91aeda615`,
+`/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/agent-a0d8e01dec029a860`,
 derived by hand because the sandbox refused the derivation snippet. The work
-directory is `$PERRY_SCRATCH/reconcile2-perry`: the store is `store.db` there,
-and the anchor is `anchor/`. The whole transcript is
-`$PERRY_SCRATCH/reconcile2-perry.log`, and the importer's own report is
-`$PERRY_SCRATCH/reconcile2-perry.json`.
+directory is `$PERRY_SCRATCH/reconcile3-perry`: the store is `store.db` there,
+and the anchor is `anchor/`. The importer's own report is
+`$PERRY_SCRATCH/reconcile3-perry.json`. The independent check below is
+`$PERRY_SCRATCH/verify.py`, and its output is
+`$PERRY_SCRATCH/verify3-perry.json`.
 
-## What changed since round 1
+## What changed in round 3
 
-- **The long-cell stop is resolved.** Seven open rows hold a `Next action`
-  cell of 318–351 bytes: TASK-238, 334, 220, 371, 393, 309 and 286. The
-  corrected spec lists them, and option A covers them: an open row is
-  imported as it is. The importer already did so, and still does.
-- **Rule 1: a cell that says nothing is unset.** The old store's blank marker
-  `—`, and an empty string, are not imported, in every mapped field. The
-  predicate is `lib.is_blank_cell`, the one rule for such a cell. In this
-  repository every cell it matched was `""` or `—`; the counts are below.
-- **Rule 2: a move is never timed before its create.** A move is timed at the
-  later of its rule's time and its item's create time. Two moves were
-  clamped; the details are below.
+Round 1's V4 review failed on the blank rule. The PMO's round-3 rules
+(spec § Round 3) changed the importer as follows:
+
+- **Blank cells (item 1).** A cell is unset when `lib.is_blank_cell` says so.
+  That is the project's one blank rule, and the importer already used it.
+  It takes an empty string and `—`, and also `-`, `n/a`, `TBD`, `none`, `?`,
+  `待定` and the other declared spellings. This repository holds only `""`
+  and `—`, so the import is unchanged by this rule.
+- **Answers (item 2).** An answered ask's `answer` is now carried. It is the
+  text `parsers.ask_answer` returns, or the status cell verbatim where that
+  text is empty.
+- **Reasons (item 3).** A cleared risk's `reason` is now its status cell
+  verbatim. `parsers.status_is_cleared` decides "cleared".
+- **The closing event.** The item's one move sets its `answer` or `reason`,
+  as a live `item move` that sets a field writes it.
+- **References (item 4).** A `depends_on` entry and a `Blocks` cell are split
+  on commas, semicolons and white space. A reference that resolves to no
+  imported id makes the run "not reconciled". A key-result id is listed
+  "for TASK-492" instead.
+- **Kernel errors (item 5).** A kernel call refused while reconciling is
+  reported under `kernel.errors`, and the run is "not reconciled". No
+  traceback is printed. This run had none.
+- **Ceilings (item 6).** The ceiling reads the `id`, `task` and `record.id`
+  keys of the old events.
+
+So `items.jsonl` now differs from round 2's in 106 items: 104 asks carry an
+`answer` and 2 risks a `reason`. Every other item is as in round 2. To check
+this, the round-2 importer (`8649b63b`) was run again into
+`$PERRY_SCRATCH/round2again-perry`. It reproduced round 2's `items.jsonl`,
+sha256 `cb347f63…`. `$PERRY_SCRATCH/items_diff.py` then compared it with this
+round's, item by item: 106 of 599 differ, and only in `fields.answer` (104)
+and `fields.reason` (2).
 
 ## Inputs
 
 These are read-only, and unchanged since round 1. Their bytes are identical
-to `9509170c`, the branch base: `git diff --stat 9509170c HEAD -- perry .perry`
-is empty, and the hashes match.
+to `9509170c`, the branch base. `git diff --stat 9509170c d2cae7ff -- perry/*.jsonl .perry/events.jsonl`
+is empty, and the hashes match round 2's.
 
 | File | sha256 |
 |---|---|
@@ -55,29 +77,32 @@ ls: /Users/bytedance/proj/Perry/.git/perry: No such file or directory
 ls: /Users/bytedance/proj/SkyTonight/.git/perry: No such file or directory
 ```
 
-Every byte under the checkout's `.perry/` and `perry/`, 1,473 files, gave
-`state-sha256=73bb1b8ad81ee15a` both before and after the run. That value
-differs from round 1's because main has since changed other `perry/` files,
-such as the spec; the six input stores above did not change.
+Every byte under the checkout's `.perry/` and `perry/`, 1,474 files, gave
+`state-sha256=64447447a95090bb` before the round-3 import, after it, and
+after the round-2 re-run above (`$PERRY_SCRATCH/fingerprint.py`). The two
+`ls -d` checks gave the same answer at each of those three points. The value is not comparable with round 2's,
+which another script computed.
 
-Every `bin/perry-kernel` call names `--store $PERRY_SCRATCH/reconcile2-perry/store.db`
-and `--root $PERRY_SCRATCH/reconcile2-perry/anchor`, and runs with
+Every `bin/perry-kernel` call names `--store $PERRY_SCRATCH/reconcile3-perry/store.db`
+and `--root $PERRY_SCRATCH/reconcile3-perry/anchor`, and runs with
 `PERRY_KERNEL_TESTING=1`.
 
 ## The import
 
 ```
-$ bin/perry-kernel-migrate --root /Users/bytedance/proj/Perry --work $PERRY_SCRATCH/reconcile2-perry --json > $PERRY_SCRATCH/reconcile2-perry.json
+$ python3 bin/perry-kernel-migrate --root /Users/bytedance/proj/Perry --work $PERRY_SCRATCH/reconcile3-perry --json > $PERRY_SCRATCH/reconcile3-perry.json
 (exit 0)
-$ jq -c .criteria $PERRY_SCRATCH/reconcile2-perry.json
+$ jq -c '[.reconciled, .not_reconciled_because, .kernel.errors]' $PERRY_SCRATCH/reconcile3-perry.json
+[true,[],[]]
+$ jq -c .criteria $PERRY_SCRATCH/reconcile3-perry.json
 {"1_counts_per_type_and_state":true,"2_every_old_id_resolves":true,"3_next_id_above_every_issued_id":true,"4_import_refuses_a_store_that_is_not_empty":true,"5_replay_reproduces_the_items":true}
-$ jq -c .import.result $PERRY_SCRATCH/reconcile2-perry.json
-{"dir":"$PERRY_SCRATCH/reconcile2-perry/anchor/perry/export","items":599,"events":1177,"last_seq":1177,"verified":true}
+$ jq -c .import.result $PERRY_SCRATCH/reconcile3-perry.json
+{"dir":"$PERRY_SCRATCH/reconcile3-perry/anchor/perry/export","items":599,"events":1177,"last_seq":1177,"verified":true}
 ```
 
-The criteria below are checked a second time with commands that do not go
-through the importer: `grep` on the old files, and `bin/perry-kernel` on the
-store.
+The criteria below are checked a second time without the importer.
+`verify.py` reads the old files with `json.loads` and the store only through
+`bin/perry-kernel`, and derives each expected value itself.
 
 ## Criterion 1 — equal counts per type and per status
 
@@ -95,18 +120,9 @@ $ grep -o '"answered": [a-z]*' perry/asks.jsonl | sort | uniq -c
 $ grep -oE '"status": "(open|cleared)' perry/risks.jsonl | sort | uniq -c
    2 "status": "cleared
    2 "status": "open
-$ bin/perry-kernel query --store … --root … --input '{"count_by":["type","state"],"limit":1}' | jq -c '.result.counts[] | [.key.type, .key.state, .n]'
-["ask","answered",104]
-["ask","pending",3]
-["risk","cleared",2]
-["risk","open",2]
-["task","blocked",2]
-["task","done",321]
-["task","dropped",144]
-["task","in_progress",1]
-["task","not_started",18]
-["task","review",2]
 ```
+
+`bin/perry-kernel query` with `count_by` `["type","state"]` gives:
 
 | Type | Status | Old | Kernel |
 |---|---|---|---|
@@ -114,46 +130,35 @@ $ bin/perry-kernel query --store … --root … --input '{"count_by":["type","st
 | ask | pending / answered | 3 / 104 | 3 / 104 |
 | risk | open / cleared | 2 / 2 | 2 / 2 |
 
-**PASS.**
+`verify.py` agrees. **PASS.**
 
 ## Criterion 2 — every old id resolves
 
-```
-$ grep -ho '"id": "[A-Z]*-[0-9]*"' tasks, asks, risks | sort -u > old-ids;  wc -l
-     599
-$ bin/perry-kernel query … --input '{"limit":0}' | jq -r '.result.items[].id' | sort -u > kernel-ids;  wc -l
-     599
-$ comm -3 old-ids kernel-ids | wc -l
-       0
-$ (each of the 599 ids through bin/perry-kernel item get)
-  item get failed for 0 of 599 ids
-```
-
+`verify.py` found 599 old ids and 599 kernel ids, the same set, and
+`bin/perry-kernel item get` failed for 0 of the 599. For each item it also
+compared the state, every mapped field, the `answer` or `reason`, and the
+attachments with the values it derived from the old row: 0 mismatches.
 **PASS.**
 
 ## Criterion 3 — the next id is above every id ever issued
 
-```
-(highest TASK id in the old stores and .perry/events.jsonl, grep)  494   → ["dry_run","TASK-495"]
-(highest USER id)                                                  1006  → ["dry_run","USER-1007"]
-(highest RX id)                                                    004   → ["dry_run","RX-005"]
-$ grep -o '"event": "purge", "id": "[A-Z]*-[0-9]*"' .perry/events.jsonl
-"event": "purge", "id": "TASK-081"
-"event": "purge", "id": "TASK-082"
-"event": "purge", "id": "TASK-083"
-```
+| Prefix | Highest id issued (stores, and the log's `id`, `task` and `record.id`) | Next id (`item create --dry-run`) |
+|---|---|---|
+| TASK | 494 | `TASK-495` |
+| USER | 1006 | `USER-1007` |
+| RX | 4 | `RX-005` |
 
-Each next id comes from `bin/perry-kernel item create … --dry-run`. The
-ceilings the importer seeded are TASK 494, with log-only ids 081–083; USER
-1006; and RX 4. No `ceiling:` event was needed, because the purged ids sit
-below the highest stored one. `tests/test_kernel_migrate.py § TestTheCeilings`
-covers the case where one does not. **PASS.**
+The log's `task` key, on 206 `link-edge` and `link-unlinked` events, reaches
+TASK-440. Its `record.id` key, on the 3 purges, reaches TASK-083. Both are below TASK-494, so
+reading them changes no ceiling here. The log-only ids are still TASK-081,
+082 and 083, the purged ones. No `ceiling:` event was needed, because they
+sit below the highest stored id. **PASS.**
 
 ## Criterion 4 — `import` refuses a store that is not empty
 
 ```
 $ bin/perry-kernel import --store … --root … --input '{"state_root":"perry"}'
-perry-kernel: store_not_empty: …/reconcile2-perry/store.db holds 1177 event(s); import needs an empty store
+store_not_empty: …/reconcile3-perry/store.db holds 1177 event(s); import needs an empty store
 (exit 1)
 ```
 
@@ -162,26 +167,61 @@ perry-kernel: store_not_empty: …/reconcile2-perry/store.db holds 1177 event(s)
 ## Criterion 5 — replaying the imported events reproduces the imported items
 
 ```
-cb347f63a7cd9697fa538e821524ee5c0e952e7550ca89d5480f59da9234523c  anchor/perry/export/items.jsonl
-e41fe9155a1a075739531c5787b23f0ed6421485f7edd1cc1e5becbc5fd811bd  anchor/perry/export/events.jsonl
+a516bd228c78ddb4b39853309a6e4b5446debc139f8baa4c472a9bc552fcbf4d  anchor/perry/export/items.jsonl
+cba69cecad39846354145e1b15e6808549b55be4a1c9f88b8b2971728f4ef8ea  anchor/perry/export/events.jsonl
 $ bin/perry-kernel export --store … --root …
-["unchanged",{"items.jsonl":"cb347f63a7cd9697","events.jsonl":"e41fe9155a1a0757"}]
-sha256 after: identical
-$ (fresh store: import from that export, then export)
-["written",599,1177,true]
-"unchanged"
-$ cmp items.jsonl second/items.jsonl    (exit 0)
-$ cmp events.jsonl second/events.jsonl  (exit 0)
+effect "unchanged"; both sha256 identical after
+$ (fresh store: import from a copy of that export, then export)
+{"items":599,"events":1177,"last_seq":1177,"verified":true}; effect "unchanged"; both sha256 identical
 ```
 
 `import` itself answered `"verified": true`. It replays every event, holding
 each change to the template in force, and compares the replayed items with
 `items.jsonl` byte for byte. **PASS.**
 
-## Cells that said nothing: unset, not imported (rule 1)
+## Answers and reasons carried (items 2 and 3)
 
-Per mapped field, from the importer. `grep -c` on `"<field>": ""` and
-`"<field>": "—"` gives the same counts.
+| What | Count | How |
+|---|---|---|
+| Ask answers | 104 | all 104 from `parsers.ask_answer`; 0 needed the status cell verbatim |
+| Risk reasons | 2 | the status cell verbatim, for RX-001 and RX-002 |
+
+Each value is set by the item's move event. The export's moves carry 104
+`field:answer` changes and 2 `field:reason` changes. For example, USER-001's
+status cell is `**answered 2026-08-16: 30 days**`, and its `answer` is
+`30 days`. RX-002's status cell is `cleared 2026-08-16`, and that whole cell
+is its `reason`. RX-001's `reason` is its whole status cell, 826 bytes.
+
+**What is not carried as text.** For the 104 answers that `ask_answer` read,
+the cell's `answered <date>:` part is not in the `answer`. The date stays in
+`perry/asks.jsonl` and in git history. The ask's move is timed by the Dates
+rule, at its last old status event. The 3 pending asks' status cells say
+`pending` and nothing more.
+
+## References (item 4)
+
+Every `depends_on` entry and every `Blocks` cell was split on commas,
+semicolons and white space.
+
+- **Resolved: 251 `blocks` edges** after duplicates are merged: 172 task to
+  task, from `depends_on`, and 79 ask to task. No edge is a self-edge.
+  `verify.py` derived the same 251 edges from the old files.
+- **Resolved to no imported id: 0.** An unresolved reference would make the
+  run "not reconciled", with exit 1.
+- **For TASK-492: 3.** These are key results, which are not kernel items yet.
+  TASK-492 must restore these edges once they are.
+
+  | Ask | Field | Blocks |
+  |---|---|---|
+  | USER-927 | `blocks` | `P003-O2-KR3` |
+  | USER-929 | `blocks` | `P003-O2-KR3` |
+  | USER-931 | `blocks` | `P003-O2-KR3` |
+
+## Cells that said nothing: unset, not imported (item 1)
+
+A cell is unset when `lib.is_blank_cell` says so. The importer counts each
+field by spelling. This repository holds no spelling other than `""` and
+`—`.
 
 | Field | `""` | `—` | Total |
 |---|---|---|---|
@@ -194,15 +234,13 @@ Per mapped field, from the importer. `grep -c` on `"<field>": ""` and
 | `tasks.title`, `tasks.track`, `asks.needed`, `risks.risk` | 0 | 0 | 0 |
 
 Of the 89 `—` cells in `next_action`, 80 are on closed rows and 9 on open
-rows. Round 1 imported the 145 `evidence` and 9 open `next_action` markers as
-text. They are now unset.
+rows.
 
 ## What was not carried, counted
 
 - **`next_action` on closed tasks: 315 skipped by option A.** That is 219
-  `done` and 96 `dropped`, counting only the cells that hold text. `grep`
-  counts 395 closed rows with a non-empty cell: those 315 plus 80 that hold
-  `—`. The 80 are counted as unset in the table above.
+  `done` and 96 `dropped`, counting only the cells that hold text. A further
+  80 closed rows hold `—`, and those are counted as unset above.
 - **Dropped fields, rows that held a value:**
 
   | Field | Rows |
@@ -218,63 +256,39 @@ text. They are now unset.
   | `risks.order` | 4 |
 
   `tasks.parent` held no value.
-- **Status cells:** 104 asks and 2 risks say more than their state. The PMO
-  noted that the answers and reasons are not in the old stores as fields, so
-  nothing is lost.
+- **Status text no field carries: 104**, the `answered <date>:` parts above.
 
-## Moves clamped to their create (rule 2): 2
+## Moves clamped to their create: 2
 
 | Item | Rule | Rule's time | Clamped to |
 |---|---|---|---|
 | USER-930 | last old status event | `2026-09-13T16:16:54Z` | `2026-09-14T00:00:00Z`, its `asked` date |
 | RX-002 | `cleared` (`2026-08-16`, a date) | `2026-08-16T00:00:00Z` | `2026-08-16T10:33:04Z`, the start of the old log (it has no `opened` and no event) |
 
-Each move's `note` says so, for example
-`from asks.jsonl; timed by last old status event (2026-09-13T16:16:54Z), clamped to its create`.
-A `jq` pass over the exported events finds no item whose move precedes its
-create:
-
-```
-$ jq -s '[group_by(.items[0])[] | … | select(.m != null and .m < .c)] | length' events.jsonl
-0
-```
+Each move's `note` says so. A pass over the exported events finds no move
+timed before its item's create (`$PERRY_SCRATCH/events_check.py`).
 
 ## Date-only fields and this project's +08:00 clock
 
-`lib.ts_moment`, the one converter, reads a date-only value as 00:00 UTC,
-which is 08:00 on this project's +08:00 clock. This repository holds 107
-date-only values that time an event: 105 `asked` dates and 2 `cleared`
-dates. `created` and `opened` hold none. Each was compared with the item's
-own events in `.perry/events.jsonl`:
+Unchanged since round 2. `lib.ts_moment`, the one converter, reads a date-only
+value as 00:00 UTC, which is 08:00 on this project's +08:00 clock. This
+repository holds 107 date-only values that time an event: 105 `asked` dates
+and 2 `cleared` dates.
 
-- **The date lands after the item's own first event in 8 cases.** These are
-  USER-015, 903, 904, 905, 906, 930, 931 and 1006, each asked between 00:16
-  and 05:45 local time on its `asked` day. Their creates are timed 2h15m to
-  7h44m after the ask's own event, but on the right calendar day.
-- **Only USER-930 had a later event out of order.** Its answer came at 00:16
-  local, before 08:00, so its move preceded its create. The clamp fixes that
-  order.
-- **No date falls on a different local day from its item's first event.**
+- The date lands after the item's own first event in 8 cases: USER-015, 903,
+  904, 905, 906, 930, 931 and 1006. Each was asked between 00:16 and 05:45
+  local time.
+- Only USER-930's move fell before its create, and the clamp fixes that.
+- No date falls on a different local day from its item's first event.
 
-**What I did:** I kept the reading and clamped the move. Reading dates as
-local midnight would need a second converter, which
+Every create timed by a date says so in its note. Reading dates as local
+midnight would need a second converter, which
 `tests/test_kr_progress_provenance.py § test_the_converter_has_exactly_one_home`
-forbids in `bin/`, or a change to `lib.ts_moment` that every other reader
-shares. Both are outside this row. Every create timed by a date says so in its
-note: `timed by asked 2026-09-14, a date, read as 00:00 UTC`. If the user
-wants those eight creates at their ask events instead, that is a new rule to
-decide.
+forbids in `bin/`. If the user wants those eight creates at their ask events
+instead, that is a new rule to decide.
 
 ## Other things the reviewer should see
 
-- **References that do not resolve: 3.** USER-927, USER-929 and USER-931 each
-  block `P003-O2-KR3`, a key result; that is TASK-492's. Every other reference
-  resolved, giving 251 `blocks` edges once duplicates are merged:
-  - 172 task to task, all from `depends_on`;
-  - 79 ask to task, from 14 `USER-` entries in `depends_on` and 76 tokens
-    from the asks' `Blocks` cells.
-
-  There are no self-edges.
 - **Attachments: 74.** These are `design_refs`, kept verbatim.
 - **Creation times:**
   - 457 from `created` and 105 from `asked`;
@@ -286,3 +300,5 @@ decide.
   the creation date. Two of these were clamped, as above.
 - **Events: 1,177.** That is `init`, `template apply`, 599 creates and 576
   moves.
+- **Open `Next action` cells over 300 bytes: 7**, imported as they are:
+  TASK-238, 286, 309, 334, 220, 371 and 393.
