@@ -52,7 +52,8 @@ aiMark moves in the same release (TASK-491).
   `detect_perry` ends at `:342`.
 - **From TASK-489's architecture review** (`TASK-489-review-round1.md`).
   These counts are stale since TASK-489 added `bin/perry-kernel-migrate`. They
-  are the user's text, so the user confirms each edit before it lands:
+  are the user's text. The user confirmed all three edits in session on
+  2026-10-07 ("确认"):
   - root `ARCHITECTURE.md:61` and `:160` should say 22 tools, not 21;
   - root `:145` and `:165` should say 164 test modules, not 163;
   - `bin/ARCHITECTURE.md:244` OQ-B1 should say "Seven" declare a `SURFACE`,
@@ -84,3 +85,4 @@ The subcommands in `work/SKILL.md § Subcommand index` when the task starts, and
   outside its scope, and one citation fix from TASK-488's architecture review.
   The Bound widens to the four document places.
 - 2026-10-07 — Carried TASK-489's architecture-review drift: root tool and test-module counts, OQ-B1, and the `read_events` readers.
+- 2026-10-07 — The user confirmed the three count edits (root tools 21→22, root test modules 163→164, OQ-B1 six→seven).
