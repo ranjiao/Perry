@@ -1,20 +1,67 @@
 # TASK-489 — reconciliation: this repository
 
-Spec: `TASK-489-spec.md`, criteria 1–5, with § Round 3 as decided by the PMO
-on main at `d2cae7ff`. Project `/Users/bytedance/proj/Perry`, state root
-`perry`. Round 3, run on 2026-10-07 by the Coding Agent with the importer at
-`coding/task-489-importer` a3bc4e80, into a fresh temporary store only.
+Spec: `TASK-489-spec.md`, criteria 1–5, with § Round 3 (decided by the PMO)
+and § Round 4 (decided by the user, option B), on main at `a95fc07f`. Project
+`/Users/bytedance/proj/Perry`, state root `perry`. Round 4, run on 2026-10-07
+by the Coding Agent with the importer at `coding/task-489-importer` 7095bffd,
+into a fresh temporary store only.
 
 `$PERRY_SCRATCH` below is
 `/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/agent-a0d8e01dec029a860`,
 derived by hand because the sandbox refused the derivation snippet. The work
-directory is `$PERRY_SCRATCH/reconcile3-perry`: the store is `store.db` there,
+directory is `$PERRY_SCRATCH/reconcile4-perry`: the store is `store.db` there,
 and the anchor is `anchor/`. The importer's own report is
-`$PERRY_SCRATCH/reconcile3-perry.json`. The independent check below is
+`$PERRY_SCRATCH/reconcile4-perry.json`. The independent check below is
 `$PERRY_SCRATCH/verify.py`, and its output is
-`$PERRY_SCRATCH/verify3-perry.json`.
+`$PERRY_SCRATCH/verify4-perry.json`.
 
-## What changed in round 3
+## What changed in round 4
+
+The round-2 architecture review blocked the importer's own split of a
+reference cell. The user chose option B: the importer holds no split of its
+own (spec § Round 4).
+
+- **`depends_on` (item 1).** Each entry is taken whole. `tasks.jsonl` holds
+  `perry-task § parse_depends` output, and this was checked first, by loading
+  `bin/perry-task` in a scratch script (`$PERRY_SCRATCH/depends_check.py`):
+  of 186 entries on 488 tasks, every one gives `parse_depends(entry) ==
+  [entry]`, no list repeats an entry, and every list's `, ` join parses back
+  to itself.
+- **`Blocks` (item 2).** An ask's ids are the `blocks_ids` that
+  `perry-task asks --all --json --root /Users/bytedance/proj/Perry` publishes,
+  run as a subprocess. Its payload covers the same 107 asks with the same
+  `Blocks` cells as `asks.jsonl`, and holds 79 ids. On every cell they equal
+  the tokens round 3's split read (`$PERRY_SCRATCH/blocks_compare.py`): no
+  cell differs, and no non-blank cell names no id.
+- **Key results (item 3).** A key-result id is one that matches the id
+  pattern `schema/state-schema.json` declares for a `kr` record of
+  `linkage.jsonl`, `^(?:P\d{3}-)?O\d+-KR\d+$`, read through
+  `lib.load_schema`. It takes both forms `_BLOCKS_ID` returns.
+- **`REFERENCE_SPLIT` is removed (item 4).** A reference that resolves to no
+  imported id still makes the run "not reconciled".
+
+**The result is the same import.** `items.jsonl` is byte-identical to round
+3's, sha256 `a516bd22…`, so the edges are the same 251. `events.jsonl`
+differs only in the `at` of events 1 and 2, `init` and `template apply`,
+which are timed at each run's own time (`$PERRY_SCRATCH/compare34.py`).
+
+**The `perry-task asks` read, checked before it ran here.**
+- On two scratch copies of `.perry/` and `perry/`, it changed no file under
+  the copy (`$PERRY_SCRATCH/asks_probe.py`), and wrote nothing under
+  `~/.cache/perry`.
+- It is not free of writes outside the project. Like every `perry-task`
+  command, it takes the project lock, a 0-byte file in the system temp
+  directory keyed to the state root (`lib.project_lock`). On a fresh copy it
+  created that file (`$PERRY_SCRATCH/lock_probe.py`). For this repository the
+  file already existed, `perry-task-47cc6b34b8a24907.lock`; the run left it
+  0 bytes and moved its mtime.
+- Before any command, reads included, `perry-task` finishes a write that a
+  crashed command left pending, named by a recovery marker in the state root.
+  Neither project holds such a marker. If one did, the import stops: it
+  compares every file under the state root and `.perry/` before and after
+  the read.
+
+## What changed in round 3 (unchanged in round 4)
 
 Round 1's V4 review failed on the blank rule. The PMO's round-3 rules
 (spec § Round 3) changed the importer as follows:
@@ -31,10 +78,9 @@ Round 1's V4 review failed on the blank rule. The PMO's round-3 rules
   verbatim. `parsers.status_is_cleared` decides "cleared".
 - **The closing event.** The item's one move sets its `answer` or `reason`,
   as a live `item move` that sets a field writes it.
-- **References (item 4).** A `depends_on` entry and a `Blocks` cell are split
-  on commas, semicolons and white space. A reference that resolves to no
-  imported id makes the run "not reconciled". A key-result id is listed
-  "for TASK-492" instead.
+- **References (item 4).** A reference that resolves to no imported id makes
+  the run "not reconciled". A key-result id is listed "for TASK-492"
+  instead. Round 4 replaced how the references are read; see above.
 - **Kernel errors (item 5).** A kernel call refused while reconciling is
   reported under `kernel.errors`, and the run is "not reconciled". No
   traceback is printed. This run had none.
@@ -52,8 +98,9 @@ and `fields.reason` (2).
 ## Inputs
 
 These are read-only, and unchanged since round 1. Their bytes are identical
-to `9509170c`, the branch base. `git diff --stat 9509170c d2cae7ff -- perry/*.jsonl .perry/events.jsonl`
-is empty, and the hashes match round 2's.
+to `9509170c`, the branch base. `git diff --stat 9509170c a95fc07f -- perry/*.jsonl .perry/events.jsonl`
+is empty, and the hashes match round 2's. Neither state root holds a
+`perry-task` recovery marker (`.perry-task-transaction.json`).
 
 | File | sha256 |
 |---|---|
@@ -78,26 +125,29 @@ ls: /Users/bytedance/proj/SkyTonight/.git/perry: No such file or directory
 ```
 
 Every byte under the checkout's `.perry/` and `perry/`, 1,474 files, gave
-`state-sha256=64447447a95090bb` before the round-3 import, after it, and
-after the round-2 re-run above (`$PERRY_SCRATCH/fingerprint.py`). The two
-`ls -d` checks gave the same answer at each of those three points. The value is not comparable with round 2's,
-which another script computed.
+`state-sha256=7925ad42d9396509` before and after the round-4 import
+(`$PERRY_SCRATCH/fingerprint.py`). It differs from round 3's value because
+main has since changed other `perry/` files, such as the spec; the five input
+stores above did not change. The two `ls -d` checks gave the same answer
+before and after.
 
-Every `bin/perry-kernel` call names `--store $PERRY_SCRATCH/reconcile3-perry/store.db`
-and `--root $PERRY_SCRATCH/reconcile3-perry/anchor`, and runs with
-`PERRY_KERNEL_TESTING=1`.
+Every `bin/perry-kernel` call names `--store $PERRY_SCRATCH/reconcile4-perry/store.db`
+and `--root $PERRY_SCRATCH/reconcile4-perry/anchor`, and runs with
+`PERRY_KERNEL_TESTING=1`. The one `perry-task asks` call is the read described
+above: the project's files were unchanged by it, and it moved the mtime of the
+existing lock file in the system temp directory.
 
 ## The import
 
 ```
-$ python3 bin/perry-kernel-migrate --root /Users/bytedance/proj/Perry --work $PERRY_SCRATCH/reconcile3-perry --json > $PERRY_SCRATCH/reconcile3-perry.json
+$ python3 bin/perry-kernel-migrate --root /Users/bytedance/proj/Perry --work $PERRY_SCRATCH/reconcile4-perry --json > $PERRY_SCRATCH/reconcile4-perry.json
 (exit 0)
-$ jq -c '[.reconciled, .not_reconciled_because, .kernel.errors]' $PERRY_SCRATCH/reconcile3-perry.json
+$ jq -c '[.reconciled, .not_reconciled_because, .kernel.errors]' $PERRY_SCRATCH/reconcile4-perry.json
 [true,[],[]]
-$ jq -c .criteria $PERRY_SCRATCH/reconcile3-perry.json
+$ jq -c .criteria $PERRY_SCRATCH/reconcile4-perry.json
 {"1_counts_per_type_and_state":true,"2_every_old_id_resolves":true,"3_next_id_above_every_issued_id":true,"4_import_refuses_a_store_that_is_not_empty":true,"5_replay_reproduces_the_items":true}
-$ jq -c .import.result $PERRY_SCRATCH/reconcile3-perry.json
-{"dir":"$PERRY_SCRATCH/reconcile3-perry/anchor/perry/export","items":599,"events":1177,"last_seq":1177,"verified":true}
+$ jq -c .import.result $PERRY_SCRATCH/reconcile4-perry.json
+{"dir":"$PERRY_SCRATCH/reconcile4-perry/anchor/perry/export","items":599,"events":1177,"last_seq":1177,"verified":true}
 ```
 
 The criteria below are checked a second time without the importer.
@@ -158,7 +208,7 @@ sit below the highest stored id. **PASS.**
 
 ```
 $ bin/perry-kernel import --store … --root … --input '{"state_root":"perry"}'
-store_not_empty: …/reconcile3-perry/store.db holds 1177 event(s); import needs an empty store
+store_not_empty: …/reconcile4-perry/store.db holds 1177 event(s); import needs an empty store
 (exit 1)
 ```
 
@@ -168,7 +218,7 @@ store_not_empty: …/reconcile3-perry/store.db holds 1177 event(s); import needs
 
 ```
 a516bd228c78ddb4b39853309a6e4b5446debc139f8baa4c472a9bc552fcbf4d  anchor/perry/export/items.jsonl
-cba69cecad39846354145e1b15e6808549b55be4a1c9f88b8b2971728f4ef8ea  anchor/perry/export/events.jsonl
+1c0805707e972745d07b789cc76984152135f8c5527ae85b30a86ca41d7001d6  anchor/perry/export/events.jsonl
 $ bin/perry-kernel export --store … --root …
 effect "unchanged"; both sha256 identical after
 $ (fresh store: import from a copy of that export, then export)
@@ -198,18 +248,22 @@ the cell's `answered <date>:` part is not in the `answer`. The date stays in
 rule, at its last old status event. The 3 pending asks' status cells say
 `pending` and nothing more.
 
-## References (item 4)
+## References (round 4: no split of the importer's own)
 
-Every `depends_on` entry and every `Blocks` cell was split on commas,
-semicolons and white space.
+Each `depends_on` entry was taken whole: 186 entries. Each ask's references
+are the `blocks_ids` of `perry-task asks --all --json`: 79 ids, 76 of them
+task ids and 3 key results.
 
-- **Resolved: 251 `blocks` edges** after duplicates are merged: 172 task to
-  task, from `depends_on`, and 79 ask to task. No edge is a self-edge.
-  `verify.py` derived the same 251 edges from the old files.
+- **Resolved: 251 `blocks` edges** after duplicates are merged, as in round
+  3: 172 task to task, from `depends_on`, and 79 ask to task, from 14 `USER-`
+  entries in `depends_on` and the 76 task ids in `Blocks` cells. No edge is a
+  self-edge. `verify.py` derived the same 251 edges from the old files.
+- **`Blocks` cells that say something and name no id `perry-task` reads: 0.**
 - **Resolved to no imported id: 0.** An unresolved reference would make the
   run "not reconciled", with exit 1.
 - **For TASK-492: 3.** These are key results, which are not kernel items yet.
-  TASK-492 must restore these edges once they are.
+  TASK-492 must restore these edges once they are. No `O<n>-KR<m>` form
+  appears in this repository's cells.
 
   | Ask | Field | Blocks |
   |---|---|---|

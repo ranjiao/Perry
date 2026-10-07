@@ -1,22 +1,45 @@
 # TASK-489 — reconciliation: SkyTonight
 
-Spec: `TASK-489-spec.md`, criteria 1–5, with § Round 3 as decided by the PMO
-on main at `d2cae7ff`. Project `/Users/bytedance/proj/SkyTonight`; its state
-root is `doc/perry`, from its `.perry/config.jsonl`. Round 3 ran on
-2026-10-07, by the Coding Agent, with the importer at
-`coding/task-489-importer` a3bc4e80, into a fresh temporary store only.
-**SkyTonight is read-only, and nothing was written under it.**
+Spec: `TASK-489-spec.md`, criteria 1–5, with § Round 3 (decided by the PMO)
+and § Round 4 (decided by the user, option B), on main at `a95fc07f`. Project
+`/Users/bytedance/proj/SkyTonight`; its state root is `doc/perry`, from its
+`.perry/config.jsonl`. Round 4 ran on 2026-10-07, by the Coding Agent, with
+the importer at `coding/task-489-importer` 7095bffd, into a fresh temporary
+store only. **SkyTonight is read-only, and nothing was written under it.**
 
 `$PERRY_SCRATCH` below is
 `/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/agent-a0d8e01dec029a860`,
 the Perry worktree's scratch directory. It was derived by hand, because the
 sandbox refused the derivation snippet. The work directory is
-`$PERRY_SCRATCH/reconcile3-skytonight`. The importer's report is
-`$PERRY_SCRATCH/reconcile3-skytonight.json`. The independent check is
+`$PERRY_SCRATCH/reconcile4-skytonight`. The importer's report is
+`$PERRY_SCRATCH/reconcile4-skytonight.json`. The independent check is
 `$PERRY_SCRATCH/verify.py`, and its output is
-`$PERRY_SCRATCH/verify3-skytonight.json`.
+`$PERRY_SCRATCH/verify4-skytonight.json`.
 
-## What changed in round 3
+## What changed in round 4
+
+The importer holds no split of its own (spec § Round 4, the user's option B).
+
+- **`depends_on` (item 1).** Each entry is taken whole. `tasks.jsonl` holds
+  `perry-task § parse_depends` output, and this was checked first
+  (`$PERRY_SCRATCH/depends_check.py`): of 40 entries on 32 tasks, every one
+  gives `parse_depends(entry) == [entry]`, no list repeats an entry, and
+  every list's `, ` join parses back to itself.
+- **`Blocks` (item 2).** SkyTonight holds no ask store, so the importer runs
+  no `perry-task asks`. Nothing ran against SkyTonight but the importer's own
+  reads. The project lock file that `perry-task` would key to SkyTonight's
+  state root, `perry-task-c38441188d40a9f2.lock` in the system temp
+  directory, was absent before and after.
+- **Key results (item 3).** None appear here.
+- **`REFERENCE_SPLIT` is removed (item 4).** No reference resolves to nothing.
+
+**The result is the same import.** `items.jsonl` is byte-identical to rounds
+2 and 3, sha256 `a8ce77e9…`, so the edges are the same 40. `events.jsonl`
+differs from round 3's only in the `at` of events 1 and 2, `init` and
+`template apply`, which are timed at each run's own time
+(`$PERRY_SCRATCH/compare34.py`).
+
+## What changed in round 3 (unchanged in round 4)
 
 The round-3 rules (spec § Round 3) change nothing that SkyTonight holds:
 
@@ -28,7 +51,7 @@ The round-3 rules (spec § Round 3) change nothing that SkyTonight holds:
   carried: 0 and 0.
 - **References (item 4).** Every `depends_on` entry resolves. No reference
   resolves to nothing, and none names a key result, so nothing is listed for
-  TASK-492.
+  TASK-492. Round 4 replaced how the references are read; see above.
 - **Kernel errors (item 5).** No kernel call was refused.
 - **Ceilings (item 6).** The old log names ids only under `id`. No event
   carries `task` or `record`.
@@ -65,36 +88,35 @@ ls: /Users/bytedance/proj/SkyTonight/.git/perry: No such file or directory
 ```
 
 The whole SkyTonight tree was fingerprinted with
-`$PERRY_SCRATCH/fingerprint.py` before the round-3 import, after it, and
-after the round-2 re-run above. The two `ls -d` checks gave the same answer
-at each of those three points. The fingerprint covers every entry's path,
-size and mtime, `.git` included, and every byte under `.perry/` and
+`$PERRY_SCRATCH/fingerprint.py` before the round-4 import, after it, and
+after the independent check. The two `ls -d` checks gave the same answer at
+each of those three points. The fingerprint covers every entry's path, size
+and mtime, `.git` included, and every byte under `.perry/` and
 `doc/perry/`:
 
 ```
 before:          entries=11776 listing-sha256=59dde36f75ef34e5 state-files=282 state-sha256=e8689645fbc5a738
-after round 3:   entries=11776 listing-sha256=59dde36f75ef34e5 state-files=282 state-sha256=e8689645fbc5a738
-after re-run:    entries=11776 listing-sha256=59dde36f75ef34e5 state-files=282 state-sha256=e8689645fbc5a738
+after round 4:   entries=11776 listing-sha256=59dde36f75ef34e5 state-files=282 state-sha256=e8689645fbc5a738
+after the check: entries=11776 listing-sha256=59dde36f75ef34e5 state-files=282 state-sha256=e8689645fbc5a738
 ```
 
-The values are not comparable with round 2's, which another script computed.
-
+The values equal round 3's, which the same script computed.
 Every `bin/perry-kernel` call names
-`--store $PERRY_SCRATCH/reconcile3-skytonight/store.db` and
-`--root $PERRY_SCRATCH/reconcile3-skytonight/anchor`, and runs with
+`--store $PERRY_SCRATCH/reconcile4-skytonight/store.db` and
+`--root $PERRY_SCRATCH/reconcile4-skytonight/anchor`, and runs with
 `PERRY_KERNEL_TESTING=1`.
 
 ## The import
 
 ```
-$ python3 bin/perry-kernel-migrate --root /Users/bytedance/proj/SkyTonight --work $PERRY_SCRATCH/reconcile3-skytonight --json > $PERRY_SCRATCH/reconcile3-skytonight.json
+$ python3 bin/perry-kernel-migrate --root /Users/bytedance/proj/SkyTonight --work $PERRY_SCRATCH/reconcile4-skytonight --json > $PERRY_SCRATCH/reconcile4-skytonight.json
 (exit 0)
-$ jq -c '[.reconciled, .not_reconciled_because, .kernel.errors]' $PERRY_SCRATCH/reconcile3-skytonight.json
+$ jq -c '[.reconciled, .not_reconciled_because, .kernel.errors]' $PERRY_SCRATCH/reconcile4-skytonight.json
 [true,[],[]]
-$ jq -c .criteria $PERRY_SCRATCH/reconcile3-skytonight.json
+$ jq -c .criteria $PERRY_SCRATCH/reconcile4-skytonight.json
 {"1_counts_per_type_and_state":true,"2_every_old_id_resolves":true,"3_next_id_above_every_issued_id":true,"4_import_refuses_a_store_that_is_not_empty":true,"5_replay_reproduces_the_items":true}
-$ jq -c .import.result $PERRY_SCRATCH/reconcile3-skytonight.json
-{"dir":"$PERRY_SCRATCH/reconcile3-skytonight/anchor/doc/perry/export","items":34,"events":68,"last_seq":68,"verified":true}
+$ jq -c .import.result $PERRY_SCRATCH/reconcile4-skytonight.json
+{"dir":"$PERRY_SCRATCH/reconcile4-skytonight/anchor/doc/perry/export","items":34,"events":68,"last_seq":68,"verified":true}
 ```
 
 `verify.py` checks the criteria a second time. It reads the old files with
@@ -132,7 +154,7 @@ template prefix. **PASS.**
 
 ```
 $ bin/perry-kernel import --store … --root … --input '{"state_root":"doc/perry"}'
-store_not_empty: …/reconcile3-skytonight/store.db holds 68 event(s); import needs an empty store
+store_not_empty: …/reconcile4-skytonight/store.db holds 68 event(s); import needs an empty store
 (exit 1)
 ```
 
@@ -142,7 +164,7 @@ store_not_empty: …/reconcile3-skytonight/store.db holds 68 event(s); import ne
 
 ```
 a8ce77e95d576ffa729eea46837d087a564da39e196e2b55ca47a8b4ce289649  anchor/doc/perry/export/items.jsonl
-f6be2097436b529fdc7663b437b02d8446bebf881d2c62577d922e96121da712  anchor/doc/perry/export/events.jsonl
+675dbce1fe49d6c28733e1584250da65c6f10d161ba7a1381b79b7df3dafae7e  anchor/doc/perry/export/events.jsonl
 $ bin/perry-kernel export --store … --root …
 effect "unchanged"; both sha256 identical after
 $ (fresh store: import from a copy of that export, then export)
