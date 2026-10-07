@@ -184,6 +184,35 @@ root § 3 forbids a second parse.
    Root `ARCHITECTURE.md` and `bin/ARCHITECTURE.md` § 7 are the user's and are
    not edited here (see TASK-490).
 
+## Round 4, decided by the user 2026-10-07 (option B)
+
+The round-2 architecture review blocked on the importer's own split. The
+candidate was `91e1ff5e`. `REFERENCE_SPLIT`, a `[,;\s]+` split of
+`depends_on` and `blocks` cells, re-implements a parse that `perry-task`
+already does. Root `ARCHITECTURE.md` § 3 and NN-1 forbid that, because `bin/`
+never re-implements a parse. The user chose option B: the importer holds no
+split of its own, and no exception is recorded.
+
+1. **`depends_on`.** The importer takes the entries whole. The store already
+   holds them as `perry-task § parse_depends` output.
+2. **`blocks`.** The importer takes the ids that `perry-task asks --all
+   --json` reports, run as a subprocess. If that output carries no split
+   ids, stop and report.
+3. **Key-result ids.** Every form the old tool returns is recognised,
+   `O1-KR1` as well as `P003-O2-KR3`. They are listed for TASK-492, never
+   refused. Recognition goes through an existing reader. If none covers both
+   forms, stop and report.
+4. **`REFERENCE_SPLIT` is removed.** A reference that resolves to no
+   imported id still makes the run "not reconciled".
+5. **Module documents.**
+   - `bin/ARCHITECTURE.md:88–89`, "adds no reader", must describe what the
+     importer reads and runs. The review marked this blocking.
+   - `bin/ARCHITECTURE.md:77–79`: the tools execute another tool as a
+     subprocess.
+   - `bin/ARCHITECTURE.md:93–94`: the work directory may be empty or absent.
+   - `kernel/ARCHITECTURE.md:92`, "There are no others", must agree with
+     `:84`, which names the importer as a caller.
+
 ## Out of scope
 - OKR, design and ADR records (TASK-492).
 - Historic prose.
@@ -210,3 +239,4 @@ The stores listed under Deliverable, for two projects, and the six acceptance cr
 - 2026-09-29 — Carried DESIGN-023 decision 13's field mapping. Added § Decided 2026-09-29. The Dates rule is now one create event and at most one move per item. `Dispatch mode: manual` → `auto`. Files in scope name the one-shot `bin/` importer, and the Bound names the live-store paths it must not touch.
 - 2026-09-29 — After round 1: the long-cell measurement is corrected, since 7 open rows are over 300 bytes, and option A still covers them. Two import rules added: the blank marker `—` means unset, and no move is timed before its create.
 - 2026-10-07 — Round 3 added after round 1's V4 FAIL (`TASK-489-review-round1.md`): the one blank rule, ask answers, the risk state and reason, references, kernel errors, ceilings, the importer's self-checks, replay of `attach:` refs, and the candidate's own documents.
+- 2026-10-07 — Round 4 added: the user's option B on the round-2 architecture block (no split of the importer's own; no NN-1 exception), and four module-document corrections.
