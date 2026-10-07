@@ -59,7 +59,7 @@ statements it was fixing.
 | [`perry-codex-preflight`](perry-codex-preflight) | cache only | Verifies the `codex` CLI is installed, recent enough and actually responds, before a dispatch depends on it. |
 | [`perry-dispatch-limit`](perry-dispatch-limit) | cache only | Reserves and frees concurrency slots so a session can't fan out unbounded dispatches. |
 | [`perry-kernel`](perry-kernel) | **write** + read | The DESIGN-023 kernel CLI: a thin wrapper over the `perry_kernel` package in `kernel/`, one store per project anchor, JSON in and JSON out. No lane writes through it yet; `bin/` stays the live writer until each lane cuts over. `perry-kernel describe` prints its surface, and [`kernel/ARCHITECTURE.md`](../kernel/ARCHITECTURE.md) is its specification. |
-| [`perry-kernel-migrate`](perry-kernel-migrate) | read; writes only under `--work` | DESIGN-023 row D's one-shot importer (TASK-489). It reads a project's `tasks.jsonl`, register stores and `.perry/events.jsonl`, writes a synthetic kernel export into a scratch anchor, runs `perry-kernel import` into a scratch store, and reconciles counts, ids, ceilings, the non-empty refusal, the replay and every reference. It never writes the project, and every kernel call names its store. Deleted at row H with the rest of the old `bin/`. The mapping: [below](#perry-kernel-migrate). |
+| [`perry-kernel-migrate`](perry-kernel-migrate) | read; writes only under `--work` | DESIGN-023 row D's one-shot importer (TASK-489). It reads a project's `tasks.jsonl`, register stores and `.perry/events.jsonl`, and each ask's `Blocks` ids from `perry-task asks --all --json`, writes a synthetic kernel export into a scratch anchor, runs `perry-kernel import` into a scratch store, and reconciles counts, ids, ceilings, the non-empty refusal, the replay and every reference. It never writes the project, and every kernel call names its store. Deleted at row H with the rest of the old `bin/`. The mapping: [below](#perry-kernel-migrate). |
 
 **Eight tools write project files: `perry-task`, `perry-tasks`,
 `perry-goals`, `perry-okr`, `perry-config`, `perry-decide`,
@@ -832,7 +832,7 @@ fields and the template's, and the kernel may name neither (DESIGN-023 Goal 1).
 So it is a one-shot tool beside the readers it uses, and row H deletes it with
 them once row E has migrated both projects (TASK-489 § Decided 2026-09-29).
 
-**It adds no reader.** The five register stores are read through
+**What it reads, and through what.** The five register stores are read through
 `perry_store.load_board_stores`, the state root through
 `parsers.resolve_state_root`, and `.perry/events.jsonl` through
 `parsers.load_register_store`. That is not the only JSONL reader in
@@ -842,13 +842,28 @@ reader made for the event log is shared. It reads any JSONL file under a
 directory and refuses a malformed line rather than skipping it, which is the
 right answer for a migration. Times go through `lib.ts_moment`, the one
 converter. An ask's status goes through `parsers.ask_is_answered` and
-`parsers.ask_answer`, a risk's through `parsers.status_is_cleared`, and a
-key-result id through `parsers.kr_objective_id`. It also reads
-`templates/process/perry.json`, the process template, as data, not as a state
-file. The one rule it writes itself is the split of a reference cell, below:
-no reader it may import splits one, so it uses the spec's fallback.
+`parsers.ask_answer`, and a risk's through `parsers.status_is_cleared`. It
+also reads `templates/process/perry.json`, the process template, as data, not
+as a state file.
 
-**The mapping is DESIGN-023 decision 13's, with TASK-489's round-3 rules.**
+**It holds no split of its own** (TASK-489 round 4, the user's option B; root
+`ARCHITECTURE.md` § 3 and NN-1):
+- a task's `depends_on` entries are taken whole. `tasks.jsonl` holds them as
+  `perry-task § parse_depends` output, one id per entry;
+- an ask's `Blocks` ids are the `blocks_ids` that `perry-task asks --all
+  --json` publishes, its `_BLOCKS_ID` reading of each cell. The importer runs
+  it as a subprocess, with `--root` set to the project, and only when the
+  project holds an ask. The payload must cover exactly the store's asks and
+  cells. The read must change no file under the state root or `.perry/`:
+  `perry-task` finishes a write a crashed command left pending before any
+  command, and the import stops if this read did. Like every `perry-task`
+  command, it takes the project lock, a file in the system temp directory;
+- a key-result id is one that matches the id pattern
+  `schema/state-schema.json` declares for a `kr` record of `linkage.jsonl`,
+  read through `lib.load_schema`, as `perry-goals` reads it. It takes both
+  forms `_BLOCKS_ID` returns, `O1-KR1` and `P003-O2-KR3`.
+
+**The mapping is DESIGN-023 decision 13's, with TASK-489's round-3 and round-4 rules.**
 - **Tasks.** A task keeps `title`, `summary`, `priority`, `owner`, `track`,
   `verification`, `next_action` and `evidence`. Its `status` is the state,
   `depends_on` becomes `blocks` edges, and `design_refs` become attachments.
@@ -861,12 +876,13 @@ no reader it may import splits one, so it uses the spec's fallback.
   cell verbatim. An `open` risk stays `open`.
 - **The closing field.** An `answer` or a `reason` is set by the item's one
   move, the event that closes it.
-- **References.** No shared reader splits a `depends_on` entry or a `Blocks`
-  cell, so each is split on commas, semicolons and white space. Each token is
-  looked up among the imported ids, and nothing is guessed. A key-result id
-  such as `P003-O2-KR3` is listed "for TASK-492", which restores those edges
-  once key results are kernel items. Any other token that resolves to no
-  imported id makes the run "not reconciled", with exit 1.
+- **References.** Each `depends_on` entry and each of an ask's `blocks_ids`
+  is looked up among the imported ids, and nothing is guessed. A key-result
+  id is listed "for TASK-492", which restores those edges once key results
+  are kernel items. Any other reference that resolves to no imported id makes
+  the run "not reconciled", with exit 1. A `Blocks` cell that says something
+  and names no id `perry-task` reads is counted, and nothing of it is
+  carried.
 - **Blank cells.** A cell is unset when `lib.is_blank_cell` says so, the
   project's one blank rule. That takes an empty string and the blank marker
   `—`, and also `-`, `n/a`, `TBD`, `none`, `?`, `待定` and the other spellings
@@ -904,8 +920,9 @@ the old log names under `id`, `task` or `record.id`, purged ones included.
 
 **It never writes a store it did not create.** Without `--work` it only
 plans: it reads the stores, builds the export in memory, prints what it would
-carry, drop and seed, and writes nothing (DESIGN-016 C3's default for a
-flag-only tool). `--work` must be empty or absent, outside the project and
+carry, drop and seed, and writes nothing itself (DESIGN-016 C3's default for a
+flag-only tool). The `perry-task asks` read above is the only command it can
+run then. `--work` must be empty or absent, outside the project and
 outside any `.git`. Every kernel call passes
 `--store <work>/store.db` and `--root <work>/anchor`, and runs with
 `PERRY_KERNEL_TESTING` set, so a call that lost its `--store` is refused

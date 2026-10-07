@@ -89,7 +89,8 @@ only through the CLI, as the skill does (`bin/ARCHITECTURE.md` § 2). The test
 suites also run the CLI, and `bin/perry` forwards `perry kernel …` to the
 wrapper's `main` in-process.
 
-Allowed directions: skill → kernel → store. There are no others.
+Allowed directions: skill → kernel → store, where each caller named above
+stands in the skill's place. There are no others.
 
 Forbidden:
 - **Importing anything outside the stdlib and `perry_kernel`**, `bin/`, `viewer/` and
@@ -250,6 +251,9 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 ## §8. Change log
 
+- 2026-10-07 · v1 · TASK-489 round 4. § 3's allowed-directions line says each caller named
+  above it stands in the skill's place, so "There are no others" agrees with the callers it
+  lists. The direction itself, caller → kernel → store and nothing back, is unchanged.
 - 2026-10-07 · v1 · TASK-489 round 3. § 3's diagram and text name `bin/perry-kernel-migrate`,
   row D's one-shot importer, as a caller of the CLI besides the skill until row H, and say
   that the test suites and `bin/perry`'s forward also run it; the allowed-directions line

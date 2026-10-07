@@ -58,6 +58,7 @@ flowchart TD
     Perry -.reads SURFACE from.-> Migrate
     Perry -.lists as undeclared.-> Kernel
     Migrate -->|"runs, --store and --root always named"| Kernel
+    Migrate -->|"runs asks --all --json, a read"| Task
 ```
 
 ### The three libraries
@@ -76,23 +77,38 @@ caller names it with `--session` (Claude's exported id cannot be bound).
 To learn which host it is under, it runs `bin/perry-detect-host` as a
 subprocess (10 s timeout; a failure reads as `unknown`) and depends only on
 that script's one-token output. It and `perry-kernel-migrate` (below) are
-the two `bin/` tools that execute another one; neither imports it.
+the two `bin/` tools that execute another tool. Each runs it as a
+subprocess and imports nothing from it: this one runs `perry-detect-host`,
+and the importer runs `perry-kernel` and `perry-task`.
 
 ### What `perry-kernel-migrate` runs and writes
 
-DESIGN-023 row D's importer (TASK-489). It reads the old stores through
-`perry_store.load_board_stores`, `parsers.resolve_state_root` and
-`parsers.load_register_store` (for `.perry/events.jsonl`). It reads a status
-cell through `parsers.ask_is_answered`, `parsers.ask_answer` and
-`parsers.status_is_cleared`, a key-result id through
-`parsers.kr_objective_id`, and a blank cell through `lib.is_blank_cell`. It
-converts times with `lib.ts_moment`, so it adds no reader. It also reads
-`templates/process/perry.json`, the process template, as data: the types,
-fields and transitions it maps onto, and the template its export applies.
-That file is not a state file. Without `--work` it only plans and
-writes nothing. With it, it writes a synthetic kernel export under that
-directory, which must be empty and outside the project and any `.git`, and
-runs `bin/perry-kernel import`,
+DESIGN-023 row D's importer (TASK-489). What it reads, and through what:
+- the old stores: `perry_store.load_board_stores`, with the state root from
+  `parsers.resolve_state_root`;
+- `.perry/events.jsonl`: `parsers.load_register_store`;
+- a status cell: `parsers.ask_is_answered`, `parsers.ask_answer` and
+  `parsers.status_is_cleared`; a blank cell: `lib.is_blank_cell`; a time:
+  `lib.ts_moment`;
+- an ask's `Blocks` ids: `perry-task asks --all --json`, run as a subprocess
+  with `--root` set to the project, and only when the project holds an ask.
+  Its `blocks_ids` are `perry-task § _BLOCKS_ID`'s reading of each cell. The
+  importer holds no split of its own: a task's `depends_on` entries are taken
+  whole, as `tasks.jsonl` holds them (`perry-task § parse_depends` output).
+  That read must change no file under the state root or `.perry/`, or the
+  import stops. It takes the project lock, a file in the system temp
+  directory, as every `perry-task` command does;
+- a key-result id: the id pattern `schema/state-schema.json` declares for a
+  `kr` record of `linkage.jsonl`, through `lib.load_schema`, as `perry-goals`
+  reads it;
+- `templates/process/perry.json`, the process template, as data: the types,
+  fields and transitions it maps onto, and the template its export applies.
+  That file is not a state file.
+
+Without `--work` it only plans: it writes nothing itself, and the
+`perry-task asks` read above is the only command it can run. With `--work`, it writes a synthetic
+kernel export under that directory, which must be empty or absent, and
+outside the project and any `.git`. It then runs `bin/perry-kernel import`,
 `query`, `item create --dry-run`, `export` and `events` as subprocesses, each
 naming `--store <work>/store.db` and `--root <work>/anchor`. It never writes
 the project. Row H deletes it with the rest of this directory; the mapping it
@@ -258,6 +274,7 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
 
 ## §8. Change log
 
+- 2026-10-07 · v1 · TASK-489 round 4, the user's option B: § 2 "What `perry-kernel-migrate` runs and writes" lists what the importer reads and runs. It holds no split of its own: an ask's `Blocks` ids come from `perry-task asks --all --json`, run as a subprocess, and `depends_on` entries are taken whole. A key-result id is read by the schema's declared `kr` id pattern. The work directory may be empty or absent. § 2's "two tools that execute another" names what each runs, as a subprocess; the diagram gains the importer's edge to `perry-task`. §§ 1, 3–7 unchanged.
 - 2026-10-07 · v1 · TASK-489 round 3: § 2 "What `perry-kernel-migrate` runs and writes" names the other readers the importer uses (`parsers.ask_answer`, `parsers.kr_objective_id`, `lib.is_blank_cell`, beside the two status predicates) and says it reads `templates/process/perry.json` as data. §§ 1, 3–7 unchanged.
 - 2026-09-29 · v1 · TASK-489: `perry-kernel-migrate`, DESIGN-023 row D's one-shot importer, joins the directory. § 1 counts twenty-two executables; § 2's diagram gains it and its one run edge to `perry-kernel`, § 2 says it and `perry-context-budget` are the two tools that execute another, and a new subsection says what it runs and writes; § 5 counts seven tools that declare a `SURFACE`. § 7 OQ-B1 still says "Six declare a `SURFACE`": that section is the user's, so its count waits for the user.
 - 2026-09-26 · v1 · TASK-488, decided by the user on 2026-09-26: § 6 NN-B3's sunset, like root § 3's third Forbidden line, adds `bin/perry-churn § detect_perry` (`:305–341`) to the existing copies — it walks up to the first `.perry/`, stops at the git top level, and takes no `--root` and no environment variable.
