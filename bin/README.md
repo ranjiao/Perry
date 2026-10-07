@@ -832,7 +832,7 @@ fields and the template's, and the kernel may name neither (DESIGN-023 Goal 1).
 So it is a one-shot tool beside the readers it uses, and row H deletes it with
 them once row E has migrated both projects (TASK-489 § Decided 2026-09-29).
 
-**It adds no parse.** The five register stores are read through
+**It adds no reader.** The five register stores are read through
 `perry_store.load_board_stores`, the state root through
 `parsers.resolve_state_root`, and `.perry/events.jsonl` through
 `parsers.load_register_store`. That is not the only JSONL reader in
@@ -845,7 +845,8 @@ converter. An ask's status goes through `parsers.ask_is_answered` and
 `parsers.ask_answer`, a risk's through `parsers.status_is_cleared`, and a
 key-result id through `parsers.kr_objective_id`. It also reads
 `templates/process/perry.json`, the process template, as data, not as a state
-file.
+file. The one rule it writes itself is the split of a reference cell, below:
+no reader it may import splits one, so it uses the spec's fallback.
 
 **The mapping is DESIGN-023 decision 13's, with TASK-489's round-3 rules.**
 - **Tasks.** A task keeps `title`, `summary`, `priority`, `owner`, `track`,
@@ -914,8 +915,8 @@ items: the importer writes `items.jsonl` as the kernel would serialise the
 replayed store, and after the import it asks for an `export`, which must be
 `unchanged`.
 
-**It reports a refusal, and never ends in a traceback.** A kernel call refused
-while reconciling, or one that prints no envelope, is listed under
-`kernel.errors`. The criterion it serves fails, and the run is "not
+**It reports a kernel refusal; it does not end in a traceback.** A kernel
+call refused while reconciling, or one that prints no envelope, is listed
+under `kernel.errors`. The criterion it serves fails, and the run is "not
 reconciled", with exit 1. `not_reconciled_because` names each reason: a
 failed criterion, a reference that resolves to nothing, or a refused call.
