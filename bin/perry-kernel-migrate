@@ -7,8 +7,10 @@ kernel store and reconciled against it (DESIGN-023 § 6 row D, TASK-489).
     perry-kernel-migrate [--root <project>] --work <dir> [--json]    import
 
 It reads `tasks.jsonl`, `asks.jsonl`, `risks.jsonl`, `intake.jsonl`,
-`cadence.jsonl` and `.perry/events.jsonl` through the existing readers and
-builds a synthetic kernel export. Without `--work` it stops there, prints what
+`cadence.jsonl` and `.perry/events.jsonl` through the existing readers, takes
+each ask's `Blocks` ids from `perry-task asks --all --json` (run read-only, as
+a subprocess, when the project holds an ask), and builds a synthetic kernel
+export. Without `--work` it stops there, prints what
 the import would carry, drop and seed, and writes nothing. With it, it writes
 the export under `<dir>/anchor/`, runs `bin/perry-kernel import` into
 `<dir>/store.db`, and reads the store back through the kernel to check
@@ -86,14 +88,15 @@ NO_TYPE = ("intake", "cadence")
 CLOSED = ("done", "dropped")
 #: The measure the long-cell decision was taken on: bytes of UTF-8.
 LONG_CELL_BYTES = 300
-#: How a task's `depends_on` entry and an ask's `Blocks` cell are split into
-#: references (TASK-489 round 3, item 4). Neither `bin/lib` nor
-#: `viewer/parsers.py` holds a splitter for either. The old writer's own,
-#: `perry-task § parse_depends` and `§ _BLOCKS_ID`, live inside a tool, and a
-#: tool never imports another (`bin/ARCHITECTURE.md` § 3). So this is the
-#: spec's fallback: commas, semicolons and white space. A token is then looked
-#: up among the imported ids, and nothing is guessed.
-REFERENCE_SPLIT = re.compile(r"[,;\s]+")
+#: The importer holds no split of a reference cell (TASK-489 round 4, the
+#: user's option B; root `ARCHITECTURE.md` § 3, NN-1). A task's `depends_on`
+#: is taken entry by entry, whole: `tasks.jsonl` holds it as
+#: `perry-task § parse_depends` output already. An ask's `Blocks` cell is
+#: read by the old tool itself: `perry-task asks --all --json` publishes the
+#: ids `perry-task § _BLOCKS_ID` finds in each cell as `blocks_ids`. It runs
+#: as a subprocess, read-only, and a tool never imports another
+#: (`bin/ARCHITECTURE.md` § 3).
+PERRY_TASK = HERE / "perry-task"
 
 
 class Refused(Exception):
@@ -200,6 +203,14 @@ class Plan:
         #: References to a key result, which is not a kernel item yet.
         #: TASK-492 restores these edges once key results are items.
         self.for_task_492: list[dict] = []
+        #: `{ask id: [ids]}`: what `perry-task asks` read out of each ask's
+        #: `Blocks` cell (`ask_blocks`). Set before the edges are built.
+        self.blocks_ids: dict[str, list] = {}
+        #: Asks whose `Blocks` cell says something and names no id
+        #: `perry-task` reads. Nothing of such a cell is carried.
+        self.blocks_without_ids: list[str] = []
+        #: The schema's declared shape of a key-result id (`kr_id_pattern`).
+        self.kr_pattern: str | None = None
         self.self_edges: list[dict] = []
         self.long_open_cells: list[dict] = []
         self.clamped: list[dict] = []
@@ -422,40 +433,36 @@ class Plan:
     def edges(self) -> list[tuple]:
         """`blocks` edges, `(from, to)`: a task's `depends_on` (each entry
         blocks the task) and an ask's `Blocks` cell (the ask blocks each id
-        it names). Each `depends_on` entry and each `Blocks` cell is split by
-        `REFERENCE_SPLIT`, and a token `blank` calls blank is skipped. Each
-        other token is looked up among the imported ids, and nothing is
-        guessed (TASK-489 round 3, item 4):
-        - a token that is an imported id is an edge;
-        - a key-result id, as `parsers.kr_objective_id` reads one
-          (`P003-O2-KR3`), is listed for TASK-492, which restores the edge
-          once key results are kernel items;
-        - any other token resolves to nothing, and makes the run "not
+        it names). Nothing here splits a cell (TASK-489 round 4, option B):
+        - a `depends_on` entry is taken whole, as `tasks.jsonl` holds it,
+          which is `perry-task § parse_depends` output;
+        - an ask's ids are the `blocks_ids` `perry-task asks` read out of its
+          cell (`ask_blocks`).
+        Each reference is looked up among the imported ids, and nothing is
+        guessed:
+        - an imported id is an edge;
+        - a key-result id, by the shape the schema declares for one
+          (`kr_id_pattern`), is listed for TASK-492, which restores the edge
+          once key results are kernel items. Both forms `perry-task` reads,
+          `O1-KR1` and `P003-O2-KR3`, are one;
+        - any other reference resolves to nothing, and makes the run "not
           reconciled"."""
         self.unresolved, self.for_task_492, self.self_edges = [], [], []
         found = []
         for rec in self.stores.get("tasks", []):
             for dep in rec.get("depends_on") or []:
-                if blank(dep):
-                    continue
-                for token in REFERENCE_SPLIT.split(dep.strip()):
-                    if not blank(token):
-                        found.append(("tasks", rec["id"], "depends_on",
-                                      token, (token, rec["id"])))
+                found.append(("tasks", rec["id"], "depends_on", dep,
+                              (dep, rec["id"])))
         for rec in self.stores.get("asks", []):
-            cell = rec.get("blocks")
-            if blank(cell):
-                continue
-            for token in REFERENCE_SPLIT.split(cell.strip()):
-                if not blank(token):
-                    found.append(("asks", rec["id"], "blocks", token,
-                                  (rec["id"], token)))
+            for ref in self.blocks_ids.get(rec["id"], []):
+                found.append(("asks", rec["id"], "blocks", ref,
+                              (rec["id"], ref)))
         out = []
         for register, owner, field, ref, (src, dst) in found:
             if ref not in self.items:
                 where = {"register": register, "id": owner, "field": field,
                          "ref": ref}
-                if P.kr_objective_id(ref):
+                if re.fullmatch(self.kr_pattern, ref):
                     self.for_task_492.append(where)
                 else:
                     self.unresolved.append(where)
@@ -636,6 +643,112 @@ def build_export(plan: Plan, state_root: str) -> tuple[bytes, bytes, dict]:
                                        "events": events}
 
 
+# ── what the old tools already read: references and key-result ids ────────
+
+
+def kr_id_pattern() -> str:
+    """The shape of a key-result id, as the schema declares it for a `kr`
+    record of `linkage.jsonl`: `^(?:P\\d{3}-)?O\\d+-KR\\d+$` today, which
+    takes both forms `perry-task § _BLOCKS_ID` reads, `O1-KR1` and
+    `P003-O2-KR3`. Read through `lib.load_schema`, as `perry-goals` reads it
+    to refuse a bad KR id, and never restated here (TASK-489 round 4)."""
+    spec = (((((lib.load_schema(Refused).get("stores") or {})
+               .get("declared") or {}).get(P.LINKAGE_STORE) or {})
+             .get("records") or {}).get("kr") or {})
+    pattern = (((spec.get("fields") or {}).get("id") or {}).get("pattern"))
+    if not isinstance(pattern, str):
+        raise Refused(f"schema/state-schema.json declares no id pattern for a "
+                      f"`kr` record of {P.LINKAGE_STORE}, so a key-result id "
+                      f"cannot be told from a reference to nothing. Stopped.")
+    return pattern
+
+
+def run_perry_task_asks(project_root: Path) -> dict:
+    """`perry-task asks --all --json --root <project>`, the old tool's own
+    reading of the User Input Queue, as a subprocess (a tool never imports
+    another). It is one of `perry-task`'s read-only commands."""
+    argv = [sys.executable, str(PERRY_TASK), "asks", "--all", "--json",
+            "--root", str(project_root)]
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("PERRY_PROJECT", "PERRY_STORE")}
+    try:
+        proc = subprocess.run(argv, capture_output=True, text=True, env=env,
+                              timeout=600)
+    except subprocess.TimeoutExpired:
+        raise Refused("perry-task asks did not answer within 600 s") from None
+    try:
+        payload = json.loads(proc.stdout)
+    except ValueError:
+        payload = None
+    if proc.returncode != 0 or not isinstance(payload, dict):
+        raise Refused(f"perry-task asks --all --json exited "
+                      f"{proc.returncode} with no payload: "
+                      f"{proc.stderr.strip()[:300]}")
+    return payload
+
+
+def files_under(*dirs: Path) -> dict:
+    """`{path: (size, mtime_ns)}` for every file under `dirs`, `.git`
+    skipped: the check that a read wrote nothing."""
+    out = {}
+    for base in dirs:
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = [d for d in dirnames if d != ".git"]
+            for name in filenames:
+                path = os.path.join(dirpath, name)
+                try:
+                    st = os.lstat(path)
+                except OSError:
+                    continue
+                out[path] = (st.st_size, st.st_mtime_ns)
+    return out
+
+
+def ask_blocks(plan: Plan, project_root: Path, state_root: Path) -> None:
+    """Fill `plan.blocks_ids` from `perry-task asks --all --json`.
+
+    Run only when the ask store holds a row, so a project with no asks runs
+    nothing. `perry-task` finishes a pending write a crashed command left
+    behind before any command, reads included. So the files under the state
+    root and `.perry/` are compared before and after the read, and a read
+    that changed one stops the import. The payload must cover exactly the
+    store's asks, each with its `Blocks` cell and a `blocks_ids` list."""
+    asks = plan.stores.get("asks") or []
+    if not asks:
+        return
+    before = files_under(state_root, project_root / ".perry")
+    payload = run_perry_task_asks(project_root)
+    after = files_under(state_root, project_root / ".perry")
+    if before != after:
+        changed = sorted(set(before) ^ set(after)
+                         | {p for p in set(before) & set(after)
+                            if before[p] != after[p]})
+        raise Refused(f"perry-task asks changed {len(changed)} file(s) under "
+                      f"the project, the first {changed[0]}. The import reads "
+                      f"the project and writes nothing there. Stopped.",
+                      {"changed": changed})
+    rows = payload.get("asks")
+    if not isinstance(rows, list) or not all(
+            isinstance(r, dict) and isinstance(r.get("blocks_ids"), list)
+            for r in rows):
+        raise Refused("perry-task asks --all --json carries no `blocks_ids` "
+                      "list for each ask, so no reader splits a Blocks cell. "
+                      "Stopped.")
+    got = {r.get("id"): r for r in rows}
+    stored = {r["id"]: r for r in asks}
+    if set(got) != set(stored) or any(
+            (got[i].get("blocks") or "") != (stored[i].get("blocks") or "")
+            for i in stored):
+        raise Refused("perry-task asks and the ask store disagree about the "
+                      "asks or their Blocks cells. Stopped.",
+                      {"payload": sorted(map(str, got)),
+                       "store": sorted(stored)})
+    for ask_id, row in got.items():
+        plan.blocks_ids[ask_id] = list(row["blocks_ids"])
+        if not row["blocks_ids"] and not blank(stored[ask_id].get("blocks")):
+            plan.blocks_without_ids.append(ask_id)
+
+
 # ── the kernel, always on the named temporary store ───────────────────────
 
 
@@ -724,6 +837,8 @@ def planned(project_root: Path, work) -> tuple:
     for register in MAPPING:
         for rec in stores.get(register, []):
             plan.add(register, rec)
+    plan.kr_pattern = kr_id_pattern()
+    ask_blocks(plan, project_root, state_root)
     items_bytes, events_bytes, built = build_export(plan, rel)
     return plan, rel, items_bytes, events_bytes, built
 
@@ -813,6 +928,7 @@ def mapping_side(plan: Plan, built: dict) -> dict:
             "moves": sum(1 for i in plan.items.values() if i["move"]),
             "unresolved_references": plan.unresolved,
             "for_task_492": plan.for_task_492,
+            "blocks_cells_with_no_id": plan.blocks_without_ids,
             "self_edges": plan.self_edges,
             "unset_cells": plan.unset,
             "clamped_moves": plan.clamped,
@@ -961,6 +1077,9 @@ def summary(report: dict) -> str:
                      f"the import would report as not reconciled: " +
                      ", ".join(f"{u['id']} {u['field']} {u['ref']}"
                                for u in m["unresolved_references"]))
+    if m["blocks_cells_with_no_id"]:
+        lines.append(f"  Blocks cells perry-task reads no id from, not "
+                     f"carried: " + ", ".join(m["blocks_cells_with_no_id"]))
     if m["for_task_492"]:
         lines.append(f"  for TASK-492, key results that are not kernel items "
                      f"yet: " + ", ".join(f"{u['id']} {u['field']} {u['ref']}"

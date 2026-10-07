@@ -18,10 +18,14 @@ case the spec names:
 - the safety rules: the project is never written, the store is always the
   named one under `--work`, and no store appears under the fixture's `.git`;
 - round 3 (TASK-489 spec § Round 3): the one blank rule, an ask's answer and
-  a risk's reason, references split on `,` `;` and white space with the
-  key results listed for TASK-492, a kernel refusal while reconciling, the
-  `task` and `record.id` keys of the old log, and the importer's own checks
-  for criteria 3 and 5 shown failing.
+  a risk's reason, a kernel refusal while reconciling, the `task` and
+  `record.id` keys of the old log, and the importer's own checks for
+  criteria 3 and 5 shown failing;
+- round 4 (§ Round 4, the user's option B): no split of its own. A
+  `depends_on` entry is taken whole, an ask's ids are what
+  `perry-task asks --all --json` reads, both key-result forms are listed
+  for TASK-492, and that read runs only when there is an ask and must write
+  nothing under the project.
 
 Run: python3 -m unittest tests.test_kernel_migrate
 """
@@ -701,9 +705,11 @@ class TestAnAnswerAndAReason(Fixture):
 
 
 class TestTheReferences(Fixture):
-    """Round 3, item 4. A `depends_on` entry and an ask's `Blocks` cell are
-    split on commas, semicolons and white space, since no shared reader
-    splits them. A token that is no imported id makes the run "not
+    """Round 4, the user's option B: the importer holds no split of its own.
+    A `depends_on` entry is taken whole, as `tasks.jsonl` holds it
+    (`perry-task § parse_depends` output). An ask's ids are the
+    `blocks_ids` that `perry-task asks --all --json` reads out of its
+    `Blocks` cell. A reference that is no imported id makes the run "not
     reconciled", unless it is a key result, which is listed for TASK-492."""
 
     def references(self, depends, blocks):
@@ -718,9 +724,21 @@ class TestTheReferences(Fixture):
                       for r in self.item(item_id)["relations"]
                       if r["kind"] == "blocks")
 
-    def test_semicolons_commas_and_white_space_split(self):
+    def perry_task_blocks_ids(self, root):
+        """What `perry-task asks --all --json` itself reads, run here."""
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("PERRY_PROJECT", "PERRY_STORE")}
+        proc = subprocess.run([sys.executable, str(ROOT / "bin" / "perry-task"),
+                               "asks", "--all", "--json", "--root", str(root)],
+                              capture_output=True, text=True, env=env,
+                              timeout=120)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return {a["id"]: a["blocks_ids"]
+                for a in json.loads(proc.stdout)["asks"]}
+
+    def test_a_blocks_cell_is_read_as_perry_task_reads_it(self):
         report = self.run_ok(self.references(
-            ["TASK-001;TASK-002"], "TASK-002; TASK-003,TASK-001 —"))
+            ["TASK-001", "TASK-002"], "TASK-002; TASK-003,TASK-001 —"))
         self.assertEqual(report["mapping"]["unresolved_references"], [])
         self.assertEqual(self.rel("TASK-003"), [
             ("TASK-001", "TASK-003"), ("TASK-002", "TASK-003"),
@@ -730,11 +748,46 @@ class TestTheReferences(Fixture):
             ("USER-001", "TASK-003")])
         self.assertEqual(report["mapping"]["relations"], 5)
 
-    def test_a_key_result_is_listed_for_task_492(self):
+    def test_the_importer_agrees_with_perry_task(self):
+        """`TASK-001、TASK-002`, an ideographic comma, is two ids to
+        `perry-task § _BLOCKS_ID`. Round 3's own split on `,` `;` and white
+        space read it as one token that named nothing, so the run was not
+        reconciled. Now the importer's edges are exactly the ids
+        `perry-task` publishes, prose around them included."""
+        root = self.references([], "TASK-001、TASK-002 (TASK-003 later)")
+        ids = self.perry_task_blocks_ids(root)
+        self.assertEqual(ids, {"USER-001": ["TASK-001", "TASK-002",
+                                            "TASK-003"]})
+        report = self.run_ok(root)
+        self.assertTrue(report["reconciled"])
+        self.assertEqual(self.rel("USER-001"),
+                         sorted(("USER-001", t) for t in ids["USER-001"]))
+
+    def test_a_depends_on_entry_is_taken_whole(self):
+        """`tasks.jsonl` holds `parse_depends` output, one id per entry. An
+        entry that is not one is a reference to nothing, never split."""
+        root = self.references(["TASK-001;TASK-002"], "—")
+        r = migrate("--root", str(root), "--work", str(self.work), "--json")
+        self.assertEqual(r.returncode, 1, r.stderr)
+        report = json.loads(r.stdout)
+        self.assertFalse(report["reconciled"])
+        self.assertEqual(report["mapping"]["unresolved_references"], [
+            {"register": "tasks", "id": "TASK-003", "field": "depends_on",
+             "ref": "TASK-001;TASK-002"}])
+        self.assertEqual(report["mapping"]["relations"], 0)
+
+    def test_both_key_result_forms_are_listed_for_task_492(self):
+        """`perry-task § _BLOCKS_ID` reads `O1-KR1` and `P003-O2-KR3`. Both
+        are key results by the id shape the schema declares for one, so
+        both are listed, not refused, from either field."""
         report = self.run_ok(self.references(
-            [], "TASK-002, P003-O2-KR3"))
+            ["TASK-001", "O2-KR1"], "O1-KR1, P003-O2-KR3, TASK-002"))
         self.assertTrue(report["reconciled"])
         self.assertEqual(report["mapping"]["for_task_492"], [
+            {"register": "tasks", "id": "TASK-003", "field": "depends_on",
+             "ref": "O2-KR1"},
+            {"register": "asks", "id": "USER-001", "field": "blocks",
+             "ref": "O1-KR1"},
             {"register": "asks", "id": "USER-001", "field": "blocks",
              "ref": "P003-O2-KR3"}])
         self.assertEqual(report["mapping"]["unresolved_references"], [])
@@ -762,6 +815,13 @@ class TestTheReferences(Fixture):
                       "TASK-003 depends_on TASK-088, USER-001 blocks "
                       "TASK-077", text.stdout)
         self.assertIn("NOT reconciled", text.stdout)
+
+    def test_a_blocks_cell_that_names_no_id_is_counted(self):
+        report = self.run_ok(self.references([], "waiting on the vendor"))
+        self.assertTrue(report["reconciled"])
+        self.assertEqual(report["mapping"]["blocks_cells_with_no_id"],
+                         ["USER-001"])
+        self.assertEqual(self.rel("USER-001"), [])
 
 
 class InProcess(Fixture):
@@ -909,6 +969,86 @@ class TestTheImportersOwnChecks(InProcess):
         self.assertFalse(criteria.pop("5_replay_reproduces_the_items"))
         self.assertEqual(set(criteria.values()), {True})
         self.assertFalse(report["reconciled"])
+
+
+class TestThePerryTaskRead(InProcess):
+    """Round 4. The ask ids come from `perry-task asks --all --json`, run as
+    a subprocess. It runs only when the project holds an ask, it must write
+    nothing under the project, and its payload must carry `blocks_ids` for
+    exactly the store's asks."""
+
+    def test_a_project_with_no_ask_runs_no_perry_task(self):
+        def never(_root):
+            raise AssertionError("perry-task asks ran for a project with no "
+                                 "ask")
+
+        root = self.project(tasks=[task("TASK-001", "done")], asks=[],
+                            events=[])
+        with mock.patch.object(self.mod, "run_perry_task_asks", never):
+            r = self.main(root, "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(json.loads(r.stdout)["reconciled"])
+
+    def test_a_read_that_writes_stops_the_import(self):
+        """`perry-task` finishes a write a crashed command left pending
+        before any command, reads included. A pending marker with nothing to
+        finish is removed by `perry-task asks`, so the read changes the
+        project, and the import stops before anything is written."""
+        root = self.project()
+        marker = root / "state" / ".perry-task-transaction.json"
+        marker.write_text(json.dumps({"version": 1, "entries": []}), "utf-8")
+        r = migrate("--root", str(root), "--work", str(self.work))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("perry-task asks changed 1 file(s) under the project",
+                      r.stderr)
+        self.assertIn(".perry-task-transaction.json", r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertFalse(marker.exists(), "perry-task did not finish it")
+        self.assertFalse(self.work.exists(), "a refusal writes nothing")
+
+    def edited_payload(self, edit):
+        real = self.mod.run_perry_task_asks
+
+        def edited(root):
+            payload = real(root)
+            edit(payload)
+            return payload
+
+        with mock.patch.object(self.mod, "run_perry_task_asks", edited):
+            return self.main(self.project())
+
+    def test_a_payload_with_no_blocks_ids_stops_the_import(self):
+        def drop(payload):
+            for row in payload["asks"]:
+                row.pop("blocks_ids")
+
+        r = self.edited_payload(drop)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("carries no `blocks_ids` list", r.stderr)
+        self.assertFalse(self.work.exists())
+
+    def test_a_payload_that_disagrees_with_the_store_stops_the_import(self):
+        for name, edit in (
+                ("an ask missing", lambda p: p["asks"].pop()),
+                ("a cell rewritten",
+                 lambda p: p["asks"][0].update(blocks="TASK-001"))):
+            with self.subTest(case=name):
+                self.work = self.tmp / name.replace(" ", "-")
+                base = self.tmp / f"{name}-proj".replace(" ", "-")
+                real = self.mod.run_perry_task_asks
+
+                def edited(root, edit=edit, real=real):
+                    payload = real(root)
+                    edit(payload)
+                    return payload
+
+                with mock.patch.object(self.mod, "run_perry_task_asks",
+                                       edited):
+                    r = self.main(make_project(base))
+                self.assertEqual(r.returncode, 1, r.stderr)
+                self.assertIn("perry-task asks and the ask store disagree",
+                              r.stderr)
+                self.assertFalse(self.work.exists())
 
 
 class TestTheInvocation(Fixture):
