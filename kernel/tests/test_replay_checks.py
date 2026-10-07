@@ -415,6 +415,38 @@ class TestANoOpRelationChange(Case):
         self.assert_imported(r)
 
 
+class TestAnAttachRef(Case):
+    """TASK-489 round 3, item 8: a replayed `attach:` change is held to the
+    ref check a live `attach add` or `attach remove` runs
+    (`check_attachment`). A live write refuses a ref that is empty or only
+    white space, or that holds a line break, as `attachment_invalid`. Before
+    this check the replay took such a ref from an export and stored it, so
+    `import` could hold an attachment no command can write."""
+
+    def plant_attach(self, ref):
+        ex = self.export()
+        key = f"attach:{ref}"
+        seq = ex.plant([{"key": key, "before": None,
+                         "after": {"hash": None}}], [self.a])
+        ex.item(self.a)["attachments"] = [{"ref": ref, "hash": None}]
+        _other, r = ex.run()
+        return seq, key, r
+
+    def test_a_ref_a_live_write_refuses_is_refused(self):
+        for ref, fragment in (("", "non-empty string"),
+                              ("   ", "non-empty string"),
+                              ("spec\nnotes.md", "line break"),
+                              ("spec\rnotes.md", "line break")):
+            with self.subTest(ref=ref):
+                seq, key, r = self.plant_attach(ref)
+                self.assert_refused(r, seq, key, fragment)
+
+    def test_a_ref_a_live_write_takes_imports(self):
+        """The control: the same planting with a ref `attach add` takes."""
+        _seq, _key, r = self.plant_attach("docs/a spec.md")
+        self.assert_imported(r)
+
+
 class TestTheImportIdCap(Case):
     """F2: `import` takes no id numbered above 2^53 (`commands._export_id`),
     so a store never holds an id its own mint could not follow. Its only

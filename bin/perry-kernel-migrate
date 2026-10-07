@@ -14,8 +14,11 @@ the export under `<dir>/anchor/`, runs `bin/perry-kernel import` into
 `<dir>/store.db`, and reads the store back through the kernel to check
 DESIGN-023 row D's criteria 1–5. It writes nothing outside `<dir>`, which must
 be empty or absent and outside the project and any `.git`, and it names that
-store with `--store` on every kernel call. Exit 0 planned or reconciled, 1
-refused or not reconciled, 2 bad invocation. It is one-shot: row H deletes it
+store with `--store` on every kernel call. The run is reconciled when the
+five criteria hold, every reference resolves to an imported id or is a key
+result listed for TASK-492, and the kernel refused no reconciliation call.
+Exit 0 planned or reconciled, 1 refused or not reconciled, 2 bad
+invocation. It is one-shot: row H deletes it
 with the rest of the old `bin/`. The mapping and its reasons: `bin/README.md §
 perry-kernel-migrate`.
 """
@@ -83,6 +86,14 @@ NO_TYPE = ("intake", "cadence")
 CLOSED = ("done", "dropped")
 #: The measure the long-cell decision was taken on: bytes of UTF-8.
 LONG_CELL_BYTES = 300
+#: How a task's `depends_on` entry and an ask's `Blocks` cell are split into
+#: references (TASK-489 round 3, item 4). Neither `bin/lib` nor
+#: `viewer/parsers.py` holds a splitter for either. The old writer's own,
+#: `perry-task § parse_depends` and `§ _BLOCKS_ID`, live inside a tool, and a
+#: tool never imports another (`bin/ARCHITECTURE.md` § 3). So this is the
+#: spec's fallback: commas, semicolons and white space. A token is then looked
+#: up among the imported ids, and nothing is guessed.
+REFERENCE_SPLIT = re.compile(r"[,;\s]+")
 
 
 class Refused(Exception):
@@ -117,9 +128,14 @@ SURFACE = {
 
 
 def blank(value) -> bool:
-    """A cell that says nothing, so it is unset (TASK-489, decided after
-    round 1): null, an empty string, or the old store's blank marker `—`,
-    which `lib.is_blank_cell` is the one rule for. Neither is imported."""
+    """A cell that says nothing, so it is unset and not imported (TASK-489
+    round 3, item 1): null, or a string `lib.is_blank_cell` calls blank.
+    That is the project's one blank rule, pinned by
+    `tests/test_blank_cell_is_one_rule.py`. It reads its spellings from
+    `schema/state-schema.json § i18n.blank_cell`, so besides an empty string
+    and the old store's marker `—` it takes `-`, `n/a`, `TBD`, `none`, `?`,
+    `待定` and the others, padded or decorated. The report counts the unset
+    cells per field and per spelling."""
     return value is None or (isinstance(value, str)
                              and lib.is_blank_cell(value))
 
@@ -173,11 +189,17 @@ class Plan:
         self.run_at = run_at
         self.items: dict[str, dict] = {}
         self.counts = {"dropped": {}, "skipped_next_action": {},
+                       "answers": {}, "reasons": {},
                        "status_not_carried": {}, "time_rules": {}}
         #: `{"<register>.<field>": {"empty": n, "—": m}}`: the mapped cells
         #: that said nothing and were not imported, by how they were written.
         self.unset: dict[str, dict] = {}
+        #: References that resolve to no imported id. Any one of them makes
+        #: the run "not reconciled" (TASK-489 round 3, item 4).
         self.unresolved: list[dict] = []
+        #: References to a key result, which is not a kernel item yet.
+        #: TASK-492 restores these edges once key results are items.
+        self.for_task_492: list[dict] = []
         self.self_edges: list[dict] = []
         self.long_open_cells: list[dict] = []
         self.clamped: list[dict] = []
@@ -220,7 +242,7 @@ class Plan:
                               f"holds a value the mapping does not carry "
                               f"and does not drop. Stopped.",
                               {"id": item_id, "field": key})
-        state, status_text = self.state(register, rec, tdecl)
+        state = self.state(register, rec, tdecl)
         fields = {}
         for old, new in spec["fields"].items():
             value = rec.get(old)
@@ -238,8 +260,7 @@ class Plan:
                     self.long_open_cells.append(
                         {"id": item_id, "state": state, "bytes": size})
             fields[new] = value
-        if status_text:
-            self.bump("status_not_carried", register)
+        closing = self.closing_text(register, rec, state)
         created_at, created_rule, created_note = self.created(
             item_id, rec.get(spec["created"]), spec["created"])
         self.bump("time_rules", f"create: {created_rule}")
@@ -247,9 +268,13 @@ class Plan:
                 "prefix": tdecl["prefix"], "state": state, "fields": fields,
                 "register": register, "status": rec.get("status"),
                 "created_at": created_at, "created_note": created_note,
-                "attachments": [], "move": None}
+                "closing": closing, "attachments": [], "move": None}
         if state != tdecl["initial"]:
             item["move"] = self.move(item, rec, tdecl)
+        elif closing:
+            raise Refused(f"{item_id}: {type_name} state {state} is its "
+                          f"initial state, and no move can carry "
+                          f"{', '.join(sorted(closing))}", {"id": item_id})
         if register == "tasks":
             refs = rec.get("design_refs") or []
             for ref in refs:
@@ -275,15 +300,17 @@ class Plan:
             return None
         return n
 
-    def state(self, register, rec, tdecl) -> tuple[str, bool]:
-        """`(state, whether the status cell said more than the state)`."""
+    def state(self, register, rec, tdecl) -> str:
+        """The item's state, from its status cell through the existing
+        readers: `parsers.ask_is_answered` for an ask, and
+        `parsers.status_is_cleared` for a risk (TASK-489 round 3, item 3)."""
         status = rec.get("status")
         text = status.strip() if isinstance(status, str) else ""
         if register == "tasks":
             if text not in tdecl["states"]:
                 raise Refused(f"{rec['id']}: status {status!r} is not a "
                               f"state of the task type", {"id": rec["id"]})
-            return text, False
+            return text
         if register == "asks":
             answered = rec.get("answered")
             if not isinstance(answered, bool) or \
@@ -292,14 +319,46 @@ class Plan:
                               f"the status cell reads "
                               f"{'answered' if P.ask_is_answered(status or '') else 'open'}; "
                               f"the two disagree. Stopped.", {"id": rec["id"]})
-            state = "answered" if answered else "pending"
-            return state, text != state
+            return "answered" if answered else "pending"
         if P.status_is_cleared(status or ""):
-            return "cleared", text != "cleared"
+            return "cleared"
         if text == "open":
-            return "open", False
+            return "open"
         raise Refused(f"{rec['id']}: risk status {status!r} is neither open "
                       f"nor cleared", {"id": rec["id"]})
+
+    def closing_text(self, register, rec, state) -> dict:
+        """What a closed ask or risk says about its closing, carried into its
+        `answer` or `reason` (TASK-489 round 3, items 2 and 3). The field is
+        set by the item's one move, as a live `item move` that sets a field
+        writes it, and the move is the event that closes the item. No new
+        parse cuts the text out of the status cell:
+        - an answered ask's `answer` is the text `parsers.ask_answer`
+          returns. Where that text is empty, as for `withdrawn …` or
+          `dropped …`, it is the status cell verbatim;
+        - a cleared risk's `reason` is its status cell verbatim.
+        The report counts each kind, and the status text no field carries:
+        the `answered <date>:` part of an answer `ask_answer` read, and a
+        pending ask's status cell where it says more than `pending`."""
+        status = rec.get("status") if isinstance(rec.get("status"),
+                                                 str) else ""
+        if register == "asks" and state == "answered":
+            _on, text = P.ask_answer(status)
+            if text.strip():
+                self.bump("answers", "parsers.ask_answer")
+                self.bump("status_not_carried",
+                          "asks: the answered <date>: part")
+                return {"answer": text}
+            self.bump("answers", "status cell verbatim")
+            return {"answer": status}
+        if register == "asks" and not blank(status) and \
+                status.strip() != state:
+            self.bump("status_not_carried",
+                      "asks: a pending status that says more")
+        if register == "risks" and state == "cleared":
+            self.bump("reasons", "status cell verbatim")
+            return {"reason": status}
+        return {}
 
     def created(self, item_id, raw, field) -> tuple[str, str, str]:
         """`(time, rule, note)`. A date-only field is read by `lib.ts_moment`,
@@ -362,30 +421,44 @@ class Plan:
 
     def edges(self) -> list[tuple]:
         """`blocks` edges, `(from, to)`: a task's `depends_on` (each entry
-        blocks the task) and an ask's `blocks` cell (the ask blocks each id
-        it names). The cell is split on commas and white space and each
-        token looked up among the imported ids; a token that is none of them
-        is reported, never guessed at."""
+        blocks the task) and an ask's `Blocks` cell (the ask blocks each id
+        it names). Each `depends_on` entry and each `Blocks` cell is split by
+        `REFERENCE_SPLIT`, and a token `blank` calls blank is skipped. Each
+        other token is looked up among the imported ids, and nothing is
+        guessed (TASK-489 round 3, item 4):
+        - a token that is an imported id is an edge;
+        - a key-result id, as `parsers.kr_objective_id` reads one
+          (`P003-O2-KR3`), is listed for TASK-492, which restores the edge
+          once key results are kernel items;
+        - any other token resolves to nothing, and makes the run "not
+          reconciled"."""
+        self.unresolved, self.for_task_492, self.self_edges = [], [], []
         found = []
         for rec in self.stores.get("tasks", []):
             for dep in rec.get("depends_on") or []:
                 if blank(dep):
                     continue
-                found.append(("tasks", rec["id"], "depends_on", dep,
-                              (dep, rec["id"])))
+                for token in REFERENCE_SPLIT.split(dep.strip()):
+                    if not blank(token):
+                        found.append(("tasks", rec["id"], "depends_on",
+                                      token, (token, rec["id"])))
         for rec in self.stores.get("asks", []):
-            cell = rec.get("blocks") or ""
-            if lib.is_blank_cell(cell):
+            cell = rec.get("blocks")
+            if blank(cell):
                 continue
-            for token in re.split(r"[,\s]+", cell.strip()):
-                if token:
+            for token in REFERENCE_SPLIT.split(cell.strip()):
+                if not blank(token):
                     found.append(("asks", rec["id"], "blocks", token,
                                   (rec["id"], token)))
         out = []
         for register, owner, field, ref, (src, dst) in found:
             if ref not in self.items:
-                self.unresolved.append({"register": register, "id": owner,
-                                        "field": field, "ref": ref})
+                where = {"register": register, "id": owner, "field": field,
+                         "ref": ref}
+                if P.kr_objective_id(ref):
+                    self.for_task_492.append(where)
+                else:
+                    self.unresolved.append(where)
                 continue
             if src == dst:
                 self.self_edges.append({"register": register, "id": owner,
@@ -406,11 +479,10 @@ class Plan:
             pat = re.compile(rf"{re.escape(prefix)}-(\d+)")
             logged = {}
             for e in self.events:
-                if not isinstance(e, dict) or not isinstance(e.get("id"), str):
-                    continue
-                m = pat.fullmatch(e["id"])
-                if m:
-                    logged[e["id"]] = int(m.group(1))
+                for issued_id in event_ids(e):
+                    m = pat.fullmatch(issued_id)
+                    if m:
+                        logged[issued_id] = int(m.group(1))
             only_logged = sorted((i for i in logged if i not in self.items),
                                  key=lambda i: logged[i])
             issued = max(stored + list(logged.values()), default=None)
@@ -420,6 +492,19 @@ class Plan:
                 "seed": (issued if issued is not None
                          and issued > max(stored, default=0) else None)}
         return out
+
+
+def event_ids(event) -> list[str]:
+    """The ids one old event names under an id-bearing key: `id`, `task`
+    and `record.id` (TASK-489 round 3, item 6). A purge keeps the purged
+    record under `record`, and a `link-edge` event names its task under
+    `task`. Each prefix's ceiling is seeded from all three."""
+    if not isinstance(event, dict):
+        return []
+    record = event.get("record")
+    values = (event.get("id"), event.get("task"),
+              record.get("id") if isinstance(record, dict) else None)
+    return [v for v in values if isinstance(v, str)]
 
 
 def canonical(value) -> str:
@@ -503,7 +588,9 @@ def build_export(plan: Plan, state_root: str) -> tuple[bytes, bytes, dict]:
                 "command": "item move", "items": [item["id"]],
                 "transition": move["transition"],
                 "changes": [{"key": "state", "before": move["from"],
-                             "after": move["to"]}],
+                             "after": move["to"]}]
+                + [{"key": f"field:{f}", "before": None, "after": v}
+                   for f, v in sorted(item["closing"].items())],
                 "note": f"status {item['status']!r} in "
                         f"{item['register']}.jsonl; timed by {move['note']}"
                         if item["register"] == "tasks" else
@@ -535,7 +622,8 @@ def build_export(plan: Plan, state_root: str) -> tuple[bytes, bytes, dict]:
                            key=id_key)
         lines.append({
             "id": item["id"], "type": item["type"], "state": item["state"],
-            "fields": {f: item["fields"].get(f) for f in tdecl["fields"]},
+            "fields": {f: {**item["fields"], **item["closing"]}.get(f)
+                       for f in tdecl["fields"]},
             "relations": [{"kind": "blocks", "to": d} for d in out_edges],
             "attachments": [{"ref": r, "hash": None}
                             for r in sorted(item["attachments"])],
@@ -564,14 +652,22 @@ def kernel(words, data, *, store: Path, anchor: Path, dry_run=False) -> dict:
     env = {k: v for k, v in os.environ.items()
            if k not in ("PERRY_STORE", "PERRY_PROJECT")}
     env["PERRY_KERNEL_TESTING"] = "1"
-    proc = subprocess.run(argv, input=json.dumps(data) if data is not None
-                          else "", capture_output=True, text=True, env=env,
-                          timeout=1800)
+    try:
+        proc = subprocess.run(argv, input=json.dumps(data) if data is not None
+                              else "", capture_output=True, text=True,
+                              env=env, timeout=1800)
+    except subprocess.TimeoutExpired:
+        raise Refused(f"perry-kernel {' '.join(words)} did not answer within "
+                      f"1800 s") from None
     try:
         envelope = json.loads(proc.stdout)
     except ValueError:
         raise Refused(f"perry-kernel {' '.join(words)} printed no envelope "
-                      f"(exit {proc.returncode}): {proc.stderr.strip()[:300]}")
+                      f"(exit {proc.returncode}): "
+                      f"{proc.stderr.strip()[:300]}") from None
+    if not isinstance(envelope, dict) or "ok" not in envelope:
+        raise Refused(f"perry-kernel {' '.join(words)} printed JSON that is "
+                      f"not an envelope (exit {proc.returncode})")
     envelope["exit"] = proc.returncode
     return envelope
 
@@ -680,10 +776,21 @@ def run(project_root: Path, work: Path) -> dict:
         if isinstance(seq, int) and 1 <= seq <= len(built["events"]):
             report["import"]["event_items"] = built["events"][seq - 1]["items"]
         report["criteria"] = {}
+        report["not_reconciled_because"] = [
+            f"the kernel refused the import: {err.get('code')}"]
         report["reconciled"] = False
         return report
     report["kernel"], report["criteria"] = reconcile(plan, call, rel)
-    report["reconciled"] = all(report["criteria"].values())
+    why = [f"criterion {name} failed"
+           for name, held in report["criteria"].items() if not held]
+    if plan.unresolved:
+        why.append(f"{len(plan.unresolved)} reference(s) resolve to no "
+                   f"imported id")
+    if report["kernel"]["errors"]:
+        why.append(f"{len(report['kernel']['errors'])} kernel call(s) "
+                   f"refused during reconciliation")
+    report["not_reconciled_because"] = why
+    report["reconciled"] = not why
     return report
 
 
@@ -705,6 +812,7 @@ def mapping_side(plan: Plan, built: dict) -> dict:
                                for i in plan.items.values()),
             "moves": sum(1 for i in plan.items.values() if i["move"]),
             "unresolved_references": plan.unresolved,
+            "for_task_492": plan.for_task_492,
             "self_edges": plan.self_edges,
             "unset_cells": plan.unset,
             "clamped_moves": plan.clamped,
@@ -713,58 +821,94 @@ def mapping_side(plan: Plan, built: dict) -> dict:
 
 
 def reconcile(plan: Plan, call, rel: str) -> tuple[dict, dict]:
-    """DESIGN-023 row D's criteria 1–5, asked of the kernel store."""
-    kernel_side, criteria = {}, {}
-    counted = call(["query"], {"count_by": ["type", "state"], "limit": 1})
-    got: dict = {}
-    for row in counted["result"]["counts"]:
-        t = got.setdefault(row["key"]["type"], {})
-        t[row["key"]["state"]] = row["n"]
+    """DESIGN-023 row D's criteria 1–5, asked of the kernel store.
+
+    A kernel call here that is refused, or that prints no envelope, is
+    reported under `kernel.errors`, and the criterion it serves fails. The
+    run is then "not reconciled" and says why; nothing raises, so no
+    traceback is printed (TASK-489 round 3, item 5)."""
+    errors: list[dict] = []
+    kernel_side: dict = {"errors": errors}
+    criteria: dict = {}
+
+    def attempt(words, data, **kw):
+        """The envelope, or `None` after recording why there is none."""
+        try:
+            got = call(words, data, **kw)
+        except Refused as exc:
+            errors.append({"command": " ".join(words), "exit": None,
+                           "code": None, "message": str(exc)})
+            return None
+        return got
+
+    def ask(words, data, **kw):
+        """The envelope of a call that must succeed, or `None` after
+        recording the kernel's refusal."""
+        got = attempt(words, data, **kw)
+        if got is not None and not got["ok"]:
+            err = got["error"] if isinstance(got.get("error"), dict) else {}
+            errors.append({"command": " ".join(words), "exit": got["exit"],
+                           "code": err.get("code"),
+                           "message": err.get("message")})
+            return None
+        return got
+
+    counted = ask(["query"], {"count_by": ["type", "state"], "limit": 1})
+    got = None
+    if counted is not None:
+        got = {}
+        for row in counted["result"]["counts"]:
+            t = got.setdefault(row["key"]["type"], {})
+            t[row["key"]["state"]] = row["n"]
     kernel_side["by_type_and_state"] = got
-    criteria["1_counts_per_type_and_state"] = (
+    criteria["1_counts_per_type_and_state"] = got is not None and (
         got == old_side(plan, plan.stores, plan.events)["by_type_and_state"])
 
     ids = sorted(plan.items, key=id_key)
-    found = call(["query"], {"ids": ids, "limit": 0})
-    resolved = {i["id"]: i["type"] for i in found["result"]["items"]}
+    found = ask(["query"], {"ids": ids, "limit": 0})
+    resolved = ({i["id"]: i["type"] for i in found["result"]["items"]}
+                if found is not None else {})
     missing = [i for i in ids if resolved.get(i) != plan.items[i]["type"]]
     kernel_side["ids"] = {"asked": len(ids), "resolved": len(resolved),
                           "missing_or_wrong_type": missing}
-    criteria["2_every_old_id_resolves"] = not missing and len(ids) == len(
-        resolved)
+    criteria["2_every_old_id_resolves"] = (
+        found is not None and not missing and len(ids) == len(resolved))
 
     nexts, above = {}, True
     issued = plan.ceilings()
     for type_name, tdecl in sorted(plan.types.items()):
-        r = call(["item", "create"], {"actor": ACTOR, "type": type_name,
-                                      "fields": probe_fields(tdecl)},
-                 dry_run=True)
-        minted = r["result"]["item"]["id"] if r["ok"] else None
+        r = ask(["item", "create"], {"actor": ACTOR, "type": type_name,
+                                     "fields": probe_fields(tdecl)},
+                dry_run=True)
+        minted = r["result"]["item"]["id"] if r is not None else None
         ceiling = issued[tdecl["prefix"]]["issued_max"]
         ok = minted is not None and (ceiling is None
                                      or id_key(minted)[1] > ceiling)
         nexts[tdecl["prefix"]] = {"next_id": minted, "issued_max": ceiling,
-                                  "above": ok,
-                                  "error": None if r["ok"] else r["error"]}
+                                  "above": ok}
         above = above and ok
     kernel_side["next_ids"] = nexts
     criteria["3_next_id_above_every_issued_id"] = above
 
-    again = call(["import"], {"state_root": rel})
-    kernel_side["second_import"] = {"exit": again["exit"],
-                                    "code": (again["error"] or {}).get("code")}
+    # The one call whose refusal is the answer wanted: it is not an error.
+    again = attempt(["import"], {"state_root": rel})
+    code = ((again.get("error") or {}).get("code")
+            if again is not None else None)
+    kernel_side["second_import"] = ({"exit": again["exit"], "code": code}
+                                    if again is not None else None)
     criteria["4_import_refuses_a_store_that_is_not_empty"] = (
-        again["exit"] == 1
-        and kernel_side["second_import"]["code"] == "store_not_empty")
+        again is not None and again["exit"] == 1
+        and code == "store_not_empty")
 
-    exported = call(["export"], None)
-    tail = call(["events"], {"limit": 1})
-    kernel_side["export"] = {"effect": exported["effect"],
-                             "error": exported["error"]}
-    kernel_side["events"] = {"total": tail["result"]["total"],
-                             "unexported": tail["result"]["unexported"]}
+    exported = ask(["export"], None)
+    tail = ask(["events"], {"limit": 1})
+    kernel_side["export"] = ({"effect": exported["effect"]}
+                             if exported is not None else None)
+    kernel_side["events"] = ({"total": tail["result"]["total"],
+                              "unexported": tail["result"]["unexported"]}
+                             if tail is not None else None)
     criteria["5_replay_reproduces_the_items"] = (
-        exported["effect"] == "unchanged")
+        exported is not None and exported["effect"] == "unchanged")
     return kernel_side, criteria
 
 
@@ -795,20 +939,42 @@ def summary(report: dict) -> str:
             return "\n".join(lines)
         for name, value in report["criteria"].items():
             lines.append(f"  {'PASS' if value else 'FAIL'}  {name}")
+        unresolved = report["mapping"]["unresolved_references"]
+        if unresolved:
+            lines.append(f"  FAIL  {len(unresolved)} reference(s) resolve to "
+                         f"no imported id: " + ", ".join(
+                             f"{u['id']} {u['field']} {u['ref']}"
+                             for u in unresolved))
+        for err in report["kernel"]["errors"]:
+            lines.append(f"  FAIL  the kernel refused {err['command']}: "
+                         f"{err['code'] or 'no envelope'}: {err['message']}")
+        lines.append("  reconciled" if report["reconciled"]
+                     else "  NOT reconciled")
         lines.append(f"  old by type and state: "
                      f"{canonical(report['old']['by_type_and_state'])}")
         lines.append(f"  next ids: " + ", ".join(
             f"{p} {v['next_id']} (issued up to {v['issued_max']})"
             for p, v in report["kernel"]["next_ids"].items()))
     m = report["mapping"]
+    if report.get("planned_only") and m["unresolved_references"]:
+        lines.append(f"  references that resolve to no imported id, which "
+                     f"the import would report as not reconciled: " +
+                     ", ".join(f"{u['id']} {u['field']} {u['ref']}"
+                               for u in m["unresolved_references"]))
+    if m["for_task_492"]:
+        lines.append(f"  for TASK-492, key results that are not kernel items "
+                     f"yet: " + ", ".join(f"{u['id']} {u['field']} {u['ref']}"
+                                          for u in m["for_task_492"]))
+    lines.append(f"  answers carried: {canonical(m['answers'])}; reasons "
+                 f"carried: {canonical(m['reasons'])}; status text no field "
+                 f"carries: {canonical(m['status_not_carried'])}")
     lines.append(f"  skipped next_action on closed tasks: "
                  f"{canonical(m['skipped_next_action'])}")
     lines.append(f"  dropped fields, populated rows: {canonical(m['dropped'])}")
     lines.append(f"  cells that said nothing, not imported: "
                  f"{canonical(m['unset_cells'])}")
     lines.append(f"  moves clamped to their create: {len(m['clamped_moves'])}")
-    lines.append(f"  unresolved references: {len(m['unresolved_references'])}"
-                 f"; open next_action cells over {LONG_CELL_BYTES} bytes: "
+    lines.append(f"  open next_action cells over {LONG_CELL_BYTES} bytes: "
                  f"{len(m['open_next_action_over_300_bytes'])}")
     return "\n".join(lines)
 

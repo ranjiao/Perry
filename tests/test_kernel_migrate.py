@@ -16,7 +16,12 @@ case the spec names:
 - the stop conditions: an intake or cadence row, a populated field the
   mapping does not name, an ask whose two answers disagree;
 - the safety rules: the project is never written, the store is always the
-  named one under `--work`, and no store appears under the fixture's `.git`.
+  named one under `--work`, and no store appears under the fixture's `.git`;
+- round 3 (TASK-489 spec § Round 3): the one blank rule, an ask's answer and
+  a risk's reason, references split on `,` `;` and white space with the
+  key results listed for TASK-492, a kernel refusal while reconciling, the
+  `task` and `record.id` keys of the old log, and the importer's own checks
+  for criteria 3 and 5 shown failing.
 
 Run: python3 -m unittest tests.test_kernel_migrate
 """
@@ -35,6 +40,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-kernel-migrate"
@@ -42,6 +48,7 @@ KERNEL = ROOT / "bin" / "perry-kernel"
 sys.path.insert(0, str(ROOT / "tests"))
 
 import config_store  # noqa: E402
+import inproc  # noqa: E402
 
 TASK_KEYS = ("id", "title", "owner", "status", "priority", "track", "stage",
              "stage_since", "arrived", "verification", "evidence",
@@ -288,13 +295,20 @@ class TestTheMapping(Fixture):
 
     def test_ask_and_risk_fields(self):
         self.assertEqual(self.item("USER-001")["fields"],
-                         {"question": "question USER-001", "answer": None})
+                         {"question": "question USER-001", "answer": "yes"})
         self.assertEqual(self.item("USER-001")["state"], "answered")
+        self.assertEqual(self.item("USER-002")["fields"],
+                         {"question": "question USER-002", "answer": None})
         self.assertEqual(self.item("RX-002")["fields"],
-                         {"concern": "concern RX-002", "reason": None})
+                         {"concern": "concern RX-002",
+                          "reason": "cleared 2026-08-07 — no longer applies"})
         self.assertEqual(self.item("RX-002")["state"], "cleared")
-        self.assertEqual(self.report["mapping"]["status_not_carried"],
-                         {"asks": 1, "risks": 1})
+        self.assertEqual(self.item("RX-001")["fields"]["reason"], None)
+        mapping = self.report["mapping"]
+        self.assertEqual(mapping["answers"], {"parsers.ask_answer": 1})
+        self.assertEqual(mapping["reasons"], {"status cell verbatim": 1})
+        self.assertEqual(mapping["status_not_carried"],
+                         {"asks: the answered <date>: part": 1})
 
     def test_the_fields_not_carried_are_counted(self):
         self.assertEqual(self.report["mapping"]["dropped"], {
@@ -311,7 +325,8 @@ class TestTheMapping(Fixture):
             ("blocks", "TASK-003", "TASK-004"),
             ("blocks", "USER-001", "TASK-004")])
         mapping = self.report["mapping"]
-        self.assertEqual(mapping["unresolved_references"], [
+        self.assertEqual(mapping["unresolved_references"], [])
+        self.assertEqual(mapping["for_task_492"], [
             {"register": "asks", "id": "USER-001", "field": "blocks",
              "ref": "P001-O1-KR1"}])
         self.assertEqual(mapping["self_edges"], [
@@ -410,6 +425,34 @@ class TestABlankCellIsUnset(Fixture):
         self.assertEqual(report["mapping"]["skipped_next_action"],
                          {"done": 1}, "only the closed cell with text")
 
+    def test_every_spelling_of_the_one_rule_is_unset(self):
+        """Round 3, item 1: unset means `lib.is_blank_cell`, the project's
+        one blank rule, not only `—` and an empty string. Each spelling is
+        counted as it was written. A cell that only begins with such a word
+        says something, and is imported."""
+        root = self.project(
+            tasks=[task("TASK-001", "not_started", next_action="TBD",
+                        summary="n/a", evidence="none", owner="-",
+                        priority="待定", verification="?"),
+                   task("TASK-002", "not_started",
+                        next_action="TBD: ask the vendor")],
+            asks=[], risks=[])
+        report = self.run_ok(root)
+        fields = self.item("TASK-001")["fields"]
+        for name in ("next_action", "summary", "evidence", "owner",
+                     "priority", "verification"):
+            with self.subTest(field=name):
+                self.assertIsNone(fields[name])
+        self.assertEqual(self.item("TASK-002")["fields"]["next_action"],
+                         "TBD: ask the vendor")
+        unset = report["mapping"]["unset_cells"]
+        self.assertEqual(unset["tasks.next_action"], {"TBD": 1})
+        self.assertEqual(unset["tasks.summary"], {"n/a": 1, "empty": 1})
+        self.assertEqual(unset["tasks.evidence"], {"none": 1, "empty": 1})
+        self.assertEqual(unset["tasks.owner"], {"-": 1, "empty": 1})
+        self.assertEqual(unset["tasks.priority"], {"待定": 1, "empty": 1})
+        self.assertEqual(unset["tasks.verification"], {"?": 1, "empty": 1})
+
 
 class TestAMoveIsNeverBeforeItsCreate(Fixture):
     """Decided after round 1: a move is timed at the later of its rule's
@@ -479,6 +522,33 @@ class TestTheCeilings(Fixture):
         self.assertEqual([c for e in seeds for c in e["changes"]], [
             {"key": "ceiling:TASK", "before": 4, "after": 9}])
 
+    def test_the_task_and_record_id_keys_seed_the_ceiling(self):
+        """Round 3, item 6: the ceiling reads every id-bearing key of the
+        old events, `id`, `task` and `record.id`. A `link-edge` event names
+        its task under `task`, and a purge keeps the purged record under
+        `record`. Each case's id is held by no store and by no `id` key."""
+        for key, event, number in (
+                ("task", {"ts": "2026-08-05T10:00:00+00:00",
+                          "event": "link-edge", "kr": "P001-O1-KR1",
+                          "task": "TASK-020"}, 20),
+                ("record.id", {"ts": "2026-08-05T11:00:00+00:00",
+                               "event": "purge",
+                               "record": {"id": "TASK-031",
+                                          "status": "dropped"}}, 31)):
+            with self.subTest(key=key):
+                base = self.tmp / key
+                self.work = base / "work"
+                report = self.run_ok(make_project(base,
+                                                  events=EVENTS + [event]))
+                ceiling = report["ceilings"]["TASK"]
+                self.assertEqual((ceiling["issued_max"], ceiling["seed"]),
+                                 (number, number))
+                self.assertEqual(ceiling["log_only_ids"],
+                                 ["TASK-009", f"TASK-{number:03d}"])
+                self.assertEqual(
+                    report["kernel"]["next_ids"]["TASK"]["next_id"],
+                    f"TASK-{number + 1:03d}")
+
     def test_with_nothing_purged_no_ceiling_event_is_written(self):
         events = [e for e in EVENTS if e["id"] != "TASK-009"]
         report = self.run_ok(self.project(events=events))
@@ -546,6 +616,299 @@ class TestTheKernelsRefusalIsReported(Fixture):
         self.assertIn("cycle", report["import"]["error"]["message"])
         self.assertEqual(sorted(report["import"]["event_items"]),
                          ["TASK-001", "TASK-002"])
+
+
+class TestAnAnswerAndAReason(Fixture):
+    """Round 3, items 2 and 3. A closed ask's answer and a cleared risk's
+    reason are in the status cell, and they are carried. No new parse cuts
+    them out:
+    - an answered ask's `answer` is what `parsers.ask_answer` returns, and
+      where that is empty, as for `withdrawn …`, the status cell verbatim;
+    - a risk is cleared when `parsers.status_is_cleared` says so, and its
+      `reason` is the status cell verbatim.
+    The field is set by the item's one move, the event that closes it."""
+
+    ASKS = [
+        ask("USER-001", "answered 2026-08-06: thirty days", True),
+        ask("USER-002", "**answered 2026-08-16: 30 days**", True),
+        ask("USER-003", "withdrawn 2026-08-20 — folded into TASK-001", True),
+        ask("USER-004", "dropped 2026-08-21", True),
+        ask("USER-005", "pending", False),
+        ask("USER-006", "waiting on legal", False),
+    ]
+    RISKS = [
+        risk("RX-001", "mitigated 2026-08-07 — the vendor shipped the fix"),
+        risk("RX-002", "cleared"),
+        risk("RX-003", "**resolved** 2026-08-09"),
+        risk("RX-004", "open"),
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.report = self.run_ok(self.project(
+            tasks=[task("TASK-001", "done")], asks=self.ASKS,
+            risks=self.RISKS, events=[]))
+
+    def field(self, item_id, name):
+        return self.item(item_id)["fields"][name]
+
+    def test_an_answer_is_what_ask_answer_returns(self):
+        self.assertEqual(self.field("USER-001", "answer"), "thirty days")
+        self.assertEqual(self.field("USER-002", "answer"), "30 days")
+
+    def test_an_answer_ask_answer_cannot_read_is_the_cell_verbatim(self):
+        self.assertEqual(self.field("USER-003", "answer"),
+                         "withdrawn 2026-08-20 — folded into TASK-001")
+        self.assertEqual(self.field("USER-004", "answer"),
+                         "dropped 2026-08-21")
+
+    def test_a_pending_ask_has_no_answer(self):
+        for item_id in ("USER-005", "USER-006"):
+            with self.subTest(item=item_id):
+                self.assertEqual(self.item(item_id)["state"], "pending")
+                self.assertIsNone(self.field(item_id, "answer"))
+
+    def test_status_is_cleared_decides_and_the_reason_is_verbatim(self):
+        for item_id, cell in (("RX-001", self.RISKS[0]["status"]),
+                              ("RX-002", "cleared"),
+                              ("RX-003", "**resolved** 2026-08-09")):
+            with self.subTest(item=item_id):
+                self.assertEqual(self.item(item_id)["state"], "cleared")
+                self.assertEqual(self.field(item_id, "reason"), cell)
+        self.assertEqual(self.item("RX-004")["state"], "open")
+        self.assertIsNone(self.field("RX-004", "reason"))
+
+    def test_the_move_sets_the_field(self):
+        for item_id, name, value in (
+                ("USER-003", "answer", self.ASKS[2]["status"]),
+                ("RX-002", "reason", "cleared")):
+            with self.subTest(item=item_id):
+                create, move = [e for e in self.events_of(item_id)
+                                if e["items"][0] == item_id]
+                self.assertNotIn(f"field:{name}",
+                                 [c["key"] for c in create["changes"]])
+                self.assertIn({"key": f"field:{name}", "before": None,
+                               "after": value}, move["changes"])
+
+    def test_each_kind_is_counted(self):
+        mapping = self.report["mapping"]
+        self.assertEqual(mapping["answers"], {"parsers.ask_answer": 2,
+                                              "status cell verbatim": 2})
+        self.assertEqual(mapping["reasons"], {"status cell verbatim": 3})
+        self.assertEqual(mapping["status_not_carried"], {
+            "asks: the answered <date>: part": 2,
+            "asks: a pending status that says more": 1})
+
+
+class TestTheReferences(Fixture):
+    """Round 3, item 4. A `depends_on` entry and an ask's `Blocks` cell are
+    split on commas, semicolons and white space, since no shared reader
+    splits them. A token that is no imported id makes the run "not
+    reconciled", unless it is a key result, which is listed for TASK-492."""
+
+    def references(self, depends, blocks):
+        return self.project(
+            tasks=[task("TASK-001", "done"), task("TASK-002", "not_started"),
+                   task("TASK-003", "not_started", depends_on=depends)],
+            asks=[ask("USER-001", "pending", False, blocks=blocks)],
+            risks=[], events=[])
+
+    def rel(self, item_id):
+        return sorted((r["from"], r["to"])
+                      for r in self.item(item_id)["relations"]
+                      if r["kind"] == "blocks")
+
+    def test_semicolons_commas_and_white_space_split(self):
+        report = self.run_ok(self.references(
+            ["TASK-001;TASK-002"], "TASK-002; TASK-003,TASK-001 —"))
+        self.assertEqual(report["mapping"]["unresolved_references"], [])
+        self.assertEqual(self.rel("TASK-003"), [
+            ("TASK-001", "TASK-003"), ("TASK-002", "TASK-003"),
+            ("USER-001", "TASK-003")])
+        self.assertEqual(self.rel("USER-001"), [
+            ("USER-001", "TASK-001"), ("USER-001", "TASK-002"),
+            ("USER-001", "TASK-003")])
+        self.assertEqual(report["mapping"]["relations"], 5)
+
+    def test_a_key_result_is_listed_for_task_492(self):
+        report = self.run_ok(self.references(
+            [], "TASK-002, P003-O2-KR3"))
+        self.assertTrue(report["reconciled"])
+        self.assertEqual(report["mapping"]["for_task_492"], [
+            {"register": "asks", "id": "USER-001", "field": "blocks",
+             "ref": "P003-O2-KR3"}])
+        self.assertEqual(report["mapping"]["unresolved_references"], [])
+        self.assertEqual(self.rel("USER-001"), [("USER-001", "TASK-002")])
+
+    def test_a_reference_to_no_imported_id_is_not_reconciled(self):
+        root = self.references(["TASK-088"], "TASK-002; TASK-077")
+        r = migrate("--root", str(root), "--work", str(self.work), "--json")
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        report = json.loads(r.stdout)
+        self.assertFalse(report["reconciled"])
+        self.assertEqual(set(report["criteria"].values()), {True})
+        self.assertEqual(report["mapping"]["unresolved_references"], [
+            {"register": "tasks", "id": "TASK-003", "field": "depends_on",
+             "ref": "TASK-088"},
+            {"register": "asks", "id": "USER-001", "field": "blocks",
+             "ref": "TASK-077"}])
+        self.assertEqual(report["not_reconciled_because"],
+                         ["2 reference(s) resolve to no imported id"])
+        shutil.rmtree(self.work)
+        text = migrate("--root", str(root), "--work", str(self.work))
+        self.assertEqual(text.returncode, 1, text.stderr)
+        self.assertIn("FAIL  2 reference(s) resolve to no imported id: "
+                      "TASK-003 depends_on TASK-088, USER-001 blocks "
+                      "TASK-077", text.stdout)
+        self.assertIn("NOT reconciled", text.stdout)
+
+
+class InProcess(Fixture):
+    """The importer's `main`, run in this process, so that a test can make
+    one kernel answer or one export line what it needs (`tests/inproc.py`).
+    Every other kernel call is the real one, on the store under `--work`."""
+
+    def setUp(self):
+        super().setUp()
+        self.mod = inproc.load("perry-kernel-migrate")
+
+    def main(self, root, *flags):
+        return inproc.run("perry-kernel-migrate",
+                          ["--root", str(root), "--work", str(self.work),
+                           *flags],
+                          env={"PERRY_PROJECT": None, "PERRY_STORE": None})
+
+
+class TestAKernelRefusalWhileReconciling(InProcess):
+    """Round 3, item 5. A kernel call that is refused after the import, or
+    that prints no envelope, is reported, the run is "not reconciled", and
+    no traceback is printed."""
+
+    REFUSAL = {"ok": False, "surface": "1.0", "effect": None, "events": [],
+               "store_seq": None, "warnings": [], "result": None,
+               "error": {"code": "store_busy",
+                         "message": "the write lock was not acquired within "
+                                    "5 s", "details": {}}}
+
+    #: Each reconciliation call that must succeed, and the criterion it
+    #: serves. `events` serves none: it only reads the store's tail.
+    CALLS = (("query", "count_by", "1_counts_per_type_and_state"),
+             ("query", "ids", "2_every_old_id_resolves"),
+             ("item create", None, "3_next_id_above_every_issued_id"),
+             ("export", None, "5_replay_reproduces_the_items"),
+             ("events", None, None))
+
+    def refused(self, command, key, *, envelope=True):
+        """`(the --json run, the text run)`, each into its own empty
+        `--work`, with `command` refused and every other call real."""
+        real = self.mod.kernel
+
+        def refusing(words, data, **kw):
+            if " ".join(words) == command and (key is None or key in data):
+                if not envelope:
+                    raise self.mod.Refused(f"perry-kernel {command} printed "
+                                           f"no envelope (exit 3): boom")
+                return {**self.REFUSAL, "command": command, "exit": 1}
+            return real(words, data, **kw)
+
+        base = self.tmp / f"{command}-{key}".replace(" ", "-")
+        root = make_project(base)
+        runs = []
+        for flags in (["--json"], []):
+            self.work = base / f"work{len(runs)}"
+            with mock.patch.object(self.mod, "kernel", refusing):
+                runs.append(self.main(root, *flags))
+        return tuple(runs)
+
+    def test_each_refused_call_is_reported_and_not_reconciled(self):
+        for command, key, criterion in self.CALLS:
+            with self.subTest(command=command, key=key):
+                r, text = self.refused(command, key)
+                self.assertEqual(r.returncode, 1, r.stderr)
+                self.assertNotIn("Traceback", r.stderr + text.stderr)
+                report = json.loads(r.stdout)
+                self.assertFalse(report["reconciled"])
+                errors = report["kernel"]["errors"]
+                self.assertTrue(errors, report["kernel"])
+                self.assertEqual({(e["command"], e["code"]) for e in errors},
+                                 {(command, "store_busy")})
+                self.assertIn(f"{len(errors)} kernel call(s) refused during "
+                              f"reconciliation",
+                              report["not_reconciled_because"])
+                failed = {n for n, held in report["criteria"].items()
+                          if not held}
+                self.assertEqual(failed, {criterion} - {None})
+                self.assertEqual(text.returncode, 1, text.stderr)
+                self.assertIn(f"FAIL  the kernel refused {command}: "
+                              f"store_busy", text.stdout)
+
+    def test_a_call_that_prints_no_envelope_is_reported_alike(self):
+        r, text = self.refused("export", None, envelope=False)
+        self.assertEqual((r.returncode, text.returncode), (1, 1), r.stderr)
+        self.assertNotIn("Traceback", r.stderr + text.stderr)
+        report = json.loads(r.stdout)
+        self.assertFalse(report["reconciled"])
+        self.assertFalse(report["criteria"]["5_replay_reproduces_the_items"])
+        self.assertEqual(report["kernel"]["errors"], [
+            {"command": "export", "exit": None, "code": None,
+             "message": "perry-kernel export printed no envelope (exit 3): "
+                        "boom"}])
+
+
+class TestTheImportersOwnChecks(InProcess):
+    """Round 3, item 7. The importer's checks for criteria 3 and 5 fail when
+    they should. In round 1, forcing either one true (mutants M8 and M9)
+    left every test green."""
+
+    def test_criterion_3_fails_when_the_seed_is_lost(self):
+        """TASK-009 was purged, so only the `ceiling:TASK` event lifts the
+        mint above it. An export without that event imports cleanly, and
+        the kernel then mints TASK-005, which was issued before."""
+        real = self.mod.build_export
+
+        def unseeded(plan, state_root):
+            items_bytes, events_bytes, built = real(plan, state_root)
+            lines = events_bytes.decode("utf-8").splitlines(keepends=True)
+            self.assertEqual(json.loads(lines[-1])["command"],
+                             "seed ceilings")
+            return (items_bytes, "".join(lines[:-1]).encode("utf-8"),
+                    {**built, "events": built["events"][:-1]})
+
+        with mock.patch.object(self.mod, "build_export", unseeded):
+            r = self.main(self.project(), "--json")
+        self.assertEqual(r.returncode, 1, r.stderr)
+        report = json.loads(r.stdout)
+        self.assertTrue(report["import"]["ok"], report["import"])
+        self.assertEqual(report["kernel"]["next_ids"]["TASK"], {
+            "next_id": "TASK-005", "issued_max": 9, "above": False})
+        criteria = report["criteria"]
+        self.assertFalse(criteria.pop("3_next_id_above_every_issued_id"))
+        self.assertEqual(set(criteria.values()), {True})
+        self.assertFalse(report["reconciled"])
+
+    def test_criterion_5_fails_when_the_export_does_not_match(self):
+        """The export the import read is changed before the check asks for
+        `export`. The kernel's own serialisation then differs from it, so
+        `export` writes, and the check must say FAIL."""
+        real = self.mod.kernel
+
+        def tampering(words, data, **kw):
+            if list(words) == ["export"]:
+                path = kw["anchor"] / "state" / "export" / "items.jsonl"
+                lines = path.read_bytes().splitlines(keepends=True)
+                path.write_bytes(b"".join(lines[:-1]))
+            return real(words, data, **kw)
+
+        with mock.patch.object(self.mod, "kernel", tampering):
+            r = self.main(self.project(), "--json")
+        self.assertEqual(r.returncode, 1, r.stderr)
+        report = json.loads(r.stdout)
+        self.assertEqual(report["kernel"]["export"], {"effect": "written"})
+        criteria = report["criteria"]
+        self.assertFalse(criteria.pop("5_replay_reproduces_the_items"))
+        self.assertEqual(set(criteria.values()), {True})
+        self.assertFalse(report["reconciled"])
 
 
 class TestTheInvocation(Fixture):

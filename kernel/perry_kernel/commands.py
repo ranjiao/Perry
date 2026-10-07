@@ -1129,7 +1129,10 @@ def replay_check(store: Store):
     - `field:<name>`: a field of the item's type, and a value that fits its
       kind (§ 5.3) in the form the kernel stores it;
     - `rel:<kind>` being added: a kind the template knows, and ends whose
-      types a declared kind allows (`check_edge_types`).
+      types a declared kind allows (`check_edge_types`);
+    - `attach:<ref>`: a ref `check_attachment` takes, as `attach add` and
+      `attach remove` require: not empty or only white space, and no line
+      break (TASK-489 round 3).
     Ends and items that do not exist are the store's to refuse
     (`Store.apply_changes`), so this check steps aside for them."""
     cache = {"version": None, "norm": None}
@@ -1150,6 +1153,15 @@ def replay_check(store: Store):
                               f"event {seq}: {key}: {message}",
                               {"seq": seq, "key": key, **extra})
 
+        if key.startswith("attach:"):
+            # The ref check a live `attach add` or `attach remove` runs, so
+            # an export cannot hand `import` a ref no command writes. The
+            # hash is held to `HASH_RE` already, by `_event_shape`.
+            try:
+                check_attachment(key[len("attach:"):], None)
+            except KernelError as exc:
+                bad(exc.message)
+            return
         if key.startswith("rel:"):
             if not after:
                 return
