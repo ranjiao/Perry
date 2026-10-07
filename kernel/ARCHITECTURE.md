@@ -81,12 +81,13 @@ flowchart TD
     CLI -->|"JSON out"| Migrate
 ```
 
-The CLI has two callers. One is the skill. The other, until row H, is
-`bin/perry-kernel-migrate`, DESIGN-023 § 6 row D's one-shot importer
-(TASK-489). It runs the CLI as a subprocess, with `--store` and `--root`
-always named and `PERRY_KERNEL_TESTING` set (§ 5.7). It imports nothing from
-`perry_kernel`, and it reaches the store only through the CLI, as the skill
-does (`bin/ARCHITECTURE.md` § 2).
+Besides the skill, `bin/perry-kernel-migrate`, DESIGN-023 § 6 row D's one-shot
+importer (TASK-489), calls the CLI until row H deletes it. It runs the CLI as a
+subprocess, with `--store` and `--root` always named and `PERRY_KERNEL_TESTING`
+set (§ 5.7). It imports nothing from `perry_kernel`, and it reaches the store
+only through the CLI, as the skill does (`bin/ARCHITECTURE.md` § 2). The test
+suites also run the CLI, and `bin/perry` forwards `perry kernel …` to the
+wrapper's `main` in-process.
 
 Allowed directions: skill → kernel → store. There are no others.
 
@@ -250,8 +251,9 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 ## §8. Change log
 
 - 2026-10-07 · v1 · TASK-489 round 3. § 3's diagram and text name `bin/perry-kernel-migrate`,
-  row D's one-shot importer, as the CLI's second caller until row H; the allowed-directions
-  line is unchanged. In `architecture/sections/§5-contracts.md`: § 5.8 step 2 says the
+  row D's one-shot importer, as a caller of the CLI besides the skill until row H, and say
+  that the test suites and `bin/perry`'s forward also run it; the allowed-directions line
+  is unchanged. In `architecture/sections/§5-contracts.md`: § 5.8 step 2 says the
   replay holds an `attach:` ref to the check a live `attach add` or `attach remove` runs
   (`commands.check_attachment`), and § 5.7's prevention layer says the importer sets
   `PERRY_KERNEL_TESTING` too, as a safety switch. No command, error code or key is added,
