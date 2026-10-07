@@ -316,7 +316,10 @@ becomes the event's seq.
     purpose, always pass `--store <tmp>`. The harness sets `PERRY_KERNEL_TESTING=1`, under
     which a derived path is refused (`store_live_under_test`), so a call that forgets
     `--store` fails instead of writing the shared store. The variable counts as set when it
-    is present, empty included.
+    is present, empty included. `bin/perry-kernel-migrate`, DESIGN-023 § 6 row D's one-shot
+    importer, is not a test, and it sets `PERRY_KERNEL_TESTING=1` on every kernel call as
+    the same safety switch. Each of its calls names `--store` under its scratch `--work`
+    directory, so a call that lost the flag is refused rather than derived to the live store.
   - **Detection.** The harness reads the live store's highest event seq read-only before
     and after the run. A new event whose actor carries the run's own session fails the
     suite; one from any other session is reported, not failed (OQ-K4). This is the
@@ -346,8 +349,10 @@ becomes the event's seq.
      (§ 5.2); a `type` set once, on an item that does not exist yet, that the template
      declares, on an id that type mints (its prefix, padded to its `digits`); a `state`
      of the item's type; a `field:` its type declares, with a value
-     that fits the field's kind (§ 5.3) in the form a live write stores; and, on an edge
-     being added, a relation kind the template knows, with ends a declared kind allows.
+     that fits the field's kind (§ 5.3) in the form a live write stores; on an edge
+     being added, a relation kind the template knows, with ends a declared kind allows;
+     and an `attach:` ref that `attach add` and `attach remove` would take: not empty or
+     only white space, and holding no line break (TASK-489 round 3).
      A relation change that flips nothing (`before` equal to `after`) is refused for
      every kind, because no command writes one (NN-K8). Each refusal is `export_invalid`
      and names the event's `seq` and the change's `key` (TASK-489);

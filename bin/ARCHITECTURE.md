@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: user (§6, §7)
 > Version: v1
-> Last reviewed: 2026-09-29
+> Last reviewed: 2026-10-07
 > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
 > Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
@@ -82,8 +82,14 @@ the two `bin/` tools that execute another one; neither imports it.
 
 DESIGN-023 row D's importer (TASK-489). It reads the old stores through
 `perry_store.load_board_stores`, `parsers.resolve_state_root` and
-`parsers.load_register_store` (for `.perry/events.jsonl`), and converts times
-with `lib.ts_moment`, so it adds no reader. Without `--work` it only plans and
+`parsers.load_register_store` (for `.perry/events.jsonl`). It reads a status
+cell through `parsers.ask_is_answered`, `parsers.ask_answer` and
+`parsers.status_is_cleared`, a key-result id through
+`parsers.kr_objective_id`, and a blank cell through `lib.is_blank_cell`. It
+converts times with `lib.ts_moment`, so it adds no reader. It also reads
+`templates/process/perry.json`, the process template, as data: the types,
+fields and transitions it maps onto, and the template its export applies.
+That file is not a state file. Without `--work` it only plans and
 writes nothing. With it, it writes a synthetic kernel export under that
 directory, which must be empty and outside the project and any `.git`, and
 runs `bin/perry-kernel import`,
@@ -252,6 +258,7 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
 
 ## §8. Change log
 
+- 2026-10-07 · v1 · TASK-489 round 3: § 2 "What `perry-kernel-migrate` runs and writes" names the other readers the importer uses (`parsers.ask_answer`, `parsers.kr_objective_id`, `lib.is_blank_cell`, beside the two status predicates) and says it reads `templates/process/perry.json` as data. §§ 1, 3–7 unchanged.
 - 2026-09-29 · v1 · TASK-489: `perry-kernel-migrate`, DESIGN-023 row D's one-shot importer, joins the directory. § 1 counts twenty-two executables; § 2's diagram gains it and its one run edge to `perry-kernel`, § 2 says it and `perry-context-budget` are the two tools that execute another, and a new subsection says what it runs and writes; § 5 counts seven tools that declare a `SURFACE`. § 7 OQ-B1 still says "Six declare a `SURFACE`": that section is the user's, so its count waits for the user.
 - 2026-09-26 · v1 · TASK-488, decided by the user on 2026-09-26: § 6 NN-B3's sunset, like root § 3's third Forbidden line, adds `bin/perry-churn § detect_perry` (`:305–341`) to the existing copies — it walks up to the first `.perry/`, stops at the git top level, and takes no `--root` and no environment variable.
 - 2026-09-26 · v1 · TASK-487 round 4, decided by the user: § 6 NN-B3's sunset, like root § 3's, names `perry-lint`'s nine sites exactly — one walks, eight per-mode branches take `--root` or else the cwd — in place of "flag-then-walk".

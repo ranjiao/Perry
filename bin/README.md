@@ -59,7 +59,7 @@ statements it was fixing.
 | [`perry-codex-preflight`](perry-codex-preflight) | cache only | Verifies the `codex` CLI is installed, recent enough and actually responds, before a dispatch depends on it. |
 | [`perry-dispatch-limit`](perry-dispatch-limit) | cache only | Reserves and frees concurrency slots so a session can't fan out unbounded dispatches. |
 | [`perry-kernel`](perry-kernel) | **write** + read | The DESIGN-023 kernel CLI: a thin wrapper over the `perry_kernel` package in `kernel/`, one store per project anchor, JSON in and JSON out. No lane writes through it yet; `bin/` stays the live writer until each lane cuts over. `perry-kernel describe` prints its surface, and [`kernel/ARCHITECTURE.md`](../kernel/ARCHITECTURE.md) is its specification. |
-| [`perry-kernel-migrate`](perry-kernel-migrate) | read; writes only under `--work` | DESIGN-023 row D's one-shot importer (TASK-489). It reads a project's `tasks.jsonl`, register stores and `.perry/events.jsonl`, writes a synthetic kernel export into a scratch anchor, runs `perry-kernel import` into a scratch store, and reconciles counts, ids, ceilings, the non-empty refusal and the replay. It never writes the project, and every kernel call names its store. Deleted at row H with the rest of the old `bin/`. The mapping: [below](#perry-kernel-migrate). |
+| [`perry-kernel-migrate`](perry-kernel-migrate) | read; writes only under `--work` | DESIGN-023 row D's one-shot importer (TASK-489). It reads a project's `tasks.jsonl`, register stores and `.perry/events.jsonl`, writes a synthetic kernel export into a scratch anchor, runs `perry-kernel import` into a scratch store, and reconciles counts, ids, ceilings, the non-empty refusal, the replay and every reference. It never writes the project, and every kernel call names its store. Deleted at row H with the rest of the old `bin/`. The mapping: [below](#perry-kernel-migrate). |
 
 **Eight tools write project files: `perry-task`, `perry-tasks`,
 `perry-goals`, `perry-okr`, `perry-config`, `perry-decide`,
@@ -835,31 +835,55 @@ them once row E has migrated both projects (TASK-489 § Decided 2026-09-29).
 **It adds no parse.** The five register stores are read through
 `perry_store.load_board_stores`, the state root through
 `parsers.resolve_state_root`, and `.perry/events.jsonl` through
-`parsers.load_register_store`, the one JSONL reader `viewer/parsers.py` holds.
-No shared reader of the event log exists; that one reads any JSONL file under
-a directory and refuses a malformed line rather than skipping it, which is the
+`parsers.load_register_store`. That is not the only JSONL reader in
+`viewer/parsers.py`: `load_task_store`, `load_okr_store` and
+`load_linkage_store` each read their own store. It is the generic one, and no
+reader made for the event log is shared. It reads any JSONL file under a
+directory and refuses a malformed line rather than skipping it, which is the
 right answer for a migration. Times go through `lib.ts_moment`, the one
-converter, and an ask's and a risk's status through `parsers.ask_is_answered`
-and `parsers.status_is_cleared`.
+converter. An ask's status goes through `parsers.ask_is_answered` and
+`parsers.ask_answer`, a risk's through `parsers.status_is_cleared`, and a
+key-result id through `parsers.kr_objective_id`. It also reads
+`templates/process/perry.json`, the process template, as data, not as a state
+file.
 
-**The mapping is DESIGN-023 decision 13's.** A task keeps `title`, `summary`,
-`priority`, `owner`, `track`, `verification`, `next_action` and `evidence`; its
-`status` is the state, `depends_on` becomes `blocks` edges and `design_refs`
-attachments. An ask's `needed` is `question`, its `status` and `answered` are
-the state, and its `Blocks` cell becomes `blocks` edges: the cell is split on
-commas and white space and each token looked up among the imported ids, so a
-key result such as `P003-O2-KR3` is reported as unresolved, never guessed at.
-A risk's `risk` is `concern`, and its status is `open` or `cleared`. A cell
-that says nothing, meaning an empty string or the blank marker `—`
-(`lib.is_blank_cell`, the one rule for it), is unset and not imported, in
-every mapped field. The report counts those cells per field. Every other value
-is imported as it is. `group`, `order`, `commitment`, `role`, `stage`, `arrived` and
-`stage_since` are not carried, nor is `next_action` on a `done` or `dropped`
-task (§ Decided 2026-09-29, option A), and the report counts the rows that
-held each. A populated key the mapping does not name, a `parent`, an intake or
-cadence row, an ask whose `answered` disagrees with its status cell, and a
-status the template has no state for each stop the import before anything is
-written: nothing is dropped that the report does not count.
+**The mapping is DESIGN-023 decision 13's, with TASK-489's round-3 rules.**
+- **Tasks.** A task keeps `title`, `summary`, `priority`, `owner`, `track`,
+  `verification`, `next_action` and `evidence`. Its `status` is the state,
+  `depends_on` becomes `blocks` edges, and `design_refs` become attachments.
+- **Asks.** An ask's `needed` is `question`, and its `status` and `answered`
+  are the state. An answered ask's `answer` is the text `parsers.ask_answer`
+  returns. Where that text is empty, as for `withdrawn …`, the `answer` is the
+  status cell verbatim.
+- **Risks.** A risk's `risk` is `concern`. It is cleared when
+  `parsers.status_is_cleared` says so, and its `reason` is then the status
+  cell verbatim. An `open` risk stays `open`.
+- **The closing field.** An `answer` or a `reason` is set by the item's one
+  move, the event that closes it.
+- **References.** No shared reader splits a `depends_on` entry or a `Blocks`
+  cell, so each is split on commas, semicolons and white space. Each token is
+  looked up among the imported ids, and nothing is guessed. A key-result id
+  such as `P003-O2-KR3` is listed "for TASK-492", which restores those edges
+  once key results are kernel items. Any other token that resolves to no
+  imported id makes the run "not reconciled", with exit 1.
+- **Blank cells.** A cell is unset when `lib.is_blank_cell` says so, the
+  project's one blank rule. That takes an empty string and the blank marker
+  `—`, and also `-`, `n/a`, `TBD`, `none`, `?`, `待定` and the other spellings
+  `schema/state-schema.json § i18n.blank_cell` declares. Such a cell is not
+  imported, in any mapped field, and the report counts it per field and per
+  spelling.
+
+Every other value is imported as it is. `group`, `order`, `commitment`,
+`role`, `stage`, `arrived` and `stage_since` are not carried, nor is
+`next_action` on a `done` or `dropped` task (§ Decided 2026-09-29, option A).
+The report counts the rows that held each. It also counts the answers and
+reasons carried, by kind, and the status text no field carries: the
+`answered <date>:` part of an answer `ask_answer` read, and a pending ask's
+status where it says more than `pending`. A populated key the mapping does not
+name, a `parent`, an intake or cadence row, an ask whose `answered` disagrees
+with its status cell, and a status the template has no state for each stop
+the import before anything is written: nothing is dropped that the report does
+not count.
 
 **A snapshot, not a replay of history.** Each item gets one `item create`,
 timed at `created`, `asked` or `opened`, and, when it is not in its type's
@@ -873,9 +897,9 @@ its `note` says so and keeps the time the rule gave.
 - An item with no creation date is timed at its first old event, or else at
   the start of the old log, and its event's `note` says which rule timed it. Each `blocks` edge lands in the create of
 whichever end is created later, as a live `item create` would write it. The
-highest id each prefix ever issued, the ids only the event log still holds
-(purged ones) included, seeds a `ceiling:` event when it is above the highest
-imported id.
+highest id each prefix ever issued seeds a `ceiling:` event when it is above
+the highest imported id. "Issued" counts the ids the stores hold and every id
+the old log names under `id`, `task` or `record.id`, purged ones included.
 
 **It never writes a store it did not create.** Without `--work` it only
 plans: it reads the stores, builds the export in memory, prints what it would
@@ -889,3 +913,9 @@ rather than derived to the store every worktree shares (`kernel/ARCHITECTURE.md`
 items: the importer writes `items.jsonl` as the kernel would serialise the
 replayed store, and after the import it asks for an `export`, which must be
 `unchanged`.
+
+**It reports a refusal, and never ends in a traceback.** A kernel call refused
+while reconciling, or one that prints no envelope, is listed under
+`kernel.errors`. The criterion it serves fails, and the run is "not
+reconciled", with exit 1. `not_reconciled_because` names each reason: a
+failed criterion, a reference that resolves to nothing, or a refused call.
