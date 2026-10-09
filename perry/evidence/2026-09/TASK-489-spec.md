@@ -213,6 +213,29 @@ split of its own, and no exception is recorded.
    - `kernel/ARCHITECTURE.md:92`, "There are no others", must agree with
      `:84`, which names the importer as a caller.
 
+## Round 5, decided by the user 2026-10-09 (option A)
+
+The second V4 FAIL went to the user under `review.md` § 6
+(`TASK-489-review-round2.md`). The user chose option A: one more round, then a
+third V4 review. Round 5 continues on `coding/task-489-importer` from
+`befe556c`.
+
+1. **Replay order.** A field, state, attachment or relation change replayed
+   before its item's `type` change is checked against the template once the
+   type is known. The order of changes inside one event must not decide
+   whether a value is checked. The check stays generic: no template name
+   appears in kernel source.
+2. **The importer's own checks.** The checks for criteria 1, 2 and 4 each get
+   a test that shows them failing when they should. Round-2 mutants M18–M20
+   survived.
+3. **Documents.** These correct what the reviews found:
+   - `§5-contracts.md` § 5.8 step 2 must be true of the code;
+   - the importer's README and docstring KR wording must name both forms;
+   - the "never writes the project" wording must name the recovery-marker
+     case. This is the round-3 architecture review's drift item 1, and it
+     covers `bin/ARCHITECTURE.md:113–114`, `bin/README.md:62`, the docstring
+     `:17` and the refusal message.
+
 ## Out of scope
 - OKR, design and ADR records (TASK-492).
 - Historic prose.
@@ -240,3 +263,4 @@ The stores listed under Deliverable, for two projects, and the six acceptance cr
 - 2026-09-29 — After round 1: the long-cell measurement is corrected, since 7 open rows are over 300 bytes, and option A still covers them. Two import rules added: the blank marker `—` means unset, and no move is timed before its create.
 - 2026-10-07 — Round 3 added after round 1's V4 FAIL (`TASK-489-review-round1.md`): the one blank rule, ask answers, the risk state and reason, references, kernel errors, ceilings, the importer's self-checks, replay of `attach:` refs, and the candidate's own documents.
 - 2026-10-07 — Round 4 added: the user's option B on the round-2 architecture block (no split of the importer's own; no NN-1 exception), and four module-document corrections.
+- 2026-10-09 — Round 5 added: the user's option A after the second V4 FAIL (replay order, the importer's self-checks, documents).
