@@ -344,18 +344,30 @@ becomes the event's seq.
   2. replays every change by seq, checking that each `before` equals the replayed value,
      without re-running guards, because the history was written under earlier templates.
      Each change is held instead to the template in force when its event was written,
-     the last one the replay has applied, as a live write of it would have been: a
-     `template` whose version rises above the one in force and strands no stored data
-     (§ 5.2); a `type` set once, on an item that does not exist yet, that the template
-     declares, on an id that type mints (its prefix, padded to its `digits`); a `state`
-     of the item's type; a `field:` its type declares, with a value
-     that fits the field's kind (§ 5.3) in the form a live write stores; on an edge
-     being added, a relation kind the template knows, with ends a declared kind allows;
-     and an `attach:` ref that `attach add` and `attach remove` would take: not empty or
-     only white space, and holding no line break (TASK-489 round 3).
-     A relation change that flips nothing (`before` equal to `after`) is refused for
-     every kind, because no command writes one (NN-K8). Each refusal is `export_invalid`
-     and names the event's `seq` and the change's `key` (TASK-489);
+     the last one the replay has applied, as a live write of it would have been:
+     - a `template` whose version rises above the one in force and strands no stored
+       data (§ 5.2). The first `template` change has no version in force to rise above,
+       and is held only to being a valid template;
+     - a `type` set once, on an item that does not exist yet, that the template declares,
+       on an id that type mints (its prefix, padded to its `digits`);
+     - a `state` of the item's type, and a `field:` its type declares, with a value that
+       fits the field's kind (§ 5.3) in the form a live write stores; a `null` value is
+       held only to the field being declared;
+     - on an edge being added, a relation kind the template knows, with ends a declared
+       kind allows. Removing an edge is held only to the no-op rule below;
+     - an `attach:` ref that `attach add` and `attach remove` would take: not empty or
+       only white space, and holding no line break.
+
+     The item's type is the stored one, or, for the event's own item (`items[0]`), the
+     `type` the same event sets. So a change replayed before its item's `type` change is
+     checked as it would be after it, and the order of changes inside an event never
+     decides whether a value is checked (TASK-489 round 5). A change to an item that has
+     no type and gets none in its event is refused by the store, which leaves no item
+     without a type and a state. A `state_root` change and a `ceiling:` value are held
+     only to their shape (step 1's line checks). A relation change that flips nothing
+     (`before` equal to `after`) is refused for every kind, because no command writes one
+     (NN-K8). Each refusal is `export_invalid` and names the event's `seq` and the
+     change's `key` (TASK-489);
   3. sets each ceiling to the higher of the largest id replayed and the largest
      `ceiling:<prefix>` value;
   4. serialises the replayed items as `export` would and compares them byte for byte with

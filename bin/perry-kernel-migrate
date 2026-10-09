@@ -16,9 +16,14 @@ the export under `<dir>/anchor/`, runs `bin/perry-kernel import` into
 `<dir>/store.db`, and reads the store back through the kernel to check
 DESIGN-023 row D's criteria 1–5. It writes nothing outside `<dir>`, which must
 be empty or absent and outside the project and any `.git`, and it names that
-store with `--store` on every kernel call. The run is reconciled when the
-five criteria hold, every reference resolves to an imported id or is a key
-result listed for TASK-492, and the kernel refused no reconciliation call.
+store with `--store` on every kernel call. One case writes the project, and
+the importer does not write it: a `perry-task` recovery marker left pending
+by a crashed command is completed by the `perry-task asks` read, as by any
+`perry-task` command. The importer sees the changed file, names it and
+stops before `<dir>` is created. The run is reconciled when the five
+criteria hold, every reference resolves to an imported id or is a key result
+in either form, `O1-KR1` or `P003-O2-KR3`, listed for TASK-492, and the
+kernel refused no reconciliation call.
 Exit 0 planned or reconciled, 1 refused or not reconciled, 2 bad
 invocation. It is one-shot: row H deletes it
 with the rest of the old `bin/`. The mapping and its reasons: `bin/README.md §
@@ -724,8 +729,11 @@ def ask_blocks(plan: Plan, project_root: Path, state_root: Path) -> None:
                          | {p for p in set(before) & set(after)
                             if before[p] != after[p]})
         raise Refused(f"perry-task asks changed {len(changed)} file(s) under "
-                      f"the project, the first {changed[0]}. The import reads "
-                      f"the project and writes nothing there. Stopped.",
+                      f"the project, the first {changed[0]}. A perry-task "
+                      f"command completes a recovery marker a crashed write "
+                      f"left pending, and that read just did; the importer "
+                      f"itself wrote nothing there. Stopped before the "
+                      f"import: inspect the change, then run it again.",
                       {"changed": changed})
     rows = payload.get("asks")
     if not isinstance(rows, list) or not all(

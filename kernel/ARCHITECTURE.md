@@ -251,6 +251,10 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 ## §8. Change log
 
+- 2026-10-09 · v1 · TASK-489 round 5. In `architecture/sections/§5-contracts.md`, § 5.8 step 2
+  says what the replay check covers and what it does not, and that a change before its
+  item's `type` change in one event is checked against the type that event sets
+  (`commands.replay_check`). No command, error code or key is added; `surface` stays 1.0.
 - 2026-10-07 · v1 · TASK-489 round 4. § 3's allowed-directions line says each caller named
   above it stands in the skill's place, so "There are no others" agrees with the callers it
   lists. The direction itself, caller → kernel → store and nothing back, is unchanged.
