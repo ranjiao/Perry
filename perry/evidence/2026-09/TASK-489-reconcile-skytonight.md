@@ -1,10 +1,12 @@
 # TASK-489 — reconciliation: SkyTonight
 
-Spec: `TASK-489-spec.md`, criteria 1–5, with § Round 3 (decided by the PMO)
-and § Round 4 (decided by the user, option B), on main at `a95fc07f`. Project
+Spec: `TASK-489-spec.md`, criteria 1–5, with § Round 3 (decided by the PMO),
+§ Round 4 (decided by the user, option B) and § Round 5 (the user's option A),
+on main at `c1db1f29`. Project
 `/Users/bytedance/proj/SkyTonight`; its state root is `doc/perry`, from its
-`.perry/config.jsonl`. Round 4 ran on 2026-10-07, by the Coding Agent, with
-the importer at `coding/task-489-importer` 7095bffd, into a fresh temporary
+`.perry/config.jsonl`. Round 5 ran on 2026-10-09 (round 4 on 2026-10-07), by the Coding
+Agent, with the importer at `coding/task-489-importer` 9e15fbe6 (round 4:
+7095bffd), into a fresh temporary
 store only. **SkyTonight is read-only, and nothing was written under it.**
 
 `$PERRY_SCRATCH` below is
@@ -15,6 +17,28 @@ sandbox refused the derivation snippet. The work directory is
 `$PERRY_SCRATCH/reconcile4-skytonight.json`. The independent check is
 `$PERRY_SCRATCH/verify.py`, and its output is
 `$PERRY_SCRATCH/verify4-skytonight.json`.
+
+## What changed in round 5
+
+Round 5 (spec § Round 5, the user's option A) changed no rule of the import.
+The kernel now checks a change replayed before its item's `type` change, the
+importer's checks for criteria 1, 2 and 4 have tests, and only document
+wording changed otherwise.
+
+**The result is the same import.** `items.jsonl` is byte-identical to round
+4's, sha256 `a8ce77e9…`. `events.jsonl` differs only in the `at` of events 1
+and 2, timed at the run's own time. Criteria 1–5 PASS again, with 40 edges,
+and the independent check agrees. SkyTonight holds no ask, so no `perry-task`
+ran against it. Its lock file stayed absent, and the whole-tree fingerprint
+is unchanged: `entries=11776 listing-sha256=59dde36f75ef34e5
+state-sha256=e8689645fbc5a738` before and after. Both `.git/perry` paths were
+absent before and after.
+
+Round 5's work directory is `$PERRY_SCRATCH/reconcile5-skytonight`, its report
+`$PERRY_SCRATCH/reconcile5-skytonight.json`, and the independent check's
+output `$PERRY_SCRATCH/verify5-skytonight.json`. The new `events.jsonl` sha256
+is `72d3a30cc9de44f1d6ad6d538694d97e2389dee41017fecf0b3e64fde2143028`. The
+rest of this report is round 4's run, which round 5 reproduces.
 
 ## What changed in round 4
 

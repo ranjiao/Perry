@@ -1,9 +1,10 @@
 # TASK-489 — reconciliation: this repository
 
-Spec: `TASK-489-spec.md`, criteria 1–5, with § Round 3 (decided by the PMO)
-and § Round 4 (decided by the user, option B), on main at `a95fc07f`. Project
-`/Users/bytedance/proj/Perry`, state root `perry`. Round 4, run on 2026-10-07
-by the Coding Agent with the importer at `coding/task-489-importer` 7095bffd,
+Spec: `TASK-489-spec.md`, criteria 1–5, with § Round 3 (decided by the PMO),
+§ Round 4 (decided by the user, option B) and § Round 5 (the user's
+option A), on main at `c1db1f29`. Project
+`/Users/bytedance/proj/Perry`, state root `perry`. Round 5, run on 2026-10-09 (round 4 on 2026-10-07)
+by the Coding Agent with the importer at `coding/task-489-importer` 9e15fbe6 (round 4: 7095bffd),
 into a fresh temporary store only.
 
 `$PERRY_SCRATCH` below is
@@ -14,6 +15,35 @@ and the anchor is `anchor/`. The importer's own report is
 `$PERRY_SCRATCH/reconcile4-perry.json`. The independent check below is
 `$PERRY_SCRATCH/verify.py`, and its output is
 `$PERRY_SCRATCH/verify4-perry.json`.
+
+## What changed in round 5
+
+Round 5 (spec § Round 5, the user's option A) changed no rule of the import:
+
+- **The kernel's replay check (item 1).** A change replayed before its item's
+  `type` change, in the same event, is now checked against the type that event
+  sets. The importer writes every create as `type`, `state`, then the fields,
+  so no event here was affected.
+- **The importer's checks for criteria 1, 2 and 4 (item 2).** These now have
+  tests that show each one failing. The checks themselves did not change.
+- **Documents (item 3).** Only wording changed.
+
+**The result is the same import.** `items.jsonl` is byte-identical to round
+4's, sha256 `a516bd22…`. `events.jsonl` differs only in the `at` of events 1
+and 2, `init` and `template apply`, which are timed at each run's own time.
+Criteria 1–5 PASS again. The independent check gives the same counts, 0
+field mismatches and the same 251 edges. The for-TASK-492 list is the same
+three asks. The project's files were unchanged by the run: `.perry/` and
+`perry/` give `state-sha256=cd632c40a122b1ab` before and after (1,475 files;
+main has added a file since round 4). The `perry-task asks` read moved the
+mtime of the existing lock file in the system temp directory again. Neither
+state root holds a recovery marker.
+
+Round 5's work directory is `$PERRY_SCRATCH/reconcile5-perry`, its report
+`$PERRY_SCRATCH/reconcile5-perry.json`, and the independent check's output
+`$PERRY_SCRATCH/verify5-perry.json`. The new `events.jsonl` sha256 is
+`d9386bee86e7a0222cd847c2bb3a4590e41b3c5deb58e6066337affef0b69e71`. The rest
+of this report is round 4's run, which round 5 reproduces.
 
 ## What changed in round 4
 
