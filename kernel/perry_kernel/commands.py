@@ -1153,6 +1153,19 @@ def replay_check(store: Store):
                               f"event {seq}: {key}: {message}",
                               {"seq": seq, "key": key, **extra})
 
+        def type_of(item_id):
+            """The item's type: stored, or, for the event's own item, the
+            `type` this event sets. So a change replayed before its item's
+            `type` change is checked as one after it would be, and the order
+            of changes inside one event never decides whether a value is
+            checked (TASK-489 round 5). The `type` change is itself checked
+            when the replay reaches it."""
+            found = store.item_type(item_id) if item_id else None
+            if found is None and item_id is not None and item_id == primary:
+                found = next((c["after"] for c in event["changes"]
+                              if c["key"] == "type"), None)
+            return found
+
         if key.startswith("attach:"):
             # The ref check a live `attach add` or `attach remove` runs, so
             # an export cannot hand `import` a ref no command writes. The
@@ -1171,7 +1184,7 @@ def replay_check(store: Store):
                 bad("no template is in force")
             if kind not in tpl.relation_kinds(norm):
                 bad(f"the template in force declares no relation kind {kind}")
-            src_type, dst_type = store.item_type(src), store.item_type(dst)
+            src_type, dst_type = type_of(src), type_of(dst)
             if src_type is None or dst_type is None:
                 return
             try:
@@ -1210,7 +1223,7 @@ def replay_check(store: Store):
             return
         if key != "state" and not key.startswith("field:"):
             return
-        item_type = store.item_type(primary) if primary else None
+        item_type = type_of(primary)
         if item_type is None:
             return
         tdecl = (in_force() or {"types": {}})["types"].get(item_type)

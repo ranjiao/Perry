@@ -971,6 +971,85 @@ class TestTheImportersOwnChecks(InProcess):
         self.assertFalse(report["reconciled"])
 
 
+class TestTheChecksForCriteria124(InProcess):
+    """Round 5. The importer's checks for criteria 1, 2 and 4 fail when the
+    kernel's answer says they should. In round 2, forcing each one true
+    (mutants M18–M20) left every test green. Each test edits one answer of
+    the real kernel and shows that one criterion, and only it, failing."""
+
+    def edited(self, words, key, edit):
+        real = self.mod.kernel
+
+        def editing(w, data, **kw):
+            got = real(w, data, **kw)
+            if list(w) == words and (key is None or key in (data or {})):
+                edit(got)
+            return got
+
+        with mock.patch.object(self.mod, "kernel", editing):
+            r = self.main(self.project(), "--json")
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        return json.loads(r.stdout)
+
+    def only_failed(self, report, name):
+        failed = sorted(n for n, held in report["criteria"].items()
+                        if not held)
+        self.assertEqual(failed, [name])
+        self.assertFalse(report["reconciled"])
+
+    def test_criterion_1_fails_when_a_count_differs(self):
+        def one_less(got):
+            got["result"]["counts"][0]["n"] -= 1
+
+        report = self.edited(["query"], "count_by", one_less)
+        self.only_failed(report, "1_counts_per_type_and_state")
+
+    def test_criterion_2_fails_when_an_id_does_not_resolve(self):
+        def drop_one(got):
+            got["result"]["items"].pop()
+
+        report = self.edited(["query"], "ids", drop_one)
+        self.only_failed(report, "2_every_old_id_resolves")
+        self.assertEqual(len(report["kernel"]["ids"]["missing_or_wrong_type"]),
+                         1)
+
+    def test_criterion_2_fails_when_an_id_has_another_type(self):
+        def retype(got):
+            item = got["result"]["items"][0]
+            item["type"] = "ask" if item["type"] != "ask" else "risk"
+
+        report = self.edited(["query"], "ids", retype)
+        self.only_failed(report, "2_every_old_id_resolves")
+
+    def test_criterion_4_fails_when_the_second_import_is_not_refused(self):
+        for name, edit in (
+                ("accepted", lambda g: g.update(ok=True, exit=0, error=None)),
+                ("refused for another reason",
+                 lambda g: g["error"].update(code="export_invalid"))):
+            with self.subTest(case=name):
+                self.work = self.tmp / name.replace(" ", "-")
+                real = self.mod.kernel
+                calls = {"import": 0}
+
+                def second_import(w, data, edit=edit, real=real,
+                                  calls=calls, **kw):
+                    got = real(w, data, **kw)
+                    if list(w) == ["import"]:
+                        calls["import"] += 1
+                        if calls["import"] == 2:
+                            edit(got)
+                    return got
+
+                base = self.tmp / f"{name}-proj".replace(" ", "-")
+                with mock.patch.object(self.mod, "kernel", second_import):
+                    r = self.main(make_project(base), "--json")
+                self.assertEqual(r.returncode, 1, r.stderr)
+                report = json.loads(r.stdout)
+                self.only_failed(
+                    report, "4_import_refuses_a_store_that_is_not_empty")
+
+
 class TestThePerryTaskRead(InProcess):
     """Round 4. The ask ids come from `perry-task asks --all --json`, run as
     a subprocess. It runs only when the project holds an ask, it must write

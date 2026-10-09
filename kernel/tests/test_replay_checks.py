@@ -447,6 +447,70 @@ class TestAnAttachRef(Case):
         self.assert_imported(r)
 
 
+class TestTheOrderInsideAnEvent(Case):
+    """TASK-489 round 5 (the second V4 review's FAIL 1). A change replayed
+    before its item's `type` change, in the same event, is checked as it
+    would be after it. Before, the check stepped aside for an item with no
+    type yet, the store wrote the value row anyway, and the later `type`
+    change created the item: an enum value outside its list, an undeclared
+    field or a wrong-kind value imported. Each kind of change is planted in
+    a new item's create, once before `type` and once after."""
+
+    NEW = "W-003"
+
+    def plant(self, change, before_type):
+        ex = self.export()
+        typed = [{"key": "type", "before": None, "after": "widget"}]
+        rest = [{"key": "state", "before": None, "after": "queued"}]
+        if change["key"] == "state":
+            rest = []
+        changes = ([change] + typed + rest if before_type
+                   else typed + rest + [change])
+        seq = ex.plant(changes, [self.NEW] + (
+            [self.g] if change["key"].startswith("rel:") else []),
+            command="item create", touch=False)
+        ex.items.append(new_item(self.NEW, "widget", "queued",
+                                 widget_fields(), seq))
+        _other, r = ex.run()
+        return seq, r
+
+    CASES = (
+        ({"key": "field:bench", "before": None, "after": "west"},
+         "\"west\" is not one of"),
+        ({"key": "field:colour", "before": None, "after": "red"},
+         "widget declares no field colour"),
+        ({"key": "field:label", "before": None, "after": 7},
+         "a text value is a string"),
+        ({"key": "state", "before": None, "after": "lost"},
+         "widget has no state \"lost\""),
+        ({"key": f"rel:pairs_with:{NEW}:G-1", "before": False, "after": True},
+         "pairs_with goes from widget to widget"),
+        ({"key": "attach:", "before": None, "after": {"hash": None}},
+         "non-empty string"),
+    )
+
+    def test_each_kind_of_change_is_checked_in_either_order(self):
+        for change, fragment in self.CASES:
+            for before_type in (True, False):
+                with self.subTest(key=change["key"], before_type=before_type):
+                    seq, r = self.plant(dict(change), before_type)
+                    self.assert_refused(r, seq, change["key"], fragment)
+
+    def test_a_value_the_template_allows_imports_before_type(self):
+        """The control: the check does not refuse a change for its place.
+        A declared field with a declared value, before `type`, imports."""
+        ex = self.export()
+        seq = ex.plant([{"key": "field:bench", "before": None,
+                         "after": "south"},
+                        {"key": "type", "before": None, "after": "widget"},
+                        {"key": "state", "before": None, "after": "queued"}],
+                       [self.NEW], command="item create", touch=False)
+        ex.items.append(new_item(self.NEW, "widget", "queued",
+                                 widget_fields(bench="south"), seq))
+        _other, r = ex.run()
+        self.assert_imported(r)
+
+
 class TestTheImportIdCap(Case):
     """F2: `import` takes no id numbered above 2^53 (`commands._export_id`),
     so a store never holds an id its own mint could not follow. Its only
