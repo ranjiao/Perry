@@ -236,6 +236,31 @@ third V4 review. Round 5 continues on `coding/task-489-importer` from
      covers `bin/ARCHITECTURE.md:113–114`, `bin/README.md:62`, the docstring
      `:17` and the refusal message.
 
+## Round 6, decided by the user 2026-10-09 (option A)
+
+V4 round 3 failed on `44cfbb53` (`TASK-489-review-round3.md`). The cause was
+a crafted export: inside one event, a template change placed between an
+item's field change and its `type` change let a value through that the new
+template forbids. The user chose a structural rule over another ordering
+patch, and a narrow V4 check of round 6 alone.
+
+1. **One event never mixes a template change with item changes.** Kernel
+   `import` refuses such an event with `export_invalid`. No kernel command
+   writes one. The rule is generic: no template name appears in kernel
+   source. A test covers it, and a mutant turns the test red. § 5.8 step 2
+   says so, and its claim that "order never decides" is corrected to match
+   the code.
+2. **A pending recovery marker stops the import, whether or not the project
+   has asks.** Before reading anything, the importer checks the state root
+   with the existing reader (`parsers.scan_recovery`, or whatever the project
+   uses to report a pending marker). It refuses if a marker is pending. A
+   test covers it, and a mutant turns the test red. The documents' recovery
+   wording is updated to match, and the round-4 architecture review's
+   "most likely" wording is applied.
+3. **The V4 check that follows is narrow.** It covers round 6's two items and
+   confirms that both projects' `items.jsonl` are byte-identical to round 5's.
+   The other criteria were re-derived in rounds 1–3 and are not re-run.
+
 ## Out of scope
 - OKR, design and ADR records (TASK-492).
 - Historic prose.
@@ -264,3 +289,4 @@ The stores listed under Deliverable, for two projects, and the six acceptance cr
 - 2026-10-07 — Round 3 added after round 1's V4 FAIL (`TASK-489-review-round1.md`): the one blank rule, ask answers, the risk state and reason, references, kernel errors, ceilings, the importer's self-checks, replay of `attach:` refs, and the candidate's own documents.
 - 2026-10-07 — Round 4 added: the user's option B on the round-2 architecture block (no split of the importer's own; no NN-1 exception), and four module-document corrections.
 - 2026-10-09 — Round 5 added: the user's option A after the second V4 FAIL (replay order, the importer's self-checks, documents).
+- 2026-10-09 — Round 6 added after V4 round 3's FAIL: the user's option A (no event mixes a template change with item changes; a pending recovery marker always stops the import; a narrow V4 check).
