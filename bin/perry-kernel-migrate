@@ -16,11 +16,12 @@ the export under `<dir>/anchor/`, runs `bin/perry-kernel import` into
 `<dir>/store.db`, and reads the store back through the kernel to check
 DESIGN-023 row D's criteria 1–5. It writes nothing outside `<dir>`, which must
 be empty or absent and outside the project and any `.git`, and it names that
-store with `--store` on every kernel call. One case writes the project, and
-the importer does not write it: a `perry-task` recovery marker left pending
-by a crashed command is completed by the `perry-task asks` read, as by any
-`perry-task` command. The importer sees the changed file, names it and
-stops before `<dir>` is created. The run is reconciled when the five
+store with `--store` on every kernel call. Before it reads any store, it
+refuses a project whose state root holds a pending `perry-task` recovery
+marker (`parsers.scan_recovery`), asks or no asks. It also compares the
+project's files before and after its `perry-task asks` read, and stops if
+any changed; the most likely cause is a recovery marker that appeared during
+the run and that read completed. The run is reconciled when the five
 criteria hold, every reference resolves to an imported id or is a key result
 in either form, `O1-KR1` or `P003-O2-KR3`, listed for TASK-492, and the
 kernel refused no reconciliation call.
@@ -713,11 +714,13 @@ def ask_blocks(plan: Plan, project_root: Path, state_root: Path) -> None:
     """Fill `plan.blocks_ids` from `perry-task asks --all --json`.
 
     Run only when the ask store holds a row, so a project with no asks runs
-    nothing. `perry-task` finishes a pending write a crashed command left
-    behind before any command, reads included. So the files under the state
-    root and `.perry/` are compared before and after the read, and a read
-    that changed one stops the import. The payload must cover exactly the
-    store's asks, each with its `Blocks` cell and a `blocks_ids` list."""
+    nothing. A pending recovery marker was refused before any read
+    (`planned`), but `perry-task` completes one before any command, reads
+    included, so one that appeared since would be written by this read. The
+    files under the state root and `.perry/` are compared before and after
+    the read, and a read that changed one stops the import. The payload
+    must cover exactly the store's asks, each with its `Blocks` cell and a
+    `blocks_ids` list."""
     asks = plan.stores.get("asks") or []
     if not asks:
         return
@@ -729,11 +732,11 @@ def ask_blocks(plan: Plan, project_root: Path, state_root: Path) -> None:
                          | {p for p in set(before) & set(after)
                             if before[p] != after[p]})
         raise Refused(f"perry-task asks changed {len(changed)} file(s) under "
-                      f"the project, the first {changed[0]}. A perry-task "
-                      f"command completes a recovery marker a crashed write "
-                      f"left pending, and that read just did; the importer "
-                      f"itself wrote nothing there. Stopped before the "
-                      f"import: inspect the change, then run it again.",
+                      f"the project, the first {changed[0]}. The most likely "
+                      f"cause is a pending recovery marker, which any "
+                      f"perry-task command completes; the importer itself "
+                      f"wrote nothing there. Stopped before the import: "
+                      f"inspect the change, then run it again.",
                       {"changed": changed})
     rows = payload.get("asks")
     if not isinstance(rows, list) or not all(
@@ -835,6 +838,18 @@ def planned(project_root: Path, work) -> tuple:
         check_work(work, project_root)
     state_root = Path(P.resolve_state_root(project_root)).resolve()
     rel = state_root.relative_to(project_root).as_posix()
+    # Before any store is read (TASK-489 round 6): a `perry-task` write a
+    # crashed command left pending means the stores may be half-written, and
+    # any `perry-task` command would complete it. `parsers.scan_recovery` is
+    # the reader `perry-state` reports it through.
+    pending = P.scan_recovery(state_root, project_root)["pending_transactions"]
+    if pending:
+        raise Refused(f"{pending[0]['path']} is a pending perry-task recovery "
+                      f"marker: a write a crashed command left half done. The "
+                      f"stores may not be what they claim, so nothing is "
+                      f"read. Let any perry-task command complete it (or "
+                      f"repair it), check the result, then run the import "
+                      f"again.", {"pending_transactions": pending})
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
     for spec in MAPPING.values():
         if spec["type"] not in template["types"]:

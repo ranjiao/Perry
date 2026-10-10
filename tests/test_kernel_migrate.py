@@ -1068,21 +1068,62 @@ class TestThePerryTaskRead(InProcess):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue(json.loads(r.stdout)["reconciled"])
 
+    MARKER = ".perry-task-transaction.json"
+
+    def test_a_pending_marker_stops_the_import_asks_or_no_asks(self):
+        """Round 6. A pending `perry-task` recovery marker, as
+        `parsers.scan_recovery` reports it, stops the import before any
+        store is read: on a project with no ask (SkyTonight's shape), where
+        no `perry-task` runs, and on one with asks. The marker is left as it
+        was, and nothing is written."""
+        for name, asks in (("no-ask", []), ("asks", ASKS)):
+            with self.subTest(project=name):
+                base = self.tmp / name
+                self.work = base / "work"
+                root = make_project(base, tasks=[task("TASK-001", "done")],
+                                    asks=asks, events=[])
+                marker = root / "state" / self.MARKER
+                body = json.dumps({"version": 1, "entries": []})
+                marker.write_text(body, "utf-8")
+                for flags in (["--work", str(self.work)], []):
+                    r = migrate("--root", str(root), *flags)
+                    self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                    self.assertIn(f"state/{self.MARKER} is a pending "
+                                  f"perry-task recovery marker", r.stderr)
+                    self.assertNotIn("Traceback", r.stderr)
+                    self.assertEqual(marker.read_text("utf-8"), body)
+                    self.assertFalse(self.work.exists())
+
     def test_a_read_that_writes_stops_the_import(self):
-        """`perry-task` finishes a write a crashed command left pending
-        before any command, reads included. A pending marker with nothing to
-        finish is removed by `perry-task asks`, so the read changes the
-        project, and the import stops before anything is written."""
+        """A marker that appears after the check, and that the
+        `perry-task asks` read completes, is caught by comparing the
+        project's files before and after the read. The marker stages one
+        file; completing it renames the staged file into place."""
         root = self.project()
-        marker = root / "state" / ".perry-task-transaction.json"
-        marker.write_text(json.dumps({"version": 1, "entries": []}), "utf-8")
-        r = migrate("--root", str(root), "--work", str(self.work))
+        state = root / "state"
+        marker = state / self.MARKER
+        real = self.mod.run_perry_task_asks
+
+        def marker_appears(project_root):
+            staged = b"staged by a crashed write\n"
+            (state / "note.json.tmp").write_bytes(staged)
+            marker.write_text(json.dumps({"version": 1, "phase": "commit",
+                                          "entries": [{
+                "target": "note.json", "tmp": "note.json.tmp",
+                "new_sha256": hashlib.sha256(staged).hexdigest()}]}), "utf-8")
+            return real(project_root)
+
+        with mock.patch.object(self.mod, "run_perry_task_asks",
+                               marker_appears):
+            r = self.main(root)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("perry-task asks changed 1 file(s) under the project",
                       r.stderr)
-        self.assertIn(".perry-task-transaction.json", r.stderr)
+        self.assertIn("most likely cause is a pending recovery marker",
+                      r.stderr)
         self.assertNotIn("Traceback", r.stderr)
         self.assertFalse(marker.exists(), "perry-task did not finish it")
+        self.assertTrue((state / "note.json").exists())
         self.assertFalse(self.work.exists(), "a refusal writes nothing")
 
     def edited_payload(self, edit):

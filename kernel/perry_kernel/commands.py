@@ -1108,6 +1108,18 @@ def _event_shape(event: dict, n: int) -> None:
                     change["before"] is None
                     or isinstance(change["before"], str)):
                 bad(f"{key} is a string, and its before a string or null")
+    # One event never mixes a template change with an item's changes
+    # (TASK-489 round 6). `template apply` writes the `template` change
+    # alone, and no other command writes one, so the template in force is
+    # the same for every item change of an event, and a value cannot slip
+    # past it by sitting before a template change in the same event.
+    keys = [c["key"] for c in event["changes"]]
+    if "template" in keys and any(
+            k in ("type", "state") or k.startswith(("field:", "rel:",
+                                                     "attach:"))
+            for k in keys):
+        bad("a template change shares its event with item changes; no "
+            "command writes such an event")
 
 
 def replay_check(store: Store):

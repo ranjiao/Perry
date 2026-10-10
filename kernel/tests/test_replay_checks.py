@@ -511,6 +511,59 @@ class TestTheOrderInsideAnEvent(Case):
         self.assert_imported(r)
 
 
+class TestATemplateChangeStandsAlone(Case):
+    """TASK-489 round 6 (V4 round 3's FAIL). An event never mixes a template
+    change with item changes: `template apply` writes it alone, and no other
+    command writes one. The crafted input was one event holding a field
+    change, then a template change that forbids the value, then the item's
+    `type`; the field was checked under the old template and the strand
+    check could not see the untyped item. Every order of such an event is
+    now refused as a line that breaks § 5.8."""
+
+    NEW = "W-003"
+
+    def mixed(self, order):
+        narrower = template(version=2)
+        narrower["types"]["widget"]["fields"]["bench"]["values"] = ["north"]
+        parts = {
+            "field": {"key": "field:bench", "before": None, "after": "south"},
+            "template": {"key": "template", "before": None,
+                         "after": narrower},
+            "type": {"key": "type", "before": None, "after": "widget"},
+        }
+        ex = self.export()
+        changes = [parts[p] for p in order] + [
+            {"key": "state", "before": None, "after": "queued"}]
+        seq = ex.plant(changes, [self.NEW], command="item create",
+                       touch=False)
+        ex.items.append(new_item(self.NEW, "widget", "queued",
+                                 widget_fields(bench="south"), seq))
+        _other, r = ex.run()
+        return seq, r
+
+    def test_the_reviewers_order_is_refused(self):
+        seq, r = self.mixed(("field", "template", "type"))
+        self.assertEqual((r.code, r.code_name), (1, "export_invalid"), r)
+        self.assertEqual(r.details["line"], seq)
+        self.assertIn("a template change shares its event with item changes",
+                      r.env["error"]["message"])
+
+    def test_every_order_is_refused_alike(self):
+        import itertools
+        for order in itertools.permutations(("field", "template", "type")):
+            with self.subTest(order=order):
+                _seq, r = self.mixed(order)
+                self.assertEqual(r.code_name, "export_invalid", r)
+                self.assertIn("shares its event with item changes",
+                              r.env["error"]["message"])
+
+    def test_a_template_change_alone_still_imports(self):
+        """The control: `template apply`'s own event, alone, replays."""
+        self.sb.apply(template(version=2))
+        _other, r = self.export().run()
+        self.assert_imported(r)
+
+
 class TestTheImportIdCap(Case):
     """F2: `import` takes no id numbered above 2^53 (`commands._export_id`),
     so a store never holds an id its own mint could not follow. Its only
