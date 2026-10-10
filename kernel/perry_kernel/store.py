@@ -227,13 +227,18 @@ class Store:
 
     @classmethod
     def open(cls, path, *, write: bool) -> "Store":
-        """Open an initialised store and begin the command's transaction."""
+        """Open an initialised store and begin the command's transaction.
+
+        The deadline is set before the probe, not after it (TASK-489, F4): a
+        probe that waited out a busy store leaves the steps below only what
+        remains of the 5 s, so `store_busy` comes within 5 s of the call
+        rather than after the probe's wait and a whole deadline more."""
+        deadline = _deadline()
         state = cls.probe(path)
         if state in ("absent", "empty"):
             raise KernelError("store_missing",
                               f"{path} has not been initialised; run init",
                               {"store": str(path)})
-        deadline = _deadline()
         try:
             conn = cls._connect(path, create=False)
             mode = _retrying(lambda: conn.execute(
@@ -505,19 +510,26 @@ class Store:
         raise KernelError("export_invalid", f"unknown change key {key}",
                           {"key": key})
 
-    def apply_event(self, event: dict, *, mismatch: str) -> None:
+    def apply_event(self, event: dict, *, mismatch: str, check=None) -> None:
         """Replay: apply the changes, then append the event."""
-        self.apply_changes(event, mismatch=mismatch)
+        self.apply_changes(event, mismatch=mismatch, check=check)
         self.append_event(event)
 
-    def apply_changes(self, event: dict, *, mismatch: str) -> None:
+    def apply_changes(self, event: dict, *, mismatch: str,
+                      check=None) -> None:
         """Apply every change of `event` and bump each touched item's seq.
         `items[0]` is the item that the `type`, `state`, `field:` and
         `attach:` keys belong to.
 
         Every change's `before` is compared with the stored value first. A
         replay that disagrees is `export_invalid`; a live write that disagrees
-        is a kernel defect, so the caller passes `internal`."""
+        is a kernel defect, so the caller passes `internal`.
+
+        `check(event, primary, key, after)`, when given, runs after the
+        before comparison and before the change lands, so it sees the store
+        as the event's earlier changes left it. `import` passes the check
+        that holds a replayed value to the template in force (TASK-489); a
+        live write has already checked its values against the template."""
         seq, at = event["seq"], event["at"]
         items = event["items"]
         primary = items[0] if items else None
@@ -531,6 +543,8 @@ class Store:
                     f"event {seq}: {key} is {canonical(now)} in the store, "
                     f"and the event says it was {canonical(before)}",
                     {"seq": seq, "key": key, "stored": now, "before": before})
+            if check is not None:
+                check(event, primary, key, after)
             self._apply_change(primary, key, after, seq, at)
         for item_id in items:
             self.q("UPDATE item SET seq = ?, updated_at = ? WHERE id = ?",
@@ -561,6 +575,18 @@ class Store:
             self._raise_ceiling(key[len("ceiling:"):], after)
         elif key.startswith("rel:"):
             _, kind, src, dst = key.split(":", 3)
+            if self.has_edge(kind, src, dst) == bool(after):
+                # No command writes a relation change that flips nothing: `rel
+                # add` of an edge that exists, and `rel remove` of one that
+                # does not, are `unchanged` and append no event (NN-K8). A
+                # replayed one is refused for every kind alike, so a no-op
+                # `parent` change and a no-op `blocks` change get one answer
+                # (TASK-487 round 3, F1; decided in TASK-489).
+                raise KernelError(self._mismatch,
+                                  f"event {seq}: {key} changes nothing; the "
+                                  f"edge is already "
+                                  f"{'there' if after else 'absent'}",
+                                  {"seq": seq, "key": key})
             if after:
                 for end in (src, dst):
                     if self.item_type(end) is None:
@@ -620,9 +646,13 @@ class Store:
         if src == dst:
             refuse("relation_invalid", f"{src} cannot relate to itself")
         if kind == "parent":
-            # The edge being added is never among these: every path reaches
-            # here only once the change's `before` (false) has matched the
-            # store, so src -> dst does not exist yet.
+            # The edge being added is never among these. A live write reaches
+            # here only for an edge that is absent: `rel add` of an existing
+            # edge is `unchanged` before it gets this far, and `item create`
+            # makes edges to an item that did not exist. A replayed change
+            # reaches here only if it flips the edge: `_apply_change` refuses
+            # one whose edge is already there (`before: true, after: true`)
+            # first. So src -> dst does not exist yet on any path.
             others = [d for _k, _s, d in self.edges(kind="parent", src=src)]
             if others:
                 refuse("relation_invalid", f"{src} already has a parent, "

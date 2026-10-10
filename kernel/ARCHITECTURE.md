@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: —
 > Version: v1
-> Last reviewed: 2026-09-26
+> Last reviewed: 2026-10-07
 > Module document for the `kernel/` component. [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2 names it; the user confirmed that entry on 2026-09-24 (merged in 34d7be63).
 > Cap: ≤ 600 lines. This is the kernel's specification, written before any kernel code exists (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
 > Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`, the root document's convention under `kernel/`. § 5 is split out.
@@ -72,14 +72,25 @@ and DESIGN-023 § 7 makes that a revision of the design, not a new row.
 ```mermaid
 flowchart TD
     Skill["skill — SKILL.md, lanes, templates/process/*.json<br/>markdown and data"] -->|"argv + JSON in"| CLI["kernel executable<br/>thin wrapper"]
+    Migrate["bin/perry-kernel-migrate<br/>row D's one-shot importer, deleted at row H"] -->|"subprocess: argv + JSON in<br/>--store and --root always named"| CLI
     CLI -->|imports| Pkg["perry_kernel<br/>stdlib only"]
     Pkg -->|"sqlite3, WAL"| Store[("store<br/>&lt;git-common-dir&gt;/perry/&lt;slug&gt;.db")]
     Pkg -->|"export writes and compares · import loads"| Export[("&lt;state root&gt;/export/<br/>items.jsonl · events.jsonl")]
     Pkg -.->|"reads .git and commondir<br/>for the path rule"| Git[(".git metadata")]
     CLI -->|"JSON out"| Skill
+    CLI -->|"JSON out"| Migrate
 ```
 
-Allowed directions: skill → kernel → store. There are no others.
+Besides the skill, `bin/perry-kernel-migrate`, DESIGN-023 § 6 row D's one-shot
+importer (TASK-489), calls the CLI until row H deletes it. It runs the CLI as a
+subprocess, with `--store` and `--root` always named and `PERRY_KERNEL_TESTING`
+set (§ 5.7). It imports nothing from `perry_kernel`, and it reaches the store
+only through the CLI, as the skill does (`bin/ARCHITECTURE.md` § 2). The test
+suites also run the CLI, and `bin/perry` forwards `perry kernel …` to the
+wrapper's `main` in-process.
+
+Allowed directions: skill → kernel → store, where each caller named above
+stands in the skill's place. There are no others.
 
 Forbidden:
 - **Importing anything outside the stdlib and `perry_kernel`**, `bin/`, `viewer/` and
@@ -240,6 +251,34 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
 
 ## §8. Change log
 
+- 2026-10-09 · v1 · TASK-489 round 6. § 5.8 step 2: `import` refuses an event that mixes a
+  `template` change with item changes (`commands._event_shape`); no command writes one.
+  The claim that order inside an event never decides a check now rests on that rule and
+  the round-5 type rule together. No command, error code or key is added; `surface`
+  stays 1.0.
+- 2026-10-09 · v1 · TASK-489 round 5. In `architecture/sections/§5-contracts.md`, § 5.8 step 2
+  says what the replay check covers and what it does not, and that a change before its
+  item's `type` change in one event is checked against the type that event sets
+  (`commands.replay_check`). No command, error code or key is added; `surface` stays 1.0.
+- 2026-10-07 · v1 · TASK-489 round 4. § 3's allowed-directions line says each caller named
+  above it stands in the skill's place, so "There are no others" agrees with the callers it
+  lists. The direction itself, caller → kernel → store and nothing back, is unchanged.
+- 2026-10-07 · v1 · TASK-489 round 3. § 3's diagram and text name `bin/perry-kernel-migrate`,
+  row D's one-shot importer, as a caller of the CLI besides the skill until row H, and say
+  that the test suites and `bin/perry`'s forward also run it; the allowed-directions line
+  is unchanged. In `architecture/sections/§5-contracts.md`: § 5.8 step 2 says the
+  replay holds an `attach:` ref to the check a live `attach add` or `attach remove` runs
+  (`commands.check_attachment`), and § 5.7's prevention layer says the importer sets
+  `PERRY_KERNEL_TESTING` too, as a safety switch. No command, error code or key is added,
+  and `surface` stays 1.0.
+- 2026-09-29 · v1 · TASK-489, the import items carried from TASK-487. In
+  `architecture/sections/§5-contracts.md`: § 5.8 step 2 says `import` holds each replayed
+  change to the template in force when its event was written (a template change must
+  rise and strand nothing, and a type is set once), and refuses a relation change that
+  flips nothing for every kind (F1); § 5.1 says a damaged `export_token` is
+  `store_corrupt` (F6) and that `export_invalid` covers a replayed change; § 5.7 says an
+  open sets its busy deadline before it probes (F4). No command, error code or key is
+  added, and `surface` stays 1.0.
 - 2026-09-29 · v1 · TASK-488 round 2, DESIGN-023 decision 13. § 3 says Goal 1's grep
   matches a template name as a string literal, not as a whole word. `describe`'s per-command
   description key is renamed `purpose` (`surface` stays 1.0, unreleased); § 5.6 names it.

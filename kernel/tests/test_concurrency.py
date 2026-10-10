@@ -299,5 +299,124 @@ class TestBusyIsWaitedOut(unittest.TestCase):
         self.assertGreaterEqual(waited, 0.3)
 
 
+class TestOpenRetriesAndItsDeadline(unittest.TestCase):
+    """F4 (TASK-487 round 3; TASK-489). `Store.open` retries each of its own
+    steps, which no test reached: the class above injects busies into `init`,
+    whose store does not exist yet, so it runs `Store.create` and the probe,
+    never `open`. And the deadline had only a lower bound: nothing showed a
+    busy store is given up on AT the deadline rather than some time after
+    it, and the probe and the open each started a 5 s deadline of their own.
+    """
+
+    #: `open`'s own statements. The probe runs none of the first two and
+    #: reads with a plain `BEGIN`, so a busy counted only once `open` has
+    #: begun (armed by its first statement) is one of `open`'s.
+    WRITE = ("PRAGMA journal_mode", "PRAGMA synchronous = FULL",
+             "BEGIN IMMEDIATE")
+    READ = ("PRAGMA journal_mode", "PRAGMA synchronous = FULL", "BEGIN",
+            "SELECT value FROM meta WHERE key = 'format'")
+
+    def invoke(self, sb, words, data, hook):
+        from support import clean_env
+        from perry_kernel import cli
+        with interposing(hook):
+            code, out, _err = cli.invoke(
+                [*words, "--input", json.dumps(data), "--store",
+                 str(sb.store), "--root", str(sb.root)],
+                clean_env(), str(sb.root))
+        return code, json.loads(out)
+
+    def busy_in_open(self, statement, times):
+        import sqlite3
+        left = {"n": times, "armed": False}
+
+        def hook(sql, when):
+            if when != "before":
+                return
+            if sql == "PRAGMA journal_mode":
+                left["armed"] = True
+            if left["armed"] and sql == statement and left["n"] > 0:
+                left["n"] -= 1
+                raise sqlite3.OperationalError("database is locked")
+        return hook, left
+
+    def test_each_step_of_a_write_open_is_retried(self):
+        from support import ACTOR as actor
+        sb = Sandbox(self).ready()
+        for statement in self.WRITE:
+            with self.subTest(statement=statement):
+                hook, left = self.busy_in_open(statement, 3)
+                code, env = self.invoke(
+                    sb, ["item", "create"],
+                    {"actor": actor, "type": "widget",
+                     "fields": {"bench": "north"}}, hook)
+                self.assertEqual((code, env["effect"]), (0, "written"), env)
+                self.assertEqual(left["n"], 0, "the busies were injected")
+
+    def test_each_step_of_a_read_open_is_retried(self):
+        sb = Sandbox(self).ready()
+        for statement in self.READ:
+            with self.subTest(statement=statement):
+                hook, left = self.busy_in_open(statement, 3)
+                code, env = self.invoke(sb, ["events"], {"limit": 1}, hook)
+                self.assertEqual((code, env["effect"]), (0, "read"), env)
+                self.assertEqual(left["n"], 0, "the busies were injected")
+
+    def test_a_retry_stops_at_its_deadline(self):
+        """The upper bound of `_retrying` itself: it gives up at the deadline,
+        after at most one short sleep more. A loop that ignored the deadline
+        would run until the stand-in stops being busy at 3 s, and return."""
+        import sqlite3
+        from perry_kernel import store as store_mod
+        calls = {"n": 0}
+        began = time.monotonic()
+
+        def always_busy():
+            calls["n"] += 1
+            if time.monotonic() - began > 3.0:
+                return "no longer busy"
+            raise sqlite3.OperationalError("database is locked")
+
+        with self.assertRaises(sqlite3.OperationalError):
+            store_mod._retrying(always_busy, began + 0.2)
+        waited = time.monotonic() - began
+        self.assertGreaterEqual(waited, 0.2)
+        self.assertLess(waited, 0.2 + 0.25)
+        self.assertGreater(calls["n"], 1, "it retried before giving up")
+
+    def test_the_probe_and_the_open_share_one_deadline(self):
+        """`store_busy` means the lock was not acquired within the timeout
+        of the call (§ 5.1). The probe here is busy for most of the timeout
+        and the write lock never frees: one shared deadline gives up at the
+        timeout; a deadline per step would wait the probe's share and then a
+        whole timeout more."""
+        import sqlite3
+        from unittest import mock
+        from support import ACTOR as actor
+        from perry_kernel import store as store_mod
+        sb = Sandbox(self).ready()
+        timeout, probe_busy = 0.6, 0.4
+        began = {"t": None}
+
+        def hook(sql, when):
+            if when != "before":
+                return
+            elapsed = time.monotonic() - began["t"]
+            if (sql == "BEGIN" and elapsed < probe_busy) or \
+                    sql == "BEGIN IMMEDIATE":
+                raise sqlite3.OperationalError("database is locked")
+
+        with mock.patch.object(store_mod, "BUSY_TIMEOUT_S", timeout):
+            began["t"] = time.monotonic()
+            code, env = self.invoke(sb, ["item", "create"], {
+                "actor": actor, "type": "widget",
+                "fields": {"bench": "north"}}, hook)
+            waited = time.monotonic() - began["t"]
+        self.assertEqual((code, env["error"]["code"]), (1, "store_busy"), env)
+        self.assertGreaterEqual(waited, timeout)
+        self.assertLess(waited, timeout + 0.25,
+                        "the open started a deadline of its own")
+
+
 if __name__ == "__main__":
     unittest.main()

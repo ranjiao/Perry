@@ -27,7 +27,7 @@ tool's own `SURFACE` declaration, so it cannot go stale: `perry list --tools`
 is one line per tool, `perry describe <tool> [<subcommand>]` is the detail, and
 `perry <tool> …` runs one.
 
-**The table below is hand-maintained and is not that index.** Six tools declare
+**The table below is hand-maintained and is not that index.** Seven tools declare
 a surface today and fourteen do not. One of the fourteen, `perry-kernel`,
 describes itself through `perry-kernel describe`, so this table is the only
 place the other thirteen are described at all — and the price is that its cells can drift from
@@ -59,6 +59,7 @@ statements it was fixing.
 | [`perry-codex-preflight`](perry-codex-preflight) | cache only | Verifies the `codex` CLI is installed, recent enough and actually responds, before a dispatch depends on it. |
 | [`perry-dispatch-limit`](perry-dispatch-limit) | cache only | Reserves and frees concurrency slots so a session can't fan out unbounded dispatches. |
 | [`perry-kernel`](perry-kernel) | **write** + read | The DESIGN-023 kernel CLI: a thin wrapper over the `perry_kernel` package in `kernel/`, one store per project anchor, JSON in and JSON out. No lane writes through it yet; `bin/` stays the live writer until each lane cuts over. `perry-kernel describe` prints its surface, and [`kernel/ARCHITECTURE.md`](../kernel/ARCHITECTURE.md) is its specification. |
+| [`perry-kernel-migrate`](perry-kernel-migrate) | read; writes only under `--work` | DESIGN-023 row D's one-shot importer (TASK-489). It reads a project's `tasks.jsonl`, register stores and `.perry/events.jsonl`, and each ask's `Blocks` ids from `perry-task asks --all --json`, writes a synthetic kernel export into a scratch anchor, runs `perry-kernel import` into a scratch store, and reconciles counts, ids, ceilings, the non-empty refusal, the replay and every reference. It refuses a project with a pending `perry-task` recovery marker before reading any store, and writes nothing in the project itself; if a project file still changes across its `perry-task asks` read, most likely a marker that read completed, it names the file and stops before importing. Every kernel call names its store. Deleted at row H with the rest of the old `bin/`. The mapping: [below](#perry-kernel-migrate). |
 
 **Eight tools write project files: `perry-task`, `perry-tasks`,
 `perry-goals`, `perry-okr`, `perry-config`, `perry-decide`,
@@ -822,3 +823,119 @@ It reads one key of one record kind and nothing else. The register name travels
 with the value, because a budget that stops a run has to name the file a reader
 can edit to argue with it; a store that does not carry the key is an answer,
 and the schema default stands.
+
+
+### `perry-kernel-migrate`
+
+**Why it is in `bin/` and not in the kernel.** It must name the old stores'
+fields and the template's, and the kernel may name neither (DESIGN-023 Goal 1).
+So it is a one-shot tool beside the readers it uses, and row H deletes it with
+them once row E has migrated both projects (TASK-489 § Decided 2026-09-29).
+
+**What it reads, and through what.** The five register stores are read through
+`perry_store.load_board_stores`, the state root through
+`parsers.resolve_state_root`, and `.perry/events.jsonl` through
+`parsers.load_register_store`. That is not the only JSONL reader in
+`viewer/parsers.py`: `load_task_store`, `load_okr_store` and
+`load_linkage_store` each read their own store. It is the generic one, and no
+reader made for the event log is shared. It reads any JSONL file under a
+directory and refuses a malformed line rather than skipping it, which is the
+right answer for a migration. Times go through `lib.ts_moment`, the one
+converter. An ask's status goes through `parsers.ask_is_answered` and
+`parsers.ask_answer`, and a risk's through `parsers.status_is_cleared`. It
+also reads `templates/process/perry.json`, the process template, as data, not
+as a state file.
+
+**It holds no split of its own** (TASK-489 round 4, the user's option B; root
+`ARCHITECTURE.md` § 3 and NN-1):
+- a task's `depends_on` entries are taken whole. `tasks.jsonl` holds them as
+  `perry-task § parse_depends` output, one id per entry;
+- an ask's `Blocks` ids are the `blocks_ids` that `perry-task asks --all
+  --json` publishes, its `_BLOCKS_ID` reading of each cell. The importer runs
+  it as a subprocess, with `--root` set to the project, and only when the
+  project holds an ask. The payload must cover exactly the store's asks and
+  cells. A pending `perry-task` recovery marker was already refused before
+  any read (`parsers.scan_recovery`), asks or no asks. The read must still
+  change no file under the state root or `.perry/`: `perry-task` completes a
+  pending marker before any command, so a change is most likely a marker
+  that appeared since, and the import stops. Like every `perry-task`
+  command, it takes the project lock, a file in the system temp directory;
+- a key-result id is one that matches the id pattern
+  `schema/state-schema.json` declares for a `kr` record of `linkage.jsonl`,
+  read through `lib.load_schema`, as `perry-goals` reads it. It takes both
+  forms `_BLOCKS_ID` returns, `O1-KR1` and `P003-O2-KR3`.
+
+**The mapping is DESIGN-023 decision 13's, with TASK-489's round-3 and round-4 rules.**
+- **Tasks.** A task keeps `title`, `summary`, `priority`, `owner`, `track`,
+  `verification`, `next_action` and `evidence`. Its `status` is the state,
+  `depends_on` becomes `blocks` edges, and `design_refs` become attachments.
+- **Asks.** An ask's `needed` is `question`, and its `status` and `answered`
+  are the state. An answered ask's `answer` is the text `parsers.ask_answer`
+  returns. Where that text is empty, as for `withdrawn …`, the `answer` is the
+  status cell verbatim.
+- **Risks.** A risk's `risk` is `concern`. It is cleared when
+  `parsers.status_is_cleared` says so, and its `reason` is then the status
+  cell verbatim. An `open` risk stays `open`.
+- **The closing field.** An `answer` or a `reason` is set by the item's one
+  move, the event that closes it.
+- **References.** Each `depends_on` entry and each of an ask's `blocks_ids`
+  is looked up among the imported ids, and nothing is guessed. A key-result
+  id is listed "for TASK-492", which restores those edges once key results
+  are kernel items. Any other reference that resolves to no imported id makes
+  the run "not reconciled", with exit 1. A `Blocks` cell that says something
+  and names no id `perry-task` reads is counted, and nothing of it is
+  carried.
+- **Blank cells.** A cell is unset when `lib.is_blank_cell` says so, the
+  project's one blank rule. That takes an empty string and the blank marker
+  `—`, and also `-`, `n/a`, `TBD`, `none`, `?`, `待定` and the other spellings
+  `schema/state-schema.json § i18n.blank_cell` declares. Such a cell is not
+  imported, in any mapped field, and the report counts it per field and per
+  spelling.
+
+Every other value is imported as it is. `group`, `order`, `commitment`,
+`role`, `stage`, `arrived` and `stage_since` are not carried, nor is
+`next_action` on a `done` or `dropped` task (§ Decided 2026-09-29, option A).
+The report counts the rows that held each. It also counts the answers and
+reasons carried, by kind, and the status text no field carries: the
+`answered <date>:` part of an answer `ask_answer` read, and a pending ask's
+status where it says more than `pending`. A populated key the mapping does not
+name, a `parent`, an intake or cadence row, an ask whose `answered` disagrees
+with its status cell, and a status the template has no state for each stop
+the import before anything is written: nothing is dropped that the report does
+not count.
+
+**A snapshot, not a replay of history.** Each item gets one `item create`,
+timed at `created`, `asked` or `opened`, and, when it is not in its type's
+initial state, one `item move` by the one transition from that state, timed at
+the last old event for its id whose `to` is a state of its type, or at a
+risk's `cleared`, or at its creation. A move is never timed before its
+create. It is timed at the later of those two times, and when that changed it,
+its `note` says so and keeps the time the rule gave.
+- A date-only field is read by `lib.ts_moment` as 00:00 UTC, which is 08:00 on
+  a +08:00 clock. The create's `note` says so.
+- An item with no creation date is timed at its first old event, or else at
+  the start of the old log, and its event's `note` says which rule timed it. Each `blocks` edge lands in the create of
+whichever end is created later, as a live `item create` would write it. The
+highest id each prefix ever issued seeds a `ceiling:` event when it is above
+the highest imported id. "Issued" counts the ids the stores hold and every id
+the old log names under `id`, `task` or `record.id`, purged ones included.
+
+**It never writes a store it did not create.** Without `--work` it only
+plans: it reads the stores, builds the export in memory, prints what it would
+carry, drop and seed, and writes nothing itself (DESIGN-016 C3's default for a
+flag-only tool). The `perry-task asks` read above is the only command it can
+run then. `--work` must be empty or absent, outside the project and
+outside any `.git`. Every kernel call passes
+`--store <work>/store.db` and `--root <work>/anchor`, and runs with
+`PERRY_KERNEL_TESTING` set, so a call that lost its `--store` is refused
+rather than derived to the store every worktree shares (`kernel/ARCHITECTURE.md`
+§ 5.7). The kernel's own `import` is the check that the replay reproduces the
+items: the importer writes `items.jsonl` as the kernel would serialise the
+replayed store, and after the import it asks for an `export`, which must be
+`unchanged`.
+
+**It reports a kernel refusal; it does not end in a traceback.** A kernel
+call refused while reconciling, or one that prints no envelope, is listed
+under `kernel.errors`. The criterion it serves fails, and the run is "not
+reconciled", with exit 1. `not_reconciled_because` names each reason: a
+failed criterion, a reference that resolves to nothing, or a refused call.
