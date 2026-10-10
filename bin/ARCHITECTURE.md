@@ -105,16 +105,21 @@ DESIGN-023 row D's importer (TASK-489). What it reads, and through what:
   fields and transitions it maps onto, and the template its export applies.
   That file is not a state file.
 
+Before it reads any store, it refuses a project whose state root holds a
+pending `perry-task` recovery marker, as `parsers.scan_recovery` reports one,
+whether or not the project has asks.
+
 Without `--work` it only plans: it writes nothing itself, and the
-`perry-task asks` read above is the only command it can run. With `--work`, it writes a synthetic
-kernel export under that directory, which must be empty or absent, and
-outside the project and any `.git`. It then runs `bin/perry-kernel import`,
-`query`, `item create --dry-run`, `export` and `events` as subprocesses, each
-naming `--store <work>/store.db` and `--root <work>/anchor`. It writes nothing
-in the project itself. The one way the project changes during a run is the
-`perry-task asks` read completing a recovery marker that a crashed
-`perry-task` command left pending; the importer then sees the changed file,
-names it and stops before anything is imported. Row H deletes it with the rest of this directory; the mapping it
+`perry-task asks` read above is the only command it can run. With `--work`,
+it writes a synthetic kernel export under that directory, which must be
+empty or absent, and outside the project and any `.git`. It then runs
+`bin/perry-kernel import`, `query`, `item create --dry-run`, `export` and
+`events` as subprocesses, each naming `--store <work>/store.db` and
+`--root <work>/anchor`. It writes nothing in the project itself. If a file
+under the project changes across its `perry-task asks` read, the most likely
+cause is a pending recovery marker that appeared after the check and that the
+read completed; the importer names the file and stops before anything is
+imported. Row H deletes it with the rest of this directory; the mapping it
 applies is `bin/README.md § perry-kernel-migrate`.
 
 ### The one tool that reaches outside
@@ -277,6 +282,7 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
 
 ## §8. Change log
 
+- 2026-10-09 · v1 · TASK-489 round 6: § 2 "What `perry-kernel-migrate` runs and writes": the importer refuses a pending `perry-task` recovery marker (`parsers.scan_recovery`) before it reads any store, asks or no asks; a file changed across its `perry-task asks` read is "most likely" such a marker; the overlong line is rejoined. §§ 1, 3–7 unchanged.
 - 2026-10-09 · v1 · TASK-489 round 5: § 2 "What `perry-kernel-migrate` runs and writes" no longer says it never writes the project. It names the one case: the `perry-task asks` read completes a pending `perry-task` recovery marker, and the importer names the changed file and stops. §§ 1, 3–7 unchanged.
 - 2026-10-07 · v1 · TASK-489 round 4, the user's option B: § 2 "What `perry-kernel-migrate` runs and writes" lists what the importer reads and runs. It holds no split of its own: an ask's `Blocks` ids come from `perry-task asks --all --json`, run as a subprocess, and `depends_on` entries are taken whole. A key-result id is read by the schema's declared `kr` id pattern. The work directory may be empty or absent. § 2's "two tools that execute another" names what each runs, as a subprocess; the diagram gains the importer's edge to `perry-task`. §§ 1, 3–7 unchanged.
 - 2026-10-07 · v1 · TASK-489 round 3: § 2 "What `perry-kernel-migrate` runs and writes" names the other readers the importer uses (`parsers.ask_answer`, `parsers.kr_objective_id`, `lib.is_blank_cell`, beside the two status predicates) and says it reads `templates/process/perry.json` as data. §§ 1, 3–7 unchanged.

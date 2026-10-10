@@ -59,7 +59,7 @@ statements it was fixing.
 | [`perry-codex-preflight`](perry-codex-preflight) | cache only | Verifies the `codex` CLI is installed, recent enough and actually responds, before a dispatch depends on it. |
 | [`perry-dispatch-limit`](perry-dispatch-limit) | cache only | Reserves and frees concurrency slots so a session can't fan out unbounded dispatches. |
 | [`perry-kernel`](perry-kernel) | **write** + read | The DESIGN-023 kernel CLI: a thin wrapper over the `perry_kernel` package in `kernel/`, one store per project anchor, JSON in and JSON out. No lane writes through it yet; `bin/` stays the live writer until each lane cuts over. `perry-kernel describe` prints its surface, and [`kernel/ARCHITECTURE.md`](../kernel/ARCHITECTURE.md) is its specification. |
-| [`perry-kernel-migrate`](perry-kernel-migrate) | read; writes only under `--work` | DESIGN-023 row D's one-shot importer (TASK-489). It reads a project's `tasks.jsonl`, register stores and `.perry/events.jsonl`, and each ask's `Blocks` ids from `perry-task asks --all --json`, writes a synthetic kernel export into a scratch anchor, runs `perry-kernel import` into a scratch store, and reconciles counts, ids, ceilings, the non-empty refusal, the replay and every reference. It writes nothing in the project itself; if its `perry-task asks` read completes a pending `perry-task` recovery marker, it names the changed file and stops before importing. Every kernel call names its store. Deleted at row H with the rest of the old `bin/`. The mapping: [below](#perry-kernel-migrate). |
+| [`perry-kernel-migrate`](perry-kernel-migrate) | read; writes only under `--work` | DESIGN-023 row D's one-shot importer (TASK-489). It reads a project's `tasks.jsonl`, register stores and `.perry/events.jsonl`, and each ask's `Blocks` ids from `perry-task asks --all --json`, writes a synthetic kernel export into a scratch anchor, runs `perry-kernel import` into a scratch store, and reconciles counts, ids, ceilings, the non-empty refusal, the replay and every reference. It refuses a project with a pending `perry-task` recovery marker before reading any store, and writes nothing in the project itself; if a project file still changes across its `perry-task asks` read, most likely a marker that read completed, it names the file and stops before importing. Every kernel call names its store. Deleted at row H with the rest of the old `bin/`. The mapping: [below](#perry-kernel-migrate). |
 
 **Eight tools write project files: `perry-task`, `perry-tasks`,
 `perry-goals`, `perry-okr`, `perry-config`, `perry-decide`,
@@ -854,9 +854,11 @@ as a state file.
   --json` publishes, its `_BLOCKS_ID` reading of each cell. The importer runs
   it as a subprocess, with `--root` set to the project, and only when the
   project holds an ask. The payload must cover exactly the store's asks and
-  cells. The read must change no file under the state root or `.perry/`:
-  `perry-task` finishes a write a crashed command left pending before any
-  command, and the import stops if this read did. Like every `perry-task`
+  cells. A pending `perry-task` recovery marker was already refused before
+  any read (`parsers.scan_recovery`), asks or no asks. The read must still
+  change no file under the state root or `.perry/`: `perry-task` completes a
+  pending marker before any command, so a change is most likely a marker
+  that appeared since, and the import stops. Like every `perry-task`
   command, it takes the project lock, a file in the system temp directory;
 - a key-result id is one that matches the id pattern
   `schema/state-schema.json` declares for a `kr` record of `linkage.jsonl`,

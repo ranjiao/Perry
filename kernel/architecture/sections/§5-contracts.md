@@ -358,16 +358,22 @@ becomes the event's seq.
      - an `attach:` ref that `attach add` and `attach remove` would take: not empty or
        only white space, and holding no line break.
 
-     The item's type is the stored one, or, for the event's own item (`items[0]`), the
-     `type` the same event sets. So a change replayed before its item's `type` change is
-     checked as it would be after it, and the order of changes inside an event never
-     decides whether a value is checked (TASK-489 round 5). A change to an item that has
+     An event that holds a `template` change and any item change (`type`, `state`,
+     `field:`, `rel:` or `attach:`) is refused as a line that breaks this section, before
+     any replay: `template apply` writes its change alone, and no other command writes a
+     `template` change (TASK-489 round 6). So the template in force is the same for every
+     item change of an event. The item's type is the stored one, or, for the event's own
+     item (`items[0]`), the `type` the same event sets, so a change replayed before its
+     item's `type` change is checked as it would be after it (TASK-489 round 5). With
+     both rules, where an item change sits inside its event does not decide whether it is
+     checked, or against which template. A change to an item that has
      no type and gets none in its event is refused by the store, which leaves no item
      without a type and a state. A `state_root` change and a `ceiling:` value are held
      only to their shape (step 1's line checks). A relation change that flips nothing
      (`before` equal to `after`) is refused for every kind, because no command writes one
      (NN-K8). Each refusal is `export_invalid` and names the event's `seq` and the
-     change's `key` (TASK-489);
+     change's `key`, except the mixed-event refusal, which names the line, as step 1's
+     line checks do (TASK-489);
   3. sets each ceiling to the higher of the largest id replayed and the largest
      `ceiling:<prefix>` value;
   4. serialises the replayed items as `export` would and compares them byte for byte with
