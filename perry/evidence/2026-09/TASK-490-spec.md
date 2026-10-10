@@ -61,6 +61,17 @@ aiMark moves in the same release (TASK-491).
 
   Also from that review: `bin/ARCHITECTURE.md:122–128` does not list the two
   existing `read_events` readers, in `perry-task` and `perry-goals`.
+- **From TASK-489's last review** (`TASK-489-review-round4.md`, all
+  non-blocking):
+  - kernel tests that cover each key of the mixed-event rule on its own
+    (mutants K2–K6 survived);
+  - the `type_of` docstring in `kernel/perry_kernel/commands.py`;
+  - the importer's wording "a file under the project", which should name the
+    state root and `.perry/`;
+  - a note that `scan_recovery` also reads dossier frontmatter;
+  - the "Last reviewed" dates in `bin/ARCHITECTURE.md` and
+    `kernel/ARCHITECTURE.md`;
+  - the wording of `bin/README.md:62`.
 
 ## Out of scope
 - The goals and decide lanes (TASK-492).
@@ -86,3 +97,4 @@ The subcommands in `work/SKILL.md § Subcommand index` when the task starts, and
   The Bound widens to the four document places.
 - 2026-10-07 — Carried TASK-489's architecture-review drift: root tool and test-module counts, OQ-B1, and the `read_events` readers.
 - 2026-10-07 — The user confirmed the three count edits (root tools 21→22, root test modules 163→164, OQ-B1 six→seven).
+- 2026-10-10 — Carried TASK-489's non-blocking review findings (kernel test coverage, a docstring, importer and module-document wording).
