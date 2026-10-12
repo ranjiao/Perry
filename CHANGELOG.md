@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.24 — 2026-10-12
+
+patch · phase 004-guided · TASK-495 · delivery TASK-495-architecture-analysis-lifecycle
+
+### Changes
+
+Architecture analysis now combines static Python facts with host-agent interpretations, cited target rules, and offline source evidence. Start and delivery checkpoints retain durable task baselines, compare target and source changes, and flag new blind spots. Direct work, automated dispatch, manual delegation and task-close guidance describe the same checkpoint procedure. Reports open on attention results; no scheduler is introduced.
+
+
+### Upgrade notes
+
+Regenerate prototype fact snapshots, host analyses, semantic reviews and checkpoints for fact source version 3. Checkpoint verification now binds saved HTML bytes with a report hash and rejects missing or changed reports. Preserve older evidence for audit; do not replace a recorded pre-edit start baseline with a post-edit scan. Existing work without a valid pre-edit baseline must report that limitation instead of claiming a verified comparison. The analysis covers static Python source and explicit supported rules; interpretation remains a host-agent responsibility.
+
+
+### Breaking changes
+
+Older prototype facts and checkpoints fail freshness or integrity verification under source version 3 and the HTML-hash requirement; regenerate new runs as described in the upgrade notes while preserving historical evidence.
+
+
 ## 0.1.23 — 2026-09-23
 
 patch · phase 004-guided · TASK-484 · delivery TASK-484-operations-next-rules
