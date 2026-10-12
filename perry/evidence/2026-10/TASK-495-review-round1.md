@@ -29,3 +29,13 @@ No product edits, state changes, commits or merge performed. Do not merge this h
 ## Enforcement answer
 
 The start/delivery checks are host workflow instructions. Raw task-state writers are unchanged; they neither invoke the model nor require these architecture receipts. `--verify-checkpoint` checks freshness but accepts no expected task/stage argument; the receiver must match those fields and the previously recorded baseline path manually, as the procedure explicitly instructs. Creating a new start after editing is not mechanically prevented; pre-edit provenance depends on the host's recorded start path. These are disclosed enforcement boundaries, not proof that checks are impossible to skip. Fix the four findings and re-review affected invariants on a new exact head, then run the release and combined-main integration gates before merging.
+
+=== VERDICT ===
+task: TASK-495
+rung: V4
+result: FAIL
+criteria: bin/perry_architecture/REVIEW-CRITERIA.md
+checked: exact product head b9a6b2c9dbc912f04097b5906f12bee65b63e512 against db06e70c; criteria 1-5 and bounded test/surface review under criterion 6; independent coverage/unknown/report-integrity reproductions and lifecycle entry-point inspection; 32 tests passed
+not-checked: integrator release allocation and release checks on final combined tree; full/slow combined-main gates and receipt freshness; browser interaction smoke; future autonomous agent compliance
+proof: bin/perry_architecture/scan.py:207 omits observed coverage from freshness; bin/perry_architecture/checkpoint.py:84 and :120 miss global blind spots and HTML integrity; work/reference/delegate.md:130 omits checkpoint prompt requirements; independent reproductions and exact evidence paths are recorded above
+=== END VERDICT ===

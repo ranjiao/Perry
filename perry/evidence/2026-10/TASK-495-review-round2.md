@@ -29,3 +29,13 @@ Evidence paths (outside checkout):
 Enforcement boundaries remain as disclosed: lifecycle invocation is host workflow enforcement, not a task-state CLI gate. Expected task/stage and recorded pre-edit baseline identity are checked by the receiving host. The CLI does not prove a start occurred before an edit and does not call a model; missing start evidence must remain a gap. Scans do not certify excluded content, non-Python code, runtime behavior, semantic interpretation or human acceptance of component names. Freshness refuses unreadable/unfingerprinted candidate source instead of claiming success. These limits do not reopen the fixed findings.
 
 Not checked / still required before merge: integrator-allocated release record, release checks, exact combined-main full/slow test receipt and its final freshness check. Browser interaction smoke was not repeated in this round; report source/evidence binding was checked by code inspection and generated artifact hash verification. Main's later PMO-only TASK-495 metadata was not substituted into this product-review range. No merge, push or publication performed.
+
+=== VERDICT ===
+task: TASK-495
+rung: V4
+result: PASS
+criteria: bin/perry_architecture/REVIEW-CRITERIA.md
+checked: exact product head 3343bae92f4894cb717fd79d6ca405c99d92adf4 against db06e70c; all four prior findings and touched invariants under criteria 1-5; bounded criterion 6 regression review; independent coverage freshness/global unknown evidence/quiet repeats/HTML integrity/manual-delegate routing checks; finite-case refusal and retention checks; 36 tests and diff check passed
+not-checked: integrator release allocation and release checks on final combined tree; full/slow combined-main gates and receipt freshness; browser interaction smoke in this round; future autonomous agent compliance
+proof: independent scratch reproductions now refuse stale coverage and invalid HTML, surface new global unknowns with source evidence, and retain finite-case safeguards; actual delegate prompt and paste-back contracts now require checkpoint procedure; exact scripts/logs and enforcement limits are recorded above
+=== END VERDICT ===

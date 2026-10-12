@@ -1,7 +1,7 @@
 # TASK-495 — architecture analysis integration
 
 Main base: `f5565a38990570531c6e867e77cfaa376b5db349`.
-Product reviewed head: `3343bae92f4894cb717fd79d6ca405c99d92adf4`.
+Product reviewed head: `61751b09400f305cf5255f7b75464f025a2bc3fb` (round 3); round 2 reviewed `3343bae92f4894cb717fd79d6ca405c99d92adf4`.
 Authority: USER-1007 initial approval and the 2026-10-12 request for independent review and local merge only when sound.
 
 The independent round-1 FAIL and round-2 product PASS are preserved alongside this record. The product author did not conduct the independent review or integration. Round 2 closes all four blockers; its limits remain in force. TASK-495 is not self-closed at V4.
@@ -9,3 +9,5 @@ The independent round-1 FAIL and round-2 product PASS are preserved alongside th
 The candidate preserves the exact committed USER-1007 and TASK-495 events from both branches and both journal sequences. No product conflict occurred. Recovery reports nonblocking after reconciliation. General lint reports existing missing-scope/bound and absent-cadence warnings; it is not a claim that all historical project state is clean.
 
 Before accepting the candidate: allocate the release, run combined-tree full and slow merge-check gates against the immutable main base, import and verify the emitted duration artifact, check release history and diff whitespace. External gate receipts identify their exact input commits and trees; this pre-gate record claims no test result. The main merge requires a final unchanged-base check and tree comparison. No push, tag, publication, scheduler or target architecture changes are authorized by this integration.
+
+The first full gate on candidate `77e1ef8f8d6546c21a4bbfbbc3eec509b069741a` failed 1 of 4,587 tests: the delegate contract content pin was stale after the independently reviewed workflow change. The author deliberately updated that pin without changing guard scope or executable test logic; independent round 3 verifies the exact correction and reports 13 guarded-worktree tests passing. The failure log is retained externally at `/tmp/perry-scratch/Perry/TASK-495-full-20261012.log`. This candidate requires a fresh full gate; no first-run acceptance is claimed.
