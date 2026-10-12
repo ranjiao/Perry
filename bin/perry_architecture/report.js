@@ -245,6 +245,7 @@ function comparison(){
     const c=data.checkpoint;
     box.append(el('h3',`${c.task} · ${c.stage} · ${c.status}`),el('p',c.summary,'notice'),el('p',c.review.summary));
     for(const reason of c.reasons)box.append(el('p',reason,'issue'));
+    for(const item of c.new_blind_spots||[]){box.append(el('p',`新增分析盲区 (${item.count}) · ${item.kind}: ${item.detail}`,'issue'));evidenceList(item.evidence,box);}
     for(const change of c.target_changes){
       box.append(el('p',`目标发生变化：${change.path}；需要用户讨论，未重新解释规则。`,'issue'));
       const texts=el('details');texts.append(el('summary','查看基线目标与当前目标'));

@@ -203,7 +203,7 @@ def enrich(data, trees):
                         value = None
                     entries.append({'file': path, 'line': node.lineno, 'kind': 'SURFACE',
                                     'value': value, 'status': 'literal' if isinstance(value, dict) else 'unknown'})
-    data.update(symbols=symbols, calls=calls, entries=entries, evidence=evidence, fact_version=2)
+    data.update(symbols=symbols, calls=calls, entries=entries, evidence=evidence, fact_version=3)
     data['scope']['relations'] = 'static imports and conservative lexical call references'
     return data
 

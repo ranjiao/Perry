@@ -145,3 +145,10 @@ source/target freshness and baseline integrity. See
 `packs/software-ops/architecture-analysis.md § Task checkpoints` for the host
 workflow, JSON review contract and quiet/attention behavior. No browser/model
 or scheduled job runs inside this command; no task state is changed.
+
+Snapshot identity also binds observed coverage and import resolution. A saved
+receipt verifies both its JSON bundle and HTML bytes. Unreadable/unfingerprinted
+source cannot be declared fresh. New global unknown references or skipped paths
+produce attention even outside the supplied rule scopes; unchanged blind spots
+remain explicitly limited. Earlier prototype receipts without an HTML hash must
+not be reused as verified delivery evidence or retroactively labeled pre-edit.

@@ -1,7 +1,7 @@
 """Import facts and offline evidence for the code architecture browser."""
 from __future__ import annotations
 
-COVERS = ("bin/perry-architecture", "bin/perry_architecture/")
+COVERS = ("bin/perry-architecture", "bin/perry_architecture/", "work/reference/delegate.md")
 
 import hashlib
 import json
@@ -167,6 +167,84 @@ class ArchitectureBrowser(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'valid evidence'):
             save(scan(self.root), 'delivery', 'TASK-1', store, self.proposal(data, ['app.py']), review,
                  baseline=start['checkpoint'])
+
+    def test_checkpoint_global_blind_spots_outside_rules(self):
+        from perry_architecture.checkpoint import save
+        self.put('app.py', 'def run(): return 1\n')
+        self.put('other.py', 'def other(x): return 1\n')
+        rules = self.rules()
+        data = scan(self.root)
+        review = {'snapshot': data['snapshot'], 'summary': 'Reviewed both files',
+                  'target_change_requested': False, 'findings': []}
+        store = Path(self.tmp.name) / 'evidence'
+        base = save(data, 'start', 'TASK-1', store, self.proposal(data, ['app.py', 'other.py']), review, rules)
+        for source, kind in [('def other(x): return x.unknown()\n', 'call'),
+                             ('import missing_package\ndef other(x): return 1\n', 'import')]:
+            with self.subTest(kind=kind):
+                self.put('other.py', source)
+                data = scan(self.root)
+                review['snapshot'] = data['snapshot']
+                current = save(data, 'delivery', 'TASK-1', store,
+                               self.proposal(data, ['app.py', 'other.py']), review, baseline=base['checkpoint'])
+                self.assertTrue(current['open_report'])
+                self.assertIn('new_unresolved_checks', current['reasons'])
+                self.assertTrue(any(i['kind'] == kind and i['evidence'] for i in current['new_blind_spots']))
+                # Recording the known blind spot in a new baseline must keep repeats quiet.
+                data = scan(self.root)
+                known = save(data, 'start', 'TASK-1', store,
+                             self.proposal(data, ['app.py', 'other.py']), review, rules)
+                data = scan(self.root)
+                repeat = save(data, 'delivery', 'TASK-1', store,
+                              self.proposal(data, ['app.py', 'other.py']), review, baseline=known['checkpoint'])
+                self.assertEqual('limited', repeat['status'])
+                self.assertFalse(repeat['open_report'])
+
+    def test_checkpoint_observed_coverage_invalidates_freshness(self):
+        from perry_architecture.checkpoint import save, verify
+        self.put('app.py', 'def run(): return 1\n')
+        rules = self.rules()
+        data = scan(self.root, excludes=['vendor'])
+        review = {'snapshot': data['snapshot'], 'summary': 'Reviewed',
+                  'target_change_requested': False, 'findings': []}
+        store = Path(self.tmp.name) / 'evidence'
+        base = save(data, 'start', 'TASK-1', store, self.proposal(data, ['app.py']), review, rules)
+        self.put('vendor/new.py', 'def excluded(): pass\n')
+        changed = scan(self.root, excludes=['vendor'])
+        self.assertNotEqual(data['snapshot'], changed['snapshot'])
+        with self.assertRaisesRegex(ValueError, 'stale'):
+            verify(changed, base['checkpoint'])
+        review['snapshot'] = changed['snapshot']
+        current = save(changed, 'delivery', 'TASK-1', store,
+                       self.proposal(changed, ['app.py']), review, baseline=base['checkpoint'])
+        self.assertTrue(current['open_report'])
+        self.assertTrue(any('vendor/' in i['detail'] for i in current['new_blind_spots']))
+        self.put('huge.py', '#' * 501)
+        limited = scan(self.root, excludes=['vendor'], max_bytes=500)
+        review['snapshot'] = limited['snapshot']
+        base = save(limited, 'start', 'TASK-2', store, self.proposal(limited, ['app.py', 'huge.py']), review, rules)
+        self.put('huge.py', '#' * 700)
+        with self.assertRaisesRegex(ValueError, 'not fingerprinted'):
+            verify(scan(self.root, excludes=['vendor'], max_bytes=500), base['checkpoint'])
+
+    def test_checkpoint_saved_html_is_verified(self):
+        from perry_architecture.checkpoint import verify
+        _, _, start, _ = self.checkpoint_inputs()
+        html = Path(start['report'])
+        html.write_text('REPORT REPLACED')
+        with self.assertRaisesRegex(ValueError, 'HTML report hash mismatch'):
+            verify(scan(self.root), start['checkpoint'])
+        html.unlink()
+        with self.assertRaises(OSError):
+            verify(scan(self.root), start['checkpoint'])
+
+    def test_manual_delegate_includes_architecture_in_actual_prompt(self):
+        text = (ROOT / 'work/reference/delegate.md').read_text()
+        fields = text.split('## Required fields in the rendered prompt')[1].split('## Roleless projects')[0]
+        for required in ('Architecture preamble', 'start/delivery', 'standard RESULT', 'durable external evidence store'):
+            self.assertIn(required, fields)
+        acceptance = text.split('## Accepting a manual paste-back')[1].split('### For code-changing work')[0]
+        for required in ('freshness verifier', 'pre-edit baseline', 'wrong-task/stage'):
+            self.assertIn(required, acceptance)
 
     def test_checkpoint_cli_roundtrip(self):
         save, store, start, review = self.checkpoint_inputs()

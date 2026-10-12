@@ -208,7 +208,9 @@ def scan(root: Path, source_roots=(), excludes=(), max_bytes=2_000_000):
         "files": [(f["id"], f["sha256"], f["status"]) for f in files],
         "source_roots": [p.relative_to(root).as_posix() for p in roots],
         "excludes": list(excludes), "max_bytes": max_bytes,
-        "python": sys.version.split()[0], "schema": 1, "fact_version": 2,
+        "python": sys.version.split()[0], "schema": 1, "fact_version": 3,
+        "skipped_paths": sorted(skipped), "issues": issues,
+        "import_resolution": [(i["source"], i["line"], i["resolution"], i["targets"]) for i in imports],
     }, sort_keys=True).encode()).hexdigest()
     return enrich({"schema_version": 1, "project": root.name, "root": str(root),
             "snapshot": digest, "python": sys.version.split()[0],

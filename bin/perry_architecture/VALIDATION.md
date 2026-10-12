@@ -65,3 +65,20 @@ new model service, target-architecture edits, independent V4 or merge performed.
   and the full suite rerun. `git diff --check` passed.
 - Target-change UI fixture retained the old/new target text and displayed
   `attention`; it is explicitly synthetic, not a violation in Perry's code.
+
+## Independent review corrections — 2026-10-12
+
+The first independent review of `db06e70c..b9a6b2c9` found four blockers:
+manual delegation omitted checkpoint instructions, global unknown references
+outside rule scopes were not compared, observed coverage was absent from snapshot
+identity, and saved HTML was not bound to the receipt. All four have regression
+cases; 36 architecture tests pass after correction. This is author verification,
+not the independent re-review verdict or the final merged-tree gate.
+
+Fact version 3 binds observed skipped paths, issues and import resolution into
+snapshot identity. Unfingerprinted source bytes refuse freshness verification.
+Global blind spots are compared independently of target-rule scopes; new ones
+carry details/source evidence in attention reports. Receipt hashes cover both
+JSON and HTML. Old prototype checkpoints without an HTML hash are not accepted
+as verified evidence; retained old reports remain readable. Manual prompts and
+paste-back acceptance explicitly require the same checkpoint procedure.

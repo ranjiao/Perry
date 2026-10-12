@@ -41,6 +41,7 @@ def save(data, stage, task, store, analysis, review, rules=None, baseline=None):
     attach(data, analysis)
     reasons = []
     limited = False
+    added_unknowns = Counter()
     base = None
     if stage == 'start':
         if baseline or rules is None:
@@ -81,8 +82,9 @@ def save(data, stage, task, store, analysis, review, rules=None, baseline=None):
         compare(data, rules)
         if data['comparison']['summary']['violation']:
             reasons.append('constraint_violation')
-        limited = bool(data['comparison']['summary']['unknown'])
-        if base and unknowns(data) - unknowns(base['report']):
+        limited = bool(unknowns(data)) or bool(data['comparison']['summary']['unknown'])
+        added_unknowns = unknowns(data) - unknowns(base['report']) if base else Counter()
+        if added_unknowns:
             reasons.append('new_unresolved_checks')
     coverage = data['issues'] + data['architecture']['issues']
     limited = limited or bool(coverage)
@@ -98,6 +100,12 @@ def save(data, stage, task, store, analysis, review, rules=None, baseline=None):
     notice = {'stage': stage, 'task': task, 'snapshot': data['snapshot'],
               'status': 'attention' if reasons else 'limited' if limited else 'normal', 'open_report': bool(reasons),
               'reasons': reasons, 'target_changes': target_changes, 'review': review,
+              'new_blind_spots': [{'kind': key[0], 'detail': json.dumps(key[1:], ensure_ascii=False),
+                                   'count': count,
+                                   'evidence': [eid for eid, item in data['evidence'].items()
+                                                if key[0] in ('call', 'import') and item['kind'] == key[0]
+                                                and item.get('source') == key[1] and item.get('statement') == key[2]]}
+                                  for key, count in added_unknowns.items()],
               'baseline': str(Path(baseline).resolve()) if baseline else None,
               'baseline_sha256': digest(base) if base else None,
               'report': str(directory / 'index.html'), 'checkpoint': str(directory),
@@ -109,12 +117,14 @@ def save(data, stage, task, store, analysis, review, rules=None, baseline=None):
     # Receipt is the completion marker. A partial directory is never a valid checkpoint.
     with (directory / 'bundle.json').open('x', encoding='utf-8') as stream:
         json.dump(bundle, stream, ensure_ascii=True)
-    with (directory / 'index.html').open('x', encoding='utf-8') as stream:
-        stream.write(render(data))
-    notice['bundle_sha256'] = digest(bundle)
+    html = render(data).encode('utf-8')
+    with (directory / 'index.html').open('xb') as stream:
+        stream.write(html)
+    receipt = {**notice, 'bundle_sha256': digest(bundle),
+               'html_sha256': hashlib.sha256(html).hexdigest()}
     with (directory / 'receipt.json').open('x', encoding='utf-8') as stream:
-        json.dump(notice, stream, ensure_ascii=True, indent=2)
-    return notice
+        json.dump(receipt, stream, ensure_ascii=True, indent=2)
+    return receipt
 
 
 def load_checkpoint(directory):
@@ -122,7 +132,9 @@ def load_checkpoint(directory):
     bundle, receipt = read(directory / 'bundle.json'), read(directory / 'receipt.json')
     if not isinstance(bundle, dict) or not isinstance(receipt, dict) or digest(bundle) != receipt.get('bundle_sha256'):
         raise ValueError('checkpoint bundle hash mismatch')
-    recorded = {k: v for k, v in receipt.items() if k != 'bundle_sha256'}
+    if hashlib.sha256((directory / 'index.html').read_bytes()).hexdigest() != receipt.get('html_sha256'):
+        raise ValueError('checkpoint HTML report hash mismatch')
+    recorded = {k: v for k, v in receipt.items() if k not in ('bundle_sha256', 'html_sha256')}
     if recorded != bundle.get('report', {}).get('checkpoint'):
         raise ValueError('checkpoint receipt does not match bundle')
     return bundle, receipt
@@ -132,6 +144,8 @@ def verify(data, directory):
     bundle, receipt = load_checkpoint(directory)
     if bundle['root'] != data['root'] or bundle['report']['snapshot'] != data['snapshot']:
         raise ValueError('checkpoint is stale or belongs to another checkout')
+    if any(f.get('sha256') is None for f in data['files']):
+        raise ValueError('cannot verify freshness: source bytes were not fingerprinted; inspect unreadable files')
     saved = bundle['report']
     expected = {d['path']: d['sha256'] for d in bundle['rules']['documents']}
     for change in saved['checkpoint']['target_changes']:
@@ -153,10 +167,18 @@ def verify(data, directory):
 
 def unknowns(data):
     result = Counter()
+    for item in data['imports']:
+        if item['resolution'] in ('unresolved', 'ambiguous'):
+            result[('import', item['source'], item['statement'], item['resolution'])] += 1
+    for item in data['calls']:
+        if item['resolution'] == 'unknown':
+            result[('call', item['source'], item['statement'])] += 1
+    for path in data['scope']['skipped_paths']:
+        result[('skipped', path)] += 1
     for rule in data.get('comparison', {}).get('results', []):
         for finding in rule['unknown']:
             refs = [data['evidence'][e] for e in finding['evidence']]
-            key = (rule['id'], finding['reason'], tuple(sorted(
+            key = ('rule', rule['id'], finding['reason'], tuple(sorted(
                 (r.get('source', ''), r.get('statement', ''), r.get('canonical') or '') for r in refs)))
             result[key] += 1
     return result
