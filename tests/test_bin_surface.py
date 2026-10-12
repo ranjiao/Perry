@@ -49,7 +49,7 @@ PERRY = BIN / "perry"
 #: The tools that declare a surface today. `bin/perry list` reports the rest as
 #: undeclared rather than hiding them, and this list is what C1 has converted.
 DECLARED = ("perry-task", "perry-tasks", "perry-okr", "perry-config",
-            "perry-state", "perry-diagnose", "perry-kernel-migrate")
+            "perry-state", "perry-diagnose", "perry-kernel-migrate", "perry-architecture")
 
 
 def _tools_with_a_surface() -> list[str]:

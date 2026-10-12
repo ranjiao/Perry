@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Generate a Python import map for any directory, without running its code.
+
+JSON goes to stdout by default. --html FILE writes an offline interactive
+report outside the analyzed project. See bin/perry_architecture/README.md.
+"""
+import json
+import os
+from pathlib import Path
+import sys
+
+# Scanning this checkout must not create bytecode inside it.
+if __name__ == "__main__":
+    sys.dont_write_bytecode = True
+import lib
+from perry_architecture.scan import scan
+from perry_architecture.report import render
+
+SURFACE = {
+    "name": "perry-architecture", "kind": "read", "root_resolution": "cwd",
+    "summary": "Python import overview, module drilldown and source evidence",
+    "flags": [
+        {"name": "--source-roots", "arg": "dirs", "summary": "comma-separated import roots, in addition to project root"},
+        {"name": "--exclude", "arg": "patterns", "summary": "comma-separated project-relative paths/globs"},
+        {"name": "--html", "arg": "file", "summary": "write offline report outside analyzed project"},
+        {"name": "--json", "summary": "JSON to stdout (also with --html)"},
+        {"name": "--max-file-bytes", "arg": "n", "summary": "per-file byte limit, default 2000000"},
+    ],
+    "subcommands": [],
+    "exit_codes": {"0": "snapshot generated (inspect coverage)", "2": "invalid invocation or I/O error"},
+}
+
+
+def main(argv=None):
+    parsed = lib.parse_surface(SURFACE, sys.argv[1:] if argv is None else argv)
+    if parsed["help"]:
+        print(lib.usage_lines(SURFACE))
+        print(__doc__)
+        return 0
+    if parsed["error"] or parsed["extra"]:
+        print(f"perry-architecture: {parsed['error'] or 'unexpected positional argument'}",
+              file=sys.stderr)
+        return 2
+    if parsed["describe"]:
+        print(json.dumps(lib.describe_surface(SURFACE)))
+        return 0
+    args = parsed["values"]
+    try:
+        root = Path(args.get("--root", os.environ.get("PERRY_PROJECT") or ".")).resolve(strict=True)
+        max_bytes = int(args.get("--max-file-bytes", 2_000_000))
+        if max_bytes < 1:
+            raise ValueError("--max-file-bytes must be positive")
+        output = Path(args["--html"]).resolve() if "--html" in args else None
+        if output and output.is_relative_to(root):
+            raise ValueError("--html must be outside the analyzed project")
+        split = lambda value: [s.strip() for s in value.split(",") if s.strip()]
+        data = scan(root, split(args.get("--source-roots", "")),
+                    split(args.get("--exclude", "")), max_bytes)
+        if output:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            # Refuse accidental overwrites. Regenerate to a new report path.
+            with output.open("x", encoding="utf-8") as stream:
+                stream.write(render(data))
+            print(f"Report: {output}", file=sys.stderr)
+        if "--json" in parsed["seen"] or not output:
+            print(json.dumps(data, ensure_ascii=False, indent=2))
+    except (OSError, ValueError) as exc:
+        print(f"perry-architecture: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

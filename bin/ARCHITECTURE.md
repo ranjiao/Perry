@@ -61,7 +61,19 @@ flowchart TD
     Migrate -->|"runs asks --all --json, a read"| Task
 ```
 
-### The three libraries
+### Static code architecture browser
+
+`perry-architecture` reads an arbitrary directory without adopting it into
+Perry. `perry_architecture/scan.py` uses Python AST to produce file and import
+facts, including extensionless Python scripts. `report.py` packages the same
+payload with local HTML/CSS/JS for an offline report. The command writes only
+an explicitly named, new report outside the analyzed project; JSON defaults
+to stdout. It neither imports target code nor reads or writes project state.
+The analyzer does not depend on `viewer`, `lib`, or the state kernel; only
+the CLI delegates argument parsing and discovery to `lib`'s surface helpers.
+See [scope and acceptance](perry_architecture/README.md).
+
+### The three state libraries
 
 | Module | Lines | What it holds |
 |---|---|---|

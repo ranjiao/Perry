@@ -817,7 +817,7 @@ def run_tool(path: Path, *argv: str, env: dict | None = None):
 #: fifteenth, `perry-kernel-migrate` (DESIGN-023 row D's one-shot importer),
 #: which takes `--root` through `lib.parse_surface`; `ROOT_READER_COUNT` is
 #: the one place the number is typed.
-ROOT_READER_COUNT = 15
+ROOT_READER_COUNT = 16  # perry-architecture reads any explicitly named project
 ROOT_READERS = tuple(sorted(
     [p.name for p in (PERRY_HOME / "bin").iterdir()
      if p.is_file() and os.access(p, os.X_OK) and p.suffix != ".md"
@@ -1020,6 +1020,7 @@ class TestAnUndeclaredFlagIsRefusedWithASubcommandInFront(unittest.TestCase):
     #: `TestAFlagWithItsValueMissingIsRefused.LEAD`, and held to the derived
     #: population by `test_the_lead_table_covers_every_shipped_tool`.
     LEAD = {
+        "perry-architecture": (),
         "perry": ("list",), "perry-churn": (),
         "perry-codex-preflight": (), "perry-config": ("show",),
         "perry-context-budget": (), "perry-decide": ("list",),
