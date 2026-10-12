@@ -11,6 +11,8 @@ from pathlib import Path
 import sys
 import tokenize
 
+from .facts import enrich
+
 SKIP = {".git", ".venv", "venv", "node_modules", "__pycache__", "build",
         "dist", "site-packages", ".tox", ".cache", ".mypy_cache", ".pytest_cache"}
 
@@ -206,9 +208,9 @@ def scan(root: Path, source_roots=(), excludes=(), max_bytes=2_000_000):
         "files": [(f["id"], f["sha256"], f["status"]) for f in files],
         "source_roots": [p.relative_to(root).as_posix() for p in roots],
         "excludes": list(excludes), "max_bytes": max_bytes,
-        "python": sys.version.split()[0], "schema": 1,
+        "python": sys.version.split()[0], "schema": 1, "fact_version": 2,
     }, sort_keys=True).encode()).hexdigest()
-    return {"schema_version": 1, "project": root.name, "root": str(root),
+    return enrich({"schema_version": 1, "project": root.name, "root": str(root),
             "snapshot": digest, "python": sys.version.split()[0],
             "scope": {"source_roots": [p.relative_to(root).as_posix() for p in roots],
                       "excludes": list(excludes), "default_excluded_dirs": sorted(SKIP),
@@ -218,4 +220,4 @@ def scan(root: Path, source_roots=(), excludes=(), max_bytes=2_000_000):
                         "lines": sum(f["lines"] for f in files),
                         "scripts": sum(f["kind"] == "script" for f in files),
                         "edges": len(edges), "imports": len(imports), **counts},
-            "files": files, "imports": imports, "edges": edges, "issues": issues}
+            "files": files, "imports": imports, "edges": edges, "issues": issues}, trees)

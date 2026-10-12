@@ -17,9 +17,152 @@ sys.path.insert(0, str(ROOT / "bin"))
 from perry_architecture.scan import scan
 from perry_architecture.report import render
 from perry_architecture.model import bind
+from perry_architecture.analysis import attach, changes
+from perry_architecture.audit import compare
+from perry_architecture.facts import brief
 
 
 class ArchitectureBrowser(unittest.TestCase):
+    def rules(self):
+        path = self.put('ARCHITECTURE.md', 'No command execution.\nNo imports from forbidden/.\n')
+        return {'version': 1, 'documents': [{'path': path.name, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}],
+                'rules': [{'id': 'calls', 'kind': 'forbid-call', 'scope': ['app.py'],
+                           'origin': 'stdlib', 'forbidden_calls': ['subprocess.*', 'os.system'],
+                           'source': {'path': path.name, 'line': 1, 'end_line': 1, 'quote': 'No command execution.'}},
+                          {'id': 'imports', 'kind': 'forbid-import', 'scope': ['app.py'],
+                           'forbidden_paths': ['forbidden/*'],
+                           'source': {'path': path.name, 'line': 2, 'end_line': 2, 'quote': 'No imports from forbidden/.'}}]}
+
+    def proposal(self, data, members):
+        return {'version': 1, 'snapshot': data['snapshot'], 'producer': 'host-agent',
+                'components': [{'id': 'core', 'label': 'Core', 'description': 'Observed operations',
+                                'uncertainty': 'Runtime behavior is not known', 'members': members,
+                                'evidence': [data['symbols'][0]['id']]}]}
+
+    def test_call_alias_shadowing_and_local_modules(self):
+        self.put('app.py', 'import subprocess as sp\nfrom os import system as run\n'
+                 'def execute():\n    sp.run(["echo"])\n    run("echo")\n'
+                 'def shadow(sp):\n    sp.run("not subprocess")\n')
+        data = scan(self.root)
+        self.assertEqual(['subprocess.run', 'os.system', None], [c['canonical'] for c in data['calls']])
+        self.assertEqual('unknown', data['calls'][-1]['resolution'])
+        rules = self.rules()
+        result = compare(data, rules)['comparison']['results'][0]
+        self.assertEqual(2, len(result['violations']))
+        self.assertEqual(1, len(result['unknown']))
+        self.put('subprocess.py', 'def run(value): pass\n')
+        result = compare(scan(self.root), rules)['comparison']['results'][0]
+        self.assertEqual(1, len(result['violations']))
+
+    def test_reassigned_alias_and_lambda_are_not_certified(self):
+        self.put('app.py', 'import subprocess as sp\nf = lambda sp: sp.run("x")\nsp.run("y")\n')
+        self.assertTrue(all(c['resolution']=='unknown' for c in scan(self.root)['calls']))
+        self.put('app.py', 'import os\nos.system = lambda x: None\nos.system("x")\n')
+        self.assertEqual('unknown', scan(self.root)['calls'][0]['resolution'])
+
+    def test_calls_in_class_bases_and_defaults_are_not_missed(self):
+        self.put('app.py', 'import os\nclass C(os.system("base")): pass\n'
+                 'def f(x=os.system("default")): pass\n')
+        result = compare(scan(self.root), self.rules())['comparison']['results'][0]
+        self.assertEqual(2, len(result['violations']))
+
+    def test_symbols_entry_literals_and_focus_without_execution(self):
+        self.put('app.py', 'SURFACE = {"name": "entry"}\ndef outer():\n    def inner(): pass\n    inner()\n')
+        self.put('other.py', 'SURFACE = explode()\nraise RuntimeError("must not execute")\n')
+        data = scan(self.root)
+        self.assertEqual(['outer', 'outer.inner'], [s['name'] for s in data['symbols']])
+        self.assertEqual('app.py::outer.inner@3', data['calls'][0]['target_symbol'])
+        self.assertEqual(['literal', 'unknown'], [e['status'] for e in data['entries']])
+        self.assertEqual(['app.py'], [f['id'] for f in brief(data, ['app.py'])['files']])
+
+    def test_analysis_membership_provenance_and_staleness(self):
+        self.put('app.py', 'def read(): pass\ndef write(): read()\n')
+        data = scan(self.root)
+        proposal = self.proposal(data, ['module:app.py', data['symbols'][0]['id']])
+        proposal['components'].append({'id': 'writer', 'label': 'Writer', 'description': 'Writes',
+                                      'uncertainty': 'Syntax only', 'members': [data['symbols'][1]['id']],
+                                      'evidence': [data['symbols'][1]['id']]})
+        attached = attach(data, proposal)['architecture']
+        self.assertEqual([], attached['issues'])
+        self.assertEqual(('writer', 'core'), (attached['edges'][0]['source'], attached['edges'][0]['target']))
+        self.put('app.py', 'def read(): pass\ndef write(): read()\n# changed\n')
+        with self.assertRaisesRegex(ValueError, 'stale'):
+            attach(scan(self.root), proposal)
+        proposal['snapshot'] = data['snapshot']
+        proposal['components'][0]['members'] = ['app.py']
+        with self.assertRaisesRegex(ValueError, 'overlapping'):
+            attach(data, proposal)
+
+    def test_missing_members_visible_and_fabricated_evidence_refused(self):
+        self.put('app.py', 'def read(): pass\n')
+        self.put('new.py', '')
+        data = scan(self.root)
+        proposal = self.proposal(data, ['app.py'])
+        self.assertEqual('unassigned', attach(data, proposal)['architecture']['issues'][0]['kind'])
+        proposal['components'][0]['evidence'] = ['imaginary.py:1']
+        with self.assertRaisesRegex(ValueError, 'evidence'):
+            attach(data, proposal)
+
+    def test_target_rules_detect_real_mutation_and_repair(self):
+        self.put('app.py', 'import os\n')
+        self.put('forbidden/helper.py', '')
+        rules = self.rules()
+        before = scan(self.root)
+        self.assertEqual(2, compare(before, rules)['comparison']['summary']['no_observed_violation'])
+        self.put('app.py', 'import forbidden.helper\nimport subprocess as sp\nsp.run(["echo"])\n')
+        changed = scan(self.root)
+        checked = compare(changed, rules)
+        self.assertEqual(2, checked['comparison']['summary']['violation'])
+        self.assertEqual(['app.py'], changes(changed, before)['changed'])
+        self.put('app.py', 'import os\n')
+        self.assertEqual(2, compare(scan(self.root), rules)['comparison']['summary']['no_observed_violation'])
+        self.put('ARCHITECTURE.md', 'Changed target\n')
+        with self.assertRaisesRegex(ValueError, 'stale target'):
+            compare(scan(self.root), rules)
+
+    def test_unknowns_and_wrong_target_quote_never_pass(self):
+        self.put('app.py', 'import missing\nmissing.action()\n')
+        rules = self.rules()
+        self.assertEqual(2, compare(scan(self.root), rules)['comparison']['summary']['unknown'])
+        rules['rules'][0]['source']['quote'] = 'Invented rule'
+        with self.assertRaisesRegex(ValueError, 'exact target quote'):
+            compare(scan(self.root), rules)
+
+    def test_excluded_and_unparsed_scope_remain_unknown(self):
+        self.put('app.py', 'def broken(\n')
+        rules = self.rules()
+        self.assertEqual(2, compare(scan(self.root), rules)['comparison']['summary']['unknown'])
+        self.put('app.py', 'import os\n')
+        data = compare(scan(self.root, excludes=['app.py']), rules)
+        self.assertEqual(2, data['comparison']['summary']['unknown'])
+
+    def test_cli_semantic_and_target_round_trip(self):
+        self.put('app.py', 'def f(): pass\n')
+        data = scan(self.root)
+        proposal = self.proposal(data, ['app.py'])
+        parent = Path(self.tmp.name)
+        (parent/'analysis.json').write_text(json.dumps(proposal))
+        (parent/'rules.json').write_text(json.dumps(self.rules()))
+        result = subprocess.run([str(ROOT/'bin/perry-architecture'), '--root', str(self.root),
+                                 '--analysis', str(parent/'analysis.json'), '--rules', str(parent/'rules.json')],
+                                text=True, capture_output=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        checked = json.loads(result.stdout)
+        self.assertEqual(2, checked['architecture']['version'])
+        self.assertEqual(2, checked['comparison']['summary']['no_observed_violation'])
+        self.put('app.py', 'def changed(): pass\n')
+        result = subprocess.run([str(ROOT/'bin/perry-architecture'), '--root', str(self.root),
+                                 '--analysis', str(parent/'analysis.json')], text=True, capture_output=True)
+        self.assertEqual(2, result.returncode)
+        self.assertIn('stale analysis', result.stderr)
+
+    def test_surrogate_literal_serializes_in_cli_and_html(self):
+        self.put('app.py', 'print("\\ud800")\n')
+        result = subprocess.run([str(ROOT/'bin/perry-architecture'), '--root', str(self.root)], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('\ud800', json.loads(result.stdout)['calls'][0]['literal_args'][0])
+        render(scan(self.root)).encode('utf-8')
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

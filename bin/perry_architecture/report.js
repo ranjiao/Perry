@@ -4,11 +4,14 @@ const $ = id => document.getElementById(id);
 const files = new Map(data.files.map(f => [f.id, f]));
 let scope = '', selected = null, pairs = [], boundary = false, mode = data.architecture ? 'architecture' : 'files';
 const architecture = data.architecture;
+const semantic = architecture?.version === 2;
+const evidenceItem = id => typeof id==='number'?data.imports[id]:data.evidence?.[id];
 const components = new Map((architecture?.nodes || []).map(n => [n.id,n]));
 const pathInside = (path, dir) => !dir || path.startsWith(dir + '/');
 function inside(path, dir) {
   if(mode === 'files') return pathInside(path,dir);
-  const owner = architecture.owners[path] || path;
+  if(semantic && files.has(path) && dir) return components.get(dir)?.files.includes(path) || false;
+  const owner = components.has(path)?path:(architecture.owners[path] || path);
   return owner === dir || pathInside(owner,dir);
 }
 function nameOf(path) { return mode==='architecture' ? components.get(path)?.label || path : path; }
@@ -26,10 +29,11 @@ function button(text, action, cls) {
 function label(text) { return el('div', text, 'panel-label'); }
 function state(next) { location.hash = encodeURIComponent(JSON.stringify({mode,boundary,...next})); }
 function showScope(path) { state({scope: path}); }
-function members(path) { return files.has(path) ? [files.get(path)] : data.files.filter(f => inside(f.id, path)); }
+function members(path) { return files.has(path) ? [files.get(path)] : semantic&&mode==='architecture'&&path?(components.get(path)?.files||[]).map(id=>files.get(id)):data.files.filter(f => inside(f.id, path)); }
+function localNodes(){return semantic&&mode==='architecture'?[...components.values()].filter(n=>n.parent===scope&&n.files.length).map(n=>n.id).concat(scope&&![...components.values()].some(n=>n.parent===scope)?[scope]:[]):data.files.filter(f=>inside(f.id,scope)).map(f=>project(f.id));}
 function project(path) {
   if(mode==='architecture') {
-    const owner=architecture.owners[path];
+    const owner=components.has(path)?path:architecture.owners[path];
     if(owner===scope)return scope;
     if(pathInside(owner,scope))return (scope?scope+'/':'')+(scope?owner.slice(scope.length+1):owner).split('/')[0];
     const own=scope.split('/'), parts=owner.split('/');
@@ -77,7 +81,7 @@ function navigation() {
   });
 }
 function buildGraph() {
-  const ids = new Set(data.files.filter(f => inside(f.id,scope)).map(f => project(f.id)));
+  const ids = new Set(localNodes());
   const aggregate = new Map();
   for (const edge of shownEdges()) {
     if (!inside(edge.source, scope) && !inside(edge.target, scope)) continue;
@@ -131,7 +135,7 @@ function buildGraph() {
     const crossLayer=mode==='architecture'&&!adjacent&&a.y!==b.y;
     const group=svg('g',{class:'edge-group'+(crossLayer?' cross-layer':'')+(selected?.a===pair.a&&selected?.b===pair.b?' active':''),
       role:'button',tabindex:0,'aria-label':`${nameOf(pair.a)} → ${nameOf(pair.b)}`});
-    group.append(svg('title',{},`${nameOf(pair.a)} → ${nameOf(pair.b)} · ${pair.ids.size} 条 import 证据`));
+    group.append(svg('title',{},`${nameOf(pair.a)} → ${nameOf(pair.b)} · ${pair.ids.size} 条源码证据`));
     group.append(svg('path',{d,class:'graph-edge','marker-end':'url(#arrow)'}),svg('path',{d,class:'graph-hit'}));
     group.onclick=()=>state({scope,edge:[pair.a,pair.b]});
     group.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();group.onclick();}};
@@ -148,13 +152,13 @@ function buildGraph() {
     const action=()=>file?state({scope,file:id}):showScope(id);group.onclick=action;group.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();action();}};canvas.append(group);
   }
   graph.append(canvas);
-  graph.append(el('p',mode==='architecture'?'职责分层由模型声明，连线由显式 import 聚合；浅色线表示跨层引用。范围外关系始终列在下方，可勾选后加入图中。':'目录节点按真实路径聚合；同一节点内部的依赖在下钻后显示。虚线节点是当前范围之外的依赖方。','hint'));
+  graph.append(el('p',mode==='architecture'?'职责分层由分析模型提供，连线由静态引用聚合；浅色线表示跨层引用。范围外关系始终列在下方，可勾选后加入图中。':'目录节点按真实路径聚合；同一节点内部的依赖在下钻后显示。虚线节点是当前范围之外的依赖方。','hint'));
 }
 function relations() {
   const box=$('relations');box.replaceChildren();
   for(const pair of pairs){
     const row=button('',()=>state({scope,edge:[pair.a,pair.b]}),'relation'+(selected===pair?' active':''));
-    row.append(el('span',nameOf(pair.a)),el('span','→','arrow'),el('span',nameOf(pair.b)),el('span',`${pair.edges.length} 对文件 · ${pair.ids.size} 处`,'count'));box.append(row);
+    row.append(el('span',nameOf(pair.a)),el('span','→','arrow'),el('span',nameOf(pair.b)),el('span',`${pair.edges.length} 对关系 · ${pair.ids.size} 处`,'count'));box.append(row);
   }
   if(!pairs.length)box.append(el('div','此层没有跨节点的已解析依赖。文件内部、自依赖和未解析项可在文件详情中查看。','empty'));
 }
@@ -164,9 +168,16 @@ function metrics(items) {
 function scopeDetails() {
   const box=$('details');box.replaceChildren(label(mode==='architecture'?'RESPONSIBILITY / IMPLEMENTATION':'MODULE / OVERVIEW'),el('h2',nameOf(scope)||data.project,'panel-title'));
   const fs=members(scope),set=new Set(fs.map(f=>f.id));
+  const contains=path=>semantic&&mode==='architecture'?inside(path,scope):set.has(path);
   box.append(el('p',mode==='architecture'?(components.get(scope)?.description||architecture.basis):'这里显示代码的实际组织方式。目录名称与 import 关系不代表经过确认的业务职责。','muted'));
-  box.append(metrics([[fs.length,'Python 文件'],[fs.reduce((s,f)=>s+f.lines,0).toLocaleString(),'源码行数'],[shownEdges().filter(e=>!set.has(e.source)&&set.has(e.target)).length,'范围外依赖此处'],[shownEdges().filter(e=>set.has(e.source)&&!set.has(e.target)).length,'此处依赖范围外']]));
+  box.append(metrics([[fs.length,'Python 文件'],[fs.reduce((s,f)=>s+f.lines,0).toLocaleString(),'源码行数'],[shownEdges().filter(e=>!set.has(e.source)&&set.has(e.target)).length,'范围外依赖此处'],[shownEdges().filter(e=>contains(e.source)&&!contains(e.target)).length,'此处依赖范围外']]));
   if(mode==='architecture'){
+    if(semantic&&scope){
+      const component=components.get(scope);
+      box.append(el('p','判断边界：'+component.uncertainty,'notice'));
+      const justification=el('details');justification.append(el('summary','职责判断的源码依据'));evidenceList(component.evidence,justification);box.append(justification);
+      if(component.symbols.length){const list=el('details');list.append(el('summary',`符号成员 (${component.symbols.length})`));evidenceList(component.symbols,list);box.append(list);}
+    }
     const implementation=el('details');implementation.open=scope&&!architecture.nodes.some(n=>n.parent===scope);
     implementation.append(el('summary',`实现文件 (${fs.length})`));
     for(const f of fs)implementation.append(button(f.id,()=>state({scope,file:f.id}),'tree-row'));
@@ -176,20 +187,20 @@ function scopeDetails() {
   box.append(el('div','这是一次代码快照。修改代码后重新扫描，报告不会自动刷新。','notice'));
 }
 function evidenceList(ids, box) {
-  for(const id of [...ids].sort((a,b)=>data.imports[a].source.localeCompare(data.imports[b].source)||data.imports[a].line-data.imports[b].line)){
-    const item=data.imports[id], b=button(`${item.source}:${item.line} · ${item.resolution}`,()=>state({scope,...(selected?{edge:[selected.a,selected.b]}:{}),import:id}),'evidence');
+  for(const id of [...ids].sort((a,b)=>evidenceItem(a).source.localeCompare(evidenceItem(b).source)||evidenceItem(a).line-evidenceItem(b).line)){
+    const item=evidenceItem(id), b=button(`${item.source}:${item.line} · ${item.kind||'import'}`,()=>state({scope,...(selected?{edge:[selected.a,selected.b]}:{}),import:id}),'evidence');
     if(item.symbol)b.append(el('small',`符号: ${item.symbol}`));
     b.append(el('code',item.statement));
-    if(item.targets.length)b.append(el('small','→ '+item.targets.join(', ')));
-    if(item.contexts.length)b.append(el('small',item.contexts.join(' · ')));
+    if(item.targets?.length)b.append(el('small','→ '+item.targets.join(', ')));
+    if(item.canonical)b.append(el('small','→ '+item.canonical));
     box.append(b);
   }
 }
 function edgeDetails(pair, itemId) {
   const box=$('details');box.replaceChildren(label('DEPENDENCY / EVIDENCE'),el('h2',`${nameOf(pair.a)} → ${nameOf(pair.b)}`,'panel-title'));
-  box.append(el('p',`${pair.edges.length} 对文件依赖，由 ${pair.ids.size} 条 import 记录产生。${mode==='architecture'?'只展示显式引用；不宣称运行时调用或读写流程。':'包含明确可解析的包初始化依赖。'}`,'muted'));
+  box.append(el('p',`${pair.edges.length} 对静态关系，由 ${pair.ids.size} 条源码记录产生。${mode==='architecture'?'只展示显式引用；不宣称运行时调用或读写流程。':'包含明确可解析的包初始化依赖。'}`,'muted'));
   const list=el('details');list.open=itemId===undefined;list.append(el('summary',`源码证据 (${pair.ids.size})`));evidenceList(pair.ids,list);box.append(list);
-  if(itemId!==undefined)source(data.imports[itemId].source,data.imports[itemId].line,data.imports[itemId].end_line);
+  if(itemId!==undefined)source(evidenceItem(itemId).source,evidenceItem(itemId).line,evidenceItem(itemId).end_line);
 }
 function fileDetails(path, line=1) {
   const f=files.get(path);if(!f)return scopeDetails();
@@ -199,6 +210,7 @@ function fileDetails(path, line=1) {
   for(const [title,ids] of [['此文件的 imports',outgoing.map(i=>i.id)],['被哪些源码依赖',[...incoming]]]){
     const list=el('details');list.append(el('summary',`${title} (${ids.length})`));evidenceList(ids,list);box.append(list);
   }
+  if(data.calls){const list=el('details');const ids=data.calls.filter(c=>c.source===path).map(c=>c.id);list.append(el('summary',`调用表达式 (${ids.length})`));evidenceList(ids,list);box.append(list);}
   source(path,line,line);
 }
 function source(path,line,end) {
@@ -221,11 +233,25 @@ function coverage() {
   box.append(el('div','未解析不等于外部依赖：它也可能是被排除的文件、未配置的导入根或动态加载。函数内与条件内 import 都保留，不代表运行时一定执行。','notice'));
   box.append(el('pre',`根目录: ${data.root}\n导入根: ${data.scope.source_roots.join(', ')}\n排除: ${data.scope.excludes.join(', ')||'无自定义'}\n文件上限: ${data.scope.max_file_bytes} bytes\nPython: ${data.python}`,'scope-list'));
   box.append(el('p','默认排除目录：'+data.scope.default_excluded_dirs.join(', '),'muted'));
-  box.append(el('p','不覆盖调用图、子进程、反射、文件/数据库读写、非 Python 代码。未模拟 sys.path 优先级；同名候选标记为 ambiguous。','muted'));
+  box.append(el('p','调用仅作保守的词法解析，不覆盖完整运行时调用图、反射、文件/数据库读写、非 Python 代码。未模拟 sys.path 优先级；同名候选标记为 ambiguous。','muted'));
   const skipped=el('details');skipped.append(el('summary',`跳过的路径 (${data.scope.skipped_paths.length})`),el('pre',data.scope.skipped_paths.join('\n'),'scope-list'));box.append(skipped);
   const unresolved=data.imports.filter(i=>['unresolved','ambiguous'].includes(i.resolution));
   const list=el('details');list.append(el('summary',`未解析 / 歧义 import (${unresolved.length})`));evidenceList(unresolved.map(i=>i.id),list);box.append(list);
   for(const issue of data.issues){const item=el('div',undefined,'issue');item.append(el('strong',`${issue.kind} · ${issue.path}:${issue.line}`),el('p',issue.message));if(files.has(issue.path))item.append(button('查看源码',()=>state({scope,file:issue.path,line:issue.line||1})));box.append(item);}
+}
+function comparison(){
+  const box=$('details');box.replaceChildren(label('TARGET / CURRENT / EVIDENCE'),el('h2','目标对比','panel-title'));
+  if(data.comparison){
+    box.append(el('p','目标来自用户架构文档；检查规则由 agent 解释提取。原文与版本已校验，规则解释仍需审阅。','notice'));
+    const statuses={violation:'发现偏离',unknown:'无法完整判断',no_observed_violation:'未观察到违反'};
+    for(const rule of data.comparison.results){
+      box.append(el('h3',rule.id+' · '+statuses[rule.status]),el('p','本次只检查 '+rule.kind+': '+(rule.constraint||[]).join(', '),'muted'),el('p',`${rule.source.path}:${rule.source.line} · 检查 ${rule.checked_files} 个文件`,'hint'),el('pre',rule.source.quote,'scope-list'));
+      for(const finding of rule.violations){box.append(el('p',finding.reason,'issue'));evidenceList(finding.evidence,box);}
+      if(rule.unknown.length){const unknown=el('details');unknown.append(el('summary',`无法判断 (${rule.unknown.length})`));for(const finding of rule.unknown){unknown.append(el('p',finding.reason,'muted'));evidenceList(finding.evidence,unknown);}box.append(unknown);}
+    }
+    box.append(el('p','只检查已列出的规则与扫描范围，不代表整个架构合规。修实现或改目标的决定沿用 Perry 现有审计流程。','notice'));
+  }else box.append(el('p','未提供目标规则；当前只有代码现状，不做合规判断。'));
+  if(data.changes){box.append(el('h3','与上次快照相比'));for(const key of ['added','removed','changed','components_added','components_removed','components_changed'])box.append(el('p',key+': '+(data.changes[key].join(', ')||'无'),'hint'));}
 }
 function render() {
   let view={};try{view=JSON.parse(decodeURIComponent(location.hash.slice(1))||'{}');}catch{}
@@ -249,9 +275,9 @@ function render() {
   const crumbs=$('breadcrumbs');crumbs.replaceChildren(button(data.project,()=>showScope('')));
   if(scope)scope.split('/').forEach((part,i,all)=>{const key=all.slice(0,i+1).join('/');crumbs.append(el('span','/'),button(mode==='architecture'?nameOf(key):part,()=>showScope(key)));});
   buildGraph();selected=pairs.find(p=>p.a===selected?.a&&p.b===selected?.b)||null;relations();
-  const item=Number.isInteger(view.import)?data.imports[view.import]:null;
-  document.body.classList.toggle('detail-open',Boolean(view.coverage||selected||item||view.file));
-  if(view.coverage)coverage();else if(selected)edgeDetails(selected,item?.id);else if(item) {fileDetails(item.source,item.line);} else if(view.file)fileDetails(view.file,Number.isInteger(view.line)?Math.max(1,Math.min(files.get(view.file)?.lines||1,view.line)):1);else scopeDetails();
+  const item=evidenceItem(view.import);
+  document.body.classList.toggle('detail-open',Boolean(view.comparison||view.coverage||selected||item||view.file));
+  if(view.comparison)comparison();else if(view.coverage)coverage();else if(selected)edgeDetails(selected,item?view.import:undefined);else if(item) {fileDetails(item.source,item.line);} else if(view.file)fileDetails(view.file,Number.isInteger(view.line)?Math.max(1,Math.min(files.get(view.file)?.lines||1,view.line)):1);else scopeDetails();
   $('details').scrollTop=0;
   $('details').parentElement.scrollTop=0;
 }
@@ -259,6 +285,7 @@ $('title').textContent=data.project+' / 代码结构';document.title=data.projec
 $('snapshot').textContent='SNAPSHOT '+data.snapshot.slice(0,12)+' · 本地离线报告';
 for(const [value,name] of [[data.summary.files,'Python 文件'],[data.summary.scripts,'无后缀脚本'],[data.summary.edges,'文件依赖'],[data.summary.parsed+'/'+data.summary.files,'解析覆盖'],[data.summary.unresolved+data.summary.ambiguous+data.issues.length,'需核对记录 / 见扫描范围']]){const s=el('div',undefined,'stat');s.append(el('strong',value),el('span',name));$('stats').append(s);}
 $('stats').append(el('div','结构来自代码；职责与设计意图仍由人判断。所有关系都可追溯到源码。','stat-note'));
+$('comparison').onclick=()=>state({scope,comparison:true});
 $('search').oninput=navigation;$('coverage').onclick=()=>state({scope,coverage:true});
 $('close-details').onclick=()=>showScope(scope);
 $('architecture-view').onclick=()=>state({mode:'architecture',scope:''});
@@ -266,7 +293,7 @@ $('file-view').onclick=()=>state({mode:'files',scope:''});
 $('boundary').onchange=()=>state({scope,boundary:$('boundary').checked});
 $('mermaid').onclick=()=>{
   const visiblePairs=pairs.filter(p=>mode==='files'||boundary||(inside(p.a,scope)&&inside(p.b,scope)));
-  const ids=[...new Set([...data.files.filter(f=>inside(f.id,scope)).map(f=>project(f.id)),...visiblePairs.flatMap(p=>[p.a,p.b])])];
+  const ids=[...new Set([...localNodes(),...visiblePairs.flatMap(p=>[p.a,p.b])])];
   const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
   const lines=['flowchart TB',...ids.map((id,i)=>`  n${i}["${escape(nameOf(id))}"]`),...visiblePairs.map(p=>`  n${ids.indexOf(p.a)} -->|"静态引用 · ${p.ids.size} 条记录"| n${ids.indexOf(p.b)}`)];
   const url=URL.createObjectURL(new Blob([lines.join('\n')+'\n'],{type:'text/plain'}));

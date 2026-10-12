@@ -6,15 +6,23 @@ third-party dependencies. Python 3.11+; use a modern browser for the HTML.
 
 ## Run
 
-From Perry's checkout, analyze Perry's product code:
+The software-ops workflow is documented in
+[architecture-analysis.md](../../packs/software-ops/architecture-analysis.md).
+Use the same scan arguments throughout a run:
 
 ```sh
-bin/perry-architecture --root . \
-  --source-roots bin,viewer,kernel,release \
-  --exclude perry,tests,kernel/tests \
-  --architecture bin/perry_architecture/perry-model.json \
-  --html /tmp/perry-code-report.html
+bin/perry-architecture --root /path/to/project --source-roots src --json > /tmp/facts.json
+bin/perry-architecture --root /path/to/project --source-roots src --brief --focus 'src/core/*'
+# The host agent reads facts/source and generates analysis.json and cited rules.json.
+bin/perry-architecture --root /path/to/project --source-roots src \
+  --analysis /tmp/analysis.json --rules /tmp/rules.json \
+  --html /tmp/project-architecture.html --json > /tmp/report.json
 ```
+
+For Perry use `--source-roots bin,viewer,kernel,release --exclude perry,tests,kernel/tests`.
+There is no model API or automatic semantic classification in the CLI. The host
+agent performs that step from evidence during the skill workflow. Generated
+analysis is a disposable snapshot output, not a hand-maintained input map.
 
 The output path must be **outside the analyzed project and not already exist**.
 Choose a new filename when regenerating. The tool reads project files; it does
@@ -38,41 +46,23 @@ analysis; multiple same-name candidates are reported as ambiguous.
 
 ## Architecture hierarchy and source evidence
 
-The primary view with `--architecture` is a responsibility hierarchy: overview,
+The primary view with `--analysis` is a responsibility hierarchy: overview,
 components, then implementation files. The original directory graph remains a
 secondary evidence view. Without a model the report opens that directory view;
 it does not claim to infer semantic architecture from imports.
 
-`perry-model.json` is an agent-authored starting model based on Perry's existing
-architecture documents and source, pending human review. Its labels, boundaries
-and layers are design judgments. File membership and inter-component import
-relations are computed from the scanned code. The model never declares arrows.
-Unassigned files, overlapping ownership and empty components appear in coverage;
-new code cannot silently disappear behind a stale classification.
+`--analysis` validates exact file/symbol membership, evidence references and the
+fact snapshot. Unknown members and overlap are refused; omitted members remain
+visible. Source changes require regeneration. The tool validates provenance,
+not semantic truth. See the workflow above for the analysis and rules contracts.
 
-A model for another project is ordinary editable JSON:
+`--rules` validates exact target quotes and document hashes before checking the
+two supported rule kinds. `--previous` compares file hashes and component IDs.
+Renames appear as removals/additions; automatic semantic identity matching and
+partial regeneration are not implemented in this first slice.
 
-```json
-{
-  "version": 1,
-  "title": "Project architecture",
-  "basis": "Reviewed responsibility boundaries",
-  "components": [
-    {"id": "application", "label": "Application", "layer": 0,
-     "children": [
-       {"id": "commands", "label": "Commands", "description": "Accept requests",
-        "layer": 0, "paths": ["src/commands/*.py"]}
-     ]},
-    {"id": "storage", "label": "Storage", "layer": 1,
-     "paths": ["src/storage/*.py"]}
-  ]
-}
-```
-
-Leaves use project-relative, case-sensitive `fnmatch` patterns (`*` can span
-slashes); branches have children instead of paths. IDs are lowercase slugs,
-unique under their parent. `layer` is 0–10 and determines vertical placement.
-Names, descriptions and layers need review; they are not AST discoveries.
+Legacy `--architecture` and `perry-model.json` remain for opening the earlier
+prototype; they are not used by the code-backed analysis workflow.
 
 Click a component for its purpose and implementation list. Click a relation for
 actual import statements and source line ranges. Source opens from the scanned
@@ -98,7 +88,7 @@ when comparing versions. HTML renders source as text, never executable markup.
 
 ## What the graph means
 
-- Only static `import` and `from … import …` relations. Regular, relative,
+- Static `import` and `from … import …` relations, plus symbol declarations and conservative lexical call references. Regular, relative,
   multiline, conditional, and function-local statements are included. They
   prove a declaration, not execution. Unambiguous package initializers are
   included when importing a child.
@@ -119,14 +109,17 @@ when comparing versions. HTML renders source as text, never executable markup.
   semantic coverage. Parsing reflects the interpreter's Python grammar.
 - Symlink files/directories, nested Git repositories and generated/environment
   directories are skipped. File size limit defaults to 2 MB. Other languages,
-  call graphs, subprocess relations, file/database I/O and architecture rules
-  are outside this version. Missing edges do not prove independence.
+  full runtime call graphs and file/database I/O are outside this version.
+  Call expressions, literal arguments and literal SURFACE declarations are
+  evidence; dynamic dispatch is not simulated. Missing edges do not prove independence.
 - Graphs display at most 80 nodes at one level; the dependency list keeps all
   relationships. Search returns the first 100 files with a total count.
 
 ## Code boundaries and verification
 
-`scan.py` returns facts; `model.py` binds optional responsibility ownership;
+`scan.py` returns facts; `facts.py` extracts symbols and lexical calls;
+`analysis.py` validates host-agent interpretation; `audit.py` checks cited
+constraints; `model.py` supports the legacy ownership map;
 `report.py` embeds them with `report.html`, `.css` and
 `.js`; `bin/perry-architecture` exposes the CLI and Perry's discovery surface.
 The module does not depend on the state kernel or project parsers.

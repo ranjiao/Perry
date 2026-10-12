@@ -103,6 +103,12 @@ Drift detection — replaces the older `audit` name. Two layers:
 
 **Layer 1 — mechanical checks**: for every §6 NN with a `Check:` field, run the command. Non-zero exit → violation row.
 
+For Python code, first use [code-backed architecture analysis](architecture-analysis.md)
+to produce source facts, a host-agent responsibility model and cited target
+checks. Include its snapshot, coverage and findings in the review input below.
+This adds evidence; it does not replace the independent reviewer or authorize
+code repair, target edits, scheduling, or a whole-project compliance claim.
+
 **Layer 2 — LLM consistency scan**: dispatch a host-valid review agent (`claude-subagent | opencode-subagent | codex`) with input:
 - Full `ARCHITECTURE.md`
 - Project file tree (depth ≤ 3) + headers of top-level files

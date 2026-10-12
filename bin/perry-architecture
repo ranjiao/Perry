@@ -16,11 +16,19 @@ import lib
 from perry_architecture.scan import scan
 from perry_architecture.report import render
 from perry_architecture.model import bind
+from perry_architecture.facts import brief
+from perry_architecture.analysis import attach, changes
+from perry_architecture.audit import compare
 
 SURFACE = {
     "name": "perry-architecture", "kind": "read", "root_resolution": "cwd",
-    "summary": "Python import overview, module drilldown and source evidence",
+    "summary": "Static architecture facts, host-agent interpretation and cited target checks",
     "flags": [
+        {"name": "--focus", "arg": "patterns", "summary": "filter --brief evidence by project-relative file globs"},
+        {"name": "--brief", "summary": "emit fact evidence pack for host-agent interpretation"},
+        {"name": "--analysis", "arg": "file", "summary": "validate host-agent current-state analysis against snapshot"},
+        {"name": "--rules", "arg": "file", "summary": "check cited target constraints; never modify target"},
+        {"name": "--previous", "arg": "file", "summary": "compare to previous JSON snapshot"},
         {"name": "--architecture", "arg": "file", "summary": "responsibility hierarchy JSON; edges still come from code"},
         {"name": "--source-roots", "arg": "dirs", "summary": "comma-separated import roots, in addition to project root"},
         {"name": "--exclude", "arg": "patterns", "summary": "comma-separated project-relative paths/globs"},
@@ -48,6 +56,12 @@ def main(argv=None):
         return 0
     args = parsed["values"]
     try:
+        if "--focus" in args and "--brief" not in parsed["seen"]:
+            raise ValueError("--focus requires --brief")
+        if "--architecture" in args and "--analysis" in args:
+            raise ValueError("use --analysis or legacy --architecture, not both")
+        if "--brief" in parsed["seen"] and any(k in args for k in ("--html", "--analysis", "--architecture", "--rules", "--previous")):
+            raise ValueError("--brief is an independent facts-only output")
         root = Path(args.get("--root", os.environ.get("PERRY_PROJECT") or ".")).resolve(strict=True)
         max_bytes = int(args.get("--max-file-bytes", 2_000_000))
         if max_bytes < 1:
@@ -60,6 +74,12 @@ def main(argv=None):
                     split(args.get("--exclude", "")), max_bytes)
         if "--architecture" in args:
             bind(data, json.loads(Path(args["--architecture"]).read_text(encoding="utf-8")))
+        if "--analysis" in args:
+            attach(data, json.loads(Path(args["--analysis"]).read_text(encoding="utf-8")))
+        if "--rules" in args:
+            compare(data, json.loads(Path(args["--rules"]).read_text(encoding="utf-8")))
+        if "--previous" in args:
+            data["changes"] = changes(data, json.loads(Path(args["--previous"]).read_text(encoding="utf-8")))
         if output:
             output.parent.mkdir(parents=True, exist_ok=True)
             # Refuse accidental overwrites. Regenerate to a new report path.
@@ -67,7 +87,7 @@ def main(argv=None):
                 stream.write(render(data))
             print(f"Report: {output}", file=sys.stderr)
         if "--json" in parsed["seen"] or not output:
-            print(json.dumps(data, ensure_ascii=False, indent=2))
+            print(json.dumps(brief(data, split(args.get("--focus", ""))) if "--brief" in parsed["seen"] else data, ensure_ascii=True, indent=2))
     except (OSError, ValueError) as exc:
         print(f"perry-architecture: {exc}", file=sys.stderr)
         return 2

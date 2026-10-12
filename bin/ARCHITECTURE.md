@@ -71,6 +71,10 @@ an explicitly named, new report outside the analyzed project; JSON defaults
 to stdout. It neither imports target code nor reads or writes project state.
 The analyzer does not depend on `viewer`, `lib`, or the state kernel; only
 the CLI delegates argument parsing and discovery to `lib`'s surface helpers.
+`perry_architecture/facts.py` extracts syntax evidence; `analysis.py` validates
+host-agent interpretations and `audit.py` evaluates cited constraints without
+interpreting prose or writing the target. The software-ops architecture audit
+consumes these outputs.
 `perry_architecture/model.py` binds an optional explicit responsibility tree to
 source files. The model supplies labels, ownership and layers; imports supply
 the arrows. Unassigned/overlapping files remain visible. `perry-model.json` is
