@@ -21,7 +21,7 @@ The independently reviewed architecture analysis delivery was merged locally int
 - Diff whitespace check: PASS. Main and candidate were clean and base unchanged immediately before merge; merged tree equality was asserted afterward.
 - The first full run failed a stale delegate-contract pin. The author corrected it, the independent reviewer rechecked the pin and unchanged guard semantics, and the complete gate was rerun. The failed log remains alongside the successful logs.
 
-Receipts and logs: [integration artifacts](TASK-495-integration/). The full receipt stores `artifact_verified: false` because it is the original emitted receipt; the separate main verification log records successful artifact import verification. Do not modify the emitted receipt to invent a different original outcome.
+Receipts and logs: [integration artifacts](TASK-495-integration/). Committed logs normalize terminal color escapes and trailing whitespace; original logs remain under `/tmp/perry-scratch/Perry/`. JSON receipts retain their emitted content. The full receipt stores `artifact_verified: false` because it is the original emitted receipt; the separate main verification log records successful artifact import verification. Do not modify the emitted receipt to invent a different original outcome.
 
 Independent review provenance: [round 1 FAIL](TASK-495-review-round1.md), [round 2 PASS](TASK-495-review-round2.md), [round 3 pin-correction PASS](TASK-495-review-round3.md), against [written criteria](../../../bin/perry_architecture/REVIEW-CRITERIA.md). The product author, fresh reviewer and integrating agent are separate roles. The verdict is the independent reviewer's; integration does not self-award V4.
 

@@ -3,6 +3,6 @@
 
 durations: 165 recorded · 165 on disk · 164 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
   ✓ every module on disk is accounted for
-[32m✓ all green[0m
+✓ all green
 
 VERIFIED recorded artifact on 40a2605348ad13130aacf5f8f25fe2beb9299656; run/check the slow gate separately before acceptance

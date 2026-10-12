@@ -1,30 +1,30 @@
 INPUTS {"base": {"ref": "f5565a38990570531c6e867e77cfaa376b5db349", "sha": "f5565a38990570531c6e867e77cfaa376b5db349"}, "candidates": [{"name": "delivery", "ref": "b93c92beebca1bd6eb0dd1b20d67e03a55047f34", "sha": "b93c92beebca1bd6eb0dd1b20d67e03a55047f34"}], "schema": 1, "status": "pending", "tier": "slow"}
 merge-check · base f5565a38990570531c6e867e77cfaa376b5db349 @ f5565a38
-  delivery b93c92be  
+  delivery b93c92be
 
   … merging 1 candidate(s) onto f5565a38
 TESTED TREE 6e73e507e9f4e83797dc6e1ede67637c3bb4bb57
   … running slow on the merged result
 
-[1m0. tree guard — recording /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree[0m
+0. tree guard — recording /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree
   · recorded
 
-[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+1. schema drift guard (templates vs schema/state-schema.json)
 perry-lint · templates in /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree
   ✓ clean — every state file matches schema/state-schema.json
 
-[1m2. parser / extractor / linter contract tests[0m
+2. parser / extractor / linter contract tests
 
 165 modules · 4690 tests · 242.1s · 4 workers
 
 durations: 165 recorded · 165 on disk · 164 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
   ✓ every module on disk is accounted for
-[32m✓ all green[0m
+✓ all green
 
-[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+3. bin/ scripts are syntactically valid and self-documenting
   ✓ all bin/ scripts OK
 
-[1m4. sample projects lint clean (English and Chinese)[0m
+4. sample projects lint clean (English and Chinese)
 perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree/tests/fixtures/sample-project
   ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Architecture (not yet blocking at Status: in_review; required at locked)
   ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Implementation plan (not yet blocking at Status: in_review; required at locked)
@@ -61,10 +61,10 @@ perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scr
   · no `*-spec.md` under evidence/ — the dispatch pre-flight has nothing to read here
   · summaries: all 3 open row(s) carry one that is not just the title again
 
-[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+0. tree guard — the tree the suite started in is the tree it ends in
   ✓ nothing under /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree moved
 
-[32m✓ all green[0m
+✓ all green
 PERRY_CHECK	guard:snapshot	0
 PERRY_CHECK	lint:templates	0
 PERRY_CHECK	syntax:bin/perry-state	0

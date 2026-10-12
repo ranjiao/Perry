@@ -1,23 +1,23 @@
 INPUTS {"base": {"ref": "f5565a38990570531c6e867e77cfaa376b5db349", "sha": "f5565a38990570531c6e867e77cfaa376b5db349"}, "candidates": [{"name": "delivery", "ref": "77e1ef8f8d6546c21a4bbfbbc3eec509b069741a", "sha": "77e1ef8f8d6546c21a4bbfbbc3eec509b069741a"}], "schema": 1, "status": "pending", "tier": "full"}
 merge-check · base f5565a38990570531c6e867e77cfaa376b5db349 @ f5565a38
-  delivery 77e1ef8f  
+  delivery 77e1ef8f
 
   … merging 1 candidate(s) onto f5565a38
 TESTED TREE 38d9a9de0bde68b13bba627f3818dd14636a1bbd
   … running full on the merged result
 
-[1m0. tree guard — recording /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree[0m
+0. tree guard — recording /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree
   · recorded
 
-[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+1. schema drift guard (templates vs schema/state-schema.json)
 perry-lint · templates in /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree
   ✓ clean — every state file matches schema/state-schema.json
 
-[1m2. parser / extractor / linter contract tests[0m
+2. parser / extractor / linter contract tests
 
-[31m✗ test_spec_scannability.py[0m — 1 of 71 test(s) failed
+✗ test_spec_scannability.py — 1 of 71 test(s) failed
     FAIL   test_spec_scannability.TestTheAgentGetsItsOwnTree.test_the_governed_regions_are_pinned
-  [33m… 185 earlier line(s) elided of 210; the last 25 follow — re-run this module alone for all of it[0m
+  … 185 earlier line(s) elided of 210; the last 25 follow — re-run this module alone for all of it
 baseline. Follow the existing architecture discussion gate before accepting it.
 
 ### For code-changing work, always require
@@ -48,12 +48,12 @@ FAILED (failures=1)
 
 durations: 165 recorded · 165 on disk · 161 stamped at an ancestor ref · 0 stale · 0 unstamped · 4 unmeasured
   ✓ every module on disk is accounted for
-[31m✗ 1 of 161 MODULE(S) red[0m
-[31m✗ 1 of 4587 TEST(S) failed[0m
+✗ 1 of 161 MODULE(S) red
+✗ 1 of 4587 TEST(S) failed
 
-[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+3. bin/ scripts are syntactically valid and self-documenting
 
-[1m4. sample projects lint clean (English and Chinese)[0m
+4. sample projects lint clean (English and Chinese)
 perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree/tests/fixtures/sample-project
   ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Architecture (not yet blocking at Status: in_review; required at locked)
   ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Implementation plan (not yet blocking at Status: in_review; required at locked)
@@ -90,10 +90,10 @@ perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scr
   · no `*-spec.md` under evidence/ — the dispatch pre-flight has nothing to read here
   · summaries: all 3 open row(s) carry one that is not just the title again
 
-[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+0. tree guard — the tree the suite started in is the tree it ends in
   ✓ nothing under /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree moved
 
-[31m✗ failures above[0m
+✗ failures above
 PERRY_CHECK	guard:snapshot	0
 PERRY_CHECK	lint:templates	0
 PERRY_CHECK	syntax:bin/perry-state	0
@@ -121,9 +121,8 @@ PERRY_CHECK	guard:verify	0
   … 1 newly red — running each candidate alone
 BROKEN ON ITS OWN — delivery · test_spec_scannability.py
     1 modules · 71 tests · 6.4s · 4 workers
-    
+
     durations: 165 recorded · 165 on disk · 161 stamped at an ancestor ref · 0 stale · 0 unstamped · 4 unmeasured
       ✓ every module on disk is accounted for
     ✗ 1 of 1 MODULE(S) red
     ✗ 1 of 71 TEST(S) failed
-
