@@ -30,7 +30,38 @@ Analysis implementation is on `codex/architecture-browser`, not integrated.
 - `git diff --check`: passed.
 
 The [software-ops workflow](../../packs/software-ops/architecture-analysis.md)
-is the reproducible host-agent procedure. Reports are disposable artifacts;
+is the reproducible host-agent procedure. Ad hoc reports are regenerable; task checkpoints are retained evidence;
 source changes currently invalidate the complete interpretation, not just a
 component cache. Target edits invalidate derived rules. No scheduler, auto-repair,
 new model service, target-architecture edits, independent V4 or merge performed.
+
+
+## Task checkpoint integration — 2026-10-12
+
+- Start/delivery/verification CLI roundtrip ran on the same real Perry snapshot
+  above, using its existing evidence-backed interpretation and two kernel rules.
+  Both checkpoints were `limited` (existing unknown calls), `open_report: false`;
+  delivery freshness verification returned `fresh: true`. No source or target
+  was edited in the primary checkout. This is a validation run, not a fabricated
+  pre-edit baseline for implementing the checkpoint feature itself.
+- Durable local receipts: `architecture-checkpoints/validation.json` alongside
+  the earlier `architecture-phase1` artifacts. Each checkpoint retains its own
+  JSON bundle, HTML report and completion receipt. Source/target freshness and
+  baseline identity are checked before accepting delivery evidence.
+- Browser smoke: saved real-code delivery report rendered its task, stage,
+  limited status and baseline comparison in a background localhost tab;
+  no console errors. The temporary test tab was closed.
+- Regression coverage includes pinned baseline retention, immutable retry paths,
+  code/target staleness, changed/deleted targets, task/scope mismatch, missing
+  completion receipt, tampered evidence, semantic findings and target-change
+  requests, and increased unresolved calls without noisy repeated reports.
+- Lifecycle integration is in the host work/direct/manual-dispatch instructions;
+  the task-state CLI does not launch an agent. End-to-end autonomous compliance
+  by a future agent and independent V4 review are not certified by these tests.
+
+- Final checkpoint regression suite: 32 tests passed. Full `bash tests/run`:
+  exit 0, all green, tree guard unchanged. The first full run found two integration
+  issues (shared timestamp helper and a pack-document pointer); both were fixed
+  and the full suite rerun. `git diff --check` passed.
+- Target-change UI fixture retained the old/new target text and displayed
+  `attention`; it is explicitly synthetic, not a violation in Perry's code.

@@ -241,8 +241,20 @@ function coverage() {
 }
 function comparison(){
   const box=$('details');box.replaceChildren(label('TARGET / CURRENT / EVIDENCE'),el('h2','目标对比','panel-title'));
+  if(data.checkpoint){
+    const c=data.checkpoint;
+    box.append(el('h3',`${c.task} · ${c.stage} · ${c.status}`),el('p',c.summary,'notice'),el('p',c.review.summary));
+    for(const reason of c.reasons)box.append(el('p',reason,'issue'));
+    for(const change of c.target_changes){
+      box.append(el('p',`目标发生变化：${change.path}；需要用户讨论，未重新解释规则。`,'issue'));
+      const texts=el('details');texts.append(el('summary','查看基线目标与当前目标'));
+      texts.append(el('h3','基线目标'),el('pre',change.baseline_source||'未保存','scope-list'),el('h3','当前目标'),el('pre',change.current_source===null?'文件已删除':change.current_source,'scope-list'));box.append(texts);
+    }
+    for(const finding of c.review.findings){box.append(el('p',finding.reason+' · '+finding.target,'issue'));evidenceList(finding.evidence,box);}
+  }
   if(data.comparison){
-    box.append(el('p','目标来自用户架构文档；检查规则由 agent 解释提取。原文与版本已校验，规则解释仍需审阅。','notice'));
+    if(data.comparison.limits)box.append(el('p',data.comparison.limits,'hint'));
+    if(data.comparison.targets.length)box.append(el('p','目标来自用户架构文档；检查规则由 agent 解释提取。原文与版本已校验，规则解释仍需审阅。','notice'));
     const statuses={violation:'发现偏离',unknown:'无法完整判断',no_observed_violation:'未观察到违反'};
     for(const rule of data.comparison.results){
       box.append(el('h3',rule.id+' · '+statuses[rule.status]),el('p','本次只检查 '+rule.kind+': '+(rule.constraint||[]).join(', '),'muted'),el('p',`${rule.source.path}:${rule.source.line} · 检查 ${rule.checked_files} 个文件`,'hint'),el('pre',rule.source.quote,'scope-list'));
@@ -256,6 +268,7 @@ function comparison(){
 function render() {
   let view={};try{view=JSON.parse(decodeURIComponent(location.hash.slice(1))||'{}');}catch{}
   if(!view || typeof view!=='object' || Array.isArray(view))view={};
+  if(!location.hash && data.checkpoint?.open_report)view.comparison=true;
   mode=architecture&&view.mode!=='files'?'architecture':'files';
   boundary=view.boundary===true;
   $('boundary').checked=boundary;

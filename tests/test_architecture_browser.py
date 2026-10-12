@@ -39,6 +39,153 @@ class ArchitectureBrowser(unittest.TestCase):
                                 'uncertainty': 'Runtime behavior is not known', 'members': members,
                                 'evidence': [data['symbols'][0]['id']]}]}
 
+    def checkpoint_inputs(self):
+        from perry_architecture.checkpoint import save
+        self.put('app.py', 'def run(): return 1\n')
+        rules = self.rules()
+        data = scan(self.root)
+        proposal = self.proposal(data, ['app.py'])
+        review = {'snapshot': data['snapshot'], 'summary': 'Function and target reviewed',
+                  'target_change_requested': False, 'findings': []}
+        store = Path(self.tmp.name) / 'evidence'
+        receipt = save(data, 'start', 'TASK-1', store, proposal, review, rules)
+        return save, store, receipt, review
+
+    def test_checkpoint_retention_freshness_and_drift(self):
+        from perry_architecture.checkpoint import verify, read
+        save, store, start, review = self.checkpoint_inputs()
+        baseline = Path(start['checkpoint'])
+        original = (baseline / 'bundle.json').read_bytes()
+        self.assertFalse(start['open_report'])
+        self.assertTrue(verify(scan(self.root), baseline)['fresh'])
+        self.put('app.py', 'import os\ndef run(): os.system("echo")\n')
+        with self.assertRaisesRegex(ValueError, 'stale'):
+            verify(scan(self.root), baseline)
+        data = scan(self.root)
+        review['snapshot'] = data['snapshot']
+        receipt = save(data, 'delivery', 'TASK-1', store,
+                       self.proposal(data, ['app.py']), review, baseline=baseline)
+        self.assertTrue(receipt['open_report'])
+        self.assertIn('constraint_violation', receipt['reasons'])
+        self.assertEqual(original, (baseline / 'bundle.json').read_bytes())
+        self.assertTrue(verify(scan(self.root), receipt['checkpoint'])['fresh'])
+        bundle = read(Path(receipt['checkpoint']) / 'bundle.json')
+        self.assertEqual(['app.py'], bundle['report']['changes']['changed'])
+        self.put('ARCHITECTURE.md', 'Rewritten target\n')
+        with self.assertRaisesRegex(ValueError, 'target changed'):
+            verify(scan(self.root), receipt['checkpoint'])
+        data = scan(self.root)
+        receipt2 = save(data, 'delivery', 'TASK-1', store,
+                        self.proposal(data, ['app.py']), review, baseline=baseline)
+        self.assertNotEqual(receipt['checkpoint'], receipt2['checkpoint'])
+        self.assertIn('target_changed', receipt2['reasons'])
+        self.assertTrue(verify(scan(self.root), receipt2['checkpoint'])['fresh'])
+        self.assertEqual('Rewritten target\n', receipt2['target_changes'][0]['current_source'])
+        (self.root / 'ARCHITECTURE.md').unlink()
+        data = scan(self.root)
+        deleted = save(data, 'delivery', 'TASK-1', store,
+                       self.proposal(data, ['app.py']), review, baseline=baseline)
+        self.assertIsNone(deleted['target_changes'][0]['current_source'])
+        self.assertTrue(verify(scan(self.root), deleted['checkpoint'])['fresh'])
+
+    def test_checkpoint_rejects_missing_receipt_scope_and_rule_replacement(self):
+        save, store, start, review = self.checkpoint_inputs()
+        base = Path(start['checkpoint'])
+        data = scan(self.root)
+        proposal = self.proposal(data, ['app.py'])
+        with self.assertRaisesRegex(ValueError, 'baseline rules'):
+            save(data, 'delivery', 'TASK-1', store, proposal, review, self.rules(), base)
+        with self.assertRaisesRegex(ValueError, 'this task'):
+            save(data, 'delivery', 'TASK-2', store, proposal, review, baseline=base)
+        data = scan(self.root, excludes=['excluded'])
+        review['snapshot'] = data['snapshot']
+        with self.assertRaisesRegex(ValueError, 'scope changed'):
+            save(data, 'delivery', 'TASK-1', store, self.proposal(data, ['app.py']), review, baseline=base)
+        (base / 'receipt.json').unlink()
+        data = scan(self.root)
+        review['snapshot'] = data['snapshot']
+        with self.assertRaises(OSError):
+            save(data, 'delivery', 'TASK-1', store, proposal, review, baseline=base)
+
+    def test_checkpoint_semantic_review_and_tamper(self):
+        from perry_architecture.checkpoint import verify
+        save, store, start, review = self.checkpoint_inputs()
+        data = scan(self.root)
+        review['target_change_requested'] = True
+        receipt = save(data, 'delivery', 'TASK-1', store, self.proposal(data, ['app.py']),
+                       review, baseline=start['checkpoint'])
+        self.assertIn('target_change_requested', receipt['reasons'])
+        bundle = Path(receipt['checkpoint']) / 'bundle.json'
+        value = json.loads(bundle.read_text())
+        value['task'] = 'TASK-2'
+        bundle.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError, 'hash mismatch'):
+            verify(scan(self.root), receipt['checkpoint'])
+        review['snapshot'] = 'old'
+        with self.assertRaisesRegex(ValueError, 'current snapshot'):
+            save(data, 'delivery', 'TASK-1', store, self.proposal(data, ['app.py']),
+                 review, baseline=start['checkpoint'])
+
+    def test_checkpoint_unknowns_quiet_until_new(self):
+        from perry_architecture.checkpoint import save
+        self.put('app.py', 'def run(x): x.unknown()\n')
+        rules = self.rules()
+        data = scan(self.root)
+        review = {'snapshot': data['snapshot'], 'summary': 'Reviewed; dynamic calls unknown',
+                  'target_change_requested': False, 'findings': []}
+        store = Path(self.tmp.name) / 'evidence'
+        start = save(data, 'start', 'TASK-1', store, self.proposal(data, ['app.py']), review, rules)
+        self.assertEqual('limited', start['status'])
+        self.assertFalse(start['open_report'])
+        data = scan(self.root)
+        result = save(data, 'delivery', 'TASK-1', store, self.proposal(data, ['app.py']), review,
+                      baseline=start['checkpoint'])
+        self.assertFalse(result['open_report'])
+        self.put('app.py', 'def run(x):\n    x.unknown()\n    x.unknown()\n')
+        data = scan(self.root)
+        review['snapshot'] = data['snapshot']
+        result = save(data, 'delivery', 'TASK-1', store, self.proposal(data, ['app.py']), review,
+                      baseline=start['checkpoint'])
+        self.assertIn('new_unresolved_checks', result['reasons'])
+
+    def test_checkpoint_semantic_evidence_and_receipt_integrity(self):
+        from perry_architecture.checkpoint import verify
+        save, store, start, review = self.checkpoint_inputs()
+        data = scan(self.root)
+        review['findings'] = [{'reason': 'Responsibility needs discussion',
+                              'target': 'ARCHITECTURE.md:1', 'evidence': [data['symbols'][0]['id']]}]
+        result = save(data, 'delivery', 'TASK-1', store, self.proposal(data, ['app.py']), review,
+                      baseline=start['checkpoint'])
+        self.assertIn('semantic_drift', result['reasons'])
+        receipt_path = Path(result['checkpoint']) / 'receipt.json'
+        receipt = json.loads(receipt_path.read_text())
+        receipt['open_report'] = False
+        receipt_path.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(ValueError, 'receipt does not match'):
+            verify(scan(self.root), result['checkpoint'])
+        review['findings'][0]['evidence'] = ['made-up']
+        with self.assertRaisesRegex(ValueError, 'valid evidence'):
+            save(scan(self.root), 'delivery', 'TASK-1', store, self.proposal(data, ['app.py']), review,
+                 baseline=start['checkpoint'])
+
+    def test_checkpoint_cli_roundtrip(self):
+        save, store, start, review = self.checkpoint_inputs()
+        data = scan(self.root)
+        analysis_path = Path(self.tmp.name) / 'analysis.json'
+        review_path = Path(self.tmp.name) / 'review.json'
+        analysis_path.write_text(json.dumps(self.proposal(data, ['app.py'])))
+        review_path.write_text(json.dumps(review))
+        command = [str(ROOT / 'bin/perry-architecture'), '--root', str(self.root)]
+        result = subprocess.run(command + ['--checkpoint', 'delivery', '--task', 'TASK-1',
+                 '--store', str(store), '--baseline', start['checkpoint'], '--analysis', str(analysis_path),
+                 '--review', str(review_path)], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        receipt = json.loads(result.stdout)
+        verified = subprocess.run(command + ['--verify-checkpoint', receipt['checkpoint']],
+                                  capture_output=True, text=True)
+        self.assertEqual(0, verified.returncode, verified.stderr)
+        self.assertTrue(json.loads(verified.stdout)['fresh'])
+
     def test_call_alias_shadowing_and_local_modules(self):
         self.put('app.py', 'import subprocess as sp\nfrom os import system as run\n'
                  'def execute():\n    sp.run(["echo"])\n    run("echo")\n'

@@ -300,7 +300,12 @@ RESULT; manual authors cannot provide their own fresh-review verdict either.
 
 ```
 Read the supplied root architecture §1, §3 and §6 and touched module documents
-before editing. Existing architecture is binding. Surface contradictions and
+before editing. For eligible Python code tasks, follow
+packs/software-ops/architecture-analysis.md § Task checkpoints: save a start
+checkpoint before the first edit, and a delivery checkpoint before RESULT.
+Use the executor checkout for both and a durable store outside it. Put both
+checkpoint paths in RESULT Notes. Follow the receipt's short-summary/report-open
+behavior. Existing architecture is binding. Surface contradictions and
 missing context; a decided-section contradiction needs the existing user
 decision gate before it can land. Return the standard RESULT with your exact
 base/head, paths and verification evidence. Do not certify your own architecture
@@ -387,7 +392,13 @@ this does not change dispatch safety or automatically close the task.
    - `Tests: <pass>/<total>` + command used
    - `Cycle time: <minutes>` (for calibration)
    - `Notes:` (anything unusual)
-2. Run **objective verification** from the spec's `Verification` section. Anything that looks like a runnable command (starts with `$`, names a CLI like `pytest` / `gh` / `gim`, or has a clearly executable shape) — run it. Capture output.
+2. For eligible Python code tasks, read the start/delivery checkpoint paths in
+   RESULT Notes and run `perry-architecture --verify-checkpoint <delivery-dir>`
+   against the executor checkout with its recorded scan settings. Match task,
+   delivery stage and the pre-edit baseline path to dispatch evidence. Missing,
+   stale or unresolved-attention evidence is a failure annotation, not a pass;
+   follow `packs/software-ops/architecture-analysis.md § Task checkpoints`.
+   Run **objective verification** from the spec's `Verification` section. Anything that looks like a runnable command (starts with `$`, names a CLI like `pytest` / `gh` / `gim`, or has a clearly executable shape) — run it. Capture output.
 3. Cross-check against `Out of scope` — if the agent's `Files changed` list contains paths declared out-of-scope, raise a hard failure (likely scope creep or safety violation).
 4. **Status decision**:
    - All objective verifications pass + no scope violation + RESULT block has all required fields → status `review` (NEVER auto-`done`; subjective verification is the user's, per the project's standing rule).

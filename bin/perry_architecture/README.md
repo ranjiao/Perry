@@ -135,3 +135,13 @@ open a component's implementation list, trace a dependency to its original impor
 line, switch to the raw directory view, and export Mermaid and JSON. Report the
 checks actually run. Future language adapters should produce a versioned fact
 payload; Perry-specific ownership stays in the separate model configuration.
+
+
+Task start/delivery checkpoints use `--checkpoint start|delivery`, `--task`,
+`--store`, `--analysis`, and snapshot-bound `--review`. Start requires `--rules`;
+delivery requires `--baseline` and refuses replacement rules. The durable store
+must be outside the analyzed checkout. `--verify-checkpoint` checks current
+source/target freshness and baseline integrity. See
+`packs/software-ops/architecture-analysis.md § Task checkpoints` for the host
+workflow, JSON review contract and quiet/attention behavior. No browser/model
+or scheduled job runs inside this command; no task state is changed.

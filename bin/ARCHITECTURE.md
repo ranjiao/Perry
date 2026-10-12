@@ -75,6 +75,12 @@ the CLI delegates argument parsing and discovery to `lib`'s surface helpers.
 host-agent interpretations and `audit.py` evaluates cited constraints without
 interpreting prose or writing the target. The software-ops architecture audit
 consumes these outputs.
+`perry_architecture/checkpoint.py` persists append-only start/delivery evidence
+outside the analyzed checkout and verifies freshness. It pins start rules,
+records target changes without rewriting them, and emits a report-opening hint;
+the host work procedure interprets semantics and controls user discussion.
+It does not schedule work, launch a browser, or mutate task/target state.
+
 `perry_architecture/model.py` binds an optional explicit responsibility tree to
 source files. The model supplies labels, ownership and layers; imports supply
 the arrows. Unassigned/overlapping files remain visible. `perry-model.json` is

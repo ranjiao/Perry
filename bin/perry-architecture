@@ -19,11 +19,18 @@ from perry_architecture.model import bind
 from perry_architecture.facts import brief
 from perry_architecture.analysis import attach, changes
 from perry_architecture.audit import compare
+from perry_architecture.checkpoint import save as checkpoint, read as read_json, verify
 
 SURFACE = {
     "name": "perry-architecture", "kind": "read", "root_resolution": "cwd",
     "summary": "Static architecture facts, host-agent interpretation and cited target checks",
     "flags": [
+        {"name": "--checkpoint", "arg": "stage", "summary": "save start or delivery task evidence"},
+        {"name": "--task", "arg": "id", "summary": "checkpoint task identifier"},
+        {"name": "--store", "arg": "dir", "summary": "durable checkpoint store outside checkout"},
+        {"name": "--baseline", "arg": "dir", "summary": "immutable start checkpoint for delivery"},
+        {"name": "--review", "arg": "file", "summary": "snapshot-bound host semantic review"},
+        {"name": "--verify-checkpoint", "arg": "dir", "summary": "verify saved evidence against current code and targets"},
         {"name": "--focus", "arg": "patterns", "summary": "filter --brief evidence by project-relative file globs"},
         {"name": "--brief", "summary": "emit fact evidence pack for host-agent interpretation"},
         {"name": "--analysis", "arg": "file", "summary": "validate host-agent current-state analysis against snapshot"},
@@ -56,6 +63,17 @@ def main(argv=None):
         return 0
     args = parsed["values"]
     try:
+        special = {"--checkpoint", "--task", "--store", "--baseline", "--review", "--verify-checkpoint"}
+        if special.intersection(args) and not ({"--checkpoint", "--verify-checkpoint"}.intersection(args)):
+            raise ValueError("checkpoint options require --checkpoint")
+        if "--checkpoint" in args:
+            if not all(k in args for k in ("--task", "--store", "--analysis", "--review")):
+                raise ValueError("checkpoint requires --task, --store, --analysis and --review")
+            if any(k in parsed["seen"] for k in ("--brief", "--html", "--previous", "--architecture", "--verify-checkpoint")):
+                raise ValueError("checkpoint cannot be combined with other output modes")
+        if "--verify-checkpoint" in args and any(k in parsed["seen"] for k in
+                ("--checkpoint", "--task", "--store", "--baseline", "--review", "--analysis", "--rules", "--html", "--brief", "--architecture", "--previous")):
+            raise ValueError("verify-checkpoint is an independent output mode")
         if "--focus" in args and "--brief" not in parsed["seen"]:
             raise ValueError("--focus requires --brief")
         if "--architecture" in args and "--analysis" in args:
@@ -72,6 +90,16 @@ def main(argv=None):
         split = lambda value: [s.strip() for s in value.split(",") if s.strip()]
         data = scan(root, split(args.get("--source-roots", "")),
                     split(args.get("--exclude", "")), max_bytes)
+        if "--verify-checkpoint" in args:
+            print(json.dumps(verify(data, args["--verify-checkpoint"]), ensure_ascii=True, indent=2))
+            return 0
+        if "--checkpoint" in args:
+            receipt = checkpoint(data, args["--checkpoint"], args["--task"], args["--store"],
+                                 read_json(args["--analysis"]), read_json(args["--review"]),
+                                 read_json(args["--rules"]) if "--rules" in args else None,
+                                 args.get("--baseline"))
+            print(json.dumps(receipt, ensure_ascii=True, indent=2))
+            return 0
         if "--architecture" in args:
             bind(data, json.loads(Path(args["--architecture"]).read_text(encoding="utf-8")))
         if "--analysis" in args:
