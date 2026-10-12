@@ -2,8 +2,17 @@
 const data = JSON.parse(document.getElementById('data').textContent);
 const $ = id => document.getElementById(id);
 const files = new Map(data.files.map(f => [f.id, f]));
-let scope = '', selected = null, pairs = [];
-const inside = (path, dir) => !dir || path.startsWith(dir + '/');
+let scope = '', selected = null, pairs = [], boundary = false, mode = data.architecture ? 'architecture' : 'files';
+const architecture = data.architecture;
+const components = new Map((architecture?.nodes || []).map(n => [n.id,n]));
+const pathInside = (path, dir) => !dir || path.startsWith(dir + '/');
+function inside(path, dir) {
+  if(mode === 'files') return pathInside(path,dir);
+  const owner = architecture.owners[path] || path;
+  return owner === dir || pathInside(owner,dir);
+}
+function nameOf(path) { return mode==='architecture' ? components.get(path)?.label || path : path; }
+function shownEdges() { return mode==='architecture' ? architecture.edges : data.edges; }
 const short = path => path.split('/').pop();
 function el(tag, text, cls) {
   const node = document.createElement(tag);
@@ -15,10 +24,18 @@ function button(text, action, cls) {
   const node = el('button', text, cls); node.onclick = action; return node;
 }
 function label(text) { return el('div', text, 'panel-label'); }
-function state(next) { location.hash = encodeURIComponent(JSON.stringify(next)); }
+function state(next) { location.hash = encodeURIComponent(JSON.stringify({mode,boundary,...next})); }
 function showScope(path) { state({scope: path}); }
 function members(path) { return files.has(path) ? [files.get(path)] : data.files.filter(f => inside(f.id, path)); }
 function project(path) {
+  if(mode==='architecture') {
+    const owner=architecture.owners[path];
+    if(owner===scope)return scope;
+    if(pathInside(owner,scope))return (scope?scope+'/':'')+(scope?owner.slice(scope.length+1):owner).split('/')[0];
+    const own=scope.split('/'), parts=owner.split('/');
+    let i=0;while(i<own.length&&own[i]===parts[i])i++;
+    return parts.slice(0,i+1).join('/');
+  }
   if (inside(path, scope)) {
     const remainder = scope ? path.slice(scope.length + 1) : path;
     return (scope ? scope + '/' : '') + remainder.split('/')[0];
@@ -33,8 +50,20 @@ function navigation() {
   tree.append(button('◈  项目总览', () => showScope(''), 'tree-row' + (!scope ? ' active' : '')));
   if (q) {
     const matches = data.files.filter(f => f.id.toLowerCase().includes(q));
-    matches.slice(0, 100).forEach(f => tree.append(button(f.id, () => state({scope: f.id.includes('/') ? f.id.slice(0,f.id.lastIndexOf('/')) : '', file:f.id}), 'tree-row')));
+    if(mode==='architecture')for(const component of components.values()){
+      if((component.label+component.description).toLowerCase().includes(q))tree.append(button(component.label,()=>showScope(component.id),'tree-row'));
+    }
+    matches.slice(0, 100).forEach(f => tree.append(button(f.id, () => state({scope: mode==='architecture'?architecture.owners[f.id]:(f.id.includes('/') ? f.id.slice(0,f.id.lastIndexOf('/')) : ''), file:f.id}), 'tree-row')));
     tree.append(el('p', `${matches.length} 个匹配${matches.length > 100 ? '，显示前 100 个' : ''}`, 'hint')); return;
+  }
+  if(mode==='architecture') {
+    for(const component of components.values()) {
+      if(component.parent && component.parent!==scope && !scope.startsWith(component.parent+'/'))continue;
+      const b=button(component.label,()=>showScope(component.id),'tree-row'+(scope===component.id?' active':''));
+      b.style.paddingLeft=7+(component.id.split('/').length-1)*13+'px';
+      b.title=component.description;b.append(el('small',component.files.length));tree.append(b);
+    }
+    return;
   }
   const dirs = new Set();
   for (const f of data.files) {
@@ -50,11 +79,12 @@ function navigation() {
 function buildGraph() {
   const ids = new Set(data.files.filter(f => inside(f.id,scope)).map(f => project(f.id)));
   const aggregate = new Map();
-  for (const edge of data.edges) {
+  for (const edge of shownEdges()) {
     if (!inside(edge.source, scope) && !inside(edge.target, scope)) continue;
     const a = project(edge.source), b = project(edge.target);
     if (a === b) continue;
-    ids.add(a); ids.add(b);
+    if(mode==='files'||boundary||inside(a,scope))ids.add(a);
+    if(mode==='files'||boundary||inside(b,scope))ids.add(b);
     const key = JSON.stringify([a,b]);
     if (!aggregate.has(key)) aggregate.set(key, {a,b,edges:[],ids:new Set()});
     const pair = aggregate.get(key); pair.edges.push(edge); edge.imports.forEach(id => pair.ids.add(id));
@@ -67,11 +97,24 @@ function buildGraph() {
   if (!visible.length) { graph.append(el('div','没有可显示的 Python 文件。查看扫描范围与限制。','empty')); return; }
   const ns='http://www.w3.org/2000/svg';
   function svg(tag, attrs, text) { const n=document.createElementNS(ns,tag); for(const [k,v] of Object.entries(attrs||{})) n.setAttribute(k,v); if(text!==undefined)n.textContent=text; return n; }
-  const columns=visible.length<=6?2:3, width=columns*220+50, height=Math.ceil(visible.length/columns)*108+45;
+  let columns=visible.length<=6?2:3, width=columns*220+50, height=Math.ceil(visible.length/columns)*108+45;
+  const rows=new Map();
+  if(mode==='architecture') {
+    const maxLayer=Math.max(0,...visible.filter(id=>inside(id,scope)).map(id=>components.get(id).layer));
+    for(const id of visible){
+      const layer=scope&&!inside(id,scope)?maxLayer+1:components.get(id).layer;
+      if(!rows.has(layer))rows.set(layer,[]);rows.get(layer).push(id);
+    }
+    columns=Math.max(2,...[...rows.values()].map(row=>row.length));
+    width=columns*250+50;height=rows.size*120+35;
+  }
   const canvas=svg('svg',{viewBox:`0 0 ${width} ${height}`,role:'group','aria-label':'模块依赖：点击节点下钻，点击连线查看证据'});
   const defs=svg('defs'), marker=svg('marker',{id:'arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto-start-reverse'});
   marker.append(svg('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#8aa797'}));defs.append(marker);canvas.append(defs);
-  visible.forEach((id,i)=>positions.set(id,{x:25+(i%columns)*220,y:25+Math.floor(i/columns)*108}));
+  if(mode==='architecture') {
+    [...rows].sort((a,b)=>a[0]-b[0]).forEach(([layer,ids],r)=>ids.forEach((id,c)=>
+      positions.set(id,{x:(width-ids.length*250)/2+c*250+15,y:28+r*120})));
+  } else visible.forEach((id,i)=>positions.set(id,{x:25+(i%columns)*220,y:25+Math.floor(i/columns)*108}));
   for (const pair of pairs) {
     if(!positions.has(pair.a)||!positions.has(pair.b))continue;
     const a=positions.get(pair.a),b=positions.get(pair.b);
@@ -79,12 +122,16 @@ function buildGraph() {
     const forward=pair.a<pair.b, offset=forward?12:20;
     const x1=a.x+(forward?80:110), x2=b.x+(forward?80:110);
     const gutter=forward?8:width-8;
-    const d=a.y===b.y
+    let d=a.y===b.y
       ? `M${x1},${a.y} V${a.y-offset} H${x2} V${b.y}`
       : `M${x1},${a.y} V${a.y-offset} H${gutter} V${b.y-offset} H${x2} V${b.y}`;
-    const group=svg('g',{class:'edge-group'+(selected?.a===pair.a&&selected?.b===pair.b?' active':''),
-      role:'button',tabindex:0,'aria-label':`${pair.a} → ${pair.b}`});
-    group.append(svg('title',{},`${pair.a} → ${pair.b} · ${pair.ids.size} 条 import 证据`));
+    const adjacent=mode==='architecture'&&b.y-a.y===120;
+    if(adjacent)d=`M${a.x+110},${a.y+80} C${a.x+110},${a.y+100} ${b.x+110},${b.y-20} ${b.x+110},${b.y}`;
+    if(mode==='architecture'&&a.y===b.y)d=a.x<b.x?`M${a.x+220},${a.y+40} H${b.x}`:`M${a.x},${a.y+40} H${b.x+220}`;
+    const crossLayer=mode==='architecture'&&!adjacent&&a.y!==b.y;
+    const group=svg('g',{class:'edge-group'+(crossLayer?' cross-layer':'')+(selected?.a===pair.a&&selected?.b===pair.b?' active':''),
+      role:'button',tabindex:0,'aria-label':`${nameOf(pair.a)} → ${nameOf(pair.b)}`});
+    group.append(svg('title',{},`${nameOf(pair.a)} → ${nameOf(pair.b)} · ${pair.ids.size} 条 import 证据`));
     group.append(svg('path',{d,class:'graph-edge','marker-end':'url(#arrow)'}),svg('path',{d,class:'graph-hit'}));
     group.onclick=()=>state({scope,edge:[pair.a,pair.b]});
     group.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();group.onclick();}};
@@ -92,20 +139,22 @@ function buildGraph() {
   }
   for(const id of visible){
     const pos=positions.get(id),file=files.has(id),outside=scope&&!inside(id,scope),count=members(id).length;
-    const group=svg('g',{class:'graph-node'+(file?' file':'')+(outside?' outside':''),role:'button',tabindex:0,'aria-label':id});
-    group.append(svg('title',{},id),svg('rect',{x:pos.x,y:pos.y,width:190,height:62,rx:9}));
-    const name=short(id);group.append(svg('text',{x:pos.x+12,y:pos.y+25},name.length>24?name.slice(0,22)+'…':name));
-    group.append(svg('text',{x:pos.x+12,y:pos.y+46,class:'node-sub'},file?`${files.get(id).lines.toLocaleString()} 行 · 查看源码 ↗`:`${count} 个文件 · ${outside?'范围外模块':'下钻'} →`));
+    const isArchitecture=mode==='architecture', component=components.get(id);
+    const group=svg('g',{class:'graph-node'+(file?' file':'')+(outside?' outside':'')+(isArchitecture?' responsibility':''),role:'button',tabindex:0,'aria-label':nameOf(id)});
+    group.append(svg('title',{},isArchitecture?component.description:id),svg('rect',{x:pos.x,y:pos.y,width:isArchitecture?220:190,height:isArchitecture?80:62,rx:9}));
+    const name=isArchitecture?component.label:short(id);group.append(svg('text',{x:pos.x+12,y:pos.y+25},name.length>24?name.slice(0,22)+'…':name));
+    if(isArchitecture)group.append(svg('text',{x:pos.x+12,y:pos.y+47,class:'node-sub'},component.description.slice(0,21)));
+    group.append(svg('text',{x:pos.x+12,y:pos.y+(isArchitecture?70:46),class:'node-sub'},file?`${files.get(id).lines.toLocaleString()} 行 · 查看源码 ↗`:`${count} 个实现文件 · ${outside?'范围外组件':'展开'} →`));
     const action=()=>file?state({scope,file:id}):showScope(id);group.onclick=action;group.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();action();}};canvas.append(group);
   }
   graph.append(canvas);
-  graph.append(el('p','目录节点按真实路径聚合；同一节点内部的依赖在下钻后显示。虚线节点是当前范围之外的依赖方。','hint'));
+  graph.append(el('p',mode==='architecture'?'职责分层由模型声明，连线由显式 import 聚合；浅色线表示跨层引用。范围外关系始终列在下方，可勾选后加入图中。':'目录节点按真实路径聚合；同一节点内部的依赖在下钻后显示。虚线节点是当前范围之外的依赖方。','hint'));
 }
 function relations() {
   const box=$('relations');box.replaceChildren();
   for(const pair of pairs){
     const row=button('',()=>state({scope,edge:[pair.a,pair.b]}),'relation'+(selected===pair?' active':''));
-    row.append(el('span',pair.a),el('span','→','arrow'),el('span',pair.b),el('span',`${pair.edges.length} 对文件 · ${pair.ids.size} 处`,'count'));box.append(row);
+    row.append(el('span',nameOf(pair.a)),el('span','→','arrow'),el('span',nameOf(pair.b)),el('span',`${pair.edges.length} 对文件 · ${pair.ids.size} 处`,'count'));box.append(row);
   }
   if(!pairs.length)box.append(el('div','此层没有跨节点的已解析依赖。文件内部、自依赖和未解析项可在文件详情中查看。','empty'));
 }
@@ -113,11 +162,17 @@ function metrics(items) {
   const grid=el('div',undefined,'metric-grid');for(const [value,name] of items){const cell=el('div');cell.append(el('b',value),el('span',name));grid.append(cell);}return grid;
 }
 function scopeDetails() {
-  const box=$('details');box.replaceChildren(label('MODULE / OVERVIEW'),el('h2',scope||data.project,'panel-title'));
+  const box=$('details');box.replaceChildren(label(mode==='architecture'?'RESPONSIBILITY / IMPLEMENTATION':'MODULE / OVERVIEW'),el('h2',nameOf(scope)||data.project,'panel-title'));
   const fs=members(scope),set=new Set(fs.map(f=>f.id));
-  box.append(el('p','这里显示代码的实际组织方式。目录名称与 import 关系不代表经过确认的业务职责。','muted'));
-  box.append(metrics([[fs.length,'Python 文件'],[fs.reduce((s,f)=>s+f.lines,0).toLocaleString(),'源码行数'],[data.edges.filter(e=>!set.has(e.source)&&set.has(e.target)).length,'范围外依赖此处'],[data.edges.filter(e=>set.has(e.source)&&!set.has(e.target)).length,'此处依赖范围外']]));
-  box.append(el('h2','从结构到证据'),el('p','点击目录节点进入下一层；点击文件查看 import 列表；点击依赖连线或下方关系，定位形成这条依赖的源码。','muted'));
+  box.append(el('p',mode==='architecture'?(components.get(scope)?.description||architecture.basis):'这里显示代码的实际组织方式。目录名称与 import 关系不代表经过确认的业务职责。','muted'));
+  box.append(metrics([[fs.length,'Python 文件'],[fs.reduce((s,f)=>s+f.lines,0).toLocaleString(),'源码行数'],[shownEdges().filter(e=>!set.has(e.source)&&set.has(e.target)).length,'范围外依赖此处'],[shownEdges().filter(e=>set.has(e.source)&&!set.has(e.target)).length,'此处依赖范围外']]));
+  if(mode==='architecture'){
+    const implementation=el('details');implementation.open=scope&&!architecture.nodes.some(n=>n.parent===scope);
+    implementation.append(el('summary',`实现文件 (${fs.length})`));
+    for(const f of fs)implementation.append(button(f.id,()=>state({scope,file:f.id}),'tree-row'));
+    box.append(implementation);
+    box.append(el('p','这一层只展示职责组件。进入组件看子架构；实现文件与连线中的 import 记录用于核查。','muted'));
+  }else box.append(el('h2','从结构到证据'),el('p','点击目录节点进入下一层；点击文件查看 import 列表；点击依赖连线或下方关系，定位形成这条依赖的源码。','muted'));
   box.append(el('div','这是一次代码快照。修改代码后重新扫描，报告不会自动刷新。','notice'));
 }
 function evidenceList(ids, box) {
@@ -131,8 +186,8 @@ function evidenceList(ids, box) {
   }
 }
 function edgeDetails(pair, itemId) {
-  const box=$('details');box.replaceChildren(label('DEPENDENCY / EVIDENCE'),el('h2',`${pair.a} → ${pair.b}`,'panel-title'));
-  box.append(el('p',`${pair.edges.length} 对文件依赖，由 ${pair.ids.size} 条 import 记录产生。包含明确可解析的包初始化依赖。`,'muted'));
+  const box=$('details');box.replaceChildren(label('DEPENDENCY / EVIDENCE'),el('h2',`${nameOf(pair.a)} → ${nameOf(pair.b)}`,'panel-title'));
+  box.append(el('p',`${pair.edges.length} 对文件依赖，由 ${pair.ids.size} 条 import 记录产生。${mode==='architecture'?'只展示显式引用；不宣称运行时调用或读写流程。':'包含明确可解析的包初始化依赖。'}`,'muted'));
   const list=el('details');list.open=itemId===undefined;list.append(el('summary',`源码证据 (${pair.ids.size})`));evidenceList(pair.ids,list);box.append(list);
   if(itemId!==undefined)source(data.imports[itemId].source,data.imports[itemId].line,data.imports[itemId].end_line);
 }
@@ -157,6 +212,11 @@ function source(path,line,end) {
 }
 function coverage() {
   const box=$('details');box.replaceChildren(label('COVERAGE / LIMITS'),el('h2','扫描范围与限制','panel-title'));
+  if(architecture){
+    box.append(el('p',architecture.basis,'notice'));
+    box.append(el('p',`架构映射问题：${architecture.issues.length} 项；分组模型 ${architecture.model_sha256.slice(0,12)}`,'muted'));
+    for(const issue of architecture.issues)box.append(el('p',`${issue.kind}: ${issue.path} ${issue.candidates.join(', ')}`,'issue'));
+  }
   box.append(el('p',`解析成功 ${data.summary.parsed} / ${data.summary.files} 个候选文件。只分析 Python AST，不执行项目代码。`,'muted'));
   box.append(el('div','未解析不等于外部依赖：它也可能是被排除的文件、未配置的导入根或动态加载。函数内与条件内 import 都保留，不代表运行时一定执行。','notice'));
   box.append(el('pre',`根目录: ${data.root}\n导入根: ${data.scope.source_roots.join(', ')}\n排除: ${data.scope.excludes.join(', ')||'无自定义'}\n文件上限: ${data.scope.max_file_bytes} bytes\nPython: ${data.python}`,'scope-list'));
@@ -170,12 +230,24 @@ function coverage() {
 function render() {
   let view={};try{view=JSON.parse(decodeURIComponent(location.hash.slice(1))||'{}');}catch{}
   if(!view || typeof view!=='object' || Array.isArray(view))view={};
-  scope=typeof view.scope==='string'&&(!view.scope||data.files.some(f=>inside(f.id,view.scope)))?view.scope:'';
+  mode=architecture&&view.mode!=='files'?'architecture':'files';
+  boundary=view.boundary===true;
+  $('boundary').checked=boundary;
+  $('boundary').disabled=mode==='files';
+  const requested=mode==='architecture'?(architecture.scope_aliases[view.scope]||view.scope):view.scope;
+  scope=typeof requested==='string'&&(!requested||(mode==='architecture'?components.has(requested):data.files.some(f=>inside(f.id,requested))))?requested:'';
+  $('architecture-view').disabled=!architecture;
+  $('architecture-view').classList.toggle('active',mode==='architecture');
+  $('file-view').classList.toggle('active',mode==='files');
+  $('view-note').textContent=mode==='architecture'?'职责分层 → 子架构 → 源码证据':'目录与文件级依赖，不等同于架构';
+  $('diagram-title').textContent=mode==='architecture'?'职责组件与静态引用':'目录与文件依赖';
+  $('legend').textContent=mode==='architecture'?'节点是职责组件 · 箭头指向被引用方':'节点是目录或文件 · 箭头指向被引用方';
   selected=view.edge?{a:view.edge[0],b:view.edge[1]}:null;
-  navigation();$('scope-title').textContent=scope?short(scope):'项目总览';
-  $('scope-description').textContent=scope||'从真实代码计算结构，沿着依赖回到源码。';
+  navigation();$('scope-title').textContent=scope?(mode==='architecture'?nameOf(scope):short(scope)):(mode==='architecture'?architecture.title:'源码依赖总览');
+  document.body.classList.toggle('architecture-mode',mode==='architecture');
+  $('scope-description').textContent=mode==='architecture'?(components.get(scope)?.description||'先看系统的职责与边界，再进入子架构。'):(scope||'从真实代码计算结构，沿着依赖回到源码。');
   const crumbs=$('breadcrumbs');crumbs.replaceChildren(button(data.project,()=>showScope('')));
-  if(scope)scope.split('/').forEach((part,i,all)=>crumbs.append(el('span','/'),button(part,()=>showScope(all.slice(0,i+1).join('/')))));
+  if(scope)scope.split('/').forEach((part,i,all)=>{const key=all.slice(0,i+1).join('/');crumbs.append(el('span','/'),button(mode==='architecture'?nameOf(key):part,()=>showScope(key)));});
   buildGraph();selected=pairs.find(p=>p.a===selected?.a&&p.b===selected?.b)||null;relations();
   const item=Number.isInteger(view.import)?data.imports[view.import]:null;
   document.body.classList.toggle('detail-open',Boolean(view.coverage||selected||item||view.file));
@@ -189,5 +261,16 @@ for(const [value,name] of [[data.summary.files,'Python 文件'],[data.summary.sc
 $('stats').append(el('div','结构来自代码；职责与设计意图仍由人判断。所有关系都可追溯到源码。','stat-note'));
 $('search').oninput=navigation;$('coverage').onclick=()=>state({scope,coverage:true});
 $('close-details').onclick=()=>showScope(scope);
+$('architecture-view').onclick=()=>state({mode:'architecture',scope:''});
+$('file-view').onclick=()=>state({mode:'files',scope:''});
+$('boundary').onchange=()=>state({scope,boundary:$('boundary').checked});
+$('mermaid').onclick=()=>{
+  const visiblePairs=pairs.filter(p=>mode==='files'||boundary||(inside(p.a,scope)&&inside(p.b,scope)));
+  const ids=[...new Set([...data.files.filter(f=>inside(f.id,scope)).map(f=>project(f.id)),...visiblePairs.flatMap(p=>[p.a,p.b])])];
+  const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+  const lines=['flowchart TB',...ids.map((id,i)=>`  n${i}["${escape(nameOf(id))}"]`),...visiblePairs.map(p=>`  n${ids.indexOf(p.a)} -->|"静态引用 · ${p.ids.size} 条记录"| n${ids.indexOf(p.b)}`)];
+  const url=URL.createObjectURL(new Blob([lines.join('\n')+'\n'],{type:'text/plain'}));
+  const a=el('a');a.href=url;a.download=data.project+'-architecture.mmd';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
 $('download').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=el('a');a.href=url;a.download=data.project+'-architecture.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 window.addEventListener('hashchange',render);render();

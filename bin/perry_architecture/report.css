@@ -7,6 +7,52 @@
   --bg:#f5f7f4;
   --blue:#567fb1
 }
+.view-switch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 28px;
+  background: white;
+  border-bottom: 1px solid var(--line);
+}
+.view-switch .active {
+  background: var(--ink);
+  color: white;
+}
+.boundary-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+}
+.boundary-toggle input {
+  width: auto;
+}
+.cross-layer .graph-edge {
+  opacity: .45;
+}
+.cross-layer:hover .graph-edge,
+.cross-layer.active .graph-edge {
+  opacity: 1;
+}
+#view-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+#mermaid {
+  margin-left: auto;
+  font-size: 12px;
+}
+.graph-node.responsibility text:not(.node-sub) {
+  font: 600 14px -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.graph-node.responsibility .node-sub {
+  font-size: 10px;
+}
+.architecture-mode #graph {
+  max-height: 760px;
+}
 #close-details {
   display: none;
   margin: 0 0 18px auto;

@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "bin"))
 from perry_architecture.scan import scan
 from perry_architecture.report import render
+from perry_architecture.model import bind
 
 
 class ArchitectureBrowser(unittest.TestCase):
@@ -162,6 +163,55 @@ class ArchitectureBrowser(unittest.TestCase):
         self.assertEqual(actual.strip(), item["statement"])
         self.assertEqual(hashlib.sha256((ROOT / "bin/perry-task").read_bytes()).hexdigest(),
                          next(f["sha256"] for f in data["files"] if f["id"] == "bin/perry-task"))
+
+    def test_responsibility_hierarchy_binds_files_without_declaring_edges(self):
+        self.put("entry.py", "import pkg.child\n")
+        self.put("pkg/__init__.py", "")
+        self.put("pkg/child.py", "")
+        model = {"version": 1, "components": [
+            {"id": "entry", "label": "Entry", "paths": ["entry.py"]},
+            {"id": "core", "label": "Core", "children": [
+                {"id": "logic", "label": "Logic", "paths": ["pkg/*"]}]}]}
+        data = bind(scan(self.root), model)
+        architecture = data["architecture"]
+        self.assertEqual([], architecture["issues"])
+        self.assertEqual("core/logic", architecture["owners"]["pkg/child.py"])
+        self.assertEqual(["pkg/__init__.py", "pkg/child.py"], architecture["nodes"][1]["files"])
+        self.assertEqual(["pkg/child.py"], [e["target"] for e in architecture["edges"]])
+        self.assertIn("pkg/__init__.py", [e["target"] for e in data["edges"]])
+
+    def test_unassigned_overlapping_and_empty_components_are_visible(self):
+        self.put("a.py", "")
+        self.put("b.py", "")
+        model = {"version": 1, "components": [
+            {"id": "one", "label": "One", "paths": ["a.py"]},
+            {"id": "two", "label": "Two", "paths": ["a.py"]},
+            {"id": "empty", "label": "Empty", "paths": ["missing.py"]}]}
+        architecture = bind(scan(self.root), model)["architecture"]
+        self.assertEqual({"overlap", "unassigned", "empty-component"},
+                         {i["kind"] for i in architecture["issues"]})
+        self.assertEqual({"unmapped"}, set(architecture["owners"].values()))
+        self.assertEqual(["a.py", "b.py"], architecture["nodes"][-1]["files"])
+
+    def test_invalid_model_is_refused(self):
+        for model in ({"version": 2}, {"version": 1, "components": "bad"},
+                      {"version": 1, "components": [{"id": "../escape", "label": "X"}]},
+                      {"version": 1, "components": [{"id": "x", "label": "X", "paths": ["../x"]}]},
+                      {"version": 1, "components": [{"id": "x", "label": "X", "layer": "1", "paths": ["a.py"]}]}):
+            with self.subTest(model=model), self.assertRaises(ValueError):
+                bind(scan(self.root), model)
+
+    def test_perry_model_is_not_a_directory_alias(self):
+        model = json.loads((ROOT / "bin/perry_architecture/perry-model.json").read_text())
+        for name in ("bin/perry-task", "bin/perry-state", "kernel/perry_kernel/commands.py",
+                     "kernel/perry_kernel/guards.py", "kernel/perry_kernel/store.py"):
+            self.put(name, (ROOT / name).read_text())
+        architecture = bind(scan(self.root, ["bin", "kernel"]), model)["architecture"]
+        self.assertEqual("tools/write", architecture["owners"]["bin/perry-task"])
+        self.assertEqual("tools/read", architecture["owners"]["bin/perry-state"])
+        self.assertEqual("kernel/operations", architecture["owners"]["kernel/perry_kernel/commands.py"])
+        self.assertEqual("kernel/rules", architecture["owners"]["kernel/perry_kernel/guards.py"])
+        self.assertEqual("kernel/storage", architecture["owners"]["kernel/perry_kernel/store.py"])
 
 
 if __name__ == "__main__":

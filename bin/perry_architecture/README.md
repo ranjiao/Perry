@@ -1,4 +1,4 @@
-# Code architecture browser, v1
+# Code architecture browser
 
 `perry architecture` computes a Python import graph from source. It needs no
 Perry adoption or project state. The CLI, analyzer and offline browser have no
@@ -12,6 +12,7 @@ From Perry's checkout, analyze Perry's product code:
 bin/perry-architecture --root . \
   --source-roots bin,viewer,kernel,release \
   --exclude perry,tests,kernel/tests \
+  --architecture bin/perry_architecture/perry-model.json \
   --html /tmp/perry-code-report.html
 ```
 
@@ -35,24 +36,55 @@ No source-root autodetection: configure roots to match the project being read.
 Do not add both production and fixture roots unless that reflects the intended
 analysis; multiple same-name candidates are reported as ambiguous.
 
-## Acceptance and interface
+## Architecture hierarchy and source evidence
 
-The approved first slice (USER-1007) is:
+The primary view with `--architecture` is a responsibility hierarchy: overview,
+components, then implementation files. The original directory graph remains a
+secondary evidence view. Without a model the report opens that directory view;
+it does not claim to infer semantic architecture from imports.
 
-1. Project overview: counts and a dependency graph grouped by actual directory.
-2. Module drilldown: directory navigation, breadcrumbs, search, and boundary
-   neighbours visible when exploring a nested module.
-3. Source evidence: each graph edge opens import records with file, original
-   statement and line range; each record opens the source snapshot. The line
-   input navigates elsewhere in that file. Browser Back restores prior views.
-4. Human and agent share the same facts: without `--html`, JSON goes to stdout;
-   `--json` also prints it with `--html`. The browser's download exports the same
-   payload. No separate model-written architecture document is needed.
-5. Perry's extensionless Python commands participate, and scanning never
-   executes the target code or writes into the target project.
+`perry-model.json` is an agent-authored starting model based on Perry's existing
+architecture documents and source, pending human review. Its labels, boundaries
+and layers are design judgments. File membership and inter-component import
+relations are computed from the scanned code. The model never declares arrows.
+Unassigned files, overlapping ownership and empty components appear in coverage;
+new code cannot silently disappear behind a stale classification.
+
+A model for another project is ordinary editable JSON:
+
+```json
+{
+  "version": 1,
+  "title": "Project architecture",
+  "basis": "Reviewed responsibility boundaries",
+  "components": [
+    {"id": "application", "label": "Application", "layer": 0,
+     "children": [
+       {"id": "commands", "label": "Commands", "description": "Accept requests",
+        "layer": 0, "paths": ["src/commands/*.py"]}
+     ]},
+    {"id": "storage", "label": "Storage", "layer": 1,
+     "paths": ["src/storage/*.py"]}
+  ]
+}
+```
+
+Leaves use project-relative, case-sensitive `fnmatch` patterns (`*` can span
+slashes); branches have children instead of paths. IDs are lowercase slugs,
+unique under their parent. `layer` is 0–10 and determines vertical placement.
+Names, descriptions and layers need review; they are not AST discoveries.
+
+Click a component for its purpose and implementation list. Click a relation for
+actual import statements and source line ranges. Source opens from the scanned
+snapshot, not a potentially changed working file. Outside components are hidden
+in the diagram by default and can be enabled; their relations remain listed.
+Browser Back restores views. Export Mermaid saves the currently visible diagram.
+Export JSON gives humans and agents the same model, memberships and evidence.
+Neither export establishes that a dependency is architecturally allowed.
 
 JSON schema version 1 contains `files`, `imports`, `edges`, `issues`, `scope`
-and `summary`. IDs for files are project-relative POSIX paths; import IDs are
+and `summary`, plus `architecture` when a model is supplied. The latter carries
+normalized nodes, ownership, issues, explicit-import edges and a model hash. IDs for files are project-relative POSIX paths; import IDs are
 array indices within this snapshot. An edge references the import IDs that
 justify it. An import with multiple names yields a record per name. Therefore
 import counts count records, not unique statements. The HTML embeds full source
@@ -70,8 +102,10 @@ when comparing versions. HTML renders source as text, never executable markup.
   multiline, conditional, and function-local statements are included. They
   prove a declaration, not execution. Unambiguous package initializers are
   included when importing a child.
-- A directory group is a presentation of file paths, not an inferred business
-  module. Internal edges of a collapsed group appear when it is opened.
+- The architecture view excludes implicit package initialization edges; these
+  remain in the raw file graph. Arrows mean static reference, not runtime flow,
+  state writes or control flow. Responsibility labels are explicit model input.
+- A directory group in the secondary view is only a presentation of file paths.
 - Namespace packages can resolve child modules without an `__init__.py`.
   Namespace-only imports have no executable file target.
 - Unresolved imports can be external, missing, excluded or dependent on runtime
@@ -92,7 +126,8 @@ when comparing versions. HTML renders source as text, never executable markup.
 
 ## Code boundaries and verification
 
-`scan.py` returns facts; `report.py` embeds them with `report.html`, `.css` and
+`scan.py` returns facts; `model.py` binds optional responsibility ownership;
+`report.py` embeds them with `report.html`, `.css` and
 `.js`; `bin/perry-architecture` exposes the CLI and Perry's discovery surface.
 The module does not depend on the state kernel or project parsers.
 
@@ -102,8 +137,8 @@ bash tests/run
 git diff --check
 ```
 
-Browser acceptance: open overview, enter `bin`, select `perry-task → parsers`,
-open the evidence at its reported line, search `perry-task`, jump to a line,
-use Back, inspect coverage and export JSON. Report the checks actually run.
-Future language adapters should produce a versioned fact payload; do not put
-Perry-specific directory knowledge into the analyzer.
+Browser acceptance: open overview, enter project tools and kernel responsibilities,
+open a component's implementation list, trace a dependency to its original import
+line, switch to the raw directory view, and export Mermaid and JSON. Report the
+checks actually run. Future language adapters should produce a versioned fact
+payload; Perry-specific ownership stays in the separate model configuration.

@@ -15,11 +15,13 @@ if __name__ == "__main__":
 import lib
 from perry_architecture.scan import scan
 from perry_architecture.report import render
+from perry_architecture.model import bind
 
 SURFACE = {
     "name": "perry-architecture", "kind": "read", "root_resolution": "cwd",
     "summary": "Python import overview, module drilldown and source evidence",
     "flags": [
+        {"name": "--architecture", "arg": "file", "summary": "responsibility hierarchy JSON; edges still come from code"},
         {"name": "--source-roots", "arg": "dirs", "summary": "comma-separated import roots, in addition to project root"},
         {"name": "--exclude", "arg": "patterns", "summary": "comma-separated project-relative paths/globs"},
         {"name": "--html", "arg": "file", "summary": "write offline report outside analyzed project"},
@@ -56,6 +58,8 @@ def main(argv=None):
         split = lambda value: [s.strip() for s in value.split(",") if s.strip()]
         data = scan(root, split(args.get("--source-roots", "")),
                     split(args.get("--exclude", "")), max_bytes)
+        if "--architecture" in args:
+            bind(data, json.loads(Path(args["--architecture"]).read_text(encoding="utf-8")))
         if output:
             output.parent.mkdir(parents=True, exist_ok=True)
             # Refuse accidental overwrites. Regenerate to a new report path.

@@ -71,6 +71,10 @@ an explicitly named, new report outside the analyzed project; JSON defaults
 to stdout. It neither imports target code nor reads or writes project state.
 The analyzer does not depend on `viewer`, `lib`, or the state kernel; only
 the CLI delegates argument parsing and discovery to `lib`'s surface helpers.
+`perry_architecture/model.py` binds an optional explicit responsibility tree to
+source files. The model supplies labels, ownership and layers; imports supply
+the arrows. Unassigned/overlapping files remain visible. `perry-model.json` is
+an agent-authored seed pending human review, not an AST-inferred design.
 See [scope and acceptance](perry_architecture/README.md).
 
 ### The three state libraries

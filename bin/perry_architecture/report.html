@@ -3,7 +3,8 @@
 <title>Perry · 代码结构</title><style>/* STYLES */</style></head>
 <body><header><div class="brand">P<span>↗</span></div><div><strong id="title">代码结构</strong><small id="snapshot"></small></div><div class="header-actions"><span class="badge">PYTHON / STATIC</span><button id="coverage">扫描范围与限制</button><button id="download">导出 JSON ↓</button></div></header>
 <section id="stats" aria-label="扫描统计"></section>
+<div class="view-switch"><button id="architecture-view">职责架构</button><button id="file-view">源码依赖</button><span id="view-note"></span><label class="boundary-toggle"><input id="boundary" type="checkbox">范围外组件</label><button id="mermaid">导出当前图 Mermaid ↓</button></div>
 <main><nav aria-label="模块导航"><div class="eyebrow">EXPLORER</div><h2>项目结构</h2><label for="search">查找文件或模块</label><input id="search" placeholder="例如 perry-task、parsers…" autocomplete="off"><div id="tree"></div></nav>
-<section class="workspace"><div class="workspace-head"><div id="breadcrumbs"></div><h1 id="scope-title">项目总览</h1><p id="scope-description"></p></div><div class="graph-toolbar"><span>静态依赖图</span><span class="legend"><i></i> 目录 <i class="file-dot"></i> 文件 · 箭头指向被依赖方</span></div><div id="graph" aria-label="依赖图"></div><div class="section-head"><h2>依赖关系</h2><small>选择关系，查看源码证据</small></div><div id="relations"></div></section>
+<section class="workspace"><div class="workspace-head"><div id="breadcrumbs"></div><h1 id="scope-title">项目总览</h1><p id="scope-description"></p></div><div class="graph-toolbar"><span id="diagram-title">静态依赖图</span><span class="legend" id="legend">箭头指向被依赖方</span></div><div id="graph" aria-label="依赖图"></div><div class="section-head"><h2>依赖关系</h2><small>选择关系，查看源码证据</small></div><div id="relations"></div></section>
 <aside aria-label="详情与源码"><button id="close-details">关闭详情 ×</button><div id="details"></div></aside></main>
 <script id="data" type="application/json"><!-- DATA --></script><script>/* APP */</script></body></html>
