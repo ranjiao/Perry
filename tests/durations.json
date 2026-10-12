@@ -1,664 +1,664 @@
 {
   "modules": {
     "test_architecture_browser.py": {
-      "sec": null,
-      "source": null
+      "sec": 4.145,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_a_write_refuses_where_nothing_is_installed.py": {
-      "sec": 2.405,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.341,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_add_declares_unlinked.py": {
-      "sec": 6.171,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 6.65,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_add_refuses_without_an_answer.py": {
-      "sec": 8.522,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 11.24,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_add_writes_the_edge.py": {
-      "sec": 5.079,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 5.002,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_amend_matches_create.py": {
-      "sec": 0.093,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.094,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_answered_ask_is_legible.py": {
-      "sec": 1.075,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.206,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_architecture_rules.py": {
-      "sec": 1.205,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.111,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_ask_is_a_node.py": {
-      "sec": 0.928,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.177,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_asks_list.py": {
-      "sec": 5.428,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 5.315,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_asks_store.py": {
-      "sec": 2.664,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.819,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_attribution_buckets.py": {
-      "sec": 1.172,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.197,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_bin_argument_contract.py": {
-      "sec": 36.533,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 41.391,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_bin_surface.py": {
-      "sec": 48.911,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 58.012,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_blank_cell_is_one_rule.py": {
-      "sec": 4.385,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.488,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_board_from_declarations.py": {
-      "sec": 1.165,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.05,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_board_less_gaps.py": {
-      "sec": 0.609,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.568,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_board_less_project_is_recognised.py": {
-      "sec": 2.308,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.34,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_board_less_reads_and_writes.py": {
-      "sec": 8.552,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 9.266,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_board_names_its_sources.py": {
-      "sec": 0.633,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.628,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_board_render.py": {
-      "sec": 0.855,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.593,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_cadence.py": {
-      "sec": 12.085,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 12.399,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_cadence_store.py": {
-      "sec": 1.776,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.868,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_churn.py": {
-      "sec": 3.919,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.384,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_claims.py": {
-      "sec": 13.221,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 16.239,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_compact_payload.py": {
-      "sec": 1.148,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.08,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_config_store_readers.py": {
       "sec": 0.68,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_context_budget.py": {
-      "sec": 2.372,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.456,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_contract_invariance.py": {
-      "sec": 9.656,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 10.224,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_contract_key_parity.py": {
-      "sec": 19.501,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 19.692,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_contract_page_snippets.py": {
-      "sec": 1.519,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.573,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_count_fields.py": {
-      "sec": 0.724,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.734,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_decide_status_enum.py": {
-      "sec": 2.717,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.274,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_decide_writer.py": {
-      "sec": 9.384,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 10.677,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_decoration_changes_nothing.py": {
-      "sec": 5.1,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 5.188,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_design_handoff.py": {
-      "sec": 0.544,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.665,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_diagnose.py": {
-      "sec": 36.756,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 39.523,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_dispatch_limit_honesty.py": {
-      "sec": 0.918,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.936,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_duplicate_ids_are_refused.py": {
-      "sec": 2.488,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.454,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_durations_provenance.py": {
       "sec": 0.18,
       "source": "2026-09-09-085824"
     },
     "test_empty_config_store.py": {
-      "sec": 5.37,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 5.193,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_empty_declared_store.py": {
-      "sec": 0.636,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.728,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_entrance.py": {
-      "sec": 0.04,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.035,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_escalation_boundaries.py": {
-      "sec": 0.136,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.139,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_escalation_union.py": {
-      "sec": 3.594,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.017,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_escaped_pipe_corpus.py": {
-      "sec": 1.429,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.457,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_events_feed.py": {
-      "sec": 3.724,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.673,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_evidence_relation.py": {
-      "sec": 3.919,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.249,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_explain_typed_tasks.py": {
-      "sec": 1.261,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.268,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_glossary.py": {
-      "sec": 2.687,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.652,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_goals_contract.py": {
-      "sec": 1.591,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.635,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_goals_kr_revisions.py": {
-      "sec": 1.723,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.116,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_goals_objective_add.py": {
-      "sec": 0.995,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.39,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_goals_kr_writer.py": {
-      "sec": 1.701,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.104,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_goals_writer.py": {
-      "sec": 7.11,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 9.234,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_handed_back_root.py": {
-      "sec": 7.471,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 9.435,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_header_index_is_the_only_fold.py": {
-      "sec": 9.522,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 10.238,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_header_rule_harness.py": {
-      "sec": 30.873,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 37.413,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_heading_defines.py": {
-      "sec": 0.799,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.807,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_heading_title.py": {
-      "sec": 1.725,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.756,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_host_support.py": {
-      "sec": 13.862,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 22.2,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_i18n.py": {
-      "sec": 0.565,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.655,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_i18n_one_table.py": {
-      "sec": 0.135,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.132,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_id_families.py": {
-      "sec": 1.428,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.476,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_installed_is_one_predicate.py": {
-      "sec": 3.015,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.253,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_intake_signal.py": {
-      "sec": 0.353,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.501,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_intake_store.py": {
-      "sec": 4.975,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.934,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_knowledge_cards.py": {
-      "sec": 1.919,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.992,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_knowledge_promotion.py": {
-      "sec": 6.044,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 7.418,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_kr_checks.py": {
-      "sec": 0.906,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.911,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_kr_progress_provenance.py": {
-      "sec": 8.685,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 10.892,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_linkage_store_declared.py": {
-      "sec": 0.133,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.127,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_linkage_store_readers.py": {
-      "sec": 3.937,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.029,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_linkage_task_exists.py": {
-      "sec": 2.24,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.017,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_linkage_writer.py": {
-      "sec": 6.066,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 7.488,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_live_state_expectations.py": {
-      "sec": 8.595,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 9.529,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_md_store.py": {
-      "sec": 6.209,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 7.201,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_measured_krs_declare_a_target.py": {
-      "sec": 5.858,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 5.063,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_missing_defaults.py": {
-      "sec": 0.89,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.903,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_module_run_guard.py": {
-      "sec": 5.892,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 6.467,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_next_section.py": {
-      "sec": 7.326,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 8.092,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_ns_collision.py": {
-      "sec": 9.901,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 8.673,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_okr_krs_render.py": {
-      "sec": 0.379,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.522,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_okr_store_is_the_source.py": {
-      "sec": 4.368,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.337,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_one_choke_point.py": {
-      "sec": 3.427,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 6.147,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_one_header_rule.py": {
-      "sec": 6.548,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 8.966,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_one_heading_predicate.py": {
-      "sec": 0.954,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.994,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_one_line_break_rule.py": {
-      "sec": 4.898,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.835,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_one_primitive.py": {
-      "sec": 0.101,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.094,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_one_startable_rule.py": {
-      "sec": 1.705,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.841,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_overall_kr_grammar.py": {
-      "sec": 1.202,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.197,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_ownership.py": {
-      "sec": 0.086,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.075,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_parallel_runner.py": {
       "sec": 12.66,
       "source": "2026-09-09-085824"
     },
     "test_parsers.py": {
-      "sec": 2.94,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.498,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_perry_task_writes_are_what_it_writes.py": {
-      "sec": 3.603,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.324,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_phase_kr_declared_once.py": {
-      "sec": 6.337,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 8.36,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_phase_lifecycle.py": {
-      "sec": 12.545,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 14.775,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_pointers_resolve.py": {
-      "sec": 0.101,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.098,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_prioritize.py": {
-      "sec": 8.374,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 10.499,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_procedures_call_the_tool.py": {
-      "sec": 0.263,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.254,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_procedures_read_the_contract.py": {
-      "sec": 0.147,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.151,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_project_root_resolution.py": {
-      "sec": 2.883,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.8,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_purge.py": {
-      "sec": 2.956,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.406,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_queue_sla.py": {
-      "sec": 12.342,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 13.272,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_reference_pages_are_reachable.py": {
-      "sec": 0.052,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.039,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_register_minters.py": {
-      "sec": 0.955,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.185,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_register_store_invariant.py": {
-      "sec": 1.627,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.475,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_register_substitution.py": {
-      "sec": 1.018,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.987,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_restore_check.py": {
-      "sec": 5.188,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 5.421,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_resume.py": {
-      "sec": 2.591,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.665,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_retired_tolerance.py": {
-      "sec": 0.472,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.545,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_review_verdicts.py": {
-      "sec": 11.116,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 11.402,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_risks.py": {
-      "sec": 2.273,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.02,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_risks_store.py": {
-      "sec": 3.922,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.136,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_role_cards.py": {
-      "sec": 2.943,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.302,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_role_delegation.py": {
-      "sec": 2.691,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.915,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_role_on_rows.py": {
-      "sec": 1.819,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.91,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_router_budget.py": {
-      "sec": 0.319,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.282,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_row_integrity.py": {
-      "sec": 0.44,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.689,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_rung_vocabulary.py": {
-      "sec": 1.453,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.456,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_same_action_linkage.py": {
-      "sec": 14.49,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 15.369,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_scratch_is_per_agent.py": {
-      "sec": 1.298,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.234,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_selection.py": {
-      "sec": 1.108,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.131,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_semantics_on_every_payload.py": {
-      "sec": 11.06,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 11.449,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_shipped_vocabulary.py": {
-      "sec": 3.41,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.089,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_slow_selector.py": {
-      "sec": 6.083,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 9.791,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_spec_scannability.py": {
-      "sec": 6.289,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 7.17,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_stage_separators.py": {
-      "sec": 0.892,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.929,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_stale_blocked.py": {
-      "sec": 0.719,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.742,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_starts_write_the_config_store_first.py": {
-      "sec": 2.165,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.149,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_startup_routing.py": {
-      "sec": 0.039,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.036,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_state_cost.py": {
-      "sec": 12.507,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 13.169,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_state_root_unset.py": {
-      "sec": 10.003,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 10.861,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_store_drift.py": {
-      "sec": 0.583,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.714,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_store_is_canonical.py": {
-      "sec": 0.974,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.939,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_store_is_the_write_target.py": {
-      "sec": 12.227,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 12.247,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_store_population_agrees.py": {
-      "sec": 1.327,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.346,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_stranded_rows.py": {
-      "sec": 4.106,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.934,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_summary_is_asked_for.py": {
-      "sec": 5.199,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 5.467,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_task_store.py": {
-      "sec": 1.841,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.867,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_task_store_read_cutover.py": {
-      "sec": 2.041,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.112,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_task_summary.py": {
-      "sec": 8.825,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 9.347,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_task_writer_contracts.py": {
-      "sec": 3.013,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 4.046,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_task_writer_core.py": {
-      "sec": 11.079,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 11.077,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_task_writer_dependencies.py": {
-      "sec": 2.731,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.042,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_task_writer_intake.py": {
-      "sec": 2.756,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.146,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_task_writer_modes.py": {
-      "sec": 3.738,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.805,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_tiers.py": {
-      "sec": 11.505,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 11.488,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_track_attribution.py": {
-      "sec": 7.27,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 8.956,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_track_axes.py": {
-      "sec": 0.047,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.038,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_track_move.py": {
-      "sec": 2.081,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.098,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_track_register_source.py": {
-      "sec": 1.618,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 1.739,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_tracks_source_documented.py": {
-      "sec": 3.286,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.272,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_tree_guard.py": {
       "sec": 62.52,
       "source": "2026-09-09-085824"
     },
     "test_unlinked_declaration.py": {
-      "sec": 2.159,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.255,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_v5_signoff.py": {
-      "sec": 12.006,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 12.308,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_wip_and_stages.py": {
-      "sec": 2.053,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 2.091,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_work_modes.py": {
-      "sec": 7.772,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 9.61,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_actor_required.py": {
-      "sec": 4.344,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 3.916,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_release_core.py": {
-      "sec": 12.023,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 13.319,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_release_update.py": {
-      "sec": 12.606,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 14.309,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_next_closing.py": {
-      "sec": 0.272,
-      "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"
+      "sec": 0.323,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_merge_gate.py": {
       "sec": null,
       "source": null
     },
     "test_kernel_suite.py": {
-      "sec": null,
-      "source": null
+      "sec": 27.934,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     },
     "test_kernel_migrate.py": {
-      "sec": null,
-      "source": null
+      "sec": 49.137,
+      "source": "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00"
     }
   },
   "schema": 1,
@@ -1082,6 +1082,16 @@
       "base": "65b27e41b7f8ede4b4c357176d912dfcc6c811c5",
       "tree": "1e05cde747ff75c09ce722f3b1bd416b8735686f",
       "taken": "2026-09-22T19:56:05.676789+00:00",
+      "workers": 4,
+      "tier": "full",
+      "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
+    },
+    "merge-7d95767ed06a-2026-10-12T08:10:26.532271+00:00": {
+      "kind": "merge-result",
+      "ref": "b91b72f5b9827df800d2c9ecfd5507da0fe9b947",
+      "base": "f5565a38990570531c6e867e77cfaa376b5db349",
+      "tree": "7d95767ed06ad2ccc9eb5f9c574039e2cb87bf69",
+      "taken": "2026-10-12T08:10:26.532271+00:00",
       "workers": 4,
       "tier": "full",
       "note": "Measured isolated merge tree; ref/base are existing inputs, not a future merge commit."
