@@ -61,7 +61,33 @@ flowchart TD
     Migrate -->|"runs asks --all --json, a read"| Task
 ```
 
-### The three libraries
+### Static code architecture browser
+
+`perry-architecture` reads an arbitrary directory without adopting it into
+Perry. `perry_architecture/scan.py` uses Python AST to produce file and import
+facts, including extensionless Python scripts. `report.py` packages the same
+payload with local HTML/CSS/JS for an offline report. The command writes only
+an explicitly named, new report outside the analyzed project; JSON defaults
+to stdout. It neither imports target code nor reads or writes project state.
+The analyzer does not depend on `viewer`, `lib`, or the state kernel; only
+the CLI delegates argument parsing and discovery to `lib`'s surface helpers.
+`perry_architecture/facts.py` extracts syntax evidence; `analysis.py` validates
+host-agent interpretations and `audit.py` evaluates cited constraints without
+interpreting prose or writing the target. The software-ops architecture audit
+consumes these outputs.
+`perry_architecture/checkpoint.py` persists append-only start/delivery evidence
+outside the analyzed checkout and verifies freshness. It pins start rules,
+records target changes without rewriting them, and emits a report-opening hint;
+the host work procedure interprets semantics and controls user discussion.
+It does not schedule work, launch a browser, or mutate task/target state.
+
+`perry_architecture/model.py` binds an optional explicit responsibility tree to
+source files. The model supplies labels, ownership and layers; imports supply
+the arrows. Unassigned/overlapping files remain visible. `perry-model.json` is
+an agent-authored seed pending human review, not an AST-inferred design.
+See [scope and acceptance](perry_architecture/README.md).
+
+### The three state libraries
 
 | Module | Lines | What it holds |
 |---|---|---|

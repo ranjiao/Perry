@@ -135,7 +135,18 @@ bullets arm anything (TASK-202).
 - Required commands or tests
 - Safety constraints — the escalation union above, plus anything else the
   project's `.perry/hook.md` states
-- Expected response format (file diff list + test output + 1-line summary, OR the RESULT block format from `dispatch.md`)
+- Expected response format: eligible Python code or target-architecture work
+  requires the standard RESULT from `dispatch.md`, including start/delivery
+  checkpoint paths in Notes. Other work can use file diff list + test output +
+  1-line summary.
+- **Architecture checkpoints** — apply `dispatch-preflight.md` pack eligibility.
+  For eligible work, include `dispatch.md § Architecture preamble` in the actual
+  self-contained prompt (not just a reference back to this delegate page).
+  Supply the executor checkout, scan scope and durable external evidence store;
+  include `packs/software-ops/architecture-analysis.md § Task checkpoints`:
+  save and record the start path before the first edit, retain that baseline,
+  save delivery before RESULT, and follow quiet/attention reporting. This field
+  applies whether or not the project has role cards.
 - **Git expectation** — see `git-boundaries.md`. For agents that produce commits, state explicitly: **which worktree to create and that the primary checkout is not it**, the worktree's branch point, the branch name pattern, and the push / PR expectation the project's hook actually permits — with the PR link required in the RESULT block only where a PR is permitted.
 
 ## Roleless projects — the unchanged path
@@ -150,7 +161,21 @@ copied into `coding.md` and `research.md` when the hardcoding was closed — kep
 here because a project with no cards still needs them, not because they name
 agent types the system knows about.
 
+## Accepting a manual paste-back
+
+For eligible Python code or target-architecture work, apply `dispatch.md § On
+completion` verification and status rules (without releasing an automated slot
+that this manual handoff never acquired). Read the returned start/delivery paths,
+match task/stage and the recorded pre-edit baseline, and run the checkpoint
+freshness verifier in the executor checkout with the original scan settings.
+Missing, stale, wrong-task/stage or unresolved-attention evidence is a failure
+annotation, not a passed check. An after-edit scan cannot fill a missing start
+baseline. Follow the existing architecture discussion gate before accepting it.
+
 ### For code-changing work, always require
+
+- Include the architecture preamble/checkpoints required above when eligible;
+  roleless delegation must not omit them.
 
 - Relevant tests before/after the change.
 - No unrelated refactors.

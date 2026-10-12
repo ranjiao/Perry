@@ -146,6 +146,12 @@ The standup is non-negotiable. It is the only way the PMO stays grounded in obse
 - `done` — deliverable exists AND verification evidence is recorded
 - `dropped` — deliberately removed from scope, with reason
 
+For eligible software-ops Python code work, including work performed directly
+in this session, follow `packs/software-ops/architecture-analysis.md § Task
+checkpoints`: save a baseline before the first edit and a comparison before
+delivery. Record the paths in task evidence. Existing pack eligibility applies;
+this is a host workflow action, not an automatic side effect of task-state writes.
+
 A task may not be marked `done` without an evidence file under `evidence/<YYYY-MM>/<TASK-ID>-*.md` or an externally citable artifact (commit hash, command output, file path, dashboard route).
 
 **Priority values**:

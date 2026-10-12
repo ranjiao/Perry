@@ -1,5 +1,9 @@
 {
   "modules": {
+    "test_architecture_browser.py": {
+      "sec": null,
+      "source": null
+    },
     "test_a_write_refuses_where_nothing_is_installed.py": {
       "sec": 2.405,
       "source": "merge-1e05cde747ff-2026-09-22T19:56:05.676789+00:00"

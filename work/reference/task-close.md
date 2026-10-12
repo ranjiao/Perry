@@ -13,6 +13,12 @@ when the pack is disabled. All other acceptance/verification/safety gates remain
 
 If an approved project release policy applies, read `$PERRY_HOME/packs/software-ops/releases.md` for delivery/publication receipts. Closing is not a version bump; partial delivery does not complete a task. Existing acceptance and close gates still decide. With no policy, continue without version intervention or an enablement question.
 Reject if no evidence path provided.
+For eligible Python code work, verify the recorded delivery architecture
+checkpoint with the same root and scan settings before accepting its evidence
+(`packs/software-ops/architecture-analysis.md § Task checkpoints`). Confirm the
+task/stage and recorded pre-edit baseline. Missing/stale evidence or unresolved
+attention must be reported and resolved before claiming architecture completion;
+never reconstruct a pre-edit baseline from post-edit code.
 
 **Pre-close gate 1 — `Touches architecture:` requires review agent PASS** (see `$PERRY_HOME/packs/software-ops/architecture.md § close-task gate`):
 1. Open `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. If header has `Touches architecture:` non-empty:
