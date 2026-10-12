@@ -926,9 +926,13 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         # span 4,273 chars / 24 lines — all pinned, no free block
         "git-boundaries.md § Git Role Boundaries":
             "0a85b4b6d716887b1edd45dd30337276c6aad90ccc7c178a746e65088bdecaec",
-        # span 3,036 chars / 39 lines — all pinned, no free block
+        # TASK-495: re-pin the independently reviewed checkpoint preamble,
+        # standard RESULT and manual paste-back requirements. The delegate
+        # diff was read; Git isolation/ownership rules and span/free-block
+        # boundaries are unchanged. Previous pin:
+        # 867706de4988717819124856ae579749f412d0d44d32e800904cf07a1a0e5f58
         "delegate.md § required fields + roleless path":
-            "867706de4988717819124856ae579749f412d0d44d32e800904cf07a1a0e5f58",
+            "543779961f0b1adb7a0328542e6a6255be6c0df938e31df2b69439fd24cbfc5f",
         # TASK-472 round 2 re-pin. **The diff was read before this digest was
         # pasted** — 8 lines out, 31 in, two changes and nothing else moved:
         # (1) the scratch recipe built from `git rev-parse` and `$$` is GONE,
