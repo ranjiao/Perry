@@ -1,0 +1,129 @@
+INPUTS {"base": {"ref": "f5565a38990570531c6e867e77cfaa376b5db349", "sha": "f5565a38990570531c6e867e77cfaa376b5db349"}, "candidates": [{"name": "delivery", "ref": "77e1ef8f8d6546c21a4bbfbbc3eec509b069741a", "sha": "77e1ef8f8d6546c21a4bbfbbc3eec509b069741a"}], "schema": 1, "status": "pending", "tier": "full"}
+merge-check · base f5565a38990570531c6e867e77cfaa376b5db349 @ f5565a38
+  delivery 77e1ef8f  
+
+  … merging 1 candidate(s) onto f5565a38
+TESTED TREE 38d9a9de0bde68b13bba627f3818dd14636a1bbd
+  … running full on the merged result
+
+[1m0. tree guard — recording /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree[0m
+  · recorded
+
+[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+perry-lint · templates in /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree
+  ✓ clean — every state file matches schema/state-schema.json
+
+[1m2. parser / extractor / linter contract tests[0m
+
+[31m✗ test_spec_scannability.py[0m — 1 of 71 test(s) failed
+    FAIL   test_spec_scannability.TestTheAgentGetsItsOwnTree.test_the_governed_regions_are_pinned
+  [33m… 185 earlier line(s) elided of 210; the last 25 follow — re-run this module alone for all of it[0m
+baseline. Follow the existing architecture discussion gate before accepting it.
+
+### For code-changing work, always require
+
+- Include the architecture preamble/checkpoints required above when eligible;
+  roleless delegation must not omit them.
+
+- Relevant tests before/after the change.
+- No unrelated refactors.
+- Clear list of changed files.
+- **Work in its own worktree**, not in the checkout the user is sitting in — `dispatch.md § The tree the agent works in` is the rule and the reason, and it applies here too. A pasted prompt is executed by an agent in whatever tree that session happens to hold, so the prompt must say which tree to create and that the primary checkout is not it. State the worktree's branch point in the prompt: an agent cannot tell that its baseline is stale, and four have run against one.
+- **Commit code + tests on a feature branch** named `coding/<task-id>-<slug>` (do NOT commit directly to main).
+- **Push and PR only if the project's hook permits it.** Where `git push` / `origin` are in `.perry/hook.md § High-stakes operations`, the prompt says *commit, do not push, do not open a PR*, and the primary checkout merges the branch afterwards. Where they are not, push and open a PR and put the URL in the RESULT block. Read the hook before rendering the prompt; do not default to either.
+- **Do NOT merge own work**; the merge belongs to the user or to the lane that verified it.
+- If a permitted push or PR fails (auth, permissions, network), the RESULT block MUST say so explicitly so PMO can escalate.
+
+### For research work, always require
+
+Hypothesis / data period / universe / method / metrics / risk + failure modes / recommendation classified per the project's promotion ladder (e.g., `watch | dry-run | paper | reject`, or whatever stages the project defines in its hook).
+
+
+----------------------------------------------------------------------
+Ran 71 tests in 6.692s
+
+FAILED (failures=1)
+
+161 modules · 4587 tests · 233.0s · 4 workers
+
+durations: 165 recorded · 165 on disk · 161 stamped at an ancestor ref · 0 stale · 0 unstamped · 4 unmeasured
+  ✓ every module on disk is accounted for
+[31m✗ 1 of 161 MODULE(S) red[0m
+[31m✗ 1 of 4587 TEST(S) failed[0m
+
+[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+
+[1m4. sample projects lint clean (English and Chinese)[0m
+perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree/tests/fixtures/sample-project
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Architecture (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Implementation plan (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Risks & mitigations (not yet blocking at Status: in_review; required at locked)
+  ⚠ evidence [NS-01] `evidence/` holds 2 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `evidence/`. Both are reversible; the first is one command. Evidence: evidence/2026-08/REL-001-spec.md, evidence/2026-08/REL-002-spec.md
+  ⚠ inputs [NS-01] `inputs/` holds 1 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `inputs/`. Both are reversible; the first is one command. Evidence: inputs/vendor-api.md
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+
+  0 error(s), 9 warning(s)
+  · tasks store: 4 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 5 record(s), all valid
+  · linkage store: 13 record(s), 0 malformed
+  · specs: 2 of 2 declare no scope for `dispatch.md` step 4.2 to read — nobody can say those rows were screened (`perry-lint --specs --json` names every one)
+  · bounds: 2 of 2 spec(s) carry no `## Bound` — a round against those has no finite set to check and no last element (`perry-lint --specs --json` names every one)
+  · summaries: all 3 open row(s) carry one that is not just the title again
+perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree/tests/fixtures/sample-project-zh
+  ✓ clean — every state file matches schema/state-schema.json
+  · tasks store: 3 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 7 record(s), all valid
+  · no `linkage.jsonl` — the linkage store is unchecked, not clean
+  · no `*-spec.md` under evidence/ — the dispatch pre-flight has nothing to read here
+  · summaries: all 3 open row(s) carry one that is not just the title again
+
+[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+  ✓ nothing under /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-z8hgahbe/tree moved
+
+[31m✗ failures above[0m
+PERRY_CHECK	guard:snapshot	0
+PERRY_CHECK	lint:templates	0
+PERRY_CHECK	syntax:bin/perry-state	0
+PERRY_CHECK	help:bin/perry-state	0
+PERRY_CHECK	syntax:bin/perry-lint	0
+PERRY_CHECK	help:bin/perry-lint	0
+PERRY_CHECK	syntax:bin/perry-diagnose	0
+PERRY_CHECK	help:bin/perry-diagnose	0
+PERRY_CHECK	syntax:bin/perry-explain	0
+PERRY_CHECK	help:bin/perry-explain	0
+PERRY_CHECK	syntax:bin/perry-restore-check	0
+PERRY_CHECK	help:bin/perry-restore-check	0
+PERRY_CHECK	syntax:templates/knowledge-base/bin/kb-lint	0
+PERRY_CHECK	help:templates/knowledge-base/bin/kb-lint	0
+PERRY_CHECK	syntax:templates/ops/bin/deliverable-lint	0
+PERRY_CHECK	help:templates/ops/bin/deliverable-lint	0
+PERRY_CHECK	bash:bin/perry-detect-host	0
+PERRY_CHECK	bash:bin/perry-update-check	0
+PERRY_CHECK	bash:bin/perry-dispatch-limit	0
+PERRY_CHECK	bash:bin/perry-codex-preflight	0
+PERRY_CHECK	lint:fixture-en	0
+PERRY_CHECK	lint:fixture-zh	0
+PERRY_CHECK	guard:verify	0
+  … 1 check(s) red — baselining them on the base alone
+  … 1 newly red — running each candidate alone
+BROKEN ON ITS OWN — delivery · test_spec_scannability.py
+    1 modules · 71 tests · 6.4s · 4 workers
+    
+    durations: 165 recorded · 165 on disk · 161 stamped at an ancestor ref · 0 stale · 0 unstamped · 4 unmeasured
+      ✓ every module on disk is accounted for
+    ✗ 1 of 1 MODULE(S) red
+    ✗ 1 of 71 TEST(S) failed
+

@@ -1,0 +1,19 @@
+{
+  "base": {
+    "ref": "f5565a38990570531c6e867e77cfaa376b5db349",
+    "sha": "f5565a38990570531c6e867e77cfaa376b5db349"
+  },
+  "candidates": [
+    {
+      "name": "delivery",
+      "ref": "b93c92beebca1bd6eb0dd1b20d67e03a55047f34",
+      "sha": "b93c92beebca1bd6eb0dd1b20d67e03a55047f34"
+    }
+  ],
+  "code_identity": "a7f33746ad69ecc06c671268226b4d89e35fde97face06fa0b596dcfb323539e",
+  "schema": 1,
+  "scratch_commit": "4d74d9fbde4298366859ba1574e8011441ef3503",
+  "status": "green",
+  "tier": "slow",
+  "tree": "6e73e507e9f4e83797dc6e1ede67637c3bb4bb57"
+}

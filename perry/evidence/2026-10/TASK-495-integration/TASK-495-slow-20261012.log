@@ -1,0 +1,92 @@
+INPUTS {"base": {"ref": "f5565a38990570531c6e867e77cfaa376b5db349", "sha": "f5565a38990570531c6e867e77cfaa376b5db349"}, "candidates": [{"name": "delivery", "ref": "b93c92beebca1bd6eb0dd1b20d67e03a55047f34", "sha": "b93c92beebca1bd6eb0dd1b20d67e03a55047f34"}], "schema": 1, "status": "pending", "tier": "slow"}
+merge-check · base f5565a38990570531c6e867e77cfaa376b5db349 @ f5565a38
+  delivery b93c92be  
+
+  … merging 1 candidate(s) onto f5565a38
+TESTED TREE 6e73e507e9f4e83797dc6e1ede67637c3bb4bb57
+  … running slow on the merged result
+
+[1m0. tree guard — recording /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree[0m
+  · recorded
+
+[1m1. schema drift guard (templates vs schema/state-schema.json)[0m
+perry-lint · templates in /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree
+  ✓ clean — every state file matches schema/state-schema.json
+
+[1m2. parser / extractor / linter contract tests[0m
+
+165 modules · 4690 tests · 242.1s · 4 workers
+
+durations: 165 recorded · 165 on disk · 164 stamped at an ancestor ref · 0 stale · 0 unstamped · 1 unmeasured
+  ✓ every module on disk is accounted for
+[32m✓ all green[0m
+
+[1m3. bin/ scripts are syntactically valid and self-documenting[0m
+  ✓ all bin/ scripts OK
+
+[1m4. sample projects lint clean (English and Chinese)[0m
+perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree/tests/fixtures/sample-project
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Architecture (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Implementation plan (not yet blocking at Status: in_review; required at locked)
+  ⚠ design/DESIGN-002-flake-scoring.md [missing-section] required section not found: ## Risks & mitigations (not yet blocking at Status: in_review; required at locked)
+  ⚠ evidence [NS-01] `evidence/` holds 2 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `evidence/`. Both are reversible; the first is one command. Evidence: evidence/2026-08/REL-001-spec.md, evidence/2026-08/REL-002-spec.md
+  ⚠ inputs [NS-01] `inputs/` holds 1 file(s) Perry did not write. Perry will read them as its own state and report them as broken, and the next lint run will say your file is malformed. It is not — it is in a folder Perry claimed. Either move Perry's state to its own root — `/perry relocate perry` — or move these files out of `inputs/`. Both are reversible; the first is one command. Evidence: inputs/vendor-api.md
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-scope-unscannable] no `## Files in scope` or `## Deliverable` — `dispatch.md` step 4.2 has nothing here to read, so nobody can say this row's scope was screened
+  ⚠ evidence/2026-08/REL-001-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+  ⚠ evidence/2026-08/REL-002-spec.md [spec-unbounded] no `## Bound` — a round against this spec has no finite set to check and no last element, so it cannot know when it is done (work/reference/review.md § 1). Write the bound BEFORE the round, not during it
+
+  0 error(s), 9 warning(s)
+  · tasks store: 4 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 5 record(s), all valid
+  · linkage store: 13 record(s), 0 malformed
+  · specs: 2 of 2 declare no scope for `dispatch.md` step 4.2 to read — nobody can say those rows were screened (`perry-lint --specs --json` names every one)
+  · bounds: 2 of 2 spec(s) carry no `## Bound` — a round against those has no finite set to check and no last element (`perry-lint --specs --json` names every one)
+  · summaries: all 3 open row(s) carry one that is not just the title again
+perry-lint · /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree/tests/fixtures/sample-project-zh
+  ✓ clean — every state file matches schema/state-schema.json
+  · tasks store: 3 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · risks store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `intake.jsonl` — drift against the intake store is unchecked, not clean
+  · ask store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · cadence store: 1 record(s); no board file is read — nothing is projected from one, so there is nothing to drift
+  · no `okr.jsonl` — drift against the OKR store is unchecked, not clean
+  · config store: 7 record(s), all valid
+  · no `linkage.jsonl` — the linkage store is unchecked, not clean
+  · no `*-spec.md` under evidence/ — the dispatch pre-flight has nothing to read here
+  · summaries: all 3 open row(s) carry one that is not just the title again
+
+[1m0. tree guard — the tree the suite started in is the tree it ends in[0m
+  ✓ nothing under /private/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/merge-check-ndgxiei2/tree moved
+
+[32m✓ all green[0m
+PERRY_CHECK	guard:snapshot	0
+PERRY_CHECK	lint:templates	0
+PERRY_CHECK	syntax:bin/perry-state	0
+PERRY_CHECK	help:bin/perry-state	0
+PERRY_CHECK	syntax:bin/perry-lint	0
+PERRY_CHECK	help:bin/perry-lint	0
+PERRY_CHECK	syntax:bin/perry-diagnose	0
+PERRY_CHECK	help:bin/perry-diagnose	0
+PERRY_CHECK	syntax:bin/perry-explain	0
+PERRY_CHECK	help:bin/perry-explain	0
+PERRY_CHECK	syntax:bin/perry-restore-check	0
+PERRY_CHECK	help:bin/perry-restore-check	0
+PERRY_CHECK	syntax:templates/knowledge-base/bin/kb-lint	0
+PERRY_CHECK	help:templates/knowledge-base/bin/kb-lint	0
+PERRY_CHECK	syntax:templates/ops/bin/deliverable-lint	0
+PERRY_CHECK	help:templates/ops/bin/deliverable-lint	0
+PERRY_CHECK	bash:bin/perry-detect-host	0
+PERRY_CHECK	bash:bin/perry-update-check	0
+PERRY_CHECK	bash:bin/perry-dispatch-limit	0
+PERRY_CHECK	bash:bin/perry-codex-preflight	0
+PERRY_CHECK	lint:fixture-en	0
+PERRY_CHECK	lint:fixture-zh	0
+PERRY_CHECK	guard:verify	0
+RECEIPT {"base": {"ref": "f5565a38990570531c6e867e77cfaa376b5db349", "sha": "f5565a38990570531c6e867e77cfaa376b5db349"}, "candidates": [{"name": "delivery", "ref": "b93c92beebca1bd6eb0dd1b20d67e03a55047f34", "sha": "b93c92beebca1bd6eb0dd1b20d67e03a55047f34"}], "code_identity": "a7f33746ad69ecc06c671268226b4d89e35fde97face06fa0b596dcfb323539e", "schema": 1, "scratch_commit": "4d74d9fbde4298366859ba1574e8011441ef3503", "status": "green", "tier": "slow", "tree": "6e73e507e9f4e83797dc6e1ede67637c3bb4bb57"}
+✓ exact merged tree passed slow; recheck refs before merge
