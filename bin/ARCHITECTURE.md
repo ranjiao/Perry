@@ -299,7 +299,7 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
 
 ## §7. Open questions
 
-- **OQ-B1 — The other fifteen tools.** Eight declare a `SURFACE`. Converting the
+- **OQ-B1 — The other fourteen tools.** Eight declare a `SURFACE`. Converting the
   rest is mechanical but not free, and `perry list` reports them as undeclared
   in the meantime. No row is open for it.
 - **OQ-B2 — Should `perry-task` be split?** 9,069 lines and 31 subcommands against `perry-okr`'s 68. The subcommands cover five different objects
