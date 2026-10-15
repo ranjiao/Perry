@@ -740,7 +740,7 @@ class TestItIsSmallerByTheOrderOfMagnitudeThatWasThePoint(unittest.TestCase):
     def setUp(self):
         self.p = Project()
         for n in range(12):
-            self.p.run("add", "--title", f"a row that makes the board big {n}")
+            self.p.seed_task(f"TASK-{n + 1:03}", title=f"a row that makes the board big {n}")
         self.full_text = inproc.run(
             "perry-state", ["--root", str(self.p.root), "--json"]).stdout
         self.narrow_text = inproc.run(

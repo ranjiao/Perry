@@ -254,3 +254,5 @@ The independent review agent's job is exactly to catch those. It receives bounde
 
 After completed writes from `architecture init`, `architecture review`, `architecture-audit`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work architecture init --> <!-- next-close: work architecture review --> <!-- next-close: work architecture-audit -->
+
+For current work state and closing mutations, read `$PERRY_HOME/work/reference/kernel.md`.

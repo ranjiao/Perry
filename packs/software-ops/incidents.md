@@ -170,3 +170,5 @@ That recorded "without" is what makes the next mid-phase review honest. If the s
 
 After completed writes from `incident`, `incident close`, `incident archive`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work incident --> <!-- next-close: work incident close --> <!-- next-close: work incident archive -->
+
+For current work state and closing mutations, read `$PERRY_HOME/work/reference/kernel.md`.

@@ -1,21 +1,14 @@
 #!/usr/bin/env python3
 """
-perry-task — the one deterministic way Perry's state gets written.
+perry-task — frozen legacy reads; all write verbs refuse after phase E.
 
-Perry has nine read tools and, until this one, zero write tools. Every board
-row, status change, journal line and ID was produced by an agent typing markdown
-by hand — so the law that governs state ("never compute a number by reading
-files and eyeballing it") protected the way out and not the way in.
+Use perry-kernel for current work state. Legacy list, events, asks and
+signoff-offer remain available to inspect migration inputs. Reads never recover
+a pending legacy transaction. Recover it with the pre-cutover release first.
 
-The usage block is generated from this tool's `SURFACE`
-declaration — run `perry-task --help`, or `perry-task <subcommand>
---help` for one of them, or `perry-task --describe --json` for the
-whole surface as data.
-
-**The argument for every refusal below is in
-`bin/README.md § The argument, per tool`**, moved there whole on
-2026-09-09 (DESIGN-016 Decision 2). Nothing was cut; `--help`
-stopped being the place to read it.
+Usage is generated from SURFACE. Run a named subcommand with --help for its
+arguments, or --describe --json for the machine-readable surface.
+The retained implementation bodies are historical until phase H disposal.
 """
 
 from __future__ import annotations

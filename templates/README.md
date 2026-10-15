@@ -47,3 +47,9 @@ whichever it happened to read:
 ```bash
 ln -s AGENTS.md CLAUDE.md
 ```
+
+## Process templates
+
+`templates/process/perry.json` is data applied with kernel `template apply`,
+not a Markdown scaffold copied into a project. The kernel stores the applied
+version; the skill supplies the work procedure and evidence checks.

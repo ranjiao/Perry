@@ -904,6 +904,9 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
     #: the failure message prints the digest to paste back — deliberately, so
     #: that re-pinning is a copy of a value you have just read the diff for and
     #: not a script you can run without looking.
+    # TASK-490: read the phase-D diff before repinning review run/FAIL spans.
+    # Only native query/ask/blocks calls and the legacy-linter limit change.
+    # Reviewer independence, failure budget and author authority are retained.
     GOVERNED_SHA = {
         # TASK-455 re-pins only Claude brief context/RESULT; scratch/isolation unchanged.
         # TASK-381 replaced the `State the worktree's
@@ -955,12 +958,12 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         # before re-running everything, and the filed-flake procedure (re-run
         # the module alone, then the full suite once, citing the row).
         "review.md § what the reviewer runs":
-            "3cf990286441162e03d42ec426342b8e5f9742c93ae8f1405d9d85b5cc480a21",
+            "c669f42cae7b43ed8d7ac5106de785ff7e1bed8721ff80a56152322d1e8c9200",
         # span 4,784 chars / 89 lines — § 6 entire, including what to write
         # when the round after an ANSWERED ask still does not PASS, and the
         # clause that the author of the work may not raise its own threshold.
         "review.md § 6 two FAILs":
-            "2e5ed71cbe73d21460fd7d9b5311da59b949fc0e380c0909db5d380b3e694ad3",
+            "4d36963af72420af79617b047af27fb049bb12eab0e4ad30c5e17fa012cd63da",
     }
 
     def governed_text(self, name: str) -> str:

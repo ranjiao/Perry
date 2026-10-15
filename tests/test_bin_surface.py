@@ -1085,9 +1085,14 @@ class TestAFlagReachesOnlyItsOwnSubcommands(unittest.TestCase):
         (self.p.root / "design").mkdir(exist_ok=True)
         (self.p.root / "design" / "DESIGN-042-a-fixture.md").write_text(
             "# DESIGN-042: a fixture\n")
-        code, _out = self.p.run("add", "--title", "a row that cites a design",
-                                "--design", "DESIGN-042")
-        self.assertEqual(code, 0)
+        face = surface("perry-task")
+        parsed = lib.parse_surface(face, ["add", "--design", "DESIGN-042"])
+        self.assertIsNone(parsed["error"])
+        # Parsing is still live; execution is deliberately retired.
+        code, out = self.p.run("add", "--title", "a row that cites a design",
+                               "--design", "DESIGN-042")
+        self.assertEqual(code, 1)
+        self.assertIn("read-only", out["refused"])
 
 
 class TestOneNoArgumentBehaviour(unittest.TestCase):

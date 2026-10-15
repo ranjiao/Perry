@@ -92,3 +92,5 @@ The output report is durable, citable, and small. A user 6 months from now can r
 
 After completed writes from `health-check`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work health-check -->
+
+For current work state and closing mutations, read `kernel.md`.

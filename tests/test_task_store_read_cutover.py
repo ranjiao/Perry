@@ -122,7 +122,7 @@ class TestTaskStoreReadCutover(unittest.TestCase):
         self.assertEqual(code, 0, stderr)
         self.assertEqual(events["events"][0]["task"], "TASK-001")
 
-    def test_store_edit_wins_and_unrelated_write_renders_it(self):
+    def test_store_edit_wins_and_retired_write_leaves_it_untouched(self):
         project = Project(self)
         records = project.store()
         records[0]["title"] = "Store-only title"
@@ -150,7 +150,8 @@ class TestTaskStoreReadCutover(unittest.TestCase):
         self.assertEqual(listed["depends_on"], [])
         edited = board_path.read_bytes()
         code, result, stderr = project.run("ask", "--needed", "unrelated")
-        self.assertEqual(code, 0, result or stderr)
+        self.assertEqual(code, 1, result or stderr)
+        self.assertIn("read-only", result["refused"])
         self.assertEqual(project.store()[0]["title"], "Store-only title")
         self.assertEqual([item["order"] for item in project.store()], [0, 1])
         # **TASK-262 round 4a.** This read the held file back and found it
@@ -160,7 +161,6 @@ class TestTaskStoreReadCutover(unittest.TestCase):
         # nothing to report, and the board — `perry-tasks board` — is the
         # store's.
         self.assertEqual(board_path.read_bytes(), edited)
-        self.assertEqual(result["projection"]["cells_the_store_and_board_disagree_on"], [])
         import subprocess, sys
         printed = subprocess.run(
             [sys.executable, str(Path(__file__).resolve().parent.parent / "bin" / "perry-tasks"),
@@ -235,9 +235,9 @@ class TestTaskStoreReadCutover(unittest.TestCase):
         self.assertEqual(self.task(payload, "TASK-002")["title"], "Store two")
         code, result, stderr = project.run("start", "TASK-999")
         self.assertEqual(code, 1, stderr)
-        self.assertIn("not a task", result["refused"])
+        self.assertIn("read-only", result["refused"])
 
-    def test_writer_baseline_does_not_read_a_literal_for_an_empty_store_field(self):
+    def test_retired_writer_cannot_copy_a_board_literal_into_the_store(self):
         project = Project(self)
         records = project.store()
         records[0]["next_action"] = ""
@@ -248,11 +248,12 @@ class TestTaskStoreReadCutover(unittest.TestCase):
 
         code, result, stderr = project.run(
             "next", "TASK-001", "--next", "board literal")
-        self.assertEqual(code, 0, result or stderr)
+        self.assertEqual(code, 1, result or stderr)
+        self.assertIn("read-only", result["refused"])
         record = next(r for r in project.store() if r["id"] == "TASK-001")
-        self.assertEqual(record["next_action"], "board literal")
+        self.assertEqual(record["next_action"], "")
 
-    def test_id_mint_ignores_board_and_event_ids(self):
+    def test_retired_add_does_not_mint_from_any_legacy_source(self):
         project = Project(self)
         board_path = project.root / "BOARD.md"
         board_path.write_text(
@@ -266,10 +267,10 @@ class TestTaskStoreReadCutover(unittest.TestCase):
             "add", "--title", "New", "--priority", "P0",
             "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
             "--deliverable", "artifact", "--verification", "test passes")
-        self.assertEqual(code, 0, result or stderr)
-        self.assertEqual(result["id"], "TASK-003")
+        self.assertEqual(code, 1, result or stderr)
+        self.assertIn("read-only", result["refused"])
         self.assertEqual({item["id"] for item in project.store()},
-                         {"TASK-001", "TASK-002", "TASK-003"})
+                         {"TASK-001", "TASK-002"})
 
     def test_malformed_store_is_a_structured_refusal_and_is_not_recovered(self):
         project = Project(self)
@@ -302,7 +303,7 @@ class TestTaskStoreReadCutover(unittest.TestCase):
         code, result, stderr = project.run("ask", "--needed", "unrelated")
 
         self.assertEqual(code, 1)
-        self.assertIn("list of strings", result["refused"])
+        self.assertIn("read-only", result["refused"])
         self.assertNotIn("Traceback", stderr)
         self.assertEqual((project.root / "tasks.jsonl").read_bytes(), before_store)
         self.assertEqual(board.read_bytes(), before_board)

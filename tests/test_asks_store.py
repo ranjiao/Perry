@@ -604,44 +604,19 @@ class TestDriftIsReportedRatherThanAbsorbed(unittest.TestCase):
         self.assertIn("no `asks.jsonl`", out.stdout)
         self.assertIn("unchecked, not clean", out.stdout)
 
-    def test_the_ordinary_writer_reaches_the_store_and_leaves_no_drift(self):
-        """**Converted by TASK-203.** It read
-        `test_the_ordinary_writer_still_writes_the_section_and_that_is_drift`,
-        and its docstring said `answer` writes the board and not the store —
-        *"deliberately not converted (TASK-203)"*. TASK-203 is the row that
-        converts it, so the assertion is now the other half of the same fact:
-        the section and the store are written in one transaction, so there is
-        nothing left to report as drift.
-
-        The drift READING is not lost with it. It was never this command's to
-        prove — `perry-task` keeps the store current, and what drifts a store
-        is a hand edit. `TestDriftIsReportedRatherThanAbsorbed`'s four tests
-        that edited `BOARD.md` directly left with TASK-262 round 4b, which
-        retired the comparison; a hand edit to a held file reaches nothing.
-        """
+    def test_the_retired_answer_cannot_change_the_frozen_store(self):
         p = _imported(self)
         held = p.root / "BOARD.md"
-        before = held.read_bytes()
+        store = p.root / "asks.jsonl"
+        before = (held.read_bytes(), store.read_bytes())
         out = subprocess.run(
-            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "answer",
-             "USER-002", "--answer", "CSV, with a header row",
-             "--root", str(p.root), "--json"], 'test_asks_store'),
+            task_actor.command([sys.executable, str(PERRY_HOME / "bin/perry-task"),
+                "answer", "USER-002", "--answer", "CSV, with a header row",
+                "--root", str(p.root), "--json"], 'test_asks_store'),
             capture_output=True, text=True)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        # **TASK-262 round 4a.** The write reaches the store and no longer
-        # touches the held file, so the file keeps its bytes.
-        self.assertEqual(held.read_bytes(), before,
-                         "the write rewrote the retired BOARD.md")
-        # (TASK-262 round 4b) The `drifted == 0` lint assertion that stood here
-        # is gone: no board file is compared with its store any more, so the
-        # register's `drifted` is its empty default whatever the files say,
-        # and asserting it would pass for no reason (round 4b result F33).
-        record = next(r for r in
-                      [json.loads(l) for l in
-                       (p.root / "asks.jsonl").read_text().split("\n")
-                       if l.strip()] if r["id"] == "USER-002")
-        self.assertIn("CSV, with a header row", record["status"])
-        self.assertIs(record["answered"], True)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("read-only", json.loads(out.stdout)["refused"])
+        self.assertEqual((held.read_bytes(), store.read_bytes()), before)
 
     def test_the_store_is_claimed_as_a_file_perry_wrote(self):
         """Without this every project that runs the import gets an `NS-01`

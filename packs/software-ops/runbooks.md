@@ -186,3 +186,5 @@ If the user can't operate the system without reading code that an agent wrote, t
 
 After completed writes from `runbook-check`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work runbook-check -->
+
+For current work state and closing mutations, read `$PERRY_HOME/work/reference/kernel.md`.

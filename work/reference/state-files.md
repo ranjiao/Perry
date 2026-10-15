@@ -2,7 +2,7 @@
 
 Current task/ask/risk state lives only in the kernel store. Use `kernel.md` for
 queries, mutations, relations, events, attachments and export. The store is resolved
-by the kernel across worktrees; never duplicate it inside a checkout or edit SQLite.
+by the kernel from the primary repository; never duplicate it inside a checkout or edit SQLite.
 The deterministic export is a recovery artifact, not another writer surface.
 
 Work owns evidence, weekly reports, handoffs, knowledge documents, PROJECT_STATE

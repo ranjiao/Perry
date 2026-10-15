@@ -77,10 +77,10 @@ class TestTheFlagBeatsTheEnvironment(unittest.TestCase):
 
     def setUp(self):
         self.named = Project()
-        self.named.run("add", "--title", "the project the caller named")
+        self.named.seed_task("TASK-001", title="the project the caller named")
         self.other = Project()
-        for _ in range(3):
-            self.other.run("add", "--title", f"a row {self.MARK}")
+        for n in range(3):
+            self.other.seed_task(f"TASK-{n + 1:03}", title=f"a row {self.MARK}")
         run("perry-config", "set", "Chat language", self.MARK,
             "--root", str(self.other.root))
 
@@ -658,7 +658,7 @@ class TestListIsBounded(unittest.TestCase):
     def setUp(self):
         self.p = Project()
         for n in range(6):
-            self.p.run("add", "--title", f"a row to bound {n}")
+            self.p.seed_task(f"TASK-{n + 1:03}", title=f"a row to bound {n}")
 
     def _list(self, *argv):
         out = run("perry-task", "list", "--root", str(self.p.root), "--json",

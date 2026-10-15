@@ -643,60 +643,22 @@ class TestEveryDeclaredSubcommandHasAProcedure(unittest.TestCase):
                     f"count; that is an index, not a procedure.")
 
 
-class TestTheStageInvariantReachesEveryFileThatMovesARow(unittest.TestCase):
-    """`work/reference/subcommands.md` said the stage invariant "is restated in
-    `reference/dispatch.md` and `reference/autopilot.md` rather than relying on
-    this one". Neither file contained the word `Stage`.
+class TestWorkUsesNativeStateProcedures(unittest.TestCase):
+    """Phase E removes the stage clock; procedures must use native mutations."""
 
-    The sentence was doing real work: reference files are loaded one at a time,
-    so a claim that another file carries the rule is the only thing standing
-    between a dispatch loop and a hand-edited cell. Being false made it worse
-    than absent — it stopped anyone from noticing the gap.
-
-    Found as m-10 in the V4 review of TASK-019/020.
-    """
-
-    ROOT = pathlib.Path(__file__).resolve().parent.parent
-    CLAIMANT = "work/reference/planning.md"
-
-    def test_the_files_named_as_restating_it_actually_do(self):
-        """Checks the claim as written: pull the cited paths out of the
-        sentence itself, so renaming a file or moving the restatement breaks
-        this rather than going quiet."""
-        text = (self.ROOT / self.CLAIMANT).read_text()
-        sentences = [s for s in re.split(r"(?<=\.)\s", text)
-                     if "restated in" in s]
-        self.assertTrue(
-            sentences,
-            f"{self.CLAIMANT}: the claim this test grades is gone. If the "
-            f"restatements were dropped on purpose, delete this test with "
-            f"them; if the wording changed, update the match.")
-        for s in sentences:
-            cited = re.findall(r"`(reference/[\w-]+\.md)`", s)
-            self.assertTrue(cited, f"claims a restatement but names no file: {s}")
-            for ref in cited:
-                path = self.ROOT / "work" / ref
-                self.assertTrue(path.exists(), f"{ref} does not exist")
-                self.assertIn(
-                    "Stage since", path.read_text(),
-                    f"{self.CLAIMANT} says {ref} restates the stage "
-                    f"invariant; {ref} does not mention it")
-
-    def test_every_file_that_lands_a_row_carries_the_stage_rule(self):
-        """The claim above is prose. This is the rule underneath it: a
-        procedure that tells the agent to write `Status` on completion is a
-        procedure where the stage moves too, and `Stage` and `Status` are
-        orthogonal — a stage move produces no status change and leaves no
-        trace at all if hand-edited."""
-        for name in ("planning.md", "subcommands.md", "dispatch.md", "autopilot.md"):
-            body = (self.ROOT / "work" / "reference" / name).read_text()
-            if "--status review" not in body:
+    def test_no_work_procedure_orders_a_legacy_state_mutation(self):
+        retired = set(inproc.load("perry-task").COMMANDS) - {"list", "events", "asks", "signoff-offer"}
+        for page in [PERRY_HOME / "work/SKILL.md", *(PERRY_HOME / "work/reference").glob("*.md")]:
+            if page.read_text().startswith("> Historical pre-kernel rationale."):
                 continue
-            self.assertRegex(
-                body, r'perry-task["`]? stage',
-                f"{name} instructs a status write on completion but never "
-                f"names `perry-task stage`, so a pipeline row's dwell clock "
-                f"gets hand-edited or left stale")
+            for verb in retired:
+                with self.subTest(page=page.name, verb=verb):
+                    self.assertNotRegex(page.read_text(), rf'perry-task["`]?\s+{re.escape(verb)}(?:\s|`|$)')
+
+    def test_planning_and_execution_read_the_native_contract(self):
+        for name in ("planning", "dispatch", "autopilot", "subcommands"):
+            page = PERRY_HOME / "work/reference" / (name + ".md")
+            self.assertIn("kernel.md", page.read_text())
 
 
 if __name__ == "__main__":

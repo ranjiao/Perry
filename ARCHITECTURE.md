@@ -134,15 +134,15 @@ there is no cross-project registry).
   prints comes from a `bin/` call, and so does the recommendation.
 
 ### `modes/`, `packs/`, `reference/`, `templates/`
-- **Purpose**: the vocabulary a project can declare (four work modes), the
-  domain pack (`software-ops`, which is where this discipline is defined),
-  tier-1 reference pages loaded on demand, and the scaffolds a new project gets.
-  `reference/` also holds `next-rules.json`, the rule table `bin/perry-state`
+- **Purpose**: the domain pack (`software-ops`), tier-1 reference pages loaded
+  on demand, document scaffolds, and `templates/process/` JSON applied through
+  the kernel. The legacy mode pages remain until final disposal; the work lane
+  no longer runs stage, WIP, SLA or cadence procedures. `reference/` also holds `next-rules.json`, the rule table `bin/perry-state`
   evaluates for the next step, and `next.md`, which explains each rule.
-- **Owns**: per-project variation. A track's mode, a pack's glossary. The
+- **Owns**: process template data, retained legacy mode vocabulary, pack glossaries and legacy
   next-step rules, declared as data that `bin/` evaluates.
 
-### `tests/` — 163 modules
+### `tests/` — 166 modules
 - **Purpose**: the contract, executable. Includes `tests/tree_guard.py`, which
   fails the suite if a run changed the checkout it ran in.
 - **Owns**: whether a claim in this repository is true.
@@ -157,12 +157,12 @@ there is no cross-project registry).
 flowchart TD
     User([the one human]) -->|reads, decides| Lanes
     Lanes["SKILL.md · goals / work / decide<br/>procedure only"] -->|invokes| Bin
-    Bin["bin/ — 21 tools<br/>compute and write"] -->|imports| Parsers["viewer/parsers.py<br/>the one reader"]
+    Bin["bin/ — 23 tools<br/>compute and write"] -->|imports| Parsers["viewer/parsers.py<br/>the one reader"]
     Bin -->|imports| Lib["bin/lib · perry_store · perry_md_store"]
     Bin -->|validates against| Schema["schema/state-schema.json"]
     Parsers -->|reads| State[("perry/ · .perry/<br/>stores and projections")]
     Bin -->|writes| State
-    Tests["tests/ — 163 modules"] -.asserts.-> Bin
+    Tests["tests/ — 166 modules"] -.asserts.-> Bin
     Tests -.asserts.-> Parsers
     Tests -.asserts.-> Schema
     Outside([aiMark and other consumers]) -->|published payloads| Contracts["schema/*-contract.md"]

@@ -4,7 +4,7 @@ Read `kernel.md` first. Query nonterminal tasks, including `blocked_by`, then
 pending asks and open risks. Page through the whole result when evaluating every
 row. Read selected task attachments, not every design or old journal.
 
-## plan-week / monday-plan
+## `plan-week` / `monday-plan`
 
 Propose 3–5 P0 tasks serving the declared phase, with concrete deliverables,
 dependencies, owner and rung. The user chooses scope before new specifications
@@ -13,7 +13,7 @@ next_action); new tasks follow `add-task.md`. Keep unknown KR linkage explicit
 and hand stable attribution to goals. Save the approved narrative under
 `weekly/<ISO-week>.md`; reference task IDs rather than maintaining another board.
 
-## triage
+## `triage`
 
 For each open task, compare its state, next_action, criteria, latest event and
 actual evidence. Distinguish blocked work, missing evidence and stale wording.

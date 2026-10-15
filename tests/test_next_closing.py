@@ -73,7 +73,8 @@ def routing_errors(text, read):
     errors = []
     for lane, command, source, after in routes(text):
         body = read(source)
-        if f'<!-- next-close: {lane} {command} -->' not in body or 'reference/next.md#closing-step' not in body:
+        pointer = 'kernel.md' if lane == 'work' else 'reference/next.md#closing-step'
+        if f'<!-- next-close: {lane} {command} -->' not in body or pointer not in body:
             errors.append((lane, command))
         if after != command.split()[0]:
             errors.append(('wrong-after', command))

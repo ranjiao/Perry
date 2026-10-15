@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: —
 > Version: v1
-> Last reviewed: 2026-10-07
+> Last reviewed: 2026-10-15 (agent review; user confirmation at application)
 > Module document for the `kernel/` component. [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2 names it; the user confirmed that entry on 2026-09-24 (merged in 34d7be63).
 > Cap: ≤ 600 lines. This is the kernel's specification, written before any kernel code exists (DESIGN-023 § 6 row A). The design it specifies is `perry/design/DESIGN-023-a-kernel-and-a-skill.md`.
 > Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`, the root document's convention under `kernel/`. § 5 is split out.
@@ -23,8 +23,8 @@ does to the code.
 It deliberately does **not** read, parse, lint or render markdown (Goal 2). It does not run
 a command or spawn a process (decision 8), judge what a document means (decision 3), or
 recommend a next step (decision 5). It does not serve several users, run a server, sync
-machines or draw a UI (§ 3 Non-Goals). Status: built by DESIGN-023 § 6 row B; `bin/` stays
-the live writer until each lane cuts over, and row C writes the first template.
+machines or draw a UI (§ 3 Non-Goals). Status: built by DESIGN-023 § 6 row B; `work` calls the kernel after phase E; goals and decide retain their existing
+writers until phase F. The first template is shipped under `templates/process/`.
 
 ## §2. Components
 
@@ -88,6 +88,10 @@ set (§ 5.7). It imports nothing from `perry_kernel`, and it reaches the store
 only through the CLI, as the skill does (`bin/ARCHITECTURE.md` § 2). The test
 suites also run the CLI, and `bin/perry` forwards `perry kernel …` to the
 wrapper's `main` in-process.
+
+aiMark also calls the native CLI as the external consumer required by
+DESIGN-023 decision 11; it adapts the native response in its own repository.
+The kernel imports no consumer code.
 
 Allowed directions: skill → kernel → store, where each caller named above
 stands in the skill's place. There are no others.

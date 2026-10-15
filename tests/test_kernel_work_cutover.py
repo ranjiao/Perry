@@ -44,6 +44,32 @@ class TestLegacyBoundary(unittest.TestCase):
                         self.assertIn("read-only", why)
                         self.assertFalse(root.exists())
 
+    def test_every_retired_writer_preserves_an_installed_project(self):
+        surface = json.loads(self.call("--describe", "--json").stdout)
+        reads = {"list", "events", "asks", "signoff-offer"}
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config_store.write_config(root)
+            # Include canonical input, opaque documents and a late transaction
+            # marker. A refusal must not create a store or replay any recovery.
+            for rel, body in {"tasks.jsonl": "", "asks.jsonl": "", "risks.jsonl": "",
+                              ".perry/events.jsonl": "", "evidence/sentinel.md": "keep\n",
+                              ".perry-task-transaction.json": '{"pending":"keep"}\n'}.items():
+                path = root / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(body)
+            before = snapshot(root)
+            for sub in surface["subcommands"]:
+                if sub["name"] in reads:
+                    continue
+                for dry in ([], ["--dry-run"]):
+                    with self.subTest(verb=sub["name"], dry=bool(dry)):
+                        result = self.call(sub["name"], "--root", td,
+                                           "--actor", "boundary-agent", "--json", *dry)
+                        self.assertEqual(result.returncode, 1, result.stderr)
+                        self.assertIn("read-only", json.loads(result.stdout)["refused"])
+                        self.assertEqual(snapshot(root), before)
+
     def test_legacy_reads_never_recover_a_pending_transaction(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

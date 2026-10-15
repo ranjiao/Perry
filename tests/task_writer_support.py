@@ -203,6 +203,24 @@ class Project:
                        "A fixture row that exists so the writer has something "
                        "to write. It carries no meaning beyond that.")
 
+    def seed_task(self, item_id, **fields):
+        """Declare frozen legacy input for a READER test, never simulate a write.
+
+        Tests of the public write boundary must continue to use run(), which
+        refuses after phase E. No event or journal is fabricated here.
+        """
+        store = self.root / "tasks.jsonl"
+        records = [json.loads(line) for line in store.read_text().splitlines()
+                   if line.strip()] if store.exists() else []
+        if any(row["id"] == item_id for row in records):
+            raise AssertionError(f"duplicate fixture task {item_id}")
+        row = dict(id=item_id, title="reader fixture", status="not_started",
+                   priority="P1", track="main", group="P1",
+                   owner="Coding Agent", verification="V3")
+        row.update(fields)
+        records.append(PT.perry_store.record(row, len(records)))
+        store.write_text(PT.perry_store.store_text(records))
+
     def run(self, *argv) -> tuple[int, dict | str]:
         if argv and argv[0] == "add" and "--deliverable" not in argv \
                 and "--title" in argv:

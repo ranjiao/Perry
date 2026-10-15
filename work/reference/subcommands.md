@@ -5,24 +5,24 @@ results as needed, inspect events for the relevant time range, and attach only
 supporting documents that a reader can actually open. Legacy journals remain
 historical documents; the work lane no longer appends to them.
 
-## status / friday-review
+## `status` / `friday-review`
 
 Use `reporting-format.md` to save `weekly/<ISO-week>.md`. Distinguish implementation,
 tests, independent review, human acceptance and integration. Query totals and
 states; do not claim every returned row represents every stored row when truncated.
 
-## monday-plan / plan-week
+## `monday-plan` / `plan-week`
 
 Use `planning.md`. Approved task changes go through kernel mutations; narrative
 weekly documents do not become another board or task register.
 
-## midweek-check
+## `midweek-check`
 
 Read this week's task events and current dependencies. Report movement, evidence
 gaps and user inputs in the weekly document. No cadence item or journal line is
 created; a recurring meeting/report is a skill procedure, not a register workflow.
 
-## mid-phase-review / end-phase-retro
+## `mid-phase-review` / `end-phase-retro`
 
 Read the current phase and goals data through the goals lane's current contract.
 Use task query/events and evidence to mark achieved, partial, missed or unknown
@@ -33,14 +33,14 @@ goals lane. Read `health-check.md`, `digests.md` and `promotion.md` when those
 selected capabilities contribute relevant evidence. Promotion requires a recurring
 lesson supported by two tasks and at most one question for the whole retro.
 
-## coordinate
+## `coordinate`
 
 Inspect available authorized session/task reports. Do not infer other agents'
 activity from absent markers. Reconcile each report with actual kernel state and
 its evidence before updating an item. Do not message another chat or person
 without the user's authorization. Stable goal attribution belongs to goals.
 
-## handoff
+## `handoff`
 
 Save `handoff/<date>.md` with current task IDs, observed state, exact base/branch
 and checkout, criteria, changes, tests, open questions and next actions. Include
@@ -49,7 +49,7 @@ Read the latest item seqs immediately before writing a snapshot; make its time
 explicit so future sessions can query current state instead of trusting old counts.
 No journal or handwritten task-register changes accompany a handoff.
 
-## rollover
+## `rollover`
 
 Read the phase retro and goals lane's phase-scoring result. Open tasks remain
 items; they are not copied into a new phase. Ask before dropping scope. Create
@@ -63,10 +63,25 @@ After writes re-query changed items and report the next useful action.
 <!-- next-close: work coordinate --> <!-- next-close: work handoff -->
 <!-- next-close: work rollover -->
 
-## add-task
+## `add-task`
 
 Use `add-task.md` for proposal, criteria, kernel creation and attachments.
 
-## triage
+## `triage`
 
 Use `planning.md` for complete kernel queries, evidence checks and approved updates.
+
+### `end-phase-retro`
+
+Save the bounded retrospective as evidence. Its header is
+`> Phase: <NNN>-<slug> · Since: <start-date>` so the goals reader can identify
+the phase. Describe actual results, unresolved criteria and evidence limits;
+hand goal scoring to the goals lane. This document is evidence, not task state.
+
+<!-- next-close: work plan-week -->
+
+<!-- next-close: work triage -->
+
+<!-- next-close: work risk -->
+
+<!-- next-close: work add-task -->
