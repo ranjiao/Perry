@@ -557,6 +557,32 @@ class TestATemplateChangeStandsAlone(Case):
                 self.assertIn("shares its event with item changes",
                               r.env["error"]["message"])
 
+    def test_each_item_change_kind_independently_rejects_a_template_mix(self):
+        # Each key independently matters. A field+type+state fixture masks
+        # a missing branch in _event_shape's mixed-event predicate.
+        changes = [
+            {"key": "type", "before": None, "after": "widget"},
+            {"key": "state", "before": "queued", "after": "cutting"},
+            {"key": "field:bench", "before": "north", "after": "south"},
+            {"key": "rel:pairs_with:W-001:W-002", "before": False, "after": True},
+            {"key": "attach:evidence/review.md", "before": None,
+             "after": {"hash": None}},
+        ]
+        for change in changes:
+            for template_first in (False, True):
+                with self.subTest(key=change["key"], template_first=template_first):
+                    ex = self.export()
+                    template_change = {"key": "template", "before": None,
+                                       "after": template(version=2)}
+                    mixed = ([template_change, change] if template_first
+                             else [change, template_change])
+                    seq = ex.plant(mixed, [self.a], touch=False)
+                    _other, result = ex.run()
+                    self.assertEqual(result.code_name, "export_invalid", result)
+                    self.assertEqual(result.details["line"], seq)
+                    self.assertIn("shares its event with item changes",
+                                  result.env["error"]["message"])
+
     def test_a_template_change_alone_still_imports(self):
         """The control: `template apply`'s own event, alone, replays."""
         self.sb.apply(template(version=2))

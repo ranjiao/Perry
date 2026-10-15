@@ -1,211 +1,49 @@
-# `/pmo delegate <task-id> <role>` — render manual prompt
+# Manual delegation
 
-Generate a self-contained delegation prompt for another agent. The user pastes
-it into a fresh Claude / codex session manually. PMO does not execute the work
-itself.
-
-`<role>` names a card in `.perry/roles/` — the project's own declaration of who
-it hires (DESIGN-006 § 5.2). There is no built-in list of agent types: what used
-to be three names written into this file is now three cards a project can copy,
-edit, or ignore (`packs/software-ops/roles/`). **A project that has declared no
-role card behaves exactly as it did before roles existed** — see § Roleless
-projects below, which is the fallback that used to be the only path.
-
-For automated end-to-end execution use `dispatch` instead (see `dispatch.md`).
-
-## Record the delegation before rendering the prompt
-
-```
-"$PERRY_HOME/bin/perry-task" status <TASK-ID> --actor <actor> --status in_progress \
-    --next "delegated to <role>; awaiting paste-back"
-```
-
-This is the only state `delegate` writes, and it is not optional. Rendering a
-prompt leaves no trace anywhere — board, journal, events — so without this call
-a delegated task is byte-for-byte indistinguishable from one nobody has
-touched. `triage` asks "Owner is an agent but no recent delegation prompt in
-chat?", and chat is not a surface any tool can read: the check was written
-against evidence that only ever existed in a scrollback. One tool call moves it
-onto state that `perry-state` and a front-end can both see.
-
-It stays `in_progress` rather than `review` on purpose — the work has been
-handed out, not handed back. `review` is where `dispatch` puts a row when a
-result has actually arrived.
-
-## Render from the role card
-
-```
-"$PERRY_HOME/bin/perry-state" --section roles
-```
-
-One read gives the whole roster and everything the prompt needs. `declared: 0`
-→ skip this section entirely and go to § Roleless projects.
-
-If `<role>` names no card, **stop and say so** — list `cards[].name` and ask
-which. Improvising a prompt for a role the project never declared is how the
-hardcoded list got written in the first place.
-
-For the matching card:
-
-| Block | Goes into the prompt as | Kind |
-|---|---|---|
-| `context` | verbatim, under "Who you are" | advisory — it shapes behaviour |
-| `may_touch` | verbatim, under "Scope" | advisory — it shapes behaviour |
-| `knowledge` | § Knowledge injection below | advisory, but stale flags are not |
-| `must_escalate` | § Escalation below | **hard** — this is the enforcement |
-| `accepted_by`, `default_rung` | stated in the prompt, and enforced at close | gate |
-
-`context` and `may_touch` are copied, not summarized. They are short by
-schema (`Context` is 3–6 lines) precisely so that pasting them costs nothing;
-paraphrasing them is how a boundary loses its edges one delegation at a time.
-
-`accepted_by` and `default_rung` feed the close-task gate the way a mode's
-default rung does (DESIGN-003 § 5.3). **The stricter of the mode's rung and the
-role's rung wins** — a `pipeline` track that closes at V3 does not lower a role
-that asks for V5, and a role that asks for V2 does not lower a track that asks
-for V4. State the resulting floor in the prompt so the receiving agent knows
-what its output will be judged against.
-
-## Knowledge injection (DESIGN-006 § 5.4)
-
-Inject every card the role subscribes to — `cards[].knowledge`, already
-resolved from `loads.knowledge` topics — and nothing else. Subscription, not
-volume: a role that loads `reporting` gets `knowledge/reporting/`, not the whole
-store.
-
-**A stale card is injected with its flag visible.** `stale: true` → head the
-injected card with `⚠ unverified since <last_verified> (<age_days>d)`, and
-append its `invalidated_by` tripwire. The three ways to handle a stale card are
-not equivalent:
-
-- dropping it → the agent works without a claim the project believes, and
-  re-derives it, badly;
-- injecting it unmarked → the agent works from a claim nobody has checked this
-  quarter and cannot tell;
-- injecting it flagged → the agent knows what it is standing on.
-
-Only the third is honest, and it is the only one that lets the agent report back
-"this card is wrong now", which is how the card gets fixed.
-
-`missing_topic: true` → say so in one line ("the role subscribes to `<topic>`;
-this project has no such topic yet"). A subscription that silently resolves to
-nothing makes a role look better-briefed than it is.
-
-## Escalation — the union, and it only ever grows
-
-```
-"$PERRY_HOME/bin/perry-state" --section project     # → .escalation
-```
-
-`escalation.project` is the project's own high-stakes list from
-`.perry/hook.md`. `escalation.roles` is what each card adds. `escalation.union`
-is what the dispatch pre-flight actually scans against, and it is the two
-**added together**.
-
-> **A role's `Must escalate` list is added to the project's list, never
-> substituted for it.** Reversed, hiring a role would quietly narrow what the
-> project refuses to do unsupervised — the opposite of what a role is for, and
-> invisible, because a narrowed scan still passes everything it is asked. There
-> is no mechanism by which a role grants itself anything the hook forbids
-> (DESIGN-006 goal 6).
-
-Copy the union into the prompt's safety-constraints block, and state the
-escalation rule in the imperative: *stop and ask before doing any of these.*
-
-Only **backticked spans** extract. An escalation line written as prose reads
-like a rule and contributes nothing to the scan — **on either side of the
-union, and both are reported**:
-
-| Where the line is | Reported as | Payload key |
-|---|---|---|
-| a role card's `## Must escalate` | `role-escalation-not-extractable`, `perry-lint --knowledge` | `roles.cards[].must_escalate.unextractable` |
-| `.perry/hook.md § High-stakes operations` | `hook-escalation-not-extractable`, **`perry-lint` with no flag**, and a standup warning | `hook.high_stakes_unextractable` |
-
-Both carry the offending lines so this prompt can say the line is unenforced
-rather than present it as a constraint. The hook half needs no flag because
-every project has a hook and role cards are optional (goal 7) — and because
-`hook.high_stakes_armed` only says the section has bullets, not that the
-bullets arm anything (TASK-202).
+Read `kernel.md` and `git-boundaries.md`. A manual handoff renders a self-contained
+prompt for a user-selected executor; it does not silently start a pipeline. Inspect
+any declared role card, its knowledge subscriptions (with stale flags), scope,
+escalations and acceptance floor. Missing optional roles do not justify inventing
+one. The project and role escalation lists are a union; neither cancels the other.
 
 ## Required fields in the rendered prompt
 
-- Task ID and Objective/KR linkage
-- Exact deliverable + verification criteria
-- Files in scope / out of scope
-- Required commands or tests
-- Safety constraints — the escalation union above, plus anything else the
-  project's `.perry/hook.md` states
-- Expected response format: eligible Python code or target-architecture work
-  requires the standard RESULT from `dispatch.md`, including start/delivery
-  checkpoint paths in Notes. Other work can use file diff list + test output +
-  1-line summary.
-- **Architecture checkpoints** — apply `dispatch-preflight.md` pack eligibility.
-  For eligible work, include `dispatch.md § Architecture preamble` in the actual
-  self-contained prompt (not just a reference back to this delegate page).
-  Supply the executor checkout, scan scope and durable external evidence store;
-  include `packs/software-ops/architecture-analysis.md § Task checkpoints`:
-  save and record the start path before the first edit, retain that baseline,
-  save delivery before RESULT, and follow quiet/attention reporting. This field
-  applies whether or not the project has role cards.
-- **Git expectation** — see `git-boundaries.md`. For agents that produce commits, state explicitly: **which worktree to create and that the primary checkout is not it**, the worktree's branch point, the branch name pattern, and the push / PR expectation the project's hook actually permits — with the PR link required in the RESULT block only where a PR is permitted.
+The prompt includes task ID/title, goal linkage or declared unknown, exact spec,
+acceptance criteria, bound/out-of-scope, code root, executor checkout/base/branch,
+required tests, architecture checkpoints and safety constraints. Do not paraphrase
+away role boundaries or authorization gates. Name an isolated checkout and require
+commit on its feature branch, no self-merge, and push/PR only when authorized.
 
-## Roleless projects — the unchanged path
+- Include the **Architecture preamble** in the actual prompt, with the executor
+  checkout, scan scope, real start/delivery paths and **durable external evidence store**.
+- Require the **standard RESULT** from `dispatch.md`, including tests and limitations.
 
-`declared: 0` (no `.perry/roles/`, or an empty one) is not an error and is not a
-prompt to declare one. Skip the role sections entirely; the prompt is rendered
-from the task and the hook exactly as it was before this layer existed, and the
-pre-flight scans `escalation.union`, which with no roles *is* the hook's list.
+## Record the delegation
 
-The two blocks below are that path. They are what `packs/software-ops/roles/`
-copied into `coding.md` and `research.md` when the hardcoding was closed — kept
-here because a project with no cards still needs them, not because they name
-agent types the system knows about.
+Before sending the agreed handoff, use `item move` transition `start` with a
+next_action identifying the delegation and expected return. Inspect blockers first.
+Record the returned work in the item's events/attachments, never a journal row.
+
+Eligible Python/target work must include `dispatch.md § Architecture preamble` in
+the actual prompt: save a real pre-edit checkpoint, retain its path, save and verify
+delivery with the same checkout/scope/pinned targets, and report attention honestly.
+
+## Roleless projects
+
+Projects with no role cards use the same task/spec/hook/checkpoint requirements;
+no role-specific knowledge or acceptance floor is invented.
+
+After paste-back apply `dispatch.md § On completion`; manual handoff has no automated
+slot to release. Never accept a missing or stale baseline as passed verification.
+<!-- next-close: work delegate -->
 
 ## Accepting a manual paste-back
 
-For eligible Python code or target-architecture work, apply `dispatch.md § On
-completion` verification and status rules (without releasing an automated slot
-that this manual handoff never acquired). Read the returned start/delivery paths,
-match task/stage and the recorded pre-edit baseline, and run the checkpoint
-freshness verifier in the executor checkout with the original scan settings.
-Missing, stale, wrong-task/stage or unresolved-attention evidence is a failure
-annotation, not a passed check. An after-edit scan cannot fill a missing start
-baseline. Follow the existing architecture discussion gate before accepting it.
+Run the freshness verifier with the recorded pre-edit baseline and original scan
+settings. Missing, stale or wrong-task/stage evidence prevents acceptance; retain
+its failure annotation and do not replace a historical start after the fact.
 
-### For code-changing work, always require
+### For code-changing work
 
-- Include the architecture preamble/checkpoints required above when eligible;
-  roleless delegation must not omit them.
-
-- Relevant tests before/after the change.
-- No unrelated refactors.
-- Clear list of changed files.
-- **Work in its own worktree**, not in the checkout the user is sitting in — `dispatch.md § The tree the agent works in` is the rule and the reason, and it applies here too. A pasted prompt is executed by an agent in whatever tree that session happens to hold, so the prompt must say which tree to create and that the primary checkout is not it. State the worktree's branch point in the prompt: an agent cannot tell that its baseline is stale, and four have run against one.
-- **Commit code + tests on a feature branch** named `coding/<task-id>-<slug>` (do NOT commit directly to main).
-- **Push and PR only if the project's hook permits it.** Where `git push` / `origin` are in `.perry/hook.md § High-stakes operations`, the prompt says *commit, do not push, do not open a PR*, and the primary checkout merges the branch afterwards. Where they are not, push and open a PR and put the URL in the RESULT block. Read the hook before rendering the prompt; do not default to either.
-- **Do NOT merge own work**; the merge belongs to the user or to the lane that verified it.
-- If a permitted push or PR fails (auth, permissions, network), the RESULT block MUST say so explicitly so PMO can escalate.
-
-### For research work, always require
-
-Hypothesis / data period / universe / method / metrics / risk + failure modes / recommendation classified per the project's promotion ladder (e.g., `watch | dry-run | paper | reject`, or whatever stages the project defines in its hook).
-
-## Role ≠ executor
-
-The executor enum is `claude-subagent | opencode-subagent | codex | manual`.
-`delegate` is the `manual` path and only renders a prompt; it does not bypass
-the automated host matrix. If that prompt is later switched to dispatch,
-Claude Code permits `claude-subagent`, OpenCode permits `opencode-subagent`,
-Codex CLI permits neither native token, and every host permits `codex`.
-
-`<role>` is the contract; the executor is what instantiates it. One role runs on
-`claude-subagent`, `opencode-subagent`, or `codex` with no edit to its card, and
-`bin/perry-dispatch-limit` counts executors, not roles — a project with four
-roles and two codex slots has two slots, not eight. A card's `executors` field
-may restrict which runtimes are acceptable (`any` by default); it never grants
-one a slot.
-
-## Completion routing
-
-After completed writes from `delegate`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
-<!-- next-close: work delegate -->
+Inspect actual commits, diff, tests, scope and unresolved findings, then follow
+`dispatch.md § On completion`. A manual handoff has no automated slot to release.

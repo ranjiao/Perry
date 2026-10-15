@@ -66,7 +66,7 @@ Argument: a path inside `inputs/` (relative or absolute), or a magic string `--p
 10. Move the source file: `git mv inputs/<source> knowledge/<topic>/<source>` (or plain `mv` if source is gitignored).
 11. Write the final digest: `knowledge/<topic>/<basename>-digest.md` (using the verified content).
 12. Update `knowledge/INDEX.md` (see `## INDEX.md` below).
-13. Append a journal entry to `journal/<YYYY-MM>/<today>.md` under `## Notes`: `Digested inputs/<source> → knowledge/<topic>/. Topics: <list>. Key facts: <count>.`
+13. Record the source, destination, topics and verified facts in the digest itself. If this fulfils a task, attach the digest with kernel `attach add` and update that task through `kernel.md`. Do not append a work journal entry.
 14. Reply to user with the digest path + topic + 1-line summary.
 
 ### Refresh existing digest
@@ -267,7 +267,7 @@ Files **never move on archive** — only the header field changes. Avoids breaki
 Triggered automatically inside `mid-phase-review` and `end-phase-retro` (see `subcommands.md`). PMO scans `knowledge/` for active digests matching:
 
 1. `Status: active` AND no reference to the digest path found in any of:
-   - the task store (`perry-task list --all --json`)
+   - the task store (kernel `query` (all task pages; see `kernel.md`))
    - `journal/<YYYY-MM>/*.md` for last 90 days
    - `evidence/<YYYY-MM>/**.md` for last 90 days
    - `decisions/`

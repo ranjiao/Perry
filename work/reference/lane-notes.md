@@ -1,3 +1,5 @@
+> Historical pre-kernel rationale. This is not an active procedure. For current writes use `kernel.md` and the matching work reference.
+
 # The `work` lane — why it reads the way it does
 
 Not loaded by any subcommand. `work/SKILL.md` keeps each rule in its one-line

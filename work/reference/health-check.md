@@ -18,7 +18,7 @@ In order:
 2. **`/pmo runbook-check`** (`runbooks.md`) — missing/stale/incomplete runbooks for deployed components. Updates `runbook/INDEX.md`.
 3. **Digest stale scan** (`digests.md § Archive lifecycle`) — knowledge entries un-referenced for ≥ `archive_inactive_days`. Updates `knowledge/INDEX.md`.
 4. **Incident pattern check** (`incidents.md`) — incidents from the last 30 days, grouped by component; flag any "derived-change skipped" patterns (e.g., ≥ 3 incidents in same component with no ARCHITECTURE.md edit).
-5. **BOARD hygiene** — same scan as `triage` but read-only: stale rows, evidence-less `done` candidates, oversized BOARD.
+5. **Task evidence** — kernel task query and events, read-only: stale next actions, unresolved dependencies and evidence-less closure claims.
 
 Each sub-scan is independent. A failure or hang in one does not abort the others.
 
@@ -38,7 +38,7 @@ Single file: `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`. Sections:
 📕 Runbooks:    <N active · S stale · G gaps>
 📚 Digests:     <A active · E eternal · X stale-candidates>
 🔥 Incidents:   <O open · M-this-month · D-with-derived-changes / M-total>
-📋 BOARD:       <lines>/200 · <stale rows> stale · <evidence-less done> claims pending
+📋 Tasks:       <query total> open · <stale next actions> stale · <evidence gaps> claims pending
 
 ## Drift to decide
 [Numbered list — one row per item needing user decision.]
@@ -82,11 +82,11 @@ The report is information. The decisions live with the user.
 
 Each underlying scan is useful on its own. The reason to compose them:
 
-1. **Cache warmth** — all four scans read overlapping files (spec/, BOARD, journal, ARCHITECTURE.md, runbook/INDEX, knowledge/INDEX). Running them in one session amortises the read cost.
+1. **Cache warmth** — all four scans read overlapping files (spec/, kernel queries/events, ARCHITECTURE.md, runbook/INDEX, knowledge/INDEX). Running them in one session amortises the read cost.
 2. **Pattern surface** — drift in one area often correlates with drift in another. "Stale runbook for component X" + "3 incidents in X" + "no §6 NN added" is a stronger signal than any of those alone. Only a meta-runner sees the correlation.
 3. **Single decision point** — the user gets one `AskUserQuestion` batch instead of four. The cost of "should I look at this?" drops.
 
-The output report is durable, citable, and small. A user 6 months from now can read `evidence/2026-05/health-check-2026-05-13.md` and reconstruct the project's state on that day without re-walking journal entries.
+The output report is durable, citable, and small. A user 6 months from now can read `evidence/2026-05/health-check-2026-05-13.md` and reconstruct the project's state on that day with its cited kernel events and evidence.
 
 ## Completion routing
 

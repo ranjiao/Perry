@@ -1,3 +1,5 @@
+> Historical pre-kernel rationale. This is not an active procedure. For current writes use `kernel.md` and the matching work reference.
+
 # `dispatch` — the measurements and history behind its rules
 
 Not loaded by `dispatch`. `dispatch.md` and `dispatch-preflight.md` keep every rule, gate and refusal; this page keeps the incidents and measurements that explain them. Moved on 2026-09-21 (TASK-470); the prose is carried over unchanged.
