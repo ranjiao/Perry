@@ -98,40 +98,23 @@ def edges(project: Project, tid: str) -> dict[str, dict]:
 def every_kind_of_edge() -> Project:
     """One row waiting on all four things a `depends_on` entry can name.
 
-    Built through the tool's own writers, never by hand-editing a board: the
-    state this row is about — an *answered* ask still named by a dependency —
-    is produced by the ordinary `ask` / `answer` path, and a hand-written
-    queue would not exercise the `answered` predicate that decides it.
+    Declared as frozen historical records after phase E. These tests exercise
+    the retained reader, not the retired writing path.
 
     TASK-001 open, TASK-002 closed, USER-001 answered, USER-002 pending, plus
     two ids no register carries.
     """
     project = Project()
-    for title in ("still open", "already closed"):
-        code, out = project.run("add", "--title", title, "--priority", "P1")
-        assert code == 0, out
-    code, out = project.run("done", "TASK-002", "--evidence", "n/a")
-    assert code == 0, out
-
-    code, out = project.run("ask", "--needed", "which staleness threshold",
-                            "--blocks", "TASK-003")
-    assert code == 0, out
-    assert out["id"] == "USER-001", out
-    code, out = project.run("ask", "--needed", "confirm the store cutover",
-                            "--blocks", "TASK-003")
-    assert code == 0, out
-    assert out["id"] == "USER-002", out
-
-    code, out = project.run("add", "--title", "waits on everything",
-                            "--priority", "P0")
-    assert code == 0, out
-    assert out["id"] == "TASK-003", out
-    code, out = project.run("depends", "TASK-003", "--on",
-                            "TASK-001, TASK-002, USER-001, USER-002, "
-                            f"{UNKNOWN_TASK}, {UNMINTED_ASK}")
-    assert code == 0, out
-    code, out = project.run("answer", "USER-001", "--answer", "30 days")
-    assert code == 0, out
+    project.seed_task("TASK-001", title="still open")
+    project.seed_task("TASK-002", title="already closed", status="done", evidence="n/a")
+    project.seed_task("TASK-003", title="waits on everything", priority="P0", group="P0",
+                      depends_on=["TASK-001", "TASK-002", "USER-001", "USER-002",
+                                  UNKNOWN_TASK, UNMINTED_ASK])
+    asks = [dict(id="USER-001", needed="which staleness threshold", blocks="TASK-003",
+                 asked="2026-09-01", status="answered 2026-09-02: 30 days", answered="2026-09-02", order=0),
+            dict(id="USER-002", needed="confirm the store cutover", blocks="TASK-003",
+                 asked="2026-09-01", status="pending", answered="", order=1)]
+    (project.root / "asks.jsonl").write_text("".join(json.dumps(a) + "\n" for a in asks))
     return project
 
 

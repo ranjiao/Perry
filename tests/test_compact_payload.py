@@ -740,7 +740,7 @@ class TestItIsSmallerByTheOrderOfMagnitudeThatWasThePoint(unittest.TestCase):
     def setUp(self):
         self.p = Project()
         for n in range(12):
-            self.p.run("add", "--title", f"a row that makes the board big {n}")
+            self.p.seed_task(f"TASK-{n + 1:03}", title=f"a row that makes the board big {n}")
         self.full_text = inproc.run(
             "perry-state", ["--root", str(self.p.root), "--json"]).stdout
         self.narrow_text = inproc.run(
@@ -756,9 +756,11 @@ class TestItIsSmallerByTheOrderOfMagnitudeThatWasThePoint(unittest.TestCase):
         not carried, so twelve more of them cost one integer."""
         before = len(self.narrow_text)
         for n in range(12):
-            self.p.run("add", "--title", f"another row on the same board {n}")
+            self.p.seed_task(f"TASK-{n + 13:03}", title=f"another row on the same board {n}")
         after = len(inproc.run(
             "perry-state", ["--root", str(self.p.root), "--compact"]).stdout)
+        self.assertEqual(len(json.loads(inproc.run(
+            "perry-state", ["--root", str(self.p.root), "--json"]).stdout)["board"]["tasks"]), 24)
         self.assertLess(after - before, 200,
                         f"twelve rows added {after - before} bytes")
 
@@ -932,7 +934,6 @@ class TestEveryProjectionKindIsFedDataThatDistinguishesIt(unittest.TestCase):
                 continue
             with self.subTest(kind=how if isinstance(how, str) else how[0]):
                 self.assertNotEqual(given, want)
-
 
 
 class TestTheFullFixtureReachesTheDarkPaths(unittest.TestCase):

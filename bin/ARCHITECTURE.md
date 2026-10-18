@@ -2,7 +2,7 @@
 
 > Written by: agent · Confirmed by: user (§6, §7)
 > Version: v1
-> Last reviewed: 2026-10-07
+> Last reviewed: 2026-10-15 (agent review; user confirmation at application)
 > Module document for the `bin/` component. The project's is [`ARCHITECTURE.md`](../ARCHITECTURE.md) § 2.
 > Cap: ≤ 600 lines. This describes the directory's structure, not its usage — usage is `bin/README.md`, and `bin/perry list` is the generated index.
 
@@ -29,7 +29,6 @@ document means.
 ```mermaid
 flowchart TD
     subgraph write["writers — every canonical write goes through one of these"]
-        Task["perry-task<br/>31 subcommands · the lane writer"]
         Tasks["perry-tasks<br/>22 · store ↔ projection, 5 registers · board"]
         Okr["perry-okr"]
         Goals["perry-goals"]
@@ -38,6 +37,7 @@ flowchart TD
         Know["perry-knowledge"]
     end
     subgraph read["readers"]
+        Task["perry-task<br/>31 retained verbs · writes refused"]
         State["perry-state<br/>the standup payload · the next block"]
         Lint["perry-lint<br/>9 modes · the census"]
         Diag["perry-diagnose"]
@@ -95,6 +95,9 @@ See [scope and acceptance](perry_architecture/README.md).
 | `perry_store.py` | 2,237 | the record shape, the store-only board render behind `perry-tasks board`, and the renderer and `--from-board` importers for a `BOARD.md` a project still holds |
 | `perry_md_store.py` | 1,806 | the same pair for documents keyed by heading — `OKR.md` today |
 
+`perry-task` and `perry-goals` also consume the shared `read_events` reader;
+they do not own a second event parser.
+
 ### What `perry-context-budget` reads outside the project
 
 It reads host transcripts, not Perry state, read-only: `~/.codex/sessions/`,
@@ -133,7 +136,9 @@ DESIGN-023 row D's importer (TASK-489). What it reads, and through what:
 
 Before it reads any store, it refuses a project whose state root holds a
 pending `perry-task` recovery marker, as `parsers.scan_recovery` reports one,
-whether or not the project has asks.
+whether or not the project has asks. That shared scanner also reads dossier
+frontmatter. The frozen legacy reader refuses a late transaction marker and
+never replays a write during a read.
 
 Without `--work` it only plans: it writes nothing itself, and the
 `perry-task asks` read above is the only command it can run. With `--work`,
@@ -141,11 +146,8 @@ it writes a synthetic kernel export under that directory, which must be
 empty or absent, and outside the project and any `.git`. It then runs
 `bin/perry-kernel import`, `query`, `item create --dry-run`, `export` and
 `events` as subprocesses, each naming `--store <work>/store.db` and
-`--root <work>/anchor`. It writes nothing in the project itself. If a file
-under the project changes across its `perry-task asks` read, the most likely
-cause is a pending recovery marker that appeared after the check and that the
-read completed; the importer names the file and stops before anything is
-imported. Row H deletes it with the rest of this directory; the mapping it
+`--root <work>/anchor`. It writes nothing in the project itself. If a file under the state root or `.perry/` changes across its legacy
+asks read, the importer names the concurrent change and stops before importing. Row H deletes it with the rest of this directory; the mapping it
 applies is `bin/README.md § perry-kernel-migrate`.
 
 ### The one tool that reaches outside
@@ -297,7 +299,7 @@ tools' codes: `perry-kernel`'s `3` is an internal fault, rolled back
 
 ## §7. Open questions
 
-- **OQ-B1 — The other fourteen tools.** Six declare a `SURFACE`. Converting the
+- **OQ-B1 — The other fourteen tools.** Eight declare a `SURFACE`. Converting the
   rest is mechanical but not free, and `perry list` reports them as undeclared
   in the meantime. No row is open for it.
 - **OQ-B2 — Should `perry-task` be split?** 9,069 lines and 31 subcommands against `perry-okr`'s 68. The subcommands cover five different objects

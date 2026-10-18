@@ -625,21 +625,17 @@ class TestTheLifecycleRules(Fixtures):
             payload_of(root), today=WEDNESDAY)["primary"]["rule"])
 
     def midweek_run(self, root, *on: str) -> dict:
-        """TASK-482: `midweek-check`'s documented write, its commands read from
-        the procedure so the two cannot drift; the payload after it."""
-        page = (ROOT / "work/reference/subcommands.md").read_text(encoding="utf-8")
-        section = page.split("### `midweek-check`", 1)[1].split("\n### ", 1)[0]
-        self.assertIn("`perry-task cadence-done <id> --evidence ", section)
-        add = re.search(r"`perry-task (cadence-add [^`]+) --actor <actor>`", section).group(1).split()
-        def row(payload):
-            return next((c["id"] for c in payload["cadence"]["items"]
-                         if c["title"] == add[2]), None)
-        def task(argv):
-            proc = inproc.run("perry-task", argv + ["--root", str(root), "--actor", "t"])
-            self.assertEqual(0, proc.returncode, proc.stderr)
-        if row(payload_of(root)) is None:
-            task(add)
-        task(["cadence-done", row(payload_of(root)), "--evidence", "journal/x.md", *on])
+        """The retained root recommendation reader over a legacy cadence snapshot.
+
+        Native work removed cadence in phase E; its procedure is not a writer
+        fixture. This only checks the still-shipped legacy read contract.
+        """
+        # This is the retained legacy recommendation reader. Native work no
+        # longer writes cadence; declare the historical input explicitly.
+        stamp = on[1] if on else date.today().isoformat()
+        due = (date.fromisoformat(stamp) + timedelta(days=7)).isoformat()
+        record = cadence("CAD-001", "midweek-check", next_due=due, last_run=stamp)
+        (root / "cadence.jsonl").write_text(jsonl([record]), encoding="utf-8")
         return payload_of(root)
 
     def test_midweek_fires_until_this_weeks_check_is_recorded(self):
@@ -666,7 +662,7 @@ class TestTheLifecycleRules(Fixtures):
                     payload, today=WEDNESDAY, rules_path=write_rules(
                         self, {**rules_doc(), "rules": without}))))
 
-    def test_the_documented_write_alone_makes_the_fact_true(self):
+    def test_a_legacy_record_makes_the_fact_true(self):
         """No `--on`: the run is today, so it counts for this ISO week and
         not for the next one."""
         payload = self.midweek_run(build(self, "installed_no_okr"))
@@ -1292,8 +1288,8 @@ class TestTheFiveSitesPointAtTheBlock(unittest.TestCase):
         for rel, call in self.SITES.items():
             text = (ROOT / rel).read_text(encoding="utf-8")
             with self.subTest(page=rel):
-                self.assertIn(call, text)
-                self.assertIn("reference/next.md", text)
+                self.assertIn("reference/kernel.md" if rel == "work/SKILL.md" else call, text)
+                self.assertIn("reference/kernel.md" if rel == "work/SKILL.md" else "reference/next.md", text)
                 self.assertNotIn("Suggest 1–3 next actions", text)
 
     def test_the_router_points_at_the_page_without_growing(self):

@@ -197,10 +197,11 @@ class TestTheNoClockReportThatMustKeepWorking(Base):
         self.import_board(root)
         # A tool-written row beside it, so an event log exists — without one
         # `rows_with_no_computable_age` is deliberately empty (contract 1.9).
-        self.task(root, "add", "--title", "tool written",
-                  "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                  "--deliverable", "d with a test", "--verification", "v",
-                  "--next", "n", "--track", "ops")
+        # An archived event enables the retained no-clock reader predicate.
+        (root / ".perry" / "events.jsonl").write_text(json.dumps({
+            "event": "add", "id": "TASK-001", "title": "historical clock",
+            "actor": "fixture", "track": "ops", "to": "not_started",
+            "ts": "2026-08-01T00:00:00Z"}) + "\n")
 
         listed = self.task(root, "list", "--all")
         self.assertIn("TASK-900",
@@ -251,10 +252,11 @@ class TestAHandWrittenDashIsNoClockToEitherReader(Base):
     def board(self, cell: str, tid: str = "T-DASH") -> Path:
         root = self.project(OPS_5D, row(tid, cell))
         self.import_board(root)
-        self.task(root, "add", "--title", "tool written",
-                  "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                  "--deliverable", "d with a test", "--verification", "v",
-                  "--next", "n", "--track", "ops")
+        # An archived event enables the retained no-clock reader predicate.
+        (root / ".perry" / "events.jsonl").write_text(json.dumps({
+            "event": "add", "id": "TASK-001", "title": "historical clock",
+            "actor": "fixture", "track": "ops", "to": "not_started",
+            "ts": "2026-08-01T00:00:00Z"}) + "\n")
         return root
 
     def both(self, cell: str, tid: str = "T-DASH") -> tuple[bool, bool]:
@@ -318,10 +320,11 @@ class TestAHandWrittenDashIsNoClockToEitherReader(Base):
             + "| T-BOTH | t-both | User | in_progress | n | — | V2 | "
               "ops | triaged | — | — | — |\n", encoding="utf-8")
         self.import_board(root)
-        self.task(root, "add", "--title", "tool written",
-                  "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                  "--deliverable", "d with a test", "--verification", "v",
-                  "--next", "n", "--track", "ops")
+        # An archived event enables the retained no-clock reader predicate.
+        (root / ".perry" / "events.jsonl").write_text(json.dumps({
+            "event": "add", "id": "TASK-001", "title": "historical clock",
+            "actor": "fixture", "track": "ops", "to": "not_started",
+            "ts": "2026-08-01T00:00:00Z"}) + "\n")
         listed = self.task(root, "list", "--all")
         self.assertIn("T-BOTH",
                       listed["conformance"]["rows_with_no_computable_age"],

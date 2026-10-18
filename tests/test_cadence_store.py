@@ -268,134 +268,29 @@ def landed(p: Project, argv) -> dict:
                              if p.journal().exists() else "")[len(journal_before):])}
 
 
-class TestTheWritesLandInTheStore(unittest.TestCase):
+class TestRetiredCadenceWritesPreserveTheStore(unittest.TestCase):
+    def test_add_done_and_schedule_refuse_without_mutating_any_file(self):
+        for board in (None, FORGED_BOARD):
+            p = Project(board=board)
+            self.addCleanup(p.close)
+            before = {str(f.relative_to(p.root)): f.read_bytes()
+                      for f in p.root.rglob("*") if f.is_file()}
+            for argv in (["cadence-add", "--title", "nightly research", "--frequency", "hourly"],
+                         ["cadence-done", "CAD-001", "--evidence", "perry/evidence/run.md"],
+                         ["cadence-done", "CAD-002", "--on", "2026-09-12", "--dry-run"]):
+                with self.subTest(argv=argv, held=board is not None):
+                    out = p.task(argv)
+                    self.assertEqual(out.returncode, 1, out.stderr)
+                    self.assertIn("no kernel write equivalent", out.stderr)
+                    self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                                      for f in p.root.rglob("*") if f.is_file()}, before)
 
-    def test_add_lands_the_record_the_event_and_the_journal_with_no_board(self):
-        p = Project(cadence=None)
+    def test_duplicate_cadence_ids_are_still_diagnosed_by_the_linter(self):
+        p = Project(cadence=[CADENCE[0], CADENCE[0]])
         self.addCleanup(p.close)
-        got = landed(p, ["cadence-add", "--title", "nightly research",
-                         "--frequency", "hourly", "--owner", "Job Daemon"])
-        self.assertEqual(got["exit"], 0, got["stderr"])
-        self.assertEqual(len(got["store"]), 1)
-        rec = got["store"][0]
-        self.assertEqual((rec["id"], rec["title"], rec["owner"], rec["frequency"]),
-                         ("CAD-001", "nightly research", "Job Daemon", "hourly"))
-        self.assertIn('"event": "cadence-add"', got["events"])
-        self.assertIn("CAD-001", got["journal"])
-        self.assertFalse(p.board.exists(), "a write created BOARD.md")
-        self.assertIn("cadence.jsonl", got["stdout"])
-
-    def test_done_recomputes_the_due_date_and_leaves_every_other_cell_alone(self):
-        p = Project()
-        self.addCleanup(p.close)
-        ran = date(2026, 9, 10)
-        got = landed(p, ["cadence-done", "CAD-001", "--evidence",
-                         "perry/evidence/run.md", "--on", f"{ran:%Y-%m-%d}"])
-        self.assertEqual(got["exit"], 0, got["stderr"])
-        rec = by_id(got["store"], "CAD-001")
-        self.assertEqual((rec["last_run"], rec["next_due"], rec["last_evidence"]),
-                         (f"{ran:%Y-%m-%d}", f"{ran + timedelta(weeks=1):%Y-%m-%d}",
-                          "perry/evidence/run.md"))
-        for other in CADENCE[1:]:
-            with self.subTest(row=other["id"]):
-                self.assertEqual(by_id(got["store"], other["id"]), other)
-        self.assertIn('"event": "cadence-done"', got["events"])
-        self.assertTrue(got["journal"].strip())
-        self.assertFalse(p.board.exists())
-
-    def test_an_aperiodic_frequency_is_stored_as_given(self):
-        p = Project()
-        self.addCleanup(p.close)
-        got = landed(p, ["cadence-done", "CAD-002", "--evidence",
-                         "perry/evidence/run.md", "--on", "2026-09-12"])
-        self.assertEqual(got["exit"], 0, got["stderr"])
-        rec = by_id(got["store"], "CAD-002")
-        self.assertEqual(rec["frequency"], "continuous")
-        self.assertEqual(rec["last_run"], "2026-09-12")
-
-    def test_a_write_is_the_same_with_and_without_the_file(self):
-        """Store, event and journal equal; the present file keeps its bytes and
-        stderr names it retired (TASK-262 round 4a — it was re-rendered)."""
-        cases = (["cadence-add", "--title", "monthly close", "--frequency",
-                  "monthly", "--on", "2026-08-31"],
-                 ["cadence-done", "CADENCE-003", "--evidence",
-                  "perry/evidence/run.md", "--on", "2026-09-01"])
-        for argv in cases:
-            with self.subTest(write=argv[0]):
-                absent, present = Project(), Project()
-                self.addCleanup(absent.close)
-                self.addCleanup(present.close)
-                render = present.tasks(["board"])
-                self.assertEqual(render.returncode, 0, render.stderr)
-                present.board.write_text(render.stdout, encoding="utf-8")
-                before = present.board.read_text(encoding="utf-8")
-                a, b = landed(absent, argv), landed(present, argv)
-                self.assertEqual((a["exit"], b["exit"]), (0, 0),
-                                 a["stderr"][-300:] + b["stderr"][-300:])
-                self.assertEqual(a["store_text"], b["store_text"])
-                self.assertEqual(a["events"], b["events"])
-                self.assertEqual(a["journal"], b["journal"])
-                self.assertEqual(present.board.read_text(encoding="utf-8"), before,
-                                 "a write rewrote the retired BOARD.md")
-                self.assertIn("is a retired board", b["stderr"])
-                self.assertNotIn("is a retired board", a["stderr"])
-                self.assertFalse(absent.board.exists())
-
-    def hand_deleted(self) -> Project:
-        """A project whose file lost `CAD-002`'s row by hand; the store did not."""
-        p = Project()
-        self.addCleanup(p.close)
-        render = p.tasks(["board"])
-        row = next(l for l in render.stdout.split("\n") if l.startswith("| CAD-002 "))
-        p.board.write_text(render.stdout.replace(row + "\n", ""), encoding="utf-8")
-        return p
-
-    #: **Both rewritten for TASK-262 round 4a.** The write built its board from
-    #: the held file, so a row deleted from the file alone was about to leave
-    #: the store: `cadence-done` was refused as a shrink (3 → 2) and
-    #: `cadence-add` reported `CAD-002` as substituted away. A write now builds
-    #: from `cadence.jsonl`, so the hand edit reaches neither: no record moves,
-    #: nothing is refused or reported, and the file keeps the edit. The shrink
-    #: refusal and the substitution report are still in `commit()`;
-    #: `tests/test_register_store_invariant.py` and
-    #: `tests/test_register_substitution.py` hold them.
-
-    def test_a_row_deleted_from_the_file_alone_is_not_a_retirement(self):
-        """The store is the register: a hand-deleted row is not a retirement."""
-        p = self.hand_deleted()
-        held = p.board.read_bytes()
-        out = p.task(["cadence-done", "CAD-001", "--evidence",
-                      "perry/evidence/run.md"])
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertEqual([r["id"] for r in read_jsonl(p.store)],
-                         [r["id"] for r in CADENCE])
-        self.assertEqual(by_id(read_jsonl(p.store), "CAD-002"), CADENCE[1])
-        self.assertEqual(p.board.read_bytes(), held)
-
-    def test_a_hand_deletion_under_an_add_destroys_and_reports_nothing(self):
-        p = self.hand_deleted()
-        out = p.task(["cadence-add", "--title", "x", "--frequency", "weekly"])
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertNotIn("CAD-002", out.stderr)
-        last = read_jsonl(p.root / ".perry" / "events.jsonl")[-1]
-        self.assertNotIn("substituted", last)
-        self.assertEqual(by_id(read_jsonl(p.store), "CAD-002"), CADENCE[1])
-
-
-    def test_a_repeated_id_in_the_store_is_refused_by_its_lint_rule(self):
-        """`load_register_records` names the rule a reader runs to find it —
-        `cadence-store-badly-typed`, not `key[:-1]`'s `cadenc-…`."""
-        p = Project()
-        self.addCleanup(p.close)
-        render = p.tasks(["board"])
-        p.board.write_text(render.stdout, encoding="utf-8")
-        p.store.write_text(jsonl(CADENCE + [dict(CADENCE[0], title="dup")]),
-                           encoding="utf-8")
-        store = p.store.read_bytes()
-        out = p.task(["cadence-add", "--title", "x", "--frequency", "weekly"])
-        self.assertEqual(out.returncode, 1, out.stdout)
-        self.assertIn("`cadence-store-badly-typed`", out.stderr)
-        self.assertEqual(p.store.read_bytes(), store)
+        out = inproc.run("perry-lint", ["--root", str(p.root), "--json"])
+        findings = json.loads(out.stdout)["findings"]
+        self.assertTrue(any(f["rule"] == "cadence-store-badly-typed" and "unique cadence id" in f["message"] for f in findings), findings)
 
 
 class TestTheLintCensusCarriesTheCadenceStore(unittest.TestCase):

@@ -1,21 +1,14 @@
 #!/usr/bin/env python3
 """
-perry-task — the one deterministic way Perry's state gets written.
+perry-task — frozen legacy reads; all write verbs refuse after phase E.
 
-Perry has nine read tools and, until this one, zero write tools. Every board
-row, status change, journal line and ID was produced by an agent typing markdown
-by hand — so the law that governs state ("never compute a number by reading
-files and eyeballing it") protected the way out and not the way in.
+Use perry-kernel for current work state. Legacy list, events, asks and
+signoff-offer remain available to inspect migration inputs. Reads never recover
+a pending legacy transaction. Recover it with the pre-cutover release first.
 
-The usage block is generated from this tool's `SURFACE`
-declaration — run `perry-task --help`, or `perry-task <subcommand>
---help` for one of them, or `perry-task --describe --json` for the
-whole surface as data.
-
-**The argument for every refusal below is in
-`bin/README.md § The argument, per tool`**, moved there whole on
-2026-09-09 (DESIGN-016 Decision 2). Nothing was cut; `--help`
-stopped being the place to read it.
+Usage is generated from SURFACE. Run a named subcommand with --help for its
+arguments, or --describe --json for the machine-readable surface.
+The retained implementation bodies are historical until phase H disposal.
 """
 
 from __future__ import annotations
@@ -8660,6 +8653,15 @@ SURFACE = {
 }
 
 
+# Retain verb declarations for actionable refusals/help until phase H, but
+# discovery must not advertise a retired write capability.
+SURFACE["kind"] = "read"
+for _declaration in SURFACE["subcommands"]:
+    if _declaration["name"] not in READ_ONLY_COMMANDS:
+        _declaration["summary"] = "retired write: refused; use the kernel work procedure"
+    _declaration["writes"] = []
+
+
 def project_lock(state_root: Path, timeout: float = 10.0):
     """Serialize the whole read-modify-write, not just the write.
 
@@ -8707,6 +8709,31 @@ def main(argv: list[str]) -> int:
         print(f"perry-task: expected one of {' / '.join(COMMANDS)} "
               f"(try --help)", file=sys.stderr)
         return 2
+    # DESIGN-023 phase E: the legacy writer is retired. Refuse before root
+    # discovery, locks, recovery or actor checks, including --dry-run.
+    # The implementation bodies remain until phase H for historical inspection.
+    if args.cmd not in READ_ONLY_COMMANDS:
+        replacement = {
+            "add": "item create", "ask": "item create",
+            "risk-add": "item create", "intake": "item create",
+            "answer": "item move",
+            "risk-clear": "item move", "start": "item move",
+            "status": "item move", "done": "item move", "drop": "item move",
+            "depends": "rel add / rel remove", "design-link": "attach add",
+            "evidence": "item update / attach add", "purge": "item move",
+            "stage": "describe", "cadence-add": "describe",
+            "cadence-done": "describe", "risk-migrate": "describe",
+            "route": "describe", "resolve-intake": "describe",
+            "intake-sweep": "describe",
+        }.get(args.cmd, "item update")
+        message = (f"perry-task {args.cmd} is read-only after the kernel cutover; "
+                   f"use perry-kernel {replacement} --help. "
+                   "Stage, cadence and intake registers have no kernel write equivalent; "
+                   "use the work lane procedure. Nothing was written.")
+        if args.as_json:
+            print(json.dumps({"refused": message}, ensure_ascii=False))
+        print(message, file=sys.stderr)
+        return 1
     # After the subcommand is known, so the message can name it, and before
     # anything dispatches, so nothing writes.
     extra = refuse_extra_positionals(args)
@@ -8791,7 +8818,12 @@ def main(argv: list[str]) -> int:
                     f"`perry-lint` names the records that do not validate.")
             config = {"tracks": tracks}
         with project_lock(state_root):
-            recovered = recover_transaction(state_root)
+            # A legacy read must not replay a pending write into frozen stores.
+            if _transaction_path(state_root).exists():
+                raise Refused(f"pending legacy transaction at {_transaction_path(state_root)}; "
+                              "recover with the pre-cutover version before migration. "
+                              "Nothing was written.")
+            recovered = False
             records = load_task_records(state_root)
             board_path = state_root / "BOARD.md"
             if args.cmd in READ_ONLY_COMMANDS:

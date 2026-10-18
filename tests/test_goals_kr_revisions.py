@@ -586,13 +586,16 @@ class TestRefusals(Project):
         self.assertEqual(before, self.snapshot())
         self.assertFalse((self.root / "tasks.jsonl").exists())
         said = got.stdout + got.stderr
-        for fragment in ("withdrawn", "gone", "perry-goals krs", "--unlinked",
-                         "Nothing was written"):
+        for fragment in ("read-only after the kernel cutover",
+                         "perry-kernel item create", "Nothing was written"):
             self.assertIn(fragment, said)
-        # The control: an active KR of the same phase is still accepted.
+        # Retirement precedes KR validation, including the active-KR control.
+        # The goals writer's withdrawn-KR rule remains covered immediately below.
         ok = inproc.run("perry-task", [*row, "--kr", "O2-KR1", "--dry-run"],
                         env={"PERRY_PROJECT": None})
-        self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+        self.assertEqual(ok.returncode, 1, ok.stdout + ok.stderr)
+        self.assertIn("read-only", ok.stderr)
+        self.assertEqual(before, self.snapshot())
 
     def test_link_an_edge_or_a_project_to_a_withdrawn_kr(self):
         self.withdraw_p004()

@@ -142,16 +142,21 @@ class Project:
             capture_output=True, text=True, check=False)
 
     def write_next(self, prose: str) -> str:
-        """`perry-task next` with `prose`, returning only its own warnings.
+        """The retained citation predicate with `prose`, returning unresolved tokens.
 
         The conformance advisory and the write line are filtered out: this
         module is about one warning, and a fixture that trips a second one
         should not be able to make an assertion about the first pass or fail.
         """
-        r = self._run(TASK, "next", FOREIGN_TASK, "--next", prose)
-        assert r.returncode == 0, r.stdout + r.stderr
-        return "\n".join(l for l in r.stderr.split("\n")
-                         if l.startswith("perry-task: ⚠ --"))
+        # Phase E freezes the CLI writer. Keep the shared citation resolver's
+        # project-family regression as an explicit predicate test; no write
+        # success is simulated and the public refusal has its own boundary tests.
+        import inproc
+        mod = inproc.load("perry-task")
+        records = [json.loads(line) for line in (self.root / "tasks.jsonl").read_text().splitlines()]
+        unknown = mod.idish_tokens_that_resolve_nowhere(prose, {
+            "task_records": records, "project_root": self.root})
+        return ", ".join(unknown)
 
     def dangling(self) -> list[str]:
         r = self._run(DIAGNOSE, "--json")

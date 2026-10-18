@@ -15,6 +15,8 @@ import re
 import subprocess
 import tempfile
 import unittest
+from legacy_read_fixtures import seed_task, set_task, seed_ask, set_ask, seed_intake, rows, write
+from kernel_work_support import ACTOR, ready, task
 from pathlib import Path
 
 from task_writer_support import (
@@ -22,6 +24,10 @@ from task_writer_support import (
     ROUND_TRIP_BOARD, ROUND_TRIP_ROW_IDS, ROUND_TRIP_ROW_PRIORITIES, TASKS,
     TOOL, ZH_BOARD, mode_cells,
 )
+
+def snapshot(p):
+    return {str(f.relative_to(p.root)): f.read_bytes() for f in p.root.rglob("*") if f.is_file()}
+
 
 class TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes(unittest.TestCase):
     """TASK-057, from aiMark's 2026-08-17 contract report.
@@ -52,15 +58,13 @@ class TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes(unittest.TestCase):
         """One board, one real file, and every row shape that carries a cell:
         open, closed, closed-with-a-file-that-is-gone, and a dash."""
         p = Project()
-        _, live = p.run("add", "--title", "still going", "--priority", "P0")
-        p.run("evidence", live["id"], "--evidence", "`BOARD.md`")
-        _, closed = p.run("add", "--title", "finished", "--priority", "P1")
-        p.run("done", closed["id"], "--evidence", "`BOARD.md`", "--rung", "V3")
-        _, gone = p.run("add", "--title", "finished, artifact moved",
-                        "--priority", "P2")
-        p.run("done", gone["id"], "--evidence", "`evidence/2026-07/gone.md`",
-              "--rung", "V3")
-        p.run("add", "--title", "no evidence yet", "--priority", "P2")
+        live = seed_task(p, title='still going', priority='P0')
+        set_task(p, live['id'] , event_name='evidence', evidence='`BOARD.md`')
+        closed = seed_task(p, title='finished', priority='P1')
+        set_task(p, closed['id'] , event_name='done', evidence='`BOARD.md`', verification='V3', status='done')
+        gone = seed_task(p, title='finished, artifact moved', priority='P2')
+        set_task(p, gone['id'] , event_name='done', evidence='`evidence/2026-07/gone.md`', verification='V3', status='done')
+        seed_task(p, title='no evidence yet', priority='P2')
         self.live, self.closed, self.gone = live["id"], closed["id"], gone["id"]
         return p
 
@@ -165,137 +169,50 @@ class TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes(unittest.TestCase):
                          self.payload(p)["conformance"]["evidence_not_found"])
 
 
-class TestUserInputQueueHasAWriter(unittest.TestCase):
-    """TASK-039. The section had readers, a dashboard row, and no writer.
+class TestNativeAskLifecycle(unittest.TestCase):
+    def test_question_answer_and_dependency_are_native_and_auditable(self):
+        sb = ready(self)
+        ask = sb.create("ask", fields={"question": "Threshold?"})
+        tid = task(sb)
+        sb.ok("rel add", data={"actor": ACTOR, "kind": "blocks", "from": ask, "to": tid})
+        self.assertEqual(sb.get(tid)["blocked_by"], [ask])
+        self.assertFalse(sb.run("item move", data={"actor": ACTOR, "id": ask, "transition": "answer"}).ok)
+        sb.move(ask, "answer", set={"answer": "30 days"})
+        self.assertEqual(sb.get(ask)["fields"]["answer"], "30 days")
+        self.assertEqual(sb.get(tid)["blocked_by"], [])
+        self.assertFalse(sb.run("item move", data={"actor": ACTOR, "id": ask, "transition": "answer", "set": {"answer": "second"}}).ok)
+        self.assertEqual(sb.create("ask", fields={"question": "Next?"}), "USER-002")
+        self.assertFalse((sb.root / ".perry/events.jsonl").exists())
 
-    The cost was measurable rather than argued: **both rows on Perry's own
-    board carried `Idle: —`** — the one field the queue exists for, unfilled,
-    because a human had to type a number that is wrong the next morning. And
-    `perry-state` counted answered rows as pending, so the dashboard reported
-    two people waiting on the user when both had been answered the day before.
-    """
+    def test_question_is_required_and_refusal_does_not_consume_id(self):
+        sb = ready(self)
+        self.assertFalse(sb.run("item create", data={"actor": ACTOR, "type": "ask", "fields": {}}).ok)
+        self.assertEqual(sb.create("ask", fields={"question": "Required input"}), "USER-001")
 
-    def project(self) -> "Project":
-        return Project()
-
-    def test_ask_mints_an_id_and_stamps_the_date(self):
-        p = self.project()
-        code, a = p.run("ask", "--needed", "Staleness threshold", "--blocks", "TASK-005")
-        self.assertEqual(code, 0, a)
-        self.assertEqual(a["id"], "USER-001")
-        self.assertTrue(re.fullmatch(r"\d{4}-\d{2}-\d{2}", a["asked"]))
-        self.assertIn("| USER-001 |", p.board())
-        self.assertIn("TASK-005", p.board())
-
-    def test_the_section_is_created_after_the_priority_tables(self):
-        """`ensure_section` inserted before `## P0`, which is right for
-        `## Intake` — it reads above the work it becomes — and wrong here. A
-        standup does not open with a list of open questions."""
-        p = self.project()
-        p.run("ask", "--needed", "X")
-        heads = [l for l in p.board().split("\n") if l.startswith("## ")]
-        self.assertLess(heads.index("## P0 (must finish this period)"),
-                        next(i for i, h in enumerate(heads)
-                             if h.startswith("## User Input Queue")))
-
-    def test_a_question_with_no_text_is_refused(self):
-        p = self.project()
-        code, out = p.run("ask")
-        self.assertEqual(code, 1)
-        self.assertIn("--needed", str(out))
-
-    def test_answering_records_the_answer_and_the_date(self):
-        p = self.project()
-        p.run("ask", "--needed", "Threshold?")
-        code, out = p.run("answer", "USER-001", "--answer", "30 days")
-        self.assertEqual(code, 0, out)
-        row = next(l for l in p.board().split("\n") if l.startswith("| USER-001 |"))
-        self.assertIn("answered", row)
-        self.assertIn("30 days", row)
-
-    def test_answering_without_the_answer_is_refused(self):
-        """Flipping the status without recording what was decided leaves the
-        row closed and the decision nowhere."""
-        p = self.project()
-        p.run("ask", "--needed", "X")
-        code, out = p.run("answer", "USER-001")
-        self.assertEqual(code, 1)
-        self.assertIn("--answer", str(out))
-
-    def test_answering_twice_is_refused(self):
-        p = self.project()
-        p.run("ask", "--needed", "X")
-        p.run("answer", "USER-001", "--answer", "first")
-        code, out = p.run("answer", "USER-001", "--answer", "second")
-        self.assertEqual(code, 1)
-        self.assertIn("already answered", str(out))
-
-    def test_ids_are_not_reused_after_an_answer(self):
-        p = self.project()
-        p.run("ask", "--needed", "one")
-        p.run("answer", "USER-001", "--answer", "done")
-        _, b = p.run("ask", "--needed", "two")
-        self.assertEqual(b["id"], "USER-002")
-
-    def test_idle_is_computed_from_asked_not_read_from_a_typed_cell(self):
-        """The whole reason `Asked` exists. A stored age is stale the next
-        morning, which is why a real project had already dropped the `Idle`
-        column and why both of Perry's own rows read `—`."""
-        p = self.project()
-        p.run("ask", "--needed", "recent")
-        p.run("ask", "--needed", "old", "--arrived", "2020-01-01")
-        r = subprocess.run(
-            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
-             "--root", str(p.root), "--json"], capture_output=True, text=True)
-        q = json.loads(r.stdout)["user_input_queue"]
-        self.assertEqual(q["count"], 2)
-        self.assertEqual(q["oldest"]["id"], "USER-002",
-                         "the oldest was not chosen by asked-date")
-        self.assertGreater(q["oldest"]["idle_days"], 2000)
-
-    def test_an_answered_row_leaves_the_pending_count(self):
-        p = self.project()
-        p.run("ask", "--needed", "X")
-        p.run("answer", "USER-001", "--answer", "y")
-        r = subprocess.run(
-            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
-             "--root", str(p.root), "--json"], capture_output=True, text=True)
-        self.assertEqual(json.loads(r.stdout)["user_input_queue"]["count"], 0)
-
-    def test_an_imported_queue_keeps_its_ids_and_the_new_ask_is_dated(self):
-        """`ensure_columns` existed for the priority tables from the day mode
-        columns landed; its sibling for named sections did not, so the date
-        would have been dropped silently — the defect that lost
-        `--commitment`.
-
-        **Rewritten for TASK-262 round 4a.** This asserted that the held
-        four-column section gained an `Asked` column and its old row was
-        widened. No write touches a held `BOARD.md` any more, so the table a
-        human kept is not widened: the queue is imported (`asks-write
-        --from-board`, the upgrade path) and the date lands in the ask STORE,
-        whose record always carries `asked`. What survives unchanged is the id
-        half: the imported `USER-900` still moves the next mint.
-        """
+    def test_archived_asked_dates_drive_pending_age_and_answers_leave_count(self):
+        p = Project()
+        seed_ask(p, needed="recent")
+        old = seed_ask(p, needed="old", asked="2020-01-01")
         import inproc
-        # The fixture carries the section in the four-column shape a real
-        # project uses — no `Asked`, and no `Idle` either.
-        p = Project(board=BOARD.replace(
-            "| USER-id | Needed from user | Blocks | Idle | Status |\n|---|---|---|---|---|\n",
-            "| USER-id | Needed from user | Blocks | Status |\n|---|---|---|---|\n"
-            "| USER-900 | pre-existing | — | pending |\n", 1))
-        r = inproc.run("perry-tasks", ["asks-write", "--from-board",
-                                       "--root", str(p.root)])
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        code, a = p.run("ask", "--needed", "new one")
-        self.assertEqual(code, 0, a)
-        self.assertEqual(a["id"], "USER-901", "the pre-existing id was reused")
-        stored = {json.loads(l)["id"]: json.loads(l) for l in
-                  (p.root / "asks.jsonl").read_text().split("\n") if l.strip()}
-        self.assertEqual(set(stored), {"USER-900", "USER-901"})
-        self.assertRegex(stored["USER-901"]["asked"], r"^\d{4}-\d{2}-\d{2}$",
-                         "the new ask was stored with no date")
-        header = next(l for l in p.board().split("\n") if l.startswith("| USER-id |"))
-        self.assertIn("Asked", header)
+        def queue():
+            result = inproc.run("perry-state", ["--root", str(p.root), "--json"])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return json.loads(result.stdout)["user_input_queue"]
+        q = queue()
+        self.assertEqual(q["count"], 2)
+        self.assertEqual(q["oldest"]["id"], old["id"])
+        self.assertGreater(q["oldest"]["idle_days"], 2000)
+        set_ask(p, old["id"], answer="resolved")
+        self.assertEqual(queue()["count"], 1)
+
+    def test_frozen_ask_commands_cannot_write_a_parallel_queue(self):
+        p = Project()
+        before = snapshot(p)
+        for args in (("ask", "--needed", "X"), ("answer", "USER-001", "--answer", "yes")):
+            code, out = p.run(*args)
+            self.assertEqual(code, 1, out)
+            self.assertIn("read-only", out["refused"])
+            self.assertEqual(snapshot(p), before)
 
 
 class TestAgeIsKnownOrDeclaredUnknown(unittest.TestCase):
@@ -349,7 +266,7 @@ class TestAgeIsKnownOrDeclaredUnknown(unittest.TestCase):
         the tool never wrote is a real finding about **that row** — not a fact
         about the project — and the array is the only thing that names it."""
         p = Project(board=BOARD.replace(self.PLAIN, self.HAND_WRITTEN, 1))
-        p.run("add", "--title", "tool written", "--priority", "P0")
+        seed_task(p, title='tool written', priority='P0')
         _, d = p.run("list", "--all")
         self.assertTrue(d["conformance"]["has_event_log"])
         self.assertIn("TASK-900",
@@ -360,7 +277,7 @@ class TestAgeIsKnownOrDeclaredUnknown(unittest.TestCase):
         walk it flagged rows the tool had just created, because `updated` was
         not filled in yet — measured 9 flagged where 6 was the truth."""
         p = Project()
-        _, a = p.run("add", "--title", "tool written", "--priority", "P0")
+        a = seed_task(p, title='tool written', priority='P0')
         _, d = p.run("list", "--all")
         t = next(x for x in d["tasks"] if x["id"] == a["id"])
         self.assertIsNotNone(t["updated"])
@@ -370,7 +287,7 @@ class TestAgeIsKnownOrDeclaredUnknown(unittest.TestCase):
         """`Stage since` and `Arrived` are dates on the row itself, so a
         pipeline or queue row is ageable even with no event log."""
         p = Project(tracks=MODE_TRACKS)
-        _, a = p.run("add", "--title", "post", "--track", "blog", "--priority", "P0")
+        a = seed_task(p, title='post', track='blog', priority='P0')
         (p.root / ".perry" / "events.jsonl").unlink()
         _, d = p.run("list", "--all")
         self.assertNotIn(a["id"], d["conformance"]["rows_with_no_computable_age"])
@@ -378,8 +295,8 @@ class TestAgeIsKnownOrDeclaredUnknown(unittest.TestCase):
     def test_closed_rows_are_not_reported_as_ageless(self):
         """The question is "is this still live", which a closed row answers."""
         p = Project()
-        _, a = p.run("add", "--title", "X", "--priority", "P0")
-        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        a = seed_task(p, title='X', priority='P0')
+        set_task(p, a['id'] , event_name='done', evidence='e.md', verification='V3', status='done')
         _, d = p.run("list", "--all")
         self.assertNotIn(a["id"], d["conformance"]["rows_with_no_computable_age"])
 
@@ -409,10 +326,9 @@ class TestNextActionPointingAtFinishedWork(unittest.TestCase):
     def blocked_by_a_closed_task(self):
         """Create the blocker, close it, THEN point the waiting row at it."""
         p = self.board_citing("nothing yet")
-        _, a = p.run("add", "--title", "the blocker", "--priority", "P1")
-        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
-        p.run("status", "TASK-900", "--status", "blocked",
-              "--reason", f"blocked-by {a['id']}")
+        a = seed_task(p, title='the blocker', priority='P1')
+        set_task(p, a['id'] , event_name='done', evidence='e.md', verification='V3', status='done')
+        set_task(p, 'TASK-900' , event_name='status', status='blocked', next_action=f"blocked-by {a['id']}")
         return p, a["id"]
 
     def test_a_row_citing_a_closed_task_is_reported(self):
@@ -433,16 +349,15 @@ class TestNextActionPointingAtFinishedWork(unittest.TestCase):
 
     def test_a_row_citing_an_open_task_is_not_reported(self):
         p = self.board_citing("nothing yet")
-        _, a = p.run("add", "--title", "still open", "--priority", "P1")
-        p.run("status", "TASK-900", "--status", "blocked",
-              "--reason", f"blocked-by {a['id']}")
+        a = seed_task(p, title='still open', priority='P1')
+        set_task(p, 'TASK-900' , event_name='status', status='blocked', next_action=f"blocked-by {a['id']}")
         _, d = p.run("list", "--all")
         self.assertEqual(d["conformance"]["next_action_cites_closed"], [])
 
     def test_a_closed_row_citing_a_closed_task_is_not_reported(self):
         """The question is what still needs doing."""
         p, _ = self.blocked_by_a_closed_task()
-        p.run("done", "TASK-900", "--evidence", "e.md", "--rung", "V3")
+        set_task(p, 'TASK-900' , event_name='done', evidence='e.md', verification='V3', status='done')
         _, d = p.run("list", "--all")
         self.assertEqual(d["conformance"]["next_action_cites_closed"], [])
 
@@ -454,106 +369,52 @@ class TestNextActionPointingAtFinishedWork(unittest.TestCase):
         self.assertEqual(d["conformance"]["next_action_cites_closed"], [])
 
 
-class TestCorrectingANextAction(unittest.TestCase):
-    """TASK-041. Found by running a triage rather than by reading code.
+class TestCorrectingANativeNextAction(unittest.TestCase):
+    def test_correction_and_clear_leave_state_unchanged_and_no_op_has_no_event(self):
+        sb = ready(self)
+        tid = task(sb, next_action="old plan")
+        before = sb.get(tid)
+        sb.ok("item update", data={"actor": ACTOR, "id": tid, "set": {"next_action": "revised"}, "expect": {tid: before["seq"]}})
+        got = sb.get(tid)
+        self.assertEqual(got["state"], before["state"])
+        self.assertEqual(got["fields"]["next_action"], "revised")
+        self.assertEqual({k:v for k,v in got["fields"].items() if k != "next_action"},
+                         {k:v for k,v in before["fields"].items() if k != "next_action"})
+        event = sb.ok("events")["events"][-1]
+        self.assertEqual(event["changes"], [{"key": "field:next_action", "before": "old plan", "after": "revised"}])
+        out = sb.run("item update", data={"actor": ACTOR, "id": tid, "set": {"next_action": "revised"}})
+        self.assertEqual(out.env["effect"], "unchanged")
+        self.assertEqual(sb.get(tid)["seq"], got["seq"])
+        sb.ok("item update", data={"actor": ACTOR, "id": tid, "set": {"next_action": None}})
+        self.assertIsNone(sb.get(tid)["fields"]["next_action"])
 
-    `next_action_cites_closed` reported a row whose next step named work that
-    had finished, and there was **no way to correct it**. `status` is the only
-    writer of that cell and it refuses a no-op transition — correctly, because
-    a journal line asserting `not_started → not_started` records a change that
-    did not happen. So the alternatives were a status change the row did not
-    warrant, or a hand edit, and the single most common triage action had no
-    tool path.
-
-    Relaxing `status` was the wrong fix. A status change and a correction are
-    different events; folding them would make "the plan changed" and "the state
-    changed" the same journal line forever.
-    """
-
-    def test_the_cell_is_rewritten_and_the_status_is_untouched(self):
-        p = Project()
-        _, a = p.run("add", "--title", "X", "--priority", "P0", "--next", "old plan")
-        code, out = p.run("next", a["id"], "--next", "new plan")
-        self.assertEqual(code, 0, out)
-        row = next(l for l in p.board().split("\n") if l.startswith(f"| {a['id']} |"))
-        self.assertIn("new plan", row)
-        self.assertNotIn("old plan", row)
-        self.assertIn("not_started", row, "the status moved")
-
-    def test_it_is_its_own_event_not_a_status_change(self):
-        """A reader has to be able to tell a corrected plan from a moved row."""
-        p = Project()
-        _, a = p.run("add", "--title", "X", "--priority", "P0")
-        p.run("next", a["id"], "--next", "revised")
-        self.assertEqual([e["event"] for e in p.events()], ["add", "next"])
-        self.assertIn("next action · revised", p.journal())
-
-    def test_rewriting_to_the_same_text_is_refused(self):
-        """Same reason `status` refuses a no-op: a journal line recording a
-        change that did not happen."""
-        p = Project()
-        _, a = p.run("add", "--title", "X", "--priority", "P0", "--next", "same")
-        code, out = p.run("next", a["id"], "--next", "same")
-        self.assertEqual(code, 1)
-        self.assertIn("already", str(out))
-
-    def test_an_empty_next_is_refused(self):
-        p = Project()
-        _, a = p.run("add", "--title", "X", "--priority", "P0")
-        code, out = p.run("next", a["id"])
-        self.assertEqual(code, 1)
-        self.assertIn("--next", str(out))
-
-    def test_it_is_classified_as_a_task_event(self):
-        """`TASK_EVENTS` / `SECTION_EVENTS` is a partition, and a subcommand
-        that forgets to join one silently stops appearing in `list`."""
+    def test_historical_next_event_remains_a_task_event(self):
         self.assertIn("next", PT.TASK_EVENTS)
         self.assertNotIn("next", PT.SECTION_EVENTS)
 
 
-class TestAnIntakeRowTakesExactlyOneOutcome(unittest.TestCase):
-    """B-3. Both `modes/queue.md` and `subcommands.md` state the rule; nothing
-    enforced it. `answer`, `status`, `stage` and `risk-clear` all refuse a
-    repeat transition — this was the fourth implementation and the only one
-    that did not.
+class TestNativeIntakeRouting(unittest.TestCase):
+    def test_routing_updates_one_item_instead_of_minting_a_second_identity(self):
+        sb = ready(self)
+        tid = task(sb, track="intake")
+        sb.ok("item update", data={"actor": ACTOR, "id": tid, "set": {"track": "main"}})
+        self.assertEqual(sb.get(tid)["fields"]["track"], "main")
+        out = sb.run("item update", data={"actor": ACTOR, "id": tid, "set": {"track": "main"}})
+        self.assertEqual(out.env["effect"], "unchanged")
+        self.assertEqual(sb.ok("query")["total"], 1)
+        sb.move(tid, "drop", set={"reason": "duplicate request"})
+        self.assertEqual(sb.get(tid)["state"], "dropped")
+        self.assertFalse(sb.run("item move", data={"actor": ACTOR, "id": tid, "transition": "start"}).ok)
 
-    Live rather than theoretical: discharged rows stay in intake until the
-    review period closes, so the next drain walks them again.
-    """
-
-    TRACKS = MODE_TRACKS
-
-    def test_routing_twice_is_refused(self):
-        p = Project(tracks=self.TRACKS)
-        p.run("intake", "--title", "a request")
-        _, first = p.run("route", "1", "--track", "ops")
-        code, out = p.run("route", "1", "--track", "ops")
-        self.assertEqual(code, 1, "a second task was minted for one request")
-        self.assertIn("already has an outcome", str(out))
-        self.assertIn(first["id"], p.board(), "the first routing was erased")
-
-    def test_resolving_a_routed_row_is_refused(self):
-        p = Project(tracks=self.TRACKS)
-        p.run("intake", "--title", "a request")
-        p.run("route", "1", "--track", "ops")
-        code, _ = p.run("resolve-intake", "1", "--outcome", "dropped",
-                        "--reason", "changed our mind")
-        self.assertEqual(code, 1)
-
-    def test_resolving_twice_is_refused(self):
-        p = Project(tracks=self.TRACKS)
-        p.run("intake", "--title", "a request")
-        p.run("resolve-intake", "1", "--outcome", "dropped", "--reason", "no")
-        code, out = p.run("resolve-intake", "1", "--outcome", "deferred",
-                          "--reason", "later")
-        self.assertEqual(code, 1, "a recorded drop was flipped to a defer")
-
-    def test_a_placeholder_outcome_is_not_a_discharge(self):
-        """`—` is how the board writes "nothing yet"."""
-        p = Project(tracks=self.TRACKS)
-        p.run("intake", "--title", "a request")
-        code, out = p.run("route", "1", "--track", "ops")
-        self.assertEqual(code, 0, out)
+    def test_legacy_route_resolve_and_sweep_never_rewrite_archived_intake(self):
+        p = Project(tracks=MODE_TRACKS)
+        seed_intake(p, title="a request")
+        before = snapshot(p)
+        for args in (("route", "1", "--track", "ops"), ("resolve-intake", "1", "--outcome", "dropped", "--reason", "duplicate"), ("intake-sweep",)):
+            code, out = p.run(*args)
+            self.assertEqual(code, 1, out)
+            self.assertIn("read-only", out["refused"])
+            self.assertEqual(snapshot(p), before)
 
 
 class TestIntakeIsReadableAndSweepable(unittest.TestCase):
@@ -574,8 +435,8 @@ class TestIntakeIsReadableAndSweepable(unittest.TestCase):
 
     def loaded(self) -> "Project":
         p = Project(tracks=self.TRACKS)
-        p.run("intake", "--title", "oldest", "--arrived", "2026-08-01")
-        p.run("intake", "--title", "newer", "--arrived", "2026-08-15")
+        seed_intake(p, title='oldest', arrived='2026-08-01')
+        seed_intake(p, title='newer', arrived='2026-08-15')
         return p
 
     def test_the_row_numbers_the_procedure_needs_are_in_the_payload(self):
@@ -592,27 +453,24 @@ class TestIntakeIsReadableAndSweepable(unittest.TestCase):
 
     def test_discharging_moves_a_row_out_of_the_undischarged_count(self):
         p = self.loaded()
-        p.run("resolve-intake", "1", "--outcome", "dropped", "--reason", "no")
+        archived = rows(p, "intake.jsonl")
+        archived[0].update(outcome="dropped — no", discharged=True)
+        write(p, "intake.jsonl", archived)
         i = p.run("list", "--all")[1]["intake"]
         self.assertEqual(i["undischarged"], 1)
         self.assertEqual(i["oldest_undischarged"], 2)
         self.assertTrue(i["rows"][0]["discharged"])
 
-    def test_sweep_moves_discharged_rows_to_the_journal_with_their_outcome(self):
+    def test_sweep_is_frozen_even_when_archived_rows_are_discharged(self):
         p = self.loaded()
-        p.run("resolve-intake", "1", "--outcome", "dropped", "--reason", "covered elsewhere")
+        archived = rows(p, "intake.jsonl")
+        archived[0].update(outcome="dropped — covered elsewhere", discharged=True)
+        write(p, "intake.jsonl", archived)
+        before = snapshot(p)
         code, out = p.run("intake-sweep")
-        self.assertEqual(code, 0, out)
-        self.assertNotIn("oldest", p.board(), "the discharged row is still on the board")
-        self.assertIn("newer", p.board(), "an undischarged row was swept")
-        self.assertIn("covered elsewhere", p.journal(),
-                      "the outcome did not survive leaving the board")
-
-    def test_sweeping_with_nothing_discharged_is_refused(self):
-        """A no-op that reports success reads as 'the board is tidy'."""
-        code, out = self.loaded().run("intake-sweep")
-        self.assertEqual(code, 1)
-        self.assertIn("triage step 0", str(out))
+        self.assertEqual(code, 1, out)
+        self.assertIn("read-only", out["refused"])
+        self.assertEqual(snapshot(p), before)
 
     def test_a_project_with_no_intake_section_reports_an_empty_block(self):
         """Not every project is queue-shaped, and that is not an error."""
@@ -622,51 +480,18 @@ class TestIntakeIsReadableAndSweepable(unittest.TestCase):
         self.assertIsNone(d["intake"]["oldest_undischarged"])
 
 
-class TestDropRecordsWhereTheRowDied(unittest.TestCase):
-    """Round-5 review M-4. `modes/pipeline.md` claimed a dropped item's `Stage`
-    cell "keeps the last stage it reached, so the record says where it died".
-
-    `cmd_drop` removes the row, so the cell went with it, and neither the
-    journal line nor the event carried the stage. The claim was corrected
-    rather than implemented — keeping the row would make every WIP and depth
-    count in both mode files start excluding it — but the fact it named is
-    real and cheap to keep: three items dying at `review` is a statement about
-    the review stage, not about the three items.
-    """
-
-    TRACKS = MODE_TRACKS
-
-    def test_the_journal_line_and_the_event_carry_the_stage(self):
-        p = Project(tracks=self.TRACKS)
-        _, a = p.run("add", "--title", "post", "--track", "blog",
-                     "--priority", "P0")
-        code, _ = p.run("stage", a["id"], "--stage", "review")
-        self.assertEqual(code, 0)
-        code, _ = p.run("drop", a["id"], "--reason", "client pulled the campaign")
-        self.assertEqual(code, 0)
-
-        self.assertNotIn(f"| {a['id']} |", p.board(),
-                         "drop is supposed to remove the row")
-        self.assertIn("at stage: review", p.journal(),
-                      "the journal records that it died and not where")
-        ev = p.events()[-1]
-        self.assertEqual(ev["event"], "drop")
-        self.assertEqual(ev["stage"], "review",
-                         "the only surviving structured record lost the stage")
-        self.assertEqual(ev["reason"], "client pulled the campaign")
-
-    def test_a_project_mode_row_carries_an_empty_stage_rather_than_no_key(self):
-        """Project mode has no stages at all. The key is still present: a
-        consumer that has to branch on a missing key is one that will forget
-        to."""
-        p = Project(tracks=self.TRACKS)
-        _, a = p.run("add", "--title", "X", "--track", "core", "--priority", "P0")
-        p.run("drop", a["id"], "--reason", "duplicate")
-        ev = p.events()[-1]
-        self.assertIn("stage", ev)
-        self.assertEqual(ev["stage"], "")
-        self.assertNotIn("at stage:", p.journal(),
-                         "an empty stage was rendered into the journal line")
+class TestNativeDropAudit(unittest.TestCase):
+    def test_drop_records_prior_state_and_reason_without_a_journal_write(self):
+        sb = ready(self)
+        tid = task(sb)
+        sb.move(tid, "start")
+        sb.move(tid, "submit")
+        sb.move(tid, "drop", set={"reason": "client pulled campaign"})
+        event = sb.ok("events")["events"][-1]
+        self.assertIn({"key": "state", "before": "review", "after": "dropped"}, event["changes"])
+        self.assertEqual(sb.get(tid)["fields"]["reason"], "client pulled campaign")
+        self.assertNotIn("stage", sb.get(tid)["fields"])
+        self.assertFalse((sb.root / "journal").exists())
 
 
 if __name__ == "__main__":

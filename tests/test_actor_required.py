@@ -54,6 +54,7 @@ import unittest
 from pathlib import Path
 
 import inproc
+from kernel_work_support import ACTOR as NATIVE_ACTOR, ready, task
 import test_add_writes_the_edge as EDGE
 import test_board_less_reads_and_writes as BL
 
@@ -75,7 +76,7 @@ def writers() -> dict[str, dict]:
 
 
 def readers() -> dict[str, dict]:
-    return {s["name"]: s for s in describe()["subcommands"] if not s.get("writes")}
+    return {s["name"]: s for s in describe()["subcommands"] if s["name"] in inproc.load("perry-task").READ_ONLY_COMMANDS}
 
 
 def without_actor(argv: list[str]) -> list[str]:
@@ -116,12 +117,12 @@ class TestTheWritingSetIsDeclared(unittest.TestCase):
                     if "--actor" in lib.required_flags(mod.SURFACE, s["name"])}
         self.assertEqual(required, declared)
         # Anti-vacuity, not the rule: the 2026-09-16 measurement.
-        self.assertGreaterEqual(len(declared), 27)
+        self.assertEqual(declared, set())
+        self.assertEqual(len(mod.SURFACE["subcommands"]), 31)
 
-    def test_every_writer_accepts_the_flag_it_requires(self):
-        for name, sub in writers().items():
-            with self.subTest(sub=name):
-                self.assertIn("--actor", sub["flags"])
+    def test_the_frozen_surface_has_no_actor_required_writer(self):
+        self.assertEqual(writers(), {})
+        self.assertEqual(set(readers()), {"list", "events", "asks", "signoff-offer"})
 
     def test_a_writer_declared_tomorrow_is_covered_without_a_list(self):
         made = {"name": "t", "flags": [{"name": "--actor", "arg": "value"}],
@@ -134,88 +135,46 @@ class TestTheWritingSetIsDeclared(unittest.TestCase):
         self.assertIsNone(lib.actor_refusal(made, "new-read", None))
 
 
-class TestEveryWriterRefusesWithoutAnOwner(unittest.TestCase):
+class TestNativeWritesRequireAnOwner(unittest.TestCase):
+    def test_create_refuses_absent_empty_blank_and_sessionless_actors(self):
+        sb = ready(self)
+        before = sb.seq()
+        for actor in (None, {}, "", "   ", {"kind": "agent", "name": "a"},
+                      {"kind": "agent", "name": " ", "session": "s"}):
+            with self.subTest(actor=actor):
+                data = {"type": "ask", "fields": {"question": "Which?"}}
+                if actor is not None:
+                    data["actor"] = actor
+                result = sb.run("item create", data=data)
+                self.assertFalse(result.ok, result)
+                self.assertEqual(sb.seq(), before)
+        self.assertEqual(sb.ok("query", data={"type": "ask"})["total"], 0)
 
-    def test_each_writer_refuses_absent_empty_and_blank(self):
-        """One project per writer: a refusal changes no byte, so the snapshot
-        taken before the first variant must still hold after the last."""
-        names = sorted(writers())
-        self.assertGreaterEqual(len(names), 27)
-        for name in names:
-            argv = argv_for(name)
-            p = BL.Project(board=None)
-            try:
-                before = snapshot(p.root)
-                for label, extra, given in (
-                        ("absent", [], "was not given"),
-                        ("empty", ["--actor", ""], "was given empty"),
-                        ("blank", ["--actor", "   "], "was given empty"),
-                        ("dry-run", ["--dry-run"], "was not given")):
-                    with self.subTest(sub=name, actor=label):
-                        out = inproc.run("perry-task", argv + extra + ["--root", str(p.root)])
-                        self.assertEqual(out.returncode, 2,
-                                         f"{argv + extra}: {out.stderr[-400:]}")
-                        self.assertIn("--actor", out.stderr)
-                        self.assertIn(given, out.stderr)
-                        self.assertIn("Nothing was written", out.stderr)
-                        self.assertEqual(snapshot(p.root), before,
-                                         f"{argv + extra} changed the project")
-            finally:
-                p.close()
+    def test_actor_is_recorded_with_its_session_on_create_and_move(self):
+        sb = ready(self)
+        tid = task(sb)
+        actor = {**NATIVE_ACTOR, "name": "specific-owner"}
+        sb.move(tid, "start", actor=actor, expect={tid: sb.get(tid)["seq"]})
+        events = sb.events()
+        self.assertEqual(events[-2]["actor"], NATIVE_ACTOR)
+        self.assertEqual(events[-1]["actor"], actor)
 
-    def test_the_same_argv_writes_once_the_actor_is_given(self):
-        """The refusal stands in front of a write that would land, not in front
-        of an argv that was going to be refused anyway."""
-        for row_name, prereqs, argv, _store, _check in BL.WRITES:
-            with self.subTest(sub=row_name):
+    def test_actor_never_reopens_a_retired_command(self):
+        # Exercise the historical success vectors rather than invalid argv.
+        for name, _pre, argv, _store, _check in BL.WRITES:
+            with self.subTest(command=name):
                 p = BL.Project(board=None)
-                try:
-                    for pre in prereqs:
-                        pre = without_actor(list(pre)) + ["--actor", ACTOR]
-                        self.assertEqual(p.task(pre).returncode, 0)
-                    out = p.task(without_actor(list(argv)) + ["--actor", ACTOR])
-                    self.assertEqual(out.returncode, 0, out.stderr[-400:])
-                finally:
-                    p.close()
+                self.addCleanup(p.close)
+                before = snapshot(p.root)
+                out = p.task(without_actor(list(argv)) + ["--actor", ACTOR])
+                self.assertEqual(out.returncode, 1, out.stderr)
+                self.assertIn("read-only", out.stderr)
+                self.assertEqual(snapshot(p.root), before)
 
 
-class TestAWriteRecordsItsActor(unittest.TestCase):
-
-    def test_the_event_carries_the_actor_given(self):
-        p = BL.Project(board=None)
-        try:
-            out = p.task(["start", "TASK-005", "--next", "go", "--actor", ACTOR])
-            self.assertEqual(out.returncode, 0, out.stderr)
-            events = [json.loads(l) for l in (p.root / ".perry" / "events.jsonl")
-                      .read_text(encoding="utf-8").splitlines() if l.strip()]
-            last = events[-1]
-            self.assertEqual((last["event"], last["id"], last["actor"]),
-                             ("start", "TASK-005", ACTOR))
-        finally:
-            p.close()
-
-
-
-class TestTheLinkageRecordHasNoDefault(EDGE.Fixture):
-    """`add --kr` wrote `event.get("actor") or "agent"` into `linkage.jsonl`."""
-
-    def test_add_kr_records_the_actor_given(self):
-        d = self.project()
-        proc = self.add(d, "a linked row", self.STORE_KR, "--actor", ACTOR)
-        tid = self.new_id(proc)
-        edge = self.records(d)[-1]
-        self.assertEqual((edge["task"], edge["actor"]), (tid, ACTOR))
-
-    def test_a_nonblank_actor_is_recorded_without_rewriting_it(self):
-        d = self.project()
-        actor = "  probe-agent  "
-        self.new_id(self.add(d, "an actor identity", self.STORE_KR,
-                             "--actor", actor))
-        self.assertEqual(self.records(d)[-1]["actor"], actor)
-
+class TestTheLegacyLinkageHelperHasNoDefault(EDGE.Fixture):
+    """Direct unit coverage of the retained helper, never a public writer."""
     def test_an_event_with_no_actor_is_refused_not_defaulted(self):
-        """Defence in depth for a second caller of the writer: `main` refuses
-        first, so only a direct call reaches this."""
         d = self.project()
         for event in ({"event": "add", "id": "TASK-999", "kr": self.STORE_KR},
                       {"event": "add", "id": "TASK-999", "kr": self.STORE_KR,
@@ -258,8 +217,11 @@ class TestNoReadDemandsIt(unittest.TestCase):
                 if s.get("writes"):
                     self.assertIn(" --actor <value>", usage)
                     self.assertNotIn("[--actor", usage)
-                else:
+                elif s["name"] in mod.READ_ONLY_COMMANDS:
                     self.assertNotIn("--actor", usage)
+                else:
+                    self.assertIn("retired write: refused", usage)
+                    self.assertNotIn(" --actor <value>", usage)
 
 
 # ── the documents ─────────────────────────────────────────────────────────
@@ -333,7 +295,7 @@ class TestEveryDocumentExampleCarriesTheActor(unittest.TestCase):
                 if not has:
                     missing.append(f"{path.relative_to(ROOT)}:{ln}: {command[:120]}")
         # Anti-vacuity: 51 invocations on 2026-09-16.
-        self.assertGreaterEqual(seen, 40)
+        self.assertEqual(seen, 0, "the frozen executable declares no writers")
         self.assertEqual(missing, [], "a perry-task write example with no "
                          "--actor:\n" + "\n".join(missing))
 
@@ -346,8 +308,6 @@ class TestEveryDocumentExampleCarriesTheActor(unittest.TestCase):
                 "`perry-task status <ID> --status\n> review --actor b`\n")
         got = [(ln, has) for ln, _c, has in invocations(text, w)]
         self.assertEqual(sorted(got), [(1, False), (4, False), (5, True), (8, True)])
-
-
 
 
 class TestGoalsActorContract(unittest.TestCase):

@@ -1094,11 +1094,9 @@ class TestThePerryTaskRead(InProcess):
                     self.assertEqual(marker.read_text("utf-8"), body)
                     self.assertFalse(self.work.exists())
 
-    def test_a_read_that_writes_stops_the_import(self):
-        """A marker that appears after the check, and that the
-        `perry-task asks` read completes, is caught by comparing the
-        project's files before and after the read. The marker stages one
-        file; completing it renames the staged file into place."""
+    def test_a_late_marker_is_not_recovered_by_the_frozen_reader(self):
+        """A marker appearing after the outer gate stays untouched, and
+        the read refusal retains its exact path through the importer."""
         root = self.project()
         state = root / "state"
         marker = state / self.MARKER
@@ -1117,13 +1115,28 @@ class TestThePerryTaskRead(InProcess):
                                marker_appears):
             r = self.main(root)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("perry-task asks changed 1 file(s) under the project",
-                      r.stderr)
-        self.assertIn("most likely cause is a pending recovery marker",
-                      r.stderr)
+        self.assertIn("perry-task asks refused", r.stderr)
+        self.assertIn(str(marker), r.stderr)
+        self.assertIn("pre-cutover", r.stderr)
         self.assertNotIn("Traceback", r.stderr)
-        self.assertFalse(marker.exists(), "perry-task did not finish it")
-        self.assertTrue((state / "note.json").exists())
+        self.assertTrue(marker.exists(), "a frozen read recovered the marker")
+        self.assertFalse((state / "note.json").exists())
+        self.assertEqual((state / "note.json.tmp").read_bytes(),
+                         b"staged by a crashed write\n")
+
+    def test_a_concurrent_source_change_still_stops_the_import(self):
+        root = self.project()
+        real = self.mod.run_perry_task_asks
+        def another_writer(project_root):
+            result = real(project_root)
+            (root / "state" / "concurrent.json").write_text("concurrent change")
+            return result
+        with mock.patch.object(self.mod, "run_perry_task_asks", another_writer):
+            result = self.main(root)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("changed 1 file(s) under the state root or .perry/",
+                      result.stderr)
+        self.assertFalse(self.work.exists())
         self.assertFalse(self.work.exists(), "a refusal writes nothing")
 
     def edited_payload(self, edit):

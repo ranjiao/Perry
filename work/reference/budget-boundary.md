@@ -18,8 +18,8 @@ Two checkpoints, each between tasks, never inside one: **before** a task or revi
 
 A `--session` reading (`explicit`, `historical`) is never a checkpoint verdict.
 
-**Safe boundary.** Let a `perry-task` write return; it is atomic. Never stop between a status write and its evidence file, or with a mutation unrestored. In-flight dispatches keep running: list each (task, branch, checkout path, log) as pending in the handoff for the next session to process. A pending transaction or interrupted pipeline is recorded, never resumed here: the next session's recovery gate owns it.
+**Safe boundary.** Let a kernel mutation return; it is atomic. Never stop between a status write and its evidence file, or with a mutation unrestored. In-flight dispatches keep running: list each (task, branch, checkout path, log) as pending in the handoff for the next session to process. A pending transaction or interrupted pipeline is recorded, never resumed here: the next session's recovery gate owns it.
 
 **The handoff** fills the template's `§ 0 Resume point`: ≤ 8 KiB, evidence by path, no pasted logs.
 
-**Resuming**, before any write: (1) the router's recovery and interrupted-run gates; (2) `git rev-parse HEAD` in each named checkout against its recorded head, and the main branch's tip against the recorded base; (3) `perry-task list --json` for each named task. A moved head or base, a changed status, or receipts older than the head → re-run the cited checks before relying on them. Then the recorded next command. Perry never resets the host session or schedules one: the user opens it.
+**Resuming**, before any write: (1) the router's recovery and interrupted-run gates; (2) `git rev-parse HEAD` in each named checkout against its recorded head, and the main branch's tip against the recorded base; (3) kernel `query` (see `kernel.md`) for each named task. A moved head or base, a changed status, or receipts older than the head → re-run the cited checks before relying on them. Then the recorded next command. Perry never resets the host session or schedules one: the user opens it.

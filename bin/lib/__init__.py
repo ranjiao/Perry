@@ -1411,7 +1411,11 @@ COMPUTED_KR_METRICS = {
 #: does not make the path reachable and does not make it unreachable — the
 #: tests assert the flag's BEHAVIOUR against this value, so a stale constant
 #: is a red suite rather than a quiet lie in a payload.
-UNLINKED_AT_ADD_HAS_NO_WRITER = False
+# Phase E freezes every public perry-task writer, including add --unlinked.
+# This capability bit describes CURRENT reachability, not whether an archived
+# via:add record is valid. Historical numerator and desync calculations below
+# continue to read those records unchanged until the goals lane migration.
+UNLINKED_AT_ADD_HAS_NO_WRITER = True
 
 
 def _corroborates(claimed, store_krs) -> bool:

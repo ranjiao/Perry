@@ -177,8 +177,8 @@ class TestEveryWriteRefusesWhereNothingIsInstalled(unittest.TestCase):
         declared |= {("perry-goals", c) for c in goals_write_commands()}
         self.assertEqual(declared, set(self.table))
         # Anti-vacuity: the table is not a list of nothing.
-        self.assertGreaterEqual(len([k for k in self.table
-                                     if k[0] == "perry-task"]), 27)
+        self.assertFalse(perry_task_writes(), "phase E freezes every legacy writer")
+        self.assertGreaterEqual(len(self.table), 10)
 
     def refuses(self, shape: str, tool: str, argv: list[str]):
         d = make(shape)
@@ -210,14 +210,15 @@ class TestEveryWriteRefusesWhereNothingIsInstalled(unittest.TestCase):
                 with self.subTest(tool=tool, write=sub, shape=shape):
                     self.refuses(shape, tool, list(argv) + ["--dry-run"])
                     checked += 1
-        self.assertGreaterEqual(checked, 27 * len(SHAPES))
+        self.assertEqual(checked, sum(dry for _argv, dry in self.table.values()) * len(SHAPES))
+        self.assertGreater(checked, 0)
 
     def test_a_pre_adr_019_project_is_told_to_write_the_config_store_first(self):
-        out = self.refuses("pre-adr-019", "perry-task", ["ask", "--needed", "x"])
+        out = self.refuses("pre-adr-019", "perry-tasks", ["write", "--from-board"])
         self.assertIn("`.perry/config.md`", out.stderr)
         self.assertIn('perry-config" set \'State root\'', out.stderr)
         self.assertIn("--root", out.stderr)
-        plain = self.refuses("empty", "perry-task", ["ask", "--needed", "x"])
+        plain = self.refuses("empty", "perry-tasks", ["write", "--from-board"])
         self.assertNotIn("config.md", plain.stderr)
         self.assertIn('perry-config" set', plain.stderr)
 
@@ -232,7 +233,7 @@ class TestEveryWriteRefusesWhereNothingIsInstalled(unittest.TestCase):
                               "ask", "--needed", "f1 probe"], 'test_a_write_refuses_where_nothing_is_installed'),
                              capture_output=True, text=True, cwd=d, env=env)
         self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
-        self.assertIn(GATE, out.stderr)
+        self.assertIn("read-only", out.stderr)
         self.assertEqual(snapshot(d), before)
         self.assertFalse(P.installed(d))
 
@@ -258,8 +259,9 @@ class TestTheStartStillInstalls(unittest.TestCase):
                                         "A row written once the start has "
                                         "installed the project.",
                                         "--root", str(d)], 'test_a_write_refuses_where_nothing_is_installed'))
-        self.assertEqual(add.returncode, 0, add.stderr)
-        self.assertTrue((d / "tasks.jsonl").is_file())
+        self.assertEqual(add.returncode, 1, add.stderr)
+        self.assertIn("read-only", add.stderr)
+        self.assertFalse((d / "tasks.jsonl").exists())
 
     def test_perry_config_track_installs_an_empty_directory(self):
         d = self.fresh()
@@ -267,7 +269,7 @@ class TestTheStartStillInstalls(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertTrue(P.installed(d))
 
-    def test_a_pre_adr_019_project_writes_once_its_store_declares_the_root(self):
+    def test_a_configured_pre_adr_019_project_still_refuses_the_retired_writer(self):
         d = self.fresh("pre-adr-019")
         out = inproc.run("perry-config", ["set", "State root", "perry",
                                           "--root", str(d)])
@@ -275,8 +277,9 @@ class TestTheStartStillInstalls(unittest.TestCase):
         self.assertTrue(P.installed(d))
         ask = inproc.run("perry-task", task_actor.owned(["ask", "--needed", "after the set?",
                                         "--root", str(d)], 'test_a_write_refuses_where_nothing_is_installed'))
-        self.assertEqual(ask.returncode, 0, ask.stderr)
-        self.assertTrue((d / "perry" / "asks.jsonl").is_file())
+        self.assertEqual(ask.returncode, 1, ask.stderr)
+        self.assertIn("read-only", ask.stderr)
+        self.assertFalse((d / "perry" / "asks.jsonl").exists())
         self.assertFalse((d / "asks.jsonl").exists(),
                          "the write landed outside the declared state root")
 
@@ -357,7 +360,7 @@ class TestAWriteInAnUndeclaredGroup(unittest.TestCase):
                 return heading
         return None
 
-    def test_the_write_lands_in_the_tasks_own_section(self):
+    def test_retirement_preserves_the_task_in_its_own_section(self):
         for held in (False, True):
             for name, argv, field, value in self.WRITES:
                 with self.subTest(write=name, held_board=held):
@@ -365,19 +368,14 @@ class TestAWriteInAnUndeclaredGroup(unittest.TestCase):
                     self.assertEqual(self.section_of(d, "TASK-9500"), GROUP,
                                      "anti-vacuity: the board does not place "
                                      "the task under its group")
+                    before = snapshot(d)
                     out = inproc.run("perry-task", task_actor.owned([name, "TASK-9500", *argv,
                                                     "--root", str(d)], 'test_a_write_refuses_where_nothing_is_installed'))
                     self.assertNotIn("Traceback", out.stderr)
                     self.assertNotIn("KeyError", out.stderr)
-                    self.assertEqual(out.returncode, 0, out.stderr[-600:])
-                    rec = next(json.loads(l) for l in (d / "perry" / "tasks.jsonl")
-                               .read_text(encoding="utf-8").splitlines()
-                               if l.strip() and json.loads(l)["id"] == "TASK-9500")
-                    got = rec[field]
-                    if isinstance(value, str) and field == "verification":
-                        got = got[:len(value)]
-                    self.assertEqual(got, value)
-                    self.assertEqual(rec["group"], GROUP)
+                    self.assertEqual(out.returncode, 1, out.stderr[-600:])
+                    self.assertIn("read-only", out.stderr)
+                    self.assertEqual(snapshot(d), before)
                     self.assertEqual(self.section_of(d, "TASK-9500"), GROUP)
 
 

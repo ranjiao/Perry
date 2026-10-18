@@ -17,6 +17,8 @@ import re
 import subprocess
 import tempfile
 import unittest
+from legacy_read_fixtures import seed_task, set_task, seed_ask, set_ask, seed_intake, seed_cadence
+from kernel_work_support import ACTOR, ready, task
 from pathlib import Path
 
 from task_writer_support import (
@@ -37,9 +39,9 @@ class TestFullTaskSet(unittest.TestCase):
 
     def test_closed_tasks_are_reconstructed_from_events(self):
         p = Project()
-        _, a = p.run("add", "--title", "will close")
-        _, b = p.run("add", "--title", "stays open")
-        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        a = seed_task(p, title='will close')
+        b = seed_task(p, title='stays open')
+        set_task(p, a['id'] , event_name='done', evidence='e.md', verification='V3', status='done')
         _, out = p.run("list", "--all")
         ids = {t["id"]: t for t in out["tasks"]}
         self.assertIn(a["id"], ids, "a closed task vanished from the full set")
@@ -52,8 +54,8 @@ class TestFullTaskSet(unittest.TestCase):
         """A bare id is what `reference/user-load.md` forbids handing a reader.
         The event log has to carry enough to name what it is talking about."""
         p = Project()
-        _, a = p.run("add", "--title", "the flake detector")
-        p.run("done", a["id"], "--evidence", "evidence/x.md", "--rung", "V3")
+        a = seed_task(p, title='the flake detector')
+        set_task(p, a['id'] , event_name='done', evidence='evidence/x.md', verification='V3', status='done')
         _, out = p.run("list", "--all")
         t = next(x for x in out["tasks"] if x["id"] == a["id"])
         self.assertEqual(t["title"], "the flake detector")
@@ -62,16 +64,16 @@ class TestFullTaskSet(unittest.TestCase):
 
     def test_without_all_only_open_tasks_are_returned(self):
         p = Project()
-        _, a = p.run("add", "--title", "closes")
-        p.run("done", a["id"], "--evidence", "e.md")
+        a = seed_task(p, title='closes')
+        set_task(p, a['id'] , event_name='done', evidence='e.md', status='done')
         _, out = p.run("list")
         self.assertEqual([t["id"] for t in out["tasks"] if not t["open"]], [])
 
     def test_every_task_carries_its_timeline(self):
         p = Project()
-        _, a = p.run("add", "--title", "X")
-        p.run("start", a["id"])
-        p.run("done", a["id"], "--evidence", "e.md")
+        a = seed_task(p, title='X')
+        set_task(p, a['id'] , event_name='start', status='in_progress')
+        set_task(p, a['id'] , event_name='done', evidence='e.md', status='done')
         _, out = p.run("list", "--all")
         t = next(x for x in out["tasks"] if x["id"] == a["id"])
         self.assertEqual([e["event"] for e in t["timeline"]],
@@ -91,8 +93,8 @@ class TestFullTaskSet(unittest.TestCase):
         """A row still on the board is the truth; events are derived. If they
         disagree, the markdown is canonical — §5.3."""
         p = Project()
-        _, a = p.run("add", "--title", "X")
-        p.run("start", a["id"])
+        a = seed_task(p, title='X')
+        set_task(p, a['id'] , event_name='start', status='in_progress')
         _, out = p.run("list", "--all")
         t = next(x for x in out["tasks"] if x["id"] == a["id"])
         self.assertTrue(t["open"])
@@ -108,7 +110,7 @@ class TestPerryStateReadsTheLog(unittest.TestCase):
 
     def test_the_events_block_reports_the_log(self):
         p = Project()
-        p.run("add", "--title", "X")
+        seed_task(p, title='X')
         ev = self._state(p.root)["board"]["events"]
         self.assertTrue(ev["present"])
         self.assertEqual(ev["total"], 1)
@@ -124,7 +126,7 @@ class TestPerryStateReadsTheLog(unittest.TestCase):
 
     def test_a_corrupt_line_does_not_lose_the_rest(self):
         p = Project()
-        p.run("add", "--title", "X")
+        seed_task(p, title='X')
         log = p.root / ".perry" / "events.jsonl"
         log.write_text(log.read_text() + "{ not json\n" +
                        json.dumps({"ts": "2026-01-01T00:00:00", "event": "start",
@@ -183,8 +185,8 @@ class TestDriftReconciliation(unittest.TestCase):
 
     def test_a_board_the_tool_wrote_entirely_has_no_drift(self):
         p = self.board_less(Project())
-        p.run("add", "--title", "A", "--priority", "P0")
-        p.run("add", "--title", "B", "--priority", "P0")
+        seed_task(p, title='A', priority='P0')
+        seed_task(p, title='B', priority='P0')
         d = self._drift(p)
         self.assertEqual(d["drift"], 0)
         self.assertEqual(d["unrecorded"], 0)
@@ -193,8 +195,8 @@ class TestDriftReconciliation(unittest.TestCase):
         """The mutation did not land in the markdown — or someone removed it
         without closing it. Either way the two records disagree."""
         p = self.board_less(Project())
-        p.run("add", "--title", "A", "--priority", "P0")
-        _, b = p.run("add", "--title", "B", "--priority", "P0")
+        seed_task(p, title='A', priority='P0')
+        b = seed_task(p, title='B', priority='P0')
         self.delete_record_by_hand(p, b["id"])
         d = self._drift(p)
         self.assertEqual(d["drift"], 1)
@@ -204,8 +206,8 @@ class TestDriftReconciliation(unittest.TestCase):
         """`done` removes the row on purpose. Reporting that as a lost mutation
         would make every correct close look like a defect."""
         p = Project()
-        _, a = p.run("add", "--title", "A", "--priority", "P0")
-        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        a = seed_task(p, title='A', priority='P0')
+        set_task(p, a['id'] , event_name='done', evidence='e.md', verification='V3', status='done')
         d = self._drift(p)
         self.assertEqual(d["drift"], 0, f"a correct close was reported: {d}")
 
@@ -231,7 +233,7 @@ class TestDriftReconciliation(unittest.TestCase):
             "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
             "| TASK-900 | written by hand | Coding Agent | not_started | — | — |\n\n## P1", 1))
         self.board_less(p)
-        p.run("add", "--title", "tool-written", "--priority", "P0")
+        seed_task(p, title='tool-written', priority='P0')
         d = self._drift(p)
         self.assertEqual(d["drift"], 0, "a pre-tool row was counted as drift")
         self.assertEqual(d["unrecorded"], 1)
@@ -255,9 +257,7 @@ class TestDriftReconciliation(unittest.TestCase):
         and only a written row can show that.
         """
         p = self.board_less(Project(tracks=MODE_TRACKS))
-        p.run("intake", "--title", "vendor spend reconciliation")
-        code, r = p.run("route", "1", "--track", "ops")
-        self.assertEqual(code, 0)
+        r = seed_task(p, title="vendor spend reconciliation", track="ops", event_name="route")
         d = self._drift(p)
         self.assertEqual(
             d["unrecorded"], 0,
@@ -297,7 +297,7 @@ class TestDriftReconciliation(unittest.TestCase):
             "| ID | Recurring task | Frequency | Next due | Owner | Last evidence |\n"
             "|---|---|---|---|---|---|\n"
             "| CAD-01 | weekly review | weekly | 2026-08-20 | User | — |\n"))
-        p.run("add", "--title", "tool written", "--priority", "P0")
+        seed_task(p, title='tool written', priority='P0')
         d = self._drift(p)
         self.assertEqual(
             d["unrecorded"], 0,
@@ -316,7 +316,7 @@ class TestDriftReconciliation(unittest.TestCase):
         and the board a reader gets (`perry-tasks board`) carries the row.
         """
         p = Project()
-        _, a = p.run("add", "--title", "A", "--priority", "P0")
+        a = seed_task(p, title='A', priority='P0')
         board = p.root / "BOARD.md"
         board.write_text("\n".join(
             l for l in board.read_text().split("\n")
@@ -327,99 +327,25 @@ class TestDriftReconciliation(unittest.TestCase):
              "--root", str(p.root), "--json"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0)
         code, out = p.run("add", "--title", "must not discard the store")
-        self.assertEqual(code, 0, out)
-        stored_ids = {json.loads(line)["id"] for line in
-                      (p.root / "tasks.jsonl").read_text().splitlines()
-                      if line.strip()}
+        self.assertEqual(code, 1, out)
+        self.assertIn("read-only", out["refused"])
+        stored_ids = {json.loads(line)["id"] for line in (p.root / "tasks.jsonl").read_text().splitlines()}
         self.assertIn(a["id"], stored_ids)
-        self.assertEqual(out["projection"]["rows_not_on_board"], [])
-        self.assertEqual(board.read_bytes(), edited,
-                         "a write rewrote the retired file")
+        self.assertEqual(board.read_bytes(), edited)
         self.assertIn(f"| {a['id']} |", p.board())
 
 
-class TestLaneProceduresCallTheTool(unittest.TestCase):
-    """TASK-033 — the riskiest migration in DESIGN-004's plan.
-
-    Its failure mode is not a crash. It is a lane that still tells the agent to
-    hand-write a row while the tool exists — two written paths to one piece of
-    state, with drift reported against a procedure that *instructed* the agent
-    to create it. The drift number would then report a documentation defect as
-    if it were an agent's indiscipline, which is worse than no signal.
-
-    §5.7 made this hard-blocked on TASK-031 for that reason: detection has to be
-    watching before the procedures change, or a migration and a regression look
-    identical.
-    """
-
-    @classmethod
-    def setUpClass(cls):
-        cls.proc = "\n".join((PERRY_HOME / "work/reference" / n).read_text() for n in ("planning.md", "decisions-risk.md", "add-task.md", "subcommands.md", "task-close.md"))
-
-    def section(self, name: str) -> str:
-        i = self.proc.index(f"### `{name}")
-        j = self.proc.find("\n### ", i + 1)
-        return self.proc[i:j if j > 0 else len(self.proc)]
-
-    def test_add_task_calls_the_tool(self):
-        s = self.section("add-task")
-        self.assertIn("perry-task", s)
-        self.assertIn("add --actor <actor> --title", s)
-
-    def test_close_task_calls_the_tool(self):
-        s = self.section("close-task")
-        self.assertIn("perry-task", s)
-        self.assertIn("done", s)
-
-    def test_no_migrated_procedure_still_describes_the_hand_edit(self):
-        """The exact failure this task creates: a procedure that says both."""
-        for name, banned in (
-            ("add-task", "Add a row to `BOARD.md`** — terse"),
-            ("close-task", "**Remove the row from `BOARD.md`**."),
-        ):
-            self.assertNotIn(
-                banned, self.section(name),
-                f"`{name}` still instructs a hand-edit for state the tool "
-                f"now writes — two written paths to one piece of state")
-
-    def test_routing_goes_through_the_tool(self):
-        step0 = self.proc[self.proc.index("Step 0"):self.proc.index("Then walk")]
-        self.assertIn("perry-task", step0)
-        self.assertIn("route", step0)
-
-    def test_the_stage_invariant_names_the_tool(self):
-        i = self.proc.index("Every stage move")
-        self.assertIn("perry-task", self.proc[i:i + 400])
-
-    def test_the_procedures_say_what_a_refusal_means(self):
-        """A tool that exits 1 without the procedure saying so invites the
-        agent to treat a refusal as a failure and fall back to editing."""
-        # Whitespace-collapsed: these assertions are about prose, and prose
-        # reflows. An earlier version matched raw text, so adding one refusal
-        # to the sentence re-wrapped the line and broke a test that had no
-        # opinion about the change.
-        s = re.sub(r"\s+", " ", self.section("add-task"))
-        self.assertIn("Refusals are outcomes", s)
-        self.assertIn("do not fall back to editing", s)
-
-    def test_every_command_the_procedures_quote_actually_runs(self):
-        """A migrated procedure naming a subcommand the tool does not have
-        would be the same unbacked-index defect five reviews kept finding.
-
-        **Checked against the DECLARATION, by exact name.** Two things were
-        wrong with the old form: `\w+` stopped at the hyphen, so `risk-add`
-        was read as `risk`, and the check was `assertIn("perry-task risk", …)`
-        — a substring of `perry-task risk-add`, so a procedure quoting a
-        command that does not exist would have passed as long as some real one
-        started with the same letters."""
-        quoted = set(re.findall(r'perry-task"?\s+([a-z][a-z-]*)', self.proc))
-        declared = {s["name"] for s in PT.SURFACE["subcommands"]}
-        unknown = sorted(quoted - declared)
-        self.assertEqual(unknown, [],
-                         f"the procedures call {unknown}, which the tool does "
-                         f"not declare")
-        self.assertGreater(len(quoted), 5, "the extraction found almost "
-                                           "nothing, so it proves nothing")
+class TestNativeLaneProcedures(unittest.TestCase):
+    def test_creation_close_and_triage_name_native_operations(self):
+        for name, required in (("add-task", ("item create", "attach add")),
+                               ("task-close", ("done", "expect", "verified_by")),
+                               ("planning", ("item update", "item move", "rel add/remove"))):
+            text = (PERRY_HOME / "work/reference" / f"{name}.md").read_text()
+            for word in required:
+                self.assertIn(word, text)
+        text = (PERRY_HOME / "work/reference/kernel.md").read_text()
+        self.assertIn("refus", text.lower())
+        self.assertIn("ok: false", text)
 
 
 class TestListContract(unittest.TestCase):
@@ -546,11 +472,11 @@ class TestListContract(unittest.TestCase):
 
     def populated(self) -> "Project":
         p = Project(tracks=self.TRACKS)
-        p.run("add", "--title", "plain project row", "--priority", "P0")
-        p.run("add", "--title", "pipeline row", "--track", "blog",
-              "--priority", "P1", "--commitment", "blog/1")
-        _, c = p.run("add", "--title", "closed row", "--priority", "P2")
-        p.run("done", c["id"], "--evidence", "e.md", "--rung", "V3")
+        seed_task(p, title='plain project row', priority='P0')
+        seed_task(p, title='pipeline row', track='blog', priority='P1', commitment='blog/1',
+                  stage='brief', stage_since='2026-09-01')
+        c = seed_task(p, title='closed row', priority='P2')
+        set_task(p, c['id'] , event_name='done', evidence='e.md', verification='V3', status='done')
         return p
 
     def payload(self, p: "Project", *extra) -> dict:
@@ -859,11 +785,12 @@ class TestFromAimarksProductionReport(unittest.TestCase):
         self.assertIn("TASK-010", [t["id"] for t in listed["tasks"]],
                       "the archived row is not even listed")
 
+        before = {str(f.relative_to(p.root)): f.read_bytes() for f in p.root.rglob("*") if f.is_file()}
         code, out = p.run("done", "TASK-010", "--evidence", "BOARD.md")
-        self.assertEqual(
-            code, 0,
-            f"a row `list` printed could not be closed: {out}")
-        self.assertNotIn("TASK-010", p.board())
+        self.assertEqual(code, 1, out)
+        self.assertIn("read-only", out["refused"])
+        self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                          for f in p.root.rglob("*") if f.is_file()}, before)
 
     def test_evidence_is_split_and_resolved_rather_than_handed_over_raw(self):
         """One real cell: three comma-separated backticked paths, relative to
@@ -949,170 +876,20 @@ class TestFromAimarksProductionReport(unittest.TestCase):
             self.assertGreater(len(e["note"]), 80, e)
 
 
-class TestANewIdJoinsTheFamilyTheBoardAlreadyUses(unittest.TestCase):
-    """TASK-060, from aiMark §4. On a board whose 17 rows are `AIM-001`…
-    `AIM-017`, `add` minted `TASK-001`.
+class TestFrozenReaderRetainsAdoptedIdFamilies(unittest.TestCase):
+    def test_multiple_and_multisegment_ids_are_read_without_renumbering(self):
+        for ids in (("OPS-007",), ("INV-009", "ENG-014"), ("LONG-OPS-009",)):
+            p = Project()
+            for item in ids:
+                p.seed_task(item)
+            code, out = p.run("list", "--all")
+            self.assertEqual(code, 0, out)
+            self.assertEqual({r["id"] for r in out["tasks"]}, set(ids))
 
-    Legitimate under the contract — ids are opaque and a board may carry
-    several project-declared prefixes — but a user creating a task from a
-    front-end watched their board sprout a second id family, and there was no
-    flag with which to ask for the first. aiMark passes no id and *cannot*:
-    nothing in the surface would let it.
-
-    **The decision, and the failure mode it is avoiding.** Both halves shipped:
-    `--prefix` names the family outright, and Perry adopts the board's own
-    prefix *only when the board has exactly one*. It deliberately does NOT pick
-    the most common one. `~/proj/gimegime-pmo` carries **36** families in its
-    task tables, declared in its own `## ID prefixes (canonical)` section, and
-    they are not stylistic — `IPS-*`/`ALLOC-*`/`DUE-*` mean 投资线 and
-    `TECH-*`/`DATA-*` mean 工程线, filed in separate sections for a reason the
-    board states. A plurality winner there mints an id that ASSERTS a
-    workstream nobody chose, and an id is permanent. A foreign-looking
-    `TASK-001` is visibly Perry's and claims nothing; a wrong-family `IPS-014`
-    claims something false.
-
-    So the guard for the category is not "adoption happens" — it is
-    `test_a_board_with_several_families_is_not_guessed_at`, which is the case
-    adoption must decline.
-    """
-
-    HDR = ("| ID | Title | Owner | Status | Next action | Evidence |\n"
-           "|---|---|---|---|---|---|\n")
-
-    def board(self, *ids: str) -> str:
-        rows = "".join(f"| {i} | row | Coding Agent | not_started | — | — |\n"
-                       for i in ids)
-        return (f"# BOARD\n\n## P0 (must finish this period)\n\n{self.HDR}{rows}"
-                f"\n## P1\n\n{self.HDR}\n## P2\n\n{self.HDR}")
-
-    AIMARK = None  # set in setUp; the shape aiMark reported
-
-    def setUp(self):
-        self.AIMARK = self.board(*(f"AIM-{i:03d}" for i in range(1, 18)))
-
-    def test_a_single_family_board_mints_into_its_own_family(self):
-        p = Project(board=self.AIMARK)
-        code, a = p.run("add", "--title", "from the front-end")
-        self.assertEqual(code, 0, a)
-        self.assertEqual(a["id"], "AIM-018")
-
-    def test_the_number_continues_the_family_rather_than_restarting_it(self):
-        """`mint_id` counted `TASK-` specifically. Adopting `AIM` without
-        moving the counter with it would have minted `AIM-001` onto a board
-        already holding `AIM-017` — the id reuse the function exists to make
-        impossible, arrived by a new route."""
-        p = Project(board=self.AIMARK)
-        _, a = p.run("add", "--title", "X")
-        self.assertNotIn(f"| {a['id']} |", self.AIMARK,
-                         f"{a['id']} was already a row on this board")
-        self.assertEqual(a["id"], "AIM-018")
-        _, b = p.run("add", "--title", "Y")
-        self.assertEqual(b["id"], "AIM-019")
-
-    def test_an_adopted_id_is_never_reissued_either(self):
-        """The uniqueness guarantee is per family, and the journal is what
-        makes it survive the disposable log — under `AIM` as under `TASK`."""
-        p = Project(board=self.AIMARK)
-        _, a = p.run("add", "--title", "first")
-        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
-        (p.root / ".perry" / "events.jsonl").unlink()
-        _, b = p.run("add", "--title", "second")
-        self.assertNotEqual(b["id"], a["id"],
-                            f"{a['id']} was reissued after the derived log went")
-
-    def test_a_board_with_several_families_is_not_guessed_at(self):
-        """**The load-bearing one.** Three `IPS-` rows and one `TECH-` row: the
-        most common family is `IPS`, and Perry must not take it. The families
-        on a real board mean different workstreams, and an id that names the
-        wrong one is a false claim that can never be withdrawn."""
-        p = Project(board=self.board("IPS-001", "IPS-002", "IPS-003", "TECH-001"))
-        code, a = p.run("add", "--title", "X")
-        self.assertEqual(code, 0, a)
-        self.assertEqual(a["prefix"], "TASK")
-        self.assertTrue(a["id"].startswith("TASK-"),
-                        f"Perry guessed a workstream from a plurality: {a['id']}")
-
-    def test_a_family_with_no_numbers_is_not_given_one(self):
-        """`RW-alpha` and `RW-beta` are one family and there is nothing to
-        count from. Minting `RW-001` beside them would invent a numbering the
-        project did not choose."""
-        p = Project(board=self.board("RW-alpha", "RW-beta"))
-        _, a = p.run("add", "--title", "X")
-        self.assertEqual(a["prefix"], "TASK")
-
-    def test_a_task_board_still_mints_task(self):
-        """The bound. Every project that has never said otherwise is
-        untouched — including Perry's own board, whose single family is
-        `TASK`."""
-        p = Project()
-        _, a = p.run("add", "--title", "X")
-        self.assertEqual(a["id"], "TASK-001")
-        self.assertEqual(a["prefix"], "TASK")
-
-    def test_prefix_names_the_family_outright(self):
-        """The half the finding actually asked for: a front-end that cannot
-        pass an id must be able to ask for a family."""
-        p = Project(board=self.AIMARK)
-        _, a = p.run("add", "--title", "X", "--prefix", "DOC")
-        self.assertEqual(a["id"], "DOC-001")
-
-    def test_prefix_beats_what_the_board_would_have_adopted(self):
-        p = Project(board=self.AIMARK)
-        _, a = p.run("add", "--title", "X", "--prefix", "DOC")
-        self.assertEqual(a["prefix"], "DOC")
-
-    def test_prefix_refuses_a_family_the_tool_mints_for_another_register(self):
-        """`RX-005` as a task would collide with the risk register's own
-        numbering on the same board, and both writers would then be right
-        about their own file and wrong about the project."""
-        for reserved in ("RX", "USER", "CAD"):
-            p = Project(board=self.AIMARK)
-            code, out = p.run("add", "--title", "X", "--prefix", reserved)
-            self.assertEqual(code, 1, f"--prefix {reserved} was accepted: {out}")
-            self.assertNotIn(f"{reserved}-001", p.board())
-
-    def test_prefix_refuses_a_whole_id(self):
-        """`--prefix AIM-018` is the obvious mistake, and it has to refuse
-        rather than mint `AIM-018-001`."""
-        p = Project(board=self.AIMARK)
-        code, out = p.run("add", "--title", "X", "--prefix", "AIM-018")
-        self.assertEqual(code, 1, out)
-        self.assertIn("--prefix", str(out))
-
-    def test_a_multi_segment_prefix_is_allowed(self):
-        """`ARCH-V2-*` is a real family on a real board. Each segment starts
-        with a letter, which is the rule that separates it from an id."""
-        p = Project(board=self.AIMARK)
-        code, a = p.run("add", "--title", "X", "--prefix", "ARCH-V2")
-        self.assertEqual(code, 0, a)
-        self.assertEqual(a["id"], "ARCH-V2-001")
-
-    def test_route_mints_from_the_same_rule_add_does(self):
-        """Both verbs mint. A family adopted by one and not the other is the
-        same divergence `--group` had, in the id column."""
-        p = Project(tracks=MODE_TRACKS, board=self.AIMARK)
-        p.run("intake", "--title", "a request", "--arrived", "2026-08-05")
-        code, out = p.run("route", "1", "--track", "blog")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["id"], "AIM-018")
-
-    def test_route_takes_prefix_too(self):
-        p = Project(tracks=MODE_TRACKS, board=self.AIMARK)
-        p.run("intake", "--title", "a request", "--arrived", "2026-08-05")
-        code, out = p.run("route", "1", "--track", "blog", "--prefix", "DOC")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["id"], "DOC-001")
-
-    def test_ids_in_the_non_task_registers_are_not_a_family(self):
-        """`## Top risks`, `## Cadence` and `## User Input Queue` carry their
-        own prefixes and are not work. Counting them would make every board
-        multi-family and adoption would never fire — or worse, a board with one
-        `USER-001` and no tasks would adopt `USER`."""
-        p = Project(board=self.AIMARK)
-        p.run("ask", "--needed", "which staging default?")
-        p.run("risk-add", "--title", "a risk")
-        _, a = p.run("add", "--title", "X")
-        self.assertEqual(a["prefix"], "AIM")
+    def test_native_ids_come_from_the_work_template_not_surrounding_markdown(self):
+        sb = ready(self)
+        (sb.root / "BOARD.md").write_text("OPS-900 INV-800\n")
+        self.assertEqual(task(sb), "TASK-001")
 
 
 def _project_state_risks(p, bullets: str) -> None:
@@ -1137,8 +914,7 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         """`idle` was `"9d"` — displayable, unsortable. The needs-you list is
         what a dashboard sorts on."""
         p = Project()
-        _, u = p.run("ask", "--needed", "the signing certificate",
-                     "--arrived", "2020-01-01")
+        u = seed_ask(p, needed='the signing certificate', asked='2020-01-01')
         item = next(a for a in self.payload(p)["asks"]["items"] if a["id"] == u["id"])
         self.assertIsInstance(item["idle_days"], int)
         self.assertGreater(item["idle_days"], 1000)
@@ -1148,9 +924,9 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         dashboard came to say "2 items waiting on you" about two questions
         answered the same day."""
         p = Project()
-        _, u = p.run("ask", "--needed", "a decision")
+        u = seed_ask(p, needed='a decision')
         self.assertEqual(1, self.payload(p)["asks"]["open"])
-        p.run("answer", u["id"], "--answer", "yes")
+        set_ask(p, u['id'] , answer='yes')
         self.assertEqual(0, self.payload(p)["asks"]["open"])
 
     def test_a_bullet_risk_does_not_report_its_severity_letter_as_an_id(self):

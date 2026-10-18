@@ -105,13 +105,28 @@ class Sandbox:
     def root(self) -> Path:
         return self.project.root
 
-    def write(self, *argv) -> tuple[int, dict | str]:
-        """A write through the store's own writer, with the real environment.
+    def seed_task(self, title, priority="P1"):
+        """Declare archived reader input; never invoke a retired write API."""
+        rows = [json.loads(line) for line in (self.root / "tasks.jsonl").read_text().splitlines()]
+        tid = f"TASK-{len(rows)+1:03}"
+        self.project.seed_task(tid, title=title, priority=priority)
+        self.task_snapshot(tid)
 
-        Writes stamp events with `datetime.now()`, and nothing here wants to
-        interfere with that — `age()` moves the clock afterwards, in one place.
-        """
-        return self.project.run(*argv)
+    def task_snapshot(self, tid, **fields):
+        store = self.root / "tasks.jsonl"
+        rows = [json.loads(line) for line in store.read_text().splitlines()]
+        row = next(r for r in rows if r["id"] == tid)
+        row.update(fields)
+        store.write_text(PT.perry_store.store_text(rows))
+        event = {"event": "done" if row["status"] == "done" else "status",
+                 "id": tid, "title": row["title"], "track": "main",
+                 "owner": row["owner"], "actor": "historical-fixture",
+                 "from": "not_started", "to": row["status"],
+                 "ts": datetime.now().astimezone().isoformat(),
+                 "evidence": row.get("evidence", "")}
+        log = self.root / ".perry/events.jsonl"
+        with log.open("a") as f:
+            f.write(json.dumps(event) + "\n")
 
     def list(self, *argv) -> dict:
         """`list --all`, with `$HOME` pointed at this sandbox's marker cache."""
@@ -183,20 +198,14 @@ def stranded_board() -> Sandbox:
               "open blocker", "genuinely blocked dependent",
               "blocked on prose nothing can read")
     for title in titles:
-        code, out = box.write("add", "--title", title, "--priority", "P1")
-        assert code == 0, out
+        box.seed_task(title, priority='P1')
     for dependent, blocker in (("TASK-002", "TASK-001"),
                                ("TASK-004", "TASK-003"),
                                ("TASK-006", "TASK-005")):
-        code, out = box.write("status", dependent, "--status", "blocked",
-                              "--on", blocker)
-        assert code == 0, out
-    code, out = box.write("status", "TASK-007", "--status", "blocked",
-                          "--reason", "waiting on a vendor, no row for it")
-    assert code == 0, out
+        box.task_snapshot(dependent, status='blocked', depends_on=[blocker])
+    box.task_snapshot('TASK-007', status='blocked', reason='waiting on a vendor, no row for it')
     for blocker in ("TASK-001", "TASK-003"):
-        code, out = box.write("done", blocker, "--evidence", "tests/run")
-        assert code == 0, out
+        box.task_snapshot(blocker, status="done", evidence='tests/run')
     return box
 
 
@@ -328,11 +337,9 @@ class TestTheStarvedAgent(unittest.TestCase):
         cls.box = Sandbox()
         for title in ("the run that died", "the run that is still going",
                       "the row nobody started"):
-            code, out = cls.box.write("add", "--title", title, "--priority", "P1")
-            assert code == 0, out
+            cls.box.seed_task(title, priority='P1')
         for tid in ("TASK-001", "TASK-002"):
-            code, out = cls.box.write("status", tid, "--status", "in_progress")
-            assert code == 0, out
+            cls.box.task_snapshot(tid, status='in_progress')
         cls.box.age(IN_PROGRESS_HOURS + 1)
         # TASK-002 is the control: same status, same stale clock, but an
         # executor still holds its slot.
@@ -361,10 +368,8 @@ class TestTheStarvedAgent(unittest.TestCase):
         evidence. The reader applies the same TTL rather than a second one, and
         must not resurrect the slot it is about to clean."""
         box = Sandbox()
-        code, out = box.write("add", "--title", "a crashed run", "--priority", "P1")
-        self.assertEqual(code, 0, out)
-        code, out = box.write("status", "TASK-001", "--status", "in_progress")
-        self.assertEqual(code, 0, out)
+        box.seed_task('a crashed run', priority='P1')
+        box.task_snapshot('TASK-001', status='in_progress')
         box.age(IN_PROGRESS_HOURS + 1)
         marker = box.dispatch_marker("TASK-001")
         stale = datetime.now().timestamp() - 7200
@@ -386,10 +391,8 @@ class TestTheStarvedAgent(unittest.TestCase):
         JSON. Both spellings are live on real machines and neither may be the
         one the reader can see."""
         box = Sandbox()
-        code, out = box.write("add", "--title", "an older marker", "--priority", "P1")
-        self.assertEqual(code, 0, out)
-        code, out = box.write("status", "TASK-001", "--status", "in_progress")
-        self.assertEqual(code, 0, out)
+        box.seed_task('an older marker', priority='P1')
+        box.task_snapshot('TASK-001', status='in_progress')
         box.age(IN_PROGRESS_HOURS + 1)
         (box.markers / "TASK-001-codex.json").write_text("{}")
         self.assertEqual(
@@ -417,15 +420,12 @@ class TestTheReviewRowNobodyIsWaitingFor(unittest.TestCase):
     def setUpClass(cls):
         cls.box = Sandbox()
         for title in ("merged and never closed", "asked for a verdict today"):
-            code, out = cls.box.write("add", "--title", title, "--priority", "P1")
-            assert code == 0, out
-        code, out = cls.box.write("status", "TASK-001", "--status", "review")
-        assert code == 0, out
+            cls.box.seed_task(title, priority='P1')
+        cls.box.task_snapshot('TASK-001', status='review')
         cls.box.age(REVIEW_DAYS * 24 + 1)
         # Moved AFTER the clock shift, so this row's own event is fresh while
         # TASK-001's is old — one board, both directions.
-        code, out = cls.box.write("status", "TASK-002", "--status", "review")
-        assert code == 0, out
+        cls.box.task_snapshot('TASK-002', status='review')
 
     def test_the_idle_review_row_is_named(self):
         found = self.box.conformance()["review_idle"]
@@ -472,12 +472,9 @@ class TestTheReviewRowNobodyIsWaitingFor(unittest.TestCase):
         """
         box = Sandbox()
         for title in ("a dead run", "a forgotten verdict"):
-            code, out = box.write("add", "--title", title, "--priority", "P1")
-            self.assertEqual(code, 0, out)
-        code, out = box.write("status", "TASK-001", "--status", "in_progress")
-        self.assertEqual(code, 0, out)
-        code, out = box.write("status", "TASK-002", "--status", "review")
-        self.assertEqual(code, 0, out)
+            box.seed_task(title, priority='P1')
+        box.task_snapshot('TASK-001', status='in_progress')
+        box.task_snapshot('TASK-002', status='review')
         box.age(REVIEW_DAYS * 24 + 1)
         conf = box.conformance()
         self.assertTrue(conf["in_progress_with_no_live_run"])
@@ -499,10 +496,8 @@ class TestBothIdleChecksAreEmptyWithoutAnEventLog(unittest.TestCase):
 
     def test_no_event_log_names_nothing(self):
         box = Sandbox()
-        code, out = box.write("add", "--title", "a row", "--priority", "P1")
-        self.assertEqual(code, 0, out)
-        code, out = box.write("status", "TASK-001", "--status", "in_progress")
-        self.assertEqual(code, 0, out)
+        box.seed_task('a row', priority='P1')
+        box.task_snapshot('TASK-001', status='in_progress')
         (box.root / ".perry" / "events.jsonl").unlink()
         conf = box.conformance()
         self.assertFalse(conf["has_event_log"])
@@ -534,15 +529,10 @@ class TestNextActionCitesClosedReportsWhatItMightMean(unittest.TestCase):
     def setUpClass(cls):
         box = Sandbox()
         for title in ("the blocker", "the row that cites it"):
-            code, out = box.write("add", "--title", title, "--priority", "P1")
-            assert code == 0, out
-        code, out = box.write("status", "TASK-002", "--status", "blocked",
-                              "--on", "TASK-001")
-        assert code == 0, out
-        code, out = box.write("next", "TASK-002", "--next", "waiting on TASK-001 to land")
-        assert code == 0, out
-        code, out = box.write("done", "TASK-001", "--evidence", "tests/run")
-        assert code == 0, out
+            box.seed_task(title, priority='P1')
+        box.task_snapshot('TASK-002', status='blocked', depends_on=['TASK-001'])
+        box.task_snapshot('TASK-002', next_action='waiting on TASK-001 to land')
+        box.task_snapshot('TASK-001', status="done", evidence='tests/run')
         cls.conf = box.conformance()
         cls.entry = cls.conf["next_action_cites_closed"][0]
 
@@ -591,12 +581,9 @@ class TestNextActionCitesClosedReportsWhatItMightMean(unittest.TestCase):
         the entry says the cell has to be read by somebody."""
         box = Sandbox()
         for title in ("the blocker", "the row that cites it"):
-            code, out = box.write("add", "--title", title, "--priority", "P1")
-            self.assertEqual(code, 0, out)
-        code, out = box.write("next", "TASK-002", "--next", "picks up after TASK-001")
-        self.assertEqual(code, 0, out)
-        code, out = box.write("done", "TASK-001", "--evidence", "tests/run")
-        self.assertEqual(code, 0, out)
+            box.seed_task(title, priority='P1')
+        box.task_snapshot('TASK-002', next_action='picks up after TASK-001')
+        box.task_snapshot('TASK-001', status="done", evidence='tests/run')
         entry = box.conformance()["next_action_cites_closed"][0]
         self.assertFalse(entry["blocked_stale"])
         self.assertIn("somebody has to read the cell", entry["means"])
@@ -668,100 +655,11 @@ class TestTheContractAnnouncedAllOfIt(unittest.TestCase):
             f"PERRY_DISPATCH_STALE_TTL defaults to {LIMITER_TTL_DEFAULT}s; an "
             f"idle threshold below it names rows whose marker is still valid")
 
-    def test_triage_step_zero_point_five_lists_all_three(self):
-        """`conformance` is only read because the procedure says to read it,
-        and a key no procedure names is a key nobody looks at."""
-        procedure = (PERRY_HOME / "work" / "reference"
-                     / "planning.md").read_text()
-        for key in ("blocked_by_closed_rows", "in_progress_with_no_live_run",
-                    "review_idle"):
-            self.assertIn(f"| `{key}` |", procedure, key)
-        self.assertIn("Rewriting the cell is not the default fix", procedure,
-                      "the procedure told triage this was the cheapest stale "
-                      "row to fix, and that is what produced the rewrite")
-
-
-class TestThresholdsAgree(unittest.TestCase):
-    """TASK-160 — the marker TTL is one number with two readers and a
-    calibrated neighbour, and none of the three may drift.
-
-    `bin/perry-dispatch-limit` writes and reaps the markers;
-    `bin/perry-task § live_dispatch_ids` reads them and deliberately never
-    calls the script, *"because a `list --json` that could delete another
-    session's slot is a read command with a side effect on shared state"*. That
-    refusal is right, and it is exactly what makes drift possible: the reader
-    carries its own copy of the default, so nothing but this class notices if
-    the two stop matching.
-
-    **The asymmetry is what makes it dangerous.** A reader with the SHORTER TTL
-    calls a marker dead while the writer still counts the slot live — so
-    `in_progress_with_no_live_run` names a row an agent is actively holding,
-    and the entry's own `means` text then invites the PMO to re-dispatch it.
-    A second agent on a row a first one still holds is the failure the dispatch
-    limit exists to prevent, arriving through the check built to catch it.
-    """
-
-    def reader_default(self) -> int:
-        """The fallback `live_dispatch_ids` uses when the env var is unset."""
-        return _one_int(
-            r'os\.environ\.get\("PERRY_DISPATCH_STALE_TTL"\) or (\d+)\)',
-            PERRY_HOME / "bin" / "perry-task")
-
-    def test_the_reader_and_the_writer_state_the_same_default(self):
-        self.assertEqual(
-            LIMITER_TTL_DEFAULT, self.reader_default(),
-            "bin/perry-task § live_dispatch_ids and bin/perry-dispatch-limit "
-            "disagree about how old a marker may be. Whichever is lower now "
-            "decides, and if that is the reader it will name live runs "
-            "starved.")
-
-    def test_the_ttl_outlasts_the_longest_cycle_this_project_has_measured(self):
-        """The defect itself. A TTL at or below a real cycle length reaps the
-        marker of an agent that is still working, and the cap silently stops
-        being the cap — 3600s did, against a measured 8100s cycle."""
-        self.assertGreater(
-            LIMITER_TTL_DEFAULT, LONGEST_MEASURED_CYCLE,
-            "a marker may not expire while a run of a length this project has "
-            "actually seen is still going")
-
-    def test_the_idle_threshold_is_the_ceiling_the_ttl_was_chosen_under(self):
-        """Both bounds at once, so the derivation is checked and not just
-        recorded in a comment: the TTL sits strictly above the longest measured
-        cycle and at or below the idle threshold it is calibrated against."""
-        self.assertLessEqual(LIMITER_TTL_DEFAULT, IN_PROGRESS_HOURS * 3600)
-
-    def test_the_schema_note_states_the_default_it_was_calibrated_against(self):
-        """A note naming the wrong number is worse than no note: it is the
-        only place a reader is told the two are linked at all."""
-        note = SCHEMA["thresholds"]["in_progress_idle_hours"]["note"]
-        self.assertIn("PERRY_DISPATCH_STALE_TTL", note)
-        self.assertIn(f"{LIMITER_TTL_DEFAULT // 3600}h", note)
-
-
-class TestOneStatementOfEachCheck(unittest.TestCase):
-    """Both `list` paths report the same findings, from one implementation.
-
-    `bin/perry-task` has two list paths — board-derived and store-derived — and
-    they stated `startable` twice, 200 lines apart, until TASK-148. These four
-    entries are computed once and called twice for the same reason.
-    """
-
-    def test_both_list_paths_call_the_one_implementation(self):
-        source = (PERRY_HOME / "bin" / "perry-task").read_text()
-        self.assertEqual(
-            2, source.count("conformance.update(stranded_row_findings("),
-            "one definition, called by both list paths")
-        self.assertEqual(
-            1, source.count("def stranded_row_findings("),
-            "a second definition is the failure TASK-148 already paid for")
-
-    def test_the_next_action_loop_is_no_longer_written_out_at_a_call_site(self):
-        """It was, twice. The check whose MEANING this row changed is the worst
-        possible one to have two copies of."""
-        source = (PERRY_HOME / "bin" / "perry-task").read_text()
-        self.assertEqual(
-            0, source.count('conformance["next_action_cites_closed"].append'),
-            "found a call site still appending to the array directly")
+    def test_native_triage_reads_blockers_and_evidence_before_changes(self):
+        procedure = (PERRY_HOME / "work/reference/planning.md").read_text()
+        for fragment in ("blocked_by", "latest event", "actual evidence",
+                         "Propose scope changes in chat", "Never close merely because"):
+            self.assertIn(fragment, procedure)
 
 
 if __name__ == "__main__":

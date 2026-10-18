@@ -64,6 +64,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from kernel_work_support import ACTOR, ready, task
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "viewer"))
@@ -287,149 +288,32 @@ class Fixture(unittest.TestCase):
         self.fail(f"no task id in {proc.stdout!r}")
 
 
-class TestTheOneSequence(Fixture):
-    """`add --kr` then `attribution`, with nothing run in between."""
+class TestNativeCreateDoesNotWriteGoalRegisters(unittest.TestCase):
+    def test_create_and_attach_leave_linkage_and_legacy_history_unchanged(self):
+        sb = ready(self)
+        held = {"linkage.jsonl": '{"kind":"fixture-goal-record"}\n',
+                ".perry/events.jsonl": "legacy history\n",
+                "journal/2026-08/2026-08-01.md": "legacy journal\n"}
+        for rel, body in held.items():
+            path = sb.root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(body)
+        tid = task(sb)
+        sb.ok("attach add", data={"actor": ACTOR, "id": tid, "ref": "evidence/spec.md"})
+        self.assertEqual(sb.get(tid)["state"], "not_started")
+        for rel, body in held.items():
+            self.assertEqual((sb.root / rel).read_text(), body)
 
-    def test_the_new_row_reports_linked(self):
-        d = self.project()
-        before = self.attribution(d)
-        proc = self.add(d, "a linked row", self.STORE_KR)
-        tid = self.new_id(proc)
-        after = self.attribution(d)
-
-        never_asked = [u["id"] for u in after["unlinked"]]
-        self.assertNotIn(tid, never_asked,
-                         "the row `add --kr` just linked is reported "
-                         "never-asked — the edge did not reach the readers")
-        self.assertNotIn(tid, after.get("declared_unlinked") or [],
-                         "a row given a KR must not be declared unlinked")
-        self.assertEqual(after["linked"], before["linked"] + 1,
-                         "`linked` did not rise by exactly the one row added")
-
-    def test_the_edge_record_is_written_once_and_says_via_add(self):
-        d = self.project()
-        before = len(self.records(d))
-        tid = self.new_id(self.add(d, "a linked row", self.STORE_KR))
-        recs = self.records(d)
-        self.assertEqual(len(recs), before + 1, "exactly one record appended")
-        edge = recs[-1]
-        self.assertEqual(edge["kind"], "edge")
-        self.assertEqual(edge["task"], tid)
-        self.assertEqual(edge["kr"], self.STORE_KR)
-        # `via` is what makes `P003-O3-KR2` computable at all: "attributed in
-        # the same action that created the row" is not recoverable from an
-        # edge that only says which KR it points at.
-        self.assertEqual(edge["via"], "add")
-        self.assertTrue(edge["declared_at"].endswith("Z"),
-                        "`declared_at` must be the UTC form `perry-goals "
-                        "link` writes, or the two writers sort differently")
-        self.assertTrue(edge["actor"])
-
-    def test_the_add_event_carries_the_kr(self):
-        d = self.project()
-        tid = self.new_id(self.add(d, "a linked row", self.STORE_KR))
-        add = [e for e in self.events(d)
-               if e.get("event") == "add" and e.get("id") == tid]
-        self.assertEqual(len(add), 1)
-        self.assertEqual(add[0]["kr"], self.STORE_KR)
-
-    def test_the_success_line_names_the_store_it_wrote(self):
-        d = self.project()
-        proc = self.add(d, "a linked row", self.STORE_KR)
-        self.assertIn("linkage.jsonl", proc.stdout,
-                      "the line names every file the write touched")
-
-
-class TestWithoutAKr(Fixture):
-    """§ 5.2: the row is still created, `kr` is null, and it warns.
-
-    **Repointed at the STORE-LESS project by TASK-439, and the narrowing
-    is the point.** § 5.2's "record and warn" used to be what `add` did
-    on every project when the KR question went unanswered. It is now what
-    `add` does on the one project where that question has no answer to
-    give: `--unlinked` is refused without a register (`linkage_add_change`
-    — no event field, no second home) and `--kr` could only name a key
-    result that does not exist, so requiring an answer there would force
-    the guess `reference/okr-linkage.md` forbids. Everywhere else,
-    omitting both is REFUSED
-    (`tests/test_add_refuses_without_an_answer.py`).
-
-    Every assertion below is unchanged and still load-bearing — `kr` null
-    rather than a missing key, no record of any kind, no `never_asked`
-    kind, and the row reading as never-asked rather than declared. Only
-    the project they are driven against moved.
-    """
-
-    def test_the_row_is_created_and_not_refused(self):
-        d = self.project(with_store=False)
-        proc = self.add(d, "an unattributed row")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        tid = self.new_id(proc)
-        rows = [json.loads(l) for l
-                in (d / "tasks.jsonl").read_text().split("\n") if l.strip()]
-        self.assertIn(tid, [r["id"] for r in rows])
-
-    def test_the_event_carries_kr_null_not_a_missing_key(self):
-        d = self.project(with_store=False)
-        tid = self.new_id(self.add(d, "an unattributed row"))
-        add = [e for e in self.events(d)
-               if e.get("event") == "add" and e.get("id") == tid][0]
-        # Present-and-null and absent are different facts: `null` says the
-        # question was reached and left unanswered, which is what makes
-        # never-asked auditable from the log. A missing key is every `add`
-        # event written before row D.
-        self.assertIn("kr", add)
-        self.assertIsNone(add["kr"])
-
-    def test_it_warns_on_stderr(self):
-        d = self.project(with_store=False)
-        proc = self.add(d, "an unattributed row")
-        self.assertIn("without `--kr`", proc.stderr)
-        # The warning must not tell the reader the row was DECLARED unlinked:
-        # never-asked and declared-unlinked are the two states § 5.2 keeps
-        # apart, and the whole bucket was double-counted for a week when a
-        # surface conflated them (TASK-228).
-        self.assertIn("never-asked", proc.stderr)
-
-    def test_no_record_of_any_kind_is_written(self):
-        d = self.project(with_store=False)
-        before = self.records(d)
-        tid = self.new_id(self.add(d, "an unattributed row"))
-        after = self.records(d)
-        self.assertEqual(len(after), len(before),
-                         "never-asked is DERIVED FROM ABSENCE (§ 5.2) — no "
-                         "record, of any kind, may be written for it")
-        self.assertEqual([r for r in after if r.get("task") == tid], [])
-
-    def test_there_is_no_never_asked_kind(self):
-        """§ 5.2 — never-asked is DERIVED, not stored.
-
-        The kinds are read from the schema rather than listed here: ADR-019
-        added three, and a literal set would have had to be edited to stay
-        green, which is a check that agrees with whatever it is told. What is
-        under test is that `add` writes nothing undeclared and that
-        `never_asked` is not, and never becomes, a record kind — storing it
-        would need the record DELETED the moment an answer arrives, which is a
-        second write and a chance to desync. Absence cannot drift.
-        """
-        import json as _json
-        declared = set(_json.loads(
-            (ROOT / "schema" / "state-schema.json").read_text()
-        )["stores"]["declared"]["linkage.jsonl"]["records"])
-        self.assertNotIn("never_asked", declared)
-        self.assertNotIn("never-asked", declared)
-        d = self.project(with_store=False)
-        self.add(d, "an unattributed row")
-        kinds = {r.get("kind") for r in self.records(d)}
-        self.assertTrue(kinds <= declared,
-                        f"a kind the schema does not declare: {kinds}")
-
-    def test_the_row_reports_never_asked_and_not_declared_unlinked(self):
-        d = self.project(with_store=False)
-        tid = self.new_id(self.add(d, "an unattributed row"))
-        att = self.attribution(d)
-        self.assertIn(tid, [u["id"] for u in att["unlinked"]])
-        self.assertNotIn(tid, att.get("declared_unlinked") or [])
+    def test_kr_is_not_a_native_field_or_an_implicit_linkage_declaration(self):
+        sb = ready(self)
+        tid = task(sb)
+        before = sb.seq()
+        for key in ("kr", "unlinked"):
+            out = sb.run("item update", data={"actor": ACTOR, "id": tid,
+                                              "set": {key: "P003-O1-KR1"}})
+            self.assertFalse(out.ok, out)
+            self.assertEqual(sb.seq(), before)
+        self.assertFalse((sb.root / "linkage.jsonl").exists())
 
 
 class TestTheReadersAreOnTheStore(Fixture):
@@ -465,238 +349,9 @@ class TestTheReadersAreOnTheStore(Fixture):
         document was written — so a reader on the document reports never-asked
         for a row just linked, which is § 6's silent failure exactly.
         """
-        d = self.project()
-        tid = self.new_id(self.add(d, "a linked row", self.DOC_KR))
+        d = self.project(store_edges={self.DOC_KR: ["TASK-100"]})
         att = self.attribution(d)
-        self.assertNotIn(tid, [u["id"] for u in att["unlinked"]])
-
-
-class TestAProjectWithNoStore(Fixture):
-    """A pre-DESIGN-015 project keeps its document, and keeps ALL of it."""
-
-    def test_add_kr_does_not_create_the_store(self):
-        d = self.project(with_store=False)
-        proc = self.add(d, "a linked row", self.DOC_KR)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        # `parsers.load_linkage` is store-FIRST: a one-record store on a
-        # project whose register lives in the document would not add an edge,
-        # it would replace the whole graph with a single edge and every KR
-        # that project has would vanish from every render.
-        self.assertFalse((d / "linkage.jsonl").exists(),
-                         "a store was created on a project that had none — "
-                         "every KR in its document is now unreachable")
-
-    def test_the_row_files_and_the_answer_is_not_silently_dropped(self):
-        """**What this test used to assert, and why it could not survive.**
-
-        It read *"the document graph survives the write"*: a pre-DESIGN-015
-        project kept its `phase/<NNN>-linkage.md`, so with no store its own
-        edges still resolved and `attribution.linked` stayed >= 1. ADR-019
-        deleted that document. A project with no store has no graph — that is
-        not a regression, it is what "no register" now means, and it is the
-        state every project is in before `plan-phase` runs.
-
-        What has to stay true is the thing the store-less path was FOR: the
-        row still files, and the caller's answer is still recoverable. The
-        event carries it (`test_the_event_still_records_the_answer`), and
-        `attribution` must not report the row as one that was never asked —
-        which would be Perry forgetting an answer it was given.
-        """
-        d = self.project(with_store=False)
-        proc = self.add(d, "a linked row", self.DOC_KR)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        tid = self.new_id(proc)
-        att = self.attribution(d)
-        self.assertEqual(att["linked"], 0,
-                         "a project with no store has no graph; reporting an "
-                         "edge means one was invented")
-        self.assertIn(tid, [u["id"] for u in att["unlinked"]],
-                      "the row vanished from every bucket")
-
-    def test_the_event_still_records_the_answer(self):
-        d = self.project(with_store=False)
-        proc = self.add(d, "a linked row", self.DOC_KR)
-        tid = self.new_id(proc)
-        add = [e for e in self.events(d)
-               if e.get("event") == "add" and e.get("id") == tid][0]
-        self.assertEqual(add["kr"], self.DOC_KR,
-                         "the store may be absent; the answer was still given "
-                         "and the log is where it is recorded")
-
-
-class TestRouteAndIntakeInheritNeverAsked(Fixture):
-    """Neither fabricates an `unlinked` declaration for a row with no KR."""
-
-    def test_intake_then_route_writes_no_linkage_record(self):
-        d = self.project()
-        before = self.records(d)
-        intake = subprocess.run(
-            task_actor.command([sys.executable, str(TASK), "intake", "--root", str(d),
-             "--arrived", "2026-09-05", "--title", "a request arrived"], 'test_add_writes_the_edge'),
-            capture_output=True, text=True, cwd=ROOT)
-        self.assertEqual(intake.returncode, 0, intake.stderr)
-        self.assertEqual(len(self.records(d)), len(before),
-                         "`intake` wrote a linkage record")
-
-    def test_route_leaves_the_row_never_asked(self):
-        d = self.project()
-        before = self.records(d)
-        subprocess.run(
-            task_actor.command([sys.executable, str(TASK), "intake", "--root", str(d),
-             "--arrived", "2026-09-05", "--title", "a request arrived"], 'test_add_writes_the_edge'),
-            capture_output=True, text=True, cwd=ROOT)
-        proc = subprocess.run(
-            # `--title` and `--summary` are NOT passed: `route` takes the
-            # row's title from the intake request it is promoting and writes no
-            # summary, so both were accepted and dropped until DESIGN-016 goal
-            # 12 made `SURFACE` the list of what each subcommand takes. The
-            # refusal is the tool telling this test what it had been doing.
-            task_actor.command([sys.executable, str(TASK), "route", "1", "--root", str(d),
-             "--owner", "Coding Agent", "--priority", "P1",
-             "--track", "intake"], 'test_add_writes_the_edge'),
-            capture_output=True, text=True, cwd=ROOT)
-        # Not skipped on refusal. A skip here would let the fixture drift out
-        # of `route`'s preconditions and report nothing about the behaviour
-        # this test names.
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(len(self.records(d)), len(before),
-                         "`route` wrote a linkage record — a row that was "
-                         "never asked must inherit absence, not a declaration")
-
-
-class TestTheEdgeIsNotASecondTransaction(Fixture):
-    """SIGKILL between two canonical renames; the edge must not survive alone.
-
-    The child patches `os.replace` to count only renames whose DESTINATION is
-    a canonical target and to die before the Nth. The durable marker is
-    written through `lib.write_atomic`, which renames too, so counting that
-    would make N mean a different crash point on different runs.
-    """
-
-    CHILD = r'''
-import importlib.machinery, importlib.util, os, signal, sys
-
-TOOL, ROOT, N, TITLE, KR = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
-spec = importlib.util.spec_from_loader(
-    "perry_task", importlib.machinery.SourceFileLoader("perry_task", TOOL))
-mod = importlib.util.module_from_spec(spec)
-sys.modules["perry_task"] = mod
-spec.loader.exec_module(mod)
-seen = [0]
-real = os.replace
-def counting(src, dst, *a, **kw):
-    name = os.path.basename(str(dst))
-    canonical = (name in ("tasks.jsonl", "intake.jsonl", "linkage.jsonl")
-                 or (name.endswith(".md") and name[:1].isdigit()))
-    if not canonical:
-        return real(src, dst, *a, **kw)
-    if seen[0] >= N:
-        os.kill(os.getpid(), signal.SIGKILL)
-    seen[0] += 1
-    return real(src, dst, *a, **kw)
-os.replace = counting
-argv = ["add", "--title", TITLE, "--root", ROOT, "--deliverable", "d",
-        "--verification", "v", "--summary",
-        "Files a throwaway row so the writer reaches its canonical renames."]
-if KR:
-    argv += ["--kr", KR]
-sys.exit(mod.main(argv + ["--actor", "edge-crash-probe"]))
-'''
-
-    def crash_at(self, d: pathlib.Path, n: int, kr: str) -> subprocess.CompletedProcess:
-        child = d / "_crash_child.py"
-        child.write_text(self.CHILD)
-        return subprocess.run(
-            task_actor.command([sys.executable, str(child), str(TASK), str(d), str(n),
-             "an atomicity probe", kr], 'test_add_writes_the_edge'),
-            capture_output=True, text=True, cwd=ROOT)
-
-    def consistency(self, d: pathlib.Path, tid: str) -> tuple[bool, bool]:
-        rows = [json.loads(l) for l
-                in (d / "tasks.jsonl").read_text().split("\n") if l.strip()]
-        return (any(r.get("id") == tid for r in rows),
-                any(r.get("kind") == "edge" and r.get("task") == tid
-                    for r in self.records(d)))
-
-    def next_id(self, d: pathlib.Path) -> str:
-        """The id the crashing run will mint, taken from a `--dry-run`.
-
-        Derived rather than assumed: an assertion about the wrong id passes
-        for free, which is the shape that makes a crash test decorative.
-
-        **Carries `--kr` since TASK-439**, which is not decoration: `add` now
-        refuses a row answering the KR question neither way, and a `--dry-run`
-        is refused at the same place a real run is — the refusal fires before
-        `mint_id`, so it never reaches the id this helper exists to read. It
-        names the same KR the crashing run names, so the probe and the run
-        under test are the same command line minus the crash.
-        """
-        proc = subprocess.run(
-            task_actor.command([sys.executable, str(TASK), "add", "--title", "probe",
-             "--root", str(d), "--deliverable", "d", "--verification", "v",
-             "--summary", "Reads back the id the next add will mint.",
-             "--kr", self.STORE_KR, "--dry-run", "--json"], 'test_add_writes_the_edge'),
-            capture_output=True, text=True, cwd=ROOT)
-        return json.loads(proc.stdout)["id"]
-
-    def test_the_edge_never_survives_without_its_row(self):
-        # **Three canonical renames since TASK-262 round 4a**, measured:
-        # `tasks.jsonl`, `linkage.jsonl`, the journal. The fourth was
-        # `intake.jsonl`, which this fixture's held `## Intake` put in the set
-        # while a write built from the held board, so `n = 3` now dies before
-        # nothing and was dropped.
-        for n in range(0, 3):
-            with self.subTest(renames_before_crash=n):
-                d = self.project()
-                tid = self.next_id(d)
-                proc = self.crash_at(d, n, self.STORE_KR)
-                self.assertEqual(
-                    proc.returncode, -signal.SIGKILL,
-                    f"the child exited {proc.returncode} instead of dying — "
-                    f"the crash point was never reached, so this subtest "
-                    f"proves nothing. stderr={proc.stderr[:300]}")
-
-                row, edge = self.consistency(d, tid)
-                self.assertFalse(
-                    edge and not row,
-                    "mid-crash the store held an edge for a task "
-                    "`tasks.jsonl` does not carry")
-
-                # "The next locked Perry run." Read-only on purpose: recovery
-                # must not need a second WRITE, or a crashed tree stays broken
-                # until somebody happens to file another row.
-                rec = subprocess.run(
-                    [sys.executable, str(TASK), "list", "--root", str(d)],
-                    capture_output=True, text=True, cwd=ROOT)
-                self.assertEqual(rec.returncode, 0, rec.stderr)
-
-                row, edge = self.consistency(d, tid)
-                self.assertEqual(
-                    row, edge,
-                    f"after recovery the row and its edge disagree "
-                    f"(row={row}, edge={edge}) — the edge is a second "
-                    f"transaction that half-landed")
-
-    def test_the_marker_does_not_outlive_recovery(self):
-        d = self.project()
-        self.crash_at(d, 2, self.STORE_KR)
-        self.assertTrue((d / ".perry-task-transaction.json").exists(),
-                        "no marker after the crash — the transaction was "
-                        "never staged and the probe measured nothing")
-        subprocess.run([sys.executable, str(TASK), "list", "--root", str(d)],
-                       capture_output=True, text=True, cwd=ROOT)
-        self.assertFalse((d / ".perry-task-transaction.json").exists(),
-                         "the marker survived a locked run")
-
-    def test_a_crash_before_any_rename_writes_no_edge(self):
-        d = self.project()
-        before = len(self.records(d))
-        tid = self.next_id(d)
-        self.crash_at(d, 0, self.STORE_KR)
-        row, edge = self.consistency(d, tid)
-        self.assertFalse(edge)
-        self.assertFalse(row)
-        self.assertEqual(len(self.records(d)), before)
+        self.assertNotIn("TASK-100", [u["id"] for u in att["unlinked"]])
 
 
 class TestTheGuardsAreReached(Fixture):

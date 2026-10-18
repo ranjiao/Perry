@@ -13,9 +13,8 @@ halves are load-bearing, and each one is a different way to fake the rung:
 So this page has exactly two jobs: make the criteria exist before the agent is
 spawned, and make the verdict come back in a shape something can read.
 
-For handing work *out* see `delegate.md`; for automated end-to-end execution
-with the architecture gate see `dispatch.md`. This page is the verification
-round, which neither of those covers.
+Use `delegate.md` for handoffs and `dispatch.md` for execution and architecture
+checks. This page governs independent verification.
 
 ## Why this page exists
 
@@ -36,6 +35,11 @@ That is this repository's own recurring defect, applied to its own process:
 **a rule stated in prose that nothing implements**, and **N implementations of
 one rule**. `perry-lint --reviews` now reads the block below, which is what
 makes this page a convention rather than advice.
+
+## Native query contract
+
+Read `kernel.md` for queries, attachments, actors and expectations.
+Legacy registers do not define work state.
 
 ## 0 · Whether this row gets a round at all
 
@@ -112,7 +116,7 @@ a decision to record, not an instinct to follow.
 ## 1 · Refuse without written criteria
 
 ```
-"$PERRY_HOME/bin/perry-task" list --json     # the row's `evidence_paths`
+"$PERRY_HOME/bin/perry-kernel" query --root <project> --input @<query.json>     # the task plus attachments; see kernel.md
 ```
 
 The criteria file is what the reviewer is told to judge against — typically
@@ -327,7 +331,7 @@ round can iterate in forty seconds instead of two minutes, and a round that
 reaches for `--tier full` after every mutant has given that back.
 
 **A filed flake is not a reason to re-run everything.** Re-run the named module
-**alone** first; `bin/perry-task list --all --json` says whether a row already
+**alone** first; `bin/perry-kernel query` says whether a row already
 records it. If it passes alone, you have your attribution and you re-run the
 full suite **once**, to obtain the claim the gate needs — and you cite the row.
 On 2026-09-20 one filed flake (TASK-272) cost two full re-runs on one day, both
@@ -424,7 +428,7 @@ sequence. Six rows dispatched one at a time is six times the wall clock for the
 same verdicts, and that is how a board of `review` rows ages.
 
 ```
-"$PERRY_HOME/bin/perry-task" list --json    # `startable`, `blocked_by`
+"$PERRY_HOME/bin/perry-kernel" query --root <project> --input @<query.json>    # `startable`, `blocked_by`
 ```
 
 Before a round goes out, run the budget checkpoint in `budget-boundary.md § Budget boundary`; `OVER` sends no round.
@@ -435,14 +439,11 @@ that fits neither row.
 
 ## 5 · After the round
 
-Each verdict block drives exactly one call, and a FAIL never leaves the row at
-`review`:
-
-```
-PASS → "$PERRY_HOME/bin/perry-task" done <ID> --actor <actor> --evidence <review-doc> --rung V4
-FAIL → "$PERRY_HOME/bin/perry-task" status <ID> --actor <actor> --status in_progress \
-           --next "<what the FAIL said, and what would make it pass>"
-```
+Read `kernel.md` before recording a verdict. Attach the actual review document
+with `attach add`, with the actual reviewer identity and current expectation.
+PASS uses `item move`, transition `done`, with evidence and `verified_by` for V4.
+FAIL uses transition `start` and next_action naming the failing criteria.
+A mutation refusal or stale expectation is not a recorded verdict.
 
 `review` means *a result is out for verification*. A row whose verdict has
 arrived is no longer at `review` in either direction, and a row still sitting
@@ -452,8 +453,8 @@ there after its round returned is the defect this page was written for.
 
 **After the second FAIL on a row — two being the default limit, see the end of
 this section — you may not dispatch another round.** File the ask instead.
-`perry-lint --reviews` reports the row as `review-rounds-exhausted` until an
-open ask in `asks.jsonl` names it in `blocks`.
+Inspect attached review documents and kernel ask items; the legacy
+`perry-lint --reviews` register report cannot enforce this native-state gate.
 
 **What is counted is the criterion, not the block** (§ 3's `grade:`). A FAIL
 charged against a ROW-grade criterion is a row the round filed, and a row that
@@ -483,8 +484,8 @@ means the category is not a category — it is a fork nobody has taken.** The
 deliverable is no longer a fix, it is the choice:
 
 ```
-"$PERRY_HOME/bin/perry-task" ask --actor <actor> --needed "<A vs B, and which you recommend>" \
-                                 --blocks <TASK-ID>
+perry-kernel item create --root <project> --input @<ask.json>
+perry-kernel rel add --root <project> --input @<ask-blocks-task.json>
 ```
 
 Write it the way USER-905 was written, because that is the one that worked:

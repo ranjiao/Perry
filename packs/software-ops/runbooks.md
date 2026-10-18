@@ -57,10 +57,10 @@ When `/pmo close-task <id>` fires (see `$PERRY_HOME/work/reference/task-close.md
    - Confirm `Runbook:` field is present AND points at an existing file under `runbook/`.
    - Confirm the runbook file has all four mandatory sections (What / Healthy / Failures / Escalation) — empty placeholders count as missing.
    - Confirm `## Observability` section exists in the spec with non-empty values for the three sub-fields.
-   - **If any check fails**, refuse the close. Use `AskUserQuestion` (header = TASK-ID, options): `Add runbook now (Recommended) | Keep as review until runbook exists | Override — close without runbook (NOT recommended)`. "Override" requires a written reason that gets appended to today's journal under `## Status changes` as `runbook-override: <reason>`.
+   - **If any check fails**, refuse the close. Use `AskUserQuestion` (header = TASK-ID, options): `Add runbook now (Recommended) | Keep as review until runbook exists | Override — close without runbook (NOT recommended)`. "Override" requires the actual user's written reason in the task's close evidence document as `runbook-override: <reason>`. Attach that document with `attach add` before the closing transition; retain its path in the transition's `evidence`. Never append to `journal/`.
 3. If `Deployed: no` or field absent: proceed with the normal close flow. No runbook required.
 
-The override path exists because there are legitimate edge cases (one-off scripts, deprecation closes, runbook lives in another system). The journal annotation makes the override auditable.
+The override path exists because there are legitimate edge cases (one-off scripts, deprecation closes, runbook lives in another system). The attached close evidence and kernel attachment/transition events make the override auditable.
 
 ## `/pmo runbook-check`
 
@@ -72,14 +72,14 @@ Procedure:
    - Read header: component name, owner, last verified date.
    - Verify the four mandatory sections exist.
    - Compute days since `Last verified:` field.
-2. Grep `BOARD.md` + recent journal entries (last 30 days) for `Deployed: yes` mentions in any spec referenced by a closed/active task — these are candidate deployed components that should have a runbook.
+2. Query **all kernel tasks**, including terminal tasks, with `query` (`{"type":"task","limit":50}`), following `next_after`/`after` until `truncated` is false. Read each task's attachments with `item get` and its authored `evidence` references; inspect the referenced specs for `Deployed: yes`. Resolve document refs under the recorded state root, preserving their exact spelling. Missing or unreadable specs are an explicit inspection gap, never proof that a task is not deployed. These are candidate deployed components that should have a runbook. Do not discover current tasks from `BOARD.md` or `journal/`; legacy journal reads are supplementary dated evidence only. Read `work/reference/kernel.md` for response/error and pagination handling.
 3. **Gap detection**:
    - **Missing runbook**: a task closed with `Deployed: yes` but its referenced `runbook/<slug>.md` doesn't exist.
    - **Stale runbook**: `Last verified:` ≥ 90 days ago (or `runbook_stale_days` from hook).
    - **Incomplete runbook**: one of the four sections is empty or has only the template placeholder text.
 4. Print a 3-column table: `Component | Gap | Suggested action`.
 5. For each gap row, use `AskUserQuestion` (batch up to 4) — header = component slug, options: `Write/refresh now (Recommended) | Schedule as P1 task | Mark obsolete — component removed`.
-   - "Write/refresh now": offer to draft a runbook from spec + recent journal entries (the user reviews and edits).
+   - "Write/refresh now": offer to draft a runbook from the spec, kernel events and related attachments (the user reviews and edits).
    - "Schedule as P1": calls `add-task` with a stub spec for the runbook work.
    - "Mark obsolete": prompts for confirmation that the component is decommissioned; on confirm, moves `runbook/<slug>.md` to `runbook/archive/<slug>.md` and updates INDEX.
 6. Rebuild `runbook/INDEX.md` at the end.
@@ -152,7 +152,7 @@ When canned ops fail, the user does what:
 ## Integration with other PMO surfaces
 
 - **Standup dashboard**: when `runbook/` exists, the dashboard adds a line: `📕 Runbooks · <active> active · <stale> stale (≥90d) · <gaps> gaps`. Omit the row entirely if `runbook/` doesn't exist.
-- **`triage`**: any BOARD row whose spec has `Deployed: yes` AND status `review` AND no `Runbook:` field gets flagged in the triage table.
+- **`triage`**: any kernel task whose spec has `Deployed: yes` AND status `review` AND no `Runbook:` field gets flagged in the triage table.
 - **`mid-phase-review` / `end-phase-retro`**: each calls `runbook-check` and folds the result into its report.
 - **`/pmo incident <slug>`** (see `incidents.md`): on incident close, the 3-question gate asks "update the runbook for this component?" — incidents are the cheapest signal that the runbook is incomplete.
 - **`/pmo architecture-audit`** (see `architecture.md`): treats "no runbook for deployed component" as a structural drift line item, surfaced alongside `ARCHITECTURE.md` violations.
@@ -186,3 +186,5 @@ If the user can't operate the system without reading code that an agent wrote, t
 
 After completed writes from `runbook-check`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work runbook-check -->
+
+For current work state and closing mutations, read `$PERRY_HOME/work/reference/kernel.md`.

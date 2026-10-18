@@ -7,7 +7,7 @@ description: Perry — one virtual project office for solo or small projects. Us
 
 > *Perry runs the office. You run the project.*
 
-Perry has three internal lanes sharing project state. This tier-0 router is read on every invocation, so it keeps commands, ordering-critical steps and one pointer per subject; bodies live under `reference/`.
+Three lanes share project state. This router keeps commands, ordering gates and reference pointers; details live under `reference/`.
 
 Activate on `/perry`, on the word "Perry", on a session wanting a "where are we" overview without naming a lane, and on a user asking how Perry works. Only goal-setting → `goals`; only execution → `work`.
 
@@ -37,7 +37,10 @@ Legacy sibling skills were withdrawn to avoid host namespace collisions; `setup`
 
 Each lane's files are the ownership table below; each lane's SKILL.md carries its own subcommand index. Handled here instead of in a lane: the snapshot, `adopt`, `diagnose`, `relocate`, `help`, and writing `.perry/config.jsonl`.
 
-> **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md`, everything under `*/reference/`, everything under `packs/`, and everything under this directory's own `reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. That is routing vocabulary for the agent, not a command the user can type, so it is left as-is. Translate it only when quoting a command back to the user.
+> **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md`, everything under `*/reference/`, everything under `packs/`, and everything under this directory's own `reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. Translate that agent shorthand when quoting a user command.
+>
+> `templates/process/` contains JSON applied through the kernel, not copied
+> document scaffolds. Names use live vocabulary.
 >
 > The carve-out is defined by **who reads the file last**: exactly the pages an agent re-renders before a user sees them. It does **not** cover — `bin/`, rendered output; `*/state/*_TEMPLATE.md`, `state/*_TEMPLATE.md` and `templates/`, copied verbatim into the user's repo; `setup`, install banner; `CHANGELOG.md`/`release/`; lane frontmatter `description:`, read by the host; **this file**, `SKILL.md`; and `reference/host-capabilities.md`, which owns per-host translation and must name the live entrance.
 >

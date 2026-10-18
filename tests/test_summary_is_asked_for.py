@@ -37,6 +37,7 @@ LINT = ROOT / "bin" / "perry-lint"
 
 sys.path.insert(0, str(ROOT / "bin"))
 import lib  # noqa: E402
+from kernel_work_support import ACTOR, ready, task
 
 
 #: A summary that passes every structural rule. Used as the CONTROL throughout:
@@ -58,108 +59,42 @@ def lint(root: Path, *argv: str) -> tuple[int, str]:
     return r.returncode, r.stdout + r.stderr
 
 
-class TestAddRefusesWithoutASummary(unittest.TestCase):
-    """Part 1 of TASK-325: `add` asks, and refuses when it is not answered.
-
-    A HARD gate rather than an advisory, and the reason is measured rather than
-    preferred: `--summary` was an OPTIONAL flag on this subcommand from
-    contract 1.11 — nothing refused, nothing reported, no procedure mentioned
-    it — and it reached 25 of 114 open rows. An advisory here would re-run the
-    experiment that produced the defect.
-    """
-
-    def setUp(self):
-        self.project = Project(self)
-
-    def test_add_refuses_when_summary_is_absent(self):
-        r = add_raw(self.project.root, "--title", "a title",
-                    "--deliverable", "d", "--verification", "v")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("--summary is required", r.stdout + r.stderr)
-        # And it wrote nothing. A refusal that half-writes is worse than none.
-        self.assertFalse((self.project.root / "tasks.jsonl").exists()
-                         and json.loads(
-                             (self.project.root / "tasks.jsonl")
-                             .read_text().strip().split("\n")[0] or "{}"
-                         ).get("title") == "a title")
-
-    def test_add_refuses_a_summary_that_is_only_the_title_again(self):
-        r = add_raw(self.project.root, "--title", "the parser drops zh headers",
-                    "--summary", "The parser drops zh headers.",
-                    "--deliverable", "d", "--verification", "v")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("restates the title", r.stdout + r.stderr)
-
-    def test_add_accepts_a_fragment_and_a_value_with_no_sentence(self):
-        """The inverse of the test that stood here until TASK-330.
-
-        Until 2026-09-03 `add` refused both of these — the first on
-        `summary-is-a-fragment` ("word(s)"), the second on
-        `summary-has-no-sentence`. The user removed both rules: whether prose
-        reads like prose is the writing agent's responsibility, not a check's.
-        Kept as an assertion rather than deleted, because the writer is where
-        a reverted removal would actually bite a user.
-
-        Asserted on `"refused"` rather than on the two old refusal strings:
-        the second fixture literally CONTAINS the words "no sentence", so a
-        `assertNotIn("no sentence", ...)` fires on the accepted payload
-        echoing the summary back and reports a pass as a failure. Found by
-        this row's own mutation round.
-        """
-        for summary in ("It broke.", "a value carrying no sentence terminator"):
+class TestNativeSummaryIsRequired(unittest.TestCase):
+    def test_create_refuses_a_missing_or_blank_summary_without_an_event(self):
+        for summary in (None, "", "   "):
             with self.subTest(summary=summary):
-                r = add_raw(self.project.root, "--title", "a title",
-                            "--summary", summary,
-                            "--deliverable", "d", "--verification", "v")
-                out = r.stdout + r.stderr
-                self.assertEqual(r.returncode, 0, out)
-                self.assertNotIn("refused", out)
+                sb = ready(self)
+                before = sb.seq()
+                fields = {"title": "label", "priority": "P1", "verification": "V3"}
+                if summary is not None:
+                    fields["summary"] = summary
+                out = sb.run("item create", data={"actor": ACTOR,
+                                                  "type": "task", "fields": fields})
+                self.assertFalse(out.ok, out)
+                self.assertEqual(sb.seq(), before)
+                self.assertEqual(sb.ok("query", data={"type": "task"})["total"], 0)
 
-    def test_the_control_a_good_summary_is_accepted_and_stored(self):
-        """THE CONTROL. A gate that refuses everything satisfies every test above."""
-        r = add_raw(self.project.root, "--title", "a title",
-                    "--summary", GOOD,
-                    "--deliverable", "d", "--verification", "v")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        tid = json.loads(r.stdout)["id"]
-        rc, payload = self.project.task("list", "--all")
-        self.assertEqual(rc, 0, payload)
-        row = next(t for t in payload["tasks"] if t["id"] == tid)
-        self.assertEqual(row["summary"], GOOD)
+    def test_nonblank_prose_is_stored_without_linguistic_judgment(self):
+        sb = ready(self)
+        for summary in (GOOD, "It broke.", "a fragment", "label", "中文", "ROUND-2"):
+            with self.subTest(summary=summary):
+                tid = task(sb, title="label", summary=summary)
+                self.assertEqual(sb.get(tid)["fields"]["summary"], summary)
 
 
-class TestTheRewriteWriterHoldsTheSameLine(unittest.TestCase):
-    """`perry-task summary` refuses what `add` refuses.
-
-    Without this, `add`'s refusal is one command away from being undone and the
-    linter would report a row the tool had just accepted.
-    """
-
-    def setUp(self):
-        self.project = Project(self)
-        r = add_raw(self.project.root, "--title", "the parser drops zh headers",
-                    "--summary", GOOD, "--deliverable", "d",
-                    "--verification", "v")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.tid = json.loads(r.stdout)["id"]
-
-    def test_summary_refuses_a_second_title(self):
-        rc, out = self.project.task("summary", self.tid,
-                                    "--summary", "The parser drops zh headers.")
-        self.assertEqual(rc, 1, out)
-        self.assertIn("restates the title", str(out))
-
-    def test_clear_is_deliberately_not_gated(self):
-        """A wrong summary must stay removable.
-
-        A confidently wrong summary is worse than an empty field — the empty
-        field at least tells the reader to go and look. So `--clear` passes,
-        and the linter then reports the row, which is the honest outcome.
-        """
-        rc, out = self.project.task("summary", self.tid, "--clear")
-        self.assertEqual(rc, 0, out)
-        rc, txt = lint(self.project.root, "--summaries")
-        self.assertIn("summary-missing", txt)
+class TestNativeSummaryUpdate(unittest.TestCase):
+    def test_update_and_clear_are_explicit_and_preserve_other_fields(self):
+        sb = ready(self)
+        tid = task(sb, summary=GOOD)
+        before = sb.get(tid)["fields"]
+        for summary in ("Corrected description", None):
+            sb.ok("item update", data={"actor": ACTOR, "id": tid,
+                                       "set": {"summary": summary},
+                                       "expect": {tid: sb.get(tid)["seq"]}})
+            after = sb.get(tid)["fields"]
+            self.assertEqual(after["summary"], summary)
+            self.assertEqual({k: v for k, v in before.items() if k != "summary"},
+                             {k: v for k, v in after.items() if k != "summary"})
 
 
 class TestTheLinterReportsWhatTheWriterRefuses(unittest.TestCase):
@@ -403,7 +338,7 @@ class TestOnePlaceDefinesWhatASummaryIs(unittest.TestCase):
             "the reason each rule left is the half a constant cannot hold, and "
             "it is why the register is in the docstring at all (TASK-332)")
 
-    def test_the_writer_and_the_linter_agree_over_a_corpus(self):
+    def test_the_legacy_predicate_and_the_linter_agree_over_a_corpus(self):
         """Not 'both import it' — both ANSWER the same, over cases that differ."""
         project = Project(self)
         # The last two were refused until TASK-330 (2026-09-03) removed the
@@ -424,13 +359,13 @@ class TestOnePlaceDefinesWhatASummaryIs(unittest.TestCase):
             with self.subTest(summary=summary[:30]):
                 predicted = bool(lib.summary_shape(title, summary))
                 self.assertEqual(predicted, expect_refused)
-                argv = ["--title", title, "--deliverable", "d",
-                        "--verification", "v"]
-                if summary:
-                    argv += ["--summary", summary]
-                r = add_raw(project.root, *argv)
-                self.assertEqual(r.returncode == 1, expect_refused,
-                                 r.stdout + r.stderr)
+                (project.root / "tasks.jsonl").write_text(json.dumps({
+                    "id": "TASK-900", "title": title, "summary": summary,
+                    "status": "not_started"}) + "\n")
+                _, out = lint(project.root, "--json")
+                findings = [f for f in json.loads(out)["findings"]
+                            if f["rule"].startswith("summary-")]
+                self.assertEqual(bool(findings), expect_refused, out)
 
 
 class TestTheCheckDoesNotJudgeLanguage(unittest.TestCase):
@@ -539,11 +474,9 @@ class TestTheCheckDoesNotJudgeLanguage(unittest.TestCase):
             abs(lib.summary_tokens(fs) - lib.summary_tokens(ft)),
             lib.SUMMARY_MIN_WORDS)
 
-        # And at the writer, which is where the defect is actually felt: a real
-        # `perry-task add` of a good Chinese row must not be refused.
-        r = add_raw(Project(self).root, "--title", title, "--summary", summary,
-                    "--deliverable", "d", "--verification", "v")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        sb = ready(self)
+        tid = task(sb, title=title, summary=summary)
+        self.assertEqual(sb.get(tid)["fields"]["summary"], summary)
 
     def test_a_chinese_summary_that_does_restate_its_title_is_still_caught(self):
         """The control for the test above, and it is not optional.

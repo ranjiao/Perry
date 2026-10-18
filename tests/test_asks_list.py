@@ -40,14 +40,26 @@ class Base(M.Fixture):
                               capture_output=True, text=True, cwd=ROOT)
 
     def ask(self, d, needed, blocks="TASK-100"):
-        proc = self.tool(d, "ask", "--needed", needed, "--blocks", blocks,
-                         "--json")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        return json.loads(proc.stdout)["id"]
+        # Frozen reader input; the public legacy writer is deliberately retired.
+        from datetime import date
+        path = d / "asks.jsonl"
+        rows = [json.loads(line) for line in path.read_text().splitlines()
+                if line.strip()] if path.exists() else []
+        uid = f"USER-{len(rows) + 1:03}"
+        rows.append(dict(id=uid, needed=needed, blocks=blocks,
+                         asked=date.today().isoformat(), status="pending",
+                         answered="", order=len(rows)))
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        return uid
 
     def answer(self, d, uid, text):
-        proc = self.tool(d, "answer", uid, "--answer", text, "--actor", "user")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
+        from datetime import date
+        path = d / "asks.jsonl"
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        row = next(row for row in rows if row["id"] == uid)
+        row.update(status=f"answered {date.today().isoformat()}: {text}",
+                   answered=date.today().isoformat())
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows))
 
     def asks(self, d, *extra):
         proc = self.tool(d, "asks", "--json", *extra)

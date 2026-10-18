@@ -53,6 +53,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 import inproc  # noqa: E402
 import parsers as P  # noqa: E402
 import store_fixture  # noqa: E402
+from kernel_work_support import ACTOR, ready, task
 
 DOC = """# DESIGN-009 — a thing
 
@@ -324,174 +325,58 @@ class TestTheFieldIsDeclared(unittest.TestCase):
         self.assertEqual(good[0].get("design_refs"), None)
 
 
-class TestTheEdgeSurvivesTheNextWrite(store_fixture.StoreFixture):
-    """The edge is store-only, and `store_records` DERIVES the store from the
-    board on every mutating command.
+class TestNativeDesignAttachments(unittest.TestCase):
+    def test_attachment_survives_updates_and_close_on_either_side_of_close(self):
+        ref = "perry/design/DESIGN-009-a-thing.md"
+        for attach_after in (False, True):
+            with self.subTest(attach_after=attach_after):
+                sb = ready(self)
+                tid = task(sb)
+                if attach_after:
+                    sb.move(tid, "done", set={"evidence": "proof.md"})
+                sb.ok("attach add", data={"actor": ACTOR, "id": tid, "ref": ref})
+                attached = sb.get(tid)["attachments"]
+                self.assertTrue(any(a["ref"] == ref for a in attached), attached)
+                sb.ok("item update", data={"actor": ACTOR, "id": tid,
+                                           "set": {"title": "Clearer label"}})
+                if not attach_after:
+                    sb.move(tid, "done", set={"evidence": "proof.md"})
+                self.assertEqual(sb.get(tid)["attachments"], attached)
+                self.assertEqual(sb.get(tid)["state"], "done")
 
-    So without an explicit carry, `design_refs` would be rebuilt as `[]` by the
-    next unrelated `perry-task` call on any other row — the field would look
-    like it worked and would empty itself the first time somebody moved a
-    different task. `summary` has the same shape and the same guard beside it.
+    def test_unrelated_native_item_updates_do_not_change_an_attachment(self):
+        sb = ready(self)
+        first, second = task(sb), task(sb)
+        sb.ok("attach add", data={"actor": ACTOR, "id": first,
+                                  "ref": "perry/design/DESIGN-009-a-thing.md"})
+        before = sb.get(first)
+        sb.ok("item update", data={"actor": ACTOR, "id": second,
+                                   "set": {"next_action": "Different work"}})
+        self.assertEqual(sb.get(first), before)
 
-    This is the failure mode a test that only calls `design-link` and reads
-    back cannot see.
-    """
 
-    def perry_task(self, root, *argv):
-        # **In-process** (TASK-368). Measured in this tree before converting:
-        # 87.8% of this module is children and the boundary is 82.5% of the
-        # module. It shares `store_fixture.write_store`, which this row
-        # converted, so these two sites go with it — a module left half on
-        # `subprocess` is where TASK-402's shared-helper rounds went wrong.
-        proc = inproc.run("perry-task", task_actor.owned([*argv, "--root", str(root)], 'test_design_handoff'))
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        return proc
-
-    def refs_of(self, root, tid):
-        for line in (root / "perry" / "tasks.jsonl").read_text().splitlines():
-            if line.strip() and json.loads(line)["id"] == tid:
-                return json.loads(line).get("design_refs")
-        self.fail("%s left the store" % tid)
-
-    def test_a_whole_store_rebuild_does_not_clear_the_edge(self):
-        """**The mutation that caught the weak test beside this one.**
-
-        `perry-tasks write --from-board` re-derives EVERY record through
-        `store_records`, which is the only path where the explicit carry is
-        load-bearing. The neighbouring test cannot reach it: `commit` copies
-        every non-subject row out of the store byte-for-field, so an unrelated
-        write never rebuilds the linked row at all. Removing the carry left
-        that test green and this one red.
-        """
+class TestLegacyDesignEdgeCarry(store_fixture.StoreFixture):
+    def test_import_rebuild_preserves_the_archived_edge(self):
         root = self.project(with_store=True)
-        (root / "perry" / "design").mkdir()
-        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
-        self.perry_task(root, "design-link", "TASK-001",
-                        "--design", "DESIGN-009")
+        path = root / "perry/tasks.jsonl"
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        records[0]["design_refs"] = ["DESIGN-009"]
+        path.write_text("".join(json.dumps(r) + "\n" for r in records))
+        out = inproc.run("perry-tasks", ["write", "--from-board", "--root", str(root)])
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        after = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertEqual([r["id"] for r in after], [r["id"] for r in records])
+        self.assertEqual(after[0]["design_refs"], ["DESIGN-009"])
 
-        proc = inproc.run("perry-tasks",
-                          ["write", "--from-board", "--root", str(root)])
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"],
-                         "a store rebuild derived the record from the board "
-                         "and the board has no column for the edge")
-
-    def test_it_can_be_linked_with_the_event_log_deleted(self):
-        """**The mutation that caught the second weak test.**
-
-        `commit`'s off-board branch only fires when the projection cannot be
-        rebuilt at all. With the log present, `store_records` reconstructs a
-        terminal row from the `done` event, so the branch is never reached and
-        removing it stays green. Delete the log — which `bin/perry-task:42`
-        says is allowed at any time — and it is the only path left.
-        """
+    def test_retired_design_link_leaves_archived_history_unchanged(self):
         root = self.project(with_store=True)
-        (root / "perry" / "design").mkdir()
-        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
-        self.perry_task(root, "done", "TASK-001", "--rung", "V1",
-                        "--evidence", "evidence/x.md")
-        (root / ".perry" / "events.jsonl").write_text("")
-
-        self.perry_task(root, "design-link", "TASK-001",
-                        "--design", "DESIGN-009")
-        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"])
-
-    def test_linking_does_not_move_the_record_in_the_store(self):
-        """**Mutation M8**, the `in_place` clause.
-
-        `design_refs` is store-only metadata, so writing it must not turn a
-        one-field edit into a whole-store reorder by moving the record to the
-        last JSONL line. `summary` carries the same rule for the same reason:
-        a store whose lines reshuffle turns every write into a whole-file diff.
-        """
-        root = self.project(with_store=True)
-        (root / "perry" / "design").mkdir()
-        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
-
-        def ids():
-            return [json.loads(ln)["id"] for ln
-                    in (root / "perry" / "tasks.jsonl").read_text().splitlines()
-                    if ln.strip()]
-
-        before = ids()
-        self.assertEqual(before[0], "TASK-001", "fixture assumption")
-        self.perry_task(root, "design-link", "TASK-001",
-                        "--design", "DESIGN-009")
-        self.assertEqual(ids(), before,
-                         "the edit reordered the store; a field write is not a "
-                         "reason to move history")
-
-    def test_an_unrelated_write_does_not_clear_the_edge(self):
-        root = self.project(with_store=True)
-        (root / "perry" / "design").mkdir()
-        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
-
-        self.perry_task(root, "design-link", "TASK-001",
-                        "--design", "DESIGN-009")
-        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"])
-
-        # A write against a DIFFERENT row. Nothing about TASK-001 changed.
-        self.perry_task(root, "next", "TASK-002", "--next", "something else")
-        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"],
-                         "an unrelated write rebuilt the store from the board "
-                         "and dropped the edge")
-
-    def test_a_row_that_has_already_closed_can_still_be_linked(self):
-        """The historical case, and the one the whole row is about.
-
-        `DESIGN-001`'s six implementation rows closed months before the field
-        existed. If the writer could only reach rows still on the board, the
-        edge would be unwritable for exactly the designs whose hand-off is in
-        question. `cell_writer` refuses an off-board row on purpose; this verb
-        must not.
-        """
-        root = self.project(with_store=True)
-        (root / "perry" / "design").mkdir()
-        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
-
-        self.perry_task(root, "done", "TASK-001", "--rung", "V1",
-                        "--evidence", "evidence/x.md")
-        # The board `perry-tasks board` prints (TASK-262 round 4a): the held
-        # file is not re-rendered by `done` any more.
-        board = inproc.run("perry-tasks", ["board", "--root", str(root)]).stdout
-        self.assertIn("| TASK-002 |", board, "control: the board printed rows")
-        self.assertFalse(
-            [ln for ln in board.splitlines() if ln.startswith("| TASK-001 |")],
-            "the row must be off the board before this proves anything")
-
-        self.perry_task(root, "design-link", "TASK-001",
-                        "--design", "DESIGN-009")
-        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"])
-
-        docs = P.walk_design(root / "perry", None, project_root=root)
-        by_id = {d.id: d for d in docs}
-        self.assertEqual(by_id["DESIGN-009"].impl_refs, 1)
-
-    def test_closing_the_linked_row_does_not_clear_the_edge(self):
-        """The lifecycle event the row was FILED about. `done` removes the
-        line from `BOARD.md`; the record and its edge must remain."""
-        root = self.project(with_store=True)
-        (root / "perry" / "design").mkdir()
-        (root / "perry" / "design" / "DESIGN-009-a-thing.md").write_text(DOC)
-
-        self.perry_task(root, "design-link", "TASK-001",
-                        "--design", "DESIGN-009")
-        self.perry_task(root, "done", "TASK-001", "--rung", "V1",
-                        "--evidence", "evidence/x.md")
-
-        # The ROW, not the string: `TASK-002` still names it in `Depends on`,
-        # which is the projection doing its job, not the row surviving.
-        board = inproc.run("perry-tasks", ["board", "--root", str(root)]).stdout
-        self.assertIn("| TASK-002 |", board, "control: the board printed rows")
-        self.assertFalse(
-            [ln for ln in board.splitlines() if ln.startswith("| TASK-001 |")],
-            "the fixture must actually exercise row removal")
-        self.assertEqual(self.refs_of(root, "TASK-001"), ["DESIGN-009"])
-
-        docs = P.walk_design(root / "perry", None, project_root=root)
-        by_id = {d.id: d for d in docs}
-        self.assertEqual(by_id["DESIGN-009"].impl_refs, 1,
-                         "a closed row must still count — ae505b3's property")
+        before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+        out = inproc.run("perry-task", ["design-link", "TASK-001", "--design", "DESIGN-009",
+                                       "--root", str(root), "--json"])
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn("perry-kernel attach add", json.loads(out.stdout)["refused"])
+        self.assertEqual({str(p.relative_to(root)): p.read_bytes()
+                          for p in root.rglob("*") if p.is_file()}, before)
 
 
 if __name__ == "__main__":

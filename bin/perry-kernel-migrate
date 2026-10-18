@@ -686,6 +686,8 @@ def run_perry_task_asks(project_root: Path) -> dict:
         payload = json.loads(proc.stdout)
     except ValueError:
         payload = None
+    if proc.returncode != 0 and isinstance(payload, dict) and payload.get("refused"):
+        raise Refused(f"perry-task asks refused: {payload['refused']}")
     if proc.returncode != 0 or not isinstance(payload, dict):
         raise Refused(f"perry-task asks --all --json exited "
                       f"{proc.returncode} with no payload: "
@@ -714,11 +716,10 @@ def ask_blocks(plan: Plan, project_root: Path, state_root: Path) -> None:
     """Fill `plan.blocks_ids` from `perry-task asks --all --json`.
 
     Run only when the ask store holds a row, so a project with no asks runs
-    nothing. A pending recovery marker was refused before any read
-    (`planned`), but `perry-task` completes one before any command, reads
-    included, so one that appeared since would be written by this read. The
-    files under the state root and `.perry/` are compared before and after
-    the read, and a read that changed one stops the import. The payload
+    nothing. A pending recovery marker is refused before any read
+    (`planned`); the frozen legacy reader also refuses a marker that
+    appears after that check. Files under the state root and `.perry/`
+    are still compared across the read to detect concurrent changes. The payload
     must cover exactly the store's asks, each with its `Blocks` cell and a
     `blocks_ids` list."""
     asks = plan.stores.get("asks") or []
@@ -732,9 +733,9 @@ def ask_blocks(plan: Plan, project_root: Path, state_root: Path) -> None:
                          | {p for p in set(before) & set(after)
                             if before[p] != after[p]})
         raise Refused(f"perry-task asks changed {len(changed)} file(s) under "
-                      f"the project, the first {changed[0]}. The most likely "
-                      f"cause is a pending recovery marker, which any "
-                      f"perry-task command completes; the importer itself "
+                      f"the state root or .perry/, the first {changed[0]}. "
+                      f"The reader is frozen; inspect a concurrent writer "
+                      f"or a mismatched pre-cutover tool. The importer itself "
                       f"wrote nothing there. Stopped before the import: "
                       f"inspect the change, then run it again.",
                       {"changed": changed})

@@ -279,83 +279,6 @@ ORDINARY = {
 }
 
 
-class TestTheSubstitutionIsReportedOnEveryRegister(Base):
-    """The measured reproduction, on all three registers."""
-
-    def test_an_ordinary_write_names_every_record_it_destroys(self):
-        for key in REGISTERS:
-            with self.subTest(register=key):
-                f, staged = stage(self, key)
-                rc, out = f.run(*ORDINARY[key])
-                self.assertEqual(rc, 0, "reported, not refused:\n" + out)
-                self.assertEqual(len(staged.lost()), staged.n,
-                                 "the substitution did not land")
-                self.assertEqual(reported(out), staged.n,
-                                 "the write did not name what it destroyed:\n"
-                                 + out)
-
-    def test_the_report_names_the_lost_records_themselves(self):
-        for key in REGISTERS:
-            with self.subTest(register=key):
-                f, staged = stage(self, key)
-                _rc, out = f.run(*ORDINARY[key])
-                for ident in staged.lost():
-                    self.assertIn(str(ident), out,
-                                  f"{ident!r} was destroyed and not named")
-
-    def test_the_report_names_the_register_and_the_way_back(self):
-        for key in REGISTERS:
-            with self.subTest(register=key):
-                f, _staged = stage(self, key)
-                _rc, out = f.run(*ORDINARY[key])
-                self.assertIn(f"## {REGISTERS[key][0]}", out)
-                self.assertIn(f"perry-tasks {key}-write --from-board", out)
-                self.assertIn(".perry/events.jsonl", out)
-
-class TestTheCapIsOnTheOutputAndNeverOnTheCount(Base):
-    """More losses than the report prints. TASK-243 V4 review.
-
-    `SUBSTITUTION_RECORDS_SHOWN`'s own comment says the cap is on the output and
-    never on the count. Nothing tested it: every other board here stages at most
-    three losses, so `⚠ {len(lost)}` could be changed to `⚠ {len(shown)}` — a
-    report announcing five destroyed records when ten died — and the whole
-    module stayed green. Two smaller survivors sat in the same unreached display
-    path, the `", and N more"` tail and the past-tense verb, and all three are
-    asserted here.
-
-    Seven losses on a nine-row register: five named, two summarised, seven
-    counted.
-    """
-
-    def test_seven_losses_are_counted_seven_and_listed_five(self):
-        f = self.fixture(build_board(intake=WIDE_INTAKE), mint=("intake",))
-        self.assertEqual(len(f.records("intake.jsonl")), 9,
-                         "control: the register must be wider than the cap")
-        staged = Staged(f, "intake", 7).check(self)
-        self.assertGreater(
-            staged.n, PT.SUBSTITUTION_RECORDS_SHOWN,
-            "control: fewer losses than the cap and this test cannot tell")
-        rc, out = f.run("resolve-intake", "1", "--outcome", "dropped",
-                        "--reason", "not for us")
-        self.assertEqual(rc, 0, out)
-        lost = staged.lost()
-        self.assertEqual(len(lost), 7,
-                         "control: seven canonical records really died")
-        # The NUMBER is the whole point: a report that shortened its own count
-        # to fit the terminal is this row's defect wearing a friendlier tone.
-        self.assertEqual(reported(out), 7,
-                         "the count was shortened to the printed list:\n" + out)
-        # The LIST is capped, and the tail says how many it did not print.
-        named = [i for i in lost if str(i) in out]
-        self.assertEqual(len(named), PT.SUBSTITUTION_RECORDS_SHOWN,
-                         "the cap moved off the output")
-        self.assertIn(f", and {7 - PT.SUBSTITUTION_RECORDS_SHOWN} more", out)
-        # A real write is in the past tense. `--dry-run` asserts the other verb
-        # one class down, and nothing else asserts this one.
-        self.assertIn("did not survive", out)
-        self.assertNotIn("would not survive", out)
-
-
 class TestResolveIntakeIsInsideItsBoundAndStillReports(Base):
     """The row's own reproduction: the command that declares 0 removals.
 
@@ -370,107 +293,8 @@ class TestResolveIntakeIsInsideItsBoundAndStillReports(Base):
         PT.refuse_to_shrink("intake", Path("/nowhere/intake.jsonl"),
                             {"event": "resolve-intake"}, 32, 32)
 
-    def test_resolve_intake_reports_the_records_the_swap_destroyed(self):
-        f, staged = stage(self, "intake", n=2)
-        rc, out = f.run("resolve-intake", "1", "--outcome", "dropped",
-                        "--reason", "not for us")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(len(staged.lost()), 2)
-        self.assertEqual(reported(out), 2, out)
-
-
-class TestTheLocalizedBoardReportsTheSameWay(Base):
-    """The `zh` register, where the reviewer reproduced it on `asks.jsonl`.
-
-    The heading is `## 用户输入队列` and the store is the same file. A report
-    that resolved its heading from an English literal would be silent here.
-    """
-
-    ZH_ASKS = (
-        "| 用户输入编号 | 需要用户提供 | 阻塞 | 闲置 | 状态 |\n"
-        "|---|---|---|---|---|\n"
-        "| USER-014 | 确认预发布环境的默认值 | REL-002 | 6d | open |\n"
-        "| USER-015 | 确认灰度比例 | REL-003 | 2d | open |\n")
-
-    def board(self, asks: str) -> str:
-        return ("# 看板 — 替换\n\n## 用户输入队列\n\n" + asks
-                + "\n## P0（本周期必须完成）\n\n"
-                  "| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |\n"
-                  "|---|---|---|---|---|---|\n")
-
-    def test_a_substitution_on_the_localized_queue_is_reported(self):
-        f = self.fixture(self.board(self.ZH_ASKS), mint=("asks",))
-        before = {r["id"] for r in f.records("asks.jsonl")}
-        self.assertEqual(before, {"USER-014", "USER-015"},
-                         "control: the localized heading minted a store")
-        f.write_board(self.board(self.ZH_ASKS.replace(
-            "| USER-014 | 确认预发布环境的默认值 | REL-002 | 6d | open |\n",
-            "| USER-016 | 手改替换进来的一行 | REL-009 | 1d | open |\n")))
-        board, ops = parse(f.board_text())
-        self.assertEqual(len(S.ask_records(board, ops)), 2,
-                         "control: the count is preserved")
-        rc, out = f.run("ask", "--needed", "一条普通的新提问")
-        self.assertEqual(rc, 0, out)
-        after = {r["id"] for r in f.records("asks.jsonl")}
-        self.assertNotIn("USER-014", after,
-                         "control: the canonical record was destroyed")
-        self.assertEqual(reported(out), 1, out)
-        self.assertIn("USER-014", out)
-
 
 # ── 3. the report does not cry wolf ───────────────────────────────────────
-
-
-class TestTheReportIsSilentWhenNothingWasDestroyed(Base):
-    """A report that fires on the ordinary case is a report piped to /dev/null."""
-
-    def test_no_ordinary_command_on_an_in_sync_board_reports_anything(self):
-        f = self.fixture(build_board())
-        for argv in (("resolve-intake", "2", "--outcome", "dropped",
-                      "--reason", "no"),
-                     ("intake", "--title", "an ordinary new request"),
-                     ("ask", "--needed", "an ordinary new question"),
-                     ("risk-add", "--title", "an ordinary new risk"),
-                     ("risk-clear", "RX-001", "--reason", "done"),
-                     ("answer", "USER-002", "--answer", "csv")):
-            with self.subTest(command=argv[0]):
-                rc, out = f.run(*argv)
-                self.assertEqual(rc, 0, out)
-                self.assertEqual(reported(out), 0, out)
-
-    def test_an_intake_sweep_removes_records_and_is_not_a_finding(self):
-        """The declaration is subtracted, and the control proves it was needed.
-
-        The swept row leaves the store by identity like any other loss, so this
-        would fire on every ordinary sweep if `declared_removal` were not
-        subtracted. The control asserts `substituted_away` really does return
-        it — without that, the test would be green because nothing was lost,
-        which is the wrong reason and is indistinguishable from the right one.
-        """
-        f = self.fixture(build_board())
-        before = f.records("intake.jsonl")
-        rc, out = f.run("intake-sweep")
-        self.assertEqual(rc, 0, out)
-        after = f.records("intake.jsonl")
-        self.assertLess(len(after), len(before),
-                        "control: the sweep really removed a record")
-        self.assertEqual(
-            len(PT.substituted_away("intake", before, after)), 1,
-            "control: the swept row IS lost by identity, so this test is "
-            "about the declaration and not about an empty list")
-        self.assertEqual(reported(out), 0, "an ordinary sweep cried wolf:\n"
-                         + out)
-
-    def test_a_sweep_over_a_substitution_reports_only_the_excess(self):
-        """One legitimately swept row and two swapped ones: two unaccounted."""
-        f = self.fixture(build_board())
-        staged = Staged(f, "intake", 2).check(self)
-        rc, out = f.run("intake-sweep")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(len(staged.lost()), 3,
-                         "control: two swapped and one swept")
-        self.assertIn("declares it removes 1 record(s)", out)
-        self.assertIn("2 of them are unaccounted for", out)
 
 
 # ── 4. the identity is a multiset ─────────────────────────────────────────
@@ -491,24 +315,6 @@ class TestTheIdentityIsAMultiset(Base):
            "| 2026-08-01 | fix the login bug | — |\n"
            "| 2026-08-02 | something else | — |\n")
 
-    def test_one_of_a_duplicated_pair_deleted_by_hand_is_reported(self):
-        f = self.fixture(build_board(intake=self.DUP), mint=("intake",))
-        before = f.records("intake.jsonl")
-        ident = IDENT["intake"]
-        self.assertEqual(len(before), 3, "control: three records")
-        self.assertEqual(
-            len({ident(r) for r in before}), 2,
-            "control: the identity really does repeat, so a SET is short one")
-        f.write_board(replace_rows(f.board_text(), "Intake", 1,
-                                   FILLER["intake"]))
-        board, ops = parse(f.board_text())
-        self.assertEqual(len(S.intake_records(board, ops)), 3,
-                         "control: the count is preserved")
-        rc, out = f.run("resolve-intake", "1", "--outcome", "dropped",
-                        "--reason", "no")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(reported(out), 1,
-                         "a set-subtraction answer is 0 here:\n" + out)
 
     def test_substituted_away_matches_copy_for_copy(self):
         """Stated directly on the function, on numbers a set cannot tell apart."""
@@ -525,61 +331,18 @@ class TestTheIdentityIsAMultiset(Base):
 class TestTheLostRecordsAreRecoverable(Base):
     """A warning nobody can act on is a warning that documents a data loss."""
 
-    def test_the_event_carries_the_whole_lost_record(self):
-        f, staged = stage(self, "intake", n=2)
-        rc, out = f.run("intake", "--title", "an ordinary new request")
-        self.assertEqual(rc, 0, out)
-        events = [json.loads(l) for l in
-                  (f.root / ".perry" / "events.jsonl").read_text().split("\n")
-                  if l.strip()]
-        lost = events[-1].get("substituted")
-        self.assertEqual(len(lost or []), 2, events[-1])
-        self.assertEqual({IDENT["intake"](r) for r in lost},
-                         set(staged.lost()))
-        # Whole records, not identities: the point of the field is that the
-        # store can be rebuilt from it.
-        self.assertIn("order", lost[0])
 
-    def test_a_clean_write_leaves_no_substituted_field_on_its_event(self):
-        """Control for the test above — the field means one thing.
-
-        `intake-sweep` also fails to carry its rows forward and is accounted
-        for by the command itself, so it must not land under the same key.
-        """
-        f = self.fixture(build_board())
-        for argv in (("intake", "--title", "an ordinary new request"),
-                     ("intake-sweep",)):
-            with self.subTest(command=argv[0]):
-                self.assertEqual(f.run(*argv)[0], 0)
-                events = [json.loads(l) for l in
-                          (f.root / ".perry" / "events.jsonl"
-                           ).read_text().split("\n") if l.strip()]
-                self.assertNotIn("substituted", events[-1])
-
-    def test_the_json_payload_carries_the_report_for_a_caller_with_no_stream(self):
+    def test_frozen_json_refusal_preserves_every_substituted_record(self):
         f, staged = stage(self, "asks", n=2)
+        before = f.raw(staged.store)
         with the_write_mutates_the_held_board():
-            r = inproc.run("perry-task",
-                           task_actor.owned(["ask", "--needed", "an ordinary new question",
-                            "--json", "--root", str(f.root)], 'test_register_substitution'))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        payload = json.loads(r.stdout)["register_store"]
-        self.assertEqual(len(payload["substituted"]), staged.n)
-
-    def test_the_named_way_back_is_a_subcommand_that_exists(self):
-        """`perry-tasks intake-write --from-board`, run for real.
-
-        The refusal one function over used to name `perry-tasks tasks-write`,
-        which there is no such thing as; a report that names a command nobody
-        can run is the same defect with a friendlier tone.
-        """
-        for key in REGISTERS:
-            with self.subTest(register=key):
-                f, _staged = stage(self, key)
-                r = inproc.run("perry-tasks",
-                               [f"{key}-write", "--from-board",
-                                "--root", str(f.root)])
-                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            out = inproc.run("perry-task", task_actor.owned([
+                "ask", "--needed", "a question", "--json", "--root", str(f.root)],
+                'test_register_substitution'))
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn("read-only", json.loads(out.stdout)["refused"])
+        self.assertEqual(f.raw(staged.store), before)
+        self.assertEqual(staged.lost(), [])
 
 
 # ── 6. nothing was added to the invariant ─────────────────────────────────
@@ -600,49 +363,6 @@ class TestTheInvariantIsStillACountRule(Base):
                 with self.subTest(register=key, event=name):
                     PT.refuse_to_shrink(key, Path("/nowhere/x.jsonl"),
                                         {"event": name, "count": 0}, 7, 7)
-
-    def test_a_shrink_is_still_refused_on_the_same_board(self):
-        """The other half. The bound did not get looser while this row ran."""
-        f = self.fixture(build_board(), mint=("intake",))
-        before = f.raw("intake.jsonl")
-        rows = INTAKE_TABLE.strip().split("\n")
-        f.write_board(build_board(intake="\n".join(rows[:-1]) + "\n"))
-        board, ops = parse(f.board_text())
-        self.assertLess(len(S.intake_records(board, ops)),
-                        len(f.records("intake.jsonl")),
-                        "control: the board must derive FEWER records, or the "
-                        "invariant is not the thing being asked")
-        # Both refusal branches, on the same board: an ORDINARY write (`add`
-        # touches `## Intake` and removes nothing from it) and a DECLARED
-        # removal over its own bound. One test would leave the other branch
-        # untested and neither is the whole rule.
-        rc, out = f.run("add", "--title", "an unrelated task",
-                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                        "--deliverable", "d", "--verification", "v")
-        self.assertNotEqual(rc, 0, "an ordinary shrink was permitted:\n" + out)
-        self.assertIn("may never make a canonical store smaller", out)
-        rc, out = f.run("resolve-intake", "1", "--outcome", "dropped",
-                        "--reason", "no")
-        self.assertNotEqual(rc, 0, "a bounded shrink was permitted:\n" + out)
-        self.assertIn("removes 0 record(s)", out)
-        self.assertEqual(f.raw("intake.jsonl"), before)
-
-    def test_the_substitution_report_never_changes_the_exit_code(self):
-        for key in REGISTERS:
-            with self.subTest(register=key):
-                f, _staged = stage(self, key)
-                self.assertEqual(f.run(*ORDINARY[key])[0], 0,
-                                 "the report became a refusal")
-
-    def test_a_dry_run_previews_the_report_and_writes_nothing(self):
-        f, staged = stage(self, "intake", n=2)
-        before = f.raw("intake.jsonl")
-        rc, out = f.run("intake", "--title", "a previewed request", "--dry-run")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(reported(out), staged.n, out)
-        self.assertIn("would not survive", out)
-        self.assertEqual(f.raw("intake.jsonl"), before,
-                         "the dry run wrote the store")
 
 
 # ── 7. the identity map is complete ───────────────────────────────────────
@@ -676,6 +396,44 @@ class TestEveryRegisterHasAnIdentity(unittest.TestCase):
             PT.carry_forward_is_addressable("intake", moved, current))
         self.assertEqual(len(PT.substituted_away("intake", current, moved)), 1)
         self.assertEqual(len(PT.substituted_away("intake", current, same)), 0)
+
+
+class TestRetainedSubstitutionUnits(Base):
+    def test_identity_loss_is_computed_and_reported_without_performing_a_write(self):
+        for key in REGISTERS:
+            with self.subTest(register=key):
+                f, staged = stage(self, key)
+                lost = PT.substituted_away(key, staged.before, staged.derived)
+                self.assertEqual(len(lost), staged.n)
+                expected = {IDENT[key](r) for r in staged.before} - {IDENT[key](r) for r in staged.derived}
+                self.assertEqual({IDENT[key](r) for r in lost}, expected)
+                report = PT.substitution_report(key, f.root / staged.store, lost, 0)
+                self.assertIsNotNone(report)
+                self.assertEqual(reported(report), staged.n)
+                for ident in expected:
+                    self.assertIn(str(ident), report)
+
+    def test_retired_commands_cannot_apply_a_count_preserving_substitution(self):
+        for key in REGISTERS:
+            f, staged = stage(self, key)
+            before = f.raw(staged.store)
+            rc, out = f.run(*ORDINARY[key])
+            self.assertEqual(rc, 1, out)
+            self.assertIn("read-only", out)
+            self.assertEqual(f.raw(staged.store), before)
+            self.assertEqual(staged.lost(), [])
+
+    def test_report_caps_display_but_not_the_loss_count(self):
+        f = self.fixture(build_board(intake=WIDE_INTAKE), mint=("intake",))
+        staged = Staged(f, "intake", 7).check(self)
+        lost = PT.substituted_away("intake", staged.before, staged.derived)
+        self.assertEqual(len(lost), 7)
+        report = PT.substitution_report("intake", f.root / staged.store, lost, 0)
+        self.assertEqual(reported(report), 7)
+        for record in lost[:5]:
+            self.assertIn(record["request"], report)
+        for record in lost[5:]:
+            self.assertNotIn(record["request"], report)
 
 
 if __name__ == "__main__":

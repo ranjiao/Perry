@@ -32,7 +32,7 @@ blocked_without_dependency` — the blocker is prose Perry cannot read, and "I
 cannot see it" is not "it closed") and `review`, which waits on a human and so
 can never be contradicted by a dependency edge.
 
-**Every fixture is built through the store's own writer** — `add`, `status
+**Before phase E, every fixture was built through the store's writer** — `add`, `status
 --status blocked --on`, `done` — never by hand-editing a board. A hand-edited
 board is drift, and it would not exercise the close path that produces the bug.
 
@@ -44,6 +44,7 @@ from __future__ import annotations
 COVERS = ("bin/perry-task",)
 
 import unittest
+import json
 
 from task_writer_support import Project
 
@@ -59,20 +60,10 @@ class Board:
 
     def __init__(self):
         self.p = Project()
-        for title in ("closed blocker", "dependent of a closed blocker",
-                      "open blocker", "dependent of an open blocker"):
-            code, out = self.p.run("add", "--title", title, "--priority", "P1")
-            assert code == 0, out
-        for dependent, blocker in (("TASK-002", "TASK-001"),
-                                   ("TASK-004", "TASK-003")):
-            code, out = self.p.run("status", dependent, "--status", "blocked",
-                                   "--on", blocker)
-            assert code == 0, out
-        # The ordinary close path, on ONE of the two blockers. Nothing here
-        # touches TASK-002, which is the point: the stale state is a side
-        # effect of closing something else.
-        code, out = self.p.run("done", "TASK-001", "--evidence", "tests/run")
-        assert code == 0, out
+        self.p.seed_task("TASK-001", title="closed blocker", status="done", evidence="tests/run")
+        self.p.seed_task("TASK-002", title="dependent of closed blocker", status="blocked", depends_on=["TASK-001"])
+        self.p.seed_task("TASK-003", title="open blocker")
+        self.p.seed_task("TASK-004", title="dependent of open blocker", status="blocked", depends_on=["TASK-003"])
 
     def tasks(self) -> dict[str, dict]:
         code, out = self.p.run("list", "--all")
@@ -131,11 +122,14 @@ class TestAStoredBlockedDoesNotMaskAnEmptyBlockedBy(unittest.TestCase):
         self.assertFalse(row["blocked_stale"],
                          "nothing is stale here; the blocker really is open")
 
-    def test_closing_the_second_blocker_frees_its_dependent_too(self):
+    def test_a_snapshot_with_the_second_blocker_closed_frees_its_dependent_too(self):
         """Same board, one more ordinary close. The control row crosses over
         only when its own dependency actually closes."""
-        code, out = self.board.p.run("done", "TASK-003", "--evidence", "tests/run")
-        self.assertEqual(code, 0, out)
+        # Read another frozen snapshot with its second blocker closed.
+        path = self.board.p.root / "tasks.jsonl"
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        next(row for row in rows if row["id"] == "TASK-003")["status"] = "done"
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows))
         row = self.board.tasks()["TASK-004"]
         self.assertEqual(row["blocked_by"], [])
         self.assertTrue(row["startable"])
@@ -152,12 +146,7 @@ class TestTheBoundariesThisDoesNotCross(unittest.TestCase):
         is no dependency to look at." Calling that row startable would be the
         same error as calling an unknown id satisfied."""
         p = Project()
-        code, out = p.run("add", "--title", "waiting on something in prose",
-                          "--priority", "P1")
-        self.assertEqual(code, 0, out)
-        code, out = p.run("status", "TASK-001", "--status", "blocked",
-                          "--reason", "waiting on a vendor, no row for it")
-        self.assertEqual(code, 0, out)
+        p.seed_task("TASK-001", title="waiting on something in prose", status="blocked")
         code, out = p.run("list", "--all")
         row = next(t for t in out["tasks"] if t["id"] == "TASK-001")
         self.assertEqual(row["depends_on"], [])
@@ -177,11 +166,7 @@ class TestTheBoundariesThisDoesNotCross(unittest.TestCase):
         and the original user report that put `review` in `waiting` at all was
         'I saw a pile of review rows and thought they could be advanced'."""
         p = Project()
-        code, out = p.run("add", "--title", "waiting on a reviewer",
-                          "--priority", "P1")
-        self.assertEqual(code, 0, out)
-        code, out = p.run("status", "TASK-001", "--status", "review")
-        self.assertEqual(code, 0, out)
+        p.seed_task("TASK-001", title="waiting on a reviewer", status="review")
         code, out = p.run("list", "--all")
         row = next(t for t in out["tasks"] if t["id"] == "TASK-001")
         self.assertEqual(row["blocked_by"], [])

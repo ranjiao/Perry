@@ -33,6 +33,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from kernel_work_support import ACTOR, ready, task
+from task_writer_support import Project as LegacyProject
 from pathlib import Path
 
 
@@ -126,189 +128,6 @@ class Base(unittest.TestCase):
         return None
 
 
-class TestItMoves(Base):
-    def setUp(self):
-        super().setUp()
-        self.write(board(p2=[row("TASK-001", nxt="a long next action",
-                                 ev="evidence/x.md", ver="V4")]))
-
-    def test_the_row_moves_and_keeps_its_id(self):
-        out = self.run_tool("prioritize", "TASK-001", "--priority", "P1")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(self.section_of("TASK-001"), "P1")
-        self.assertEqual(self.task("TASK-001")["priority"], "P1")
-
-    def test_every_other_cell_survives_the_move(self):
-        """A move, not a re-file. Re-adding under a new priority would mint a
-        second id — and an id is permanent and never reissued — so the row has
-        to carry its own cells across."""
-        self.run_tool("prioritize", "TASK-001", "--priority", "P0")
-        t = self.task("TASK-001")
-        self.assertEqual(t["next_action"], "a long next action")
-        self.assertEqual(t["evidence"], "evidence/x.md")
-        self.assertEqual(t["verification"], "V4")
-        self.assertEqual(t["title"], "t")
-
-    def test_the_move_is_one_row_leaving_and_one_arriving(self):
-        before = self.read().count("TASK-001")
-        self.run_tool("prioritize", "TASK-001", "--priority", "P1")
-        self.assertEqual(before, 1)
-        self.assertEqual(self.read().count("TASK-001"), 1,
-                         "the row was copied rather than moved")
-
-    def test_it_emits_an_event_so_the_move_is_not_drift(self):
-        """The whole reason this subcommand exists. A hand edit lands with no
-        event and `perry-state § reconcile_drift` reports it as unrecorded."""
-        self.run_tool("prioritize", "TASK-001", "--priority", "P1")
-        tl = self.task("TASK-001")["timeline"]
-        self.assertTrue(tl, "no timeline")
-        last = tl[-1]
-        self.assertEqual(last["event"], "prioritize")
-        self.assertEqual((last["from"], last["to"]), ("P2", "P1"))
-
-    def test_from_and_to_are_the_section_and_the_event_says_so(self):
-        """Most events use `from`/`to` for the STATUS. A consumer that assumed
-        so would read a move as a status change, so the event carries
-        `field: section` to disambiguate without a per-event special case.
-
-        It said `priority` for one commit, while the payload's own `field` said
-        `section` — two names for one thing, which is how a reader and a writer
-        drift apart. This test failed on that change and is why it was caught.
-        """
-        self.run_tool("prioritize", "TASK-001", "--priority", "P1")
-        events = [json.loads(l) for l in
-                  (self.root / ".perry" / "events.jsonl").read_text().splitlines() if l.strip()]
-        ev = [e for e in events if e["event"] == "prioritize"][-1]
-        self.assertEqual(ev["field"], "section")
-        self.assertEqual(self.task("TASK-001")["status"], "not_started",
-                         "the status must not have moved")
-
-    def test_a_dry_run_writes_nothing(self):
-        before = (self.root / "perry" / "BOARD.md").read_bytes()
-        out = self.run_tool("prioritize", "TASK-001", "--priority", "P1",
-                            "--dry-run")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual((self.root / "perry" / "BOARD.md").read_bytes(), before)
-
-
-class TestItRefuses(Base):
-    def setUp(self):
-        super().setUp()
-        self.write(board(p2=[row("TASK-001")]))
-
-    def test_a_move_to_where_it_already_is_is_refused(self):
-        """A no-op that still emitted an event would put a move in the timeline
-        that did not happen, and the timeline is what `list` reports as
-        history."""
-        out = self.run_tool("prioritize", "TASK-001", "--priority", "P2")
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("already under", out.stderr)
-
-    def test_naming_no_destination_is_refused(self):
-        out = self.run_tool("prioritize", "TASK-001")
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("--priority", out.stderr)
-
-    def test_an_unknown_priority_is_refused(self):
-        out = self.run_tool("prioritize", "TASK-001", "--priority", "URGENT")
-        self.assertEqual(out.returncode, 1)
-
-    def test_a_row_that_is_not_on_the_board_is_refused(self):
-        out = self.run_tool("prioritize", "TASK-999", "--priority", "P1")
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("TASK-999", out.stderr)
-
-    def test_a_refusal_writes_nothing(self):
-        before = (self.root / "perry" / "BOARD.md").read_bytes()
-        self.run_tool("prioritize", "TASK-001", "--priority", "P2")
-        self.run_tool("prioritize", "TASK-999", "--priority", "P1")
-        self.assertEqual((self.root / "perry" / "BOARD.md").read_bytes(), before)
-
-
-class TestTheIndexIsCheckedBeforeAnythingIsDeleted(Base):
-    """`remove_row` pops by index without looking at what it pops.
-
-    The index is computed before the destination is widened, so its validity
-    is an assumption about two other functions — `ensure_columns` and
-    `ensure_section_columns` — held across a call, guarding the one operation
-    on this board that deletes a line. Today they rewrite in place and never
-    insert, so it holds. A widener that ever grew to insert a row would
-    silently delete somebody else's task and append this one, and **both
-    boards would still parse**.
-
-    This class exists because the mutation written to prove the *ordering*
-    came back green: the ordering genuinely does not matter, because `values`
-    is extracted before either call. The invariant that does matter is this
-    one, and it was invisible until the mutation failed to find anything.
-    """
-
-    def test_a_widener_that_inserts_is_refused_and_deletes_nothing(self):
-        """Simulated by inserting a line above the row between locate and
-        remove — which is exactly what a future `ensure_columns` that grew an
-        insert would do."""
-        self.write(board(p2=[row("TASK-001"), row("TASK-002")]))
-        text = self.read()
-        # The guard reads `board.lines[idx]`; shift the board by one line under
-        # it by making the widener's own section grow. `--group` on a heading
-        # that does not exist is refused earlier, so drive it through the code
-        # rather than the CLI.
-        env = dict(os.environ, PERRY_HOME=str(PERRY_HOME))
-        probe = (
-            "import sys; sys.path.insert(0, %r); sys.path.insert(0, %r)\n"
-            "import importlib.machinery as m\n"
-            "t = m.SourceFileLoader('t', %r).load_module()\n"
-            "orig = t.widen_target_section\n"
-            "def sneaky(board, priority, group, values):\n"
-            "    orig(board, priority, group, values)\n"
-            "    board.lines.insert(0, '')   # a widener that inserts\n"
-            "t.widen_target_section = sneaky\n"
-            "sys.exit(t.main(['prioritize','--actor','prioritize-crash-probe','TASK-002','--priority','P1',"
-            "'--root', %r]))\n"
-        ) % (str(PERRY_HOME / "viewer"), str(PERRY_HOME / "bin"), str(TOOL),
-             str(self.root))
-        out = subprocess.run(task_actor.command([sys.executable, "-c", probe], 'test_prioritize'),
-                             capture_output=True, text=True, env=env)
-        self.assertIn("shifted under the write", out.stdout + out.stderr)
-        self.assertEqual(self.read(), text, "a refusal wrote to the board")
-
-
-class TestWideningReachesTheDestination(Base):
-    """A narrow destination gains the columns the row needs.
-
-    Not about ordering — see the class above for why that turned out not to be
-    the invariant. This is about the widening happening at all: without it the
-    row is appended against a header that never gained the column, and
-    whichever cell only the source carried is dropped with no error anywhere.
-    """
-
-    def setUp(self):
-        super().setUp()
-        narrow = ["ID", "Title", "Owner", "Status"]
-        self.write("\n".join([
-            "# Board", "",
-            "## P0", "", T.render_row(narrow), "|" + "---|" * len(narrow), "",
-            "## P2", "", T.render_row(HEADER), SEP,
-            row("TASK-001", nxt="must survive", ev="evidence/y.md", ver="V3"), "",
-            "## Cadence", "",
-            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |",
-            "|---|---|---|---|---|---|", "",
-            "## User Input Queue", "",
-            "| ID | Needed from user | Blocks | Asked | Status |",
-            "|---|---|---|---|---|", "",
-            "## Top risks", "",
-            "| ID | Risk | Opened | Severity | Cleared |",
-            "|---|---|---|---|---|", "",
-        ]))
-
-    def test_the_narrow_destination_gains_the_columns_and_no_cell_is_lost(self):
-        out = self.run_tool("prioritize", "TASK-001", "--priority", "P0")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        t = self.task("TASK-001")
-        self.assertEqual(t["next_action"], "must survive")
-        self.assertEqual(t["evidence"], "evidence/y.md")
-        self.assertEqual(t["verification"], "V3")
-
-
 class TestTheEventIsPartOfTheDeclaredSet(unittest.TestCase):
     def test_prioritize_is_a_task_event_not_a_section_event(self):
         """`TASK_EVENTS` and `SECTION_EVENTS` are asserted to be a partition of
@@ -332,88 +151,6 @@ class TestTheEventIsPartOfTheDeclaredSet(unittest.TestCase):
         self.assertIn("prioritize",
                       {s["name"] for s
                        in inproc.load("perry-task").SURFACE["subcommands"]})
-
-
-
-
-class TestAClosedRowKeepsThePriorityItWasMovedTo(Base):
-    """A row that has left the board is folded back together from events.
-
-    `cmd_list` rebuilds a closed row with
-    `t["priority"] = e.get("priority") or t["priority"]` — there are no cells
-    left to read. The `prioritize` event therefore has to carry `priority` and
-    `group` the way `add` and `route` do, or the fold silently keeps the `add`
-    event's value and the payload reports a priority the row's **own timeline**,
-    two lines above, says it moved away from.
-
-    Found by running the lifecycle end to end rather than by reading the code.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.write(board(p1=[row("TASK-001")]))
-
-    def test_the_closed_row_reports_where_it_was_moved_to(self):
-        self.run_tool("prioritize", "TASK-001", "--priority", "P0")
-        (self.root / "perry" / "evidence").mkdir(parents=True, exist_ok=True)
-        (self.root / "perry" / "evidence" / "e.md").write_text("x", encoding="utf-8")
-        out = self.run_tool("done", "TASK-001", "--evidence", "evidence/e.md",
-                            "--rung", "V3")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        t = self.task("TASK-001")
-        self.assertFalse(t["open"], "the row should have left the board")
-        self.assertEqual(t["priority"], "P0")
-
-    def test_the_field_never_disagrees_with_its_own_timeline(self):
-        """The check that would have caught it without knowing the mechanism."""
-        self.run_tool("prioritize", "TASK-001", "--priority", "P0")
-        (self.root / "perry" / "evidence").mkdir(parents=True, exist_ok=True)
-        (self.root / "perry" / "evidence" / "e.md").write_text("x", encoding="utf-8")
-        self.run_tool("done", "TASK-001", "--evidence", "evidence/e.md",
-                      "--rung", "V3")
-        t = self.task("TASK-001")
-        moves = [e for e in t["timeline"] if e["event"] == "prioritize"]
-        self.assertTrue(moves)
-        self.assertEqual(t["priority"], moves[-1]["to"],
-                         "the payload disagrees with its own timeline")
-
-
-class TestARungPassedAsTheCheckIsRefused(Base):
-    """`--verification` and `--rung` share a word and mean different things.
-
-    `--verification` is the falsifiable **check** a rung is graded against;
-    `--rung` is the rung, and the cell the board shows. Passing the rung to the
-    first was accepted silently, filing `"V4"` as though it were a check — the
-    mistake was made while opening six rows on Perry's own board the night this
-    guard was written.
-
-    The guard is the **category** — any value that is nothing but a rung token —
-    not the one spelling that happened to bite.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.write(board())
-
-    def test_every_rung_token_is_refused_as_a_check(self):
-        for rung in ("V0", "V1", "V2", "V3", "V4", "V5", "V6", "  V4  "):
-            out = self.run_tool("add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-                                "--verification", rung, "--priority", "P1")
-            self.assertEqual(out.returncode, 1, f"{rung!r} was accepted")
-            self.assertIn("is a rung, not a check", out.stderr)
-
-    def test_the_refusal_names_the_flag_that_would_have_worked(self):
-        out = self.run_tool("add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-                            "--verification", "V4", "--priority", "P1")
-        self.assertIn("--rung V4", out.stderr)
-
-    def test_a_real_check_that_merely_mentions_a_rung_is_accepted(self):
-        """Prose is not a rung token. A guard that matched a substring would
-        refuse the most natural check anyone would write."""
-        out = self.run_tool("add", "--title", "t", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-                            "--verification", "V4 review by a fresh reviewer",
-                            "--rung", "V4", "--priority", "P1")
-        self.assertEqual(out.returncode, 0, out.stderr)
 
 
 class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
@@ -547,120 +284,70 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
                          "a prefix the handed-in store carries was warned "
                          "about")
 
-    def test_the_docs_rebuttal_counts_what_the_map_holds(self):
-        """The contract doc states a COUNT, and nothing checked it.
 
-        aiMark's round-2 report proposed `field: "status"` on every event
-        except `prioritize`. Two paragraphs of `schema/task-list-contract.md`
-        rebut that, and both said it would be false for three events —
-        `retitle`, `next`, `rung`. It is now false for **seven**: those three
-        plus `stage`, `summary`, `evidence` and `depends`.
+class TestNativePriorityChange(unittest.TestCase):
+    def test_priority_changes_alone_without_moving_state_relations_or_attachments(self):
+        sb = ready(self)
+        parent, tid = task(sb), task(sb, priority="P2")
+        sb.ok("rel add", data={"actor": ACTOR, "kind": "parent", "from": parent, "to": tid})
+        sb.ok("attach add", data={"actor": ACTOR, "id": tid, "ref": "evidence/spec.md"})
+        before = sb.get(tid)
+        sb.ok("item update", data={"actor": ACTOR, "id": tid,
+            "set": {"priority": "P0"}, "expect": {tid: before["seq"]}})
+        after = sb.get(tid)
+        self.assertEqual(after["fields"]["priority"], "P0")
+        self.assertEqual(after["state"], before["state"])
+        self.assertEqual(after["relations"], before["relations"])
+        self.assertEqual(after["attachments"], before["attachments"])
+        self.assertEqual({k: v for k, v in after["fields"].items() if k != "priority"},
+                         {k: v for k, v in before["fields"].items() if k != "priority"})
+        self.assertEqual(sb.events()[-1]["changes"],
+                         [{"key": "field:priority", "before": "P2", "after": "P0"}])
 
-        The `1.7` paragraph enumerates all seven non-`status` fields two
-        sentences before claiming three would be wrong, so the doc contradicted
-        itself inside one paragraph. The test above covers the map's KEYS
-        against the writer's event set, and a prose number is not a key — which
-        is why an assertion sitting six lines away did not catch it.
+    def test_invalid_priority_and_stale_write_do_not_change_priority(self):
+        sb = ready(self)
+        tid = task(sb)
+        seq = sb.get(tid)["seq"]
+        sb.ok("item update", data={"actor": ACTOR, "id": tid, "set": {"title": "changed"}})
+        before = sb.seq()
+        for fields, expect in (({"priority": "P3"}, {}), ({"priority": "P0"}, {tid: seq})):
+            out = sb.run("item update", data={"actor": ACTOR, "id": tid, "set": fields, "expect": expect})
+            self.assertFalse(out.ok, out)
+            self.assertEqual(sb.seq(), before)
+            self.assertEqual(sb.get(tid)["fields"]["priority"], "P1")
 
-        A number in prose that restates a data structure is the same defect as
-        a rule in prose that nothing implements. This binds them, in both
-        copies, by name and not only by count.
-        """
-        mislabelled = sorted(e for e, f in self.mod.EVENT_FIELD.items()
-                             if f != "status" and e != "prioritize")
-        doc = (TOOL.parent.parent / "schema"
-               / "task-list-contract.md").read_text(encoding="utf-8")
-        # The TOTAL is read out of the prose too, rather than pinned in this
-        # regex. It was `of the fourteen`, hardcoded here — so the day a
-        # fifteenth task event landed, the doc could be corrected to say
-        # `fifteen` and this test would stop matching altogether and pass by
-        # finding nothing. A number in prose that restates a data structure is
-        # the defect this test exists for; leaving one of the two numbers
-        # outside its reach reintroduced it in the guard.
-        claims = re.findall(
-            r"proposed `status` for everything except `prioritize`;.*?"
-            r"\*\*(\w+)\*\* of the (\w+) — (.*?) — and a wrong word",
-            doc, re.S)
-        self.assertEqual(len(claims), 2,
-                         "the rebuttal is stated twice; both must be checked")
-        words = {"three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
-                 "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
-                 "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
-                 "sixteen": 16, "seventeen": 17, "eighteen": 18}
-        for word, total, listed in claims:
-            self.assertEqual(
-                words.get(word), len(mislabelled),
-                f"doc says {word!r}, EVENT_FIELD says {len(mislabelled)}: "
-                f"{mislabelled}")
-            self.assertEqual(
-                words.get(total), len(self.mod.TASK_EVENTS),
-                f"doc says the writer has {total!r} task events; TASK_EVENTS "
-                f"holds {len(self.mod.TASK_EVENTS)}")
-            # `-` as well as `_`: `design-link` (TASK-139) is the first task
-            # event whose name is hyphenated, and a pattern that cannot spell
-            # it would drop it from the doc side and compare a short list to a
-            # short list — the guard passing because it cannot see the entry.
-            self.assertEqual(sorted(re.findall(r"`([a-z_-]+)`", listed)),
-                             mislabelled,
-                             "the doc names different events than the map")
-
-    def test_the_stored_event_says_the_same_word_the_payload_does(self):
-        """`cmd_prioritize` writes `field` into the event too. Two names for one
-        thing is how the reader and the writer drift apart — it said `priority`
-        while the payload said `section` for one commit."""
-        src = TOOL.read_text(encoding="utf-8")
-        self.assertIn('"field": "section"', src)
-        self.assertNotIn('"field": "priority"', src)
+    def test_terminal_priority_is_correctable_without_reopening(self):
+        sb = ready(self)
+        tid = task(sb)
+        sb.move(tid, "done", set={"evidence": "proof.md"})
+        sb.ok("item update", data={"actor": ACTOR, "id": tid, "set": {"priority": "P2"}})
+        self.assertEqual(sb.get(tid)["fields"]["priority"], "P2")
+        self.assertEqual(sb.get(tid)["state"], "done")
 
 
-class TestClosingWithoutStartingIsVisible(Base):
-    """`DESIGN-004 § 1.3`'s second question is "what is being worked on right
-    now", and the event log exists to answer it.
+class TestLegacyPriorityRead(unittest.TestCase):
+    def test_store_priority_and_historical_event_field_still_agree(self):
+        p = LegacyProject()
+        p.seed_task("TASK-001", priority="P0")
+        (p.root / ".perry/events.jsonl").write_text(json.dumps({"event": "prioritize",
+            "id": "TASK-001", "from": "P1", "to": "P0", "ts": "2026-09-01T00:00:00Z"}) + "\n")
+        code, out = p.run("list", "--all")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["tasks"][0]["priority"], "P0")
+        code, out = p.run("events", "--limit", "10")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["events"][0]["field"], "section")
+        self.assertEqual((out["events"][0]["from"], out["events"][0]["to"]), ("P1", "P0"))
 
-    Measured on Perry's own log while this was written: **56 rows closed, 54
-    of them with no `start` event.** For an entire working session the board
-    could not answer that question about any row — reproducing, by the tool's
-    own author, the failure the design doc describes: *"the board said
-    `in_progress` when an agent remembered to write it."*
-
-    A **warning, not a refusal**: work genuinely done in one sitting is
-    honestly `add → done`, and refusing that would teach people to write a
-    `start` they do not mean. What it buys is that the omission is visible at
-    the moment it is made rather than discoverable by counting events later.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.write(board(p1=[row("TASK-001")]))
-
-    def test_closing_an_unstarted_row_says_so(self):
-        out = self.run_tool("done", "TASK-001", "--evidence", "e.md",
-                            "--rung", "V2")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("without ever being", out.stderr)
-        self.assertIn("start", out.stderr)
-
-    def test_closing_a_started_row_says_nothing(self):
-        self.run_tool("start", "TASK-001")
-        out = self.run_tool("done", "TASK-001", "--evidence", "e.md",
-                            "--rung", "V2")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertNotIn("without ever being", out.stderr)
-
-    def test_it_warns_and_does_not_refuse(self):
-        """The row must still close. A guard that blocked the close would be
-        worse than the gap it reports."""
-        out = self.run_tool("done", "TASK-001", "--evidence", "e.md",
-                            "--rung", "V2")
-        self.assertEqual(out.returncode, 0)
-        self.assertNotIn("TASK-001", self.read())
-
-    def test_the_payload_carries_it_so_a_front_end_can_show_it(self):
-        out = self.run_tool("done", "TASK-001", "--evidence", "e.md",
-                            "--rung", "V2", "--json")
-        self.assertFalse(json.loads(out.stdout)["was_started"])
-        self.assertNotIn("without ever being", out.stderr,
-                         "--json must keep stderr quiet")
+    def test_retired_prioritize_keeps_the_store_and_journal_unchanged(self):
+        p = LegacyProject()
+        p.seed_task("TASK-001", priority="P1")
+        before = {str(f.relative_to(p.root)): f.read_bytes() for f in p.root.rglob("*") if f.is_file()}
+        code, out = p.run("prioritize", "TASK-001", "--priority", "P0")
+        self.assertEqual(code, 1, out)
+        self.assertIn("perry-kernel item update", out["refused"])
+        self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                          for f in p.root.rglob("*") if f.is_file()}, before)
 
 
 if __name__ == "__main__":

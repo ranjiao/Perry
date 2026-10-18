@@ -162,10 +162,7 @@ MENTIONS = {
     # `perry-task resolve-intake {n + 1}`, both sentences of `perry-lint`'s
     # held-board drift findings (`check_risk_store_drift`,
     # `check_intake_store_drift`), which were deleted with the comparison.
-    ("bin/perry-task", "perry-task next"):
-        "“put the explanation in --reason or `perry-task next`, and name the "
-        "handle here” — `next` names the FIELD the prose belongs in. There is "
-        "no line to copy: the phrase has neither an id nor a value.",
+
 }
 
 #: How many paste-able writer phrases `bin/` holds. **This number is the
@@ -263,7 +260,7 @@ MENTIONS = {
 #: `cmd_kr_revise`'s refusal of a restate that names no field. The verb's other
 #: hand-backs end in a metavariable (`<KR-ID>`, `…`) and are not paste-able;
 #: they carry the root anyway.
-PASTEABLE_WRITER_PHRASES = 58
+PASTEABLE_WRITER_PHRASES = 44  # phase E retires fourteen legacy writer phrases
 
 
 def _load(path: Path):
@@ -565,25 +562,23 @@ class TestWhichSubcommandsWrite(unittest.TestCase):
         disagree = {k for k in declared if declared[k] != reached.get(k)}
         self.assertEqual(
             disagree,
-            # `cell_writer(field, flag, …)` builds these three as closures, so
-            # there is no function body for the walk to enter: under-reported.
-            {"evidence", "retitle", "rung"}
-            # This one reaches a write through a helper it shares with the
-            # writers and does not perform one: over-reported. `list` was the
-            # second until TASK-262 round 4b: its read built a `Board` over a
-            # held file, whose refusals the walk counted; a read builds none.
-            | {"next"},
-            "the call-graph derivation's error set has changed. It is the only "
-            "answer available for perry-goals, perry-decide and "
-            "perry-knowledge, so a change here is a change in what this "
-            "module can claim about those three")
+            # The dispatch bodies remain until phase H, but main refuses all
+            # legacy writes before dispatch. This syntactic walk deliberately
+            # cannot prove that control flow. Hold its error set explicitly;
+            # test_kernel_work_cutover executes every retired public verb.
+            {"add", "start", "status", "done", "drop", "depends", "ask",
+             "answer", "risk-add", "risk-clear", "risk-migrate", "intake",
+             "resolve-intake", "intake-sweep", "route", "stage", "track",
+             "cadence-add", "cadence-done", "summary", "prioritize",
+             "purge", "design-link"})
+
 
     def test_the_declaration_is_preferred_where_there_is_one(self):
         writes, _valued = write_table()
         self.assertFalse(writes[("perry-task", "list")],
                          "`list` reaches a write through a shared helper and "
                          "declares none; the declaration has to win")
-        self.assertTrue(writes[("perry-task", "rung")],
+        self.assertFalse(writes[("perry-task", "rung")],
                         "`rung` is a cell_writer closure the walk cannot "
                         "enter; the declaration has to win")
 
@@ -643,7 +638,7 @@ class TestEveryWriterHandBackCarriesTheRoot(unittest.TestCase):
         # entries excused (see `MENTIONS`). Renamed from
         # `test_the_five_mentions_are_the_only_exemptions`.
         self.assertEqual(
-            3, len(MENTIONS),
+            2, len(MENTIONS),
             "MENTIONS is the judgement this module does NOT make in code. It "
             "is meant to stay small enough to read; growing it is how a rule "
             "becomes a suggestion")

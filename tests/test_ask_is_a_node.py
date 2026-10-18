@@ -47,6 +47,8 @@ COVERS = (
 )
 
 import unittest
+import json
+from kernel_work_support import ACTOR, ready, task as native_task
 
 from task_writer_support import PT, PERRY_HOME, Project
 
@@ -100,25 +102,26 @@ def task(project: Project, tid: str) -> dict:
     return next(t for t in payload(project)["tasks"] if t["id"] == tid)
 
 
-def blocked_on_an_ask() -> Project:
-    """One task, one ask that blocks it, and the edge declared both ways.
+def task_snapshot(project, **fields):
+    path = project.root / "tasks.jsonl"
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    rows[0].update(fields)
+    path.write_text(PT.perry_store.store_text(rows))
 
-    Built through the tool's own writers — `ask --blocks` for the queue side,
-    `status --on` for the task side — because the disagreement this fixes was
-    between two of those writers' outputs, and a hand-written board would not
-    reproduce it.
-    """
+
+def ask_snapshot(project, answered=False):
+    (project.root / "asks.jsonl").write_text(json.dumps({
+        "id": "USER-001", "needed": "hand the prompt to an agent and paste back",
+        "blocks": "TASK-001", "status": "answered" if answered else "pending",
+        "answer": "here is the pasted result" if answered else "", "order": 0}) + "\n")
+
+
+def blocked_on_an_ask() -> Project:
+    """Archived input for the retained dependency reader; native writes below."""
     project = Project()
-    code, out = project.run("add", "--title", "waits on a paste-back",
-                            "--priority", "P1")
-    assert code == 0, out
-    code, out = project.run("ask", "--needed", "hand the prompt to an agent "
-                            "and paste the result back", "--blocks", "TASK-001")
-    assert code == 0, out
-    assert out["id"] == "USER-001", out
-    code, out = project.run("status", "TASK-001", "--status", "blocked",
-                            "--on", "USER-001")
-    assert code == 0, out
+    project.seed_task("TASK-001", title="waits on a paste-back", status="blocked",
+                      depends_on=["USER-001"])
+    ask_snapshot(project)
     return project
 
 
@@ -148,14 +151,17 @@ class TestTheLiveShapeStopsBeingAFinding(unittest.TestCase):
         self.assertEqual(task(self.project, "TASK-001")["depends_on"],
                          ["USER-001"])
 
-    def test_the_writer_still_accepts_the_shape_it_documents(self):
-        """`depends --on USER-nnn` is the shape the refusal-free path names.
-        The other available answer to TASK-162 was to refuse it here."""
-        code, out = self.project.run("depends", "TASK-001", "--clear")
-        self.assertEqual(code, 0, out)
-        code, out = self.project.run("depends", "TASK-001", "--on", "USER-001")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["depends_on"], ["USER-001"])
+    def test_native_ask_blocks_until_answered_and_relation_remains(self):
+        sb = ready(self)
+        ask = sb.create("ask", fields={"question": "Which direction?"})
+        tid = native_task(sb)
+        sb.ok("rel add", data={"actor": ACTOR, "kind": "blocks", "from": ask, "to": tid})
+        self.assertEqual(sb.get(tid)["blocked_by"], [ask])
+        self.assertFalse(sb.get(tid)["startable"])
+        sb.move(ask, "answer", set={"answer": "This direction"})
+        self.assertEqual(sb.get(tid)["blocked_by"], [])
+        self.assertTrue(sb.get(tid)["startable"])
+        self.assertEqual(sb.get(tid)["relations"], [{"kind": "blocks", "from": ask, "to": tid}])
 
 
 class TestAGenuinelyUnknownIdIsStillReported(unittest.TestCase):
@@ -169,9 +175,7 @@ class TestAGenuinelyUnknownIdIsStillReported(unittest.TestCase):
         self.project = blocked_on_an_ask()
 
     def test_an_unknown_task_id_reaches_depends_on_unknown(self):
-        code, out = self.project.run("depends", "TASK-001",
-                                     "--on", f"USER-001, {UNKNOWN_TASK}")
-        self.assertEqual(code, 0, out)
+        task_snapshot(self.project, depends_on=["USER-001", UNKNOWN_TASK])
         conformance = payload(self.project)["conformance"]
         self.assertEqual(conformance["depends_on_unknown"],
                          [{"id": "TASK-001", "unknown": [UNKNOWN_TASK]}],
@@ -182,9 +186,7 @@ class TestAGenuinelyUnknownIdIsStillReported(unittest.TestCase):
         """The register resolves the asks this project ISSUED, not the shape of
         the id. `UNMINTED_ASK` was never minted and nothing can ever answer
         it, so the ask family gets no blanket pass from the queue existing."""
-        code, out = self.project.run("depends", "TASK-001",
-                                     "--on", UNMINTED_ASK)
-        self.assertEqual(code, 0, out)
+        task_snapshot(self.project, depends_on=[UNMINTED_ASK])
         conformance = payload(self.project)["conformance"]
         self.assertEqual(conformance["depends_on_unknown"],
                          [{"id": "TASK-001", "unknown": [UNMINTED_ASK]}])
@@ -197,11 +199,8 @@ class TestAGenuinelyUnknownIdIsStillReported(unittest.TestCase):
         handle Perry cannot resolve — the behaviour this repository shipped
         before TASK-162, unchanged for the projects that never ask anything."""
         project = Project(board=NO_QUEUE_BOARD)
-        code, out = project.run("add", "--title", "waits on nothing readable",
-                                "--priority", "P1")
-        self.assertEqual(code, 0, out)
-        code, out = project.run("depends", "TASK-001", "--on", "USER-001")
-        self.assertEqual(code, 0, out)
+        project.seed_task("TASK-001", title="waits on nothing readable",
+                          depends_on=["USER-001"])
         self.assertEqual(payload(project)["conformance"]["depends_on_unknown"],
                          [{"id": "TASK-001", "unknown": ["USER-001"]}])
 
@@ -233,9 +232,7 @@ class TestAnsweredSatisfiesTheEdgeAndPendingDoesNot(unittest.TestCase):
                          "question is still open")
 
     def test_an_answered_ask_satisfies_it(self):
-        code, out = self.project.run("answer", "USER-001",
-                                     "--answer", "here is the pasted result")
-        self.assertEqual(code, 0, out)
+        ask_snapshot(self.project, answered=True)
         row, aggregate = self.pair()
         self.assertEqual(row["blocked_by"], [],
                          "an answered ask is terminal, exactly as a closed "
@@ -249,8 +246,7 @@ class TestAnsweredSatisfiesTheEdgeAndPendingDoesNot(unittest.TestCase):
         """1.12's rule, unchanged by 1.14: `list` reports, it does not rewrite
         a cell nobody asked it to rewrite. The row still reads `blocked` and
         `blocked_stale` is how a reader learns the cell is out of date."""
-        code, out = self.project.run("answer", "USER-001", "--answer", "done")
-        self.assertEqual(code, 0, out)
+        ask_snapshot(self.project, answered=True)
         self.assertEqual(task(self.project, "TASK-001")["status"], "blocked")
 
     def test_the_row_is_in_neither_conformance_array_in_either_state(self):
@@ -261,8 +257,7 @@ class TestAnsweredSatisfiesTheEdgeAndPendingDoesNot(unittest.TestCase):
             conformance = payload(self.project)["conformance"]
             self.assertEqual(conformance["depends_on_unknown"], [])
             self.assertEqual(conformance["blocked_without_dependency"], [])
-        code, out = self.project.run("answer", "USER-001", "--answer", "done")
-        self.assertEqual(code, 0, out)
+        ask_snapshot(self.project, answered=True)
         conformance = payload(self.project)["conformance"]
         self.assertEqual(conformance["depends_on_unknown"], [])
         self.assertEqual(conformance["blocked_without_dependency"], [])

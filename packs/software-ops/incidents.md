@@ -40,7 +40,7 @@ Naming: ISO date + 1–3 word slug. Examples: `2026-05-12-deploy-stuck.md`, `202
 2. If file exists already today with that slug, prompt: `Append to existing | Make new with -2 suffix | Cancel`.
 3. Create file from `$PERRY_HOME/work/state/incident_TEMPLATE.md`. Pre-fill: date, slug, status `open`, opened-by `user` or `pmo`.
 4. Ask the user to fill the **Symptom** field via free-text prompt (the only mandatory at-open field). Everything else can be filled later.
-5. Append a one-line entry to today's journal under `## Notes`: `Incident opened: <slug> (<symptom one-liner>)`.
+5. Record the dated opening and symptom in the incident document. Attach its path to any related kernel task using `attach add`; the resulting event records that attachment. Do not append to `journal/`.
 6. Update `incidents/INDEX.md`.
 7. If a runbook exists for the affected component, **print its "Common failures + canned ops" section verbatim** as the next step. This is the first place the user should look.
 
@@ -81,7 +81,7 @@ This is where the feedback loop lives. Refuse the close until all three question
    ```
 
 4. Flip incident status to `resolved`. Update `incidents/INDEX.md` with the derived-change ID(s).
-5. Append a `## Notes` line to today's journal: `Incident <slug> resolved · root cause: <one-line> · derived: <list of changes>`. Incident state is not task state, so it does not belong in the `perry-task`-owned status section.
+5. Record the resolution date, root cause and derived task IDs in the incident document. Attach it to the derived kernel tasks using `attach add`; use kernel `events` for task history. Do not append to `journal/`.
 
 The 3-question gate is intentionally noisy. Skipping all three with reasons is allowed — but each skip is a recorded choice, which means a pattern of "skipped — too narrow" across many incidents becomes visible in `mid-phase-review`.
 
@@ -170,3 +170,5 @@ That recorded "without" is what makes the next mid-phase review honest. If the s
 
 After completed writes from `incident`, `incident close`, `incident archive`, follow [the shared closing step](../../reference/next.md#closing-step); its skip rules apply.
 <!-- next-close: work incident --> <!-- next-close: work incident close --> <!-- next-close: work incident archive -->
+
+For current work state and closing mutations, read `$PERRY_HOME/work/reference/kernel.md`.

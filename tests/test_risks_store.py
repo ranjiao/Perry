@@ -329,7 +329,7 @@ class TestTheReadersAreOneFunction(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         rc, out = p.run("risk-clear", "RX-001", "--reason", "again")
         self.assertEqual(rc, 1)
-        self.assertIn("already cleared", json.dumps(out))
+        self.assertIn("read-only", json.dumps(out))
         self.assertIn("mitigated 2026-01-04 — renewed", p.board())
 
 

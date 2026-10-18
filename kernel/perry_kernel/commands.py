@@ -1169,9 +1169,10 @@ def replay_check(store: Store):
             """The item's type: stored, or, for the event's own item, the
             `type` this event sets. So a change replayed before its item's
             `type` change is checked as one after it would be, and the order
-            of changes inside one event never decides whether a value is
-            checked (TASK-489 round 5). The `type` change is itself checked
-            when the replay reaches it."""
+            of item changes does not bypass value checks (TASK-489 round 5).
+            A template change cannot share this event (_event_shape), so
+            the same template governs each check. The `type` change is
+            itself checked when replay reaches it."""
             found = store.item_type(item_id) if item_id else None
             if found is None and item_id is not None and item_id == primary:
                 found = next((c["after"] for c in event["changes"]

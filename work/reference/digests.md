@@ -1,6 +1,6 @@
 # `/pmo digest` — read external documents, retain the gist
 
-PMO's mechanism for handling **external input documents** the user provides (PDFs, spreadsheets, screenshots, pasted markdown, research papers, vendor contracts, etc.). Goal: human-style "read once, take notes, cite later" — NOT vector RAG, NOT auto-retrieval. PMO writes a structured digest per source, stores both source and digest in a topic-organized library, and references the digest by path in subsequent specs / decisions / journal entries.
+PMO's mechanism for handling **external input documents** the user provides (PDFs, spreadsheets, screenshots, pasted markdown, research papers, vendor contracts, etc.). Goal: human-style "read once, take notes, cite later" — NOT vector RAG, NOT auto-retrieval. PMO writes a structured digest per source, stores both source and digest in a topic-organized library, and references the digest by path in subsequent specs / decisions / work documents.
 
 ## Two directories — clear separation
 
@@ -66,7 +66,7 @@ Argument: a path inside `inputs/` (relative or absolute), or a magic string `--p
 10. Move the source file: `git mv inputs/<source> knowledge/<topic>/<source>` (or plain `mv` if source is gitignored).
 11. Write the final digest: `knowledge/<topic>/<basename>-digest.md` (using the verified content).
 12. Update `knowledge/INDEX.md` (see `## INDEX.md` below).
-13. Append a journal entry to `journal/<YYYY-MM>/<today>.md` under `## Notes`: `Digested inputs/<source> → knowledge/<topic>/. Topics: <list>. Key facts: <count>.`
+13. Record the source, destination, topics and verified facts in the digest itself. If this fulfils a task, attach the digest with kernel `attach add` and update that task through `kernel.md`. Do not append a work journal entry.
 14. Reply to user with the digest path + topic + 1-line summary.
 
 ### Refresh existing digest
@@ -188,7 +188,7 @@ Academic content has properties that the project-context schema underserves:
 - **Papers are nodes in a citation graph.** Followup citations capture the 2-3 worth-following edges so future-you knows where to read next.
 - **Generalised "Key facts" loses precision.** Numbers without dataset / cohort / baseline are decoration; the research-style schema forces context attached to each result.
 
-If a digest of a paper would fit comfortably into the project-context schema, that's a signal the paper wasn't worth a full digest in the first place — maybe a 3-line journal note + a saved URL is the right capture.
+If a digest of a paper would fit comfortably into the project-context schema, that's a signal the paper wasn't worth a full digest in the first place — use a short note with the saved URL in an owned evidence document, attached to the related kernel task when one exists. Do not write to the retired journal.
 
 ## `knowledge/INDEX.md` — the catalog
 
@@ -267,7 +267,7 @@ Files **never move on archive** — only the header field changes. Avoids breaki
 Triggered automatically inside `mid-phase-review` and `end-phase-retro` (see `subcommands.md`). PMO scans `knowledge/` for active digests matching:
 
 1. `Status: active` AND no reference to the digest path found in any of:
-   - the task store (`perry-task list --all --json`)
+   - the task store (kernel `query` (all task pages; see `kernel.md`))
    - `journal/<YYYY-MM>/*.md` for last 90 days
    - `evidence/<YYYY-MM>/**.md` for last 90 days
    - `decisions/`

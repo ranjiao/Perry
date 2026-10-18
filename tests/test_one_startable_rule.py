@@ -72,27 +72,24 @@ class Graph:
 
     def __init__(self):
         self.project = Project()
-        for title in ("closed blocker", "dependent of a closed blocker",
-                      "open blocker", "dependent of an open blocker",
-                      "blocked on something that is not a task", "in review"):
-            code, out = self.project.run("add", "--title", title,
-                                         "--priority", "P1")
-            assert code == 0, out
-        for dependent, blocker in (("TASK-002", "TASK-001"),
-                                   ("TASK-004", "TASK-003")):
-            code, out = self.project.run("status", dependent, "--status",
-                                         "blocked", "--on", blocker)
-            assert code == 0, out
-        code, out = self.project.run("status", "TASK-005", "--status", "blocked",
-                                     "--reason", "waiting on a vendor")
-        assert code == 0, out
-        code, out = self.project.run("status", "TASK-006", "--status", "review")
-        assert code == 0, out
-        # The ordinary close path, on ONE of the two blockers. Nothing here
-        # touches TASK-002 — the stale state is a side effect of closing
-        # something else, which is why it goes unnoticed.
-        code, out = self.project.run("done", "TASK-001", "--evidence", "tests/run")
-        assert code == 0, out
+        # Immutable legacy snapshots exercise the retained reader. Native
+        # transition effects are held by kernel/tests/test_work_template.py.
+        rows = [dict(title="closed blocker", status="done", evidence="tests/run"),
+                dict(title="dependent of closed blocker", status="blocked", depends_on=["TASK-001"]),
+                dict(title="open blocker"),
+                dict(title="dependent of open blocker", status="blocked", depends_on=["TASK-003"]),
+                dict(title="vendor wait", status="blocked"),
+                dict(title="in review", status="review")]
+        for i, fields in enumerate(rows, 1):
+            self.project.seed_task(f"TASK-{i:03}", **fields)
+        # The board reconstruction gets closed history from the legacy log;
+        # an open-only projection cannot contain it. Declare that input too.
+        import json
+        (self.project.root / ".perry/events.jsonl").write_text(json.dumps({
+            "event": "done", "id": "TASK-001", "title": "closed blocker",
+            "owner": "Coding Agent", "from": "not_started", "to": "done",
+            "track": "main", "actor": "fixture", "evidence": "tests/run",
+            "ts": "2026-09-01T00:00:00Z"}) + "\n")
 
     # ── caller one: `cmd_list`, through the CLI, with a store on disk ──────
 

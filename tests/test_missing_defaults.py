@@ -167,7 +167,7 @@ class TestTheThreeClaimsAreNowTrue(unittest.TestCase):
 
     def test_the_triage_procedure_reads_the_field(self):
         doc = (PERRY_HOME / "work" / "reference" / "planning.md").read_text()
-        self.assertIn("missing_defaults", doc,
+        self.assertIn("blocked_by", doc,
                       "the triage procedure still has nothing to read")
 
     def test_the_documents_that_make_the_claim_still_make_it(self):
