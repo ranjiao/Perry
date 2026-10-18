@@ -100,6 +100,18 @@ class Base(unittest.TestCase):
                 raise AssertionError(seeded.stdout + seeded.stderr)
         return root
 
+    def seed_closed_legacy_task(self, root):
+        """Historical input for retained knowledge readers, not a simulated close.
+
+        Native close/replay is verified in kernel/tests. The legacy citation
+        reader must still resolve an old closed task from its archived event.
+        """
+        (root / "tasks.jsonl").write_text("")
+        (root / ".perry" / "events.jsonl").write_text(json.dumps({
+            "event": "done", "id": "TASK-001", "title": "Fix the monthly export",
+            "status": "done", "evidence": SRC, "rung": "V3",
+            "at": "2026-08-01T12:00:00+08:00", "actor": "historical-fixture"}) + "\n")
+
     def run_tool(self, root: Path, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             [sys.executable, str(TOOL), *args, "--root", str(root)],
@@ -398,10 +410,8 @@ class TestTheContractPageStatesTheRealStalePredicate(Base):
                          len([c for c in one["cards"] if c["stale"]]))
 
 
-class TestARealCloseProducesACard(Base):
-    """V3, end to end: `perry-task done` writes the evidence citation, the
-    capture point pre-fills `Source:` from it, and `perry-lint --knowledge`
-    reports the result clean."""
+class TestAnArchivedCloseProducesACard(Base):
+    """Archived evidence feeds the live promotion and knowledge-lint flow."""
 
     BOARD = ("# Task board — demo\n\n## Active\n\n"
              "| ID | Title | Owner | Status | Priority | Evidence | Notes |\n"
@@ -411,11 +421,7 @@ class TestARealCloseProducesACard(Base):
 
     def test_close_then_promote_then_lint(self):
         root = self.project({"BOARD.md": self.BOARD})
-        close = subprocess.run(
-            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
-             "TASK-001", "--evidence", SRC, "--rung", "V3",
-             "--root", str(root)], 'test_knowledge_promotion'), capture_output=True, text=True)
-        self.assertEqual(close.returncode, 0, close.stderr)
+        self.seed_closed_legacy_task(root)
 
         prop = self.run_tool(root, "propose", "--source", SRC, "--rung", "V3",
                              "--json")
@@ -446,10 +452,7 @@ class TestARealCloseProducesACard(Base):
         `.perry/events.jsonl` — which lives under the project root, not the
         state root. Deriving one from the other is the bug this pins."""
         root = self.project({"BOARD.md": self.BOARD})
-        subprocess.run(
-            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
-             "TASK-001", "--evidence", SRC, "--rung", "V3",
-             "--root", str(root)], 'test_knowledge_promotion'), capture_output=True, text=True, check=True)
+        self.seed_closed_legacy_task(root)
         # The printed board (TASK-262 round 4a); the held file is not
         # re-rendered by `done`.
         board = subprocess.run(
@@ -661,12 +664,9 @@ class TestTheProjectRootIsPassedNotDerived(Base):
         """The id survives only in `.perry/events.jsonl`, under the project
         root."""
         root = self.project({
-            "BOARD.md": TestARealCloseProducesACard.BOARD,
+            "BOARD.md": TestAnArchivedCloseProducesACard.BOARD,
             "knowledge/reporting/c.md": self.card("TASK-001")})
-        subprocess.run(
-            task_actor.command([sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "done",
-             "TASK-001", "--evidence", SRC, "--rung", "V3",
-             "--root", str(root)], 'test_knowledge_promotion'), capture_output=True, text=True, check=True)
+        self.seed_closed_legacy_task(root)
         self.assertNotIn(
             "card-source-dangling",
             {f["rule"] for f in self.knowledge_lint(root)["findings"]},
@@ -686,7 +686,7 @@ class TestTheCapturePointsCiteTheOneProcedure(Base):
 
     def test_each_capture_point_routes_to_it(self):
         for rel, anchor in (
-                ("work/reference/task-close.md", "### `close-task <id>`"),
+                ("work/reference/task-close.md", "# Close or drop a task"),
                 ("work/reference/subcommands.md", "### `end-phase-retro`"),
                 ("packs/software-ops/incidents.md",
                  "### `/pmo incident close <slug>`")):

@@ -5,6 +5,7 @@ from __future__ import annotations
 COVERS = ("bin/perry-task", "reference/i18n.md")
 
 import json
+from kernel_work_support import ACTOR, ready, task
 import os
 import re
 import subprocess
@@ -45,12 +46,14 @@ class TestAClosedRowKeepsItsName(unittest.TestCase):
     #: The record survives in `tasks.jsonl`; the projection line does not.
     def closed_row(self) -> tuple[Project, str]:
         p = Project()
-        _, a = p.run("add", "--title", "temporary name", "--priority", "P0")
-        code, out = p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
-        self.assertEqual(code, 0, out)
-        self.assertNotIn(f"| {a['id']} ", p.board(),
-                         "the fixture is wrong: closing did not remove the row")
-        return p, a["id"]
+        p.seed_task("TASK-001", title="temporary name", priority="P0", status="done",
+                    evidence="e.md", verification="V3")
+        (p.root / ".perry/events.jsonl").write_text(json.dumps({
+            "event": "done", "id": "TASK-001", "title": "temporary name",
+            "to": "done", "evidence": "e.md", "rung": "V3",
+            "ts": "2026-09-01T00:00:00Z", "actor": "fixture"}) + "\n")
+        self.assertNotIn("| TASK-001 |", p.board())
+        return p, "TASK-001"
 
     def record(self, p, tid) -> dict:
         text = (p.root / "tasks.jsonl").read_text()
@@ -108,7 +111,8 @@ class TestAClosedRowKeepsItsName(unittest.TestCase):
     def test_an_open_untitled_row_is_still_reported(self):
         """The half of the check that already worked must keep working."""
         p = Project()
-        _, a = p.run("add", "--title", "x", "--priority", "P0")
+        p.seed_task("TASK-001", title="x", priority="P0")
+        a = {"id": "TASK-001"}
         self.blank_the_title(p, a["id"])
         _, payload = p.run("list")
         self.assertEqual([a["id"]], payload["untitled"])
@@ -121,368 +125,123 @@ class TestAClosedRowKeepsItsName(unittest.TestCase):
 
     # ── half two: the writer reaches it ───────────────────────────────────
 
-    def test_retitle_repairs_a_row_the_board_has_let_go_of(self):
-        p, tid = self.closed_row()
-        self.blank_the_title(p, tid)
-        code, out = p.run("retitle", tid, "--title", "the name it had")
-        self.assertEqual(code, 0, out)
-        self.assertEqual("the name it had", self.record(p, tid)["title"])
-        _, payload = p.run("list")
-        self.assertEqual([], payload["untitled"],
-                         "repaired and still reported")
+    def test_native_terminal_title_can_be_corrected_without_reopening(self):
+        sb = ready(self)
+        tid = task(sb)
+        sb.move(tid, "done", set={"evidence": "proof.md"})
+        before = sb.get(tid)["fields"]
+        sb.ok("item update", data={"actor": ACTOR, "id": tid, "set": {"title": "Corrected name"}})
+        after = sb.get(tid)
+        self.assertEqual(after["state"], "done")
+        self.assertEqual(after["fields"]["title"], "Corrected name")
+        self.assertEqual({k: v for k, v in before.items() if k != "title"},
+                         {k: v for k, v in after["fields"].items() if k != "title"})
+        # Earlier event payloads remain historical facts, not overwritten titles.
+        self.assertEqual(sb.events(items=[tid])[0]["changes"][0]["key"], "type")
 
-    def test_the_repair_leaves_the_row_closed_at_its_rung(self):
-        """Verification 4, from the record's side: the door reaches the row,
-        and carries one field through it."""
-        p, tid = self.closed_row()
-        before = self.record(p, tid)
-        self.assertEqual(0, p.run("retitle", tid, "--title", "clearer")[0])
-        after = self.record(p, tid)
-        self.assertEqual("clearer", after["title"])
-        for field in [k for k in before if k != "title"]:
-            self.assertEqual(before[field], after[field],
-                             f"the repair also rewrote {field}")
 
-    def test_no_other_cell_writer_reaches_a_row_off_the_board(self):
-        """Verification 4, from the door's side. `off_board_repair` is passed
-        by `retitle` and by nothing else; a mutation that passes it to another
-        writer reddens this."""
-        p, tid = self.closed_row()
-        for sub, flag, value in (("next", "--next", "do more"),
-                                 ("rung", "--rung", "V5"),
-                                 ("evidence", "--evidence", "other.md"),
-                                 ("status", "--status", "in_progress"),
-                                 ("start", None, None)):
-            with self.subTest(sub=sub):
-                argv = (sub, tid) + ((flag, value) if flag else ())
-                code, out = p.run(*argv)
-                self.assertEqual(code, 1, f"{sub} reached a closed row: {out}")
-                self.assertIn("not a row on the board", str(out))
+class TestNativeDependencies(unittest.TestCase):
+    def test_blocking_relation_is_visible_on_both_ends_and_survives_satisfaction(self):
+        sb = ready(self)
+        blocker, dependent = task(sb), task(sb)
+        edge = {"kind": "blocks", "from": blocker, "to": dependent}
+        sb.ok("rel add", data={"actor": ACTOR, **edge})
+        self.assertEqual(sb.get(dependent)["blocked_by"], [blocker])
+        self.assertFalse(sb.get(dependent)["startable"])
+        for end in (blocker, dependent):
+            self.assertIn(edge, sb.get(end)["relations"])
+        sb.move(blocker, "done", set={"evidence": "proof.md"})
+        self.assertEqual(sb.get(dependent)["blocked_by"], [])
+        self.assertTrue(sb.get(dependent)["startable"])
+        self.assertIn(edge, sb.get(dependent)["relations"])
 
-    def test_the_repair_does_not_reorder_the_store(self):
-        """A finished record's position is the order the work happened in.
-        Rewriting a name is not a reason to move history — and the generic
-        writer path appends, which would move it to the last line."""
-        p, tid = self.closed_row()
-        _, b = p.run("add", "--title", "later", "--priority", "P0")
-        order = lambda: [json.loads(l)["id"] for l in
-                         (p.root / "tasks.jsonl").read_text().splitlines()
-                         if l.strip()]
-        before = order()
-        self.assertEqual(0, p.run("retitle", tid, "--title", "renamed")[0])
-        self.assertEqual(before, order())
+    def test_an_edge_can_be_added_to_an_already_terminal_item(self):
+        sb = ready(self)
+        blocker, dependent = task(sb), task(sb)
+        sb.move(blocker, "drop", set={"reason": "user removed scope"})
+        sb.ok("rel add", data={"actor": ACTOR, "kind": "blocks", "from": blocker, "to": dependent})
+        self.assertEqual(sb.get(dependent)["blocked_by"], [])
+        self.assertTrue(sb.get(dependent)["startable"])
 
-    def test_the_repair_is_recorded_as_a_retitle_and_carries_the_new_name(self):
-        """The event log is how a later reader learns the name was repaired
-        rather than never missing. `TASK-029`'s own history is why: its only
-        event predates the `title` key, and that is exactly what made the
-        question "never written, or written and lost?" hard to answer."""
-        p, tid = self.closed_row()
-        self.blank_the_title(p, tid)
-        self.assertEqual(0, p.run("retitle", tid, "--title", "restored")[0])
-        ev = p.events()[-1]
-        self.assertEqual("retitle", ev["event"])
-        self.assertEqual(tid, ev["id"])
-        self.assertEqual("", ev["from"])
-        self.assertEqual("restored", ev["to"])
-        self.assertEqual("restored", ev["title"])
-        self.assertIn(f"- [{tid}] retitled", p.journal())
+    def test_dependencies_are_one_hop(self):
+        sb = ready(self)
+        a, b, c = task(sb), task(sb), task(sb)
+        for src, dst in ((c, b), (b, a)):
+            sb.ok("rel add", data={"actor": ACTOR, "kind": "blocks", "from": src, "to": dst})
+        self.assertEqual(sb.get(a)["blocked_by"], [b])
+        sb.move(b, "done", set={"evidence": "proof.md"})
+        self.assertEqual(sb.get(a)["blocked_by"], [])
+        self.assertEqual(sb.get(b)["blocked_by"], [c])
 
-    def test_a_no_op_repair_is_still_refused(self):
-        p, tid = self.closed_row()
-        code, out = p.run("retitle", tid, "--title", "temporary name")
-        self.assertEqual(code, 1, out)
-        self.assertIn("already", str(out))
+    def test_self_cycle_and_unknown_ids_refuse_without_a_partial_edge(self):
+        sb = ready(self)
+        a, b = task(sb), task(sb)
+        sb.ok("rel add", data={"actor": ACTOR, "kind": "blocks", "from": a, "to": b})
+        before = sb.seq()
+        for src, dst in ((b, a), (a, a), ("TASK-404", a)):
+            out = sb.run("rel add", data={"actor": ACTOR, "kind": "blocks", "from": src, "to": dst})
+            self.assertFalse(out.ok, out)
+            self.assertEqual(sb.seq(), before)
+        self.assertEqual(sb.get(a)["relations"], [{"kind": "blocks", "from": a, "to": b}])
 
-    def test_an_id_nothing_knows_is_still_refused(self):
-        p, _ = self.closed_row()
-        code, out = p.run("retitle", "TASK-9999", "--title", "x")
-        self.assertEqual(code, 1, out)
-        self.assertIn("not a task", str(out))
+    def test_add_and_remove_are_idempotent_and_preserve_history(self):
+        sb = ready(self)
+        a, b = task(sb), task(sb)
+        edge = {"actor": ACTOR, "kind": "blocks", "from": a, "to": b}
+        sb.ok("rel add", data=edge)
+        before = sb.seq()
+        out = sb.run("rel add", data=edge)
+        self.assertEqual(out.env["effect"], "unchanged", out)
+        self.assertEqual(sb.seq(), before)
+        sb.ok("rel remove", data=edge)
+        self.assertEqual(sb.get(b)["relations"], [])
+        self.assertEqual(sb.get(b)["blocked_by"], [])
+        self.assertEqual(sb.events()[-1]["changes"][0]["after"], False)
 
-    def test_every_event_this_tool_writes_carries_a_title(self):
-        """The question TASK-166 had to answer about `TASK-029` was whether a
-        write path can DROP a title. On this repository exactly one event of
-        770 has no `title` key — the first line of the log, written before
-        `TASK-030` added the field. This pins the answer for today's writer:
-        no live path emits a task event without one, so the loss was a
-        migration artefact and not a defect that can recur.
-        """
+
+class TestLegacyDependencyReader(unittest.TestCase):
+    def payload(self, rows, *flags):
         p = Project()
-        _, a = p.run("add", "--title", "named", "--priority", "P0")
-        p.run("start", a["id"])
-        p.run("next", a["id"], "--next", "a step")
-        p.run("rung", a["id"], "--rung", "V3")
-        p.run("evidence", a["id"], "--evidence", "e.md")
-        p.run("retitle", a["id"], "--title", "renamed")
-        p.run("summary", a["id"], "--summary",
-              "A stable explanation of why this row exists.")
-        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
-        p.run("retitle", a["id"], "--title", "renamed after closing")
-        events = [e for e in p.events() if e.get("id", "").startswith("TASK-")]
-        self.assertGreaterEqual(len(events), 9)
-        for e in events:
-            self.assertIn("title", e, e)
-            self.assertTrue(e["title"], e)
+        for n, row in enumerate(rows, 1):
+            p.seed_task(f"TASK-{n:03}", **row)
+        code, result = p.run("list", "--all", *flags)
+        self.assertEqual(code, 0, result)
+        return result
 
+    def test_reverse_edges_and_unknown_edges_are_both_reported(self):
+        out = self.payload([{}, {"depends_on": ["TASK-001", "TASK-404"]}])
+        by = {r["id"]: r for r in out["tasks"]}
+        self.assertEqual(by["TASK-001"]["blocks"], ["TASK-002"])
+        self.assertEqual(by["TASK-002"]["blocked_by"], ["TASK-001", "TASK-404"])
+        self.assertEqual(out["conformance"]["depends_on_unknown"],
+                         [{"id": "TASK-002", "unknown": ["TASK-404"]}])
 
-class TestADependencyIsQueryable(unittest.TestCase):
-    """TASK-063. `blocked` said a row was stopped and never said on what.
+    def test_closed_dependencies_stay_declared_but_stop_blocking(self):
+        out = self.payload([{"status": "done"}, {"depends_on": ["TASK-001"]}])
+        row = next(r for r in out["tasks"] if r["id"] == "TASK-002")
+        self.assertEqual(row["depends_on"], ["TASK-001"])
+        self.assertEqual(row["blocked_by"], [])
+        self.assertTrue(row["startable"])
 
-    Found by the user running `perry-task list` and seeing a pile of rows with
-    no way to tell which could be advanced. Three facts made it unanswerable:
-    `add --depends` wrote free text into the journal's definition block, once,
-    at creation, never updatable; `status --status blocked` refused without
-    `--reason` on the stated ground that "a blocked row with no named
-    dependency is a row nobody can unblock" and then put that dependency into
-    prose; and `subcommands.md` told triage to find "the same dependency cited
-    in >= 2 rows" over data nothing could read.
-    """
+    def test_status_waits_and_unknown_dependencies_remain_distinct(self):
+        out = self.payload([{"status": "blocked"}, {}, {"status": "review"},
+                            {"status": "done"}, {"depends_on": ["TASK-404"]}])
+        by = {r["id"]: r for r in out["tasks"]}
+        self.assertEqual([by[f"TASK-{n:03}"]["startable"] for n in range(1, 6)],
+                         [False, True, False, False, False])
+        self.assertEqual(out["conformance"]["blocked_without_dependency"], ["TASK-001"])
 
-    def payload(self, p, *extra) -> dict:
-        _, out = p.run("list", "--all", *extra)
-        return out
+    def test_one_hop_and_cycle_reports_survive_legacy_import(self):
+        out = self.payload([{"depends_on": ["TASK-002"]}, {"depends_on": ["TASK-003"]}, {}])
+        self.assertEqual(out["tasks"][0]["blocked_by"], ["TASK-002"])
+        cycle = self.payload([{"depends_on": ["TASK-002"]}, {"depends_on": ["TASK-001"]}])
+        self.assertTrue(cycle["conformance"]["dependency_cycles"])
 
-    def task(self, p, tid, *extra) -> dict:
-        return next(t for t in self.payload(p, *extra)["tasks"] if t["id"] == tid)
-
-    def two(self, p) -> tuple[str, str]:
-        _, a = p.run("add", "--title", "first", "--priority", "P0")
-        _, b = p.run("add", "--title", "second", "--priority", "P0")
-        return a["id"], b["id"]
-
-    # ── the edge is on the board, not in the log ──────────────────────────
-
-    def test_the_edge_survives_deleting_the_event_log(self):
-        """The log is DERIVED AND DISPOSABLE. `mode` already cost this project
-        one released contract for reading a value out of it: deleting
-        `.perry/events.jsonl` blanked the field for every row on the board."""
-        p = Project()
-        a, b = self.two(p)
-        self.assertEqual(0, p.run("depends", b, "--on", a)[0])
-        (p.root / ".perry" / "events.jsonl").unlink()
-        self.assertEqual([a], self.task(p, b)["depends_on"],
-                         "the edge lived in the disposable half")
-
-    def test_the_cell_is_what_the_reader_reads(self):
-        p = Project()
-        a, b = self.two(p)
-        p.run("depends", b, "--on", a)
-        self.assertIn("Depends on", p.board())
-        self.assertIn(a, p.board().split("\n")[
-            next(i for i, l in enumerate(p.board().split("\n")) if l.startswith(f"| {b} "))])
-
-    # ── the four keys ─────────────────────────────────────────────────────
-
-    def test_blocked_by_names_the_unfinished_half_and_blocks_is_the_reverse(self):
-        p = Project()
-        a, b = self.two(p)
-        p.run("depends", b, "--on", a)
-        self.assertEqual([a], self.task(p, b)["blocked_by"])
-        self.assertEqual([b], self.task(p, a)["blocks"],
-                         "closing a row does not say what it frees up")
-
-    def test_a_satisfied_dependency_leaves_blocked_by_and_stays_in_depends_on(self):
-        """Both halves matter. A dependency that vanished when it was met would
-        delete the record of why the row waited; one that kept blocking would
-        make `startable` never true."""
-        p = Project()
-        a, b = self.two(p)
-        p.run("depends", b, "--on", a)
-        p.run("done", a, "--evidence", "e.md", "--rung", "V3")
-        t = self.task(p, b)
-        self.assertEqual([a], t["depends_on"], "the satisfied edge was erased")
-        self.assertEqual([], t["blocked_by"])
-        self.assertTrue(t["startable"])
-
-    def test_a_dependency_may_point_at_a_closed_task(self):
-        """It has to: `done` removes the row, so refusing ids that are no
-        longer on the board would mean every satisfied dependency had to be
-        deleted from the record in order to be written at all."""
-        p = Project()
-        a, b = self.two(p)
-        p.run("done", a, "--evidence", "e.md", "--rung", "V3")
-        self.assertEqual(0, p.run("depends", b, "--on", a)[0],
-                         "an edge onto finished work was refused")
-        self.assertEqual([], self.task(p, b)["blocked_by"])
-
-    def test_an_id_this_payload_does_not_carry_counts_as_unsatisfied(self):
-        """"I do not know" is not "it is done". Reporting such a row startable
-        is the one error that sends somebody to work on something blocked."""
-        p = Project()
-        a, b = self.two(p)
-        p.run("depends", b, "--on", "DESIGN-006")
-        t = self.task(p, b)
-        self.assertEqual(["DESIGN-006"], t["blocked_by"])
-        self.assertFalse(t["startable"])
-        self.assertEqual([{"id": b, "unknown": ["DESIGN-006"]}],
-                         self.payload(p)["conformance"]["depends_on_unknown"])
-
-    def test_the_edge_is_one_hop_and_not_the_transitive_closure(self):
-        """A waits on B, B waits on C. A's answer is B and only B — A becomes
-        startable the moment B closes, and B's history is not A's business."""
-        p = Project()
-        _, a = p.run("add", "--title", "A", "--priority", "P0")
-        _, b = p.run("add", "--title", "B", "--priority", "P0")
-        _, c = p.run("add", "--title", "C", "--priority", "P0")
-        p.run("depends", a["id"], "--on", b["id"])
-        p.run("depends", b["id"], "--on", c["id"])
-        self.assertEqual([b["id"]], self.task(p, a["id"])["blocked_by"])
-
-    def test_blocks_is_computed_before_the_track_and_all_filters(self):
-        """A row you filtered out still blocks the rows that name it. A graph
-        that changed with the caller's flags would be a different graph per
-        query."""
-        p = Project()
-        a, b = self.two(p)
-        p.run("depends", b, "--on", a)
-        p.run("done", b, "--evidence", "e.md", "--rung", "V3")
-        without_all = next(t for t in self.payload(p, )["tasks"] if t["id"] == a)
-        _, out = p.run("list")
-        live = next(t for t in out["tasks"] if t["id"] == a)
-        self.assertEqual([b], live["blocks"],
-                         "a closed dependant disappeared from `blocks` when "
-                         "the caller asked for open work only")
-        self.assertEqual([b], without_all["blocks"])
-
-    # ── startable: the question a dashboard asks ──────────────────────────
-
-    def test_startable_is_false_for_a_row_whose_own_status_says_it_is_waiting(self):
-        """The user's actual complaint: a pile of `review` rows read as work
-        that could be picked up. This holds on a board with no declared edge on
-        it at all, which is every board that predates 1.6."""
-        p = Project()
-        a, b = self.two(p)
-        p.run("status", a, "--status", "review")
-        p.run("status", b, "--status", "blocked", "--reason", "waiting on Apple")
-        self.assertFalse(self.task(p, a)["startable"], "a review row read as startable")
-        self.assertFalse(self.task(p, b)["startable"])
-
-    def test_startable_is_false_for_a_closed_row(self):
-        p = Project()
-        a, _ = self.two(p)
-        p.run("done", a, "--evidence", "e.md", "--rung", "V3")
-        self.assertFalse(self.task(p, a)["startable"])
-
-    def test_startable_is_true_for_open_unblocked_work(self):
-        p = Project()
-        a, _ = self.two(p)
-        self.assertTrue(self.task(p, a)["startable"])
-
-    # ── cycles ────────────────────────────────────────────────────────────
-
-    def test_a_cycle_is_refused_at_write_time(self):
-        p = Project()
-        a, b = self.two(p)
-        p.run("depends", b, "--on", a)
-        code, out = p.run("depends", a, "--on", b)
-        self.assertEqual(1, code)
-        self.assertIn("cycle", out["refused"])
-
-    def test_a_row_cannot_depend_on_itself(self):
-        p = Project()
-        a, _ = self.two(p)
-        code, out = p.run("depends", a, "--on", a)
-        self.assertEqual(1, code)
-        self.assertIn("itself", out["refused"])
-
-    def test_a_cycle_only_on_the_projection_is_not_task_truth(self):
-        p = Project()
-        a, b = self.two(p)
-        p.run("depends", b, "--on", a)
-        p.run("depends", a, "--on", "TASK-999")
-        board = p.board().replace("| TASK-999 |", f"| {b} |")
-        board = board.replace("TASK-999", b)
-        (p.root / "BOARD.md").write_text(board)
-        d = self.payload(p)
-        cycles = d["conformance"]["dependency_cycles"]
-        self.assertEqual(cycles, [])
-        self.assertEqual(["TASK-999"], self.task(p, a)["depends_on"])
-
-    # ── the write paths ───────────────────────────────────────────────────
-
-    def test_blocked_is_satisfied_by_on_as_well_as_by_reason(self):
-        """The refusal was right and the answer landed in prose. `--on` makes
-        the same demand and reaches the payload."""
-        p = Project()
-        a, b = self.two(p)
-        code, _ = p.run("status", b, "--status", "blocked", "--on", a)
-        self.assertEqual(0, code)
-        self.assertEqual([a], self.task(p, b)["depends_on"])
-
-    def test_blocked_with_neither_on_nor_reason_is_still_refused(self):
-        p = Project()
-        a, _ = self.two(p)
-        code, out = p.run("status", a, "--status", "blocked")
-        self.assertEqual(1, code)
-        self.assertIn("unblock", out["refused"])
-
-    def test_add_depends_writes_a_cell_and_not_only_journal_prose(self):
-        p = Project()
-        a, _ = self.two(p)
-        _, b = p.run("add", "--title", "later", "--priority", "P0",
-                     "--depends", a)
-        self.assertEqual([a], self.task(p, b["id"])["depends_on"],
-                         "--depends still only reached the journal")
-        self.assertIn(f"- **Dependencies**: {a}", p.journal())
-
-    def test_prose_in_the_dependency_flag_is_refused(self):
-        """Free text here would rebuild, one column to the right, the very
-        unreadable `- **Dependencies**: <free text>` line this replaces."""
-        p = Project()
-        a, _ = self.two(p)
-        code, out = p.run("depends", a, "--on", "waiting for the design review")
-        self.assertEqual(1, code)
-        self.assertIn("not an id", out["refused"])
-
-    def test_clear_records_that_a_row_waits_on_nothing(self):
-        p = Project()
-        a, b = self.two(p)
-        p.run("depends", b, "--on", a)
-        self.assertEqual(0, p.run("depends", b, "--clear")[0])
-        self.assertEqual([], self.task(p, b)["depends_on"])
-
-    def test_declaring_the_same_edge_twice_is_refused_as_a_no_op(self):
-        p = Project()
-        a, b = self.two(p)
-        p.run("depends", b, "--on", a)
-        code, _ = p.run("depends", b, "--on", a)
-        self.assertEqual(1, code)
-
-    # ── the migration worklist ────────────────────────────────────────────
-
-    def test_a_blocked_row_with_no_declared_edge_is_named(self):
-        """The honest measure of how far the backfill has got. On Perry's own
-        board this is every blocked row: their dependency is prose inside
-        `Next action`, where nothing can read it."""
-        p = Project()
-        a, b = self.two(p)
-        p.run("status", a, "--status", "blocked", "--reason", "waiting on Apple")
-        p.run("status", b, "--status", "blocked", "--on", a)
-        c = self.payload(p)["conformance"]
-        self.assertEqual([a], c["blocked_without_dependency"])
-
-    def test_a_cell_a_project_wrote_in_its_own_language_is_read(self):
-        """`reference/i18n.md`: a board may be written in the project's own
-        language, and a column table that only speaks English would report
-        every such row as declaring nothing — which reads as `startable`."""
-        # **Imported from a held board, not written by the tool** (TASK-262
-        # round 4a). This added two rows with `add`, then edited them into the
-        # held `BOARD.md` and re-imported; a write no longer re-renders that
-        # file, so the rows were never in it. The localized column is now in
-        # the board the project imports — the only door a markdown cell still
-        # has into the store.
-        a, b = "TASK-001", "TASK-002"
-        p = Project(board=BOARD.replace(
-            "| ID | Title | Owner | Status | Next action | Evidence |\n"
-            "|---|---|---|---|---|---|\n\n## P1",
-            "| ID | Title | Owner | Status | Next action | Evidence | 依赖 |\n"
-            "|---|---|---|---|---|---|---|\n"
-            f"| {a} | first | Coding Agent | not_started | — | — | {b} |\n"
-            f"| {b} | second | Coding Agent | not_started | — | — |  |\n"
-            "\n## P1", 1))
-        self.assertEqual([b], self.task(p, a)["depends_on"],
-                         "a `依赖` column was invisible to the reader")
+    def test_reverse_edges_are_computed_before_track_filtering(self):
+        out = self.payload([{"track": "main"}, {"track": "intake", "depends_on": ["TASK-001"]}],
+                           "--track", "main")
+        self.assertEqual([r["id"] for r in out["tasks"]], ["TASK-001"])
+        self.assertEqual(out["tasks"][0]["blocks"], ["TASK-002"])
 
 
 if __name__ == "__main__":

@@ -265,7 +265,17 @@ class TestAProjectThatNeverMigratedStillReads(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.p = Project(board=LEGACY, gate="")
-        import_board(cls.p.root, remove=False)
+        # Archived bullet-to-store migration input. The retired public
+        # risk-migrate command cannot be used to manufacture reader fixtures.
+        import_board(cls.p.root, "write", "asks-write", "cadence-write",
+                     "intake-write", remove=False)
+        risks = [
+            {"id": "RX-001", "risk": "H · the vendor contract lapses in September",
+             "status": "open", "order": 0},
+            {"id": "RX-002", "risk": "M · the notarization cert expired",
+             "status": "cleared 2026-08-10", "cleared": "2026-08-10", "order": 1}]
+        (cls.p.root / "risks.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in risks))
 
     def test_the_namespace_check_adoption_runs_first_still_answers(self):
         """`reference/adoption.md § 3 step 0` — the one command the adoption
@@ -313,8 +323,6 @@ class TestAProjectThatNeverMigratedStillReads(unittest.TestCase):
 
 
 # ── 3 · what the enforce flip was supposed to buy ─────────────────────────
-
-
 
 
 if __name__ == "__main__":

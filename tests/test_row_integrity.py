@@ -244,29 +244,19 @@ class TestTheWriterRefusesAndWritesNothing(unittest.TestCase):
         before = (self.root / "perry" / "BOARD.md").read_bytes()
         out = self.run_add("first line\n\nsecond paragraph")
         self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
-        self.assertIn("refused", out.stderr)
-        self.assertIn("one line", out.stderr)
+        self.assertIn("read-only", out.stderr)
+        self.assertIn("Nothing was written", out.stderr)
         self.assertEqual((self.root / "perry" / "BOARD.md").read_bytes(), before,
                          "a refusal wrote to the board")
 
-    def test_a_single_line_next_action_containing_a_pipe_is_written(self):
+    def test_even_a_renderable_pipe_cell_cannot_reopen_the_old_writer(self):
+        before = {str(p.relative_to(self.root)): p.read_bytes()
+                  for p in self.root.rglob("*") if p.is_file()}
         out = self.run_add("quotes a table: | ID | Risk |")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        # The printed board (TASK-262 round 4a): the escaped pipe has to
-        # survive the store and the render, and no write re-renders the held
-        # file. Its header is the declared one, so the width is read from it.
-        text = subprocess.run([sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
-                               "board", "--root", str(self.root)],
-                              capture_output=True, text=True).stdout
-        lines = text.split("\n")
-        i = next(n for n, ln in enumerate(lines) if ln.startswith("| TASK-"))
-        header = next(lines[n] for n in range(i, -1, -1)
-                      if lines[n].startswith("| ID |"))
-        row = lines[i]
-        self.assertEqual(len(T.split_row(row)), len(T.split_row(header)))
-        self.assertEqual(T.split_row(header)[4], "Next action")
-        self.assertEqual(T.split_row(row)[4], "quotes a table: | ID | Risk |")
-
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("perry-kernel item create", out.stderr)
+        self.assertEqual({str(p.relative_to(self.root)): p.read_bytes()
+                          for p in self.root.rglob("*") if p.is_file()}, before)
 
 class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
     """Guard 2 — one splitter. The writer's inverse, used by every reader."""

@@ -49,6 +49,7 @@ import unittest
 from pathlib import Path
 
 from task_writer_support import PT, Project
+from kernel_work_support import ACTOR, ready, task
 
 
 #: The three families, as (subcommand, argv tail, prefix, board section). One
@@ -133,131 +134,32 @@ class Register(Project):
         return out["id"]
 
 
-class TestEverySourceIsRead(unittest.TestCase):
-    """An id in exactly one source still moves the next mint."""
+class TestNativeIdentityComesFromTheStore(unittest.TestCase):
+    def test_each_native_family_has_its_own_monotone_sequence(self):
+        sb = ready(self)
+        one = task(sb)
+        ask = sb.create("ask", fields={"question": "Which?"})
+        risk = sb.create("risk", fields={"concern": "A concern"})
+        self.assertEqual((one, ask, risk), ("TASK-001", "USER-001", "RX-001"))
+        sb.move(one, "drop", set={"reason": "fixture complete"})
+        sb.move(ask, "answer", set={"answer": "yes"})
+        sb.move(risk, "clear", set={"reason": "resolved"})
+        self.assertEqual(task(sb), "TASK-002")
+        self.assertEqual(sb.create("ask", fields={"question": "Again?"}), "USER-002")
+        self.assertEqual(sb.create("risk", fields={"concern": "Another"}), "RX-002")
+        for item in (one, ask, risk):
+            self.assertIn(sb.get(item)["state"], ("dropped", "answered", "cleared"))
 
-    def test_an_empty_project_starts_at_001(self):
-        for cmd, tail, prefix, _ in FAMILIES:
-            with self.subTest(prefix=prefix):
-                self.assertEqual(Register().mint(cmd, tail), f"{prefix}-001")
-
-    def test_the_board_is_the_canonical_half(self):
-        """The section IS the record — there is no store to read instead.
-
-        Planted on the board and nowhere else, so a minter that read a store,
-        or only the append-only records, would hand back `-001`.
-        """
-        for cmd, tail, prefix, section in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                p.plant_on_board(section, f"{prefix}-050", "planted by hand")
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-051")
-
-    def test_the_event_log_is_read(self):
-        for cmd, tail, prefix, _ in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                p.plant_in_events(event="ask", id=f"{prefix}-060")
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-061")
-
-    def test_the_journal_is_read(self):
-        for cmd, tail, prefix, _ in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                p.plant_in_journal(f"- [{prefix}-070] something happened")
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-071")
-
-    def test_state_root_markdown_outside_the_journal_is_not_read(self):
-        """`journal/`, not "every `.md` under the state root".
-
-        `evidence/` is prose about the project and names ids it does not own —
-        counting it would retire numbers because somebody wrote about them.
-        `bin/perry-migrate § id_minter` does scan the whole tree; that is a
-        different register (`SRC-`) with a different question.
-        """
-        for cmd, tail, prefix, _ in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                p.plant_outside_the_journal(f"discussion of {prefix}-080")
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-001")
-
-    def test_a_family_does_not_count_another_familys_numbers(self):
-        for cmd, tail, prefix, _ in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                for other in ("USER", "CAD", "RX", "TASK"):
-                    if other != prefix:
-                        p.plant_in_events(event="ask", id=f"{other}-090")
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-001")
-
-    def test_cadence_counts_the_long_spelling(self):
-        """`CADENCE-007` and `CAD-007` are one sequence, not two.
-
-        Kept from `mint_cadence_id`'s own docstring: a live register numbers
-        its rows `CADENCE-NNN`, and a minter blind to that hands out `CAD-001`
-        beside `CADENCE-002`.
-        """
-        p = Register()
-        p.plant_on_board("Cadence", "CADENCE-007", "a hand-numbered ritual")
-        self.assertEqual(p.mint("cadence-add",
-                                ("--title", "r", "--frequency", "weekly")),
-                         "CAD-008")
-
-
-class TestANumberIsRetiredNotFreed(unittest.TestCase):
-    """TASK-167's question, asked of the three registers that have no `purge`.
-
-    `purge` is a task-store path and does not reach them. The way one of their
-    rows leaves is a human deleting the line — and the number must not come
-    back, for the reason `minting_records` exists: `.perry/events.jsonl` is
-    append-only, so a new row wearing that number inherits the dead row's
-    history.
-    """
-
-    def test_deleting_the_row_does_not_free_the_number(self):
-        for cmd, tail, prefix, _ in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                first = p.mint(cmd, tail)
-                p.drop_board_row(first)
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-002")
-
-    def test_it_survives_losing_the_event_log(self):
-        """The log is *"derived and disposable"* — this module docstring says
-        so — so nothing may be load-bearing on it alone. The journal line
-        `commit()` writes names the minted id, and that is the second copy."""
-        for cmd, tail, prefix, _ in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                first = p.mint(cmd, tail)
-                p.drop_board_row(first)
-                (p.root / ".perry" / "events.jsonl").unlink()
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-002")
-
-    def test_it_survives_losing_the_journal(self):
-        for cmd, tail, prefix, _ in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                first = p.mint(cmd, tail)
-                p.drop_board_row(first)
-                for j in (p.root / "journal").rglob("*.md"):
-                    j.unlink()
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-002")
-
-    def test_the_boundary_an_id_the_tool_never_minted(self):
-        """The one case that is NOT safe, stated rather than left to be found.
-
-        An id hand-written onto the board and never routed through this tool
-        was recorded nowhere else, so deleting that row does free the number.
-        Irreducible without a store — it is exactly what `risks.jsonl` would
-        fix for `RX-`, and `USER-016` owns that.
-        """
-        for cmd, tail, prefix, section in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                p.plant_on_board(section, f"{prefix}-050", "typed by hand")
-                p.drop_board_row(f"{prefix}-050")
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-001")
+    def test_legacy_prose_and_events_cannot_raise_a_native_id_counter(self):
+        sb = ready(self)
+        for rel in ("tasks.jsonl", "journal/2026-08/2026-08-01.md", ".perry/events.jsonl",
+                    "evidence/mentions.md", "BOARD.md"):
+            path = sb.root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("TASK-900 USER-900 RX-900 CAD-900\n")
+        self.assertEqual(task(sb), "TASK-001")
+        self.assertEqual(sb.create("ask", fields={"question": "Which?"}), "USER-001")
+        self.assertEqual(sb.create("risk", fields={"concern": "A concern"}), "RX-001")
 
 
 class TestOneMechanism(unittest.TestCase):
@@ -281,49 +183,25 @@ class TestOneMechanism(unittest.TestCase):
         self.assertEqual(got, ["USER-141", "CAD-141", "RX-141"])
         self.assertEqual(len(seen), 3)
 
-    def test_a_null_id_in_the_log_is_survivable(self):
-        """`read_events` keeps whatever JSON a line held — *"a corrupt line is
-        not a reason to refuse a write"* — and the log is append-only, shared
-        with `perry-goals` and hand-editable. `re.findall(None)` raises
-        `TypeError`, which is not a `Refused` and not a message anyone can act
-        on. `minting_records` and `perry-goals § mint_commitment_id` both
-        guard this; these three did not.
-        """
-        for cmd, tail, prefix, _ in FAMILIES:
-            with self.subTest(prefix=prefix):
-                p = Register()
-                p.plant_in_events(event="link-kr", id=None)
-                self.assertEqual(p.mint(cmd, tail), f"{prefix}-001")
+    def test_a_null_id_is_tolerated_by_the_retained_legacy_minter(self):
+        board = _throwaway_board()
+        for minter in (PT.mint_user_id, PT.mint_cadence_id, PT.mint_risk_id):
+            got = minter(board, [{"event": "link-kr", "id": None}], Path("/nonexistent"))
+            self.assertTrue(got.endswith("-001"), got)
 
 
-class TestBothRiskCallSites(unittest.TestCase):
-    """`mint_risk_id` has two callers, not one.
-
-    `cmd_risk_add` is the obvious one. `ensure_risk_table` is the other: it
-    converts a bullet section to the table and allocates a block of ids from
-    the same minter. A retired number must not be handed to the conversion
-    either, and the conversion is the path that would hand out several.
-    """
-
-    BULLETS = ("# Board — b\n\n## P0 (must finish this period)\n\n"
-               "| ID | Title | Owner | Status | Next action | Evidence |\n"
-               "|---|---|---|---|---|---|\n\n"
-               "## Top risks\n\n- the first risk\n- the second risk\n")
-
-    def test_risk_migrate_allocates_above_a_retired_number(self):
-        p = Register(board=self.BULLETS)
+class TestRetiredRiskCallSites(unittest.TestCase):
+    def test_add_and_migrate_never_consume_a_legacy_id(self):
+        p = Register()
         p.plant_in_events(event="risk-add", id="RX-030")
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 0, out)
-        self.assertEqual([r["id"] for r in out["migrated"]],
-                         ["RX-031", "RX-032"])
-
-    def test_risk_add_continues_from_what_the_migration_allocated(self):
-        p = Register(board=self.BULLETS)
-        p.plant_in_events(event="risk-add", id="RX-030")
-        self.assertEqual(p.run("risk-migrate")[0], 0)
-        self.assertEqual(p.mint("risk-add", ("--title", "a third risk")),
-                         "RX-033")
+        before = {str(f.relative_to(p.root)): f.read_bytes()
+                  for f in p.root.rglob("*") if f.is_file()}
+        for argv in (("risk-migrate",), ("risk-add", "--title", "another")):
+            code, out = p.run(*argv)
+            self.assertEqual(code, 1, out)
+            self.assertIn("read-only", out["refused"])
+            self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                              for f in p.root.rglob("*") if f.is_file()}, before)
 
 
 def _throwaway_board() -> "PT.Board":

@@ -77,6 +77,8 @@ Save the bounded retrospective as evidence. Its header is
 `> Phase: <NNN>-<slug> · Since: <start-date>` so the goals reader can identify
 the phase. Describe actual results, unresolved criteria and evidence limits;
 hand goal scoring to the goals lane. This document is evidence, not task state.
+Offer reusable findings through `promotion.md` and `perry-knowledge propose`;
+promote only after the user chooses a finding and its source evidence.
 
 <!-- next-close: work plan-week -->
 

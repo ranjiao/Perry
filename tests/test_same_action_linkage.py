@@ -804,9 +804,9 @@ class TheUnlinkedAtAddPathHasAWriter(unittest.TestCase):
     """
 
     def test_the_constant_and_the_measurement_agree(self):
-        self.assertFalse(lib.UNLINKED_AT_ADD_HAS_NO_WRITER)
+        self.assertTrue(lib.UNLINKED_AT_ADD_HAS_NO_WRITER)
         m = lib.same_action_linkage([], [add_event("TASK-940", kr=None)])
-        self.assertTrue(m["declared_unlinked_at_add_reachable"])
+        self.assertFalse(m["declared_unlinked_at_add_reachable"])
 
     def test_the_via_add_writer_emits_an_unlinked_record_when_declared(self):
         """The § 5.5 cell TASK-394 filled, at the writer rather than the CLI.
@@ -899,26 +899,14 @@ class TheUnlinkedAtAddPathHasAWriter(unittest.TestCase):
         (d / "linkage.jsonl").unlink()
         return d
 
-    def test_perry_task_add_accepts_the_unlinked_flag_and_it_lands(self):
-        """The CLI half, through the real binary. When this goes red the flag
-        has stopped working and `UNLINKED_AT_ADD_HAS_NO_WRITER` has stopped
-        being false — the constant is rewritten, not this test relaxed."""
+    def test_retired_unlinked_add_preserves_the_legacy_register(self):
         d = _fixture_project(self)
+        before = {str(p.relative_to(d)): p.read_bytes() for p in d.rglob("*") if p.is_file()}
         r = _add(d, "a probe row", "--unlinked")
-        self.assertEqual(r.returncode, 0,
-                         f"`perry-task add --unlinked` was refused: "
-                         f"{(r.stdout + r.stderr)[:400]}")
-        # The EFFECT, not just the exit code. An exit-0 assertion alone passes
-        # for a flag that parses and does nothing, which is the silent discard
-        # this whole row exists to prevent — and it is the same shape as round
-        # 1's M13 green, one layer up.
-        records = [json.loads(line) for line
-                   in (d / "linkage.jsonl").read_text().split("\n")
-                   if line.strip()]
-        self.assertTrue(
-            any(rec.get("kind") == "unlinked" and rec.get("via") == "add"
-                for rec in records),
-            "`add --unlinked` exited 0 and wrote no `unlinked` record")
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("read-only", r.stderr)
+        self.assertEqual({str(p.relative_to(d)): p.read_bytes()
+                          for p in d.rglob("*") if p.is_file()}, before)
 
     def test_a_project_with_no_store_refuses_the_declaration(self):
         """`--unlinked` has no event field to fall back to, so on a project
@@ -930,7 +918,7 @@ class TheUnlinkedAtAddPathHasAWriter(unittest.TestCase):
                          "nothing about the store-less path")
         r = _add(d, "a probe row", "--unlinked")
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("linkage.jsonl", r.stdout + r.stderr)
+        self.assertIn("read-only", r.stdout + r.stderr)
 
     def test_perry_task_add_still_rejects_an_unknown_flag(self):
         """The control, and it is NOT the control the old class needed. That
@@ -943,20 +931,12 @@ class TheUnlinkedAtAddPathHasAWriter(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0, "the parser accepted `--unlinkd`")
         self.assertIn("unknown argument '--unlinkd'", r.stdout + r.stderr)
 
-    def test_the_fixture_can_actually_file_a_row(self):
-        """The control both tests above still need. If `_fixture_project`
-        stopped producing a usable project, the acceptance test would fail for
-        the wrong reason and the rejection test would pass for it.
-
-        **Carries `--unlinked` since TASK-439**, and the control is stronger
-        for it, not weaker: `add` now refuses a row that answers the KR
-        question neither way, so a bare `add` here would exit non-zero on a
-        perfectly good fixture and this control would report the fixture
-        broken when it is not — the precise false negative it exists to rule
-        out.
-        """
+    def test_fixture_still_serves_its_existing_attribution(self):
         d = _fixture_project(self)
-        self.assertEqual(_add(d, "a control row", "--unlinked").returncode, 0)
+        import inproc
+        out = inproc.run("perry-task", ["list", "--all", "--json", "--root", str(d)])
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertTrue(json.loads(out.stdout)["tasks"])
 
     def test_the_second_numerator_path_counts_a_produced_record(self):
         """No longer labelled as resting on a record Perry cannot produce,
@@ -1031,19 +1011,19 @@ class ABlankKrIsRefusedBeforeItReachesTheEvent(unittest.TestCase):
     def test_a_whitespace_only_kr_is_refused(self):
         r = _add(self.d, "a whitespace probe", "--kr", "   ")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("is blank", r.stdout + r.stderr)
+        self.assertIn("read-only", r.stdout + r.stderr)
 
     def test_an_empty_kr_is_refused_the_same_way(self):
         r = _add(self.d, "an empty probe", "--kr", "")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("is blank", r.stdout + r.stderr)
+        self.assertIn("read-only", r.stdout + r.stderr)
 
     def test_the_refusal_says_how_to_say_no_kr_instead(self):
         """A refusal that does not name the supported alternative is how a
         caller ends up passing something worse."""
         out = _add(self.d, "a whitespace probe", "--kr", "  ").stdout + \
             _add(self.d, "a whitespace probe", "--kr", "  ").stderr
-        self.assertIn("--unlinked", out)
+        self.assertIn("perry-kernel item create", out)
 
     def test_nothing_was_written(self):
         """`Nothing was written` is a claim, so it is checked rather than
@@ -1064,33 +1044,19 @@ class ABlankKrIsRefusedBeforeItReachesTheEvent(unittest.TestCase):
         """
         r = _add(self.d, "a row with no kr at all")
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("neither --kr nor --unlinked", r.stdout + r.stderr)
+        self.assertIn("read-only", r.stdout + r.stderr)
 
-    def test_kr_is_still_not_mandatory_because_unlinked_answers_too(self):
-        """The guard the test above used to carry, repointed at the flag that
-        now carries it.
-
-        The hazard it was written against is unchanged: a refusal that made
-        `--kr` itself required would force a guessed attribution on every row
-        with no obvious key result, which `reference/okr-linkage.md` forbids.
-        What stops that is not the no-flag path but `--unlinked`, and this is
-        the assertion that it is genuinely accepted.
-        """
+    def test_an_unlinked_answer_cannot_reopen_the_retired_writer(self):
         r = _add(self.d, "a row that serves no kr", "--unlinked")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("read-only", r.stderr)
+        self.assertEqual(self.events.read_text() if self.events.exists() else "", self.before)
 
-    def test_a_padded_kr_is_stripped_rather_than_refused(self):
-        """Only the EMPTY case is a refusal. A padded but real id is a value,
-        and it is normalised once so the event and the store record cannot
-        disagree about it."""
+    def test_a_valid_padded_kr_cannot_reopen_the_retired_writer(self):
         r = _add(self.d, "a padded kr row", "--kr", "  P003-O1-KR1  ")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        events = [json.loads(l) for l in
-                  self.events.read_text().splitlines() if l.strip()]
-        adds = [e for e in events if e.get("event") == "add"]
-        self.assertEqual(adds[-1]["kr"], "P003-O1-KR1")
-
-
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("read-only", r.stderr)
+        self.assertEqual(self.events.read_text() if self.events.exists() else "", self.before)
 
 class EveryPublisherOfAComputedKrAgrees(unittest.TestCase):
     """**Four publishers, and the fourth printed a falsehood** (TASK-382).

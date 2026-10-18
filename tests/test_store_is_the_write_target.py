@@ -201,77 +201,6 @@ class Fixture(unittest.TestCase):
                          f"{why}: a write rewrote the retired BOARD.md")
 
 
-class TestEveryWriteLeavesTheStoreAndTheBoardAgreeing(Fixture):
-    """One assertion, after each shape of write there is.
-
-    Split per subcommand rather than looped, so a failure names the write that
-    broke it instead of the first one in a list."""
-
-    def project(self) -> Project:
-        # `TASK-003` carries the cell decision 1 refuses on, and every write
-        # below is aimed at some OTHER row — which is the point: the board
-        # keeps a row Perry cannot classify and the rest of it stays writable.
-        return Project(self)
-
-    def test_add(self):
-        p = self.project()
-        code, out = p.task("add", "--title", "New", "--priority", "P1")
-        self.assertEqual(code, 0, out)
-        self.diff_is_identical(p, "after add")
-
-    def test_start(self):
-        p = self.project()
-        self.assertEqual(p.task("start", "TASK-001")[0], 0)
-        self.assertEqual(p.record("TASK-001")["status"], "in_progress")
-        self.diff_is_identical(p, "after start")
-
-    def test_status(self):
-        p = self.project()
-        self.assertEqual(p.task("status", "TASK-002", "--status", "review")[0], 0)
-        self.assertEqual(p.record("TASK-002")["status"], "review")
-        self.diff_is_identical(p, "after status")
-
-    def test_next_and_retitle(self):
-        p = self.project()
-        self.assertEqual(p.task("next", "TASK-001", "--next", "ship it")[0], 0)
-        self.assertEqual(p.task("retitle", "TASK-001", "--title", "Renamed")[0], 0)
-        self.assertEqual(p.record("TASK-001")["title"], "Renamed")
-        self.assertEqual(p.record("TASK-001")["next_action"], "ship it")
-        self.diff_is_identical(p, "after next + retitle")
-
-    def test_prioritize(self):
-        p = self.project()
-        self.assertEqual(p.task("prioritize", "TASK-001", "--priority", "P2")[0], 0)
-        self.assertEqual(p.record("TASK-001")["priority"], "P2")
-        self.diff_is_identical(p, "after prioritize")
-
-    def test_done(self):
-        p = self.project()
-        code, out = p.task("done", "TASK-002", "--evidence", "BOARD.md")
-        self.assertEqual(code, 0, out)
-        self.assertNotIn("| TASK-002 |", p.board(), "the row did not leave")
-        self.assertEqual(p.record("TASK-002")["status"], "done",
-                         "a closed row must survive in the store — the board "
-                         "no longer holds it")
-        self.diff_is_identical(p, "after done")
-
-    def test_drop(self):
-        p = self.project()
-        self.assertEqual(p.task("drop", "TASK-004", "--reason", "no")[0], 0)
-        self.diff_is_identical(p, "after drop")
-
-    def test_a_write_to_a_section_that_is_not_a_task_table(self):
-        """`ask` writes `## User Input Queue`, which the store does not hold.
-
-        It still goes through `commit()`, so it still writes the store and
-        re-renders the board — and the section it touched must come back
-        untouched, because the renderer must not treat it as a task table."""
-        p = self.project()
-        self.assertEqual(p.task("ask", "--needed", "a decision")[0], 0)
-        self.assertIn("a decision", p.board())
-        self.diff_is_identical(p, "after ask")
-
-
 class TestOneTaskTableDefinition(Fixture):
     SECOND_TABLE = BOARD.replace(
         "| TASK-004 | Fourth | User | not_started | — | — |",
@@ -281,27 +210,6 @@ class TestOneTaskTableDefinition(Fixture):
         "|---|---|---|---|---|---|\n"
         "| TASK-005 | Fifth | User | not_started | — | — |", 1)
 
-    def test_a_second_table_after_prose_is_stored_and_rendered_losslessly(self):
-        p = Project(self, self.SECOND_TABLE)
-        code, out = p.task("next", "TASK-005", "--next", "kept in the store")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(p.record("TASK-005")["next_action"], "kept in the store")
-        self.assertNotIn("ID", [r["id"] for r in p.store()],
-                         "the repeated markdown header became a task record")
-        self.diff_is_identical(p)
-        self.assertEqual(out["projection"]["rows_verbatim"], [])
-
-    def test_widening_preserves_both_tables_and_targets_the_second_row(self):
-        p = Project(self, self.SECOND_TABLE.replace(
-            "**迁移 done，占比目标 not_started**", "not_started"))
-        code, out = p.task("depends", "TASK-005", "--on", "TASK-001")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(p.record("TASK-005")["depends_on"], ["TASK-001"])
-        self.assertEqual(p.record("TASK-001")["depends_on"], [])
-        # The held layout's two widened headers left with TASK-262 round 4a:
-        # no write widens a held table. The store half is the test's claim.
-        self.assertNotIn("ID", [r["id"] for r in p.store()])
-        self.diff_is_identical(p)
 
     def test_duplicate_ids_refuse_the_direct_import(self):
         """**The write half left with TASK-262 round 4a.** An `ask` refused
@@ -419,69 +327,14 @@ class TestCanonicalRecovery(unittest.TestCase):
             mod.replace_canonical_pair = real
 
         self.assertEqual(code, 1)
-        self.assertEqual(len(calls), 1,
-                         "commit bypassed the recoverable pair helper")
-        changes = calls[0][1]
-        self.assertEqual(len(changes), 2)
-        self.assertIn(p.root / "tasks.jsonl", [path for path, _text in changes])
-        journal = next(path for path, _text in changes
-                       if path.name != "tasks.jsonl")
-        self.assertEqual(journal.parent.parent.name, "journal")
+        self.assertEqual(calls, [], "the frozen public entry point reached a transaction")
         self.assertEqual(p.board(), before)
         self.assertEqual((p.root / "tasks.jsonl").read_bytes(), before_store)
         self.assertFalse((p.root / ".perry" / "events.jsonl").exists())
 
 
-class TestStoreEditsRemainAuthoritativeAfterTask090(Fixture):
-    def test_an_unrelated_write_preserves_and_renders_the_store_edit(self):
-        p = Project(self, BOARD.replace(
-            "**迁移 done，占比目标 not_started**", "not_started"))
-        self.assertEqual(p.task("start", "TASK-001")[0], 0)
-        records = p.store()
-        records[0]["owner"] = "Store-only owner"
-        (p.root / "tasks.jsonl").write_text(
-            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
-        before = (p.root / "tasks.jsonl").read_bytes()
-        code, out = p.task("ask", "--needed", "unrelated")
-        self.assertEqual(code, 0, out)
-        self.assertEqual((p.root / "tasks.jsonl").read_bytes(), before)
-        self.assertIn("Store-only owner", p.board())
-
-    def test_a_store_only_created_edit_is_preserved(self):
-        p = Project(self, BOARD.replace(
-            "**迁移 done，占比目标 not_started**", "not_started"))
-        code, added = p.task("add", "--title", "Tool-created", "--priority", "P0")
-        self.assertEqual(code, 0, added)
-        records = p.store()
-        next(r for r in records if r["id"] == added["id"])["created"] = \
-            "1999-01-01T00:00:00"
-        (p.root / "tasks.jsonl").write_text(
-            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
-        before = (p.root / "tasks.jsonl").read_bytes()
-        code, out = p.task("ask", "--needed", "unrelated")
-        self.assertEqual(code, 0, out)
-        self.assertEqual((p.root / "tasks.jsonl").read_bytes(), before)
-
-
 class TestTheStoreIsWhatIsWritten(Fixture):
-    def test_the_write_names_the_existing_canonical_store(self):
-        p = Project(self)
-        before = p.store()
-        self.assertTrue(before)
-        code, out = p.task("start", "TASK-001")
-        self.assertEqual(code, 0, out)
-        self.assertTrue((p.root / "tasks.jsonl").exists())
-        self.assertEqual(out["store"], str(p.root / "tasks.jsonl"))
-        self.assertEqual(out["records"], len(p.store()))
 
-    def test_a_dry_run_writes_nothing_and_still_plans_the_store(self):
-        p = Project(self)
-        before = {x: x.read_bytes() for x in p.root.rglob("*") if x.is_file()}
-        code, out = p.task("start", "TASK-001", "--dry-run")
-        self.assertEqual(code, 0, out)
-        self.assertIn("store", out)
-        after = {x: x.read_bytes() for x in p.root.rglob("*") if x.is_file()}
-        self.assertEqual(before, after, "a dry run wrote to the project")
 
     #: A `Depends on` cell spelled in the project's own punctuation. The store
     #: holds a LIST; only `perry_store.cell_text` turns it back into a cell,
@@ -519,7 +372,6 @@ class TestTheStoreIsWhatIsWritten(Fixture):
         p = Project(self, self.CJK_DEPENDS)
         self.assertIn("TASK-002、TASK-004", p.held(),
                       "control: the held file carries the project's punctuation")
-        self.assertEqual(p.task("next", "TASK-004", "--next", "x")[0], 0)
         self.assertEqual(p.record("TASK-001")["depends_on"],
                          ["TASK-002", "TASK-004"])
         self.assertNotIn("TASK-002、TASK-004", p.board(),
@@ -528,18 +380,6 @@ class TestTheStoreIsWhatIsWritten(Fixture):
                          "rendered from the store")
         self.assertIn("| TASK-002, TASK-004 |", p.board())
         self.diff_is_identical(p, "after a cell was re-rendered from the store")
-
-    def test_the_payload_counts_what_the_projection_could_not_fill(self):
-        p = Project(self)
-        _, out = p.task("start", "TASK-001")
-        proj = out["projection"]
-        self.assertGreaterEqual(proj["rows_from_store"], 4)
-        self.assertEqual(proj["rows_not_on_board"], [])
-        # **`{}` since TASK-262 round 4a; it was `{"Status": 1}`.** The layout a
-        # write mutates is the declared board, laid out from the store, so no
-        # cell of it is kept verbatim: TASK-003's unstorable `Status` is in the
-        # held file only.
-        self.assertEqual(proj["cells_verbatim"], {})
 
 
 class TestAStatusTheStoreCannotHold(Fixture):
@@ -553,142 +393,36 @@ class TestAStatusTheStoreCannotHold(Fixture):
                      ("prioritize", "TASK-003", "--priority", "P1")):
             with self.subTest(cmd=argv[0]):
                 p = Project(self)
+                before = {str(f.relative_to(p.root)): f.read_bytes()
+                          for f in p.root.rglob("*") if f.is_file()}
                 code, out = p.task(*argv)
-                self.assertEqual(code, 0, out)
+                self.assertEqual(code, 1, out)
+                self.assertIn("read-only", out["refused"])
+                self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                                  for f in p.root.rglob("*") if f.is_file()}, before)
 
-    def test_the_write_replaces_projection_prose_with_store_truth(self):
+
+class TestFrozenWritesLeaveTheAuthoritativeStoreAlone(Fixture):
+    def test_every_retired_mutation_preserves_edited_fields_and_authored_order(self):
         p = Project(self)
-        self.assertEqual(p.task("start", "TASK-003")[0], 0)
-        self.assertEqual(p.record("TASK-003")["status"], "in_progress")
-        self.assertNotIn("迁移 done", p.board())
-
-    def test_a_dry_run_uses_store_truth_and_writes_nothing(self):
-        p = Project(self)
-        before = {path: path.read_bytes() for path in p.root.rglob("*") if path.is_file()}
-        self.assertEqual(p.task("start", "TASK-003", "--dry-run")[0], 0)
-        after = {path: path.read_bytes() for path in p.root.rglob("*") if path.is_file()}
-        self.assertEqual(before, after)
-
-    def test_every_other_row_is_unaffected(self):
-        """The scope that two pinned tests forced, and they were right.
-
-        A project-wide refusal would break `the read path and the write path
-        must agree about what a row is` for every row Perry reads perfectly
-        well, on account of one it does not."""
-        p = Project(self)
-        for tid in ("TASK-001", "TASK-002", "TASK-004"):
-            with self.subTest(id=tid):
-                self.assertEqual(p.task("next", tid, "--next", "still fine")[0],
-                                 0)
-        self.diff_is_identical(p, "after writing around the unstorable row")
-
-class TestRowOrderIsRecorded(Fixture):
-    """TASK-089 decision 2.
-
-    `perry-task/list` sorts by id and a real board does not: Perry's own
-    `## P1` runs `TASK-047` before `TASK-038`. A store that did not record
-    order would move those rows on the first render — a whole-file diff on
-    somebody's project, which is what ADR-004 means by a migration having to be
-    reviewable and what `viewer/tables.py § render_row` refuses one row down.
-    """
-
-    #: Authored order that disagrees with id order, in the same shape the real
-    #: board does. Nothing but a recorded `order` can reproduce it.
-    OUT_OF_ORDER = BOARD.replace(
-        "| TASK-001 | First | User | not_started | — | — |\n"
-        "| TASK-002 | Second | User | in_progress | — | — |",
-        "| TASK-002 | Second | User | in_progress | — | — |\n"
-        "| TASK-001 | First | User | not_started | — | — |")
-
-    def test_the_store_records_the_authored_order_not_the_id_order(self):
-        p = Project(self, self.OUT_OF_ORDER)
-        self.assertEqual(p.task("start", "TASK-004")[0], 0)
-        self.assertEqual(p.record("TASK-002")["order"], 0)
-        self.assertEqual(p.record("TASK-001")["order"], 1)
-
-    def test_a_write_does_not_reorder_the_board(self):
-        p = Project(self, self.OUT_OF_ORDER)
-        before = p.rows_of("P0")
-        self.assertEqual(before[:2], ["TASK-002", "TASK-001"],
-                         "the fixture is not out of id order")
-        self.assertEqual(p.task("next", "TASK-004", "--next", "x")[0], 0)
-        self.assertEqual(p.rows_of("P0"), before,
-                         "the write reordered rows it was not asked to move")
-        self.diff_is_identical(p, "after a write on an out-of-id-order board")
-
-    def test_a_new_row_lands_last_in_its_section_and_records_that(self):
-        p = Project(self)
-        code, out = p.task("add", "--title", "New", "--priority", "P0")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(p.rows_of("P0")[-1], out["id"])
-        self.assertEqual(p.record(out["id"])["order"], 4)
-
-    def test_a_row_that_left_the_board_records_no_order(self):
-        """`null`, not `0`. "Not on the board" and "first on the board" are
-        different claims and a consumer sorting on the field must be able to
-        tell them apart."""
-        p = Project(self)
-        self.assertEqual(p.task("done", "TASK-002", "--evidence", "BOARD.md")[0], 0)
-        self.assertIsNone(p.record("TASK-002")["order"])
-        self.assertEqual(p.record("TASK-004")["order"], 2,
-                         "the rows below the closed one did not close up")
-
-    def test_the_renderer_reports_a_board_that_disagrees_with_the_store(self):
-        """`order` is a claim until something can be shown to disagree with it.
-
-        Swap two rows in the file and `diff` says which section moved — it does
-        not silently re-sort them, because re-sorting here is the whole-file
-        diff the field exists to prevent."""
-        p = Project(self)
-        self.assertEqual(p.task("start", "TASK-001")[0], 0)
-        # `diff` compares a held file with the render (a verb R5 retires). No
-        # write re-renders the held file since TASK-262 round 4a, so the file
-        # is made the render first — the state a project that last wrote before
-        # 4a holds — and then two rows are swapped in it.
-        (p.root / "BOARD.md").write_text(p.board(), encoding="utf-8")
-        lines = p.held().split("\n")
-        i = next(n for n, l in enumerate(lines) if l.startswith("| TASK-001 |"))
-        j = next(n for n, l in enumerate(lines) if l.startswith("| TASK-002 |"))
-        self.assertEqual(j, i + 1, "the fixture rows are not adjacent")
-        lines[i], lines[j] = lines[j], lines[i]
-        (p.root / "BOARD.md").write_text("\n".join(lines), encoding="utf-8")
-        report = json.loads(p.tasks("diff")[1])
-        moved = report["sections_out_of_stored_order"]
-        self.assertEqual([s["heading"] for s in moved],
-                         ["P0 (must finish this period)"])
-        self.assertEqual(moved[0]["on_the_board"][:2], ["TASK-002", "TASK-001"])
-        self.assertEqual(moved[0]["in_the_store"][:2], ["TASK-001", "TASK-002"])
-
-
-class TestTheStoreAndTheJournalAreThePair(Fixture):
-    def test_both_land_together(self):
-        p = Project(self)
-        self.assertEqual(p.task("start", "TASK-001")[0], 0)
-        journal = list((p.root / "journal").rglob("*.md"))
-        self.assertEqual(len(journal), 1)
-        self.assertIn("TASK-001", journal[0].read_text(encoding="utf-8"))
-        self.assertTrue((p.root / "tasks.jsonl").exists())
-
-    def test_a_lost_event_costs_history_and_not_the_record(self):
-        """The direction the loss is allowed to run. `.perry/events.jsonl`
-        unwritable: the store and the journal still land, and the tool says the
-        event did not."""
-        import os
-        p = Project(self)
-        ev = p.root / ".perry"
-        (ev / "events.jsonl").write_text("", encoding="utf-8")
-        mode = ev.stat().st_mode
-        os.chmod(ev / "events.jsonl", 0o444)
-        os.chmod(ev, 0o555)
-        try:
-            code, out = p.task("start", "TASK-001")
-        finally:
-            os.chmod(ev, mode)
-            os.chmod(ev / "events.jsonl", 0o644)
-        self.assertEqual(code, 0, out)
-        self.assertFalse(out["event_written"])
-        self.assertEqual(p.record("TASK-001")["status"], "in_progress")
-        self.diff_is_identical(p, "after an event append failed")
+        path = p.root / "tasks.jsonl"
+        records = p.store()
+        records[0]["title"] = "Edited directly in the historical canonical store"
+        path.write_text(task_module().perry_store.store_text(records))
+        before = {str(f.relative_to(p.root)): f.read_bytes()
+                  for f in p.root.rglob("*") if f.is_file()}
+        for argv in (("start", "TASK-001"), ("next", "TASK-001", "--next", "more"),
+                     ("done", "TASK-001", "--evidence", "proof.md"),
+                     ("drop", "TASK-001", "--reason", "out of scope"),
+                     ("add", "--title", "another"), ("ask", "--needed", "Which?")):
+            code, out = p.task(*argv)
+            self.assertEqual(code, 1, out)
+            self.assertIn("read-only", out["refused"])
+            self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                              for f in p.root.rglob("*") if f.is_file()}, before)
+        self.assertEqual([r["id"] for r in p.store()], [r["id"] for r in records])
+        self.assertIn(records[0]["title"], p.board())
+        self.assertNotIn("Edited directly", p.held())
 
 
 if __name__ == "__main__":

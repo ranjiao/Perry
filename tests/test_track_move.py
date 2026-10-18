@@ -71,487 +71,66 @@ HEAD = ("| ID | Title | Owner | Status | Next action | Evidence "
         "| Verification |\n|---|---|---|---|---|---|---|\n")
 
 
-class Base(unittest.TestCase):
-    def project(self, rows: int = 1, heading: str = "P1") -> Path:
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        root = Path(tmp.name)
-        (root / ".perry").mkdir()
-        (root / "perry").mkdir()
-        config_store.write_config(root, SETTINGS, TRACKS)
-        if heading not in ("P0", "P1", "P2"):
-            # **Imported, not added** (TASK-262 round 4a). A write builds from
-            # the declared board, which carries a project's own heading only
-            # once a stored row sits under it — `add --group` refuses a group
-            # no record holds. A held board filed under its own headings
-            # reaches the store through its import, so that is how these rows
-            # arrive.
-            (root / "perry" / "BOARD.md").write_text(
-                f"# Board\n\n## {heading}\n\n" + HEAD
-                + "".join(f"| TASK-{n + 1:03d} | row {n + 1} | Coding Agent "
-                          f"| not_started | n | — | V3 |\n" for n in range(rows)),
-                encoding="utf-8")
-            r = inproc.run("perry-tasks", ["write", "--from-board",
-                                           "--root", str(root)])
-            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-            return root
-        (root / "perry" / "BOARD.md").write_text(
-            f"# Board\n\n## {heading}\n\n" + HEAD, encoding="utf-8")
-        for n in range(rows):
-            self.ok(root, "add", "--title", f"row {n + 1}",
-                    "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                    "--deliverable", "an artifact with a test",
-                    "--verification", "perry-lint clean", "--next", "n")
-        return root
-
-    def cli(self, root: Path, *args: str):
-        # **In-process** (TASK-368). Measured in this tree before converting:
-        # 280 `perry-task` calls, 15.5 of this module's 15.9 seconds are
-        # children, and the boundary is 92.1% of a `perry-task` call against a
-        # fixture — 89.3% of the module. `perry-task`'s module globals
-        # (`_ALIASES`/`_DISPLAY`, `_HEADINGS`, `_PERRY_STATE`) derive from the
-        # schema at `PERRY_HOME` or from a sibling, so none is root-dependent;
-        # every test here builds its own temp root anyway.
-        return inproc.run("perry-task",
-                          task_actor.owned([*args, "--root", str(root), "--json"], 'test_track_move'))
-
-    def ok(self, root: Path, *args: str) -> dict:
-        r = self.cli(root, *args)
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        return json.loads(r.stdout)
-
-    def tasks(self, root: Path) -> dict:
-        out = self.ok(root, "list", "--all")
-        return {t["id"]: t for t in out["tasks"]}
-
-    def store(self, root: Path) -> dict:
-        lines = (root / "perry" / "tasks.jsonl").read_text(
-            encoding="utf-8").splitlines()
-        return {r["id"]: r for r in (json.loads(l) for l in lines if l.strip())}
-
-    def events(self, root: Path) -> list[dict]:
-        path = root / ".perry" / "events.jsonl"
-        if not path.exists():
-            return []
-        return [json.loads(l) for l in
-                path.read_text(encoding="utf-8").splitlines() if l.strip()]
-
-    def board(self, root: Path) -> str:
-        """What `perry-tasks board` prints (TASK-262 round 4a)."""
-        r = inproc.run("perry-tasks", ["board", "--root", str(root)])
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        return r.stdout
-
-    def cells(self, root: Path, tid: str) -> dict:
-        header = None
-        for line in self.board(root).split("\n"):
-            if line.startswith("| ID |"):
-                header = [c.strip().lower() for c in line.strip().strip("|").split("|")]
-            elif line.startswith(f"| {tid} |") and header:
-                return dict(zip(header, [c.strip() for c in
-                                         line.strip().strip("|").split("|")]))
-        self.fail(f"{tid} is not a row on the printed board")
-
-    def state(self, root: Path) -> dict:
-        r = inproc.run("perry-state", ["--json", "--root", str(root)])
-        self.assertEqual(r.returncode, 0, r.stderr)
-        return json.loads(r.stdout)
+from kernel_work_support import ACTOR, ready, task
+from task_writer_support import Project as LegacyProject
 
 
-class TestSixRowsMove(Base):
-    """V3 item 1. The measured defect was that a declared track stays empty."""
+class TestNativeTrackMove(unittest.TestCase):
+    def test_move_changes_track_alone_and_preserves_relationships(self):
+        sb = ready(self)
+        parent, tid = task(sb), task(sb, track="main")
+        sb.ok("rel add", data={"actor": ACTOR, "kind": "parent", "from": parent, "to": tid})
+        sb.ok("attach add", data={"actor": ACTOR, "id": tid, "ref": "evidence/spec.md"})
+        before = sb.get(tid)
+        for track in ("intake", "main"):
+            sb.ok("item update", data={"actor": ACTOR, "id": tid, "set": {"track": track},
+                                       "expect": {tid: sb.get(tid)["seq"]}})
+            got = sb.get(tid)
+            self.assertEqual(got["fields"]["track"], track)
+            self.assertEqual(got["state"], before["state"])
+            self.assertEqual(got["relations"], before["relations"])
+            self.assertEqual(got["attachments"], before["attachments"])
+            self.assertEqual({k: v for k, v in got["fields"].items() if k != "track"},
+                             {k: v for k, v in before["fields"].items() if k != "track"})
 
-    def test_six_existing_rows_reach_the_declared_queue_track(self):
-        root = self.project(rows=6)
-        ids = sorted(self.tasks(root))
-        self.assertEqual(len(ids), 6)
-        for tid in ids:
-            self.ok(root, "track", tid, "--track", "intake")
-        moved = self.tasks(root)
-        self.assertEqual(sorted(t["id"] for t in moved.values()
-                                if t["track"] == "intake"), ids)
+    def test_unknown_legacy_tracks_refuse_without_clock_or_event(self):
+        sb = ready(self)
+        tid = task(sb, track="main")
+        before = sb.get(tid)
+        for track in ("ops", "press", "typo"):
+            out = sb.run("item update", data={"actor": ACTOR, "id": tid, "set": {"track": track}})
+            self.assertFalse(out.ok, out)
+            self.assertEqual(sb.get(tid), before)
+        for key in ("arrived", "stage", "stage_since"):
+            self.assertNotIn(key, before["fields"])
 
-    def test_the_board_renders_arrived_and_stage_for_every_moved_row(self):
-        """The board is the projection. A move the store knows and the
-        rendered file does not is a half-landed write."""
-        root = self.project(rows=6)
-        for tid in sorted(self.tasks(root)):
-            self.ok(root, "track", tid, "--track", "intake")
-        for t in self.tasks(root).values():
-            self.assertEqual(t["stage"], "triaged", t["id"])
-            self.assertEqual(t["arrived"], TODAY, t["id"])
-            self.assertEqual(t["stage_since"], TODAY, t["id"])
-        # Read under the printed board's own header (TASK-262 round 4a): the
-        # declared table orders its columns `Track | Verification | Stage |
-        # Arrived | … | Stage since`, so the held table's contiguous run of
-        # four is not the thing to count.
-        for tid in self.tasks(root):
-            with self.subTest(row=tid):
-                c = self.cells(root, tid)
-                self.assertEqual((c["track"], c["stage"], c["stage since"],
-                                  c["arrived"]), ("intake", "triaged", TODAY, TODAY))
-
-    def test_perry_state_reports_them_under_the_tracks_stage_counts(self):
-        """The reader the mode's own triage step runs off. It counted nothing
-        for `intake` because nothing could get there."""
-        root = self.project(rows=6)
-        before = {t["track"]: t["stage_counts"] for t in
-                  self.state(root)["project"]["config"]["tracks"]}
-        self.assertEqual(before["intake"], {})
-        for tid in sorted(self.tasks(root)):
-            self.ok(root, "track", tid, "--track", "intake")
-        after = {t["track"]: t["stage_counts"] for t in
-                 self.state(root)["project"]["config"]["tracks"]}
-        self.assertEqual(after["intake"], {"triaged": 6})
-
-    def test_the_stage_is_the_one_the_other_two_entrances_use(self):
-        """`add`, `route` and this all call `entry_stage`, so a queue row is
-        born past the stage that means "sitting in intake" whichever door it
-        came through. Three entrances that each picked their own would put one
-        track's rows in two vocabularies."""
-        root = self.project(rows=1)
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake")
-        born = self.ok(root, "add", "--title", "born on the track",
-                           "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                           "--deliverable", "an artifact with a test",
-                           "--verification", "v", "--next", "n",
-                           "--track", "intake")["id"]
-        rows = self.tasks(root)
-        self.assertEqual(rows[tid]["stage"], rows[born]["stage"])
-
-    def test_nothing_else_about_the_row_moves(self):
-        """It keeps its id, its section and every other cell — the property
-        that makes this a move rather than a re-file."""
-        root = self.project(rows=1)
-        tid, = self.tasks(root)
-        before = self.tasks(root)[tid]
-        self.ok(root, "track", tid, "--track", "intake")
-        after = self.tasks(root)[tid]
-        for key in ("id", "title", "owner", "status", "priority", "group",
-                    "next_action", "evidence", "verification", "created"):
-            self.assertEqual(before[key], after[key], key)
+    def test_closed_item_track_can_be_corrected_without_reopening(self):
+        sb = ready(self)
+        tid = task(sb, track="main")
+        sb.move(tid, "done", set={"evidence": "proof.md"})
+        sb.ok("item update", data={"actor": ACTOR, "id": tid, "set": {"track": "intake"}})
+        self.assertEqual(sb.get(tid)["state"], "done")
+        self.assertEqual(sb.get(tid)["fields"]["track"], "intake")
 
 
-class TestTheRefusalIsByName(Base):
-    """V3 item 2, in `delegate`'s shape for an undeclared role card."""
-
-    def refusal(self, root: Path):
-        r = self.cli(root, "track", next(iter(self.tasks(root))),
-                     "--track", "nosuch")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertNotIn("Traceback", r.stderr + r.stdout)
-        return json.loads(r.stdout)["refused"]
-
-    def test_it_names_the_track_and_lists_the_declared_ones(self):
-        msg = self.refusal(self.project())
-        self.assertIn("'nosuch'", msg)
-        for declared in ("main", "intake", "press", "ops"):
-            self.assertIn(declared, msg)
-
-    def test_it_names_the_file_the_declaration_lives_in(self):
-        """A user who must name a declared track needs the set AND the way to
-        add the missing one. Printing the set alone — which is what a bare
-        Python list repr did — names the problem and not the fix."""
-        msg = self.refusal(self.project())
-        self.assertIn(".perry/config.jsonl", msg)
-        self.assertIn("Nothing was written", msg)
-
-    def test_it_creates_nothing(self):
-        root = self.project()
-        config_before = (root / ".perry" / "config.jsonl").read_bytes()
-        board_before = self.board(root)
-        self.refusal(root)
-        self.assertEqual((root / ".perry" / "config.jsonl").read_bytes(),
-                         config_before)
-        self.assertEqual(self.board(root), board_before)
-        self.assertEqual([e for e in self.events(root)
-                          if e.get("event") == "track"], [])
-        tracks = {t["track"] for t in
-                  self.state(root)["project"]["config"]["tracks"]}
-        self.assertNotIn("nosuch", tracks)
-
-    def test_a_move_to_the_track_the_row_is_already_on_is_refused(self):
-        """A no-op that still emitted an event would put a move in the
-        timeline that did not happen, and the timeline is what `list` reports
-        as history."""
-        root = self.project()
-        tid, = self.tasks(root)
-        r = self.cli(root, "track", tid, "--track", "main")
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("already on track", json.loads(r.stdout)["refused"])
-
-    def test_a_stage_outside_the_destinations_vocabulary_is_refused(self):
-        root = self.project()
-        tid, = self.tasks(root)
-        r = self.cli(root, "track", tid, "--track", "intake",
-                     "--stage", "bogus")
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("vocabulary", json.loads(r.stdout)["refused"])
-
-    def test_track_without_a_track_is_refused_rather_than_a_no_op(self):
-        root = self.project()
-        tid, = self.tasks(root)
-        r = self.cli(root, "track", tid)
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("--track is required", json.loads(r.stdout)["refused"])
+class TestLegacyTrackRead(unittest.TestCase):
+    def test_frozen_track_writer_preserves_legacy_clock_and_group(self):
+        p = LegacyProject(tracks=TRACKS)
+        p.seed_task("TASK-001", track="ops", stage="triaged", arrived="2026-08-01",
+                    stage_since="2026-08-02", group="Support lane")
+        before = {str(f.relative_to(p.root)): f.read_bytes() for f in p.root.rglob("*") if f.is_file()}
+        for target in ("main", "ops", "typo"):
+            code, out = p.run("track", "TASK-001", "--track", target)
+            self.assertEqual(code, 1, out)
+            self.assertIn("perry-kernel item update", out["refused"])
+            self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                              for f in p.root.rglob("*") if f.is_file()}, before)
+        code, out = p.run("list", "--all")
+        self.assertEqual(code, 0, out)
+        row = out["tasks"][0]
+        self.assertEqual((row["track"], row["stage"], row["arrived"], row["group"]),
+                         ("ops", "triaged", "2026-08-01", "Support lane"))
 
 
-class TestBothDirectionsOfTheFieldQuestion(Base):
-    """V3 item 3. The decision deliverable 2 asks for, asserted in a fixture
-    rather than argued in a docstring."""
-
-    def test_onto_a_queue_track_the_clock_starts(self):
-        root = self.project()
-        tid, = self.tasks(root)
-        out = self.ok(root, "track", tid, "--track", "intake")
-        self.assertEqual((out["stage"], out["arrived"]), ("triaged", TODAY))
-        rec = self.store(root)[tid]
-        self.assertEqual(rec["track"], "intake")
-        self.assertEqual(rec["stage"], "triaged")
-        self.assertEqual(rec["arrived"], TODAY)
-        self.assertEqual(rec["stage_since"], TODAY)
-
-    def test_off_a_queue_track_the_clock_is_cleared(self):
-        """Not kept: `Arrived` is a queue's clock, not provenance, and one
-        left on a row no queue governs is a live-looking number the next SLA
-        reader picks up. `cmd_route` already had to stop writing `Arrived` onto
-        non-queue rows for the mirror-image reason — a non-empty `arrived`
-        hides the row from `rows_with_no_computable_age`."""
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake",
-                    "--arrived", "2026-08-01")
-        self.ok(root, "track", tid, "--track", "main")
-        rec = self.store(root)[tid]
-        self.assertEqual(rec["track"], "main")
-        self.assertEqual(rec["arrived"], "")
-        self.assertEqual(rec["stage"], "")
-        self.assertEqual(rec["stage_since"], "")
-
-    def test_what_was_cleared_is_recorded_on_both_surviving_surfaces(self):
-        """Dropping the CELL is not dropping the FACT — `drop`'s precedent,
-        applied one field down. The journal is append-only and the event
-        carries the pair, which is where every other post-removal question is
-        already answered from."""
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake",
-                    "--arrived", "2026-08-01")
-        self.ok(root, "track", tid, "--track", "main")
-        journal = (root / "perry" / "journal" / f"{date.today():%Y-%m}"
-                   / f"{TODAY}.md").read_text(encoding="utf-8")
-        self.assertIn(f"[{tid}] track intake → main", journal)
-        self.assertIn("stage triaged → —", journal)
-        self.assertIn("arrived 2026-08-01 → —", journal)
-        off = [e for e in self.events(root) if e.get("event") == "track"][-1]
-        self.assertEqual(off["stage_from"], "triaged")
-        self.assertEqual(off["arrived_from"], "2026-08-01")
-        self.assertEqual((off["stage"], off["arrived"]), ("", ""))
-
-    def test_an_existing_arrived_is_carried_never_restamped(self):
-        """The case the spec names. A queue → queue move that reset the clock
-        to today would erase an in-flight breach — the same exemption a missing
-        stamp buys, arriving through the other door."""
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake",
-                    "--arrived", "2026-08-01")
-        out = self.ok(root, "track", tid, "--track", "ops")
-        self.assertEqual(out["arrived"], "2026-08-01")
-        self.assertEqual(self.store(root)[tid]["arrived"], "2026-08-01")
-
-    def test_the_stage_is_restamped_on_a_queue_to_queue_move(self):
-        """The vocabularies differ per track, so the stage cannot be carried
-        even when the clock is: `intake` has `in_progress` and `ops` does
-        not."""
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake")
-        self.ok(root, "stage", tid, "--stage", "in_progress")
-        self.ok(root, "track", tid, "--track", "ops")
-        rec = self.store(root)[tid]
-        self.assertEqual(rec["stage"], "triaged")
-        self.assertEqual(rec["stage_since"], TODAY)
-
-    def test_a_staged_non_queue_destination_gets_stage_since_and_no_arrived(self):
-        """`entry_stage` puts a pipeline row at `brief`, not past it — the
-        skip is a queue rule, because only a queue's first stage means
-        "sitting in intake"."""
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake")
-        self.ok(root, "track", tid, "--track", "press")
-        rec = self.store(root)[tid]
-        self.assertEqual(rec["stage"], "brief")
-        self.assertEqual(rec["stage_since"], TODAY)
-        self.assertEqual(rec["arrived"], "")
-
-    def test_arrived_on_a_destination_that_cannot_read_it_is_refused(self):
-        """Accepting the flag and dropping the value is how `--rung` and
-        `--commitment` were each lost for a release. A refusal says the
-        destination has no clock for it."""
-        root = self.project()
-        tid, = self.tasks(root)
-        r = self.cli(root, "track", tid, "--track", "press",
-                     "--arrived", "2026-08-01")
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("--arrived", json.loads(r.stdout)["refused"])
-
-    def test_the_move_survives_a_re_render(self):
-        """The board is rendered FROM the store. A `changed` map that listed
-        only `track` would leave yesterday's `Stage` and `Arrived` in the
-        record beside the new track, and the move would half-revert here."""
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake")
-        # **The render is `perry-tasks board` since TASK-262 round 4a.** This
-        # re-rendered the held file with `render --write` and compared; that
-        # verb fills a held file's lines, and no write puts the row in that
-        # file any more. The render from the store is the printed board, so
-        # the move is asserted there, field by field.
-        c = self.cells(root, tid)
-        self.assertEqual((c["track"], c["stage"], c["arrived"]),
-                         ("intake", "triaged", TODAY))
-
-
-class TestAnEventPerMove(Base):
-    """V3 item 4. A track change nothing recorded is TASK-139's shape."""
-
-    def test_every_move_appends_exactly_one_track_event(self):
-        root = self.project(rows=3)
-        ids = sorted(self.tasks(root))
-        for tid in ids:
-            self.ok(root, "track", tid, "--track", "intake")
-        moves = [e for e in self.events(root) if e.get("event") == "track"]
-        self.assertEqual([e["id"] for e in moves], ids)
-
-    def test_the_event_says_where_from_and_where_to(self):
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake", "--reason", "it arrived")
-        e, = [e for e in self.events(root) if e.get("event") == "track"]
-        self.assertEqual((e["from"], e["to"]), ("main", "intake"))
-        self.assertEqual(e["field"], "track")
-        self.assertEqual(e["track"], "intake")
-        self.assertEqual(e["mode"], "queue")
-        self.assertEqual(e["reason"], "it arrived")
-        self.assertEqual(e["title"], "row 1")
-
-    def test_the_pair_reaches_the_timeline_labelled_track(self):
-        """`timeline[].field` exists so a consumer needs no hardcoded set of
-        special cases. Labelling this pair `status` — or `stage` — would put a
-        track name in a field a reader resolves against a status enum or a
-        stage vocabulary."""
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake")
-        entry, = [t for t in self.tasks(root)[tid]["timeline"]
-                  if t["event"] == "track"]
-        self.assertEqual(entry["field"], "track")
-        self.assertEqual((entry["from"], entry["to"]), ("main", "intake"))
-
-    def test_the_events_feed_carries_it(self):
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake")
-        feed = self.ok(root, "events")["events"]
-        move, = [e for e in feed if e["event"] == "track"]
-        self.assertEqual(move["field"], "track")
-        self.assertEqual(move["track"], "intake")
-
-    def test_a_dry_run_writes_nothing(self):
-        root = self.project()
-        tid, = self.tasks(root)
-        before = (self.board(root), self.store(root), self.events(root))
-        self.ok(root, "track", tid, "--track", "intake", "--dry-run")
-        self.assertEqual((self.board(root), self.store(root),
-                          self.events(root)), before)
-
-
-class TestTheProjectionAgreesAfterAMove(Base):
-    """V3 item 5. The board is a projection; a move that leaves the rendered
-    file disagreeing with the store has not finished."""
-
-    def lint(self, root: Path) -> list[dict]:
-        # `bin/perry-lint` caches the track register in `_TRACK_CONTEXTS`,
-        # keyed on the root and never cleared — so an in-process lint is only
-        # safe where a root is linted once. Each test here builds a fresh temp
-        # root and lints it once; `tests/inproc.py` has the general warning.
-        r = inproc.run("perry-lint", ["--json", "--root", str(root)])
-        return json.loads(r.stdout)["findings"]
-
-    def test_perry_lint_reports_no_store_drift_after_a_move(self):
-        root = self.project(rows=6)
-        for tid in sorted(self.tasks(root)):
-            self.ok(root, "track", tid, "--track", "intake")
-        drift = [f for f in self.lint(root)
-                 if str(f.get("code", "")).startswith("store-drift")]
-        self.assertEqual(drift, [], "the board disagrees with the store")
-
-    def test_and_none_after_a_move_that_clears_the_clock(self):
-        """The clearing direction is the one a projection loses: a cell whose
-        value goes to `""` is exactly the write a renderer can silently skip."""
-        root = self.project()
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake")
-        self.ok(root, "track", tid, "--track", "main")
-        drift = [f for f in self.lint(root)
-                 if str(f.get("code", "")).startswith("store-drift")]
-        self.assertEqual(drift, [])
-
-
-class TestABoardWithItsOwnHeadings(Base):
-    """`Board.find` returns `P0`/`P1`/`P2` **or a project's own heading**, and
-    the two widenings live on different methods. `cmd_stage` widens only in the
-    first case, so on the board shape `--group` exists for — the only real
-    adopted project available — a stamp is dropped silently at exit 0. A track
-    move writes four such cells, so it asks the question for both shapes."""
-
-    def test_the_cells_land_under_a_projects_own_heading(self):
-        root = self.project(rows=1, heading="Open — 工程线")
-        tid, = self.tasks(root)
-        self.ok(root, "track", tid, "--track", "intake")
-        rec = self.store(root)[tid]
-        self.assertEqual(rec["track"], "intake")
-        self.assertEqual(rec["stage"], "triaged")
-        self.assertEqual(rec["arrived"], TODAY)
-        c = self.cells(root, tid)
-        self.assertEqual((c["track"], c["stage"]), ("intake", "triaged"))
-        section = self.board(root).split("## Open — 工程线", 1)[1].split("\n## ", 1)[0]
-        self.assertIn(f"| {tid} |", section)
-
-
-class TestTheSubcommandIsWiredEverywhereItHasToBe(unittest.TestCase):
-    """The four tables a subcommand has to appear in, each of which fails
-    silently on its own: absent from `COMMANDS` it is unreachable, absent from
-    the partition it drops out of the front-end contract, absent from
-    `EVENT_FIELD` it ships `""` for the pair's meaning, and absent from
-    `commit`'s `changed` map it lands in the store as a track with yesterday's
-    clock beside it."""
-
-    @classmethod
-    def setUpClass(cls):
-        import importlib.machinery
-        import importlib.util
-        spec = importlib.util.spec_from_loader(
-            "perry_task_track",
-            importlib.machinery.SourceFileLoader("perry_task_track", str(TASK)))
-        cls.mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.mod)
-
-    def test_it_is_dispatchable_and_classified_as_a_task_event(self):
-        self.assertIn("track", self.mod.COMMANDS)
-        self.assertIn("track", self.mod.TASK_EVENTS)
-        self.assertNotIn("track", self.mod.SECTION_EVENTS)
-        self.assertIn("track", self.mod.TASK_ROW_COMMANDS)
-
-    def test_the_pair_declares_what_it_refers_to(self):
-        self.assertEqual(self.mod.EVENT_FIELD["track"], "track")
-
-    def test_the_write_carries_the_clock_fields_with_the_track(self):
-        source = TASK.read_text(encoding="utf-8")
-        self.assertIn(
-            '"track": ("track", "stage", "stage_since", "arrived"),', source,
-            "commit's `changed` map must carry the cells the move re-stamps, "
-            "or the store keeps yesterday's clock beside the new track")
+if __name__ == "__main__":
+    unittest.main()

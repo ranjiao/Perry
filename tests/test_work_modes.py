@@ -56,6 +56,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from kernel_work_support import ACTOR, ready, task
+
 import config_store  # noqa: E402
 from held_board import import_board  # noqa: E402
 
@@ -264,8 +266,6 @@ class TestOptInIsChecked(unittest.TestCase):
                 [t["mode"] for t in state.declared_tracks(root)], ["project"])
 
 
-
-
 # `TestTrackParsing` stood here: six unit tests over `bin/perry-state §
 # parse_tracks`, the `## Tracks` reader. Its subject was that the router has no
 # "no tracks declared" branch, so an empty list from that reader would become a
@@ -368,40 +368,17 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
                           for t in scan["tracks"]],
                          [("main", "project"), ("intake", "queue")])
 
-    def test_perry_task_accepts_a_track_only_the_store_declares(self):
-        """A refusal here is the projection winning over the register.
-
-        `--dry-run`, so the assertion is about which register the writer
-        resolved `--track` against and nothing is written. The stage the row
-        would be born into comes from the same record, which is why it is
-        asserted too: reading the table would give `intake` no mode at all.
-        """
-        r = subprocess.run(
-            task_actor.command(["python3", str(PERRY_HOME / "bin" / "perry-task"), "add",
-             "--root", str(self.root), "--title", "probe",
-             "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-             "--deliverable", "d", "--verification", "v",
-             # `--unlinked` since TASK-439: `add` refuses a row answering the
-             # KR question neither way, and the refusal fires before the track
-             # is resolved — so without it this test would read a refusal about
-             # linkage and report it as the projection beating the register.
-             # Honest for a throwaway probe row, which serves no key result.
-             "--track", "intake", "--unlinked", "--dry-run", "--json"], 'test_work_modes'),
-            capture_output=True, text=True)
-        payload = json.loads(r.stdout)
-        self.assertNotIn("refused", payload,
-                         f"perry-task refused a track the store declares: "
-                         f"{payload.get('refused')}")
-        # Read under the declared header (TASK-262 round 4a): the row a write
-        # lays out is the declared board's, whose `Verification` column sits
-        # between `Track` and `Stage`.
-        board = subprocess.run(
-            ["python3", str(PERRY_HOME / "bin" / "perry-tasks"), "board",
-             "--root", str(self.root)], capture_output=True, text=True).stdout
-        header = next(l for l in board.split("\n") if l.startswith("| ID |"))
-        split = lambda line: [c.strip() for c in line.strip().strip("|").split("|")]  # noqa: E731
-        cells = dict(zip([h.lower() for h in split(header)], split(payload["row"])))
-        self.assertEqual((cells["track"], cells["stage"]), ("intake", "triaged"))
+    def test_native_track_is_the_locked_work_enum(self):
+        sb = ready(self)
+        for track in ("main", "intake"):
+            tid = task(sb, track=track)
+            self.assertEqual(sb.get(tid)["fields"]["track"], track)
+        before = sb.seq()
+        result = sb.run("item create", data={"actor": ACTOR, "type": "task",
+            "fields": {"title": "label", "summary": "description", "priority": "P1",
+                       "verification": "V3", "track": "custom-pipeline"}})
+        self.assertFalse(result.ok, result)
+        self.assertEqual(sb.seq(), before)
 
     def test_a_project_with_no_store_reads_the_implicit_main_track(self):
         """The invariant `TestTrackParsing` used to hold one function lower.
@@ -817,7 +794,6 @@ class TestI18n(unittest.TestCase):
         self.assertIn("收件", table_spec("board", "Intake")["under"])
 
 
-
 class TestInquiryHasDataForEveryControl(unittest.TestCase):
     """The defect that failed two prior reviews: a control described in prose
     whose data has nowhere to live. `modes/inquiry.md` was written after the
@@ -1129,85 +1105,34 @@ class TestPackGlossary(unittest.TestCase):
                     self.assertEqual(path.read_bytes(), content)
 
 
-class TestEveryModeColumnHasAWriter(unittest.TestCase):
-    """A column is not a control until something writes it.
+class TestNativeWorkProcedureBoundary(unittest.TestCase):
+    def test_add_uses_native_fields_relations_and_attachments(self):
+        text = (PERRY_HOME / "work/reference/add-task.md").read_text()
+        for fragment in ("item create", "blocks", "attach add", "next_action",
+                         "V5 floor", "handed to goals"):
+            self.assertIn(fragment, text)
 
-    This is the defect that survived three review rounds in three disguises. The
-    schema kept gaining honest homes for data — `Stage`, `Stage since`,
-    `Arrived`, `Commitment`, `Parent` — while no procedure ever set them, so
-    triage steps that read those cells were uncomputable in practice no matter
-    how correct the mode files sounded. The reviewer's phrasing is the test
-    name.
+    def test_triage_declares_the_retired_controls_and_uses_item_operations(self):
+        text = (PERRY_HOME / "work/reference/planning.md").read_text()
+        for fragment in ("item update", "item move", "rel add/remove",
+                         "no stage", "SLA, WIP or cadence procedure is recreated"):
+            self.assertIn(fragment, text)
 
-    The write path lives in `work/reference/subcommands.md`, because `work` is
-    the only lane that may write `BOARD.md`. Checking the prose is crude, but
-    the alternative — asserting only that the schema declares the column — is
-    exactly the check that passed three times while the bug survived.
-    """
+    def test_removed_mode_fields_cannot_silently_enter_native_items(self):
+        sb = ready(self)
+        tid = task(sb)
+        for name in ("stage", "stage_since", "arrived", "commitment"):
+            with self.subTest(field=name):
+                before = sb.seq()
+                out = sb.run("item update", data={"actor": ACTOR, "id": tid,
+                                                   "set": {name: "invented"}})
+                self.assertFalse(out.ok, out)
+                self.assertEqual(sb.seq(), before)
 
-    @classmethod
-    def setUpClass(cls):
-        cls.proc = "\n".join((PERRY_HOME / "work/reference" / n).read_text() for n in ("planning.md", "decisions-risk.md", "add-task.md", "subcommands.md", "task-close.md"))
-
-    def test_the_procedure_tells_the_agent_to_set_the_mode_columns(self):
-        """**Prose only.** It greps the triage procedure for column names and
-        passes whether or not any write sets them — named for what it checks,
-        after the V4 review found it standing in for a behavioural test.
-        `TestModeColumnsOnBoardsPerryDidNotBuild` is that test.
-        """
-        self.assertIn("Stage since", self.proc,
-                      "nothing in the writing lane ever sets the stage clock")
-        self.assertIn("Arrived", self.proc)
-        self.assertIn("Parent", self.proc)
-
-    def test_a_stage_move_stamps_the_clock_in_the_same_edit(self):
-        """Status and Stage are orthogonal by design, so a draft→review move
-        produces no status change and would otherwise leave no trace at all."""
-        self.assertRegex(
-            self.proc, r"stage move stamps the clock|sets `Stage since` to today",
-            "no rule requires a stage change to update its timestamp",
-        )
-
-    def test_routing_out_of_intake_carries_the_arrival_date(self):
-        """queue.md calls this not-optional; the procedure that actually does
-        the routing is what has to agree."""
-        step0 = self.proc[self.proc.index("Step 0"):self.proc.index("Then walk")]
-        self.assertIn("Arrived", step0,
-                      "triage Step 0 routes a row without carrying `Arrived`, "
-                      "which is the only clock a queue row is governed by")
-        self.assertIn("Stage", step0)
-
-    def test_intake_staleness_is_measured_in_days_not_triages(self):
-        """`Arrived` is recorded and nothing counts triages, so elapsed time is
-        computable and a triage count is not.
-
-        Asserted positively — that a day-based threshold exists — rather than by
-        forbidding the string. The procedure names the rejected formulation in
-        order to reject it, and a checker that cannot tell a rule from its
-        counter-example is the same defect this suite hit with example IDs."""
-        step0 = self.proc[self.proc.index("Step 0"):self.proc.index("Then walk")]
-        self.assertRegex(step0, r"more than \d+ days",
-                         "intake staleness has no elapsed-time threshold")
-
-    def test_the_work_lane_no_longer_writes_decisions(self):
-        """The signed hand-off contract moved the decision record to
-        `decide`. The procedure file is where a violation would actually live.
-
-        The check was `assertNotRegex(self.proc, r"^### \\`decide <topic>\\`")`
-        **without `re.M`**, so `^` anchored at byte 0 of a 350-line file and
-        matched nothing anywhere. A round-4 reviewer proved it by pasting the
-        whole ADR procedure back into the middle of the file: the test stayed
-        green. A guard anchored to the wrong line is the second of the two
-        defect shapes this project keeps finding.
-        """
-        self.assertNotIn(
-            "### `decide <topic>`", self.proc,
-            "the ADR procedure is still in the work lane, contradicting the "
-            "signed contract")
-        self.assertNotIn(
-            "`decisions/ADR-NNN-<slug>.md`", self.proc.split("no longer writes")[0],
-            "the work lane's procedures still name the ADR file as one they write")
-        self.assertIn("moved to the `decide` lane", self.proc)
+    def test_decisions_stay_owned_by_decide(self):
+        text = (PERRY_HOME / "work/reference/decisions-risk.md").read_text()
+        self.assertIn("decide lane", text)
+        self.assertIn("never write its files here", text)
 
 
 class TestRouterNamesOnlyRealThings(unittest.TestCase):
@@ -1371,15 +1296,15 @@ class TestVerificationSeesToolClosedWork(unittest.TestCase):
             "|---|---|---|---|---|---|\n\n## P1\n| ID | Title | Owner | Status | Next action | Evidence |\n"
             "|---|---|---|---|---|---|\n\n## P2\n| ID | Title | Owner | Status | Next action | Evidence |\n"
             "|---|---|---|---|---|---|\n")
-        tool = str(PERRY_HOME / "bin" / "perry-task")
-        subprocess.run(task_actor.command(["python3", tool, "add", "--title", title,
-                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                        "--deliverable", "d", "--verification", "v",
-                        "--priority", "P0", "--root", str(root)], 'test_work_modes'),
-                       capture_output=True, text=True)
-        subprocess.run(task_actor.command(["python3", tool, "done", "TASK-001",
-                        "--evidence", "e.md", "--rung", rung,
-                        "--root", str(root)], 'test_work_modes'), capture_output=True, text=True)
+        # Historical closure input for retained verification readers; current
+        # native rung guards are covered separately in kernel/tests.
+        record = {"id": "TASK-001", "title": title, "status": "done",
+                  "verification": rung, "evidence": "e.md", "priority": "P0"}
+        (root / "tasks.jsonl").write_text(json.dumps(record) + "\n")
+        (root / ".perry/events.jsonl").write_text(json.dumps({
+            "event": "done", "id": "TASK-001", "title": title, "to": "done",
+            "rung": rung, "evidence": "e.md", "priority": "P0", "actor": "fixture",
+            "ts": "2026-09-01T00:00:00Z"}) + "\n")
         return root
 
     def lint(self, root: Path) -> str:

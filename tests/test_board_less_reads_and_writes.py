@@ -635,104 +635,39 @@ def outcome(p: Project, prereqs, argv, store):
     }
 
 
-class TestEveryWriteLandsWithNoBoard(unittest.TestCase):
+class TestRetiredWritesNeedNoBoardAndWriteNothing(unittest.TestCase):
+    def test_historical_write_vectors_refuse_with_or_without_a_held_board(self):
+        for board in (None, FORGED_BOARD):
+            for name, _pre, argv, _store, _check in WRITES:
+                with self.subTest(command=name, held=board is not None):
+                    p = Project(board=board)
+                    self.addCleanup(p.close)
+                    before = {str(f.relative_to(p.root)): f.read_bytes()
+                              for f in p.root.rglob("*") if f.is_file()}
+                    out = p.task(list(argv) + ["--json"])
+                    self.assertEqual(out.returncode, 1, out.stderr)
+                    self.assertIn("read-only", json.loads(out.stdout)["refused"])
+                    self.assertIn("Nothing was written", out.stderr)
+                    self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                                      for f in p.root.rglob("*") if f.is_file()}, before)
 
-    def test_the_write_table_covers_every_declared_write(self):
-        described = json.loads(inproc.run("perry-task", ["--describe", "--json"]).stdout)
-        writes = {s["name"] for s in described["subcommands"] if s.get("writes")}
-        covered = {w[0] for w in WRITES} | set(NOT_IN_WRITES)
-        self.assertEqual(writes, covered)
+    def test_write_table_and_retired_surface_cover_the_same_commands(self):
+        mod = inproc.load("perry-task")
+        retired = {s["name"] for s in mod.SURFACE["subcommands"]
+                   if s["name"] not in mod.READ_ONLY_COMMANDS}
+        self.assertEqual({w[0] for w in WRITES} | set(NOT_IN_WRITES), retired)
+        self.assertEqual({s["name"] for s in mod.SURFACE["subcommands"]
+                          if s["writes"]}, set())
 
-    def test_each_write_lands_its_record_event_and_journal_line(self):
-        for name, prereqs, argv, store, check in WRITES:
-            with self.subTest(write=name):
-                p = Project(board=None)
-                self.addCleanup(p.close)
-                got = outcome(p, prereqs, argv, store)
-                self.assertEqual(got["exit"], 0, got["stderr"][-600:])
-                self.assertTrue(check(got["store"]), f"{store}.jsonl after {name}")
-                self.assertIn(f'"event": "{name}"', got["events"])
-                self.assertTrue(got["journal"].strip(), "no journal line")
-                self.assertFalse(p.board.exists(), "a write created BOARD.md")
-                self.assertNotIn("BOARD.md", got["stdout"])
-
-    def test_a_write_is_the_same_with_and_without_the_file(self):
-        """Same store, event, journal line and stdout in both states; the held
-        file keeps its bytes and stderr names it retired (TASK-262 round 4a)."""
-        for name, prereqs, argv, store, _check in WRITES:
-            with self.subTest(write=name):
-                absent, present = Project(board=None), Project(board=None)
-                self.addCleanup(absent.close)
-                self.addCleanup(present.close)
-                # The present state's file is the board the stores render to —
-                # not a copy of any `BOARD.md` — so the two states start equal.
-                render = inproc.run("perry-tasks", ["board", "--root", str(present.root)])
-                self.assertEqual(render.returncode, 0, render.stderr)
-                present.board.write_text(render.stdout, encoding="utf-8")
-                before = present.board.read_text(encoding="utf-8")
-                a = outcome(absent, prereqs, argv, store)
-                b = outcome(present, prereqs, argv, store)
-                self.assertEqual((a["exit"], b["exit"]), (0, 0),
-                                 a["stderr"][-300:] + b["stderr"][-300:])
-                self.assertEqual(a["stores"], b["stores"])
-                self.assertEqual(a["events"], b["events"])
-                self.assertEqual(a["journal"], b["journal"])
-                self.assertEqual(a["stdout"].replace(str(absent.root), "<ROOT>"),
-                                 b["stdout"].replace(str(present.root), "<ROOT>"))
-                self.assertNotIn("BOARD.md", b["stdout"])
-                self.assertEqual(present.board.read_text(encoding="utf-8"),
-                                 before, "a write rewrote the retired BOARD.md")
-                hint = inproc.load("perry-task").lib.retired_board_hint(
-                    present.board.resolve())
-                self.assertIn(hint, b["stderr"])
-                self.assertNotIn("is a retired board", a["stderr"])
-
-
-class TestTheRetiredBoardHintStaysOffTheJsonChannel(unittest.TestCase):
-    """**`--json` keeps stderr quiet, held file or not** (TASK-262 round 4a).
-
-    `schema/task-list-contract.md § Two things about writes` promises a
-    `--json` caller that stderr stays quiet, and aiMark reads that sentence.
-    The retired-board hint is printed on a successful write without `--json`
-    only. A mutation that printed it under `--json` too went green across the
-    whole suite before this class existed.
-    """
-
-    def test_a_json_write_with_a_held_board_prints_nothing_on_stderr(self):
-        for name, prereqs, argv, _store, _check in WRITES:
-            with self.subTest(write=name):
-                p = Project(board=FORGED_BOARD)
-                self.addCleanup(p.close)
-                for pre in prereqs:
-                    self.assertEqual(p.task(pre).returncode, 0)
-                out = p.task(argv + ["--json"])
-                self.assertEqual(out.returncode, 0, out.stdout[-300:])
-                self.assertNotIn("retired board", out.stderr)
-                json.loads(out.stdout)
-
-    def test_the_same_write_without_json_names_the_file(self):
-        """The control: the fixture really holds a file the hint would name."""
+    def test_held_board_hint_still_explains_safe_import_before_delete(self):
+        # The hint belongs to retained readers/importers. A refused writer
+        # must not suggest that it completed a successful board import.
         p = Project(board=FORGED_BOARD)
         self.addCleanup(p.close)
-        out = p.task(["risk-add", "--title", "a probe risk"])
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("is a retired board", out.stderr)
-
-    def test_the_hint_says_import_before_delete(self):
-        """Round 4a's F17 (user decision, 2026-09-15): a register only the held
-        file carries is lost by a bare `git rm`, so the hint names the import
-        verbs, and names them BEFORE the deletion."""
-        p = Project(board=FORGED_BOARD)
-        self.addCleanup(p.close)
-        out = p.task(["risk-add", "--title", "a probe risk"])
-        self.assertEqual(out.returncode, 0, out.stderr)
-        line = next(l for l in out.stderr.splitlines() if "is a retired board" in l)
-        # The verbs are named by their flag, not as pasteable commands: a
-        # pasteable writer must carry the root (`test_handed_back_root`), and
-        # the hint knows the file, not which registers need importing.
-        self.assertIn("`--from-board` imports", line)
-        self.assertIn("reference/version-compatibility.md", line)
-        self.assertLess(line.index("--from-board"), line.index("git rm"))
+        hint = inproc.load("perry-task").lib.retired_board_hint(p.board.resolve())
+        self.assertIn("`--from-board` imports", hint)
+        self.assertIn("reference/version-compatibility.md", hint)
+        self.assertLess(hint.index("--from-board"), hint.index("git rm"))
 
 
 class TestTheContractsAnnounceTheStoreRead(unittest.TestCase):

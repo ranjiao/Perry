@@ -736,107 +736,43 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
                        if "two test modules import" in l)]
         board.write_text("\n".join(lines))
 
-    def test_a_hand_deleted_row_no_longer_moves_n_for_a_write(self):
-        """**The line the suite stopped one short of**, after TASK-262 round 4a.
-
-        TASK-203 round 5 took the state above — a hand-deleted `## Intake` row
-        against a minted 4-record store — one step further, running a
-        shrink-PERMITTED command on it, and asserted `resolve-intake` refused
-        rather than persist a 3-record store. That refusal is still in
-        `commit()` (`tests/test_register_store_invariant.py §
-        TestTheExemptionIsBounded` holds it), but a held file no longer
-        reaches it: a write builds from the declared board, which is the
-        store.
-
-        So the same step now has a better answer and this asserts it: the
-        write succeeds, `n = 1` still addresses the FIRST stored request (the
-        one the hand edit deleted from the file), no record is lost, and the
-        hand-edited file keeps its bytes.
-        """
+    def test_retired_resolve_keeps_stored_numbering_despite_a_hand_deleted_row(self):
         p = self._imported()
-        store = p.root / "intake.jsonl"
-        self.assertEqual(len(store.read_text().strip().split("\n")), 4,
-                         "control: the store holds four records")
         self._hand_delete_the_first_intake_row(p)
-        board = p.root / "BOARD.md"
-        edited = board.read_bytes()
-        self.assertNotIn("two test modules import", board.read_text(),
-                         "control: the hand edit removed the first row")
-        tool = PERRY_HOME / "bin" / "perry-task"
-        out = subprocess.run(
-            task_actor.command([sys.executable, str(tool), "resolve-intake", "1",
-             "--outcome", "dropped", "--reason", "a request we will not take",
-             "--root", str(p.root)], 'test_intake_store'), capture_output=True, text=True)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        stored = [json.loads(l) for l in store.read_text().split("\n")
-                  if l.strip()]
-        self.assertEqual(len(stored), 4, "a record was lost")
-        self.assertIn("two test modules import", stored[0]["request"])
-        self.assertIs(stored[0]["discharged"], True,
-                      "n = 1 addressed a different request than the store's first")
-        self.assertIs(stored[1]["discharged"], False)
-        self.assertEqual(board.read_bytes(), edited,
-                         "the write rewrote the retired BOARD.md")
+        before = {str(f.relative_to(p.root)): f.read_bytes()
+                  for f in p.root.rglob("*") if f.is_file()}
+        out = subprocess.run(task_actor.command([
+            sys.executable, str(PERRY_HOME / "bin/perry-task"), "resolve-intake",
+            "1", "--outcome", "dropped", "--reason", "a request we will not take",
+            "--root", str(p.root)], 'test_intake_store'), capture_output=True, text=True)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("no kernel write equivalent", out.stderr)
+        self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                          for f in p.root.rglob("*") if f.is_file()}, before)
+        records = [json.loads(line) for line in
+                   (p.root / "intake.jsonl").read_text().splitlines()]
+        self.assertEqual(len(records), 4)
+        self.assertIn("two test modules import", records[0]["request"])
+        self.assertIs(records[0]["discharged"], False)
 
-    def test_a_sweep_moves_n_and_the_store_is_what_says_so(self):
-        """**The mutation this whole row exists to make visible.**
-
-        `resolve-intake 2` discharges the second request; `intake-sweep` then
-        takes every discharged row off the board. Afterwards `n = 2` addresses
-        a DIFFERENT request than it did five commands ago — which was true
-        before this store existed and was reported by nothing at all. Now the
-        board and the store disagree and `perry-lint` names the rows.
-        """
+    def test_retired_sweep_preserves_the_legacy_reader_numbering(self):
         p = self._imported()
-        task = PERRY_HOME / "bin" / "perry-task"
-
+        tool = PERRY_HOME / "bin/perry-task"
         def numbering():
-            out = subprocess.run(
-                [sys.executable, str(task), "list", "--json",
-                 "--root", str(p.root)], capture_output=True, text=True)
-            return {r["n"]: r["request"] for r in
-                    json.loads(out.stdout)["intake"]["rows"]}
-
-        before = numbering()
-        for argv in (["resolve-intake", "2", "--outcome", "dropped",
-                      "--reason", "folded in", "--json"],):
-            out = subprocess.run(task_actor.command([sys.executable, str(task), *argv,
-                                  "--root", str(p.root)], 'test_intake_store'),
-                                 capture_output=True, text=True)
+            out = subprocess.run([sys.executable, str(tool), "list", "--json",
+                                  "--root", str(p.root)], capture_output=True, text=True)
             self.assertEqual(out.returncode, 0, out.stderr)
-        # **No re-import** (TASK-262 round 4a). It was here so the store knew
-        # about the discharge, back when the held board was the layout a write
-        # mutated; `resolve-intake` writes the store, and re-importing the held
-        # file — which no write updates now — would overwrite that discharge.
-        out = subprocess.run(task_actor.command([sys.executable, str(task), "intake-sweep",
-                              "--json", "--root", str(p.root)], 'test_intake_store'),
-                             capture_output=True, text=True)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(json.loads(out.stdout)["swept"], 2)
-
-        after = numbering()
-        self.assertNotEqual(before[2], after[2],
-                            "the point of the test: n=2 is a different row")
-        # **Converted by TASK-203.** This asserted `drifted: 3` and then ran
-        # the import to fix it. `intake-sweep` now writes the store inside the
-        # same transaction as the board — it is one of the three commands
-        # `bin/perry-task § SHRINK_ALLOWANCE` permits to make a canonical store
-        # smaller, and by exactly the rows it swept — so the renumbering is recorded as it happens and there is
-        # no window in which the two disagree. The reading this test exists
-        # for is unchanged: `n = 2` addresses a different request than it did
-        # five commands ago, and the store is what says so.
-        #
-        # The drift half belonged to a hand edit to a held board, and
-        # `test_a_row_deleted_by_hand_reports_every_row_it_renumbered` left
-        # with TASK-262 round 4b, which retired that comparison.
-        # (TASK-262 round 4b) The `drifted == 0` lint assertion that stood here
-        # is gone: no board file is compared with its store any more, so the
-        # register's `drifted` is its empty default whatever the files say,
-        # and asserting it would pass for no reason (round 4b result F33).
-        stored = [json.loads(l) for l in
-                  (p.root / "intake.jsonl").read_text().split("\n") if l.strip()]
-        self.assertEqual([r["request"] for r in stored], [after[1], after[2]])
-        self.assertEqual([r["order"] for r in stored], [0, 1])
+            return {r["n"]: r["request"] for r in json.loads(out.stdout)["intake"]["rows"]}
+        before = numbering()
+        held = (p.root / "intake.jsonl").read_bytes()
+        out = subprocess.run(task_actor.command([
+            sys.executable, str(tool), "intake-sweep", "--json", "--root", str(p.root)],
+            'test_intake_store'), capture_output=True, text=True)
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn("read-only", json.loads(out.stdout)["refused"])
+        self.assertEqual((p.root / "intake.jsonl").read_bytes(), held)
+        self.assertEqual(numbering(), before)
+        self.assertEqual(len(before), 4)
 
     def test_the_shift_is_refused_rather_than_half_absorbed(self):
         """A render that would leave a record with no row REFUSES (DESIGN-016 A5).

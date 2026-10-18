@@ -210,20 +210,24 @@ class TestOtherChannels(unittest.TestCase):
                 envelope_ok(self, r)
                 self.assertEqual((r.code, r.code_name), (1, "io_error"), r)
 
-    def test_a_working_directory_that_is_gone(self):
+    def test_cli_handles_a_directory_removed_after_interpreter_start(self):
+        # Python itself may fail before running the wrapper when launched in
+        # an already-deleted cwd. Exercise the kernel's actual main() after
+        # interpreter initialization so this checks its getcwd error boundary.
         gone = mkdtemp(self) / "gone"
         gone.mkdir()
-        script = (f"import os, subprocess, sys; os.chdir({str(gone)!r}); "
+        package = WRAPPER.parent.parent / "kernel"
+        script = (f"import os, sys; sys.path.insert(0, {str(package)!r}); "
+                  f"from perry_kernel import main; os.chdir({str(gone)!r}); "
                   f"os.rmdir({str(gone)!r}); "
-                  f"sys.exit(subprocess.run([{str(WRAPPER)!r}, 'query', "
-                  f"'--store', 'relative.db']).returncode)")
+                  "sys.exit(main(['query', '--store', 'relative.db']))")
         proc = subprocess.run([sys.executable, "-c", script],
                               capture_output=True, text=True,
                               env=clean_env(), timeout=60)
         self.assertNotIn("Traceback", proc.stderr)
-        env = json.loads(proc.stdout)
-        self.assertEqual((proc.returncode, env["error"]["code"]),
-                         (1, "io_error"), env)
+        out = json.loads(proc.stdout)
+        self.assertEqual((proc.returncode, out["error"]["code"]),
+                         (1, "io_error"), out)
 
     #: What the working directory decides, and what it does not. A relative
     #: --store and the walk read it; an absolute --store never does, so a

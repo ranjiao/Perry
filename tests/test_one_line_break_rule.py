@@ -160,53 +160,21 @@ class TestTheRefusalNamesTheFlag(unittest.TestCase):
              "--root", str(self.root)], 'test_one_line_break_rule'),
             capture_output=True, text=True)
 
-    def a_row(self) -> str:
-        r = self.run_task("add", "--title", "A row this test owns",
-                          "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                          "--deliverable", "d", "--verification", "V2 lint",
-                          "--json")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        return json.loads(r.stdout)["id"]
-
-    def test_two_flags_do_not_produce_the_same_message(self):
-        """Both flags must be ones that actually reach a table cell.
-
-        The first version of this test used `--deliverable`, which on this
-        board shape is **not a column** — it is input-quality material and
-        reaches only the JSON event, where a newline escapes correctly. So
-        nothing refused it, the test went red, and the finding was mine: I had
-        asserted a refusal for a value that never touches markdown.
-
-        Worth the words because the probe that found it also wrote three junk
-        rows onto the live board before I noticed — the rows are dropped, and
-        the event log was checked line-by-line for a raw newline (0
-        unparseable records). Nothing here can repeat that either: every write
-        lands under `--root` in a temp directory.
-        """
-        tid = self.a_row()
-        a = self.run_task("add", "--title", "x\ny", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-                          "--verification", "V2 lint").stderr
-        b = self.run_task("next", tid, "--next", "x\ny").stderr
-        self.assertIn("--title", a)
-        self.assertIn("--next", b)
-        self.assertNotIn("--title", b)
-
-    def test_the_fixture_row_is_reachable_before_the_refusal_is_asserted(self):
-        """The guard against the failure that started this.
-
-        `next` on a row that is not on the board also exits 1 with a message on
-        stderr, so a vanished fixture and a broken refusal are the same shape
-        from the outside — which is exactly how the old red pointed at the
-        wrong thing for hours. This asserts the row is there and writable
-        FIRST, so the two can never again be confused.
-        """
-        tid = self.a_row()
-        ok = self.run_task("next", tid, "--next", "one ordinary line")
-        self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
-        self.assertNotIn("is not a row on the board", ok.stderr)
-        bad = self.run_task("next", tid, "--next", "x\ny")
-        self.assertEqual(bad.returncode, 1)
-        self.assertNotIn("is not a row on the board", bad.stderr)
+    def test_frozen_writers_refuse_before_table_cell_validation(self):
+        # Cell validation itself is held by the renderer and goals tests.
+        # The retired public entry point must not reach it or mint a row.
+        before = {str(p.relative_to(self.root)): p.read_bytes()
+                  for p in self.root.rglob("*") if p.is_file()}
+        for argv in (("add", "--title", "x\ny"),
+                     ("next", "TASK-001", "--next", "x\ny"),
+                     ("next", "TASK-001", "--next", "ordinary line")):
+            with self.subTest(argv=argv):
+                out = self.run_task(*argv)
+                self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+                self.assertIn("read-only after the kernel cutover", out.stderr)
+                self.assertIn("Nothing was written", out.stderr)
+                self.assertEqual({str(p.relative_to(self.root)): p.read_bytes()
+                                  for p in self.root.rglob("*") if p.is_file()}, before)
 
 
 # ── the same rule, the other writer ───────────────────────────────────────

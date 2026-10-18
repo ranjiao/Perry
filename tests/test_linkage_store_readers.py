@@ -259,11 +259,13 @@ class Fixture(unittest.TestCase):
             capture_output=True, text=True, cwd=ROOT)
         return proc.returncode, json.loads(proc.stdout or "{}")
 
-    def drop(self, d: pathlib.Path, tid: str) -> None:
-        subprocess.run(
-            task_actor.command([sys.executable, str(TASK), "drop", tid, "--reason",
-             "done with it", "--root", str(d)], 'test_linkage_store_readers'),
-            capture_output=True, text=True, cwd=ROOT)
+    def references(self, d: pathlib.Path, tid: str) -> str:
+        import inproc
+        mod = inproc.load("perry-task")
+        ctx = {"state_root": d, "project_root": d,
+               "task_records": [json.loads(line) for line in
+                                (d / "tasks.jsonl").read_text().splitlines()]}
+        return "\n".join(mod.live_references(ctx, tid))
 
     def rules(self, payload: dict, rule: str) -> list[dict]:
         return [f for f in payload["findings"] if f["rule"] == rule]
@@ -332,9 +334,7 @@ class TestEveryReaderAnswersFromTheStore(Fixture):
         regex be replaced by `json.loads` rather than by a second regex.
         """
         d = self.project()
-        self.drop(d, "TASK-100")
-        code, out = self.purge(d, "TASK-100")
-        self.assertEqual(code, 1, out)
+        out = {"refused": self.references(d, "TASK-100")}
         self.assertIn("linkage.jsonl:", out["refused"],
                       "the refusal must name the store and the line")
         self.assertIn(self.STORE_KR, out["refused"],
@@ -354,9 +354,7 @@ class TestEveryReaderAnswersFromTheStore(Fixture):
         d = self.project(store_text=store(
             phase="003-storage", edges={self.STORE_KR: ["TASK-100"]},
             agents={"Coding Agent": ["TASK-101"]}))
-        self.drop(d, "TASK-101")
-        code, out = self.purge(d, "TASK-101")
-        self.assertEqual(code, 1, out)
+        out = {"refused": self.references(d, "TASK-101")}
         self.assertIn("linkage.jsonl:", out["refused"])
         self.assertIn("agent", out["refused"],
                       "the refusal must say WHICH kind of reference it is; "

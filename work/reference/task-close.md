@@ -23,6 +23,8 @@ Move the item using transition `done`, atomically setting `evidence` (and V4's
 `verified_by`), with the last read seq in `expect`. A kernel guard verifies shape,
 not truth. On refusal, keep the current state and report the precise failure.
 No journal status-change line is written, and a closed item remains queryable.
+Offer reusable findings through `promotion.md` and `perry-knowledge propose`.
+Write a knowledge card only after the user chooses to promote the finding.
 
 For `drop-task`, record the user's scope decision verbatim as `reason` and move
 with transition `drop`. Do not purge an ID, delete history or infer approval from

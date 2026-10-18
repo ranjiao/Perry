@@ -45,6 +45,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+from kernel_work_support import ACTOR, ready, task
 from datetime import date
 from pathlib import Path
 
@@ -119,11 +120,14 @@ class Project:
             return r.returncode, r.stdout + r.stderr
 
     def a_task(self) -> str:
-        _, a = self.run("add", "--title", "Flip the conformance default",
-                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                        "--deliverable", "the gate enforces",
-                        "--verification", "the suite is green")
-        return a["id"]
+        """Explicit archived input for the retained read-only offer command."""
+        path = self.root / "tasks.jsonl"
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        tid = f"TASK-{len(rows)+1:03}"
+        rows.append(PT.perry_store.record({"id": tid, "title": "Flip the conformance default",
+            "status": "not_started", "priority": "P1", "verification": "V5"}, len(rows)))
+        path.write_text(PT.perry_store.store_text(rows))
+        return tid
 
     def journal(self) -> str:
         for p in (self.root / "journal").rglob("*.md"):
@@ -146,116 +150,32 @@ class Project:
         self.dir.cleanup()
 
 
-class TestTheRecordIsASelection(unittest.TestCase):
-    """V5 verification 1 — three measured items, one restated, two selected."""
-
-    def setUp(self):
-        self.p = Project()
-        self.tid = self.p.a_task()
-        self.code, self.out = self.p.close_v5(self.tid, "--checked", "1,3")
-        self.assertEqual(self.code, 0, self.out)
-        self.sig = self.out["signoff"]
-
-    def test_the_two_selected_are_recorded_as_checked(self):
-        checked = [i["text"] for i in self.sig["items"]
-                   if i["disposition"] == "checked"]
-        self.assertEqual(checked, [MEASURED[0], MEASURED[2]])
-
-    def test_the_two_unselected_are_recorded_as_accepted_on_report(self):
-        """Deliverable 4. Not dropped — that is the whole gain over free text,
-        which could not distinguish the two at all."""
-        rest = [i["text"] for i in self.sig["items"]
-                if i["disposition"] == "accepted on report"]
-        self.assertEqual(rest, [MEASURED[1], RESTATED[0]])
-        self.assertEqual(len(self.sig["items"]), 4,
-                         "an offered item left the record entirely")
-
-    def test_the_labels_survive_verbatim_into_the_written_record(self):
-        """Both labels, in the journal, spelled exactly as the record spells
-        them. A record whose markdown says "accepted" and whose JSON says
-        `accepted on report` has two answers to the question the rung asks."""
-        journal = self.p.journal()
-        self.assertIn("## V5 sign-off", journal)
-        for label in ("checked", "accepted on report"):
-            self.assertIn(f"**{label}**", journal,
-                          f"the disposition label {label!r} did not survive")
-        for item in self.sig["items"]:
-            self.assertIn(item["text"], journal)
-        self.assertIn("*(Perry verified)*", journal)
-        self.assertIn("*(restated — Perry did not verify this)*", journal)
-
-    def test_every_item_is_labelled_with_its_provenance(self):
-        """Deliverable 2. Selecting a Perry-verified item means *I checked this
-        too*; selecting a restated one means *I checked a claim Perry passed
-        along*. The label is what keeps those from reading the same."""
-        by_text = {i["text"]: i["provenance"] for i in self.sig["items"]}
-        for text in MEASURED:
-            self.assertEqual(by_text[text], "Perry verified")
-        self.assertEqual(by_text[RESTATED[0]],
-                         "restated — Perry did not verify this")
-
-    def test_name_and_date_are_filled_in_not_typed(self):
-        """Deliverable 3 — the two fields a human should never be retyping."""
-        self.assertTrue(self.sig["signed_by"].strip(),
-                        "an anonymous signature is not a weaker signature")
-        self.assertEqual(self.sig["signed_on"], f"{date.today():%Y-%m-%d}")
-        self.assertIn(self.sig["signed_by"], self.p.journal())
-
-    def test_the_signature_rides_in_the_event_too(self):
-        done = [e for e in self.p.events() if e.get("event") == "done"]
-        self.assertEqual(len(done), 1)
-        self.assertEqual(done[0]["signoff"]["counts"],
-                         {"checked": 2, "accepted on report": 2,
-                          "not looked at": 0})
-
-    def test_the_row_still_closes_at_v5(self):
-        """The sign-off is added to the close; it does not replace it."""
-        self.assertEqual(self.out["rung"], "V5")
-        self.assertNotIn(self.tid, (self.p.root / "BOARD.md").read_text())
+class TestRetainedSelectionRecordUnits(unittest.TestCase):
+    def test_selection_keeps_every_fact_and_its_provenance(self):
+        options = PT.signoff_options(MEASURED, RESTATED)
+        sig = PT.build_signoff(options, {1, 3}, set(), "", "Example signer", "2026-09-01")
+        self.assertEqual(sig["counts"], {"checked": 2, "accepted on report": 2, "not looked at": 0})
+        self.assertEqual([i["text"] for i in sig["items"] if i["disposition"] == "checked"],
+                         [MEASURED[0], MEASURED[2]])
+        self.assertEqual([i["text"] for i in sig["items"]], MEASURED + RESTATED)
+        self.assertEqual([i["provenance"] for i in sig["items"]],
+                         ["Perry verified"] * 3 + ["restated — Perry did not verify this"])
+        block = PT.render_signoff("TASK-001", sig)
+        for text in ("Example signer", "2026-09-01", "**checked**", "**accepted on report**", *MEASURED, *RESTATED):
+            self.assertIn(text, block)
+        self.assertEqual(read_signatures("## V5 sign-off\n\n" + block)[0]["who"], "Example signer")
 
 
-class TestFreeTextIsAdditive(unittest.TestCase):
-    """V5 verification 2 — recorded ALONGSIDE the selection, never instead."""
-
-    ALSO = "I re-ran perry-conform declare --all against my own checkout."
-
-    def test_free_text_lands_beside_the_selection(self):
-        p = Project()
-        tid = p.a_task()
-        code, out = p.close_v5(tid, "--checked", "2", "--also", self.ALSO)
-        self.assertEqual(code, 0, out)
-        sig = out["signoff"]
-        self.assertEqual(sig["also_checked"], self.ALSO)
-        self.assertEqual(len(sig["items"]), 4,
-                         "free text replaced the selection instead of joining it")
-        self.assertEqual(sig["counts"]["checked"], 1)
-        journal = p.journal()
-        self.assertIn(self.ALSO, journal)
-        self.assertIn(MEASURED[1], journal)
-        self.assertIn("**accepted on report**", journal)
-
-    def test_free_text_alone_is_a_signature(self):
-        """Deliverable 5 read the other way: the user may have checked only
-        something Perry never offered. That is a signature, not an empty one."""
-        p = Project()
-        tid = p.a_task()
-        code, out = p.close_v5(tid, "--checked", "none", "--also", self.ALSO)
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["signoff"]["counts"]["checked"], 0)
-        self.assertEqual(out["signoff"]["also_checked"], self.ALSO)
-
-    def test_the_free_text_is_not_run_through_the_drafting_guard(self):
-        """`--also` is the USER's sentence. The guard exists to stop PERRY
-        drafting a claim about a person; applying it to the user's own words
-        would refuse them for describing what they did, which is the one thing
-        only they may say."""
-        p = Project()
-        tid = p.a_task()
-        code, out = p.close_v5(
-            tid, "--checked", "none",
-            "--also", "I reviewed the diff myself and approved it.")
-        self.assertEqual(code, 0, out)
-        self.assertIn("I reviewed the diff myself", p.journal())
+class TestRetainedFreeTextUnits(unittest.TestCase):
+    def test_user_words_join_the_selection_without_being_drafted_by_perry(self):
+        options = PT.signoff_options(MEASURED, RESTATED)
+        for checked in ({2}, set()):
+            sig = PT.build_signoff(options, checked, set(), "I reviewed the diff myself.",
+                                   "Example signer", "2026-09-01")
+            self.assertEqual(len(sig["items"]), 4)
+            self.assertEqual(sig["counts"]["checked"], len(checked))
+            self.assertEqual(sig["also_checked"], "I reviewed the diff myself.")
+            self.assertIn(sig["also_checked"], PT.render_signoff("TASK-001", sig))
 
 
 class TestNoDraftedOptionAssertsAUserAction(unittest.TestCase):
@@ -322,9 +242,8 @@ class TestNoDraftedOptionAssertsAUserAction(unittest.TestCase):
     def test_the_refusal_reaches_the_cli_not_just_the_function(self):
         p = Project()
         tid = p.a_task()
-        code, out = p.run("done", tid, "--evidence", "e.md", "--rung", "V5",
-                          "--measured", "the user reviewed the diff",
-                          "--checked", "1")
+        code, out = p.run("signoff-offer", tid,
+                          "--measured", "the user reviewed the diff")
         self.assertEqual(code, 1)
         self.assertIn("refused", out)
         self.assertEqual(p.journal().count("V5 sign-off"), 0,
@@ -341,98 +260,27 @@ class TestNoDraftedOptionAssertsAUserAction(unittest.TestCase):
                            "restated — Perry did not verify this"))
 
 
-class TestAnEmptySignatureIsRefused(unittest.TestCase):
-    """V5 verification 4 and deliverable 7."""
+class TestRetainedEmptySignatureUnits(unittest.TestCase):
+    def test_nothing_checked_and_no_user_words_is_refused(self):
+        for options in ([], PT.signoff_options(MEASURED, RESTATED)):
+            with self.assertRaises(PT.Refused):
+                PT.build_signoff(options, set(), set(), "", "Example signer", "2026-09-01")
 
-    def test_nothing_selected_and_no_free_text_is_refused(self):
-        p = Project()
-        tid = p.a_task()
-        code, out = p.close_v5(tid, "--checked", "none")
-        self.assertEqual(code, 1, out)
-        self.assertIn("not a sign-off", json.dumps(out, ensure_ascii=False))
-
-    def test_the_refused_close_wrote_nothing(self):
-        """A refusal that half-closed the row would be worse than the blank
-        signature it prevented."""
-        p = Project()
-        tid = p.a_task()
-        p.close_v5(tid, "--checked", "none")
-        board = subprocess.run(["python3", str(TASKS), "board", "--root",
-                                str(p.root)], capture_output=True, text=True)
-        self.assertIn(f"| {tid} |", board.stdout,
-                      "the refused close took the row off the board")
-        self.assertEqual([e["event"] for e in p.events()], ["add"])
-
-    def test_pressing_return_at_the_prompt_is_what_this_costs(self):
-        """`--checked` absent entirely is the same keystroke as `none`, and
-        must not be the cheap path to a blank signature."""
-        p = Project()
-        tid = p.a_task()
-        code, _ = p.close_v5(tid)
-        self.assertEqual(code, 1)
-
-    def test_an_empty_offered_item_is_refused(self):
+    def test_an_empty_offered_fact_is_refused(self):
         with self.assertRaises(PT.Refused):
             PT.signoff_options([""], [])
 
-    def test_a_bare_close_that_never_engaged_the_path_is_unchanged(self):
-        """The refusal fires when the sign-off path was ENGAGED and produced
-        nothing. A close that passes no sign-off flag at all writes no
-        signature rather than a blank one — rungs are advisory this release
-        (DESIGN-003 § 4 decision 4) and hardening the rung itself is out of
-        this row's scope."""
-        p = Project()
-        tid = p.a_task()
-        code, out = p.run("done", tid, "--evidence", "e.md", "--rung", "V5")
-        self.assertEqual(code, 0, out)
-        self.assertIsNone(out["signoff"])
 
-
-class TestThreeDispositionsNotTwo(unittest.TestCase):
-    """The subjective question this row was dispatched with, pinned.
-
-    **The alternative that was rejected: two categories** — `checked` and
-    `accepted on report` — with nothing between "I read Perry's output and took
-    its word" and "I never looked at this at all".
-
-    It was rejected on the corpus. All three V5 signatures already in this
-    repository write the third category by hand. TASK-034's carries a section
-    headed *"Not checked, and recorded because V5's whole value is saying so"*
-    beside what it did check. TASK-047's distinguishes *fixture opt-out 的理由已读
-    并接受* — read, then accepted — from two costs taken on the strength of
-    Perry's printed output. A format that cannot hold what the existing
-    signatures already say is a regression against the corpus it must stay
-    compatible with.
-
-    The second reason is the drafting rule. Defaulting an unselected item to
-    `accepted on report` is already the outer edge of what Perry may assert:
-    it describes the SCOPE of the signature, not an act the user performed. So
-    `not looked at` is never a default — it is reachable only by the user
-    naming the item, which is what keeps it a user statement.
-    """
-
-    def test_not_looked_at_is_a_disposition_of_its_own(self):
-        p = Project()
-        tid = p.a_task()
-        code, out = p.close_v5(tid, "--checked", "1", "--not-looked-at", "4")
-        self.assertEqual(code, 0, out)
-        by_text = {i["text"]: i["disposition"] for i in out["signoff"]["items"]}
-        self.assertEqual(by_text[MEASURED[0]], "checked")
-        self.assertEqual(by_text[MEASURED[1]], "accepted on report")
-        self.assertEqual(by_text[RESTATED[0]], "not looked at")
-        self.assertIn("**not looked at**", p.journal())
-
-    def test_not_looked_at_is_never_a_default(self):
-        p = Project()
-        tid = p.a_task()
-        _, out = p.close_v5(tid, "--checked", "1")
-        self.assertEqual(out["signoff"]["counts"]["not looked at"], 0)
-
-    def test_one_item_cannot_carry_two_dispositions(self):
-        p = Project()
-        tid = p.a_task()
-        code, _ = p.close_v5(tid, "--checked", "1", "--not-looked-at", "1")
-        self.assertEqual(code, 1)
+class TestRetainedDispositionUnits(unittest.TestCase):
+    def test_not_looked_at_is_explicit_and_never_a_default(self):
+        options = PT.signoff_options(MEASURED, RESTATED)
+        sig = PT.build_signoff(options, {1}, {2}, "", "Example signer", "2026-09-01")
+        self.assertEqual([i["disposition"] for i in sig["items"]],
+                         ["checked", "not looked at", "accepted on report", "accepted on report"])
+        default = PT.build_signoff(options, {1}, set(), "", "Example signer", "2026-09-01")
+        self.assertEqual(default["counts"]["not looked at"], 0)
+        with self.assertRaises(PT.Refused):
+            PT.build_signoff(options, {1}, {1}, "", "Example signer", "2026-09-01")
 
 
 class TestTheOfferIsBuiltNotComposed(unittest.TestCase):
@@ -448,9 +296,8 @@ class TestTheOfferIsBuiltNotComposed(unittest.TestCase):
         self.assertEqual(code, 0, offer)
         self.assertEqual([o["text"] for o in offer["options"]],
                          MEASURED + RESTATED)
-        _, out = p.close_v5(tid, "--checked", "3")
-        picked = [i["text"] for i in out["signoff"]["items"]
-                  if i["disposition"] == "checked"]
+        sig = PT.build_signoff(offer["options"], {3}, set(), "", "Example signer", "2026-09-01")
+        picked = [i["text"] for i in sig["items"] if i["disposition"] == "checked"]
         self.assertEqual(picked, [offer["options"][2]["text"]],
                          "option 3 in the prompt is not option 3 in the record")
 
@@ -460,7 +307,7 @@ class TestTheOfferIsBuiltNotComposed(unittest.TestCase):
         before = (p.root / "BOARD.md").read_text()
         p.run("signoff-offer", tid, "--measured", MEASURED[0])
         self.assertEqual((p.root / "BOARD.md").read_text(), before)
-        self.assertEqual([e["event"] for e in p.events()], ["add"])
+        self.assertEqual(p.events(), [])
 
     def test_it_degrades_to_a_numbered_free_text_prompt(self):
         """`reference/host-capabilities.md § Prompt rendering`: Codex has no
@@ -479,14 +326,17 @@ class TestTheOfferIsBuiltNotComposed(unittest.TestCase):
         self.assertIn("accepted on report", prompt)
         self.assertIn(tid, prompt)
 
-    def test_the_same_selection_records_the_same_thing_from_either_spelling(self):
-        """`--checked 1,3` is what the free-text host hands back; `--checked 1
-        --checked 3` is what a structured host produces. One record."""
-        a, b = Project(), Project()
-        _, one = a.close_v5(a.a_task(), "--checked", "1,3")
-        _, two = b.close_v5(b.a_task(), "--checked", "1", "--checked", "3")
-        strip = lambda s: [(i["n"], i["disposition"]) for i in s["signoff"]["items"]]
-        self.assertEqual(strip(one), strip(two))
+    def test_retired_close_refuses_either_selection_spelling_without_changes(self):
+        p = Project()
+        tid = p.a_task()
+        before = {str(f.relative_to(p.root)): f.read_bytes()
+                  for f in p.root.rglob("*") if f.is_file()}
+        for extra in (("--checked", "1,3"), ("--checked", "1", "--checked", "3")):
+            code, out = p.close_v5(tid, *extra)
+            self.assertEqual(code, 1, out)
+            self.assertIn("read-only", out["refused"])
+            self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                              for f in p.root.rglob("*") if f.is_file()}, before)
 
     def test_an_offer_with_nothing_measured_is_refused(self):
         p = Project()
@@ -735,58 +585,40 @@ class TestHistoryIsNotRewritten(unittest.TestCase):
                            and counts.get(e["id"]) != e["signoff"]["counts"]]
                 self.assertTrue(found or drifted, f"{why} was not caught")
 
-    def test_signing_another_row_does_not_rewrite_the_one_before_it(self):
-        """Verification 1, demonstrated rather than reasoned about.
-
-        Two V5 closes in one project, in order. The first signature's block is
-        compared byte-for-byte before and after the second is written — which
-        is the property the old fixed set of three was a proxy for, and the
-        only one of the two that survives a fourth close.
-        """
-        p = Project()
-        first = p.a_task()
-        code, _ = p.close_v5(first, "--checked", "1")
-        self.assertEqual(code, 0)
-        before = p.journal()
-        block = before[before.index(f"**{first} — V5 sign-off"):]
-
-        second = p.a_task()
-        code, _ = p.close_v5(second, "--checked", "2", "--not-looked-at", "4")
-        self.assertEqual(code, 0)
-        after = p.journal()
-        self.assertIn(block.rstrip(), after,
-                      "the earlier signature changed when a later one landed")
-        sigs = read_signatures(after)
-        self.assertEqual([s["id"] for s in sigs], [first, second])
-        self.assertEqual([p for s in sigs for p in unreadable(s)], [])
-
-    def test_the_new_record_does_not_claim_to_be_the_old_one(self):
-        """The old signatures are prose in an evidence file; the new one is a
-        journal block plus an event. Both are readable, neither is rewritten,
-        and nothing here converts one into the other."""
-        p = Project()
-        code, out = p.close_v5(p.a_task(), "--checked", "1")
-        self.assertEqual(code, 0, out)
-        self.assertIn("signoff", out)
-        self.assertNotIn("V5 sign-off", (p.root / "BOARD.md").read_text())
+    def test_rendering_a_second_signature_preserves_the_first_block(self):
+        options = PT.signoff_options(MEASURED, RESTATED)
+        first = PT.build_signoff(options, {1}, set(), "", "Example signer", "2026-09-01")
+        second = PT.build_signoff(options, {2}, {4}, "", "Example signer", "2026-09-02")
+        one = PT.render_signoff("TASK-001", first)
+        two = PT.render_signoff("TASK-002", second)
+        self.assertEqual(read_signatures("## V5 sign-off\n\n" + one + two)[0], read_signatures("## V5 sign-off\n\n" + one)[0])
+        self.assertEqual([s["id"] for s in read_signatures("## V5 sign-off\n\n" + one + two)], ["TASK-001", "TASK-002"])
 
 
-class TestV1toV4ClosesAreUntouched(unittest.TestCase):
-    """Out of scope, asserted rather than assumed: they gain nothing here."""
+class TestNativeHumanBoundary(unittest.TestCase):
+    def test_v5_needs_a_human_actor_and_keeps_the_signed_evidence(self):
+        sb = ready(self)
+        tid = task(sb, verification="V5")
+        before = sb.seq()
+        out = sb.run("item move", data={"actor": ACTOR, "id": tid,
+            "transition": "done", "set": {"evidence": "evidence/signoff.md"}})
+        self.assertFalse(out.ok, out)
+        self.assertEqual(sb.seq(), before)
+        self.assertEqual(sb.get(tid)["state"], "not_started")
+        human = {"kind": "human", "name": "Example signer", "session": "fixture-human-signoff"}
+        sb.ok("attach add", data={"actor": human, "id": tid, "ref": "evidence/signoff.md"})
+        sb.move(tid, "done", actor=human, set={"evidence": "evidence/signoff.md"})
+        self.assertEqual(sb.get(tid)["state"], "done")
+        self.assertEqual(sb.events()[-1]["actor"], human)
+        self.assertEqual(sb.get(tid)["fields"]["evidence"], "evidence/signoff.md")
+        self.assertFalse((sb.root / "journal").exists())
 
-    def test_a_v3_close_writes_exactly_what_it_wrote_before(self):
-        p = Project()
-        tid = p.a_task()
-        code, out = p.run("done", tid, "--evidence", "evidence/x.md",
-                          "--rung", "V3")
-        self.assertEqual(code, 0, out)
-        self.assertIsNone(out["signoff"])
-        self.assertEqual(out["signoff_block"], "")
-        journal = p.journal()
-        self.assertNotIn("V5 sign-off", journal)
-        self.assertNotIn("signed off:", journal)
-        done = [e for e in p.events() if e["event"] == "done"][0]
-        self.assertNotIn("signoff", done)
+    def test_v3_closure_does_not_invent_a_human_signature(self):
+        sb = ready(self)
+        tid = task(sb, verification="V3")
+        sb.move(tid, "done", set={"evidence": "proof.md"})
+        self.assertEqual(sb.events()[-1]["actor"], ACTOR)
+        self.assertIsNone(sb.get(tid)["fields"]["verified_by"])
 
 
 if __name__ == "__main__":

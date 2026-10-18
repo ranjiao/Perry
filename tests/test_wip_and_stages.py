@@ -114,20 +114,16 @@ class TestTheReaderAndTheWriterAgreeAboutStages(Base):
         self.assertEqual(t["stage_list"], ["a", "b", "c"])
         self.assertTrue(t["stages_declared"])
 
-    def test_the_writer_births_a_row_inside_what_the_reader_reports(self):
-        """The property the disagreement broke, asserted across both tools."""
+    def test_retired_add_cannot_recreate_staged_work(self):
         root = self.project(self.ROW)
-        subprocess.run(task_actor.command([sys.executable, str(TASK), "add", "--title", "t",
-                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                        "--deliverable", "d with a test", "--verification", "v",
-                        "--next", "n", "--track", "ops", "--root", str(root)], 'test_wip_and_stages'),
-                       capture_output=True, text=True)
-        r = subprocess.run([sys.executable, str(TASK), "list", "--all",
-                            "--json", "--root", str(root)],
-                           capture_output=True, text=True)
-        stage = json.loads(r.stdout)["tasks"][0]["stage"]
-        self.assertIn(stage, self.tracks(root)["ops"]["stage_list"],
-                      "the writer put a row in a stage the reader denies exists")
+        before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+        out = subprocess.run(task_actor.command([sys.executable, str(TASK), "add",
+            "--title", "t", "--track", "ops", "--root", str(root)], 'test_wip_and_stages'),
+            capture_output=True, text=True)
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn("read-only", out.stderr)
+        self.assertEqual({str(p.relative_to(root)): p.read_bytes()
+                          for p in root.rglob("*") if p.is_file()}, before)
 
     def test_the_defaults_come_from_the_schema(self):
         src = STATE.read_text(encoding="utf-8")
@@ -237,11 +233,11 @@ class TestCustomTaskGroupsReachTheStateReader(Base):
 
     def test_pipeline_add_is_visible_to_tasks_open_counts_and_wip(self):
         root = self.seeded(self.PIPELINE, heading="Release train")
-        added = self.task(
-            root, "add", "--title", "publish notes", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable",
-            "published notes with a test", "--verification", "fresh review",
-            "--next", "draft them", "--track", "rel", "--stage", "review",
-            "--group", "Release train")
+        # Archived staged record for the retained state reader.
+        added = {"id": "TASK-002", "title": "publish notes", "track": "rel",
+                 "stage": "review", "group": "Release train", "status": "not_started"}
+        with (root / "perry/tasks.jsonl").open("a") as f:
+            f.write(json.dumps(added) + "\n")
 
         payload = self.state(root)
         rows = {t["id"]: t for t in payload["board"]["tasks"]}
@@ -256,10 +252,11 @@ class TestCustomTaskGroupsReachTheStateReader(Base):
 
     def test_queue_route_is_visible_after_it_leaves_intake(self):
         root = self.seeded(self.QUEUE, heading="Support lane")
-        self.task(root, "intake", "--title", "customer request",
-                  "--arrived", "2026-08-05")
-        routed = self.task(root, "route", "1", "--track", "ops",
-                           "--group", "Support lane")
+        # Historical routed input; phase E creates native intake tasks directly.
+        routed = {"id": "TASK-002", "title": "customer request", "track": "ops",
+                  "stage": "triaged", "group": "Support lane", "status": "not_started"}
+        with (root / "perry/tasks.jsonl").open("a") as f:
+            f.write(json.dumps(routed) + "\n")
 
         payload = self.state(root)
         rows = {t["id"]: t for t in payload["board"]["tasks"]}

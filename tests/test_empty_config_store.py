@@ -142,11 +142,11 @@ class EmptyStoreWriters(_Project):
         d = self.project("\n\n  \n")
         self.assertEqual(P.config_store_unusable(d), "")
 
-    def test_perry_task_add_writes_on_an_empty_store(self):
+    def test_perry_task_add_is_frozen_even_on_an_empty_store(self):
         d = self.project("")
         out = self.add(d)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("wrote", out.stdout)
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn("read-only after the kernel cutover", out.stderr)
         self.assertNotIn(INVALID_WORDS, out.stderr)
         self.assertNotIn(REGISTER_REFUSAL, out.stderr)
 
@@ -166,12 +166,13 @@ class EmptyStoreWriters(_Project):
             self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual((d / ".perry" / "config.jsonl").read_text(), "")
         out = self.add(d)
-        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn("read-only", out.stderr)
         self.assertIn("config store: empty", self.census(d))
         out = run(CONFIG, "set", "--root", str(d), "Document language",
                   "English")
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(self.add(d).returncode, 0)
+        self.assertEqual(self.add(d).returncode, 1)
 
 
 class WritersAndLinterAgree(_Project):
@@ -201,9 +202,9 @@ class WritersAndLinterAgree(_Project):
                 self.assertEqual(bool(P.config_store_unusable(d)), refused,
                                  "the predicate")
                 task = self.add(self.project(store))
-                self.assertEqual(task.returncode != 0
-                                 and REGISTER_REFUSAL in task.stderr, refused,
-                                 f"perry-task: {task.stderr[-600:]}")
+                self.assertEqual(task.returncode, 1, task.stderr)
+                self.assertIn("read-only after the kernel cutover", task.stderr)
+                self.assertNotIn(REGISTER_REFUSAL, task.stderr)
                 goals = self.commit(self.project(store))
                 self.assertEqual(REGISTER_REFUSAL in goals.stderr, refused,
                                  f"perry-goals: {goals.stderr[-600:]}")
@@ -218,7 +219,7 @@ class WritersAndLinterAgree(_Project):
         before = (d / "tasks.jsonl").read_bytes()
         out = self.add(d)
         self.assertEqual(out.returncode, 1, out.stdout)
-        self.assertIn(INVALID_WORDS, out.stderr)
+        self.assertIn("read-only after the kernel cutover", out.stderr)
         self.assertIn("Nothing was written", out.stderr)
         self.assertEqual((d / "tasks.jsonl").read_bytes(), before)
 

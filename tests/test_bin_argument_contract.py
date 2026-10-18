@@ -44,7 +44,7 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME")
 sys.path.insert(0, str(PERRY_HOME / "tests"))
 
 import config_store  # noqa: E402
-from task_writer_support import Project  # noqa: E402
+from task_writer_support import Project, PT  # noqa: E402
 
 BIN = PERRY_HOME / "bin"
 
@@ -81,6 +81,10 @@ class TestTheFlagBeatsTheEnvironment(unittest.TestCase):
         self.other = Project()
         for n in range(3):
             self.other.seed_task(f"TASK-{n + 1:03}", title=f"a row {self.MARK}")
+        # build explicitly reads the held import source, while the other
+        # readers use the canonical records. Declare both fixture inputs.
+        for project in (self.named, self.other):
+            (project.root / "BOARD.md").write_text(project.board())
         run("perry-config", "set", "Chat language", self.MARK,
             "--root", str(self.other.root))
 
@@ -218,7 +222,7 @@ class TestARenderThatCannotRestoreRefuses(unittest.TestCase):
     def setUp(self):
         self.p = Project()
         for n in range(3):
-            self.p.run("add", "--title", f"a row to lose number {n}")
+            self.p.seed_task(f"TASK-{n+1:03}", title=f"a row to lose number {n}")
         # **The held file is made the render of the stores** (TASK-262 round
         # 4a). The verbs below read or fill a held `BOARD.md`, and since 4a no
         # write puts its rows in that file, so it is brought to the state a
@@ -326,7 +330,7 @@ class TestARefusalIsOneLine(unittest.TestCase):
 
     def test_a_missing_board_is_not_a_traceback(self):
         p = Project()
-        p.run("add", "--title", "a row so the store has something in it")
+        p.seed_task("TASK-001", title="a row so the store has something in it")
         (p.root / "BOARD.md").unlink()
         out = run("perry-tasks", "render", "--root", str(p.root), "--write")
         self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
@@ -337,7 +341,7 @@ class TestARefusalIsOneLine(unittest.TestCase):
         """`perry-task` printed one line for this condition all along; the two
         differed only in whether the `except` covered the call."""
         p = Project()
-        p.run("add", "--title", "a row so the store has something in it")
+        p.seed_task("TASK-001", title="a row so the store has something in it")
         (p.root / "BOARD.md").unlink()
         lane = run("perry-task", "list", "--root", str(p.root))
         store = run("perry-tasks", "render", "--root", str(p.root), "--write")
@@ -436,10 +440,13 @@ class TestEveryWriterHonoursDryRun(unittest.TestCase):
         # `bin/perry-tasks:516` `flags=flags` → `flags=flags - {"--dry-run"}`
         # makes `risks-render --write --dry-run` rewrite BOARD.md, and the
         # FULL suite stayed green.
-        self.p.run("add", "--title", "a row so every store has something")
-        self.p.run("risk-add", "--title", "a risk so the risks store has one")
-        self.p.run("intake", "--title", "a request so the intake store has one")
-        self.p.run("ask", "--needed", "an answer so the ask store has one")
+        self.p.seed_task("TASK-001", title="a row so every store has something")
+        records = {
+            "risks.jsonl": {"id": "RX-001", "risk": "a risk", "status": "open", "order": 0},
+            "intake.jsonl": {"arrived": "2026-09-01", "request": "a request", "outcome": "—", "discharged": False, "order": 0},
+            "asks.jsonl": {"id": "USER-001", "needed": "an answer", "blocks": "—", "status": "pending", "order": 0}}
+        for name, row in records.items():
+            (self.p.root / name).write_text(json.dumps(row) + "\n")
         # **The held file is made the render of the stores** (TASK-262 round
         # 4a). The verbs below read or fill a held `BOARD.md`, and since 4a no
         # write puts its rows in that file, so it is brought to the state a
@@ -604,46 +611,17 @@ class TestPerryConfigHonoursDryRun(unittest.TestCase):
                     f"check above proved nothing")
 
 
-class TestAddWritesTheDesignEdge(unittest.TestCase):
-    """DESIGN-016 A4 — `--design` was accepted by the parser and dropped."""
-
-    def setUp(self):
-        self.p = Project()
-        (self.p.root / "design").mkdir(exist_ok=True)
-        (self.p.root / "design" / "DESIGN-042-a-fixture.md").write_text(
-            "# DESIGN-042: a fixture\n\n> Status: draft\n")
-
-    def _record(self, title: str) -> dict:
-        rows = [json.loads(l) for l
-                in (self.p.root / "tasks.jsonl").read_text().split("\n")
-                if l.strip()]
-        return next(r for r in rows if r["title"] == title)
-
-    def test_the_edge_lands_in_the_store(self):
-        self.p.run("add", "--title", "a row that implements a design",
-                   "--design", "DESIGN-042")
-        self.assertEqual(
-            self._record("a row that implements a design").get("design_refs"),
-            ["DESIGN-042"],
-            "`add --design` exited 0 and wrote no edge — the row had to be "
-            "relinked afterwards, which is how this was found")
-
-    def test_a_design_with_no_document_is_refused(self):
-        """The same rule `design-link` enforces: an edge to a design that does
-        not exist is a typo the hand-off count would read as implementation."""
-        code, out = self.p.run("add", "--title", "a row citing a ghost",
-                               "--design", "DESIGN-999")
-        self.assertEqual(code, 1, out)
-        self.assertIn("DESIGN-999", str(out))
-        rows = (self.p.root / "tasks.jsonl").read_text()
-        self.assertNotIn("a row citing a ghost", rows,
-                         "a refused add still wrote the row")
-
-    def test_a_row_opened_without_the_flag_keeps_its_shape(self):
-        self.p.run("add", "--title", "a row that implements nothing")
-        self.assertEqual(
-            self._record("a row that implements nothing").get("design_refs"),
-            [], "a row opened without --design gained an edge")
+class TestRetiredDesignFlags(unittest.TestCase):
+    def test_design_flags_never_reopen_add_or_write_an_implicit_edge(self):
+        p = Project()
+        before = {str(f.relative_to(p.root)): f.read_bytes()
+                  for f in p.root.rglob("*") if f.is_file()}
+        for extra in ((), ("--design", "DESIGN-042"), ("--design", "DESIGN-999")):
+            code, out = p.run("add", "--title", "a row", *extra)
+            self.assertEqual(code, 1, out)
+            self.assertIn("read-only", out["refused"])
+            self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                              for f in p.root.rglob("*") if f.is_file()}, before)
 
 
 class TestListIsBounded(unittest.TestCase):
@@ -687,16 +665,13 @@ class TestListIsBounded(unittest.TestCase):
         evidence = self.p.root / "evidence" / "2026-09" / "closed.md"
         evidence.parent.mkdir(parents=True, exist_ok=True)
         evidence.write_text("Fixture completion evidence.\n")
-        code, result = self.p.run("done", "TASK-001", "--evidence",
-                                  "evidence/2026-09/closed.md", "--rung", "V3")
-        self.assertEqual(code, 0, result)
-        code, result = self.p.run("drop", "TASK-002", "--reason", "fixture drop")
-        self.assertEqual(code, 0, result)
-        for tid, status in (("TASK-003", "blocked"), ("TASK-004", "review"),
-                            ("TASK-005", "in_progress")):
-            code, result = self.p.run("status", tid, "--status", status,
-                                      "--reason", "fixture open state")
-            self.assertEqual(code, 0, result)
+        # Declare the historical mixed-status snapshot directly. This test
+        # grades the retained reader's totals, not a retired transition API.
+        path = self.p.root / "tasks.jsonl"
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        for row, status in zip(records, ("done", "dropped", "blocked", "review", "in_progress", "not_started")):
+            row["status"] = status
+        path.write_text(PT.perry_store.store_text(records))
         for limit in ("1", "3", "0"):
             with self.subTest(limit=limit):
                 payload, err = self._list("--all", "--limit", limit)
@@ -1221,7 +1196,6 @@ class TestOnePrimitiveAnsweredTwice(unittest.TestCase):
                 self.assertIs(self.b(path), want, "the two spellings diverged")
 
 
-
 class TestAFlagWithItsValueMissingIsRefused(unittest.TestCase):
     """Criterion 10a: a bad invocation is exit 2, on every tool that takes a
     value-flag.
@@ -1422,8 +1396,12 @@ class TestAPositionalNoHandlerReadsIsRefused(unittest.TestCase):
                 before = self._bytes()
                 out = run("perry-task", sub, "TASK-001",
                           "--root", str(self.p.root))
-                self.assertEqual(out.returncode, 2, out.stdout[:200])
-                self.assertIn("takes no argument", out.stderr)
+                if sub in PT.READ_ONLY_COMMANDS:
+                    self.assertEqual(out.returncode, 2, out.stdout[:200])
+                    self.assertIn("takes no argument", out.stderr)
+                else:
+                    self.assertEqual(out.returncode, 1, out.stderr)
+                    self.assertIn("read-only", out.stderr)
                 self.assertEqual(self._bytes(), before,
                                  f"{sub} wrote before refusing")
 
@@ -1435,8 +1413,12 @@ class TestAPositionalNoHandlerReadsIsRefused(unittest.TestCase):
                 before = self._bytes()
                 out = run("perry-task", sub, "TASK-001", "TASK-002",
                           "--root", str(self.p.root))
-                self.assertEqual(out.returncode, 2, out.stdout[:200])
-                self.assertIn("takes no second argument", out.stderr)
+                if sub in PT.READ_ONLY_COMMANDS:
+                    self.assertEqual(out.returncode, 2, out.stdout[:200])
+                    self.assertIn("takes no second argument", out.stderr)
+                else:
+                    self.assertEqual(out.returncode, 1, out.stderr)
+                    self.assertIn("read-only", out.stderr)
                 self.assertEqual(self._bytes(), before,
                                  f"{sub} wrote before refusing")
 

@@ -531,7 +531,7 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
         d = self.project(GOOD_STORE + '{"kind": "track", "track": "hal')
         out = self.run_task(d, "intake", "--title", "a request")
         self.assertNotEqual(out.returncode, 0)
-        self.assertIn("track register", (out.stdout + out.stderr))
+        self.assertIn("read-only after the kernel cutover", out.stderr)
         self.assertFalse((d / "intake.jsonl").exists(),
                          "the refusal must mean NOTHING was written")
 
@@ -545,12 +545,14 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
         """`absent` is the adoption path and must not be swept into the
         refusal — every project that has not migrated writes through here."""
         out = self.run_task(self.project(None), "intake", "--title", "a request")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("read-only", out.stderr)
 
     def test_a_write_is_fine_with_a_healthy_store(self):
         out = self.run_task(self.project(GOOD_STORE), "intake",
                             "--title", "a request")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("read-only", out.stderr)
 
     def test_a_write_is_fine_with_a_trackless_store(self):
         """The round 2 regression at the write path, where it actually bit.
@@ -566,7 +568,8 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
         out = self.run_task(
             self.project(SETTING_ONLY),
             "intake", "--title", "a request")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("read-only", out.stderr)
 
 
 # `TestAWriteAgainstADefaultedRegisterIsRefused` pinned USER-905

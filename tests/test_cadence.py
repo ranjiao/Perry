@@ -120,6 +120,16 @@ class Project:
         except json.JSONDecodeError:
             return r.returncode, r.stdout + r.stderr
 
+    def seed_cadence(self, title="x", frequency="weekly", next_due="n/a", **fields):
+        """Archived register input for readers, with dates declared by the test."""
+        path = self.cadence_store()
+        rows = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+        row = {"id": f"CAD-{len(rows)+1:03}", "title": title, "owner": "fixture",
+               "frequency": frequency, "next_due": next_due, "last_run": "",
+               "last_evidence": "", "order": len(rows), **fields}
+        path.write_text("".join(json.dumps(r) + "\n" for r in [*rows, row]))
+        return row["id"]
+
     def state(self) -> dict:
         r = subprocess.run(
             ["python3", str(STATE), "--root", str(self.root), "--section", "cadence"],
@@ -319,344 +329,71 @@ class TestColumnsResolveByName(unittest.TestCase):
         self.assertEqual(row.last_evidence, "")
 
 
-class TestCadenceAdd(unittest.TestCase):
+class TestRetiredCadenceWrites(unittest.TestCase):
+    def test_add_and_done_refuse_for_empty_imported_and_absent_sections(self):
+        for board in (BOARD, BOARD_NO_SECTION):
+            p = Project(board)
+            p.seed_cadence("Friday review", "weekly", "2026-01-09")
+            before = {str(f.relative_to(p.root)): f.read_bytes()
+                      for f in p.root.rglob("*") if f.is_file()}
+            for argv in (("cadence-add", "--title", "weekly review", "--frequency", "weekly"),
+                         ("cadence-add", "--title", "x", "--frequency", "unknown", "--dry-run"),
+                         ("cadence-done", "CAD-001", "--evidence", "proof.md"),
+                         ("cadence-done", "CAD-099", "--dry-run")):
+                with self.subTest(argv=argv, has_section=board == BOARD):
+                    code, out = p.run(*argv)
+                    self.assertEqual(code, 1, out)
+                    self.assertIn("no kernel write equivalent", out["refused"])
+                    self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                                      for f in p.root.rglob("*") if f.is_file()}, before)
 
-    def test_it_mints_stamps_and_writes_all_three(self):
-        p = Project()
-        code, out = p.run("cadence-add", "--title", "Month-end close",
-                          "--frequency", "monthly", "--owner", "User")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["id"], "CAD-001")
-        row = p.row("CAD-001")
-        self.assertEqual(row.title, "Month-end close")
-        self.assertEqual(row.owner, "User")
-        self.assertEqual(row.frequency, "monthly")
-        self.assertEqual(row.next_due, f"{P.advance(TODAY, 1, 'm'):%Y-%m-%d}")
-        self.assertIn("CAD-001", p.journal())
-        self.assertEqual([e["event"] for e in p.events()], ["cadence-add"])
-
-    def test_next_due_is_computed_from_the_frequency_not_from_today(self):
-        """The whole point of the pair. A tool that stamped today's date, or the
-        same date for every frequency, would pass every other test here."""
-        p = Project()
-        for title, freq, expect in (
-                ("w", "weekly", P.advance(TODAY, 1, "w")),
-                ("m", "monthly", P.advance(TODAY, 1, "m")),
-                ("q", "quarterly", P.advance(TODAY, 3, "m")),
-                ("n", "21d", TODAY + timedelta(days=21))):
-            code, out = p.run("cadence-add", "--title", title, "--frequency", freq)
-            self.assertEqual(code, 0, out)
-            self.assertEqual(out["next_due"], f"{expect:%Y-%m-%d}", freq)
-        self.assertEqual(len({r.next_due for r in p.rows()}), 4,
-                         "four frequencies produced fewer than four due dates")
-
-    def test_a_registration_is_not_a_run(self):
-        """`Last run` stays empty. Stamping today would assert an occurrence
-        that did not happen, and make the first `Next due` unverifiable."""
-        p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly")
-        self.assertNotIn(f"{TODAY:%Y-%m-%d}", p.row("CAD-001").last_run)
-
-    def test_on_backdates_the_history_and_the_due_date_follows(self):
-        p = Project()
-        code, out = p.run("cadence-add", "--title", "x", "--frequency", "weekly",
-                          "--on", "2026-01-01")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(p.row("CAD-001").last_run, "2026-01-01")
-        self.assertEqual(out["next_due"], "2026-01-08")
-
-    def test_an_aperiodic_frequency_is_recorded_with_no_due_date(self):
-        p = Project()
-        code, out = p.run("cadence-add", "--title", "watch logs",
-                          "--frequency", "continuous")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["next_due"], "n/a")
-        self.assertIsNone(P.parse_due(p.row("CAD-001").next_due))
-
-    def test_the_section_is_created_after_the_priority_tables(self):
-        """**The register, since TASK-262 round 4a.** A board with no
-        `## Cadence` used to gain the section in the held file. No write writes
-        that file now: the first `cadence-add` creates `cadence.jsonl`, and the
-        board a reader gets prints the row under `## Cadence`, after `## P2`.
-        """
-        p = Project(BOARD_NO_SECTION)
-        self.assertNotIn("## Cadence", p.held())
-        self.assertFalse(p.cadence_store().exists(), "control: no register yet")
-        held = p.held()
-        code, out = p.run("cadence-add", "--title", "x", "--frequency", "weekly")
-        self.assertEqual(code, 0, out)
-        self.assertTrue(p.cadence_store().exists())
-        lines = p.board().split("\n")
-        p2 = next(i for i, l in enumerate(lines) if l.startswith("## P2"))
-        cad = next(i for i, l in enumerate(lines) if l.startswith("## Cadence"))
-        row = next(i for i, l in enumerate(lines) if l.startswith("| CAD-001 |"))
-        self.assertLess(p2, cad)
-        self.assertLess(cad, row)
-        self.assertEqual(p.row("CAD-001").frequency, "weekly")
-        self.assertEqual(p.held(), held)
-
-    def test_it_refuses_a_frequency_it_cannot_schedule_from(self):
-        p = Project()
-        code, out = p.run("cadence-add", "--title", "x", "--frequency", "whenever")
-        self.assertEqual(code, 1)
-        self.assertIn("whenever", out["refused"])
-        self.assertFalse(p.cadence_store().exists(), "a refusal created the register")
-        self.assertEqual(p.rows(), [])
-
-    def test_it_refuses_without_a_title_or_a_frequency(self):
-        p = Project()
-        self.assertEqual(p.run("cadence-add", "--frequency", "weekly")[0], 1)
-        self.assertEqual(p.run("cadence-add", "--title", "x")[0], 1)
-        self.assertEqual(p.events(), [])
-
-    def test_ids_are_minted_above_a_boards_existing_cadence_numbering(self):
-        """A live register numbers its rows `CADENCE-NNN`. A minter blind to
-        that prefix issues `CAD-001` beside `CADENCE-002` and puts two
-        numbering schemes in one table."""
-        p = Project(BOARD.replace(
-            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
-            "|---|---|---|---|---|---|",
-            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
-            "|---|---|---|---|---|---|\n"
-            "| CADENCE-003 | Weekly report | PMO | weekly | 2026-01-01 | — |"))
-        # Imported first (TASK-262 round 4a): the minter reads the register a
-        # write builds from, and a held row reaches it through the import.
-        p.import_cadence()
-        code, out = p.run("cadence-add", "--title", "x", "--frequency", "weekly")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["id"], "CAD-004")
-
-    def test_an_id_is_never_reissued_after_its_row_is_removed(self):
-        p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly")
-        # The row leaves the way it leaves since TASK-262 round 4a: its record
-        # is deleted from the store by hand, with no event.
-        store = p.cadence_store()
-        store.write_text("".join(
-            l + "\n" for l in store.read_text().split("\n")
-            if l.strip() and json.loads(l)["id"] != "CAD-001"))
-        self.assertEqual(p.rows(), [])
-        code, out = p.run("cadence-add", "--title", "y", "--frequency", "weekly")
-        self.assertEqual(out["id"], "CAD-002", "a retired id was reissued")
-
-
-class TestCadenceDone(unittest.TestCase):
-
-    def setUp(self):
-        self.p = Project()
-        self.p.run("cadence-add", "--title", "Friday review",
-                   "--frequency", "weekly", "--on", "2026-01-02")
-
-    def test_it_recomputes_next_due_from_the_rows_own_frequency(self):
-        """The defect this whole task exists for. A `cadence-done` that recorded
-        the run and left `Next due` alone would satisfy every other assertion
-        about evidence and journalling in this file."""
-        before = self.p.row("CAD-001").next_due
-        code, out = self.p.run("cadence-done", "CAD-001",
-                               "--evidence", "weekly/2026-33.md", "--on", "2026-03-06")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(before, "2026-01-09")
-        self.assertEqual(self.p.row("CAD-001").next_due, "2026-03-13")
-
-    def test_it_records_the_run_and_the_evidence(self):
-        self.p.run("cadence-done", "CAD-001", "--evidence", "weekly/2026-33.md",
-                   "--on", "2026-03-06")
-        row = self.p.row("CAD-001")
-        self.assertEqual(row.last_run, "2026-03-06")
-        self.assertEqual(row.last_evidence, "weekly/2026-33.md")
-
-    def test_the_run_defaults_to_today(self):
-        self.p.run("cadence-done", "CAD-001", "--evidence", "x.md")
-        self.assertEqual(self.p.row("CAD-001").last_run, f"{TODAY:%Y-%m-%d}")
-        self.assertEqual(self.p.row("CAD-001").next_due,
-                         f"{P.advance(TODAY, 1, 'w'):%Y-%m-%d}")
-
-    def test_it_refuses_without_evidence(self):
-        code, out = self.p.run("cadence-done", "CAD-001")
-        self.assertEqual(code, 1)
-        # A REFUSAL, not a crash. Asserting only the exit code passed while the
-        # guard was removed, because writing `None` into a cell raises and exits
-        # 1 too — a test satisfied by a traceback, which is the failure mode
-        # this file's docstring names.
-        self.assertIsInstance(out, dict, f"not a refusal, a crash: {out}")
-        self.assertIn("--evidence", out.get("refused", ""))
-        self.assertEqual(self.p.row("CAD-001").last_run, "2026-01-02")
-        self.assertEqual([e["event"] for e in self.p.events()], ["cadence-add"])
-
-    def test_it_refuses_an_id_that_is_not_in_the_register(self):
-        self.assertEqual(self.p.run("cadence-done", "CAD-099", "--evidence", "x")[0], 1)
-
-    def test_it_writes_the_board_the_journal_and_the_event(self):
-        self.p.run("cadence-done", "CAD-001", "--evidence", "weekly/2026-33.md")
-        self.assertIn("weekly/2026-33.md", self.p.journal())
-        ev = self.p.events()[-1]
-        self.assertEqual(ev["event"], "cadence-done")
-        self.assertEqual(ev["id"], "CAD-001")
-        self.assertEqual(ev["previous_due"], "2026-01-09")
-        self.assertEqual(ev["next_due"], self.p.row("CAD-001").next_due)
-
-    def test_frequency_can_be_corrected_in_the_same_write(self):
-        code, out = self.p.run("cadence-done", "CAD-001", "--evidence", "x.md",
-                               "--frequency", "monthly", "--on", "2026-01-31")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(self.p.row("CAD-001").frequency, "monthly")
-        self.assertEqual(self.p.row("CAD-001").next_due, "2026-02-28")
-
-    def test_it_refuses_a_row_whose_frequency_it_cannot_read(self):
-        # In the store (TASK-262 round 4a): the record is what a write reads.
-        self.p.edit_record("CAD-001", frequency="when the mood takes us")
-        code, out = self.p.run("cadence-done", "CAD-001", "--evidence", "x.md")
-        self.assertEqual(code, 1)
-        self.assertIn("--frequency", out["refused"])
-
-    def test_a_sub_grouped_register_is_written_the_way_it_is_read(self):
-        """The reader tolerates a `###` label inside `## Cadence`; the writers
-        stopped at the first one, and the two then disagreed about what the
-        the section contained.
-
-        On such a board `cadence-done` refused with "not a row in `## Cadence`"
-        — false, and the third false "not a row" message in this file's history
-        — while `cadence-add` SUCCEEDED, widening the header to seven columns
-        and padding none of the sub-grouped rows. The result is a ragged table
-        that `perry-lint` reports clean, produced by the tool whose entire claim
-        is that it mechanizes the format rather than breaking it.
-
-        **Since TASK-262 round 4a the sub-grouped table is read by the import,
-        not by the write**, so the row is reached by importing the held board
-        and the widening half — a write padding a held table — left with the
-        re-render. The file keeps its bytes.
-        """
-        p = Project(BOARD.replace(
-            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
-            "|---|---|---|---|---|---|",
-            "### Weekly\n\n"
-            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
-            "|---|---|---|---|---|---|\n"
-            "| CAD-100 | friday review | PMO | weekly | 2026-01-01 | w/x.md |\n"
-            "\n### Monthly\n\n"
-            "| CAD-200 | month close | PMO | monthly | 2026-01-31 | m/x.md |"))
-        p.import_cadence()
-        self.assertEqual({r.id for r in p.rows()}, {"CAD-100", "CAD-200"},
-                         "the import did not read both sub-groups")
-        held = p.held()
-        code, out = p.run("cadence-done", "CAD-200", "--evidence", "runbook/y.md")
-        self.assertEqual(code, 0, f"a sub-grouped row was unreachable: {out}")
-        self.assertEqual(p.row("CAD-200").last_evidence, "runbook/y.md")
-        self.assertEqual(p.row("CAD-100").last_evidence, "w/x.md")
-        self.assertEqual(p.held(), held)
 
 class TestOverdueReport(unittest.TestCase):
-
     def test_overdue_rows_are_reported_by_age_oldest_first(self):
-        """The NEWER row is registered first, so board order and sorted order
-        differ — which is the only arrangement that can fail on the sort.
-
-        This test used to add `old` before `newer`, so the rows arrived already
-        in the order the assertion wanted and `perry-state`'s sort line could be
-        deleted with the whole 600-test suite still green. The claim it guards
-        is not a nicety: `work/reference/subcommands.md § triage` now tells the
-        agent in bold that the list "is already sorted oldest-first" and to stop
-        scanning the table by eye, and that promise is the only thing standing
-        between the procedure and the eyeball it replaced.
-        """
         p = Project()
-        p.run("cadence-add", "--title", "newer", "--frequency", "weekly",
-              "--on", f"{TODAY - timedelta(days=12):%Y-%m-%d}")
-        p.run("cadence-add", "--title", "old", "--frequency", "weekly",
-              "--on", f"{TODAY - timedelta(days=37):%Y-%m-%d}")
-        p.run("cadence-add", "--title", "future", "--frequency", "monthly")
-        # Board order: CAD-001 (5 days overdue) then CAD-002 (30).
-        self.assertEqual([r.id for r in p.rows()],
-                         ["CAD-001", "CAD-002", "CAD-003"])
-        rep = p.state()
-        self.assertEqual(rep["count"], 3)
-        self.assertEqual([r["id"] for r in rep["overdue"]], ["CAD-002", "CAD-001"])
-        self.assertEqual([r["days_overdue"] for r in rep["overdue"]], [30, 5])
+        for title, days in (("newer", -5), ("old", -30), ("future", 7)):
+            p.seed_cadence(title, "weekly", str(TODAY + timedelta(days=days)))
+        self.assertEqual([r.id for r in p.rows()], ["CAD-001", "CAD-002", "CAD-003"])
+        report = p.state()
+        self.assertEqual(report["count"], 3)
+        self.assertEqual([r["id"] for r in report["overdue"]], ["CAD-002", "CAD-001"])
+        self.assertEqual([r["days_overdue"] for r in report["overdue"]], [30, 5])
 
-    def test_a_row_due_today_is_not_yet_overdue(self):
+    def test_today_future_and_aperiodic_are_not_overdue(self):
         p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly",
-              "--on", f"{TODAY - timedelta(days=7):%Y-%m-%d}")
-        self.assertEqual(p.row("CAD-001").next_due, f"{TODAY:%Y-%m-%d}")
-        self.assertEqual(p.state()["overdue"], [])
+        p.seed_cadence("today", "weekly", str(TODAY))
+        p.seed_cadence("future", "weekly", str(TODAY + timedelta(days=7)))
+        p.seed_cadence("continuous", "continuous", "n/a")
+        report = p.state()
+        self.assertEqual(report["count"], 3)
+        self.assertEqual(report["overdue"], [])
+        self.assertEqual(report["undated"], [])
+        self.assertEqual(report["unreadable_frequency"], [])
+        self.assertEqual(report["items"][2]["frequency_kind"], "aperiodic")
 
-    def test_an_aperiodic_row_is_never_overdue_and_is_not_a_finding(self):
+    def test_unreadable_due_and_frequency_remain_distinct_findings(self):
         p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "continuous")
-        rep = p.state()
-        self.assertEqual(rep["overdue"], [])
-        self.assertEqual(rep["undated"], [])
-        self.assertEqual(rep["unreadable_frequency"], [])
-        self.assertEqual(rep["items"][0]["frequency_kind"], "aperiodic")
+        p.seed_cadence("due unknown", "weekly", "soon")
+        p.seed_cadence("frequency unknown", "每周五", "n/a")
+        report = p.state()
+        self.assertEqual([r["id"] for r in report["undated"]], ["CAD-001"])
+        self.assertEqual([r["id"] for r in report["unreadable_frequency"]], ["CAD-002"])
+        self.assertEqual(report["overdue"], [])
+        self.assertIn("unreadable Frequency", p.dashboard())
 
-    def test_a_periodic_row_with_an_unreadable_due_cell_is_a_finding(self):
-        """Not silently 'fine'. That would exempt exactly the rows most likely
-        to have been abandoned — a clock that stops when it cannot read a date."""
+    def test_fresh_historical_snapshot_clears_an_overdue_finding(self):
         p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly")
-        # The STORE record is the register since TASK-237 3b, so the unreadable
-        # cell is planted there; a hand edit to `BOARD.md` is drift, not data.
-        store = p.root / "cadence.jsonl"
-        recs = [json.loads(l) for l in store.read_text().split("\n") if l.strip()]
-        self.assertEqual(recs[0]["next_due"],
-                         f"{P.advance(TODAY, 1, 'w'):%Y-%m-%d}")
-        recs[0]["next_due"] = "soon"
-        store.write_text("".join(json.dumps(r) + "\n" for r in recs))
-        rep = p.state()
-        self.assertEqual([r["id"] for r in rep["undated"]], ["CAD-001"])
-        self.assertEqual(rep["overdue"], [])
-
-    def test_an_unreadable_frequency_is_reported_rather_than_dropped(self):
-        p = Project(BOARD.replace(
-            "|---|---|---|---|---|---|",
-            "|---|---|---|---|---|---|\n"
-            "| CAD-009 | mystery | X | when the mood takes us | — | — |"))
-        # TASK-262 round 4b: the held section reaches `perry-state` through
-        # its import; the file itself is not read.
-        import_board(p.root, "cadence-write", remove=False)
-        rep = p.state()
-        self.assertEqual([r["id"] for r in rep["unreadable_frequency"]], ["CAD-009"])
-        self.assertEqual(rep["items"][0]["frequency_kind"], "")
-
-    def test_a_done_run_clears_the_overdue_finding(self):
-        p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly",
-              "--on", f"{TODAY - timedelta(days=30):%Y-%m-%d}")
+        p.seed_cadence("weekly review", "weekly", str(TODAY - timedelta(days=23)))
         self.assertEqual(len(p.state()["overdue"]), 1)
-        p.run("cadence-done", "CAD-001", "--evidence", "e.md")
+        p.edit_record("CAD-001", next_due=str(TODAY + timedelta(days=7)),
+                      last_run=str(TODAY), last_evidence="proof.md")
         self.assertEqual(p.state()["overdue"], [])
 
-    def test_the_dashboard_line_appears_only_when_there_is_a_register(self):
-        empty = Project(BOARD_NO_SECTION)
-        self.assertNotIn("Cadence", empty.dashboard())
+    def test_dashboard_reports_a_register_only_when_it_exists(self):
+        self.assertNotIn("Cadence", Project(BOARD_NO_SECTION).dashboard())
         p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly",
-              "--on", f"{TODAY - timedelta(days=30):%Y-%m-%d}")
+        p.seed_cadence("weekly review", "weekly", str(TODAY - timedelta(days=23)))
         self.assertIn("1 overdue", p.dashboard())
-
-    def test_an_unreadable_frequency_reaches_the_human_surface(self):
-        """The third list, which the dashboard line dropped.
-
-        A row unreadable on BOTH axes is in `unreadable_frequency` ONLY — the
-        `undated` branch is gated on `frequency_kind == "period"` — so it was in
-        the JSON and nowhere a human looks. That is the row nothing can schedule
-        and nothing was saying so about, which is the failure the register
-        exists to catch. Both procedures that read this payload name all three
-        lists (`work/reference/subcommands.md § triage`, `modes/queue.md`
-        step 5); the line they read from named two.
-        """
-        p = Project(BOARD.replace(
-            "|---|---|---|---|---|---|",
-            "|---|---|---|---|---|---|\n"
-            "| CAD-009 | mystery | X | 每周五 | — | — |"))
-        import_board(p.root, "cadence-write", remove=False)   # TASK-262 4b
-        rep = p.state()
-        self.assertEqual([r["id"] for r in rep["unreadable_frequency"]], ["CAD-009"])
-        self.assertEqual(rep["undated"], [], "the setup no longer reaches the "
-                                             "only-unreadable_frequency case")
-        line = next(l for l in p.dashboard().split("\n") if "Cadence" in l)
-        self.assertIn("unreadable Frequency", line,
-                      f"the only list this row is in reaches nobody: {line}")
 
 
 class TestCadenceIsNotATask(unittest.TestCase):
@@ -667,8 +404,10 @@ class TestCadenceIsNotATask(unittest.TestCase):
         heading. The EVENT half folded every event carrying an id, so a
         registered ritual arrived as a closed task with `status: registered`."""
         p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly")
-        p.run("cadence-done", "CAD-001", "--evidence", "e.md")
+        p.seed_cadence()
+        p.edit_record("CAD-001", last_evidence="e.md")
+        (p.root / ".perry/events.jsonl").write_text(json.dumps({
+            "event": "cadence-done", "id": "CAD-001", "ts": "2026-08-01T00:00:00Z"}) + "\n")
         code, out = p.run("list", "--all")
         self.assertEqual(code, 0, out)
         self.assertEqual([t["id"] for t in out["tasks"]], [])
@@ -677,7 +416,8 @@ class TestCadenceIsNotATask(unittest.TestCase):
 
     def test_user_input_rows_stay_out_too(self):
         p = Project()
-        p.run("ask", "--needed", "which staging default?")
+        (p.root / "asks.jsonl").write_text(json.dumps({"id": "USER-001",
+            "needed": "which staging default?", "status": "pending", "order": 0}) + "\n")
         _, out = p.run("list", "--all")
         self.assertEqual([t["id"] for t in out["tasks"]], [])
 
@@ -699,7 +439,7 @@ class TestCadenceIsNotATask(unittest.TestCase):
 
     def test_done_cannot_close_a_cadence_row(self):
         p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly")
+        p.seed_cadence()
         code, out = p.run("done", "CAD-001", "--evidence", "e.md")
         self.assertEqual(code, 1)
         self.assertIn("CAD-001", p.board())
@@ -717,7 +457,7 @@ class TestCadenceIsNotATask(unittest.TestCase):
         reader hunting for a missing row instead of reading the rule.
         """
         p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly")
+        p.seed_cadence()
         for argv in (("done", "CAD-001", "--evidence", "e.md"),
                      ("status", "CAD-001", "--status", "blocked"),
                      ("next", "CAD-001", "--next", "do the thing"),
@@ -730,9 +470,8 @@ class TestCadenceIsNotATask(unittest.TestCase):
                 "is not a row on the board", msg,
                 f"{argv[0]} refused with a false statement about a row the "
                 f"tool wrote and `perry-state` lists")
-            self.assertIn("Cadence", msg, f"{argv[0]} named no section")
-            self.assertIn("cadence-done", msg,
-                          f"{argv[0]} named no way forward")
+            self.assertIn("read-only after the kernel cutover", msg)
+            self.assertIn("perry-kernel", msg)
         self.assertIn("CAD-001", p.board())
 
     def test_every_non_task_section_has_a_refusal_to_offer(self):
@@ -752,7 +491,7 @@ class TestCadenceIsNotATask(unittest.TestCase):
         p = Project()
         code, out = p.run("done", "TASK-404", "--evidence", "e.md")
         self.assertEqual(code, 1)
-        self.assertIn("is not a row on the board", str(out))
+        self.assertIn("read-only after the kernel cutover", str(out))
 
 
 class TestTheLegacyProjectionIsUnchanged(unittest.TestCase):
@@ -777,7 +516,10 @@ class TestTheLegacyProjectionIsUnchanged(unittest.TestCase):
 
     def test_cadence_rows_are_still_excluded_from_drift(self):
         p = Project()
-        p.run("cadence-add", "--title", "x", "--frequency", "weekly")
+        p.seed_cadence()
+        (p.root / "tasks.jsonl").write_text("")
+        (p.root / ".perry/events.jsonl").write_text(json.dumps({
+            "event": "cadence-done", "id": "CAD-001", "ts": "2026-08-01T00:00:00Z"}) + "\n")
         r = subprocess.run(
             ["python3", str(STATE), "--root", str(p.root), "--section", "board"],
             capture_output=True, text=True)

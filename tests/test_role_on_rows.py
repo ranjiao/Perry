@@ -34,6 +34,7 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import tables as T  # noqa: E402
 
 import config_store  # noqa: E402
+from kernel_work_support import ACTOR, ready, task
 
 TOOL = PERRY_HOME / "bin" / "perry-task"
 HEADER = ["ID", "Title", "Owner", "Status", "Next action", "Evidence"]
@@ -106,97 +107,56 @@ class Base(unittest.TestCase):
         return json.loads(r.stdout)
 
 
-class TestGoal7AProjectWithNoRoles(Base):
-    """The half that must not regress. Every assertion here is about a project
-    that has declared nothing."""
+class TestRolesStayHostMetadata(Base):
+    def test_native_create_needs_no_role_even_when_a_host_card_exists(self):
+        sb = ready(self)
+        card = sb.root / ".perry/roles/coding.md"
+        card.parent.mkdir(parents=True)
+        card.write_text(CARD)
+        tid = task(sb)
+        self.assertNotIn("role", sb.get(tid)["fields"])
+        self.assertEqual(card.read_text(), CARD)
 
-    def test_add_does_not_ask_for_a_role(self):
-        root = self.project()
-        out = self.add(root)
-        self.assertEqual(out.returncode, 0, out.stderr)
+    def test_a_role_cannot_be_smuggled_into_a_native_task_field(self):
+        sb = ready(self)
+        tid = task(sb)
+        before = sb.seq()
+        out = sb.run("item update", data={"actor": ACTOR, "id": tid,
+                                           "set": {"role": "coding"}})
+        self.assertFalse(out.ok, out)
+        self.assertEqual(sb.seq(), before)
+        self.assertNotIn("role", sb.get(tid)["fields"])
 
-    def test_no_refusal_ever_mentions_roles(self):
-        """A project that has not adopted the concept must not meet it in an
-        error message."""
-        root = self.project()
-        out = self.add(root)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertNotIn("--role", out.stderr + out.stdout)
-        self.assertNotIn("role card", (out.stderr + out.stdout).lower())
+    def test_dispatch_still_loads_role_cards_as_host_context(self):
+        text = (PERRY_HOME / "work/reference/dispatch-preflight.md").read_text()
+        self.assertIn("role", text.lower())
+        self.assertIn(".perry/roles/", text)
 
-    def test_the_board_gains_no_role_column(self):
-        root = self.project()
-        self.add(root)
-        board = (root / "perry" / "BOARD.md").read_text(encoding="utf-8")
-        self.assertNotIn("Role", board)
-
-    def test_the_payload_still_carries_the_key_as_empty(self):
-        """Always present, never missing — the contract's own rule. A consumer
-        needs no `if "role" in task`."""
-        root = self.project()
-        self.add(root)
-        t = self.payload(root)["tasks"][0]
-        self.assertIn("role", t)
-        self.assertEqual(t["role"], "")
-
-    def test_a_role_passed_anyway_is_filed_not_refused(self):
-        """Nothing is demanded and nothing is rejected — the flag is inert
-        rather than an error, so a shared script works on both kinds of
-        project."""
-        root = self.project()
-        out = self.add(root, "--role", "coding")
-        self.assertEqual(out.returncode, 0, out.stderr)
+    def test_retired_add_cannot_write_with_or_without_a_role_card(self):
+        for roles in (None, {"coding.md": CARD}):
+            root = self.project(roles)
+            before = {str(p.relative_to(root)): p.read_bytes()
+                      for p in root.rglob("*") if p.is_file()}
+            for args in ((), ("--role", "coding"), ("--role", "finance")):
+                with self.subTest(roles=bool(roles), args=args):
+                    out = self.add(root, *args)
+                    self.assertEqual(out.returncode, 1, out.stderr)
+                    self.assertIn("perry-kernel item create", out.stderr)
+                    self.assertEqual({str(p.relative_to(root)): p.read_bytes()
+                                      for p in root.rglob("*") if p.is_file()}, before)
 
 
-class TestAProjectThatHasDeclaredRoles(Base):
-    def setUp(self):
-        self.root = self.project({"coding.md": CARD})
-
-    def test_a_roleless_row_is_refused(self):
-        out = self.add(self.root)
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("--role is required", out.stderr)
-
-    def test_the_refusal_lists_the_roles_that_exist(self):
-        """A user who must name one needs to know the set — otherwise the
-        refusal is a puzzle."""
-        out = self.add(self.root)
-        self.assertIn("coding", out.stderr)
-
-    def test_a_role_with_no_card_is_refused_and_points_at_the_shipped_ones(self):
-        out = self.add(self.root, "--role", "finance")
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("has no card", out.stderr)
-        self.assertIn("packs/software-ops/roles/", out.stderr)
-
-    def test_a_declared_role_lands_in_the_cell_and_the_payload(self):
-        out = self.add(self.root, "--role", "coding")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        # The printed board's row, read under its own header (TASK-262 round
-        # 4a). `perry-tasks board` prints a `Role` column on every table, so
-        # the column's presence proves nothing; the cell does.
-        out = subprocess.run([sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
-                              "board", "--root", str(self.root)],
-                             capture_output=True, text=True)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        tid = self.payload(self.root)["tasks"][0]["id"]
-        header = None
-        for line in out.stdout.split("\n"):
-            if line.startswith("| ID |"):
-                header = [c.strip().lower() for c in T.split_row(line)]
-            elif line.startswith(f"| {tid} |"):
-                self.assertEqual(dict(zip(header, T.split_row(line)))["role"],
-                                 "coding")
-                break
-        else:
-            self.fail(f"{tid} is not a row on the printed board")
-        self.assertEqual(self.payload(self.root)["tasks"][0]["role"], "coding")
-
-    def test_a_refusal_writes_nothing(self):
-        before = (self.root / "perry" / "BOARD.md").read_bytes()
-        self.add(self.root)
-        self.add(self.root, "--role", "nope")
-        self.assertEqual((self.root / "perry" / "BOARD.md").read_bytes(), before)
+class TestLegacyRoleReader(Base):
+    def test_role_is_explicit_or_empty_in_the_frozen_payload(self):
+        for role in ("coding", ""):
+            with self.subTest(role=role):
+                root = self.project()
+                (root / "perry/tasks.jsonl").write_text(json.dumps({
+                    "id": "TASK-001", "title": "Archived task", "status": "not_started",
+                    "priority": "P1", "role": role}) + "\n")
+                rows = self.payload(root)["tasks"]
+                self.assertEqual(len(rows), 1)
+                self.assertEqual(rows[0]["role"], role)
 
 
 class TestTheContractDeclaresIt(unittest.TestCase):

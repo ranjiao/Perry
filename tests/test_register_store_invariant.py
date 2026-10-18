@@ -326,30 +326,6 @@ class TestTheFixturesAreTheShapeUnderTest(Base):
         self.assertEqual(len(f.records("asks.jsonl")), 4)
         self.assertEqual(len(f.records("risks.jsonl")), 3)
 
-    def test_the_queue_track_reaches_cmd_adds_queue_branch(self):
-        """`ops` is a queue track HERE, proved by the branch under test.
-
-        `cmd_add`'s `if mode == "queue"` calls `ensure_section("Intake", …)`,
-        and nothing else in `add` creates that section. So a board with no
-        `## Intake` that grows one on `--track ops` and does not on the default
-        project track is this fixture saying which branch it takes — which is
-        the whole of door 4.
-        """
-        f = self.fixture(build_board(intake=None), tracks=OPS_QUEUE, mint=())
-        # **Asked of the store since TASK-262 round 4a**: the branch no longer
-        # shows in a held file, which no write re-renders; what it does that a
-        # project-track `add` does not is write the intake register.
-        self.assertFalse((f.root / "intake.jsonl").exists(),
-                         "control: no intake store before either write")
-        self.assertEqual(f.run("add", "--title", "a project row",
-                               "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                               "--deliverable", "d", "--verification", "v")[0], 0)
-        self.assertFalse((f.root / "intake.jsonl").exists())
-        self.assertEqual(f.run("add", "--title", "a queue row", "--track", "ops",
-                               "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                               "--deliverable", "d", "--verification", "v")[0], 0)
-        self.assertTrue((f.root / "intake.jsonl").exists())
-
 
 # ── 2. the reproduction ───────────────────────────────────────────────────
 
@@ -400,226 +376,11 @@ class TestTheReproduction(Base):
         self.assertEqual(len(self.f.records("intake.jsonl")), 4)
         self.assertNotIn("## Intake", self.f.board_text())
 
-    def test_an_ordinary_add_on_a_queue_track_cannot_empty_a_present_intake_store(self):
-        rc, out = self.f.run("add", "--title", "a queue task probe",
-                             "--track", "ops", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-                             "--verification", "v")
-        self.assertNotEqual(rc, 0, "the write was not refused:\n" + out)
-        self.assertEqual(self.f.raw("intake.jsonl"), self.before,
-                         "the intake store changed on a refused write")
-        self.assertEqual(len(self.f.records("intake.jsonl")), 4)
-
-    def test_the_refusal_names_the_store_and_a_way_forward(self):
-        """And the way forward is a subcommand that exists.
-
-        `perry-tasks` prefixes the three registers (`intake-write`) and leaves
-        the task store's own subcommands bare (`write`), so a message built by
-        pasting the store's name in front of `-write` sends the reader to
-        `perry-tasks tasks-write`, which there is no such thing as.
-        """
-        _rc, out = self.f.run("add", "--title", "a queue task probe",
-                              "--track", "ops", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-                              "--verification", "v")
-        self.assertIn("intake.jsonl", out)
-        self.assertIn("perry-tasks intake-write --from-board", out)
-        self.assertIn("perry-tasks intake-render --write", out)
-        with self.assertRaises(PT.Refused) as caught:
-            PT.refuse_to_shrink("tasks", Path("/nowhere/tasks.jsonl"),
-                                {"event": "next"}, 5, 4)
-        self.assertIn("perry-tasks write --from-board", str(caught.exception))
-        self.assertNotIn("tasks-write", str(caught.exception))
-
-    def test_a_dry_run_previews_the_refusal_rather_than_the_write(self):
-        """`--dry-run` reaches the same gate the real write does.
-
-        `commit()` calls `register_change` BEFORE `if dry_run: return plan`,
-        deliberately: `cmd_add`'s own docstring says a preview that is not the
-        write is worse than no preview, and a dry run that printed a plan for a
-        write the tool would refuse is exactly that.
-        """
-        rc, out = self.f.run("add", "--title", "a queue task probe",
-                             "--track", "ops", "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.", "--deliverable", "d",
-                             "--verification", "v", "--dry-run")
-        self.assertNotEqual(rc, 0, "the dry run previewed a refused write:\n"
-                                   + out)
-        self.assertIn("may never make a canonical store smaller", out)
-
-    def test_a_refused_register_write_writes_nothing_at_all(self):
-        """Refused before anything is staged — not half a transaction."""
-        board = self.f.board_text()
-        tasks = self.f.raw("tasks.jsonl")
-        self.f.run("add", "--title", "a queue task probe", "--track", "ops",
-                   "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                   "--deliverable", "d", "--verification", "v")
-        self.assertEqual(self.f.board_text(), board)
-        self.assertEqual(self.f.raw("tasks.jsonl"), tasks)
-
 
 # ── 3. the four doors ─────────────────────────────────────────────────────
 
 
-class TestTheFourDoors(Base):
-    """One invariant, four doors. Each door is named for the round that found
-    it, and each is closed by the same line of code.
-
-    **Every door is constructed since TASK-262 round 4a**
-    (`the_write_mutates_the_held_board`); on the real path a hand edit to a
-    held file opens none of them — `TestAHandEditToAHeldBoardReachesNoStore`.
-    """
-
-    # Door 1 — round 1. The exemption was keyed on the COMMAND NAME, on the
-    # reasoning that `intake-sweep` is the only command that removes a row.
-    # True, and the wrong question: it is the only command that moves rows
-    # ITSELF, not the only way rows move.
-    def test_door_one_a_row_tidied_off_the_board_by_hand_refuses_the_next_write(self):
-        f = self.fixture(build_board())
-        before = f.raw("intake.jsonl")
-        rows = INTAKE_TABLE.split("\n")
-        shrunk = "\n".join(rows[:2] + rows[3:])        # one row removed by hand
-        f.write_board(build_board(intake=shrunk))
-        rc, out = f.run("add", "--title", "an unrelated task",
-                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                        "--deliverable", "d", "--verification", "v")
-        self.assertNotEqual(rc, 0, out)
-        self.assertEqual(f.raw("intake.jsonl"), before)
-
-    # Door 2 — round 2. The exemption was keyed on `(request, arrived)`, which
-    # is not unique: the same thing filed twice on the same day is the ordinary
-    # reason a row gets `dropped — duplicate`.
-    def test_door_two_a_duplicate_request_tidied_out_refuses_rather_than_fabricating(self):
-        dup = ("| Arrived | Request | Outcome |\n|---|---|---|\n"
-               "| 2026-08-01 | fix the login bug | "
-               "dropped 2026-08-01 — folded in |\n"
-               "| 2026-08-01 | fix the login bug | — |\n"
-               "| 2026-08-02 | something else | — |\n")
-        f = self.fixture(build_board(intake=dup))
-        self.assertEqual(len(f.records("intake.jsonl")), 3)
-        self.assertIs(f.records("intake.jsonl")[0]["discharged"], True)
-        rows = dup.split("\n")
-        f.write_board(build_board(
-            intake="\n".join(rows[:2] + rows[3:])))     # the dropped one goes
-        rc, out = f.run("add", "--title", "an ordinary task",
-                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                        "--deliverable", "d", "--verification", "v")
-        self.assertNotEqual(rc, 0, out)
-        after = f.records("intake.jsonl")
-        self.assertEqual(len(after), 3)
-        self.assertIs(after[1]["discharged"], False,
-                      "a live request was recorded as discharged")
-
-    # Door 3 — round 2 and round 3. `<register>_records` returns `[]` for every
-    # shape but `table`, and round 2 measured a store going to zero through
-    # `prose` and through both `foreign` shapes. The invariant does not
-    # enumerate shapes: `[] < n` is the refusal.
-    def test_door_three_no_section_shape_on_any_register_may_empty_a_present_store(self):
-        for key in REGISTERS:
-            for shape in SHAPES[key]:
-                if shape == "table":
-                    continue
-                with self.subTest(register=key, shape=shape):
-                    # Minted from the healthy board, then the shape is broken
-                    # on disk — exactly the order a human editing a board
-                    # produces, and the only order in which the store has
-                    # records to lose.
-                    f = self.fixture(build_board(), mint=(key,))
-                    store = REGISTERS[key][1]
-                    before = f.raw(store)
-                    self.assertTrue(f.records(store),
-                                    "control: the store starts with records")
-                    f.write_board(build_board(**{key: SHAPES[key][shape]}))
-                    rc, out = f.run(*OWN_WRITE[key])
-                    self.assertNotEqual(rc, 0, out)
-                    self.assertEqual(f.raw(store), before,
-                                     f"{store} changed on a {shape} section")
-
-    def test_door_three_the_foreign_shape_is_refused_on_every_register(self):
-        """The shape round 3 had no test for, on all three registers.
-
-        Split out of the matrix above and stated on its own, because a cell
-        inside a loop is exactly how it went missing.
-        """
-        for key in REGISTERS:
-            for shape in ("foreign-two-tables", "foreign-renamed-key"):
-                with self.subTest(register=key, shape=shape):
-                    f = self.fixture(build_board(), mint=(key,))
-                    store = REGISTERS[key][1]
-                    before = f.raw(store)
-                    f.write_board(build_board(**{key: SHAPES[key][shape]}))
-                    board, ops = parse(f.board_text())
-                    self.assertEqual(REGISTERS[key][2](board, ops)[0], "foreign",
-                                     "control: the section really is foreign")
-                    rc, out = f.run(*OWN_WRITE[key])
-                    self.assertNotEqual(rc, 0, out)
-                    self.assertEqual(f.raw(store), before)
-
-    # Door 4 — round 3. `ensure_section` runs before `commit()` reads anything,
-    # so the gate saw a freshly created, readable, EMPTY table. The invariant is
-    # not a gate on the board and does not care when it is read.
-    def test_door_four_a_register_command_may_not_rebuild_its_section_from_one_row(self):
-        """Round 3's table: intake 3→1, ask 3→1, risk-add 3→1, all rc 0."""
-        for key in REGISTERS:
-            with self.subTest(register=key):
-                f = self.fixture(build_board(), mint=(key,))
-                store = REGISTERS[key][1]
-                before = f.raw(store)
-                f.write_board(build_board(**{key: None}))
-                rc, out = f.run(*OWN_WRITE[key])
-                self.assertNotEqual(rc, 0, out)
-                self.assertEqual(f.raw(store), before,
-                                 f"{store} was rebuilt from one row")
-
-
 # ── 4. the three commands that may still shrink ───────────────────────────
-
-
-class TestExplicitRemovalStillWorks(Base):
-    """An invariant that also blocks the sweep has broken the register."""
-
-    def test_intake_sweep_may_shrink_the_intake_store(self):
-        f = self.fixture(build_board())
-        self.assertEqual(len(f.records("intake.jsonl")), 4)
-        rc, out = f.run("intake-sweep")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(len(f.records("intake.jsonl")), 3,
-                         "the sweep did not reduce the store")
-
-    def test_purge_may_shrink_the_task_store(self):
-        """`tasks.jsonl` is canonical too, and `purge` is its one removal path.
-
-        The row is closed through the tool rather than written closed into the
-        fixture: `cmd_purge` refuses a record the projection still carries a
-        line for, so a board-written `done` row is refused for a reason that
-        has nothing to do with this invariant.
-        """
-        rows = ("| TASK-001 | a smoke test row | Coding Agent | not_started "
-                "| — | — |\n")
-        f = self.fixture(build_board(rows=rows))
-        self.assertEqual(len(f.records("tasks.jsonl")), 1)
-        self.assertEqual(f.run("drop", "TASK-001", "--reason", "never real")[0], 0)
-        rc, out = f.run("purge", "TASK-001", "--reason", "a smoke test row")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(len(f.records("tasks.jsonl")), 0)
-
-    def test_resolve_intake_is_not_blocked_and_does_not_in_fact_shrink(self):
-        """Named by USER-906 as an explicit removal. It is not one.
-
-        `cmd_resolve_intake` rewrites the row's `Outcome` cell; the row stays
-        on the board and the record count does not move.
-
-        **This test runs on a CLEAN board and therefore says nothing about the
-        exemption.** The V4 round-4 review named it precisely: offered as the
-        record that "the allowance is unused", it is the one test that cannot
-        tell, because no shrink is possible here and `rc == 0` is true whether
-        the allowance exists or not. What it does say is that the invariant
-        does not block the ordinary discharge, which is worth a test of its
-        own. The bound is `TestTheExemptionIsBounded`, one class down, and
-        every test there runs on a board where a shrink IS possible.
-        """
-        f = self.fixture(build_board())
-        rc, out = f.run("resolve-intake", "2", "--reason", "not for us")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(len(f.records("intake.jsonl")), 4)
-        self.assertIs(f.records("intake.jsonl")[1]["discharged"], True)
 
 
 # ── 4b. the exemption is BOUNDED, on boards where a shrink is possible ────
@@ -727,79 +488,6 @@ class TestTheExemptionIsBounded(Base):
                         "and without it")
         return f
 
-    def test_resolve_intake_may_not_shrink_a_store_it_removes_nothing_from(self):
-        """The V4 round-4 review's § 1, as a test. Two records at stake.
-
-        `resolve-intake` rewrites one `Outcome` cell and removes no record, so
-        it declares 0 and may shrink by 0. The two records tidied off the board
-        by hand are records this command never addressed.
-        """
-        f = self.drifted([1, 2])
-        before = f.raw("intake.jsonl")
-        rc, out = f.run("resolve-intake", "1", "--outcome", "dropped",
-                        "--reason", "not for us")
-        self.assertNotEqual(
-            rc, 0, "resolve-intake destroyed records it never touched:\n" + out)
-        self.assertEqual(f.raw("intake.jsonl"), before,
-                         "the store changed on a refused write")
-        self.assertEqual(len(f.records("intake.jsonl")), 4)
-        self.assertIn("removes 0 record(s)", out)
-        self.assertIn("by exactly what it removes", out)
-
-    def test_intake_sweep_may_not_shrink_by_more_than_the_rows_it_swept(self):
-        """It swept one row; three records were about to go.
-
-        The row kept at position 3 is the discharged one, so the sweep is
-        legitimate and removes exactly one board row. The other two records are
-        not its to remove.
-        """
-        f = self.drifted([1, 3])
-        before = f.raw("intake.jsonl")
-        rc, out = f.run("intake-sweep")
-        self.assertNotEqual(
-            rc, 0, "the sweep removed more than it swept:\n" + out)
-        self.assertEqual(f.raw("intake.jsonl"), before,
-                         "the store changed on a refused write")
-        self.assertEqual(len(f.records("intake.jsonl")), 4)
-        self.assertIn("removes 1 record(s)", out)
-
-    def test_intake_sweep_may_shrink_by_exactly_the_rows_it_swept(self):
-        """Two discharged rows, one sweep, two records — and it goes through.
-
-        The bound is the sweep's OWN count, not a literal. A board with two
-        discharged rows is refused by a bound written as `1` and permitted by
-        the count `cmd_intake_sweep` already carries in its event.
-        """
-        f = self.fixture(build_board(intake=INTAKE_TWO_DISCHARGED))
-        self.assertEqual(len(f.records("intake.jsonl")), 4,
-                         "control: four records to start")
-        rc, out = f.run("intake-sweep")
-        self.assertEqual(rc, 0, out)
-        self.assertIn("wrote 2 row(s) (intake-sweep)", out,
-                      "control: the sweep declared two rows")
-        self.assertEqual(len(f.records("intake.jsonl")), 2,
-                         "the sweep did not remove both discharged rows")
-
-    def test_purge_removes_the_one_record_it_names_and_leaves_the_other(self):
-        """A store with two records, so the removal is bounded by something.
-
-        Round 4's purge test ran 1 record to 0, where "removed exactly one" and
-        "removed everything" are the same number.
-        """
-        rows = ("| TASK-001 | a smoke test row | Coding Agent | not_started "
-                "| — | — |\n"
-                "| TASK-002 | a row that stays | Coding Agent | not_started "
-                "| — | — |\n")
-        f = self.fixture(build_board(rows=rows))
-        self.assertEqual([r["id"] for r in f.records("tasks.jsonl")],
-                         ["TASK-001", "TASK-002"], "control")
-        self.assertEqual(f.run("drop", "TASK-001", "--reason", "never real")[0],
-                         0)
-        rc, out = f.run("purge", "TASK-001", "--reason", "a smoke test row")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual([r["id"] for r in f.records("tasks.jsonl")],
-                         ["TASK-002"],
-                         "purge did not remove exactly the record it named")
 
     def test_purge_may_not_take_two_records_with_one_removal(self):
         """`purge` declares 1, and `commit()` holds it to 1.
@@ -1011,47 +699,11 @@ class TestTheCarryForwardJoin(Base):
             with self.subTest(register=key):
                 self.assertTrue(PT.carry_forward_is_addressable(key, [], []))
 
-    def test_a_row_replaced_by_hand_does_not_hand_its_discharge_to_the_newcomer(self):
-        """The case the invariant cannot see: the count does not move.
-
-        Delete a discharged request by hand and append a new one. `intake.jsonl`
-        is keyed on `order`, so a positional merge would hand `discharged: True`
-        at position n to a request that is still waiting, with its `Outcome`
-        cell still reading `—` and `perry-lint` saying `drifted: 0` because
-        `discharged` has no board column to compare against.
-        """
-        table = ("| Arrived | Request | Outcome |\n|---|---|---|\n"
-                 "| 2026-08-01 | the dropped one | dropped 2026-08-02 — no |\n"
-                 "| 2026-08-03 | still waiting | — |\n")
-        f = self.fixture(build_board(intake=table))
-        self.assertIs(f.records("intake.jsonl")[0]["discharged"], True)
-        rows = table.split("\n")
-        replaced = "\n".join(rows[:2] + rows[3:-1] +
-                             ["| 2026-08-05 | a brand new request | — |", ""])
-        f.write_board(build_board(intake=replaced))
-        rc, out = f.run("add", "--title", "an ordinary task",
-                        "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                        "--deliverable", "d", "--verification", "v")
-        self.assertEqual(rc, 0, out)
-        after = f.records("intake.jsonl")
-        self.assertEqual(len(after), 2)
-        self.assertIs(after[0]["discharged"], False,
-                      "a still-waiting request inherited a discharge")
-
 
 # ── 7. the store is read honestly ─────────────────────────────────────────
 
 
 class TestTheStoreIsReadHonestly(Base):
-    def test_a_corrupt_line_in_a_register_store_is_a_refusal_not_a_traceback(self):
-        f = self.fixture(build_board())
-        p = f.root / "intake.jsonl"
-        p.write_text(p.read_text() + "{not json\n", encoding="utf-8")
-        rc, out = f.run("intake", "--title", "another request")
-        self.assertNotEqual(rc, 0)
-        self.assertNotIn("Traceback", out)
-        self.assertIn("intake.jsonl", out)
-        self.assertIn("line 5", out)
 
     def test_register_section_shape_reads_every_argument_it_takes(self):
         """`readable_as_register(board, key, section)` never read `section`.
@@ -1074,120 +726,7 @@ class TestTheStoreIsReadHonestly(Base):
 # ── 8. the ordinary write reaches its store at all ────────────────────────
 
 
-class TestTheOrdinaryWriteReachesItsStore(Base):
-    """The row's original deliverable, which the invariant must not undo."""
-
-    #: **Rewritten for TASK-262 round 4a.** These three counted the held
-    #: board's rows into the store the first write created (4 + 1 = 5): the
-    #: write built from the held file, so its register came along. A write now
-    #: builds from the stores, so on a project that never imported its held
-    #: register the first write starts the store with the one record it made,
-    #: and the held rows reach a store only through `<register>-write
-    #: --from-board` — finding F17 in the round 4a result. The held file keeps
-    #: its bytes. `intake-diff` compared that file with the store right after a
-    #: write and is deleted with the re-render it relied on.
-
-    def test_intake_on_a_project_with_no_store_creates_it_and_holds_the_row(self):
-        f = self.fixture(build_board(), mint=())
-        self.assertFalse((f.root / "intake.jsonl").exists())
-        held = f.raw("BOARD.md")
-        rc, out = f.run("intake", "--title", "a brand new request")
-        self.assertEqual(rc, 0, out)
-        got = f.records("intake.jsonl")
-        self.assertEqual([r["request"] for r in got], ["a brand new request"])
-        self.assertEqual(f.raw("BOARD.md"), held)
-
-    def test_ask_and_risk_add_reach_their_stores_too(self):
-        f = self.fixture(build_board(), mint=())
-        self.assertEqual(f.run("ask", "--needed", "a question")[0], 0)
-        self.assertEqual([r["needed"] for r in f.records("asks.jsonl")],
-                         ["a question"])
-        self.assertEqual(f.run("risk-add", "--title", "a risk")[0], 0)
-        self.assertEqual([r["risk"] for r in f.records("risks.jsonl")],
-                         ["a risk"])
-
-    def test_the_lint_prints_a_drift_verdict_rather_than_unchecked(self):
-        f = self.fixture(build_board(), mint=())
-        f.run("intake", "--title", "a brand new request")
-        r = inproc.run("perry-lint", ["--root", str(f.root)])
-        self.assertNotIn("no `intake.jsonl`", r.stdout)
-        self.assertIn("intake store: 1 record(s)", r.stdout)
-
-    def test_the_success_line_names_the_register_store_only_when_one_is_written(self):
-        f = self.fixture(build_board())
-        _rc, out = f.run("intake", "--title", "a request")
-        self.assertIn("intake.jsonl", out)
-        f2 = self.fixture(build_board(intake=None, asks=None, risks=None),
-                          mint=())
-        _rc, out = f2.run("add", "--title", "a plain task",
-                          "--summary", "A fixture row that exists so the writer has something to write. It carries no meaning beyond that.",
-                          "--deliverable", "d", "--verification", "v")
-        self.assertIn("tasks.jsonl", out)
-        self.assertNotIn("intake.jsonl", out)
-
-
 # ── 8b. the real path: a held board's hand edit reaches no store ──────────
-
-
-class TestAHandEditToAHeldBoardReachesNoStore(Base):
-    """**What the doors are on the command line since TASK-262 round 4a.**
-
-    The same hand edits the classes above construct, run through the real
-    write path (`held=False`): the write builds from the stores, so every
-    shape a human leaves a held register section in — absent, prose, bullets,
-    a second table, a renamed key column, rows tidied away — changes nothing a
-    write stores. The write succeeds, the store gains exactly the record the
-    command made, the held file keeps its bytes, and stderr says the file is
-    retired. A write that read the held board again would refuse on the
-    broken shapes, or shrink on the tidied one, and go red here.
-    """
-
-    def hint(self, f: Fixture) -> str:
-        return PT.lib.retired_board_hint(f.root.resolve() / "BOARD.md")
-
-    def test_no_section_shape_on_a_held_board_changes_what_a_write_stores(self):
-        for key in REGISTERS:
-            for shape in SHAPES[key]:
-                if shape == "table":
-                    continue
-                with self.subTest(register=key, shape=shape):
-                    f = self.fixture(build_board(), mint=(key,))
-                    store = REGISTERS[key][1]
-                    before = f.records(store)
-                    self.assertTrue(before, "control: the store has records")
-                    f.write_board(build_board(**{key: SHAPES[key][shape]}))
-                    held = f.raw("BOARD.md")
-                    rc, out = f.run(*OWN_WRITE[key], held=False)
-                    self.assertEqual(rc, 0, out)
-                    after = f.records(store)
-                    self.assertEqual(after[:len(before)], before,
-                                     f"a stored record moved on a {shape} section")
-                    self.assertEqual(len(after), len(before) + 1)
-                    self.assertEqual(f.raw("BOARD.md"), held)
-                    self.assertIn(self.hint(f), out)
-
-    def test_rows_tidied_off_a_held_board_do_not_move_n(self):
-        """Door one's state, and the exemption's: two rows gone from the file."""
-        f = self.fixture(build_board())
-        before = f.records("intake.jsonl")
-        self.assertEqual(len(before), 4, "control: four stored requests")
-        tidy_intake_rows_off_the_board(f, [1, 2])
-        held = f.raw("BOARD.md")
-        self.assertIs(before[3]["discharged"], False,
-                      "control: the store's fourth request is still waiting")
-        rc, out = f.run("resolve-intake", "4", "--outcome", "dropped",
-                        "--reason", "not for us", held=False)
-        self.assertEqual(rc, 0, out)
-        after = f.records("intake.jsonl")
-        self.assertEqual(len(after), 4, "a record was lost")
-        self.assertEqual([r["request"] for r in after],
-                         [r["request"] for r in before])
-        self.assertIs(after[3]["discharged"], True,
-                      "n = 4 is a row the tidied file no longer has; the "
-                      "store's fourth request is what it addresses")
-        self.assertEqual([r["discharged"] for r in after[:3]],
-                         [r["discharged"] for r in before[:3]])
-        self.assertEqual(f.raw("BOARD.md"), held)
 
 
 # ── 9. the map is complete, both ways ─────────────────────────────────────
@@ -1224,6 +763,25 @@ class TestTheMapIsComplete(unittest.TestCase):
         for event in ("route", "add"):
             with self.subTest(event=event):
                 self.assertEqual(PT.REGISTER_EVENTS[event], "intake")
+
+
+class TestRetiredWritersCannotShrinkRegisters(Base):
+    def test_every_register_keeps_its_canonical_bytes_after_a_held_row_is_deleted(self):
+        for key, (heading, store, *_rest) in REGISTERS.items():
+            with self.subTest(register=key):
+                f = self.fixture(build_board(), mint=(key,))
+                before = {str(p.relative_to(f.root)): p.read_bytes()
+                          for p in f.root.rglob("*") if p.is_file()}
+                for argv in (("intake", "--title", "a request"),
+                             ("ask", "--needed", "Which direction?"),
+                             ("risk-add", "--title", "a risk"),
+                             ("resolve-intake", "1", "--outcome", "dropped", "--reason", "out of scope"),
+                             ("intake-sweep",), ("purge", "TASK-001", "--reason", "out of scope")):
+                    rc, out = f.run(*argv)
+                    self.assertEqual(rc, 1, out)
+                    self.assertIn("read-only", out)
+                    self.assertEqual({str(p.relative_to(f.root)): p.read_bytes()
+                                      for p in f.root.rglob("*") if p.is_file()}, before)
 
 
 if __name__ == "__main__":

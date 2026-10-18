@@ -1,3 +1,8 @@
+"""Phase-E duplicate guards: archived imports and validators remain live.
+Legacy public mutations always refuse; repeated non-ID values still import.
+Historical motivation for these guards follows below.
+"""
+
 """A duplicate id is REFUSED, in both directions, and never silently resolved.
 
 TASK-273, following USER-904, USER-906 and USER-915 — the three rounds that
@@ -40,7 +45,6 @@ for the same request — must not be caught by any of it.
 Run: python3 -m unittest discover -s tests   (or ./tests/run)
 """
 
-from __future__ import annotations
 
 import task_actor
 
@@ -141,6 +145,10 @@ def ask_rec(rid, needed, blocks="", asked="2026-01-01", status="waiting",
             "status": status, "answered": answered, "order": order}
 
 
+def import_register(f, name):
+    return subprocess.run(["python3", str(PERRY_HOME / "bin/perry-tasks"), name + "-write", "--from-board", "--root", str(f.root)], capture_output=True, text=True)
+
+
 ADD = ("risk-add", "--title", "a brand new risk", "--actor", "Coding Agent")
 
 
@@ -160,22 +168,12 @@ class TestABoardDuplicateIsRefused(unittest.TestCase):
     """
 
     def test_a_duplicate_on_a_held_board_does_not_reach_a_write(self):
-        f = Fixture(
-            board(risks=[risk_row("RX-001", "first"),
-                         risk_row("RX-002", "second"),
-                         risk_row("RX-001", "third, id mistyped")]),
-            risks=[risk_rec("RX-001", "first", order=0),
-                   risk_rec("RX-002", "second", order=1),
-                   risk_rec("RX-003", "third, id mistyped", order=2)])
-        held = f.raw("BOARD.md")
-        r = f.run(*ADD)
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(
-            [(x["id"], x["risk"]) for x in f.store("risks.jsonl")],
-            [("RX-001", "first"), ("RX-002", "second"),
-             ("RX-003", "third, id mistyped"), ("RX-004", "a brand new risk")],
-            "the write reissued an id the store holds, or lost a record")
-        self.assertEqual(f.raw("BOARD.md"), held)
+        f = Fixture(board(risks=[risk_row("RX-001", "first"), risk_row("RX-001", "mistyped")]), risks=[risk_rec("RX-001", "first"), risk_rec("RX-002", "mistyped", order=1)])
+        before = {f.name: f.read_bytes() for f in f.root.rglob("*") if f.is_file()}
+        result = f.run(*ADD)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("read-only", result.stdout + result.stderr)
+        self.assertEqual({f.name: f.read_bytes() for f in f.root.rglob("*") if f.is_file()}, before)
 
     def test_the_report_itself_finds_both_rows(self):
         """`duplicate_row_ids` is the report and decides nothing."""
@@ -209,8 +207,7 @@ class TestAStoreDuplicateIsRefused(unittest.TestCase):
         before = f.raw("risks.jsonl")
         r = f.run(*ADD)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("more than one record for the same id", r.stderr)
-        self.assertRegex(r.stderr, r"`RX-001` on lines \d+, \d+")
+        self.assertIn("read-only", r.stdout + r.stderr)
         self.assertIn("Nothing was written", r.stderr)
         self.assertEqual(f.raw("risks.jsonl"), before)
 
@@ -224,13 +221,11 @@ class TestAStoreDuplicateIsRefused(unittest.TestCase):
         self.assertEqual(open_row["cleared"], "")
 
     def test_the_refusal_says_why_the_two_halves_get_different_surfaces(self):
-        """Deliverable 2 asks for that sentence in one line, so it is asserted
-        rather than left in a docstring the next reader will unify away."""
         f = self.planted()
         r = f.run(*ADD)
-        self.assertIn("the linter is asked what is wrong with the store as it "
-                      "stands, and this tool is asked to REPLACE it",
-                      r.stderr)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("read-only", r.stdout + r.stderr)
+        self.assertIn("perry-kernel item create", r.stdout + r.stderr)
 
     def test_perry_lint_still_reports_it_and_that_half_is_unchanged(self):
         f = self.planted()
@@ -249,30 +244,17 @@ class TestAStoreDuplicateIsRefused(unittest.TestCase):
 class TestAControlBoardWritesExactlyAsBefore(unittest.TestCase):
     """Control 1. No duplicates anywhere: the write happens, unchanged."""
 
-    def test_a_clean_board_still_writes(self):
-        f = Fixture(
-            board(risks=[risk_row("RX-001", "first"),
-                         risk_row("RX-002", "second")]),
-            risks=[risk_rec("RX-001", "first", order=0),
-                   risk_rec("RX-002", "second", order=1)])
-        r = f.run(*ADD)
+    def test_a_clean_board_still_imports(self):
+        f = Fixture(board(risks=[risk_row("RX-001", "first"), risk_row("RX-002", "second")]))
+        r = import_register(f, "risks")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        # Exactly one line since TASK-262 round 4a: the fixture holds a
-        # `BOARD.md`, and a successful write names it retired. Nothing else.
-        self.assertEqual(r.stderr.strip(), PT.lib.retired_board_hint(
-            (f.root / "BOARD.md").resolve()))
-        self.assertEqual([x["id"] for x in f.store("risks.jsonl")],
-                         ["RX-001", "RX-002", "RX-003"])
+        self.assertEqual([x["id"] for x in f.store("risks.jsonl")], ["RX-001", "RX-002"])
 
-    def test_a_clean_ask_board_still_writes(self):
-        f = Fixture(
-            board(asks=[ask_row("USER-001", "a question")]),
-            asks=[ask_rec("USER-001", "a question", order=0)])
-        r = f.run("ask", "--needed", "one more thing", "--actor",
-                  "Coding Agent")
+    def test_a_clean_ask_board_still_imports(self):
+        f = Fixture(board(asks=[ask_row("USER-001", "a question")]))
+        r = import_register(f, "asks")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual([x["id"] for x in f.store("asks.jsonl")],
-                         ["USER-001", "USER-002"])
+        self.assertEqual([x["id"] for x in f.store("asks.jsonl")], ["USER-001"])
 
 
 class TestARepeatedValueThatIsNotAnIdIsNotCaught(unittest.TestCase):
@@ -283,39 +265,23 @@ class TestARepeatedValueThatIsNotAnIdIsNotCaught(unittest.TestCase):
     the gate nobody keeps.
     """
 
-    def test_two_risks_opened_on_the_same_day_write_normally(self):
-        f = Fixture(
-            board(risks=[risk_row("RX-001", "first", opened="2026-01-01"),
-                         risk_row("RX-002", "second", opened="2026-01-01")]),
-            risks=[risk_rec("RX-001", "first", opened="2026-01-01", order=0),
-                   risk_rec("RX-002", "second", opened="2026-01-01", order=1)])
-        r = f.run(*ADD)
+    def test_two_risks_opened_on_the_same_day_import_normally(self):
+        f = Fixture(board(risks=[risk_row("RX-001", "first", opened="2026-01-01"), risk_row("RX-002", "second", opened="2026-01-01")]))
+        r = import_register(f, "risks")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(len(f.store("risks.jsonl")), 3)
+        self.assertEqual(len(f.store("risks.jsonl")), 2)
 
-    def test_two_risks_with_the_same_status_and_prose_write_normally(self):
-        """Same severity, same status, same sentence — different ids."""
-        f = Fixture(
-            board(risks=[risk_row("RX-001", "the very same sentence",
-                                  status="open"),
-                         risk_row("RX-002", "the very same sentence",
-                                  status="open")]),
-            risks=[risk_rec("RX-001", "the very same sentence", order=0),
-                   risk_rec("RX-002", "the very same sentence", order=1)])
-        r = f.run(*ADD)
+    def test_two_risks_with_the_same_status_and_prose_import_normally(self):
+        f = Fixture(board(risks=[risk_row("RX-001", "same words"), risk_row("RX-002", "same words")]))
+        r = import_register(f, "risks")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(len(f.store("risks.jsonl")), 3)
+        self.assertEqual(len(f.store("risks.jsonl")), 2)
 
-    def test_two_asks_asked_on_the_same_date_write_normally(self):
-        f = Fixture(
-            board(asks=[ask_row("USER-001", "q one", asked="2026-01-01"),
-                        ask_row("USER-002", "q two", asked="2026-01-01")]),
-            asks=[ask_rec("USER-001", "q one", asked="2026-01-01", order=0),
-                  ask_rec("USER-002", "q two", asked="2026-01-01", order=1)])
-        r = f.run("ask", "--needed", "one more thing", "--actor",
-                  "Coding Agent")
+    def test_two_asks_asked_on_the_same_date_import_normally(self):
+        f = Fixture(board(asks=[ask_row("USER-001", "first"), ask_row("USER-002", "second")]))
+        r = import_register(f, "asks")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(len(f.store("asks.jsonl")), 3)
+        self.assertEqual(len(f.store("asks.jsonl")), 2)
 
     def test_layout_rows_with_no_handle_are_not_two_rows_sharing_a_blank_id(self):
         dupes = S.duplicate_record_ids(
@@ -363,14 +329,11 @@ class TestARepeatedValueThatIsNotAnIdIsNotCaught(unittest.TestCase):
             [PT.strip_handle(r["values"].get("id", "")) for r in table["rows"]],
             ["RX-001"])
 
-    def test_a_board_carrying_such_a_line_still_writes(self):
-        """Control 1 again, on a board with a non-row line under the table."""
-        f = Fixture(
-            board(risks=[risk_row("RX-001", "a real risk"),
-                         "|  | a prose note | | |"]),
-            risks=[risk_rec("RX-001", "a real risk", order=0)])
-        r = f.run(*ADD)
+    def test_a_board_carrying_such_a_line_still_imports(self):
+        f = Fixture(board(risks=[risk_row("RX-001", "a real risk"), "|  | a prose note | | | "]))
+        r = import_register(f, "risks")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual([x["id"] for x in f.store("risks.jsonl")], ["RX-001"])
 
 
 class TestIntakeIsNotServedByTheseLines(unittest.TestCase):
@@ -430,8 +393,9 @@ class TestIntakeIsNotServedByTheseLines(unittest.TestCase):
                          "control: both same-day rows imported")
         r = f.run("intake", "--title", "one more request", "--actor",
                   "Coding Agent")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(len(f.store("intake.jsonl")), 3)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("read-only", r.stdout + r.stderr)
+        self.assertEqual(len(f.store("intake.jsonl")), 2)
 
 
 class TestTheFromBoardImportIsGuardedToo(unittest.TestCase):
@@ -561,7 +525,7 @@ class TestTasksJsonlDoesNotShareTheHole(unittest.TestCase):
                   "--summary", "A fixture row so the writer has something "
                                "to write down here.")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("unique task id", r.stdout + r.stderr)
+        self.assertIn("read-only", r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

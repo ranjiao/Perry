@@ -43,6 +43,8 @@ COVERS = (
 import subprocess
 import sys
 import unittest
+import json
+from kernel_work_support import ACTOR, ready, task
 from pathlib import Path
 
 from task_writer_support import PT, Project
@@ -217,21 +219,6 @@ class TestClearedRisksStopCounting(unittest.TestCase):
                           "- still a problem\n")
         self.assertEqual(state(p.root)["risks"]["top"]["meta"], "still a problem")
 
-    def test_cleared_rows_stay_on_the_board(self):
-        """They stop counting; they do not disappear.
-
-        A risk that was real and is now over is the record that the mitigation
-        worked. Deleting it would leave the same hole the strikethrough was
-        trying to fill.
-        """
-        p = Project(board=board_with(PERRY_BULLETS))
-        self.assertEqual(p.run("risk-migrate")[0], 0)
-        p.run("risk-add", "--title", "new one")
-        code, out = p.run("risk-clear", "RX-001", "--reason", "adoption finished")
-        self.assertEqual(code, 0, out)
-        self.assertIn("RX-001", p.board())
-        self.assertIn("cleared", p.board())
-
 
 class TestIdsAreMintedNotInvented(unittest.TestCase):
     """Defect 2: `id: "Perry"`, `title: "is half-adopted: …"`."""
@@ -259,15 +246,6 @@ class TestIdsAreMintedNotInvented(unittest.TestCase):
         r = risks(board)[0]
         self.assertEqual(r.title, statement)
         self.assertNotEqual(r.id, "Perry")
-
-    def test_ids_are_not_reissued_after_a_risk_is_cleared(self):
-        """A cleared risk still owns its number."""
-        p = Project(board=board_with("- none\n"))
-        p.run("risk-add", "--title", "one")
-        p.run("risk-clear", "RX-001", "--reason", "done")
-        code, out = p.run("risk-add", "--title", "two")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["id"], "RX-002")
 
 
 class TestBulletsKeepParsing(unittest.TestCase):
@@ -358,103 +336,9 @@ class TestColumnsResolveByName(unittest.TestCase):
         self.assertEqual(r.title, "一个风险")
         self.assertEqual(r.opened, "2026-08-01")
 
-    def test_a_localized_board_migrates_and_the_next_risk_joins_the_register(self):
-        """**The column half left with TASK-262 round 4a.** This asserted the
-        migrated held table's header came out in the board's own language
-        (`| 编号 | 风险 | 提出 | 状态 |`). `risk-migrate` still converts the held
-        bullets — into `risks.jsonl`, writing no file — and `perry-tasks board`
-        prints the declared header; what survives is the register itself."""
-        p = Project(board=board_with(
-            "- 一个风险\n",
-            headers="| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |"))
-        held = p.held_board()
-        self.assertEqual(p.run("risk-migrate")[0], 0)
-        code, out = p.run("risk-add", "--title", "另一个风险")
-        self.assertEqual(code, 0, out)
-        self.assertEqual([r.title for r in risks(p.board())],
-                         ["一个风险", "另一个风险"])
-        self.assertEqual(p.held_board(), held)
-
-
-class TestMigrationLosesNothing(unittest.TestCase):
-    """`risk-add` converts a bullet list in the same write."""
-
-    def test_every_bullet_survives_verbatim(self):
-        """The statement is the human's and this tool has no opinion about it.
-
-        Checked against the two real boards' actual text — bold, emoji, inline
-        links, Chinese, backticks.
-        """
-        p = Project(board=board_with(AIMARK_BULLETS))
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 0, out)
-        migrated = [m["risk"] for m in out["migrated"]]
-        self.assertEqual(migrated, [
-            "H · Apple developer agreement expired — notarized builds blocked",
-            "M · KR-O2.2 and KR-O2.3 carry zero tasks — commitments nobody is working on",
-        ])
-
-    def test_migration_preserves_every_verdict(self):
-        """The property, not a sample: the set of (statement, resolved) pairs
-        is identical either side of the conversion.
-
-        `Status` is derived from the reader's OWN two markers — `~~strike~~`
-        and `**RESOLVED` — and nothing else, so a bullet the old parser called
-        resolved becomes a row the new parser calls cleared. That makes the
-        conversion checkable rather than a claim a reviewer has to believe.
-        """
-        before = risks(board_with(PERRY_BULLETS))
-        p = Project(board=board_with(PERRY_BULLETS))
-        code, out = p.run("risk-migrate")
-        # Asserted, because without it this test passes on a tool that refuses
-        # to migrate at all: an unconverted board is trivially identical to
-        # itself, and the property under test is about the conversion.
-        self.assertEqual(code, 0, out)
-        after = risks(p.board())
-        self.assertTrue(all(r.source == "table" for r in after), "did not convert")
-        self.assertEqual([r.meta for r in before], [r.meta for r in after])
-        self.assertEqual([r.resolved for r in before], [r.resolved for r in after])
-
-    def test_migration_does_not_invent_an_opened_date(self):
-        """A pre-existing risk's open date is not recorded anywhere.
-
-        Stamping today would assert that a nine-month-old risk is new. Empty
-        reads back as `age_days: null`, which is the honest answer.
-        """
-        p = Project(board=board_with(PERRY_BULLETS))
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 0, out)
-        migrated = risks(p.board())
-        self.assertEqual(len(migrated), 3)
-        self.assertTrue(all(r.opened == "" for r in migrated),
-                        [r.opened for r in migrated])
-
-    def test_a_struck_through_bullet_carries_its_stated_date_across(self):
-        p = Project(board=board_with(PERRY_BULLETS))
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 0, out)
-        cleared = [m for m in out["migrated"] if m["status"].startswith("cleared")]
-        self.assertEqual(len(cleared), 1)
-        self.assertEqual(cleared[0]["status"], "cleared 2026-08-16")
-
-    def test_a_placeholder_bullet_is_not_migrated_into_a_risk(self):
-        """`BOARD_TEMPLATE.md` ships `- (no active risks)`."""
-        p = Project(board=board_with("- (no active risks)\n"))
-        code, out = p.run("risk-add", "--title", "the first real one")
-        self.assertEqual(code, 0, out)
-        self.assertEqual([r.title for r in risks(p.board())],
-                         ["the first real one"])
-        self.assertNotIn("no active risks", p.board())
-
 
 class TestTheToolOwnsTheComputedCells(unittest.TestCase):
 
-    def test_risk_add_stamps_opened_and_mints_the_id(self):
-        p = Project(board=board_with("- none\n"))
-        code, out = p.run("risk-add", "--title", "a risk")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["id"], "RX-001")
-        self.assertRegex(out["opened"], r"^\d{4}-\d{2}-\d{2}$")
 
     def test_age_is_computed_from_opened_rather_than_stored(self):
         """Same rule as `Asked`/`Idle`: a stored age is stale by morning."""
@@ -467,72 +351,6 @@ class TestTheToolOwnsTheComputedCells(unittest.TestCase):
         self.assertEqual([f.name for f in __import__("dataclasses").fields(r)
                           if f.name == "age_days"], [],
                          "age must be derived at read time, never a stored field")
-
-    def test_every_write_is_board_journal_and_event(self):
-        p = Project(board=board_with("- none\n"))
-        p.run("risk-add", "--title", "a risk")
-        self.assertIn("RX-001", p.board())
-        self.assertIn("RX-001", p.journal())
-        self.assertEqual([e["event"] for e in p.events()], ["risk-add"])
-        p.run("risk-clear", "RX-001", "--reason", "mitigated")
-        self.assertIn("open → cleared", p.journal())
-        self.assertEqual([e["event"] for e in p.events()],
-                         ["risk-add", "risk-clear"])
-
-    def test_risk_clear_refuses_without_a_reason(self):
-        p = Project(board=board_with("- none\n"))
-        p.run("risk-add", "--title", "a risk")
-        code, out = p.run("risk-clear", "RX-001")
-        self.assertEqual(code, 1)
-        self.assertIn("--reason", out["refused"])
-
-    def test_risk_clear_refuses_a_risk_that_is_already_cleared(self):
-        p = Project(board=board_with("- none\n"))
-        p.run("risk-add", "--title", "a risk")
-        p.run("risk-clear", "RX-001", "--reason", "first")
-        code, out = p.run("risk-clear", "RX-001", "--reason", "second")
-        self.assertEqual(code, 1)
-        self.assertIn("already cleared", out["refused"])
-
-    def test_risk_add_refuses_without_a_statement(self):
-        p = Project(board=board_with("- none\n"))
-        code, out = p.run("risk-add")
-        self.assertEqual(code, 1)
-        self.assertIn("--title", out["refused"])
-
-
-class TestRiskRowsAreNotTaskRows(unittest.TestCase):
-
-    def test_list_does_not_pick_up_risks_as_tasks(self):
-        """`## Top risks` is in `NON_TASK_SECTIONS` — and now it has a table
-        with an `ID` column, which is exactly what `task_tables()` looks for."""
-        p = Project(board=board_with("- none\n"))
-        p.run("risk-add", "--title", "a risk")
-        code, out = p.run("list", "--all")
-        self.assertEqual(code, 0, out)
-        self.assertNotIn("RX-001", [t["id"] for t in out["tasks"]])
-
-    def test_the_event_log_does_not_turn_questions_into_tasks(self):
-        """Found by the test above, and it predates risks.
-
-        `cmd_list` absorbed every event carrying an id, and `ask` has carried
-        one since TASK-039 — so on a project with a single `ask` and no tasks
-        at all, `list --all` returned one task: `USER-001`, untitled, with
-        `open: false`. `risk-add` would have widened the same hole to `RX-*`.
-        """
-        p = Project(board=board_with("- none\n"))
-        p.run("ask", "--needed", "a question")
-        p.run("risk-add", "--title", "a risk")
-        code, out = p.run("list", "--all")
-        self.assertEqual(code, 0, out)
-        self.assertEqual([t["id"] for t in out["tasks"]], [])
-
-    def test_a_risk_id_never_collides_with_a_task_id(self):
-        p = Project(board=board_with("- none\n"))
-        p.run("risk-add", "--title", "a risk")
-        code, out = p.run("add", "--title", "a task")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["id"], "TASK-001")
 
 
 class TestPerrysOwnBoard(unittest.TestCase):
@@ -586,54 +404,6 @@ class TestPerrysOwnBoard(unittest.TestCase):
             self.assertRegex(r.id, r"^RX-\d{3}$")
 
 
-class TestTheWriterAsksTheReadersQuestion(unittest.TestCase):
-    """B-1. Two implementations of "is this section already a table?".
-
-    The reader asked `_has_risk_header` — a table with a `Risk` column. The
-    writer asked `section_table()` — **any** table. On a severity legend they
-    disagreed, and the writer took the already-a-table branch: it bolted the
-    four risk columns onto the legend, appended the new row into it, and left
-    the live bullets below, where the reader could no longer see them because
-    the legend now had a `Risk` header. Count 2 → 1, exit 0, no warning.
-
-    These are the writer twins of `TestBulletsKeepParsing`, on the reader's own
-    fixture — the systematic gap the V4 review named: every writer test started
-    from a bullet list or an empty section, so the branch that destroyed data
-    was the one branch nothing exercised.
-
-    **Since TASK-262 round 4a `risk-add` never reads the held section**, so
-    its two refusals on a legend and on a second table left with it; the loss
-    they prevented cannot happen to a file no write touches, which the two
-    tests below now assert. `risk-migrate`, which still reads the file, still
-    refuses the legend.
-    """
-
-    def test_the_bullets_under_a_legend_are_still_there_afterwards(self):
-        """The failure was silent loss, so this asserts on the count."""
-        p = Project(board=board_with(LEGEND_SECTION))
-        held = p.held_board()
-        code, out = p.run("risk-add", "--title", "a new risk")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(p.held_board(), held)
-        parsed = risks(p.held_board())
-        self.assertEqual(len(parsed), 2)
-        self.assertIn("Apple developer agreement expired", parsed[0].meta)
-
-    def test_no_risk_column_is_ever_added_to_a_legend(self):
-        p = Project(board=board_with(LEGEND_SECTION))
-        p.run("risk-add", "--title", "a new risk")
-        self.assertIn("| Severity | Meaning |", p.held_board())
-        self.assertNotIn("| Severity | Meaning | ID | Risk |", p.held_board())
-
-    def test_risk_migrate_refuses_it_too(self):
-        """Consent does not make an unwritable shape writable."""
-        p = Project(board=board_with(LEGEND_SECTION))
-        before = p.held_board()
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 1, out)
-        self.assertIn("no `Risk` column", out["refused"])
-        self.assertEqual(p.held_board(), before)
-
 class TestConversionIsAskedForNotPerformed(unittest.TestCase):
     """B-2. `perry/OKR.md:37` — "No automatic rewrite of a project's existing
     structure. Adoption proposes; the user declares." `risk-add` used to
@@ -648,83 +418,6 @@ class TestConversionIsAskedForNotPerformed(unittest.TestCase):
     and nothing to ask: the first test below asserts what happens instead. The
     conversion is still only ever asked for, by `risk-migrate`."""
 
-    def test_risk_add_leaves_a_held_bullet_section_as_the_user_wrote_it(self):
-        p = Project(board=board_with(PERRY_BULLETS))
-        held = p.held_board()
-        code, out = p.run("risk-add", "--title", "a new risk")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["id"], "RX-001")
-        self.assertEqual(p.held_board(), held,
-                         "a write rewrote the section the user wrote")
-        self.assertEqual([e["event"] for e in p.events()], ["risk-add"],
-                         "a risk-add converted the section on the way past")
-
-    def test_an_empty_section_is_not_asked_about(self):
-        """There is no consent to collect for a section holding nothing of the
-        user's — the thing being protected is their own writing."""
-        p = Project(board=board_with("- none\n"))
-        code, out = p.run("risk-add", "--title", "the first one")
-        self.assertEqual(code, 0, out)
-
-    def test_risk_migrate_refuses_a_board_that_has_already_migrated(self):
-        """A held `## Top risks` that is already a table. It was reached by a
-        `risk-add` converting the file; no write touches the file since
-        TASK-262 round 4a, so the table is in it from the start."""
-        p = Project(board=board_with(
-            "| ID | Risk | Opened | Status |\n"
-            "|---|---|---|---|\n"
-            "| RX-001 | a risk | 2026-08-01 | open |\n"))
-        before = p.held_board()
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 1, out)
-        self.assertIn("already a table", out["refused"])
-        self.assertEqual(p.held_board(), before)
-
-    def test_a_second_risk_migrate_refuses_and_writes_nothing(self):
-        """**TASK-262 round 4a.** The held section keeps its bullets after the
-        migration, because no write rewrites the file. A second run used to
-        meet the table the first run wrote; now it meets the store, and must
-        refuse there — measured before the guard, it re-minted the two risks
-        as RX-003/RX-004 and replaced RX-001/RX-002 in the store at exit 0."""
-        p = Project(board=board_with(AIMARK_BULLETS))
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 0, out)
-        store = p.root / "risks.jsonl"
-        migrated = store.read_bytes()
-        self.assertIn(b'"RX-002"', migrated, "control: the first run migrated")
-        held = p.held_board()
-        self.assertEqual(len(risks(held)), 2, "control: the bullets are still held")
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 1, out)
-        self.assertIn("already holds 2 risk record(s)", out["refused"])
-        self.assertEqual(store.read_bytes(), migrated)
-        self.assertEqual([e["event"] for e in p.events()], ["risk-migrate"])
-        self.assertEqual(p.held_board(), held)
-
-    def test_risk_migrate_refuses_when_there_is_nothing_to_convert(self):
-        p = Project(board=board_with("- (no active risks)\n"))
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 1, out)
-        self.assertIn("no risk bullets", out["refused"])
-
-    def test_dry_run_shows_every_row_and_writes_nothing(self):
-        """The preview that makes the refusal actionable."""
-        p = Project(board=board_with(PERRY_BULLETS))
-        before = p.board()
-        code, out = p.run("risk-migrate", "--dry-run")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(len(out["migrated"]), 3)
-        self.assertEqual(p.board(), before)
-        self.assertEqual(p.events(), [])
-
-    def test_the_conversion_is_its_own_event_and_its_own_journal_line(self):
-        """It is a fact about the project, not a field on an unrelated risk."""
-        p = Project(board=board_with(AIMARK_BULLETS))
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 0, out)
-        self.assertEqual([e["event"] for e in p.events()], ["risk-migrate"])
-        self.assertEqual(p.events()[0]["count"], 2)
-        self.assertIn("`## Top risks` migrated", p.journal())
 
     def test_risk_migrate_is_a_section_event_not_a_task_event(self):
         """`tests/test_cadence.py` asserts the two sets partition `COMMANDS`;
@@ -732,94 +425,6 @@ class TestConversionIsAskedForNotPerformed(unittest.TestCase):
         not a task row, and `perry-task list` folds `TASK_EVENTS` only."""
         self.assertIn("risk-migrate", PT.SECTION_EVENTS)
         self.assertNotIn("risk-migrate", PT.TASK_EVENTS)
-
-    def test_the_frozen_list_contract_never_sees_a_migration(self):
-        p = Project(board=board_with(AIMARK_BULLETS))
-        p.run("risk-migrate")
-        code, out = p.run("list", "--all")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(out["tasks"], [])
-        self.assertEqual(out["untitled"], [])
-
-    def test_risk_add_no_longer_reports_a_migration_it_did_not_do(self):
-        p = Project(board=board_with("- none\n"))
-        _, out = p.run("risk-add", "--title", "a risk")
-        self.assertNotIn("migrated", out)
-        self.assertNotIn("migrated", p.events()[0])
-
-
-class TestTheWriterResolvesTheIdColumnByName(unittest.TestCase):
-    """M-2. The write twin of `test_a_reordered_header_reads_the_same`.
-
-    `find_section_row` matched `cells[0]`, so on a board that lists its columns
-    in another order `perry-state` reported a risk that `risk-clear` insisted
-    did not exist:
-
-        board: | Status | Opened | Risk | ID |
-        reader (parse_top_risks):    id='RX-001'
-        writer (risk-clear RX-001):  "RX-001 is not a row in `## Top risks`"
-
-    **The import twin since TASK-262 round 4a.** A write builds from the
-    risks store, so a held table in another column order reaches `risk-clear`
-    through `risks-write --from-board`, which is where the column is resolved
-    by name now; the clear then lands in the stored `status`.
-    """
-
-    def imported(self, section: str) -> "Project":
-        import inproc
-        p = Project(board=board_with(section))
-        r = inproc.run("perry-tasks", ["risks-write", "--from-board",
-                                       "--root", str(p.root)])
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        return p
-
-    REORDERED = (
-        "| Status | Opened | Risk | ID |\n"
-        "|---|---|---|---|\n"
-        "| open | 2026-08-01 | the statement | RX-001 |\n")
-
-    def test_risk_clear_finds_a_row_the_reader_can_see(self):
-        p = self.imported(self.REORDERED)
-        self.assertEqual(risks(p.board())[0].id, "RX-001")
-        code, out = p.run("risk-clear", "RX-001", "--reason", "it stopped")
-        self.assertEqual(code, 0, out)
-        self.assertTrue(risks(p.board())[0].resolved)
-
-    def test_the_cleared_cell_lands_in_the_status_column(self):
-        """Resolving the id by name is only half of it — the write back has to
-        respect the same order, or the reason lands in `Opened`."""
-        p = self.imported(self.REORDERED)
-        p.run("risk-clear", "RX-001", "--reason", "it stopped")
-        r = risks(p.board())[0]
-        self.assertIn("it stopped", r.status)
-        self.assertEqual(r.opened, "2026-08-01")
-        self.assertEqual(r.title, "the statement")
-
-    def test_a_new_row_lands_in_the_right_columns_too(self):
-        p = self.imported(self.REORDERED)
-        code, out = p.run("risk-add", "--title", "a second statement")
-        self.assertEqual(code, 0, out)
-        second = risks(p.board())[1]
-        self.assertEqual(second.id, "RX-002")
-        self.assertEqual(second.title, "a second statement")
-        self.assertEqual(second.status, "open")
-
-    def test_a_localized_header_clears_the_same(self):
-        p = self.imported(
-            "| 状态 | 提出 | 风险 | 编号 |\n"
-            "|---|---|---|---|\n"
-            "| open | 2026-08-01 | 一个风险 | RX-001 |\n")
-        code, out = p.run("risk-clear", "RX-001", "--reason", "上游修好了")
-        self.assertEqual(code, 0, out)
-        self.assertTrue(risks(p.board())[0].resolved)
-
-    def test_the_user_input_queue_still_answers_by_id(self):
-        """`find_section_row`'s other caller. `USER-id` is an id column too, and
-        resolving by name must not have narrowed the rule to `ID`."""
-        p = Project()
-        p.run("ask", "--needed", "which staging default?")
-        code, out = p.run("answer", "USER-001", "--answer", "the second one")
-        self.assertEqual(code, 0, out)
 
 
 class TestOneRegisterNotTwo(unittest.TestCase):
@@ -878,16 +483,6 @@ class TestOneRegisterNotTwo(unittest.TestCase):
         self.assertEqual(len(gavi), 1)
         self.assertEqual([r.resolved for r in gavi], [False])
 
-    def test_migrating_does_not_raise_the_count(self):
-        """End to end through the writer, which is how the count moved: 2 → 4
-        for a board and a state file naming the same two risks."""
-        p = Project(board=board_with(
-            "- GAVI — the vendor contract lapses\n"
-            "- LEDGER — reconciliation is manual\n"))
-        before = len(self.snapshot(p).top_risks)
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(len(self.snapshot(p).top_risks), before)
 
     def test_an_unmigrated_board_is_not_merged_and_project_state_is(self):
         """**Rewritten at TASK-262 round 4b.** This was
@@ -932,16 +527,6 @@ class TestOneRuleForWhatABulletIs(unittest.TestCase):
         self.assertEqual(len(risks(board)), 2)
         self.assertEqual(len(P.parse_board(board).risks), 2)
 
-    def test_the_writer_sees_the_same_bullets_the_reader_does(self):
-        """And the conversion is verdict-preserving on this shape too — the
-        reader's fixture, put through the writer."""
-        p = Project(board=board_with(self.NUMBERED))
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 0, out)
-        self.assertEqual(len(out["migrated"]), 2)
-        self.assertEqual([r.title for r in risks(p.board())],
-                         ["the vendor contract lapses",
-                          "reconciliation is manual"])
 
     def test_the_placeholder_the_template_ships_is_not_a_risk(self):
         self.assertEqual(risks(board_with("- (no active risks)\n")), [])
@@ -1086,37 +671,6 @@ class TestOneNormalizationForAHeaderCell(unittest.TestCase):
         self.assertEqual(state(p.root)["risks"]["count"], 1)
         self.assertEqual(state(p.root)["risks"]["source"], "table")
 
-    def test_risk_migrate_does_not_offer_to_migrate_a_migrated_board(self):
-        """Exit two. It answered "still bullets" and would have appended a
-        second table under the heading."""
-        p = Project(board=board_with(self.BOLD_HEADER))
-        code, out = p.run("risk-migrate")
-        self.assertEqual(code, 1, out)
-        self.assertIn("already a table", out["refused"])
-
-    def test_risk_add_appends_to_the_table_that_is_already_there(self):
-        """Exit three. It wrote a row the reader could not count.
-
-        Imported first since TASK-262 round 4a: the decorated header is read
-        by the import, and `risk-add` appends to the store it made."""
-        import inproc
-        p = Project(board=board_with(self.BOLD_HEADER))
-        r = inproc.run("perry-tasks", ["risks-write", "--from-board",
-                                       "--root", str(p.root)])
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        code, out = p.run("risk-add", "--title", "a second statement")
-        self.assertEqual(code, 0, out)
-        self.assertEqual([r.id for r in risks(p.board())], ["RX-001", "RX-002"])
-
-    def test_the_decorated_header_is_still_one_table_afterwards(self):
-        """Stronger since TASK-262 round 4a: the held file is not appended to
-        at all — it keeps every byte through the write."""
-        p = Project(board=board_with(self.BOLD_HEADER))
-        held = p.held_board()
-        p.run("risk-add", "--title", "a second statement")
-        self.assertEqual(p.held_board(), held)
-        self.assertEqual(
-            p.held_board().split("\n").count("|---|---|---|---|"), 1)
 
     # ── the task table, which was surviving on its positional fallbacks ────
 
@@ -1149,6 +703,117 @@ class TestOneNormalizationForAHeaderCell(unittest.TestCase):
             "| **ID** | **Title** | **Owner** | **Status** | **Next action** | "
             "**Evidence** |\n\n## P1", 1)
         self.assertEqual(P.parse_board(board).all_tasks, [])
+
+
+class TestNativeRiskLifecycle(unittest.TestCase):
+    def test_create_clear_and_fresh_risk_retain_distinct_ids(self):
+        sb = ready(self)
+        tid = task(sb)
+        risk = sb.create("risk", fields={"concern": "供应商中断 | 风险"})
+        self.assertEqual((tid, risk), ("TASK-001", "RX-001"))
+        sb.move(risk, "clear", set={"reason": "verified recovery"})
+        fresh = sb.create("risk", fields={"concern": "another concern"})
+        self.assertEqual(fresh, "RX-002")
+        self.assertEqual(sb.get(risk)["state"], "cleared")
+        self.assertEqual(sb.get(risk)["fields"]["concern"], "供应商中断 | 风险")
+        self.assertEqual(sb.get(risk)["fields"]["reason"], "verified recovery")
+        self.assertEqual(sb.ok("query", data={"type": "risk"})["total"], 2)
+        self.assertEqual(sb.ok("query", data={"type": "task"})["total"], 1)
+
+    def test_concern_and_clear_reason_are_required_without_partial_effects(self):
+        sb = ready(self)
+        before = sb.seq()
+        for concern in (None, "", "   "):
+            fields = {} if concern is None else {"concern": concern}
+            out = sb.run("item create", data={"actor": ACTOR, "type": "risk", "fields": fields})
+            self.assertFalse(out.ok, out)
+            self.assertEqual(sb.seq(), before)
+        rid = sb.create("risk", fields={"concern": "a real concern"})
+        before = sb.seq()
+        for fields in ({}, {"reason": ""}):
+            out = sb.run("item move", data={"actor": ACTOR, "id": rid,
+                                            "transition": "clear", "set": fields})
+            self.assertFalse(out.ok, out)
+            self.assertEqual(sb.seq(), before)
+            self.assertEqual(sb.get(rid)["state"], "open")
+
+    def test_a_second_clear_refuses_and_preserves_the_first_reason(self):
+        sb = ready(self)
+        rid = sb.create("risk", fields={"concern": "a concern"})
+        sb.move(rid, "clear", set={"reason": "first verified reason"})
+        before = sb.seq()
+        out = sb.run("item move", data={"actor": ACTOR, "id": rid,
+            "transition": "clear", "set": {"reason": "replacement"}})
+        self.assertEqual(out.code_name, "transition_not_allowed", out)
+        self.assertEqual(sb.seq(), before)
+        self.assertEqual(sb.get(rid)["fields"]["reason"], "first verified reason")
+
+    def test_retired_risk_commands_preserve_bullets_tables_legends_and_placeholders(self):
+        for section in (AIMARK_BULLETS, LEGEND_SECTION, "- none\n",
+                        "| ID | Risk | Opened | Status |\n|---|---|---|---|\n"
+                        "| RX-001 | old risk | 2026-01-01 | open |\n"):
+            p = Project(board=board_with(section))
+            before = {str(f.relative_to(p.root)): f.read_bytes()
+                      for f in p.root.rglob("*") if f.is_file()}
+            for argv in (("risk-add", "--title", "new risk"), ("risk-migrate",),
+                         ("risk-clear", "RX-001", "--reason", "handled"), ("risk-migrate", "--dry-run")):
+                code, out = p.run(*argv)
+                self.assertEqual(code, 1, out)
+                self.assertIn("read-only", out["refused"])
+                self.assertEqual({str(f.relative_to(p.root)): f.read_bytes()
+                                  for f in p.root.rglob("*") if f.is_file()}, before)
+
+
+class TestRetainedRiskConversionUnits(unittest.TestCase):
+    """The dormant pure conversion helper is checked without a public write."""
+    def test_conversion_preserves_bullets_verdicts_and_missing_dates(self):
+        for section in (AIMARK_BULLETS, PERRY_BULLETS,
+                        "1. the vendor contract lapses\n2. reconciliation is manual\n"):
+            p = Project(board=board_with(section))
+            held = p.held_board()
+            before = risks(held)
+            board = PT.Board(p.root / "BOARD.md")
+            migrated = PT.ensure_risk_table(board, [], p.root)
+            after = risks("\n".join(board.lines))
+            self.assertEqual(len(migrated), len(before))
+            self.assertEqual([r.meta for r in after], [r.meta for r in before])
+            self.assertEqual([r.resolved for r in after], [r.resolved for r in before])
+            self.assertTrue(all(r.source == "table" for r in after))
+            self.assertTrue(all(not r.opened for r in after))
+            self.assertEqual(p.held_board(), held)
+
+    def test_cleared_date_and_placeholders_are_preserved_by_conversion(self):
+        p = Project(board=board_with(PERRY_BULLETS))
+        migrated = PT.ensure_risk_table(PT.Board(p.root / "BOARD.md"), [], p.root)
+        self.assertEqual([r["status"] for r in migrated if r["status"].startswith("cleared")],
+                         ["cleared 2026-08-16"])
+        for placeholder in ("- (no active risks)\n", "- none\n", "- 暂无\n"):
+            p = Project(board=board_with(placeholder))
+            self.assertEqual(PT.ensure_risk_table(PT.Board(p.root / "BOARD.md"), [], p.root), [])
+
+    def test_archived_risks_asks_and_section_events_never_become_tasks(self):
+        p = Project()
+        (p.root / "risks.jsonl").write_text(json.dumps({"id": "RX-001", "risk": "a risk",
+            "status": "open", "order": 0}) + "\n")
+        (p.root / "asks.jsonl").write_text(json.dumps({"id": "USER-001", "needed": "Which?",
+            "status": "pending", "order": 0}) + "\n")
+        (p.root / ".perry/events.jsonl").write_text("".join(json.dumps({
+            "event": name, "id": item, "ts": "2026-08-01T00:00:00Z"}) + "\n"
+            for name, item in (("risk-add", "RX-001"), ("ask", "USER-001"))))
+        code, out = p.run("list", "--all")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["tasks"], [])
+        self.assertEqual(out["untitled"], [])
+        self.assertEqual(out["risks"]["open"], 1)
+        self.assertEqual(out["asks"]["open"], 1)
+
+    def test_foreign_legend_refuses_without_mutating_the_in_memory_board(self):
+        p = Project(board=board_with(LEGEND_SECTION))
+        board = PT.Board(p.root / "BOARD.md")
+        before = list(board.lines)
+        with self.assertRaises(PT.Refused):
+            PT.ensure_risk_table(board, [], p.root)
+        self.assertEqual(board.lines, before)
 
 
 if __name__ == "__main__":
