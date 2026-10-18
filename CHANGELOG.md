@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.25 — 2026-10-18
+
+patch · phase 004-guided · TASK-490 · delivery TASK-490-kernel-cutover-20261018
+
+### Changes
+
+Phase E switches the work lane to the authoritative kernel and freezes all legacy perry-task writer verbs. The old reader remains available for migration inputs. Kernel imports and native work use happen after local integration under separate recorded cutover checks. Goals, decide, and dashboard migration remain later phases. TASK-491 supplies the coupled aiMark adapter in its external repository.
+
+
+### Upgrade notes
+
+Preserve and back up legacy task and event stores. Complete or recover pending legacy transactions using the pre-cutover release before importing. After integrating Perry together with the coupled aiMark TASK-491 adapter, run the documented perry-kernel-migrate preflight/import verification before using native kernel work commands. Existing projects without imported kernel state must follow the documented explicit initialization or migration path. No live stores are changed by this release allocation.
+
+
+### Breaking changes
+
+Every legacy perry-task writer now refuses with kernel migration guidance; retained legacy reads do not recover pending transactions. Work automation and external consumers must use the authoritative kernel adapter. This is the phase-E work cutover only; goals, decide, and dashboard paths retain their declared later-phase boundary.
+
+
 ## 0.1.24 — 2026-10-12
 
 patch · phase 004-guided · TASK-495 · delivery TASK-495-architecture-analysis-lifecycle
