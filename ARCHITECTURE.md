@@ -182,7 +182,6 @@ Forbidden, and each one has cost this project something:
 - **An agent writing `ARCHITECTURE.md`.** This file is the user's.
 
 ## §4. Data flow
-
 **Current work flow:** work and aiMark call `perry-kernel`; SQLite items/events are state/history, with JSONL recovery exports. Goals/decide and the root dashboard migrate later (DESIGN-023 F/G).
 **Historical legacy flow below** (work writes are frozen at phase E): every
 mutating command writes the record first. The board is not a file:
