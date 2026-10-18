@@ -92,5 +92,40 @@ class TestLegacyBoundary(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class TestNativePackProcedures(unittest.TestCase):
+    """The executable skill routes must not revive a retired history writer."""
+
+    def test_pack_history_and_shared_permissions_keep_journal_frozen(self):
+        forbidden = {
+            "packs/software-ops/architecture.md": (
+                "Append journal entry", "writes a journal entry"),
+            "packs/software-ops/incidents.md": (
+                "Append a one-line entry to today's journal", "Append a `## Notes` line"),
+            "packs/software-ops/runbooks.md": (
+                "appended to today's journal", "journal annotation"),
+            "work/reference/digests.md": ("3-line journal note",),
+            "work/reference/conversational.md": ("appending a journal status-change line",),
+            "work/reference/git-boundaries.md": ("work docs (`tasks.jsonl`, `journal/`",),
+        }
+        for rel, old_steps in forbidden.items():
+            body = (ROOT / rel).read_text()
+            for step in old_steps:
+                with self.subTest(path=rel, retired_step=step):
+                    self.assertNotIn(step, body)
+        self.assertIn("Never write work history to `journal/`",
+                      (ROOT / "work/SKILL.md").read_text())
+
+    def test_runbook_discovery_reads_all_native_tasks_and_attached_specs(self):
+        body = (ROOT / "packs/software-ops/runbooks.md").read_text()
+        check = body.split("## `/pmo runbook-check`", 1)[1].split("## ", 1)[0]
+        for required in ("all kernel tasks", "including terminal tasks", '"type":"task"',
+                         "next_after", "truncated", "item get", "attachments",
+                         "inspection gap", "Deployed: yes"):
+            with self.subTest(required=required):
+                self.assertIn(required, check)
+        self.assertNotIn("Grep `BOARD.md`", check)
+        self.assertIn("Attach that document with `attach add`", body)
+
+
 if __name__ == "__main__":
     unittest.main()

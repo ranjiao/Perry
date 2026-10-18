@@ -8,7 +8,7 @@ Each role owns its own deliverable's commit. PMO never commits code; Coding neve
 |---|---|---|---|---|---|
 | **Coding Agent** | its **own worktree** | Code + tests on a **feature branch** | only if the hook does not escalate `git push` | same condition | ✗ |
 | **Research Agent** | its **own worktree** | Generated reports / evidence files | only if the hook does not escalate `git push` | same condition | ✗ |
-| **PMO Agent** | the **primary checkout** | work docs (`tasks.jsonl`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`) — **not** `decisions/`, which belongs to `decide` | direct push to main acceptable for low-risk doc updates, subject to the hook | — | ✓ for own PMO doc commits, plus the `--no-ff` merge of a verified agent branch |
+| **PMO Agent** | the **primary checkout** | work docs (`PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`); current work state goes through the kernel; legacy registers and `journal/` stay frozen — **not** `decisions/`, which belongs to `decide` | direct push to main acceptable for low-risk doc updates, subject to the hook | — | ✓ for own PMO doc commits, plus the `--no-ff` merge of a verified agent branch |
 | **Review Agent** | its **own worktree** | Review notes / approval comments | same condition | — | reviews; does not merge |
 | **User** | anywhere | Anything on the user's behalf | ✓ | ✓ | ✓ |
 

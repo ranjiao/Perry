@@ -87,14 +87,14 @@ Procedure:
 3. Write the draft. A legacy `draft` label does not suspend existing architecture rules.
 4. **Tier 1 cap check** — verify the draft ≤ 500 lines. If exceeds, AskUserQuestion (header `"ARCH cap"`, options): `Split — move §3+§4+§5 detail to architecture/sections/§<N>-<topic>.md and keep TOC + summaries in main (Recommended) | Trim sections in place | Override with logged reason`. Refuse the write on Override unless reason is provided.
 5. Print: "Edit `ARCHITECTURE.md` to finish. Flip `Status: active` when ready. Existing architecture already binds the integration gate."
-6. Append journal entry `## Notes`: `architecture init — draft created`.
+6. Retain the dated draft-creation note in `architecture/audit-history/`; attach the note to the related kernel task, if one exists, using `attach add`. Do not append to `journal/`.
 
 ### `/pmo architecture review`
 
 User-triggered annual / quarterly / ad-hoc review. Procedure:
-1. Read `ARCHITECTURE.md`. Read all journal entries since `Last reviewed:` date and all entries in `architecture/audit-history/`.
+1. Read `ARCHITECTURE.md`. Read kernel `events` since `Last reviewed:` (follow every cursor), related task attachments and all entries in `architecture/audit-history/`. Legacy journal entries are supplementary historical evidence only.
 2. Pre-fill a `## Changes since last review` working note showing: ADRs landed, audit findings closed, components added (per change-log), open §7 items moved.
-3. User edits. On save, PMO bumps `Last reviewed:` and `Version:`, appends to `§8 Change log`, writes a journal entry.
+3. User edits. On save, PMO bumps `Last reviewed:` and `Version:`, appends to `§8 Change log`. Retain the review narrative in `architecture/audit-history/` and attach it to the related kernel task, if one exists. Never write a journal entry.
 4. **Tier 1 cap check** — same 500-line cap as `init`. If user's edits push the file past, surface the same split/trim/override flow.
 
 ### `/pmo architecture-audit [--quiet]`

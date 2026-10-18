@@ -1,6 +1,6 @@
 # `/pmo digest` — read external documents, retain the gist
 
-PMO's mechanism for handling **external input documents** the user provides (PDFs, spreadsheets, screenshots, pasted markdown, research papers, vendor contracts, etc.). Goal: human-style "read once, take notes, cite later" — NOT vector RAG, NOT auto-retrieval. PMO writes a structured digest per source, stores both source and digest in a topic-organized library, and references the digest by path in subsequent specs / decisions / journal entries.
+PMO's mechanism for handling **external input documents** the user provides (PDFs, spreadsheets, screenshots, pasted markdown, research papers, vendor contracts, etc.). Goal: human-style "read once, take notes, cite later" — NOT vector RAG, NOT auto-retrieval. PMO writes a structured digest per source, stores both source and digest in a topic-organized library, and references the digest by path in subsequent specs / decisions / work documents.
 
 ## Two directories — clear separation
 
@@ -188,7 +188,7 @@ Academic content has properties that the project-context schema underserves:
 - **Papers are nodes in a citation graph.** Followup citations capture the 2-3 worth-following edges so future-you knows where to read next.
 - **Generalised "Key facts" loses precision.** Numbers without dataset / cohort / baseline are decoration; the research-style schema forces context attached to each result.
 
-If a digest of a paper would fit comfortably into the project-context schema, that's a signal the paper wasn't worth a full digest in the first place — maybe a 3-line journal note + a saved URL is the right capture.
+If a digest of a paper would fit comfortably into the project-context schema, that's a signal the paper wasn't worth a full digest in the first place — use a short note with the saved URL in an owned evidence document, attached to the related kernel task when one exists. Do not write to the retired journal.
 
 ## `knowledge/INDEX.md` — the catalog
 

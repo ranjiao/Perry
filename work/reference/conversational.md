@@ -35,7 +35,7 @@ For these two scopes, work proceeds in two phases:
 - The action will write to or substantially edit `ARCHITECTURE.md`.
 - The user asked an open-ended question like "how should we handle X?", "what should the design be for Y?", "this feels off, can we adjust?" — propose 1–3 directions with a recommendation, do not jump straight to one answer.
 
-**Phase A is NOT required for**: mechanical single-step work — status flip, closing a task whose spec is already aligned, appending a journal status-change line, reading files, running the standard standup snapshot, dispatching a task whose spec already exists (the spec WAS the plan), `/pmo digest` (it has its own AskUserQuestion verification step).
+**Phase A is NOT required for**: mechanical single-step work — status flip, closing a task whose spec is already aligned, recording a kernel task transition, reading files, running the standard standup snapshot, dispatching a task whose spec already exists (the spec WAS the plan), `/pmo digest` (it has its own AskUserQuestion verification step).
 
 ### R4 — Propose ≠ Produce
 

@@ -55,7 +55,7 @@ in `reference/kernel.md`. `describe` is the versioned argument contract.
   is a `parent` relation. Spec, design and review documents are attachments.
 - Incoming requests become tasks on `intake`; there is no intake register,
   stage, WIP, SLA, cadence record or automatic routing procedure.
-- `events` is history. Never append work status changes to `journal/`, never edit
+- `events` is history. Never write work history to `journal/`, never edit
   a legacy JSONL register, and never edit SQLite or a kernel export as a shortcut.
 - The kernel does not judge evidence, choose a rung, enforce an agent's scope or
   run tests. These remain the skill's responsibility. Before `start`, inspect
