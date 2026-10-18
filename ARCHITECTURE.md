@@ -183,7 +183,8 @@ Forbidden, and each one has cost this project something:
 
 ## §4. Data flow
 
-**The store is truth; the markdown is a projection of it** (`ADR-007`). Every
+**Current work flow:** work and aiMark call `perry-kernel`; SQLite items/events are state/history, with JSONL recovery exports. Goals/decide and the root dashboard migrate later (DESIGN-023 F/G).
+**Historical legacy flow below** (work writes are frozen at phase E): every
 mutating command writes the record first. The board is not a file:
 `perry-tasks board` prints it from the stores. A `BOARD.md` a project still
 holds is retired — no write or reader uses it, only the `--from-board` imports
@@ -207,7 +208,7 @@ Eight stores exist, one verdict line each in `perry-lint`'s census:
 `okr.jsonl`, `linkage.jsonl`, `.perry/config.jsonl`. `cadence.jsonl` is the
 newest (TASK-237 deliverable 3b).
 
-The read path is the mirror image and has one entry point:
+The historical read path below remains for the legacy dashboard; current work and aiMark query the kernel:
 
 ```mermaid
 flowchart LR
