@@ -927,8 +927,11 @@ class TestTheAgentGetsItsOwnTree(unittest.TestCase):
         # before this digest was pasted** — two tokens, no rule moved.
         # Previous pin: e89b1321cd55a7a910322b6045e33b6763717c760d753175816f4a53a5dc45af
         # span 4,273 chars / 24 lines — all pinned, no free block
+        # TASK-490: retire PMO journal/register write permission; keep the
+        # entire ownership/isolation/merge section pinned without free zones.
+        # Previous pin: 0a85b4b6d716887b1edd45dd30337276c6aad90ccc7c178a746e65088bdecaec
         "git-boundaries.md § Git Role Boundaries":
-            "0a85b4b6d716887b1edd45dd30337276c6aad90ccc7c178a746e65088bdecaec",
+            "5872d56bb869fea772df18559b7b0f69ffeddeba7aad22bd28f3fd0db0367436",
         # TASK-495: re-pin the independently reviewed checkpoint preamble,
         # standard RESULT and manual paste-back requirements. The delegate
         # diff was read; Git isolation/ownership rules and span/free-block
