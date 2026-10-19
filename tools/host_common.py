@@ -69,5 +69,3 @@ def owned_markdown(root, directory, recursive=False):
             errors.append({'path':str(folder),'error':str(exc)})
     walk(directory)
     return paths, errors
-
-
