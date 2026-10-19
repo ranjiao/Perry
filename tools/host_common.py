@@ -48,6 +48,8 @@ def owned_markdown(root, directory, recursive=False):
                 break
             if part.is_symlink():
                 raise ValueError('safety directory contains a symlink')
+            if part.exists() and not part.is_dir():
+                raise ValueError('safety directory ancestor is not a directory: ' + str(part))
     except ValueError as exc:
         return [], [{'path':str(directory),'error':str(exc)}]
     def walk(folder):

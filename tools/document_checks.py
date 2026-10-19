@@ -60,6 +60,12 @@ def startup(root, state_root):
     state = inside(root, state_root)
     recovery = {'blocking': False, 'errors': []}
     out = {'version': 1, 'recovery': recovery, 'interrupted': [], 'draft_errors': []}
+    for namespace in (root/'.perry', root/state_root):
+        _, errors = owned_markdown(root, namespace)
+        recovery['errors'].extend(errors)
+    if recovery['errors']:
+        recovery['blocking'] = True
+        return out
     if (root/'.perry').is_symlink():
         recovery['blocking'] = True
         recovery['errors'].append({'path':str(root/'.perry'),'error':'safety namespace is a symlink'})
@@ -134,9 +140,9 @@ def dispatch(packet):
     lane = packet.get('lane')
     for rel in paths:
         try:
-            inside(Path(root),rel)
+            destination = inside(Path(root),rel).relative_to(Path(root).resolve())
             # Evidence ownership remains lane-owned even with native item state.
-            part = next((s for s in Path(rel).parts if s in ('decisions','design','evidence','weekly','handoff','phase','OKR.md')),None)
+            part = next((s for s in destination.parts if s in ('decisions','design','evidence','weekly','handoff','phase','OKR.md')),None)
             owner = {'decisions':'decide','design':'decide','evidence':'work','weekly':'work','handoff':'work','phase':'goals','OKR.md':'goals'}.get(part)
             if owner and owner != lane:
                 errors.append('another lane owns ' + rel)

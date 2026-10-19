@@ -85,6 +85,23 @@ class Safety(unittest.TestCase):
             r=D.startup(self.root,'docs');self.assertTrue(r['recovery']['blocking']);self.assertIn('permission denied',r['recovery']['errors'][0]['error'])
         target=self.root/'other';target.mkdir();folder.rmdir();folder.symlink_to(target,target_is_directory=True)
         self.assertTrue(D.startup(self.root,'docs')['recovery']['blocking'])
+    def test_non_directory_safety_ancestors_block_startup(self):
+        (self.root/'docs').rmdir();(self.root/'docs').write_text('file')
+        self.assertTrue(D.startup(self.root,'docs')['recovery']['blocking'])
+        (self.root/'docs').unlink();(self.root/'docs').mkdir()
+        (self.root/'.perry/safety.json').unlink();(self.root/'.perry').rmdir()
+        (self.root/'.perry').write_text('file')
+        self.assertTrue(D.startup(self.root,'docs')['recovery']['blocking'])
+
+    def test_resolved_scope_controls_lane_ownership(self):
+        packet=self.packet();packet['lane']='goals';packet['scope']=['phase/../evidence/x.md']
+        self.assertTrue(D.dispatch(packet)['blocked'])
+        (self.root/'decisions').mkdir()
+        (self.root/'alias').symlink_to(self.root/'decisions', target_is_directory=True)
+        packet['lane']='work';packet['scope']=['alias/new.md']
+        self.assertTrue(D.dispatch(packet)['blocked'])
+        packet['lane']='decide';self.assertFalse(D.dispatch(packet)['blocked'])
+
     def test_structured_database_policy_is_armed_and_cannot_be_replaced_by_hook_text(self):
         self.policy({'version':1,'approval_ref':'isolated reviewed database policy','rules':[{'id':'database','label':'Database changes','patterns':['DROP TABLE','.git/perry']}]})
         p=self.packet();p['spec']='DROP TABLE events';p['hook']='## High-stakes operations\n- harmless only'
