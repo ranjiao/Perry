@@ -55,6 +55,15 @@ Only the targets selected for your machine should exist. In any host, invoke the
 
 The complete matrix and strict host/executor mismatch behavior are in [`reference/host-capabilities.md`](reference/host-capabilities.md).
 
+## Existing projects and this candidate
+
+The H candidate removes the legacy commands and contracts. Do not activate it
+against an existing project until the F/G/H combined source, required aiMark
+adapters, isolated store/export/backup receipts and rollback limits have been
+reviewed. Source implementation is not permission for live migration. Existing
+JSONL configuration and project history remain frozen migration inputs.
+See [the concrete retirement ledger](release/retirement/README.md).
+
 ## First run
 
 From a project directory, invoke `/perry`. New projects are guided through:
@@ -69,7 +78,7 @@ From a project directory, invoke `/perry`. New projects are guided through:
 
 ## Update and uninstall
 
-A symlink install tracks its source clone. For consumer updates, run `bash bin/perry-update-check --force --channel release` from that clone. This explicit channel verifies the latest published release from the official `ranjiao/Perry` origin and its VERSION/tag before updating. It refuses when no official release exists; it does not fall back to main. Dirty files, feature branches and local commits remain protected.
+A symlink install tracks its source clone. For consumer updates, run `bash tools/update-check.sh --force --channel release` from that clone. This explicit channel verifies the latest published release from the official `ranjiao/Perry` origin and its VERSION/tag before updating. It refuses when no official release exists; it does not fall back to main. Dirty files, feature branches and local commits remain protected.
 
 Automatic checks for symlink/developer checkouts are report-only and suggest the explicit release command. Developers who intentionally track main manage their Git checkout themselves. The weekly check also searches the OpenCode global path. Product maintainers must read [release/README.md](release/README.md).
 

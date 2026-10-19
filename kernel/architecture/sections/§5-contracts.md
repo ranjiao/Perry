@@ -316,7 +316,7 @@ becomes the event's seq.
     purpose, always pass `--store <tmp>`. The harness sets `PERRY_KERNEL_TESTING=1`, under
     which a derived path is refused (`store_live_under_test`), so a call that forgets
     `--store` fails instead of writing the shared store. The variable counts as set when it
-    is present, empty included. `bin/perry-kernel-migrate`, DESIGN-023 § 6 row D's one-shot
+    is present, empty included. The now-retired `bin/perry-kernel-migrate`, DESIGN-023 § 6 row D's one-shot
     importer, is not a test, and it sets `PERRY_KERNEL_TESTING=1` on every kernel call as
     the same safety switch. Each of its calls names `--store` under its scratch `--work`
     directory, so a call that lost the flag is refused rather than derived to the live store.
@@ -414,5 +414,5 @@ becomes the event's seq.
   export, which records one (the user accepted this design on 2026-09-26). **Reversal:**
   delete the directory; only `import` loads it.
 
-Neither path is added to the current claims register, `schema/state-schema.json`: that is
-a schema change outside this row, and the file is deleted at row H.
+Neither native path belongs to the legacy claims register. H retires that schema;
+the kernel path rules remain authoritative and unchanged.

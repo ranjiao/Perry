@@ -46,10 +46,9 @@ derived when read and never stored (§ 5.5, § 5.6).
 
 ### Layout (DESIGN-023 § 5.5)
 
-`kernel/` holds the `perry_kernel` package, its tests and this file. The executable,
-`bin/perry-kernel`, is a thin wrapper of a few lines that imports `perry_kernel` and calls its
-`main()`; the user named it on 2026-09-24 (OQ-K6), and row H renames it `bin/perry`. The
-package is cached as bytecode, so nothing is recompiled per call. This document writes `kernel`.
+`kernel/` holds the generic package, tests and this target. `bin/perry` is the
+sole thin native wrapper. H changes its path from `bin/perry-kernel`; it does
+not change kernel production code, concepts, guards or the native contract.
 
 ### The budget
 
@@ -72,22 +71,17 @@ and DESIGN-023 § 7 makes that a revision of the design, not a new row.
 ```mermaid
 flowchart TD
     Skill["skill — SKILL.md, lanes, templates/process/*.json<br/>markdown and data"] -->|"argv + JSON in"| CLI["kernel executable<br/>thin wrapper"]
-    Migrate["bin/perry-kernel-migrate<br/>row D's one-shot importer, deleted at row H"] -->|"subprocess: argv + JSON in<br/>--store and --root always named"| CLI
     CLI -->|imports| Pkg["perry_kernel<br/>stdlib only"]
     Pkg -->|"sqlite3, WAL"| Store[("store<br/>&lt;git-common-dir&gt;/perry/&lt;slug&gt;.db")]
     Pkg -->|"export writes and compares · import loads"| Export[("&lt;state root&gt;/export/<br/>items.jsonl · events.jsonl")]
     Pkg -.->|"reads .git and commondir<br/>for the path rule"| Git[(".git metadata")]
     CLI -->|"JSON out"| Skill
-    CLI -->|"JSON out"| Migrate
 ```
 
-Besides the skill, `bin/perry-kernel-migrate`, DESIGN-023 § 6 row D's one-shot
-importer (TASK-489), calls the CLI until row H deletes it. It runs the CLI as a
-subprocess, with `--store` and `--root` always named and `PERRY_KERNEL_TESTING`
-set (§ 5.7). It imports nothing from `perry_kernel`, and it reaches the store
-only through the CLI, as the skill does (`bin/ARCHITECTURE.md` § 2). The test
-suites also run the CLI, and `bin/perry` forwards `perry kernel …` to the
-wrapper's `main` in-process.
+Skill-side helpers and tests call the native CLI through subprocesses. They
+never import kernel internals to read a live store. All test/rehearsal calls
+name temporary `--store` and explicit `--root` with `PERRY_KERNEL_TESTING=1`.
+The one-shot legacy work importer retires at H; historical receipts remain.
 
 aiMark also calls the native CLI as the external consumer required by
 DESIGN-023 decision 11; it adapts the native response in its own repository.
