@@ -154,3 +154,17 @@ Implemented: bin/perry-lint
 A project's own declaration of who it hires — there is no built-in list of
 agent types.
 Implemented: work/state/role_card_TEMPLATE.md
+
+## Native goal scope
+
+A native ID is kernel-minted and unique in its project. A legacy goal label is
+not an identity: O3-KR1 in one OKR version differs from O3-KR1 in another. Resolve
+labels only with their version/phase. `source_key` is the migration identity and
+`source_hash` pins its legacy record bytes; attachments retain authored narrative.
+
+## Native metric boundary
+
+The kernel derives met/fraction and one-level child rollup from typed metric
+fields. The skill declares and runs measuring commands and checks meaning and
+consent. Imported legacy assertions keep their provenance; a prose target,
+structural pass, closed task or historical score is not a new measurement.

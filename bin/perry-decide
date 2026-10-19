@@ -584,7 +584,22 @@ def parse(argv: list[str]) -> Args:
 
 
 def main(argv: list[str]) -> int:
+    # DESIGN-023 F: retain historical reads; never write legacy lane state.
+    if any(flag in argv for flag in ('-h', '--help')):
+        print('Historical reader: legacy writes are read-only; use native perry-kernel.')
+        print(__doc__.strip())
+        return 0
+    if argv[:1] and argv[0] in ['bootstrap', 'new', 'supersede', 'status']:
+        message = 'legacy goals/decide writes are read-only; use native perry-kernel procedures'
+        if '--json' in argv:
+            print(json.dumps({'refused': message, 'written': False}))
+        else:
+            print(message, file=sys.stderr)
+        return 1
     args = parse(argv)
+    if args.cmd in ['bootstrap', 'new', 'supersede', 'status']:
+        print(json.dumps({'refused': 'legacy goals/decide writes are read-only; use native perry-kernel procedures', 'written': False}))
+        return 1
     if args.cmd not in COMMANDS:
         print(f"perry-decide: expected one of {' / '.join(COMMANDS)} "
               f"(try --help)", file=sys.stderr)
