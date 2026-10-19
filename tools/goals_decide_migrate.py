@@ -364,8 +364,14 @@ class Plan:
         for doc in docs:
             text = (self.state / doc.rel).read_text()
             headers = P.adr_header_fields(text)
+            raw_status = doc.status_raw.strip().strip('*` ').lower()
+            match = re.match(r'^(?:design\s+)?(in_review|in review|review|draft|locked|superseded|dropped|abandoned)(?=$|[\s(（:：—–·])', raw_status)
+            if not match:
+                raise Refused('design without a recognized declared status: ' + doc.rel)
+            status = {'in_review': 'review', 'in review': 'review',
+                      'abandoned': 'dropped'}.get(match[1], match[1])
             key = 'design:' + doc.id
-            self.add(key, 'design', headers, doc.title, doc.id, '', 'design_' + doc.status, doc.rel,
+            self.add(key, 'design', headers, doc.title, doc.id, '', 'design_' + status, doc.rel,
                      dict(decided_on=doc.date, locked_on=doc.locked, linked_okr_text=doc.linked_okr,
                           author_text=headers.get('author',''), implementation_owner=headers.get('implementation owner',''),
                           approval_ref='historical source: ' + doc.rel), expected_id=doc.id)

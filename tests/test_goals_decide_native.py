@@ -190,6 +190,22 @@ class NativeFixture(unittest.TestCase):
         with self.assertRaisesRegex(M.Refused,'recovery is blocking'):self.plan()
         self.assertEqual(marker.read_text(),'{"incomplete":"leave bytes alone"}')
 
+    def test_design_review_status_maps_to_native_review(self):
+        self.write_doc('DESIGN-001','design','in_review')
+        plan = self.plan()
+        self.assertEqual(plan.records['design:DESIGN-001'].state, 'design_review')
+        M.apply(plan, self.k)
+        item = next(i for i in self.k.items() if i['type'] == 'design')
+        self.assertEqual(item['state'], 'design_review')
+
+    def test_missing_unknown_or_negated_design_status_refuses_before_writes(self):
+        before = self.k.items()
+        for status in ['', 'unknown', 'not locked', 'design unlocked']:
+            self.write_doc('DESIGN-001','design',status)
+            with self.assertRaisesRegex(M.Refused, 'recognized declared status'):
+                self.plan()
+            self.assertEqual(self.k.items(), before)
+
     def test_phase_pointer_mismatch_refuses(self):
         (self.s/'phase/CURRENT').write_text('002-other')
         with self.assertRaisesRegex(M.Refused,'pointer disagreement'):self.plan()

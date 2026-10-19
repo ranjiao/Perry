@@ -25,7 +25,7 @@ an activated work store or fall back to a legacy writer.
 "$PERRY_HOME/bin/perry-kernel" query --root /absolute/project --input @/absolute/scratch/query.json
 ```
 
-Read bodies: `{"type":"phase","where":{"state":"phase_active"}}`,
+Read bodies: `{"type":"phase","state":["phase_active"]}`,
 `{"type":"objective"}`, `{"type":"kr"}`, `{"type":"check"}`.
 Follow every `next_after` until `truncated:false` for complete procedures.
 Read one item and its attachments with `item get`. A refusal/nonzero exit is not
