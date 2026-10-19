@@ -192,6 +192,15 @@ class Plan:
             path = internal(self.source, name)
             if not path.is_file() or digest(path.read_bytes()) != expected:
                 raise Refused('source changed: ' + name)
+        # Fixed input names are inventory too: a previously absent input must
+        # not silently appear after review. No contents are interpreted here.
+        candidates = [self.state/n for n in ('OKR.md','okr.jsonl','linkage.jsonl','tasks.jsonl')]
+        candidates += [self.source/'.perry'/n for n in ('config.jsonl','hook.md')]
+        for path in candidates:
+            name = path.relative_to(self.source).as_posix()
+            internal(self.source, name)
+            if path.exists() and name not in self.hashes:
+                raise Refused('new source file: ' + name)
         # Inventory only: no Markdown/JSONL parsing, including unlisted files.
         for directory in ('phase','design','decisions'):
             base = internal(self.source, str(relative(self._doc['state_root']) / directory))
@@ -465,7 +474,7 @@ def apply(plan, kernel):
 def scratch_paths(source, root, store, work):
     if (root == work or store == work or not root.is_relative_to(work) or not store.is_relative_to(work) or
             root == source or source.is_relative_to(root) or root.is_relative_to(source) or
-            work.is_relative_to(source) or store.is_relative_to(root) or
+            work.is_relative_to(source) or store.is_relative_to(source) or source.is_relative_to(store) or store.is_relative_to(root) or
             any((a/'.git').exists() for path in (work,root,store.parent) for a in [path,*path.parents])):
         raise Refused('root/store must be distinct scratch children of external --work; source is read-only')
 

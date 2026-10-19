@@ -172,6 +172,19 @@ class ReviewedPlan(unittest.TestCase):
             extra.unlink()
         self.assertEqual(self.snapshot(),before)
 
+    def test_previously_absent_fixed_inputs_refuse(self):
+        p=self.plan();before=self.snapshot()
+        for base, name in ((self.s,'linkage.jsonl'),(self.s,'okr.jsonl'),(self.source/'.perry','config.jsonl')):
+            base.mkdir(exist_ok=True)
+            added=base/name;added.write_text('new source facts')
+            with self.assertRaisesRegex(M.Refused,'new source file'):p.unchanged()
+            added.unlink()
+        self.assertEqual(self.snapshot(),before)
+
+    def test_store_inside_source_is_rejected(self):
+        with self.assertRaisesRegex(M.Refused,'source is read-only'):
+            M.scratch_paths(self.source,self.root,self.source/'changed.db',self.work)
+
     def test_source_override_copy_has_identical_plan_and_facts(self):
         copied=self.work/'source-copy';shutil.copytree(self.source,copied)
         plan=M.Plan(self.path,self.sha,source=copied)

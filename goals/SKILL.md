@@ -58,7 +58,7 @@ History is native events. No procedure here appends journal or legacy events.
 
 ## Procedures
 
-| User action | Read first | Result |
+| Subcommand | Reference | Result |
 |---|---|---|
 | `init`, `revise` | `reference/setup.md`, `reference/elicitation.md`, `reference/planning.md` | reviewed draft, explicit approval, new version-scoped items |
 | `plan-phase <slug>` | `reference/phases.md`, `reference/elicitation.md` | approved native phase and scoped goals; attached ten-section narrative |
