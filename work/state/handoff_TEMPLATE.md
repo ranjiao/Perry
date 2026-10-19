@@ -21,7 +21,7 @@ Use when the agent environment or user chooses a handoff (`work/reference/budget
 | Unresolved criteria | {{numbers + why}} |
 | Pending work | {{in-flight dispatches: task, branch, worktree, log; recovery or interrupted-run findings}} |
 | Pending decisions | {{USER- ids}} |
-| Budget | {{`OVER 212,000 / 200,000` or `unknown — not measured: <reason>`}} |
+| Usage (optional) | {{`context: 212,000 tokens (report only)` or `unknown — not measured: <reason>`}} |
 | Next command | `{{exact command}}` |
 
 For a short chosen handoff, sections 4 and 6 may be omitted.

@@ -109,7 +109,7 @@ own copy, which root `ARCHITECTURE.md` § 3 lists:
   and `viewer/parsers.py § _resolve_project_root` takes steps 2 and 3 (it has
   no flag);
 - `perry-decide`, `perry-task`, `perry-knowledge`, `perry-state-cost`,
-  `perry-context-budget` and `perry-explain` skip step 3's walk and use the
+  `perry-explain` skip step 3's walk and use the
   cwd itself;
 - `perry-lint` skips step 2 everywhere — it reads no `$PERRY_PROJECT` — and
   of its nine sites only one, the default lint, walks; its eight per-mode
@@ -680,8 +680,8 @@ perry-config track  [--root <p>] <name> [--mode M] [--spine S]
     perry-config untrack [--root <p>] <name>       remove one track
 
 The store is `.perry/config.jsonl`. It holds the project's `setting` records —
-document language, chat language, repo layout, state root, packs, and the two
-cost budgets — and one `track` record per declared track. Field names are
+document language, chat language, repo layout, state root, packs, and the
+review-failure budget — and one `track` record per declared track. Field names are
 declared in `schema/state-schema.json § stores.declared[".perry/config.jsonl"]`
 and are read from there, never restated here.
 
