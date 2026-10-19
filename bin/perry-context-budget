@@ -2,7 +2,7 @@
 """
 perry-context-budget — how much context this session is paying for, per turn.
 
-The gate reads the host's own usage accounting for ONE session, bound by the
+The report reads the host's own usage accounting for ONE session, bound by the
 host's session identity (Codex `CODEX_THREAD_ID`) or by an explicit `--session`
 file — never the newest file. Claude Code (its subagents carry the main
 session's id), OpenCode, an absent or ambiguous identity and a transcript with
@@ -14,11 +14,9 @@ Usage:
   perry-context-budget --composition [--session <path>] [--json]
   perry-context-budget --bill NAME [--bill-skill-root PATH] [--json]
 
-  --ceiling      the budget. Accepts 200000 or 200k. Most specific wins:
-                 this flag, then env `PERRY_CONTEXT_CEILING`, then the
-                 project's `session_context_ceiling` setting in
-                 `.perry/config.jsonl`, then `schema § thresholds`. Every
-                 report names which of the four answered.
+  --ceiling      deprecated optional reference, e.g. 200k; comparison only.
+                 It never stops work. There is no default session ceiling;
+                 old environment and project-config ceilings are ignored.
   --session      read this transcript instead of the host-identified one. It
                  is `current` when its session id is the host's, `historical`
                  (reported, never gating) when it differs, and `explicit`
@@ -33,8 +31,8 @@ Usage:
                  --session, --composition and --ceiling are incompatible.
 
 Exit status:
-  0  under the ceiling, historical, unknown (not gating); a bill within cap
-  1  at or over the ceiling; a bill over its cap, or refused (reason on stderr)
+  0  any valid session report, including unknown; a bill within cap
+  1  a static bill over its cap, or refused (reason on stderr)
   2  bad invocation
 """
 
@@ -50,9 +48,6 @@ import sys
 import time
 from pathlib import Path
 
-# Schema fallback for installations missing the schema.
-DEFAULT_CEILING = 200_000
-
 # The environment variable through which each measured host names its session.
 HOST_IDENTITY = {"codex-cli": "CODEX_THREAD_ID"}
 CATEGORIES = ("input", "cached_input", "cache_creation", "output", "reasoning")
@@ -67,46 +62,6 @@ def parse_size(text: str) -> int:
     elif t.endswith("m"):
         mult, t = 1_000_000, t[:-1]
     return int(float(t) * mult)
-
-
-# Store setting key follows the label-to-key convention.
-CEILING_SETTING_KEY = "session_context_ceiling"
-
-
-def declared_ceiling(project_root: Path) -> tuple[str | None, str]:
-    """The project's own ceiling and WHICH register answered, or (None, _)."""
-    try:
-        lines = (project_root / ".perry" / "config.jsonl").read_text(errors="replace").splitlines()
-    except OSError:
-        # An absent or inaccessible project uses defaults.
-        return None, ""
-    for raw in lines:
-        try:
-            rec = json.loads(raw)
-        except ValueError:
-            continue
-        if isinstance(rec, dict) and rec.get("kind") == "setting" and rec.get("key") == CEILING_SETTING_KEY:
-            return (str(rec.get("value") or "").strip() or None), ".perry/config.jsonl"
-    return None, ""
-
-
-def resolve_ceiling(perry_home: Path, project_root: Path,
-                    flag: str | None) -> tuple[int, str]:
-    """The ceiling and WHERE it came from, most specific first; an unparseable one is skipped."""
-    for value, source in [(flag, "--ceiling"), (os.environ.get("PERRY_CONTEXT_CEILING"), "PERRY_CONTEXT_CEILING"),
-                          declared_ceiling(project_root)]:
-        try:
-            if value and value.strip():
-                return parse_size(value), source
-        except ValueError:
-            pass
-    path = perry_home / "schema" / "state-schema.json"
-    try:
-        data = json.loads(path.read_text())
-        value = data["thresholds"]["session_context_ceiling"]["value"]
-        return int(value), "schema/state-schema.json § thresholds"
-    except (OSError, ValueError, KeyError, TypeError):
-        return DEFAULT_CEILING, "built-in default (schema unreadable)"
 
 
 def host_identity() -> tuple[str, str | None]:
@@ -499,13 +454,20 @@ def main(argv=None) -> int:
         print(f"perry-context-budget: {bad}", file=sys.stderr)
         return 2
 
-    perry_home = Path(os.environ.get("PERRY_HOME", Path(__file__).resolve().parent.parent))
-    project_root = Path(args.root or os.environ.get("PERRY_PROJECT") or Path.cwd())
-    ceiling, ceiling_from = resolve_ceiling(perry_home, project_root, args.ceiling)
+    # Compatibility comparison only: no default, environment or project ceiling.
+    ceiling = None
+    if args.ceiling is not None:
+        try:
+            ceiling = parse_size(args.ceiling)
+            if ceiling <= 0:
+                raise ValueError
+        except (ValueError, OverflowError):
+            ap.error("--ceiling requires a positive numeric reference")
+    ceiling_from = "--ceiling (reference only)" if ceiling is not None else None
     host, identity = host_identity()
     path, binding = bind(args.session, host, identity)
     report = {"verdict": "unknown", "context": None, "ceiling": ceiling, "ceiling_from": ceiling_from,
-              "host": host, "identity": identity, "transcript": None, "why": binding}
+              "host": host, "identity": identity, "transcript": None, "why": binding, "report_only": True}
     if path is not None and not path.is_file():
         report["why"] = f"no transcript at {path}"
     elif path is not None and args.composition:
@@ -537,9 +499,9 @@ def main(argv=None) -> int:
             report["why"] = f"{path} carries no usage record yet"
         else:
             report["context"] = context_of(last)
-            report["pct"] = round(100 * report["context"] / max(1, ceiling), 1)
-            over = report["context"] >= ceiling
-            report["verdict"] = "historical" if report["scope"] == "historical" else "OVER" if over else "OK"
+            if ceiling is not None:
+                report["pct"] = round(100 * report["context"] / ceiling, 1)
+            report["verdict"] = "historical" if report["scope"] == "historical" else "measured"
             report.pop("why")
     if args.json:
         print(json.dumps(report, indent=2))
@@ -550,11 +512,10 @@ def main(argv=None) -> int:
         print(f"written    : {report['transcript_age_min']:.0f} min ago; coverage {report['coverage']}"
               + "".join(f"; {gap}" for gap in report["gaps"]))
         print(f"context    : {report['context']:,} tokens (measured; cost and quota unknown)")
-        print(f"ceiling    : {ceiling:,} ({ceiling_from})")
-        bar = {"OK": "OK", "OVER": "OVER — hand off and start a fresh session",
-               "historical": "historical — not a verdict on this session"}[report["verdict"]]
-        print(f"verdict    : {report['pct']}% of budget — {bar}")
-    return int(report["verdict"] == "OVER")
+        if ceiling is not None:
+            print(f"reference  : {ceiling:,} tokens; {report['pct']}% (comparison only)")
+        print("session    : report only — the agent environment and user decide when to start a new session")
+    return 0
 
 
 if __name__ == "__main__":

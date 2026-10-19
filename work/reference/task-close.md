@@ -9,7 +9,7 @@ project verification requirement remains binding even if a pack is disabled.
 For eligible code/target work verify the architecture delivery receipt in the
 executor checkout against the recorded real start baseline and current source.
 Missing or stale evidence and unresolved attention prevent acceptance. Never
-fabricate a historical start. `budget-boundary.md` governs handoff on a boundary.
+fabricate a historical start. `budget-boundary.md` describes an optional handoff when the agent environment or user chooses one.
 
 - V1/V2/V3: retain the evidence for the chosen level and its actual checks.
 - V4: `review.md` needs a fresh context and written criteria. Retain the reviewer

@@ -801,14 +801,6 @@
       ],
       "note": "How many V4 FAILs a row may take before `perry-lint --reviews` reports `review-rounds-exhausted` and the next step becomes an ask rather than another round.\n\nMEASURED, not chosen: 20 rows on this board entered V4 and 74 rounds were burned. Ten rows needed three or more; TASK-050 and TASK-249 each reached round 11. TASK-095 FAILed five times, and all five read the same in the journal — 'two situations answered as one, one step to the left of the last'. The rounds after the second were not finding new defects, they were re-deriving one undecided principle differently; the hand-filed escalation at round 5 (USER-905) ended it in one round. Each round costs a dispatch, a fresh-context review and a fix cycle, with the session paying its whole context on every turn of all three.\n\nRaise it for a project whose reviews genuinely converge by accretion; 1 makes every FAIL a decision point. Per-project override: `- Review rounds before escalation: N` in `.perry/config.md`; `PERRY_REVIEW_ROUNDS` in the environment beats both."
     },
-    "session_context_ceiling": {
-      "value": 200000,
-      "applies_to": [
-        "autopilot",
-        "session"
-      ],
-      "note": "The context size at which `autopilot` stops, writes a handoff and lets a fresh session resume. Read by `bin/perry-context-budget`, which measures the live figure from the host transcript rather than estimating it.\n\nMEASURED, not chosen: across 25 sessions and 18,941 turns this project spent 8.43 billion tokens, 99.1% of it `cache_read` — the accumulated context re-read on every turn. Output was 0.3%. Cost is therefore the SUM over turns of the context at each turn, and both factors grow together inside one session, so a five-hour run is superlinear rather than five times a one-hour run. Replaying those turns against a cap: 200k costs 58.3% less, 300k 42.3% less, 400k 29.3% less, for exactly the same work.\n\n200k is where the curve is still steep and a dispatch still fits. It is a calibrated default and not a law: a project doing genuinely wide reads can raise it, and `--ceiling` overrides per run. The number that must NOT move quietly is this one, because the gate and the report have to agree on it — which is why it is here and not in either."
-    },
     "stale_run_days": {
       "value": 30,
       "applies_to": [

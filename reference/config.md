@@ -47,7 +47,6 @@ Repo layout: <single | split>
 State root: <. | relative path>
 Packs: <comma-separated pack names; empty disables all; absent defaults to software-ops>
 Review rounds before escalation: <N>    (optional; default 2)
-Session context ceiling: <200k | N>     (optional; default 200k)
 PMO repo path: <absolute path>
 Code repo path: <absolute path or — if single>
 Last updated: <YYYY-MM-DD>
@@ -99,30 +98,21 @@ Two shapes in circulation is two code paths a reader can disagree about, and one
 
 Adoption asks this question during `confirm`, before anything is materialized (`reference/adoption.md`).
 
-### The two cost budgets — `Review rounds before escalation`, `Session context ceiling`
+### Review rounds before escalation
 
-Both are **measured defaults, not laws**, and both follow the precedence
-`Conformance gate` established: the environment beats the store, which beats
-the shipped value in `schema/state-schema.json § thresholds`. Every consumer
-reports which of the three answered, so a budget that stops work can be argued
-with by editing the register that actually set it.
+`Review rounds before escalation` defaults to 2; `PERRY_REVIEW_ROUNDS` overrides
+the project store, which overrides the shipped schema value. `perry-lint --reviews`
+reports which source answered. On this repository 20 rows entered V4 and burned
+74 rounds; ten needed three or more. This review-failure budget remains separate
+from session management.
 
-| | default | env | read by |
-|---|---|---|---|
-| `Review rounds before escalation` | 2 | `PERRY_REVIEW_ROUNDS` | `perry-lint --reviews` |
-| `Session context ceiling` | 200000 | `PERRY_CONTEXT_CEILING` | `perry-context-budget`, and `autopilot` through it |
+### Session context ceiling — retired
 
-**Where the two numbers come from.** On this repository, 20 rows entered V4 and
-**74 rounds** were burned; ten rows needed three or more and two reached round
-11. Separately, 25 sessions over 18,941 turns spent **8.43 billion tokens, 99.1%
-of it `cache_read`** — the accumulated context, re-read every turn — so the
-bill is `Σ over turns (context at that turn)` and a long run is superlinear.
-Replaying those turns against a cap, 200k costs 58.3% less for the same work.
-
-Raise `Review rounds before escalation` for a project whose reviews genuinely
-converge by accretion; `1` makes every FAIL a decision point. Raise
-`Session context ceiling` for a project doing genuinely wide reads, knowing the
-cost of doing so does not grow linearly.
+Perry no longer sets or enforces a session token limit. Legacy
+`session_context_ceiling` settings and `PERRY_CONTEXT_CEILING` values are ignored.
+The agent environment and user decide when to open a session. The optional
+`perry-context-budget` report retains usage/provenance; explicit `--ceiling`
+is a comparison reference only and never blocks work.
 
 ### `Conformance gate` — deleted
 

@@ -2,6 +2,25 @@
 
 Generated from release/records.jsonl; edit records through the release tool.
 
+## 0.1.26 — 2026-10-19
+
+patch · phase 004-guided · TASK-496 · delivery TASK-496-context-report-only-20261019
+
+### Changes
+
+Session context usage is report-only. Valid live, explicit, historical and unknown-telemetry reports return exit 0 regardless of token volume, without a fixed, environment or project ceiling or a forced rollover. Session rollover belongs to the agent environment and user. Static byte-bill checks, invalid CLI usage, and task-count, duration, failure, review and safety gates retain their existing behavior.
+
+
+### Upgrade notes
+
+Consumers must stop treating session report verdicts OVER or OK as enforcement decisions: the verdict is now measured or report_only, with no default threshold. Existing session_context_ceiling project settings and PERRY_CONTEXT_CEILING environment settings are ignored. An explicitly supplied legacy --ceiling remains an advisory comparison only and does not change a valid report exit status. Missing telemetry is reported without requiring a session decision.
+
+
+### Breaking changes
+
+The session-report verdict and exit-status contract changes: usage no longer blocks work, and OVER/OK session verdicts are replaced by measured/report_only. Update consumers that parsed the prior session verdicts or relied on threshold exit codes. Explicit --ceiling comparisons are advisory. Invalid invocations and static --bill checks remain nonzero where appropriate.
+
+
 ## 0.1.25 — 2026-10-18
 
 patch · phase 004-guided · TASK-490 · delivery TASK-490-kernel-cutover-20261018
