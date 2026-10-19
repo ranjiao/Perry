@@ -431,7 +431,7 @@ same verdicts, and that is how a board of `review` rows ages.
 "$PERRY_HOME/bin/perry-kernel" query --root <project> --input @<query.json>    # `startable`, `blocked_by`
 ```
 
-Session usage is optional information, not a dispatch gate; `budget-boundary.md` leaves session changes to the agent environment and user.
+Session changes belong to the agent environment/user; usage never blocks review (`budget-boundary.md`).
 
 Two rows touching the same files still go out together — they get **separate
 agents and separate verdict blocks**, because merging them produces one verdict
