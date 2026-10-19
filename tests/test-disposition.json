@@ -3880,16 +3880,20 @@
   ],
   "scope": "Every tracked tests/ and kernel/tests/ path at immutable base; newly added files are listed separately.",
   "added": [
-    "tests/run.py",
-    "tests/suite.py",
-    "tests/integration.py",
-    "tests/slow_integration.py",
-    "tests/test_harness.py",
-    "tests/test_retirement_boundaries.py",
-    "tests/test_document_checks.py",
-    "tests/test_helpers_native.py",
+    "kernel/tests/test_prefix_floors.py",
     "tests/README.md",
-    "tests/test-disposition.json"
+    "tests/integration.py",
+    "tests/run.py",
+    "tests/slow_integration.py",
+    "tests/suite.py",
+    "tests/test-disposition.json",
+    "tests/test_document_checks.py",
+    "tests/test_goals_decide_native.py",
+    "tests/test_harness.py",
+    "tests/test_helpers_native.py",
+    "tests/test_method_as_data.py",
+    "tests/test_retirement_boundaries.py",
+    "tests/test_retirement_manifest.py"
   ],
   "retained_assertion_changes": [
     {
@@ -3924,6 +3928,104 @@
         "expanded-template unchanged work suite and invalid-extra-type refusal"
       ],
       "reason": "F adds goals/decide process data independently. This suite still asserts every original work field/state/guard/transition exactly; it does not claim to accept F semantics. F must provide its separate acceptance suite."
+    },
+    {
+      "source": "tests/test_goals_decide_native.py",
+      "reason": "18 old source-preparation/frozen-alias tests remain historical at 1c5ccd85; current20 assert reviewed native plan apply, refusal boundaries and preservation, not retained legacy readers."
+    },
+    {
+      "source": "kernel/tests/test_cli_contract.py",
+      "reason": "Surface1.1 literal asserts pending additive template.ceilings proposal; no approval inferred."
+    },
+    {
+      "source": "kernel/tests/test_budget.py",
+      "reason": "Generic concept/group/guard counts remain unchanged; surface1.1 is a pending proposal."
+    }
+  ],
+  "added_details": [
+    {
+      "path": "kernel/tests/test_prefix_floors.py",
+      "candidate_sha256": "fa84ece7e88c1de54b6a734229d47e162cacb8e15134d54e5b5fd015d1b62135",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/README.md",
+      "candidate_sha256": "d62f4754565f061dae6d0483ad20cda18cdba8eab4d998b67ad72bec2d988d8f",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/integration.py",
+      "candidate_sha256": "7605c79d340971a0ef0df763bcf1ad0829deeb1b55f06bb5386476972d31cdf9",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/run.py",
+      "candidate_sha256": "edf93f50afa7a20f815da20074f08873411ad0cfbb90987a4b9263bbe24f5fa4",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/slow_integration.py",
+      "candidate_sha256": "3fe23564793486b7d41fe39d5df4e20a78c2da17b4f99f02a8a903816bfda7aa",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/suite.py",
+      "candidate_sha256": "a24bc94646c1befa7dd5b4b1f1969ca835758d9fe751d6507ffab876b62ed072",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/test-disposition.json",
+      "candidate_sha256": "c1113e36b33648900c9b06d14a387cd5eeccc64d92da7ae01ebad59d0a728834",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/test_document_checks.py",
+      "candidate_sha256": "d5cb0d7dc61395a6af546fa6541dce14801ffef93e1663d3403c9282c782b742",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/test_goals_decide_native.py",
+      "candidate_sha256": "c3483bd4ecb117a033ae53f7bb5f19cdec76a57c2da6d61e1da497e073021f0a",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/test_harness.py",
+      "candidate_sha256": "62372a9b2ec0801a92aaf5dc72a92f0ee11956a39842d1ce84d315186d3d145f",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/test_helpers_native.py",
+      "candidate_sha256": "10180e87df6be531124db9dd9895ce14dc2e7d7ebdfc8c30c298cb385a20c922",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/test_method_as_data.py",
+      "candidate_sha256": "4e78785d6502d8dd2ab24be73aa1a7b776db56a5aec75b5ae1d11511ce2ed7a4",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/test_retirement_boundaries.py",
+      "candidate_sha256": "f4327d54a26fa721223f71ad5cf24242f0d423fc7a1594e9f8c7dae44261d253",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
+    },
+    {
+      "path": "tests/test_retirement_manifest.py",
+      "candidate_sha256": "79a121e392179ff475672ae62b2dde14c2d1059e014609b3c2b2f64b17ddc7d5",
+      "acceptance": "PROPOSAL",
+      "scope": "Current native/helper behavioral assertions; no claim that retired legacy-reader assertions pass."
     }
   ]
 }

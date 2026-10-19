@@ -6,378 +6,630 @@
       "source_sha256": "ae4c786c70f364faea90fc9bb9f59b4819172f8ae3f21a2f6cd5e62c559d2183",
       "destination": ".github/workflows/ci.yml",
       "candidate_sha256": "b86517cd39d8646d1175ade792fac9fdd18b8e23f7b133f69b5172efb2d57f7f",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": ".github/workflows/merge-check.yml",
       "source_sha256": "fc3b1c1fbf3282956b548ebcdab2754b5e94d615d0c1636d417be5694ea58311",
       "destination": ".github/workflows/merge-check.yml",
       "candidate_sha256": "79a652af64b35c4f5855d3928572d9a2f1e4dc9cde9d87eb77f38c7bdc98624d",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": ".github/workflows/release.yml",
       "source_sha256": "02ea2e07abeff08264d91aa50d37654854e640285cd2986a41b229278a5af5c5",
       "destination": ".github/workflows/release.yml",
       "candidate_sha256": "826371cb5f5f4e31cba0697de54bb2890ed23961de2b626174e3d9adcbfe596e",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "modes/inquiry.md",
       "source_sha256": "772f1785d2792858d4637046639f2687e0bc4b20a18c35c3a93184bf1a74299c",
       "destination": "modes/inquiry.md",
       "candidate_sha256": "6590255da2ba47dcad58d08d041feddac0ac55ef43b3a3e2c353c1ff63f1b508",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "modes/pipeline.md",
       "source_sha256": "7d79988fd3c7645151a784239a089dd68ab4a7a0e46a1bea32af429a0df8326a",
       "destination": "modes/pipeline.md",
       "candidate_sha256": "15f1ee55c1d7fcc4dc245e76db8782afa92a80af50efb4222de4b19c83da5e8c",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "modes/project.md",
       "source_sha256": "8f74f12bec6aa7b9b2b911b9fa0d08801e20b5109ad45e66ba232bccb90b0813",
       "destination": "modes/project.md",
       "candidate_sha256": "e90f4649dee148187122830147a07c6f0e720a592923b6fd950b359466ac953f",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "modes/queue.md",
       "source_sha256": "af537373bf6c93874ded8955ab2c8c7f7f60ee8c101532d35215dca032ec183e",
       "destination": "modes/queue.md",
       "candidate_sha256": "2b97c9a43369adfe0bb91979a1f381b8f4df87503762744118964a820fc0a2f6",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "packs/software-ops/architecture-analysis.md",
       "source_sha256": "2cfc6fb2d5058c43ec7eee9078af7975113e96b1ad8634f6fe485ebebb46b558",
       "destination": "packs/software-ops/architecture-analysis.md",
       "candidate_sha256": "955f11060c55e168f452f5dcf3c4d769a0996d360dc4cac52e3b9ca784bebad7",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "packs/software-ops/incidents.md",
       "source_sha256": "aee077e12b21ddc5d5ef0c095abd4edfeee66aa5d6d1b19bb5abf4ccc5972959",
       "destination": "packs/software-ops/incidents.md",
       "candidate_sha256": "09ac68d1ab0fe8a76f8034de3a98aa86b1efd91d7bb83168941dacfd66888348",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/adoption.md",
       "source_sha256": "35c41c81cb3ad09b4891dd667904a87601774419e35cad5332369ea3289267bf",
       "destination": "reference/adoption.md",
       "candidate_sha256": "6a52b68328bfdacdc5f89930e8979b6ccf912a2259defe8a7b635efb28ab098c",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/config.md",
       "source_sha256": "7257ebe56f3a9b03269bb9ad04489bd4fb391a7e7229370bd5b66b112c287d8a",
       "destination": "reference/config.md",
-      "candidate_sha256": "d4d18cd9a23c7a32dc532127794ac3b74ab40ca712d2bf88d91c20ac1ecf6491",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "candidate_sha256": "639c3b2a0dffc359973dc385f74199d3c58e5b59715a4b4d64b323a526c597e2",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/diagnose-explanations.md",
       "source_sha256": "a77d4291ee9cead7236297b3a7b5a6d80d20f3eb24717df7cad845e5cb581e73",
       "destination": "reference/diagnose-explanations.md",
       "candidate_sha256": "f63dc9db623a2dbfa7eee1148c795b1221c2164865cf2fcae63a02b3ea92a163",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/diagnose.md",
       "source_sha256": "f08b3ed35d4803b3bfec19db88cb155d79931bc027fa47fa9c6470d223c466e9",
       "destination": "reference/diagnose.md",
       "candidate_sha256": "3f3529b35cbfaf4a76f5ef19d4a1fa698bc79f525edaf3f2c2523c2b2c08bd76",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/first-run.md",
       "source_sha256": "b84d026d8854b097d668e005f19dbad309ac037deec60346882728ba0c78b0a3",
       "destination": "reference/first-run.md",
-      "candidate_sha256": "2380889a6e88806baf50de80d23d97b517f21571ae2c0676c1c9ff3326df6b73",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "candidate_sha256": "ce56e643da50140e98e1601c96cd5c02ab8f389289aef9135a8ac3d0413504f5",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/glossary.md",
       "source_sha256": "6ca9d528799797314307cfd7bc15e27cd4fba9d728003a3a0d4850f2691b5670",
       "destination": "reference/glossary.md",
-      "candidate_sha256": "1e04f3b8bd8dd41a2f12d620dda446a857bade3637e14810f0acb3e90d9f1ab3",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "candidate_sha256": "863f737bc4c47a0cd1c9367ffa730880a117c8afd4b84ead9e1f9d6313a60688",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/hand-off-contract.md",
       "source_sha256": "81bfea8a6e4a12e1d86753c2bf7c53e91c8ef4e206fa6a13f4b2d8f680c986b6",
       "destination": "reference/hand-off-contract.md",
-      "candidate_sha256": "8a81f53b77c832eba18af0709bda288099e923c9c7b694b4a6f3acfef0a70a93",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "candidate_sha256": "bf61e47e16520623c8b53ca00916fcacfad391efb2b433a9b83f34467797779b",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/host-capabilities.md",
       "source_sha256": "b11cd2c472f9e981c571bae7c98d33d0d1186a8efa4bf154dde71047aa41a232",
       "destination": "reference/host-capabilities.md",
       "candidate_sha256": "a3e3e00f82101c40014c81418949162fea34bb6089b512c6b059cbd2a0a6943c",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/i18n.md",
       "source_sha256": "6671ae82a70b6433ef241ab6fc16384a5277332612e76fbb43055f2486a8af49",
       "destination": "reference/i18n.md",
       "candidate_sha256": "9ec3795a5bc64a25acedfea39f73c4d564cbf1f8fba138b0afb66bde0c2d5ba5",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/input-quality.md",
       "source_sha256": "dac37ce6d0b2330f96052a2004338abe8fe6d4490f6c8b73d32e5e17f57fff2e",
       "destination": "reference/input-quality.md",
       "candidate_sha256": "182309b98d7e15e9d072b41995a2d49f8884c9b9f7e07c4bbb1873476a520d80",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/linkage-store.md",
       "source_sha256": "26adaabc7dc1151e4a292c6be6baefc8b4939b6aa7ead201deb2d7c5daeb9ac2",
       "destination": "reference/linkage-store.md",
       "candidate_sha256": "c5d04618903e7e023c2e3fb8a36da175263b66f4566d18d031f02480e4b1579a",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/next-rules.json",
       "source_sha256": "69143d43c97fd643fff9cdda47ea707a9fb17885a81145366178d3aabce8dc26",
       "destination": null,
       "candidate_sha256": null,
-      "disposition": "proposed-drop",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Deterministic method-specific next evaluator retired under DESIGN-023 decision 5; skill chooses recommendations from cited native facts"
+      "disposition": "proposed_drop",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/okr-linkage.md",
       "source_sha256": "edd011933b73847e9afe2a120d97cf6eafca6a8a8b324f1239be04fd0f33aec6",
       "destination": "reference/okr-linkage.md",
-      "candidate_sha256": "6f6849930aedb03e766861b818bf4044fbf889698f6e26b8f12c47c3f7c5a636",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "candidate_sha256": "9f4b192813a2d863e4a2ded01cf867f08c0bf51ae49b98fa3367ed8e2eebfc5f",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/operating-rules.md",
       "source_sha256": null,
       "destination": "reference/operating-rules.md",
-      "candidate_sha256": "c14d5dc236ec809d6bff96a78d6296ec7a701a0351407e5cd26f8af45945d008",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "candidate_sha256": "7b5c0c9b90cd5201d28296562310af167b76e2d31cad1ae1ea5cef554ceb792a",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/project-archetypes.md",
       "source_sha256": "9ecf235d2e9fb74a452010b8819dd26f2ea2d9943042b4acd30f1f76d5c8cc6c",
       "destination": "reference/project-archetypes.md",
       "candidate_sha256": "0f776f5fcc2f645eacedb3674735358c45bd577a7f9caa3d110a0de9b9b3aa80",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/router-subcommands.md",
       "source_sha256": "9e99cfa1f8b77b3cd6b40239efa879a77cba5cee7a709a86077246cc4ca4797f",
       "destination": "reference/router-subcommands.md",
       "candidate_sha256": "5f989ea52d7e6ab374120551f2cf69c3ab18601152eeccc2bb4cda2a73d9a67c",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/style.md",
       "source_sha256": "0d8291ba91cf68658fe25fb4bab62cf475f1f49e4bf94a0d72ab4e77beb0d89a",
       "destination": "reference/style.md",
       "candidate_sha256": "b6372645b2220e904904be872fa1e884cd6266022b0c9f8fe5727b1e2bd2f39c",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/user-load.md",
       "source_sha256": "7b98b2fb74bb649702579dc93aa73f95338fcbe5f94165d722a4944b2063f328",
       "destination": "reference/user-load.md",
       "candidate_sha256": "b76d0f1e6f33d4b75463dab3bad0e21067bac521e1953bc6f93b74e75d13aff8",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "reference/version-compatibility.md",
       "source_sha256": "93d5fd19ea753599620f8e819715edee8429f8378b0ca3990ea6de6a71ac1ca2",
       "destination": "reference/version-compatibility.md",
       "candidate_sha256": "b20c152011e0b982078a2936341f8ba1929b70e7b6b9fe6bf533ddaad562e650",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "setup",
       "source_sha256": "bfae1ef6f08035701d2729db19cea9f6808f79200a5d038073a4a966edaa9610",
       "destination": "setup",
       "candidate_sha256": "43a2b1765ba06253c6b27bd545615125bc71b87344bddf7af8c0061da8f17c03",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/add-task.md",
       "source_sha256": "3d6395c91dd9196f0875d988910d9737bd7c45c816bf8be60d19b218dd881eb0",
       "destination": "work/reference/add-task.md",
       "candidate_sha256": "bcc31ee980a37b328911a11de5411fbcb4410ac4f474233cbe7b1dfd4e9ff043",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/bootstrap.md",
       "source_sha256": "851573cad130daa224e7bd8813a4a9ebd22d01ecd4391396f3358ec6eb20d506",
       "destination": "work/reference/bootstrap.md",
       "candidate_sha256": "52be1fbfcb261a9bb00f469dd15da3d60d240af4f339fcc413e36d781ee781a2",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/budget-boundary.md",
       "source_sha256": "2968ca8cfb01a74dfe044a698e691ff4628a0c16585b4c21486b5953bcb59746",
       "destination": "work/reference/budget-boundary.md",
       "candidate_sha256": "6a1722a7e7bc8583cde67deaa6132962c1c7f889ccc33798cffac314319cf3e7",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/conversational.md",
       "source_sha256": "c2bf563ffcf54cb43e733cfa581c9ad56a8b26d8b1fed040d302e7184a200357",
       "destination": "work/reference/conversational.md",
       "candidate_sha256": "6f694d67991a100393a16662cfe0ed1c4925baee6a369984da4337c9b90048fd",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/digests.md",
       "source_sha256": "3b6e5717bb80b268d19ba16fdc130e678c1869eeeb1e7f3b57a8a9139509ed0f",
       "destination": "work/reference/digests.md",
       "candidate_sha256": "e6263fa83c71c2eca42a2dba843c4b79c97f0fb22f2560b0afc0c79a06b97aeb",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/dispatch.md",
       "source_sha256": "dd331e59dc92ecdcdfa7c1c1b76d0410d215b0435eb02845b9a002ab865de876",
       "destination": "work/reference/dispatch.md",
       "candidate_sha256": "688f04ba10d5040a4846f605208a9ff8aa09c4b8271270e5cb1189938d5acc89",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/extending.md",
       "source_sha256": "b8ada5b5e06907bb0921d8adc1d2513c8dbfb4e333960fa95c41bd14dbb47a3f",
       "destination": "work/reference/extending.md",
       "candidate_sha256": "95ae33ee0f01f949dc0ac7b2a448586575e14a082da698f8ebda5d074fbae662",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/kernel.md",
       "source_sha256": "fc7def6400108cf49b7f2fcca22310f4490fc39ab7d1101ae0c89bfe20d1e2e5",
       "destination": "work/reference/kernel.md",
       "candidate_sha256": "ae1641e76071d372baa7b32d98b2575ffae5e6a6d7d8ab3a49967b101fb13e04",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/promotion.md",
       "source_sha256": "6f5e217bd896df7f6ebbd61f741dd4791fc20505df0b90c2ff4d8fa33578b9b6",
       "destination": "work/reference/promotion.md",
       "candidate_sha256": "208834cf3b256ee1e637ca0c4e47f1d0dee4fdc60b0e40f68b9832b509e87388",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/review-constraints.md",
       "source_sha256": "a5cf55e42bf83eaa356504789e38b2ccd3f89fa14b63330bfa9a513a55b1bae3",
       "destination": "work/reference/review-constraints.md",
       "candidate_sha256": "a27439e38dc8fd88662fc9f4ffb9e4419228a39d8d8e23ea1aad1ac32c23dc06",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/review.md",
       "source_sha256": "98fdeced8749a7656e53c940cca3c0151c3f328a84d8c4c37f3b41e2f46b4fd5",
       "destination": "work/reference/review.md",
       "candidate_sha256": "97d01826efd952816a9fa8c7d539c309ad584a185421847612f9d6113989c8f1",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/subcommands.md",
       "source_sha256": "a32abd4cf4e9eb69c9aac12e5776c3d832f141bd7fef068b88fce6118475e722",
       "destination": "work/reference/subcommands.md",
       "candidate_sha256": "0d9e7b453251fe3d06ea2182f3900be7a4ffbd4e975d6d435b2c08561c72d884",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     },
     {
       "source": "work/reference/task-close.md",
       "source_sha256": "7007a8c23a821d7a7395db8602dd1b1941e045fba7f53e7e6bd06e1cdce99ea0",
       "destination": "work/reference/task-close.md",
       "candidate_sha256": "54259cd8c030bb61408200ebfef0c9ffaf4608ee013b4da158510d44f67d8303",
-      "disposition": "skill-procedure-or-consumer-migration",
-      "status": "PROPOSAL; source implementation only; pending independent combined review and actual H/V5 acceptance",
-      "rationale": "Explicit native/skill procedure and retained tools path"
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "SKILL.md",
+      "source_sha256": "4a43e1f486661279b3fd5425f5396cfd7291365d465248d50eed4bee5435af43",
+      "destination": "SKILL.md",
+      "candidate_sha256": "659671db27f34813927ebe9cfc1b76693d4a087b6be0034705214b348309cc36",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "decide/SKILL.md",
+      "source_sha256": "41ea91ceeb4d527103a7f13d7d9f63c2ac40f0d0b18d7864a48e7debcdab762f",
+      "destination": "decide/SKILL.md",
+      "candidate_sha256": "89392577d639abd9b84e42ffc21baeb9f4544b24163b564878c66c53a5cae28d",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "decide/reference/decisions.md",
+      "source_sha256": "2004830361f19f4ec15ec25cacb67f378c9c0bd7c7487dc733e2d29801e714f7",
+      "destination": "decide/reference/decisions.md",
+      "candidate_sha256": "9f24b6d2b0c5e6811f9a08e80d171144b23c260b3bcc99b79398ff69b7a80725",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "decide/state/ADR_TEMPLATE.md",
+      "source_sha256": "683e55d420a45dbea10949e1f1990857dbedb55c7b7401b70fbbb9e6c584ac35",
+      "destination": "decide/state/ADR_TEMPLATE.md",
+      "candidate_sha256": "308221bb927c2569f40588072b7d9a695f9b77d3dd2c08e407d73bf107ff52ae",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "decide/state/design_TEMPLATE.md",
+      "source_sha256": "7e1980db0194fbe931845bb97e9fcd6f3fd112ae81c1ae9890844d33e43ac50a",
+      "destination": "decide/state/design_TEMPLATE.md",
+      "candidate_sha256": "ca3f7674d437a4bfb9a8ac7fbf9f27eb78337c82e68327b34c10889ca088df5e",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/SKILL.md",
+      "source_sha256": "403414fbcbb43db8cb3bebb4d2954854c911eb9dc4afcd4f738185a5cf760574",
+      "destination": "goals/SKILL.md",
+      "candidate_sha256": "8d0d84698dd1892724c5fc8efa707c6fc3bfe32c9bc366be43933670a01b54ae",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/reference/elicitation.md",
+      "source_sha256": "33f7b94d47edbac758c31377f2c5ded87a002637e56d6db74d34e660f38d3edd",
+      "destination": "goals/reference/elicitation.md",
+      "candidate_sha256": "c6203aff919deb2e327a0152255434b979666d59f5993004e3665a8b95b06d0a",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/reference/linkage.md",
+      "source_sha256": "81c5a8c93bc8908efed0c6dc2a77ba38829891dd4118a6212c818b0060880d76",
+      "destination": "goals/reference/linkage.md",
+      "candidate_sha256": "d7d1a3f8af501a32998f4e05fc5aba6955504de1a2a1022c30cdb432a42a0847",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/reference/phases.md",
+      "source_sha256": "03a0b507ea0ce1851b5aa88c56eec4e99275f50607d91477c14c557ff5f6d285",
+      "destination": "goals/reference/phases.md",
+      "candidate_sha256": "a5f42e9cfa5b144fc8ac371074a16635da1129863aeee5853e5935b72303ecd3",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/reference/pivots.md",
+      "source_sha256": "a46e6c421ac2979b3de56116447c6400b716783172da6688078f6b3fd9480d3a",
+      "destination": "goals/reference/pivots.md",
+      "candidate_sha256": "2347b4b74692a2f7fd02973a628e5ad12a359894e162f6e42df9a3729b7f799d",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/reference/planning.md",
+      "source_sha256": "a739df43f36503178cd4922d47d4162dfc6d337d7b592da480c0f32419df5fdf",
+      "destination": "goals/reference/planning.md",
+      "candidate_sha256": "2d34d7b559625a98fbe9db49ebfdc8ba0065650dba9256f99f09aef41b885a73",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/reference/setup.md",
+      "source_sha256": "fb104df73a86ae0b23037c5aa83589b4b3fc9df9a5ecae4ba6daa312af3a259c",
+      "destination": "goals/reference/setup.md",
+      "candidate_sha256": "024248e4736aa1946636ab5f4d0c0a36680226ddc5acb136d6ec08494d7ea4f6",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/reference/weekly.md",
+      "source_sha256": "30807b13c87939e6a06ead11c1f7231d8541bca0f53e234bcec044d0b53f8c23",
+      "destination": "goals/reference/weekly.md",
+      "candidate_sha256": "b695ac9adb41c2349719c900283bbcaf1eb1d0cf7b608829ca2ccead1fbf875c",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/state/OKR_TEMPLATE.md",
+      "source_sha256": "101dc72782a1b62707ec3964a13186bf2260ca4f0a7c6cddae39ced2fc664ac2",
+      "destination": "goals/state/OKR_TEMPLATE.md",
+      "candidate_sha256": "c5992b973444bdccad81a5892e9ae5af2ea6588550f93fb7d76e5f3d4bb8e435",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "goals/state/phase_TEMPLATE.md",
+      "source_sha256": "74c953bfcc12d0e9e6b62ba207bc8cd3ddac6ce30bc782d99e95444cbf35832a",
+      "destination": "goals/state/phase_TEMPLATE.md",
+      "candidate_sha256": "485b565cb832193af3bbc846034168afcea958e4d4b96d74629a93cc4c3cd6ab",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "reference/next.md",
+      "source_sha256": "080a3cbfbe5ec9e38e8568c9b76f23cfbf77c8af362ade6c31279e6f8d33e763",
+      "destination": "reference/next.md",
+      "candidate_sha256": "6c968950b0bba69cf9f802b5373cde3a3f7a891d77da06bd0fd4cdfffa870315",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "reference/recovery.md",
+      "source_sha256": null,
+      "destination": "reference/recovery.md",
+      "candidate_sha256": "a8ba69c80aaa4ad4133a2d8cd7f7aa5887981a900399415523414fe2a1efc0bf",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "reference/retirement-checks.md",
+      "source_sha256": null,
+      "destination": "reference/retirement-checks.md",
+      "candidate_sha256": "24afca0a3c191eb469cb8bb64df93030206487b6dbcb85ad31b52cc67cf0c227",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "reference/safety-policy.md",
+      "source_sha256": null,
+      "destination": "reference/safety-policy.md",
+      "candidate_sha256": "56906f8a5997283fd35b859858b936c3861a249b49a55583091ace7e6fe645c6",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "reference/snapshot.md",
+      "source_sha256": "44a5ce758dabf37229bb8ce9a1deadf144c11a6fc82b8924281947c279537e68",
+      "destination": "reference/snapshot.md",
+      "candidate_sha256": "6b0e7a6a6c11f471707ef6bf1e78c2398455707d9d3dcb741a2e20bdf2230748",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "reference/startup.md",
+      "source_sha256": "9d60dceb37b0daa49fb04e7b7c6e18a2c280385519b6b14bdeba24d8a89d1ae4",
+      "destination": "reference/startup.md",
+      "candidate_sha256": "e011417eb27fe24d41662fa9dffe644064268131bd4f5f077cd687b90e1d6fef",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "state/adoption_dossier_TEMPLATE.md",
+      "source_sha256": "5849a1043861b8c6f1020a5c0a5bdba8258ec4b7c298b810d26e4705ab46daec",
+      "destination": "state/adoption_dossier_TEMPLATE.md",
+      "candidate_sha256": "a000b1abd3eb21ec0d5f441814a261943667bf7cefec67322a70071391027425",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "state/diagnosis_TEMPLATE.md",
+      "source_sha256": "a1d7d47b0cd9897157201b9cf5b97ee705b9d834cad99cfc05c01f634be2c5e6",
+      "destination": "state/diagnosis_TEMPLATE.md",
+      "candidate_sha256": "bf294aabf5a399610c3c8128e92dc23d8577242be85f12f944128af616d2c46f",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "tools/helper-contracts.md",
+      "source_sha256": null,
+      "destination": "tools/helper-contracts.md",
+      "candidate_sha256": "68eb93f72c7020b7833dfeffaf81f831e23759506b389483dc34fbbd62c44e6b",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "tools/reviewed-plan-migration.md",
+      "source_sha256": null,
+      "destination": "tools/reviewed-plan-migration.md",
+      "candidate_sha256": "3d2c1398a0929deda7646e23ae13aa915afc10f036f608b68fb1b0aec91a65ab",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "work/SKILL.md",
+      "source_sha256": "d3f888caf8d298327cc5c584a67100f3f39942653c446e39a4cfcc3c2a73042a",
+      "destination": "work/SKILL.md",
+      "candidate_sha256": "30e2414a6d3db6812d4d65929b4db74750b3517f6159fecb427d834db879b7cc",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "work/reference/autopilot.md",
+      "source_sha256": "05b93af3becf78948e146af692ea7de510d31bfed20ab0338a899c300d8d5f1d",
+      "destination": "work/reference/autopilot.md",
+      "candidate_sha256": "24007196b6c5a3f076a8d7053ae1a8036d929644e03e7b39d9b9dcec2a7ba8c3",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
+    },
+    {
+      "source": "work/reference/dispatch-preflight.md",
+      "source_sha256": "e2e0a3c0f760478bfe205c2c454b112ceaca1fd9fdefe7837650bfc723345cb4",
+      "destination": "work/reference/dispatch-preflight.md",
+      "candidate_sha256": "1cc74c6f517b154f75729de177eb3b92a8472d279fa7fbbb82a942a2ed0524af",
+      "disposition": "combined-native-skill-procedure",
+      "status": "PROPOSAL; current source accounting only; independent combined review and actual user acceptance pending",
+      "rationale": "Native fields/queries carry current state; narratives and explicit skill procedures retain method and safety responsibilities."
     }
   ],
   "choices_pending": [

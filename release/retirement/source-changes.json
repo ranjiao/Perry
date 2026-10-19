@@ -2,7 +2,7 @@
   "version": 1,
   "base": "b9be4d39f52ce1266534215b999c9db408b03bc5",
   "acceptance": "PROPOSAL",
-  "limits": "Actual H source-file changes; added retirement ledgers excluded to avoid self-hash cycles. Exact final branch/commits are returned in RESULT.",
+  "limits": "Combined F/G/H source-output hashes. Original immutable 610-row inventory remains unchanged. Retirement ledgers and tests/test-disposition.json excluded to avoid self-hash cycles. PROPOSAL; no semantic, consumer, kernel approval or V5 acceptance.",
   "files": [
     {
       "path": ".github/workflows/ci.yml",
@@ -31,7 +31,7 @@
     {
       "path": "AGENTS.md",
       "source_sha256": "ba54d9e997d1336c1c0bf3bc26213b54f12319bdf4a724c6c87e86d9de230c3d",
-      "candidate_sha256": "a6becb27f964c747cbf7fdd9dcb7d8a41d553dffc6d9ecb4b7bbb02cf535fc13",
+      "candidate_sha256": "7c2a67acf70f27ee930c5aea0a93cf30a771b25d275b9aa7de7c6dce9c20c2ee",
       "status": "modified"
     },
     {
@@ -59,22 +59,28 @@
       "status": "modified"
     },
     {
+      "path": "SKILL.md",
+      "source_sha256": "4a43e1f486661279b3fd5425f5396cfd7291365d465248d50eed4bee5435af43",
+      "candidate_sha256": "659671db27f34813927ebe9cfc1b76693d4a087b6be0034705214b348309cc36",
+      "status": "modified"
+    },
+    {
       "path": "bin/ARCHITECTURE.md",
       "source_sha256": "a10fe5b36fa27d16e3498f7722be78dbc539c8a677d7e5578892c27570d19c00",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/README.md",
       "source_sha256": "3a6d5b921f097ce75b6d8a9528a90a309d3d48d8e6dff532ace7c8bb9e2418c8",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/lib/__init__.py",
       "source_sha256": "63d3ecde743691dd2724a939377e551f72dfe9787e561b25bfc8cacd51716884",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry",
@@ -83,255 +89,219 @@
       "status": "modified"
     },
     {
-      "path": "bin/perry-architecture",
-      "source_sha256": "4966532c5bcacfc5366b38882c88c5c10bca94b25222b21b92fe1f7ea5507be4",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry-churn",
-      "source_sha256": "90d20e600683e4bfac37755624decd58720efa91909e9581cfe1abd398823b1f",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry-codex-preflight",
-      "source_sha256": "1a0cdc6f5427e81100c0b4c52d61dc37c5f3a72ce4c50ab35209019dd3b3f061",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
       "path": "bin/perry-config",
       "source_sha256": "be378f612ec2592ded5fa73ed86a238f7e20105336571992478f1ef895a0f7eb",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry-context-budget",
-      "source_sha256": "1b58af7ae7fc5fc7c8018df10405c4155d3b28b2328366c7af6f1b5e665e140f",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-decide",
       "source_sha256": "f2de1eb70806f655fd93e82b5663357b373eece5ac07e70880d9e6e0911e43e6",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry-detect-host",
-      "source_sha256": "616a5f05fa58442587aca6c04b1be10decd2bddab515c8264cd3490a8e9b5bda",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-diagnose",
       "source_sha256": "f1ee47ddfdbd2533b414ad8e2cd37e2428e114300aae1e42810ab1ea6c890cb6",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry-dispatch-limit",
-      "source_sha256": "ecf2505444a5077cc11929ff2d97a342df93369f6f8085875b40604dccf66374",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-explain",
       "source_sha256": "034e8ca196cb00ddb312313c62b68e569f4996b980833a3c873f468f160e6a68",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-goals",
       "source_sha256": "47e66c2b3bd619b275bf92752ad4d264fbb0780147bebd17c26d313ab68688fd",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-kernel",
       "source_sha256": "99b3f46e740a08912715e3b578da0dc8389dce837c4aae408aa3eb56be4abf89",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-kernel-migrate",
       "source_sha256": "beb42ee2e777bfe0790f82b86cbe97917ce864564cb9094b3e8f42d6276ff58f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-knowledge",
       "source_sha256": "431c46c6dd76369f18da277ea65329572a1c444d62a9821e59857a3eefc76229",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-lint",
       "source_sha256": "a515a1d0f38bbeb4f377d5a4d97c8f9bce31e952df5c71f402739ace5f7b0246",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-okr",
       "source_sha256": "aed95860f50b92faeafcf9a0d180b9e9f134c28d05e8f291307e28732e9d3eae",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry-restore-check",
-      "source_sha256": "273717ab494a29f69255be4b2dd09addd3c4231c0dd418105273bebfc212983f",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-state",
       "source_sha256": "31ce52f2d8955176ad28282346ab6179372322571e98d5ac682a282b68ecdfdb",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry-state-cost",
-      "source_sha256": "31581c1357b62a411bcb8a7a7117683e66b080685acac0d70e18a61124539478",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-task",
       "source_sha256": "400f861b5097df61fb832f129230f8bb4c3f1786fbef1ffbf1da97243e13e16f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry-tasks",
       "source_sha256": "3deab49cae6547a5b3fd6bde6ecd533a55df0e6f708cb2d0793ab11e172f16f2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry-update-check",
-      "source_sha256": "4fb191367604867a1c72fe4da7e753853f4c0a2193ac650ebaab00a728eddd57",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry_architecture/PLAN.md",
       "source_sha256": "ca81a07edfd0ca54c68197492221ef9a2d8687dc8232020a237a88b8d83bb637",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/README.md",
-      "source_sha256": "da10b8e7088473eb5ec657df8ac33dd2aaf288d5a9d49c1004bdebd46f2129a8",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/REVIEW-CRITERIA.md",
-      "source_sha256": "be05207c2c3c6d5ff1d5fa8ef48fbc85be74aaf0070f635a7a287b01f56712b7",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry_architecture/VALIDATION.md",
       "source_sha256": "c34fbb47c2be8f17db3e20bf0d33a72fe491e43681a3ff739ff3c7b3ec484e3a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/__init__.py",
-      "source_sha256": "2d9ffc59a342f8aab4b710e6255594beaed6dc4d155b156e9cd5c191a19de276",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/analysis.py",
-      "source_sha256": "dae1ff76135f2124f5e983ee2b0b2c751e67881f8fb75d14d9d7e40122704a47",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/audit.py",
-      "source_sha256": "f9b4fb79c63d7ac1ac882ec8900d30d404738abfaa4b06d78a55345d932e0714",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/checkpoint.py",
-      "source_sha256": "78babc7f366184ee8a4387bd3e291f0fddb62fdd7356753108e7eb992ea6de4d",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/facts.py",
-      "source_sha256": "8b95b186a2e60e737154142fdbd2fc45b7d27350311256d75e9e503dbe5aa4cc",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/model.py",
-      "source_sha256": "f8c25fc52e49b825b8f8c107a2f0fddaddf2ee2909d0835c75c5d91d48f59b6f",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry_architecture/perry-model.json",
       "source_sha256": "9ba98770eb867ad49dbd9cbc23f30e6dfbcf9c6ce23024b0f0ba64cc0e52c22e",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/report.css",
-      "source_sha256": "835146ce59e5ea86ac0568adfc548ff23fafc1b90c76b0a1fc15268196d981ee",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/report.html",
-      "source_sha256": "4d299c495f8aca4154b84777a77cd87767693c6e7bf3b02edfb6ba618a229b93",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/report.js",
-      "source_sha256": "708936ba943cb09a2cf4a20aaa49455fb6f23c57ba47cce05d9ef9b0781e81ef",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/report.py",
-      "source_sha256": "7bddb0847b98fdec58badebf74b80a30d36dfeca937bf4c9edd3438b4d464173",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "bin/perry_architecture/scan.py",
-      "source_sha256": "52f6c3e0712b2ca08bf0b55b723b67276087d5f9d80a741e9faa215962718646",
-      "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry_md_store.py",
       "source_sha256": "c5e21371903fb9b08f89ffea2e23f9dbdf18951f02c9b20df9f2cfd0cccbaaa4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "bin/perry_store.py",
       "source_sha256": "bb0b433ed6961ff7135add58314572f73174c10caf4f29c083c34c2989f7c9d8",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
+    },
+    {
+      "path": "decide/SKILL.md",
+      "source_sha256": "41ea91ceeb4d527103a7f13d7d9f63c2ac40f0d0b18d7864a48e7debcdab762f",
+      "candidate_sha256": "89392577d639abd9b84e42ffc21baeb9f4544b24163b564878c66c53a5cae28d",
+      "status": "modified"
+    },
+    {
+      "path": "decide/reference/decisions.md",
+      "source_sha256": "2004830361f19f4ec15ec25cacb67f378c9c0bd7c7487dc733e2d29801e714f7",
+      "candidate_sha256": "9f24b6d2b0c5e6811f9a08e80d171144b23c260b3bcc99b79398ff69b7a80725",
+      "status": "modified"
+    },
+    {
+      "path": "decide/state/ADR_TEMPLATE.md",
+      "source_sha256": "683e55d420a45dbea10949e1f1990857dbedb55c7b7401b70fbbb9e6c584ac35",
+      "candidate_sha256": "308221bb927c2569f40588072b7d9a695f9b77d3dd2c08e407d73bf107ff52ae",
+      "status": "modified"
+    },
+    {
+      "path": "decide/state/design_TEMPLATE.md",
+      "source_sha256": "7e1980db0194fbe931845bb97e9fcd6f3fd112ae81c1ae9890844d33e43ac50a",
+      "candidate_sha256": "ca3f7674d437a4bfb9a8ac7fbf9f27eb78337c82e68327b34c10889ca088df5e",
+      "status": "modified"
+    },
+    {
+      "path": "goals/SKILL.md",
+      "source_sha256": "403414fbcbb43db8cb3bebb4d2954854c911eb9dc4afcd4f738185a5cf760574",
+      "candidate_sha256": "8d0d84698dd1892724c5fc8efa707c6fc3bfe32c9bc366be43933670a01b54ae",
+      "status": "modified"
+    },
+    {
+      "path": "goals/reference/elicitation.md",
+      "source_sha256": "33f7b94d47edbac758c31377f2c5ded87a002637e56d6db74d34e660f38d3edd",
+      "candidate_sha256": "c6203aff919deb2e327a0152255434b979666d59f5993004e3665a8b95b06d0a",
+      "status": "modified"
+    },
+    {
+      "path": "goals/reference/linkage.md",
+      "source_sha256": "81c5a8c93bc8908efed0c6dc2a77ba38829891dd4118a6212c818b0060880d76",
+      "candidate_sha256": "d7d1a3f8af501a32998f4e05fc5aba6955504de1a2a1022c30cdb432a42a0847",
+      "status": "modified"
+    },
+    {
+      "path": "goals/reference/phases.md",
+      "source_sha256": "03a0b507ea0ce1851b5aa88c56eec4e99275f50607d91477c14c557ff5f6d285",
+      "candidate_sha256": "a5f42e9cfa5b144fc8ac371074a16635da1129863aeee5853e5935b72303ecd3",
+      "status": "modified"
+    },
+    {
+      "path": "goals/reference/pivots.md",
+      "source_sha256": "a46e6c421ac2979b3de56116447c6400b716783172da6688078f6b3fd9480d3a",
+      "candidate_sha256": "2347b4b74692a2f7fd02973a628e5ad12a359894e162f6e42df9a3729b7f799d",
+      "status": "modified"
+    },
+    {
+      "path": "goals/reference/planning.md",
+      "source_sha256": "a739df43f36503178cd4922d47d4162dfc6d337d7b592da480c0f32419df5fdf",
+      "candidate_sha256": "2d34d7b559625a98fbe9db49ebfdc8ba0065650dba9256f99f09aef41b885a73",
+      "status": "modified"
+    },
+    {
+      "path": "goals/reference/setup.md",
+      "source_sha256": "fb104df73a86ae0b23037c5aa83589b4b3fc9df9a5ecae4ba6daa312af3a259c",
+      "candidate_sha256": "024248e4736aa1946636ab5f4d0c0a36680226ddc5acb136d6ec08494d7ea4f6",
+      "status": "modified"
+    },
+    {
+      "path": "goals/reference/weekly.md",
+      "source_sha256": "30807b13c87939e6a06ead11c1f7231d8541bca0f53e234bcec044d0b53f8c23",
+      "candidate_sha256": "b695ac9adb41c2349719c900283bbcaf1eb1d0cf7b608829ca2ccead1fbf875c",
+      "status": "modified"
+    },
+    {
+      "path": "goals/state/OKR_TEMPLATE.md",
+      "source_sha256": "101dc72782a1b62707ec3964a13186bf2260ca4f0a7c6cddae39ced2fc664ac2",
+      "candidate_sha256": "c5992b973444bdccad81a5892e9ae5af2ea6588550f93fb7d76e5f3d4bb8e435",
+      "status": "modified"
+    },
+    {
+      "path": "goals/state/phase_TEMPLATE.md",
+      "source_sha256": "74c953bfcc12d0e9e6b62ba207bc8cd3ddac6ce30bc782d99e95444cbf35832a",
+      "candidate_sha256": "485b565cb832193af3bbc846034168afcea958e4d4b96d74629a93cc4c3cd6ab",
+      "status": "modified"
     },
     {
       "path": "kernel/ARCHITECTURE.md",
       "source_sha256": "c333cff1b12b8dafd4c87c9b11b0882332479a50041625ab57375b423d8caa9d",
-      "candidate_sha256": "6cc3abbdc5eb2a6b885052d966a5f2c834973076a2792d9fae23786548baae61",
+      "candidate_sha256": "a77ec2f410a878f4e5b30f15b46901b9ec107f6f782882f85c51319181d2974e",
       "status": "modified"
     },
     {
-      "path": "kernel/architecture/sections/\u00a75-contracts.md",
-      "source_sha256": "9efa2498a4d11cc3760b0530b27527d3ea272965d72a6ab166f448057314ff92",
-      "candidate_sha256": "830be66f32291a6e39ce10f9957109b1b2b97c9ca226307c629ed86090503a8b",
+      "path": "\"kernel/architecture/sections/\\302\\2475-contracts.md\"",
+      "source_sha256": null,
+      "candidate_sha256": null,
+      "status": "deleted"
+    },
+    {
+      "path": "kernel/perry_kernel/commands.py",
+      "source_sha256": "170093b162a3c397af5d86f873a57de13c31b27fa99784adfc1055c29a3b1c88",
+      "candidate_sha256": "bd440612281f1ce163579ba7dd44c1bc83f3ca3c075ea29ea6d666c821586715",
+      "status": "modified"
+    },
+    {
+      "path": "kernel/perry_kernel/surface.py",
+      "source_sha256": "ec24110fbebd2684556387dda05a8ad67cd2f5d7c35c6f95d219038c5f843552",
+      "candidate_sha256": "d038e40fc13e488312d7f24c0d328c534d8769bf2214d6e8922115207e048b5e",
       "status": "modified"
     },
     {
@@ -347,9 +317,15 @@
       "status": "modified"
     },
     {
+      "path": "kernel/tests/test_budget.py",
+      "source_sha256": "1b3be6fc7da3805c075bf9b76763c8e75c9427afbcc646e1d0c053212e0de762",
+      "candidate_sha256": "eb3484d8b0b7cc13fcea6524cfc764c3519c3eed84ccfab0ac69c13c47e6b674",
+      "status": "modified"
+    },
+    {
       "path": "kernel/tests/test_cli_contract.py",
       "source_sha256": "ad0c6f500ed58c05aeda14566855dd053a4be12e9944d35b56d65fad76e2de5e",
-      "candidate_sha256": "334aef9fbdf2c9452790f9b9e6ed4772198c564e3b088bfcecb61ef28ddb6341",
+      "candidate_sha256": "119815d5c8ece0da72a97c4ae0cfa18c02266b33cf3e5d0308e3af33aa229972",
       "status": "modified"
     },
     {
@@ -357,6 +333,12 @@
       "source_sha256": "7947102bd4dc8c0a107cdc66eafebee39af67c623c3f568cbb602c48f7782d9a",
       "candidate_sha256": "9bde920cf0bd0f56c68318975909a3c46f001fd8933a64a2a9fa18f92d78b321",
       "status": "modified"
+    },
+    {
+      "path": "kernel/tests/test_prefix_floors.py",
+      "source_sha256": null,
+      "candidate_sha256": "fa84ece7e88c1de54b6a734229d47e162cacb8e15134d54e5b5fd015d1b62135",
+      "status": "added"
     },
     {
       "path": "kernel/tests/test_resolver_agreement.py",
@@ -415,7 +397,7 @@
     {
       "path": "reference/config.md",
       "source_sha256": "7257ebe56f3a9b03269bb9ad04489bd4fb391a7e7229370bd5b66b112c287d8a",
-      "candidate_sha256": "d4d18cd9a23c7a32dc532127794ac3b74ab40ca712d2bf88d91c20ac1ecf6491",
+      "candidate_sha256": "639c3b2a0dffc359973dc385f74199d3c58e5b59715a4b4d64b323a526c597e2",
       "status": "modified"
     },
     {
@@ -433,19 +415,19 @@
     {
       "path": "reference/first-run.md",
       "source_sha256": "b84d026d8854b097d668e005f19dbad309ac037deec60346882728ba0c78b0a3",
-      "candidate_sha256": "2380889a6e88806baf50de80d23d97b517f21571ae2c0676c1c9ff3326df6b73",
+      "candidate_sha256": "ce56e643da50140e98e1601c96cd5c02ab8f389289aef9135a8ac3d0413504f5",
       "status": "modified"
     },
     {
       "path": "reference/glossary.md",
       "source_sha256": "6ca9d528799797314307cfd7bc15e27cd4fba9d728003a3a0d4850f2691b5670",
-      "candidate_sha256": "1e04f3b8bd8dd41a2f12d620dda446a857bade3637e14810f0acb3e90d9f1ab3",
+      "candidate_sha256": "863f737bc4c47a0cd1c9367ffa730880a117c8afd4b84ead9e1f9d6313a60688",
       "status": "modified"
     },
     {
       "path": "reference/hand-off-contract.md",
       "source_sha256": "81bfea8a6e4a12e1d86753c2bf7c53e91c8ef4e206fa6a13f4b2d8f680c986b6",
-      "candidate_sha256": "8a81f53b77c832eba18af0709bda288099e923c9c7b694b4a6f3acfef0a70a93",
+      "candidate_sha256": "bf61e47e16520623c8b53ca00916fcacfad391efb2b433a9b83f34467797779b",
       "status": "modified"
     },
     {
@@ -476,18 +458,24 @@
       "path": "reference/next-rules.json",
       "source_sha256": "69143d43c97fd643fff9cdda47ea707a9fb17885a81145366178d3aabce8dc26",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
+    },
+    {
+      "path": "reference/next.md",
+      "source_sha256": "080a3cbfbe5ec9e38e8568c9b76f23cfbf77c8af362ade6c31279e6f8d33e763",
+      "candidate_sha256": "6c968950b0bba69cf9f802b5373cde3a3f7a891d77da06bd0fd4cdfffa870315",
+      "status": "modified"
     },
     {
       "path": "reference/okr-linkage.md",
       "source_sha256": "edd011933b73847e9afe2a120d97cf6eafca6a8a8b324f1239be04fd0f33aec6",
-      "candidate_sha256": "6f6849930aedb03e766861b818bf4044fbf889698f6e26b8f12c47c3f7c5a636",
+      "candidate_sha256": "9f4b192813a2d863e4a2ded01cf867f08c0bf51ae49b98fa3367ed8e2eebfc5f",
       "status": "modified"
     },
     {
       "path": "reference/operating-rules.md",
       "source_sha256": null,
-      "candidate_sha256": "c14d5dc236ec809d6bff96a78d6296ec7a701a0351407e5cd26f8af45945d008",
+      "candidate_sha256": "7b5c0c9b90cd5201d28296562310af167b76e2d31cad1ae1ea5cef554ceb792a",
       "status": "added"
     },
     {
@@ -495,6 +483,12 @@
       "source_sha256": "9ecf235d2e9fb74a452010b8819dd26f2ea2d9943042b4acd30f1f76d5c8cc6c",
       "candidate_sha256": "0f776f5fcc2f645eacedb3674735358c45bd577a7f9caa3d110a0de9b9b3aa80",
       "status": "modified"
+    },
+    {
+      "path": "reference/recovery.md",
+      "source_sha256": null,
+      "candidate_sha256": "a8ba69c80aaa4ad4133a2d8cd7f7aa5887981a900399415523414fe2a1efc0bf",
+      "status": "added"
     },
     {
       "path": "reference/retirement-checks.md",
@@ -506,6 +500,24 @@
       "path": "reference/router-subcommands.md",
       "source_sha256": "9e99cfa1f8b77b3cd6b40239efa879a77cba5cee7a709a86077246cc4ca4797f",
       "candidate_sha256": "5f989ea52d7e6ab374120551f2cf69c3ab18601152eeccc2bb4cda2a73d9a67c",
+      "status": "modified"
+    },
+    {
+      "path": "reference/safety-policy.md",
+      "source_sha256": null,
+      "candidate_sha256": "56906f8a5997283fd35b859858b936c3861a249b49a55583091ace7e6fe645c6",
+      "status": "added"
+    },
+    {
+      "path": "reference/snapshot.md",
+      "source_sha256": "44a5ce758dabf37229bb8ce9a1deadf144c11a6fc82b8924281947c279537e68",
+      "candidate_sha256": "6b0e7a6a6c11f471707ef6bf1e78c2398455707d9d3dcb741a2e20bdf2230748",
+      "status": "modified"
+    },
+    {
+      "path": "reference/startup.md",
+      "source_sha256": "9d60dceb37b0daa49fb04e7b7c6e18a2c280385519b6b14bdeba24d8a89d1ae4",
+      "candidate_sha256": "e011417eb27fe24d41662fa9dffe644064268131bd4f5f077cd687b90e1d6fef",
       "status": "modified"
     },
     {
@@ -548,61 +560,61 @@
       "path": "schema/README.md",
       "source_sha256": "39a7c70422b6b24aeb4d6d5e1541ef0cf2044e7ebc33a3d2dba71d39cffade59",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "schema/asks-list-contract.md",
       "source_sha256": "d5c8c3a4b726ce7fef4d1441b9cdf068156e4597df0ed784f7f8c37797f9c26e",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "schema/decide-list-contract.md",
       "source_sha256": "640aecb07078a11dfba54f993a510ae8bcdc263d8dcd163fabf48858da2c2b5c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "schema/events-list-contract.md",
       "source_sha256": "1b8aa58c690af7a038f986906c57c3b17dd8083e7fce04834949af304f9b847a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "schema/goals-list-contract.md",
       "source_sha256": "1eb6fa0ead5c4cc77bdbe6b5bc726abff2e4d10db102f72ead683d092e622a3b",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "schema/knowledge-list-contract.md",
       "source_sha256": "c68e6ba2359b0681684f7da2b7e4d097dd68cc8ffbe721bc4523399d086dee34",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "schema/next-contract.md",
       "source_sha256": "822513c490602949bf339551ab2122e947766fb338276903d9a4038ebfd0ecd7",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "schema/roles-list-contract.md",
       "source_sha256": "cb71946925e172a888cbc13f8b905ad1efef7652efa9c00209b1a8d0018481df",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "schema/state-schema.json",
       "source_sha256": "116def9ce10edbfd268bafcc3ceae65998442552b51f15a73d1afaef865908d4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "schema/task-list-contract.md",
       "source_sha256": "007b8f201aae68e6b620b93cdd68887e3500c87fa0d430feff087d7322f8eb21",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "setup",
@@ -623,6 +635,18 @@
       "status": "modified"
     },
     {
+      "path": "state/safety_POLICY_TEMPLATE.json",
+      "source_sha256": null,
+      "candidate_sha256": "e1892381c38b2e394980ec0b188072275ecfeb651de7bc5f47b2f2b2b6bfc949",
+      "status": "added"
+    },
+    {
+      "path": "templates/process/perry.json",
+      "source_sha256": "bd3684f060219a13ecb3c9181963ff7d5b3afcc7edbcfb4d4c0dd14ac31985f4",
+      "candidate_sha256": "4131aeb50c5db330eb793994c26bee1848cf7a73342f3442bd28eb21b0dbe0f1",
+      "status": "modified"
+    },
+    {
       "path": "tests/ARCHITECTURE.md",
       "source_sha256": "48b4b16f8140b63f523aa8c1078c0cd12e2e4bf2bafc4f19c9ee22ba44e192d5",
       "candidate_sha256": "8b39033bcec073e59fd7ebb88c52efb2ba68c130440e6b6ac685f53f9bd0ed6a",
@@ -638,433 +662,433 @@
       "path": "tests/board_sources.py",
       "source_sha256": "7eb8a24b69c11399496fb31a6f629dc741ec09058691dfb50c07edc6d9386f2d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/config_store.py",
       "source_sha256": "f4195784544eeb46720b58b6fd10ae37f23108cb56a8d14f4777aa95a1d43590",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/contract_declared_types.py",
       "source_sha256": "ac8039daab4b8ada48d08e25e0462d366bb5c3a4ffcc6bbeeb10d28014af40d1",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/contract_key_parity.py",
       "source_sha256": "1ebabf6f3e34ed47711e419aab2d813855430fca40108a37c8753342b34401f4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/durations.json",
       "source_sha256": "d130629401c0657a0fbd03be5f42a3d7adb0647866665ca1fb6f1226c301d5c6",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/contract-key-parity.json",
       "source_sha256": "75762caebc887ff3ee9281605829d465965323ffed2d673cebe99b933e3c3abd",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/contract-shapes.json",
       "source_sha256": "fd74c88d114cbdc3f89c92b403e38b247d7bb34255b01afa1a33f5a4155f387c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/handed_back_spellings.py",
       "source_sha256": "f0f633a8acc79b05c9ec8468f2ab81ddcc5c81eddf2682ef29f43c84a367d14f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/interrupted-adoption/.perry/adoption/2026-08-10-dossier.md",
       "source_sha256": "75fbca3648448b606a2e457564d8e7b409e28e986042e71485b3b4c7f085757e",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/interrupted-adoption/.perry/diagnose/2026-08-11-diagnosis.md",
       "source_sha256": "904299d1c7cc7bb2736c2b02b5c3a4801b7c04840ff35e0c7532574b91d017b1",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/live-state-expectations.json",
       "source_sha256": "727ab19d02072c859d8b807c773904e61f8f73d2b8a944eb0380dfe910773fb2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/live-state/md_store.before.py",
       "source_sha256": "7f87dbc64c6c3004f90a023bd6eee0669b344e6e0409ee44cb42548fe3b477d7",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/live-state/track_attribution.before.py",
       "source_sha256": "7bbc7cad5fe9ee9e5b081e896c7e0126eec71e4c72fc72b115259d487e5320d4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/live-state/v5_signoff.before.py",
       "source_sha256": "89eb77fbc216d1363915f4f9cabe9405d6c15e6b51663da65a3cf0c19284700a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/.perry/config.jsonl",
       "source_sha256": "0688421fc3268d68f5f483d3cc7b394d7cf869cf58e1c6a77a5ff6beae1f4182",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/.perry/events.jsonl",
       "source_sha256": "467a11894fd6a8c3f90c9e6211d8eb3cee481d4dd7996938494a01173cab3b3c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/.perry/hook.md",
       "source_sha256": "e053535d611bc86946c49fd8e0f30ea54f8b60db573ce72e92521f1dc6e2ebc1",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/OKR.md",
       "source_sha256": "10ebb27df22e63dd742c565f8453a8299ae31d6f419b529a481d538419511c92",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/asks.jsonl",
       "source_sha256": "8922b634ee8f3e8ba405c545bb8cb636f6705d009e8368c526f1b5f3d49f8218",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/cadence.jsonl",
       "source_sha256": "56b2f3f6a375ce182ce457f21d8deb144a2191539cd776368935a22e09419f00",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/decisions/ADR-001-pmo-bootstrap.md",
       "source_sha256": "6784f0fa31f4303d6c9fab9ecd1929c5078ce0c364a4e351b09ff361274a8413",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/decisions/ADR-002-single-region.md",
       "source_sha256": "c4326730a1f7552d27e8f2c60d9d9d402a2e7bc2a5df8acef4afd939369a258f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/journal/2026-09/2026-09-15.md",
       "source_sha256": "3838370320d138ba7a13763edab00d813e1e773e78d3b4c37305d3344dfe868b",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/phase/001-release-pipeline.md",
       "source_sha256": "84963654b91d61eff2069b61dcbd353fb6e98f56dec8c444f9e56308291d59c6",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/phase/CURRENT",
       "source_sha256": "c17fd1fb9b562bde87fa8114dd82bcecab2b712fe96af3ba6eceb64528bc400f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/risks.jsonl",
       "source_sha256": "9da54aee65aabdb3de6e531bd1026563e0b448f894a6f31fa3defb2850986af5",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project-zh/tasks.jsonl",
       "source_sha256": "f80f2e09955ceae3b6d5991212775707669b12206a06a2f392c9be6c8c135f83",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/.perry/config.jsonl",
       "source_sha256": "71b8326bb2c9644fa9a5b59a1568a5082e6979cad6c2ebcaeaaa0ba87bf91cf8",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/.perry/events.jsonl",
       "source_sha256": "f4251425a1eeebc62a7ec1afab70b859e4a5fd5111dfe8ba65261577f2e3a0c4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/.perry/hook.md",
       "source_sha256": "30e837717039a9a27af2454613c3ac403d5a85d3fc6edf1c15a4d9399bdd6731",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/OKR.md",
       "source_sha256": "16391cf070b13f3f92a6c61bc03590e96072506dc4455c446d43e16203de5bd2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/PROJECT_STATE.md",
       "source_sha256": "ffa4915cde686312c69edc58917070968471bd01e8ae475ed79b6b5a86ba7faf",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/asks.jsonl",
       "source_sha256": "7ea815404033b2d92016e7636d798107c0c90b981be11fb0ad1cfffc5297a9c4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/cadence.jsonl",
       "source_sha256": "402cf4e095be7720a18bfdb9c86b6d5c3bdd7dc2c1e4112919052b0ea9fa89a5",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/decisions/ADR-001-pmo-bootstrap.md",
       "source_sha256": "9b89928566ec1378bb189bde6ebe3f5b6c484dd3ca6f854bdc0116c81b2e6529",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/decisions/ADR-002-single-region.md",
       "source_sha256": "6b4f80bdf879aef07b70561caf14573345700cd4ace3a212c201eb7601fe730d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/design/DESIGN-001-pipeline-topology.md",
       "source_sha256": "ec37aece955975b22db9f824f7a5f7ba466e6019e602fbc767d281d6129d01d3",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/design/DESIGN-002-flake-scoring.md",
       "source_sha256": "9d321464cb28ddc18df354194fb02ec77f1e98f32a48ea92f22626f4c5081440",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/evidence/2026-08/REL-001-spec.md",
       "source_sha256": "c82b7b7198dfe26d412cad49589f70b4d9cc94cb325383d36ff8761b2b91d71f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/evidence/2026-08/REL-002-spec.md",
       "source_sha256": "27e024530ba7293fff81ddc173f760cf899d1da902d5c8382243281b44a3674d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/handoff/2026-08-12.md",
       "source_sha256": "2ec78d9f50d7ac3b52b92e240332e00592eec12fc00e7a0d2f424294d477375f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/inputs/vendor-api.md",
       "source_sha256": "94c7dea11867c05ffdeb86e974da8b6874352ee923d25d383c29b435daa03023",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/journal/2026-08/2026-08-13.md",
       "source_sha256": "9f4b0a844d84737a3f88bf93ec26bfaa35d83ea752946246cdd485f5ebf9b573",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/journal/2026-08/2026-08-14.md",
       "source_sha256": "e79899779b32eeb9a0f899045ef093f77145b3c732e30c25fff3ce849bca7c29",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/journal/2026-09/2026-09-15.md",
       "source_sha256": "7bd2ee179c5bad64b0597bd4f88c29cfb0fb4bf4ff9571daba81e209380e4908",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/linkage.jsonl",
       "source_sha256": "3c0d91910bc3e6a9bd0adabaf517d09a41594b5f4a9f411e8437d528d0a5f25c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/phase/002-release-pipeline.md",
       "source_sha256": "7c95afcfe8836513328cf381913577deab1fc838cf3169978823fed9b5176353",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/phase/CURRENT",
       "source_sha256": "0b8d4babce16e2aeb945a2499f270f278adde6692ee0d119d335d33d55aa3143",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/risks.jsonl",
       "source_sha256": "933cbd81f6a86355de60f9c691dd95b18b07c12925fe5a3e637c759c47103676",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/tasks.jsonl",
       "source_sha256": "f62696410892d3a0d40874f57348edf01594903652ebc3c643c46b681cd84cc4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/sample-project/weekly/2026-32.md",
       "source_sha256": "49c115c81f73be675a4e18d17a4eaf7212418790c4a4d21e03ec062260dcbe1c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/second-project/.perry/config.jsonl",
       "source_sha256": "39e3f3362d2a1c86a4607514e1ae0f176038489075ddad959e4807899d5d6117",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/second-project/.perry/hook.md",
       "source_sha256": "2a22fcc0c0b94a9ebb37748c0cdf86eda365b2b754c21059aac93d7b908e3732",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/second-project/OKR.md",
       "source_sha256": "8cae1653551ba505d1bd796f8f75eb67c15d3ae8503eedc4c64dbc6025cc3f2f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/shipped-semantics.json",
       "source_sha256": "3e8924e39f8d94c73846b5256ae3fe4349573ec9108fd6f4d63e130f9f0ea4c2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/.perry/config.jsonl",
       "source_sha256": "97a2da6cfef4ff78954b446535378b3ec032941eb025cd6f6e63b6d102414aa8",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/.perry/events.jsonl",
       "source_sha256": "22cd694e2ee930bbf85f047289507924084c745b11348401402f92cb04c1fd98",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/OKR.md",
       "source_sha256": "fb2a619f651a16285833ca968fb0748836ae5c8eb9ceaeb4b6ae28a6c5f20d18",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/README.md",
       "source_sha256": "25f3232c544f76031d5c3e8d7a2d478ab3dcf05424c2a183ae41e5161cfaebf2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/asks.jsonl",
       "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/decisions/ADR-001-sunset-that-passed.md",
       "source_sha256": "9e9f5c467f2d86af66b6ed29792904eebaa20cc6f8dc77b46e28751bdfb57765",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/journal/2026-09/2026-09-15.md",
       "source_sha256": "a4efbef7647876173ea54b4392f07c0d3d786f843b5f03c17b4e5ca3f1c11ea7",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/linkage.jsonl",
       "source_sha256": "7ac3de86fd83fd11a244d6920d5794ae1ce2b19af461d62236478d7aaffadf45",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/phase/001-witness.md",
       "source_sha256": "c9cc6d5b41f7131b718f2b801cf8c9ec03f862baed317081524b19d37ae49cda",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/phase/CURRENT",
       "source_sha256": "101ab9f78d13808f56d6aaacae674c7f8ac8fe101a2cd0c93d3835b749013710",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/risks.jsonl",
       "source_sha256": "7c6e46101b65f37222b5184b8d20a135d92138d0717eb10dfc0e94b487e4e4bd",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/fixtures/witness-project/tasks.jsonl",
       "source_sha256": "c8ce234b11b45726a23feab1aac5b007f5cfcf95c35ec01b4fe6dc2c6b416a32",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/goals_actor.py",
       "source_sha256": "abef0eaedc2cca8aa261f3dedfb98654b9d0feb42e538e802cf827ebc0f1f59a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/handed_back.py",
       "source_sha256": "c3b18b8b59f9d9ac074744478ebc40180e58fc0e213fd5473dcc1e3cea520d29",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/header_rule.py",
       "source_sha256": "e3fc8c8720ffce287c989cb4a5c30fb838b47df1d228110b5bb1279ac0ef761a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/held_board.py",
       "source_sha256": "4b1f4e61989de7d23e4bdbf748b0e1dc16c36a0bad73ac6ba235efb679066bda",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/inproc.py",
       "source_sha256": "08ac8a051c989986d23909a3c93a3d5962c65adf554d8cdfb263377e41b6c9df",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/integration.py",
@@ -1076,31 +1100,31 @@
       "path": "tests/kernel_work_support.py",
       "source_sha256": "aa22786e20b0b5e284ec173cbf477d07a7c9fe763a01ce74dd3c69f4bd17ac04",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/legacy_read_fixtures.py",
       "source_sha256": "2d1552fb95462dc2361748d2c495520fd7679c5bbb1d59efc2ad9bcb77bb9862",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/lintdiff_blank_cell.py",
       "source_sha256": "6995f3ee2eefdec47621c9ad0495ae310233767af76f03e5c5a2a04bbd8dd818",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/live_state_expectations.py",
       "source_sha256": "b47346a4454bba5a3577cd8943b184b700f19cdb55cd75180cd544cb1ca6a6e4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/live_stores.py",
       "source_sha256": "c55e56f472154bb5985edfcc40c9011b247dc27f9c15586aa6db32dd617ccdd8",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/merge-check",
@@ -1112,43 +1136,43 @@
       "path": "tests/module_run.py",
       "source_sha256": "4a410cfe04a857c50c1bb141dd018212823603e3d0c919e7d858c74e8201b02b",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/mutate_blank_cell.py",
       "source_sha256": "4cf62ddaca331c17b04d9a9ba1e4798e9db65c84e735affca561f2138a4fdea3",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/one_startable_rule.py",
       "source_sha256": "33a94a74f035231aba85bea2b78b34d2b03f7efe13394dd429dc8ba543ae4df5",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/parallel",
       "source_sha256": "9829515d357852e751b5abefe020cd5000d3b8ad3f4f6deae5aec12234c464bd",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/pinned_phase.py",
       "source_sha256": "4bdb232604d51f7f1383969a001622fce598660bb3a75d919972cc4b17fadbaf",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/printed_board.py",
       "source_sha256": "5fee8bcb0ea5daf3e1fbfb3401dfdaa3dbf351f810fad10c4f59677aecdf188d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/repro_blank_stages.py",
       "source_sha256": "302b9a0c62f699624cc04467a2d1ab27aa69664348d5ae0b7b04e39ab412d8ee",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/run",
@@ -1166,7 +1190,7 @@
       "path": "tests/selection.py",
       "source_sha256": "d8811b5a33ccbfe16e9e876a1722d3e4baf937a61c78019aa0232864be8e330f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/slow_integration.py",
@@ -1178,7 +1202,7 @@
       "path": "tests/store_fixture.py",
       "source_sha256": "c597691170f94d59a5061a6552336742616cc3b1589ca7d53942c282d89283b2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/suite.py",
@@ -1190,85 +1214,79 @@
       "path": "tests/surface_reads.py",
       "source_sha256": "84203a8f1178a9ee96e8515b89043284e8547ecc83d68c6302e260fc0389dd9a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/sweep_blank_cell_sites.py",
       "source_sha256": "a3552ca4c9c7e64d60395c214f07e5c9b25b175b6579f0ea8bedd5281d78d1ff",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/sweep_handed_back_commands.py",
       "source_sha256": "a84e72c4b67a5434194c8c52ea5793a1bd812940a2b1facf0ce05147a82f82e3",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/task237_board_skeleton_probe.py",
       "source_sha256": "ff0d4e254a1bc7c75dd5ab75aa985aeec1ad675295392f773cd6b3d620841b2b",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/task_actor.py",
       "source_sha256": "0a1dbafcc6f1eb326619225d65030cc5bfe8a4d4115c5df5c09c72db9e3a7173",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/task_writer_support.py",
       "source_sha256": "df5122c562b7b4f1b5279f1646362a061e11b574412086a556b50d7ed720021b",
       "candidate_sha256": null,
-      "status": "retired-candidate"
-    },
-    {
-      "path": "tests/test-disposition.json",
-      "source_sha256": null,
-      "candidate_sha256": "c1113e36b33648900c9b06d14a387cd5eeccc64d92da7ae01ebad59d0a728834",
-      "status": "added"
+      "status": "deleted"
     },
     {
       "path": "tests/test_a_write_refuses_where_nothing_is_installed.py",
       "source_sha256": "9b9ae9a1554de96a1488328ad3fe81f515a029e2d5cbf469a29fc5c1fd601a47",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_actor_required.py",
       "source_sha256": "b49aa9ea9762aef3e4324962421c772187a27c48e47650871752380f872daae5",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_add_declares_unlinked.py",
       "source_sha256": "e8216aacf97658c420d80cfba590400d18a3bde1820543d2e4de28166677434a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_add_refuses_without_an_answer.py",
       "source_sha256": "3c72dea37dd5b69a7e97422aeb98d394910250ad79cbd330c681f7173bada328",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_add_writes_the_edge.py",
       "source_sha256": "25aabe0024842b9bdafb15efed9f03a0372eef228df4f9f39d09004ab13ad6a8",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_amend_matches_create.py",
       "source_sha256": "b4c0e8dd40683623a892aab8488621c63da95570da7ce7b9b7de2374bc656ff9",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_answered_ask_is_legible.py",
       "source_sha256": "4e8378a00a0d2bf426628e1064d9bafbf7005fceeb642769a52d4d56c7ea1aea",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_architecture_browser.py",
@@ -1280,121 +1298,121 @@
       "path": "tests/test_architecture_rules.py",
       "source_sha256": "a280a56fbad3787c7d630f28c5ab61b09be75a6a628356c5aadeed95afd633c4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_ask_is_a_node.py",
       "source_sha256": "4fe50576c357d15a16ac0e8b0371dd997b78e77dad3ee48c4c5977c04e45b334",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_asks_list.py",
       "source_sha256": "019fd92cf45a17b3d590f3f8367895b95b38a1f59ca4677b6676adb18808de24",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_asks_store.py",
       "source_sha256": "ba1f002ab011ffff5be786451c0ce6265bbef4049c5b595f44028113483ea078",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_attribution_buckets.py",
       "source_sha256": "e953d4d41240b4a1810a257b30c1925da3c141831cad77e3d664b95cc4b2fd15",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_bin_argument_contract.py",
       "source_sha256": "ff7b9feffed225a2989a47921a6700b934852a65e794c6a8c66a1d851b88c9c9",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_bin_surface.py",
       "source_sha256": "602d191114bac6e122924c6cb7afd0dc6fb9d09365044025085d2ed0d802c1df",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_blank_cell_is_one_rule.py",
       "source_sha256": "d5e17a0beb11206b2425465ced712ba4f634cb95f6e886be30e2a3ab144c28a6",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_board_from_declarations.py",
       "source_sha256": "8b92a03b4334245403d0cca89489e80d0c8ab2f4348260001482da33a3e4a8d8",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_board_less_gaps.py",
       "source_sha256": "4f645d1774a2994fa8c21979ded43af90a32de08519bc34d0512bd65111b5d4d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_board_less_project_is_recognised.py",
       "source_sha256": "5d1074b3e8d515d04467bc6c94bf04f8e74f5b374627234795775cfaedb9ae19",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_board_less_reads_and_writes.py",
       "source_sha256": "10a282cd2ac8f526315bd2d6a6ee50556c079de5ba751f0e2fe2d297b3f3302d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_board_names_its_sources.py",
       "source_sha256": "381d14e131515fa002ee8d3a5a9a404b057b445b6301a0a70a87915627f7d380",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_board_render.py",
       "source_sha256": "ab516490937acfc62766809b4d5b7aa5d8b1965d6666435b82ac66a5b3652287",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_cadence.py",
       "source_sha256": "2d0dd3809c783902d160b819e5f639b9864ee884f8d47e69b5542265ad12205d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_cadence_store.py",
       "source_sha256": "e2125f5c7a606c030537074c3c35bde544f13ba48c2bfdb92b644ec8f24a9987",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_churn.py",
       "source_sha256": "bc4e6bb37621e904de94a25f44e223760a6bf7b5df0bb37dd5ae2b918efa3e89",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_claims.py",
       "source_sha256": "86e60d95de6adf2dca0f6fe85a0402c7ca9205cbc833b60c10d48aeab391c734",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_compact_payload.py",
       "source_sha256": "ef030f9a8c36a6c02af6b73588ed9360206c4df8994885e4807493513e935cf0",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_config_store_readers.py",
       "source_sha256": "3217c90df6b66c85ca3fd5240617b0541594a28f15b96dfab535f6fe9d3b94c7",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_context_budget.py",
@@ -1406,175 +1424,181 @@
       "path": "tests/test_contract_invariance.py",
       "source_sha256": "e1f2296ce9b77b0a02abd5e51a507fe7dc6d55c3ff96c46e2f6e5dd85b5d86ad",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_contract_key_parity.py",
       "source_sha256": "1ac3b910c71cf8e89e2132fc8ed8defe748e796843b868c6cbd65a549b1c8121",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_contract_page_snippets.py",
       "source_sha256": "8c6cebf7e8fef0d0172af406a0e596bf3856ccbbdccf11e6d6740346976be7e5",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_count_fields.py",
       "source_sha256": "13bcaa0f5fe253faaca2629cb647f02d4fd8cc4d0afde713303c2308a09d6b8c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_decide_status_enum.py",
       "source_sha256": "d618d93364f3a2545f01f3057036f589e798d5c72c69ea99d235ecc738ba508e",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_decide_writer.py",
       "source_sha256": "a152e52931893cfe65d7728100a2b8cdcc598f4acb0e41c351f1f46797e92ef2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_decoration_changes_nothing.py",
       "source_sha256": "5b9345e9646f87f194e3b51884a06fda47734c859e5f9538b7a6ab26989058dc",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_design_handoff.py",
       "source_sha256": "5bd9b9b9889312c04371546d1219560b63e231468019bb004a036be65fc2a37b",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_diagnose.py",
       "source_sha256": "72537064f16e0a197060e6c8374e24cfa07899cb881697b45549916e28aa1fb0",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_dispatch_limit_honesty.py",
       "source_sha256": "1e354c471721c7641e371c4c1b77baf4a08151d937bc3e613534c5c315e6e666",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_document_checks.py",
       "source_sha256": null,
-      "candidate_sha256": "29ef662b3dd12303413da115aadda25f10ca87b7a85c7d401bca8f44e369381c",
+      "candidate_sha256": "d5cb0d7dc61395a6af546fa6541dce14801ffef93e1663d3403c9282c782b742",
       "status": "added"
     },
     {
       "path": "tests/test_duplicate_ids_are_refused.py",
       "source_sha256": "2d31ad1389dfdc68ff5be09952b05cdcb4b8dd7fe6cf886b6b0957e811b7b5a5",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_durations_provenance.py",
       "source_sha256": "b8be5cc685086f1aeaa5153b4a4d1d27f6dcee689189b374cb1b46c992bd872d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_empty_config_store.py",
       "source_sha256": "b941cf262f364a0dd0f75f98cd3e37cb6054acb5715453ce51bc55297350678e",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_empty_declared_store.py",
       "source_sha256": "0c291989c999e300f30a0bb01cda5a8d896504ffe420ba9b1abed91346d10884",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_entrance.py",
       "source_sha256": "d0a834667c87112660304981ed5a93d063997bffeb5fc2905215517a42ef41c6",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_escalation_boundaries.py",
       "source_sha256": "7f9f34bfef28f5d93042420143d49edda548d1924d8628a069dc6e157d0565d0",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_escalation_union.py",
       "source_sha256": "37f0c3f208f5eb3523b8d119206a5ab124245e32c005eb2b19535a8d02558264",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_escaped_pipe_corpus.py",
       "source_sha256": "429ebe9dadecd16eaf1cbad39304b4fc6c7bc1c7f2883c9c22e999c5f67aa127",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_events_feed.py",
       "source_sha256": "2a2896e61c7ee3598188825057021018e29e251460fbf10c4195cf3375455d52",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_evidence_relation.py",
       "source_sha256": "71129d2eac36d3134b583ff6c923e1262510c9dfcb60c493b68267dcb5024bcf",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_explain_typed_tasks.py",
       "source_sha256": "8d14ae869610d7757dfe158de71ba7cf68f72c6615bffe612733258512576628",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_glossary.py",
       "source_sha256": "0ff319911c65e79942f32e0056e9d9e1530bc7ef0180051f7d23c7a4487be062",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_goals_contract.py",
       "source_sha256": "59c2d168211e4beb7ab846b2b1e449e666d5da8c9708509d1b2a690af7d44cac",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
+    },
+    {
+      "path": "tests/test_goals_decide_native.py",
+      "source_sha256": null,
+      "candidate_sha256": "c3483bd4ecb117a033ae53f7bb5f19cdec76a57c2da6d61e1da497e073021f0a",
+      "status": "added"
     },
     {
       "path": "tests/test_goals_kr_revisions.py",
       "source_sha256": "b6f7be16b3da5a105445aa76bb7a2b8fec849485e0e43bd510ccd3bfb764da45",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_goals_kr_writer.py",
       "source_sha256": "d0bba46b5c1a13d346e1cfed1751c39e92f1bad415b14a1963a66f924cc38457",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_goals_objective_add.py",
       "source_sha256": "f35ed416060a8e1855d2ede98742e910930f068cc0739c692be7887ebfaed1c7",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_goals_writer.py",
       "source_sha256": "747a6150fa0b3654d8b02e3d14db7a6972eeac340d8252f1d809d77202def86a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_handed_back_root.py",
       "source_sha256": "666ade65a92d9dcc7ce5cd84af06526f16b797e8781c2b31a46eed803ae76f03",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_harness.py",
@@ -1586,163 +1610,163 @@
       "path": "tests/test_header_index_is_the_only_fold.py",
       "source_sha256": "ca4113339e17cd0e5298a28a644a38d93c1708e7b5428babe3b1ad32f9fcbee4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_header_rule_harness.py",
       "source_sha256": "be5ef00b1559e30d737de96b580b952ecf8d2298acf2ab55796dc1c26ac37b9d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_heading_defines.py",
       "source_sha256": "b339a3402007c43af3ce444ff0191f70b4547cfe532ab5c456aadc7e0e997d79",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_heading_title.py",
       "source_sha256": "1952e43e33a1229467592450dbaa45c8949d2d4e23f9becc7212885543b4aca9",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_helpers_native.py",
       "source_sha256": null,
-      "candidate_sha256": "792339a22b2d329b27127ae74f0cc676f0aeccd0ee9186355895fee38c09cc01",
+      "candidate_sha256": "10180e87df6be531124db9dd9895ce14dc2e7d7ebdfc8c30c298cb385a20c922",
       "status": "added"
     },
     {
       "path": "tests/test_host_support.py",
       "source_sha256": "2cac15981d7202bf5fe25ef04f58c650949df30390492746d7a37bd6aa5ec855",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_i18n.py",
       "source_sha256": "ae1c3f0347bf7529e113c8b50c49cbf7cf91edef4217da696bd3dde4aea3b358",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_i18n_one_table.py",
       "source_sha256": "794d1d8aa537f2373eb7fb268f53023d09f250d3083f0323ef0e40230ba3300f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_id_families.py",
       "source_sha256": "6b18a4032a3eadd5aabf784b8133db70daa5c96aa0f075350948d82c6d33e454",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_installed_is_one_predicate.py",
       "source_sha256": "d3a57322ea70d7ca529f4a33d84a8c8788f480a74900c40aa1e5629e0e703112",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_intake_signal.py",
       "source_sha256": "b998c18458f8525dc2f7cc8e5d76eeb0f5cecda95547fee808bb120d2b1c7111",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_intake_store.py",
       "source_sha256": "b176b832b11154cd41632bfc30936a02556553cd57f6e61c4b3c56ee37e4d2c3",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_kernel_migrate.py",
       "source_sha256": "e354c8c6cb1c7590f25e61735f50452bf4774c133461beb86b449a7d721299cb",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_kernel_suite.py",
       "source_sha256": "d4264f14f3bfb7fa33a208b22192bcad55b18eeca2fa0cb5ef280c6f2c91f27e",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_kernel_work_cutover.py",
       "source_sha256": "168c2a1d8f082df7c0f370e02a5e170aa0ea5a6f5a7187b57ad34b6c9e80c987",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_knowledge_cards.py",
       "source_sha256": "412d2d1395cc6b8dadd9c5fc4854a54067e00be2bd8c3949def05f3f037c6114",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_knowledge_promotion.py",
       "source_sha256": "ed0d847f8ec72372224aa9603a62dc133a3502fd8839bd5960fb26dc1da8c9ee",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_kr_checks.py",
       "source_sha256": "49338bdd1de2419c237eb15461343c41538d101889457c3287ef52460af54889",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_kr_progress_provenance.py",
       "source_sha256": "0db394fe8c3cd80d50e5439234f9ec6e1e006f88237ddfe45673d21c1f337a5f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_linkage_store_declared.py",
       "source_sha256": "bc8b1b60192b09825b2ad5f7d91e23f1a1555783173ed3f5cb737854fbf65f3b",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_linkage_store_readers.py",
       "source_sha256": "5ec3c349a49d61f556e2c1c389a03945b89ea202cbd59abb57310e7a71689ca3",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_linkage_task_exists.py",
       "source_sha256": "9ed1a5d60266f6e9f980b523287a42229d6f893bddc1091af7278aa93ef681d3",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_linkage_writer.py",
       "source_sha256": "fe09953166fa379e58b17e6caf746c36c0b3559629fd95ab3684f1182088fc13",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_live_state_expectations.py",
       "source_sha256": "d728dd53ff4da76ce33fd26bf6e42d2da368b6523d5f7848aef07673d961869c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_md_store.py",
       "source_sha256": "4db1c8d3c951c80c037fb0d4dff7d852c8955c5aa97ea13f3f8ef0c9d300f687",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_measured_krs_declare_a_target.py",
       "source_sha256": "e9603337242e9b10cdeda07f5bcac22d56ae4b4e2059d9ff54b60d550cc57ed2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_merge_gate.py",
       "source_sha256": "3aae5db81732a91f79a98ccc8de2cbe60cfc12cb38ac8ac25540a5235b0f418c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_method_as_data.py",
@@ -1754,187 +1778,187 @@
       "path": "tests/test_missing_defaults.py",
       "source_sha256": "9d022ec54e820773b26057b2f956f4e331135ede70a077dd5ca6de73e4f5eca8",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_module_run_guard.py",
       "source_sha256": "b4b2da078dd5fcffa4ead8c6cda3c599e981de38f6b02e356a724ffccf3cb877",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_next_closing.py",
       "source_sha256": "74e8c9bc6ecdf415a6f1fe8d3efdf8e2b4733ce1d7ed4c077a1b8470618556da",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_next_section.py",
       "source_sha256": "191220e5fd8a0f19c0e650800f798bd3dfaa4a4bb9dc31cae2c157ba6a64b3cc",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_ns_collision.py",
       "source_sha256": "8495d68588ce896e82d275e43d6f786fde393296542428292ebe711fac15661c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_okr_krs_render.py",
       "source_sha256": "53b2303690f368d29e9318f375f5faf6dd3c121b807fd69bb867a0fed43b3e4f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_okr_store_is_the_source.py",
       "source_sha256": "ad0769d8c910c073ed23b502868cb7764f2a8568105be6efb126f4c5b9ef01b0",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_one_choke_point.py",
       "source_sha256": "57143e7a81423939a93c99689126e24ef329ff1f61283b01868a23bfccc94a1f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_one_header_rule.py",
       "source_sha256": "ab62f171fed414b8f78c25facca7cba4fdf721d20d940b2c93c7b1c409b1868f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_one_heading_predicate.py",
       "source_sha256": "df57a37004490be8a7d72f3464887b60edafe69f23161f55a090c625fa5eeb35",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_one_line_break_rule.py",
       "source_sha256": "a50cb0b09c5e736df0329a6d3b915786fb693a85f47b62a18b86e76b31472b4e",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_one_primitive.py",
       "source_sha256": "3ea486cf72d1037ae7102f6e7cb4e1c78f87d3c196ddbd4a431cb23c31f3ddd8",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_one_startable_rule.py",
       "source_sha256": "8da4b8db4faae1a30f8dc6d3ec77725df18ef140da6bea86c0fb447a62c85269",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_overall_kr_grammar.py",
       "source_sha256": "da915d4655229c0f97a9c3c8662e3e23f2d473ee00a87a9e371189c6653426c2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_ownership.py",
       "source_sha256": "6efbe481dd87bc97e786ed913765a67d1bcc96aea1ee06936823d0334c782ade",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_parallel_runner.py",
       "source_sha256": "2208883cd775622e9437908fb687ac7161c432aaf551ffaac5ecc5474696b938",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_parsers.py",
       "source_sha256": "105b8c65d04deeaf01edff9e34db4c96bc1ec5f3ccebad3bbbbed39231677ed3",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_perry_task_writes_are_what_it_writes.py",
       "source_sha256": "0a9fb7bf06aef4384a476b5fb54fa26ff72108ae70ad5e1006dbad6c6bd73d63",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_phase_kr_declared_once.py",
       "source_sha256": "e350a8bb8ebceda8b5e40eeedfa1d60b1035ff68932d4c700f216e3374d6f309",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_phase_lifecycle.py",
       "source_sha256": "2f0ccb8ffb8089c493a3377da14575c99c47069fb60f4350797cc686d54d581f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_pointers_resolve.py",
       "source_sha256": "5a0e8031d37408fc88e10599ecb9e25788f6e63516455d5424f22bb780754a46",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_prioritize.py",
       "source_sha256": "3f16c5f46a702468469563aac5d9c8cf13a2d81fd3dda9616e0917bd799d30df",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_procedures_call_the_tool.py",
       "source_sha256": "e2faf1b53de069ea628ae3125739c54779160e1bf0060562025f1a2d722fbdb1",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_procedures_read_the_contract.py",
       "source_sha256": "9cd6ce029d1f26ee23b6f3ef2b91cc156717d21dbab170ba94b712e42f9f5549",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_project_root_resolution.py",
       "source_sha256": "6b26bf5b47c41a692259052f834b0c4c8c31530c6431267437febc8f38dc5554",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_purge.py",
       "source_sha256": "ce8e0f9ec7e2f934bb490df7de789f5055ab1f979a126512466eae4013eb77f7",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_queue_sla.py",
       "source_sha256": "eae02082f5b6dedf0c74ef238b9f816d9c766210fd2271c1e3cd0adcb2fe67cd",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_reference_pages_are_reachable.py",
       "source_sha256": "c980751feea1ed54639a97584272494d8a40180bb2fb7f0d8e0dae03a13b3c8c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_register_minters.py",
       "source_sha256": "05f751a32cf087453256ea47ede191eac3e406566ed791e50aff8cd7ca5b23c0",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_register_store_invariant.py",
       "source_sha256": "e84f3f0320da9494312af577f7e67eed3fa8d64a327b09a6248355b4b14d0858",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_register_substitution.py",
       "source_sha256": "1f17f69a208c7f47764eb5fa2260b4945fee809964a16210605650069686e7ec",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_release_update.py",
@@ -1946,19 +1970,19 @@
       "path": "tests/test_restore_check.py",
       "source_sha256": "ebb5a0ed9e595c8963eafecc9ea1a5199b4ab988eba24a564be596db4cab2561",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_resume.py",
       "source_sha256": "bb7c0b1e417434db7d496e1b4c06c2a56dd0d583249946475909026ca11f7592",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_retired_tolerance.py",
       "source_sha256": "7107642a981a87cb2410b18c5d49aa75a2cea75152ee9cd339a1ffcdd6a72860",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_retirement_boundaries.py",
@@ -1969,301 +1993,319 @@
     {
       "path": "tests/test_retirement_manifest.py",
       "source_sha256": null,
-      "candidate_sha256": "d6a7b018a4dfb4775e4aa5bbe7870a5803547956a93560f3ee2e31c4bd73ee29",
+      "candidate_sha256": "79a121e392179ff475672ae62b2dde14c2d1059e014609b3c2b2f64b17ddc7d5",
       "status": "added"
     },
     {
       "path": "tests/test_review_verdicts.py",
       "source_sha256": "d632926d4afcf876982a59f79c8affedfa0963d948f9bcc2f1ee1f17ebe86732",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_risks.py",
       "source_sha256": "d17b972fa824440e9ce802163bb6d0ff81f0f6a203ab31fa92092b23d99c9b72",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_risks_store.py",
       "source_sha256": "78e6412e490163f289ae70b00885ea81faf5d0b979d7edc6ba67efd9505ad1af",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_role_cards.py",
       "source_sha256": "9075eed45d2e50d1ad6b242673cc139865d913958229a6044afd79be47b28df0",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_role_delegation.py",
       "source_sha256": "3ae747593d16bf5c1857fc6728892a3546844b4de535c119c418781ddb473d11",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_role_on_rows.py",
       "source_sha256": "7778fcca82830e52200b5835800c24317fbaf1e49f243c9a560610ed3e07bfa2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_router_budget.py",
       "source_sha256": "999fff476172191b0ab894c09a0ff9fe1d8b253e59fa8f0d8af89b4b49c878c9",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_row_integrity.py",
       "source_sha256": "26a1c1c0bdb73c26a95e3438f15d11a63ed639ac847cc8d1462df8e891ab27b4",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_rung_vocabulary.py",
       "source_sha256": "dddf6fe88d5d90893ad1e52406509c386fd122ce9a9538fdf8a0d57f2734ce89",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_same_action_linkage.py",
       "source_sha256": "ed6dd0b8bf1e599e6fa0d52cbf6c66ad147c76fb4bd6697b6fa87c65efff39df",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_scratch_is_per_agent.py",
       "source_sha256": "be0155c7100e73cd1a43f8937799efe1d34f705c34e6b7f9ff4af31f944d1b58",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_selection.py",
       "source_sha256": "6250670945db94e7da2ed75216d9c48770210308c644e17c993eac7ba169258b",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_semantics_on_every_payload.py",
       "source_sha256": "4304e47ed6fc191e2dadcd3fc2f6f3035d9c0eeefe1fa8bf43f455f3b2321c67",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_shipped_vocabulary.py",
       "source_sha256": "91d53b2b88bcefab415bdded84d421835f4dabd3d6ee49439804b8bd4a7cf689",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_slow_selector.py",
       "source_sha256": "9e62a28845b82ac084bcc056d25518c6df65991a4f322a86b1072b05e3757a1e",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_spec_scannability.py",
       "source_sha256": "4e6d6b6759298bb64cd397eac5e441b783799d6d7d0ac0e1446fdcc6444da10d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_stage_separators.py",
       "source_sha256": "8495e29a2d05e6aa7b706ad766717c5b12e5abae4ba8765f528c978d72ddf2d1",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_stale_blocked.py",
       "source_sha256": "3f18c344536f3ba7149e937cb7fba766119285318aca5aa35aa39b50d42a7fff",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_starts_write_the_config_store_first.py",
       "source_sha256": "1bcbe93beeaf1dfebc3103b774b8dfa807d603233d11b1a97dec368b77bcfdff",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_startup_routing.py",
       "source_sha256": "60b6117a16a6a91e14257b55d27c146008f4bb885e9fc50c6ae0ad21bab2f8e2",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_state_cost.py",
       "source_sha256": "4f00eeff43026f7eca5d4144eaa14e59c4e3cded2c18926c90d42fcb78924c5e",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_state_root_unset.py",
       "source_sha256": "319102d714a3963f921d6583da98d5f9d00fe2f524172202c9cbaf21e5bee5ee",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_store_drift.py",
       "source_sha256": "ad970b39806eee28d5ed582436295ee7d02fc53ccb77345730f658afeb731ebd",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_store_is_canonical.py",
       "source_sha256": "0c1a10c6b37c769f6cc3722a043d39164c1c4de3c6bdc118e5701e7febbfa777",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_store_is_the_write_target.py",
       "source_sha256": "2b266a001805108aa54a3be1ef6232e793d15a280674be0fa07888e7ee93585b",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_store_population_agrees.py",
       "source_sha256": "017cdc09c845638cdf354d2a6b88e6493c53dbce1b8014849db01970f462ee52",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_stranded_rows.py",
       "source_sha256": "b254d807363c53f5e9831cd50029f1335ff6eed323face64f3eed0017d37307c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_summary_is_asked_for.py",
       "source_sha256": "693ed368bcd9fd3f81d7352a3df7af1877d20a2bd70abeac682eea1fa8764072",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_task_store.py",
       "source_sha256": "38d726a5448e5f2d5cc44a95ee2b2e0874d61d9b045fbbbf822f8f3eaa8e428c",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_task_store_read_cutover.py",
       "source_sha256": "1188d7a3b7d6a05aac0e136d42a78b54c72ff34df9826fc4344f6dbdcbbdff97",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_task_summary.py",
       "source_sha256": "5bf1c2aa401f3b4981b87ac0a0c118f7a24e5479ce8308a0e7da4388ee42a333",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_task_writer_contracts.py",
       "source_sha256": "7512c4d90e24343053f297f2700294d670696b73989eaafe78e08bffc604d2c6",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_task_writer_core.py",
       "source_sha256": "1d2f1f095da36e4c704943924626b8eeab69b9867650395abfc2e7e59ed07aca",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_task_writer_dependencies.py",
       "source_sha256": "dc4ac2abc7fe838db1562e6a4d42d38dc9aac94d9dea8f551a53d01e80099014",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_task_writer_intake.py",
       "source_sha256": "f599ef3821d641c4ab6cdfec037aeea773ac7aec326a2c437272c6f7e86e4245",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_task_writer_modes.py",
       "source_sha256": "e8d8b8a798c6915a1740a4c32ed72c171c03a38ec60a818e06aca3674a68dfa9",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_tiers.py",
       "source_sha256": "c377a602712c141e277571082cf89f259373a8e0d887c6fa398bbdc7b97c889f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_track_attribution.py",
       "source_sha256": "c64651f5aac966e7c798c4a79179b56bf8b597fb070682552766c4bd70887671",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_track_axes.py",
       "source_sha256": "4235ef604245cb03e1efbc28ed8921fe05cd253e0a76ac9fcbefaf689b2d71b1",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_track_move.py",
       "source_sha256": "d1d3c38d57dbcba0a25e7760e72c50b6d9393f9023520959a98a97bdddce3b4a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_track_register_source.py",
       "source_sha256": "c53cc82f555d8717de07bd2a8f6ad390faecaba967b9fe1860431c539050a394",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_tracks_source_documented.py",
       "source_sha256": "20a1ff66cf914fa4dca3acab9587fa54c65c43d1df66b1d2ccb451cc39d7dd90",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_tree_guard.py",
       "source_sha256": "1d10a3691874e233d33450b3ec537cbbf363972b62c0a6ce703a52cbfc371cb3",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_unlinked_declaration.py",
       "source_sha256": "e698454731025903cd7e9b2dbbe7e12856d97130d068182a6f3e632c9b6a6b15",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_v5_signoff.py",
       "source_sha256": "c291e7fd7df229e1cdba5b9d607fdfa0cbd19034a6f26bb38a0374df4b5d90df",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_wip_and_stages.py",
       "source_sha256": "dc8b689928787b726a23be83c0e9f10fc342fb166477b44d879300b5cee8e279",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/test_work_modes.py",
       "source_sha256": "72a5d20ed2dc9f49c002756949ae0189b4329d474f0ebdbd4565a529391f7a1a",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tests/tree_guard.py",
       "source_sha256": "414a0d5f496d2aa72a30ae8ffb3ac0cd660082620485c7c7699570ccb61dbc80",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "tools/README.md",
       "source_sha256": null,
       "candidate_sha256": "aa4d51f7a2a19a0877206fe6f62501083f64912c5ebe781b972fd28366073a4f",
+      "status": "added"
+    },
+    {
+      "path": "tools/TASK-492-adr-successor.json",
+      "source_sha256": null,
+      "candidate_sha256": "7f09e3510058eb454a8c342add4b10c15d6f3cd982300d3a97cafd8fe7bb5d29",
+      "status": "added"
+    },
+    {
+      "path": "tools/TASK-492-delivery.md",
+      "source_sha256": null,
+      "candidate_sha256": "692e893611522d61b3973c4acf441cc61138e8169217b993a8986fe5f0fd7366",
+      "status": "added"
+    },
+    {
+      "path": "tools/TASK-492-kernel-proposal.md",
+      "source_sha256": null,
+      "candidate_sha256": "aae14961abd14b0bbea6df37f8797e55a6acc788fe86d3adbc902b6515ab6da5",
       "status": "added"
     },
     {
@@ -2383,19 +2425,25 @@
     {
       "path": "tools/document_checks.py",
       "source_sha256": null,
-      "candidate_sha256": "aeb6460af6e8e0f110d2d3e6c3d0bb7a61207a540e0161abc932b88aedacd60e",
+      "candidate_sha256": "29544b8727a742a41dfc973f60259888019f91a1a7d66fdb3e859e9b58a2ea5d",
+      "status": "added"
+    },
+    {
+      "path": "tools/goals_decide_migrate.py",
+      "source_sha256": null,
+      "candidate_sha256": "14dd61b165da5e321f28d19bc7a538c7401ef3a0a26dc05028f3b175f8beb1e1",
       "status": "added"
     },
     {
       "path": "tools/helper-contracts.md",
       "source_sha256": null,
-      "candidate_sha256": "67a37c24253b1a74a247f1efbfd284ad073dc0b374758e4afc890f583ffd0ae1",
+      "candidate_sha256": "68eb93f72c7020b7833dfeffaf81f831e23759506b389483dc34fbbd62c44e6b",
       "status": "added"
     },
     {
       "path": "tools/host_common.py",
       "source_sha256": null,
-      "candidate_sha256": "dd3b407af66a050c944270cf404f3f6e0992c488993a57fc65a48ae44105c3d1",
+      "candidate_sha256": "20081fab1a22d4462d72499e0bbce81f5a2645d11b408b06c519a7deed29cd27",
       "status": "added"
     },
     {
@@ -2413,13 +2461,25 @@
     {
       "path": "tools/retirement_audit.py",
       "source_sha256": null,
-      "candidate_sha256": "918fc1a3356983033413c1ca8ba08c354133c379aecece64e8a0bd16df46cd67",
+      "candidate_sha256": "91315a384851d7c8e185a2de8d02ced50d41492e0f8e46058aee4931fddba7de",
+      "status": "added"
+    },
+    {
+      "path": "tools/reviewed-plan-migration.md",
+      "source_sha256": null,
+      "candidate_sha256": "3d2c1398a0929deda7646e23ae13aa915afc10f036f608b68fb1b0aec91a65ab",
       "status": "added"
     },
     {
       "path": "tools/roles.py",
       "source_sha256": null,
-      "candidate_sha256": "33780aff472a6085869f63badcfc53497f72f6661fcb4795caaba92c886accaa",
+      "candidate_sha256": "6a7ffadaaefaef1c470a75227b7c3f81d26ed39c8576bcc131f9f701024702f5",
+      "status": "added"
+    },
+    {
+      "path": "tools/safety_policy.py",
+      "source_sha256": null,
+      "candidate_sha256": "7002dee706ca2da70f2500cacfe673abed28d96910e73ae61d81e8d16b873896",
       "status": "added"
     },
     {
@@ -2438,7 +2498,7 @@
       "path": "viewer/.gitignore",
       "source_sha256": "4cad133d4f0a6cf4bba15f1b8bbae48d6a55f20b94f75487c51a93cc6a5af59f",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "viewer/README.md",
@@ -2450,18 +2510,30 @@
       "path": "viewer/parsers.py",
       "source_sha256": "83e8f2763bb833853fdb9e55aabb59471141b7a38b8ad8b5ac5716048836c105",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
     },
     {
       "path": "viewer/tables.py",
       "source_sha256": "247edae66d9a859e7cb96d8d4b75328f7a0b12f8beb99a78f074bdd23f85314d",
       "candidate_sha256": null,
-      "status": "retired-candidate"
+      "status": "deleted"
+    },
+    {
+      "path": "work/SKILL.md",
+      "source_sha256": "d3f888caf8d298327cc5c584a67100f3f39942653c446e39a4cfcc3c2a73042a",
+      "candidate_sha256": "30e2414a6d3db6812d4d65929b4db74750b3517f6159fecb427d834db879b7cc",
+      "status": "modified"
     },
     {
       "path": "work/reference/add-task.md",
       "source_sha256": "3d6395c91dd9196f0875d988910d9737bd7c45c816bf8be60d19b218dd881eb0",
       "candidate_sha256": "bcc31ee980a37b328911a11de5411fbcb4410ac4f474233cbe7b1dfd4e9ff043",
+      "status": "modified"
+    },
+    {
+      "path": "work/reference/autopilot.md",
+      "source_sha256": "05b93af3becf78948e146af692ea7de510d31bfed20ab0338a899c300d8d5f1d",
+      "candidate_sha256": "24007196b6c5a3f076a8d7053ae1a8036d929644e03e7b39d9b9dcec2a7ba8c3",
       "status": "modified"
     },
     {
@@ -2491,7 +2563,7 @@
     {
       "path": "work/reference/dispatch-preflight.md",
       "source_sha256": "e2e0a3c0f760478bfe205c2c454b112ceaca1fd9fdefe7837650bfc723345cb4",
-      "candidate_sha256": "4c146045bdae8954dd954c606d6d9d658c6c1c6869ccc749293b10df68b9e50e",
+      "candidate_sha256": "1cc74c6f517b154f75729de177eb3b92a8472d279fa7fbbb82a942a2ed0524af",
       "status": "modified"
     },
     {

@@ -19,6 +19,12 @@ class CandidateSource(unittest.TestCase):
         self.assertTrue(result['ok'], result['errors'])
         self.assertEqual(result['acceptance'], 'PROPOSAL')
         self.assertTrue(result['pending_user_acceptance'])
+        if result.get('proposed_kernel_revision'):
+            self.assertTrue(result['pending_user_approval'])
+            self.assertEqual(result['proposed_kernel_revision']['revision_commit'],
+                             AUDIT.PREFIX_FLOOR_PROPOSAL['revision_commit'])
+            self.assertEqual(result['proposed_kernel_revision']['approval'], 'PENDING_USER_APPROVAL')
+            self.assertEqual(result['status'], 'source_checks_pass_with_pending_kernel_revision')
 
 
 class Manifest(unittest.TestCase):
@@ -120,6 +126,15 @@ class Manifest(unittest.TestCase):
         self.put('kernel/perry_kernel/example.py', b'VALUE = 2\n')
         self.red('kernel_product_changed')
 
+    def test_manifest_cannot_replace_fixed_proposal_or_claim_approval(self):
+        for declaration in (
+                {'revision_commit': '0' * 40, 'approval': 'PENDING_USER_APPROVAL'},
+                {'revision_commit': AUDIT.PREFIX_FLOOR_PROPOSAL['revision_commit'], 'approval': 'APPROVED'},
+                {'paths': ['kernel/perry_kernel/example.py'], 'approval': 'PENDING_USER_APPROVAL'}):
+            with self.subTest(declaration=declaration):
+                self.manifest['kernel_revision_proposal'] = declaration
+                self.red('kernel_revision_identity')
+
     def test_wrapper_logic_modification_is_red(self):
         self.put('bin/perry', self.wrapper + b'print("compatibility")\n')
         self.red('native_wrapper_changed')
@@ -148,6 +163,63 @@ class Manifest(unittest.TestCase):
         self.assertTrue(self.result()['ok'])
         self.put('release/retirement/consumers.json', raw + b' ')
         self.red('consumer_hash')
+
+
+class PendingKernelRevision(unittest.TestCase):
+    def setUp(self):
+        import io
+        import tarfile
+        self.tmp = tempfile.TemporaryDirectory(prefix='retirement-pending-revision-')
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / 'candidate'
+        subprocess.run(['git', 'clone', '--shared', '--no-checkout', '--quiet',
+                        str(ROOT), str(self.root)], check=True, capture_output=True)
+        revision = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+        raw = subprocess.check_output(['git', '-C', str(ROOT), 'archive', revision])
+        with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+            archive.extractall(self.root)
+
+    def audit(self):
+        return AUDIT.audit(self.root)
+
+    def test_exact_proposal_bytes_remain_pending_not_approved(self):
+        result = self.audit()
+        self.assertTrue(result['ok'], result['errors'])
+        self.assertTrue(result['pending_user_approval'])
+        self.assertEqual(result['acceptance'], 'PROPOSAL')
+        self.assertEqual(result['proposed_kernel_revision']['approval'], 'PENDING_USER_APPROVAL')
+        self.assertEqual(set(result['proposed_kernel_revision']['paths']),
+                         set(AUDIT.PREFIX_FLOOR_PROPOSAL['files']))
+
+    def test_extra_byte_in_either_proposed_file_is_red(self):
+        for name in AUDIT.PREFIX_FLOOR_PROPOSAL['files']:
+            with self.subTest(path=name):
+                path = self.root / name
+                before = path.read_bytes()
+                path.write_bytes(before + b'\n# undeclared extra byte mutation\n')
+                try:
+                    result = self.audit()
+                    self.assertFalse(result['ok'])
+                    self.assertIn('kernel_product_changed', {e['code'] for e in result['errors']})
+                finally:
+                    path.write_bytes(before)
+
+    def test_other_kernel_product_change_is_red(self):
+        path = self.root / 'kernel/perry_kernel/guards.py'
+        path.write_bytes(path.read_bytes() + b'\n# outside the two-file proposal\n')
+        result = self.audit()
+        self.assertFalse(result['ok'])
+        self.assertIn('kernel_product_changed', {e['code'] for e in result['errors']})
+
+    def test_original_base_production_bytes_are_still_green(self):
+        base = AUDIT.PREFIX_FLOOR_PROPOSAL['inventory_base']
+        for name in AUDIT.PREFIX_FLOOR_PROPOSAL['files']:
+            raw = subprocess.check_output(['git', '-C', str(ROOT), 'show', base + ':' + name])
+            (self.root / name).write_bytes(raw)
+        result = self.audit()
+        self.assertTrue(result['ok'], result['errors'])
+        self.assertNotIn('proposed_kernel_revision', result)
+        self.assertEqual(result['status'], 'source_checks_pass')
 
 
 if __name__ == '__main__':

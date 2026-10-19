@@ -23,6 +23,29 @@ def digest(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+# Immutable source proposal only. These constants bind the original reviewed
+# revision even when its cherry-picked source commit is not reachable in a clone.
+# A manifest cannot supply replacement paths, hashes, revision identity or approval.
+PREFIX_FLOOR_PROPOSAL = {'inventory_base': 'b9be4d39f52ce1266534215b999c9db408b03bc5', 'revision_commit': '32bcf99c0832676c7c5ae125621cf88107c70dec', 'revision_parent': 'b9be4d39f52ce1266534215b999c9db408b03bc5', 'production_diff_sha256': 'b7a8a59a27c25e51c5fcd58c644179a64fd84fd77618d7fcd24f23e2cc135354', 'files': {'kernel/perry_kernel/commands.py': {'before': '170093b162a3c397af5d86f873a57de13c31b27fa99784adfc1055c29a3b1c88', 'after': 'bd440612281f1ce163579ba7dd44c1bc83f3ca3c075ea29ea6d666c821586715'}, 'kernel/perry_kernel/surface.py': {'before': 'ec24110fbebd2684556387dda05a8ad67cd2f5d7c35c6f95d219038c5f843552', 'after': 'd038e40fc13e488312d7f24c0d328c534d8769bf2214d6e8922115207e048b5e'}}}
+
+
+def proposed_kernel_revision(base, originals, candidates):
+    proposal = PREFIX_FLOOR_PROPOSAL
+    if base != proposal['inventory_base'] or set(originals) != set(candidates):
+        return None
+    changed = {name for name in originals if originals[name] != candidates[name]}
+    if changed != set(proposal['files']):
+        return None
+    for name, hashes in proposal['files'].items():
+        if digest(originals[name]) != hashes['before'] or digest(candidates[name]) != hashes['after']:
+            return None
+    return {'revision_commit': proposal['revision_commit'],
+            'revision_parent': proposal['revision_parent'],
+            'production_diff_sha256': proposal['production_diff_sha256'],
+            'paths': sorted(proposal['files']),
+            'acceptance': 'PROPOSAL', 'approval': 'PENDING_USER_APPROVAL'}
+
+
 def git(root, *args):
     result = subprocess.run(['git', '-C', str(root), *args], capture_output=True)
     if result.returncode:
@@ -72,6 +95,11 @@ def audit(root, manifest='release/retirement/disposition.json'):
         if type(data.get('version')) is not int or data['version'] != 1 or not COMMIT.fullmatch(str(data.get('base', ''))):
             raise ValueError('manifest version/base invalid')
         base = data['base']
+        declaration = data.get('kernel_revision_proposal')
+        if declaration is not None and declaration != {
+                'revision_commit': PREFIX_FLOOR_PROPOSAL['revision_commit'],
+                'approval': 'PENDING_USER_APPROVAL'}:
+            error('kernel_revision_identity', 'manifest cannot replace the fixed source proposal or claim approval')
         if data.get('acceptance', 'PROPOSAL') != 'PROPOSAL':
             error('approval_claim', 'manifest acceptance must remain PROPOSAL')
         tree_paths = set(git(root, 'ls-tree', '-rz', '--name-only', base).decode().split('\0')) - {''}
@@ -155,9 +183,17 @@ def audit(root, manifest='release/retirement/disposition.json'):
                    if p.is_file() and '__pycache__' not in p.parts}
         if current != product:
             error('kernel_product_changed', sorted(current ^ product))
-        for name in sorted(product & current):
-            if (root / name).read_bytes() != git(root, 'show', base + ':' + name):
-                error('kernel_product_changed', name)
+        originals = {name: git(root, 'show', base + ':' + name)
+                     for name in sorted(product & current)}
+        candidates = {name: (root / name).read_bytes() for name in originals}
+        pending = proposed_kernel_revision(base, originals, candidates)
+        if pending is not None:
+            result['proposed_kernel_revision'] = pending
+            result['pending_user_approval'] = True
+        else:
+            for name in originals:
+                if candidates[name] != originals[name]:
+                    error('kernel_product_changed', name)
         entries = sorted(p.name for p in (root / 'bin').iterdir())
         if entries != ['perry']:
             error('bin_surface', entries)
@@ -190,7 +226,9 @@ def audit(root, manifest='release/retirement/disposition.json'):
     except (OSError, ValueError, KeyError, TypeError, SyntaxError) as exc:
         error('invalid_input', exc)
     result['ok'] = not errors
-    result['status'] = 'source_checks_pass' if result['ok'] else 'source_checks_fail'
+    result['status'] = ('source_checks_pass_with_pending_kernel_revision'
+                        if result['ok'] and result.get('pending_user_approval')
+                        else 'source_checks_pass' if result['ok'] else 'source_checks_fail')
     return result
 
 
