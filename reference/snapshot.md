@@ -49,6 +49,14 @@ Show project/root and the capture's `store_seq`, then a short table:
 | Checks | declared check and actual measurement state; show unmeasured/obsolete/error |
 | Decisions | designs by state; active ADRs and attachments |
 
+Historical overall versions retain distinct item identities and lifecycle.
+For the current overall view select the largest explicit `vN` ordinal in
+`okr_version` (optional colon/date suffix); retain earlier versions for history.
+Multiple different labels at the same highest ordinal, missing version scopes,
+or unparseable labels are inconsistencies to report. A phase's `in_phase`
+relations select its own goals independently; do not label an older phase as
+the current overall version or treat historical goals as withdrawn.
+
 Read item `fields`, `relations`, `attachments`, `startable`, `blocked_by` and
 `rollup` as returned. Do not derive dependencies from prose, average KR scores,
 interpret a blank as zero, or extract a numeric measurement from narrative.

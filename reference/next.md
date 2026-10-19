@@ -15,8 +15,8 @@ An explicit user request takes priority. Unknown facts cannot satisfy a row.
 | 5 | a named design is locked with an unexecuted work handoff | decide hands its agreed scope to work |
 | 6 | nonterminal asks block otherwise ready work | surface the question with its blocked task and the recorded age, if known |
 | 7 | a phase KR is unmeasured, has a failed/obsolete check or has no declared check | goals declares/repairs/runs the check; an obsolete measurement cannot close the phase |
-| 8 | all committed phase KRs are measured and met, with a native event/attachment proving its retro | propose goals phase scoring, after the lane's approval gate |
-| 9 | all committed phase KRs are measured and met, with no recorded retro | work proposes the end-phase retrospective before goals scoring |
+| 8 | at least 80% of committed phase KRs are met, none unmeasured, with a native event/attachment proving its retro | propose goals phase scoring, after the lane's approval gate |
+| 9 | at least 80% of committed phase KRs are met, none unmeasured, with no recorded retro | work proposes the end-phase retrospective before goals scoring |
 | 10 | no current objective or phase in an applied goals template | goals proposes goals/phase planning, with the user's scope |
 | 11 | a startable task has written criteria and its priority outranks other startable tasks | propose it by title; never silently start it |
 | 12 | a declared open high risk | surface it and propose work risk review |
@@ -27,9 +27,18 @@ The task's `blocked_by`/`startable` is authoritative. A review item's existence
 is not a passing verdict, and a passing verdict is not human acceptance. Never
 fabricate a human actor, reviewer freshness or a numerical measurement.
 
-For a phase-close suggestion inspect the complete KR set and the native metric
-and rollup results. Missing children, withdrawn/ambiguous membership, stale
-measurements or missing retrospective evidence prevent claiming closability.
+For a phase-close suggestion inspect the complete current phase KR set. Exclude
+withdrawn KRs and declared stretch KRs. For each remaining KR, require an actual
+native metric or check rollup with a measured value and a non-null `met`. Count
+met KR IDs as numerator and all committed KR IDs as denominator; show both ID
+lists and the arithmetic. This skill decision retains the existing 80% threshold
+(DESIGN-020 §9); it is not the kernel's `rollup.met`, which means every child met.
+An empty set, any unmeasured/stale value or ambiguous membership prevents the
+suggestion. More than one check uses the kernel's one-level KR rollup, never a
+mean of check fractions. Do not recursively treat an Objective rollup as the
+checks' result. Missing retrospective evidence routes to the retro suggestion,
+not scoring. These labelled calculations are derived from native query facts;
+no narrative numbers or retired rules table supplies a missing value.
 Do not infer that a retro exists merely because a file has that name. If the
 process template has no metadata for a decision, report the missing fact.
 
