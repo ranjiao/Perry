@@ -35,7 +35,7 @@ Legacy sibling skills were withdrawn to avoid host namespace collisions; `setup`
 | **`work`** | `/perry work …` (alias `pmo`) | `$PERRY_HOME/work/SKILL.md` | board, journal, cadence, dispatch, status |
 | **`decide`** | `/perry decide …` (alias `design`) | `$PERRY_HOME/decide/SKILL.md` | RFCs, design docs, locked decisions, ADRs |
 
-Each lane's files are the ownership table below; each lane's SKILL.md carries its own subcommand index. Handled here instead of in a lane: the snapshot, `adopt`, `diagnose`, `relocate`, `help`, and writing `.perry/config.jsonl`.
+Each lane's files are the ownership table below; each lane's SKILL.md carries its own subcommand index. Handled here instead of in a lane: the snapshot, `adopt`, `diagnose`, `relocate`, `help`, and root-owned preferences and `.perry/safety.json`.
 
 > **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md`, everything under `*/reference/`, everything under `packs/`, and everything under this directory's own `reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. Translate that agent shorthand when quoting a user command.
 >
@@ -82,9 +82,12 @@ owning lane. An explicit user request takes priority over a suggested next step.
    helper and read `reference/host-capabilities.md`. On Change, run the bounded
    update check and surface its result. A session has no Perry token ceiling;
    the agent environment and user decide when to start another session.
-2. Read `.perry/config.jsonl` for root, layout and languages only. Read the
-   project's `.perry/hook.md` before any write. A malformed or ambiguous config
-   is a reported setup error; never guess another state root.
+2. Read host/project preferences in `.perry/hook.md` (`reference/config.md`).
+   Frozen `.perry/config.jsonl` may supply unchanged migration-era root/language
+   metadata only; it is never a writer or current domain-state source. Report
+   conflicting or unreadable declarations before mutation; do not guess another
+   state root. Read `.perry/safety.json` before dispatch/mutation and apply
+   `reference/safety-policy.md`; absence does not turn a status query into setup.
 3. Apply **`reference/recovery.md` in full before querying current state**.
    A pending transaction, malformed restore point or inaccessible safety path
    blocks normal state reads and writes. An interrupted adoption, diagnosis or
@@ -107,7 +110,7 @@ failed write. Never present an earlier capture as current.
 
 When `/perry` runs in a project with no Perry state files at all **and step 2 found neither a recovery hazard nor an interrupted run**. If a dossier or diagnosis exists with a non-terminal `stage`, this does not run — the user already answered these questions.
 
-Read `reference/first-run.md § The procedure` and follow its six steps in order: the namespace check runs before any question, and the answers go to `.perry/config.jsonl` before any other file.
+Read `reference/first-run.md § The procedure` and follow its six steps in order: the namespace check runs before writes, preferences go to the root-owned hook prose and reviewed safety policy, then native init records the agreed document root.
 
 ## Router subcommands
 
@@ -128,7 +131,7 @@ Setup and relocate finish with [the closing step](reference/next.md#closing-step
 
 ## Configuration
 
-`.perry/config.jsonl` holds host/project settings; prose belongs in `.perry/hook.md`. Field **names** stay English in every language. Repo layout, state root, tracks and pack controls — including “what else can Perry do?” and enabling or disabling optional capabilities — are `reference/config.md`.
+Host preferences belong in `.perry/hook.md` prose; high-stakes rules in `.perry/safety.json`. Frozen `.perry/config.jsonl` is migration metadata only. Field **names** stay English in every language. Repo layout, state root, tracks and pack controls — including “what else can Perry do?” and enabling or disabling optional capabilities — are `reference/config.md`.
 
 ## Style rules
 

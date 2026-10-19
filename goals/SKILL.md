@@ -15,14 +15,14 @@ only the selected procedure. Kernel state is authoritative; legacy `OKR.md`,
 Run the router's safety startup once, preserving recovery/interrupted refusals.
 Pin `PERRY_HOME` to the actual loaded skill root; use the configured document and
 chat languages, project anchor and state root. Read `.perry/hook.md`.
-Read `work/reference/kernel.md`, `perry-kernel describe`, and `template show`
+Read `work/reference/kernel.md`, `perry describe`, and `template show`
 for the versioned command/data contracts. Every CLI call names absolute `--root`;
 rehearsals also name scratch `--store` with `PERRY_KERNEL_TESTING=1`.
 If the six F types are absent, report migration required. Never initialize over
 an activated work store or fall back to a legacy writer.
 
 ```bash
-"$PERRY_HOME/bin/perry-kernel" query --root /absolute/project --input @/absolute/scratch/query.json
+"$PERRY_HOME/bin/perry" query --root /absolute/project --input @/absolute/scratch/query.json
 ```
 
 Read bodies: `{"type":"phase","state":["phase_active"]}`,

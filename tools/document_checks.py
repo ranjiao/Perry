@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 import re
 import sys
+import safety_policy
+from host_common import owned_markdown
 
 STAGES = {
     'adoption': {'scan', 'harvest', 'infer', 'confirm', 'commit', 'done', 'abandoned'},
@@ -57,15 +59,21 @@ def startup(root, state_root):
     root = root.resolve()
     state = inside(root, state_root)
     recovery = {'blocking': False, 'errors': []}
-    out = {'version': 1, 'recovery': recovery, 'interrupted': []}
+    out = {'version': 1, 'recovery': recovery, 'interrupted': [], 'draft_errors': []}
+    if (root/'.perry').is_symlink():
+        recovery['blocking'] = True
+        recovery['errors'].append({'path':str(root/'.perry'),'error':'safety namespace is a symlink'})
+        return out
     marker = state / '.perry-task-transaction.json'
     if marker.exists() or marker.is_symlink():
         recovery['blocking'] = True
         recovery['errors'].append({'path': str(marker), 'error': 'pending legacy transaction; recover with the pinned pre-cutover release, never delete this marker'})
         return out  # no dossier/config/store read after this STOP
     for folder, discriminator in (('adoption', 'adoption'), ('diagnose', 'diagnosis')):
-        directory = inside(root, '.perry/' + folder)
-        for path in sorted(directory.glob('*.md')):
+        directory = root/'.perry'/folder
+        candidates, errors = owned_markdown(root, directory)
+        recovery['errors'].extend(errors)
+        for path in candidates:
             try:
                 if not path.resolve().is_relative_to(root):
                     raise ValueError('dossier symlink escapes project')
@@ -81,55 +89,52 @@ def startup(root, state_root):
                     out['interrupted'].append({'path':str(path),'pipeline':discriminator,'stage':stage,'step':step,'updated':fm.get('updated'),'action':'ask user; never auto-resume'})
             except (OSError, ValueError, UnicodeError) as exc:
                 recovery['errors'].append({'path':str(path),'error':str(exc)})
-    # Planning drafts are evidence, not kernel state. Unknown shape cannot hide a run.
-    for path in sorted((state/'plans').glob('**/*.md')):
+    # Existing frontmatter plans keep their old safety behavior. New F drafts
+    # are narrative attachments; their lifecycle lives in native draft items.
+    candidates, errors = owned_markdown(root, state/'plans', recursive=True)
+    out['draft_errors'].extend(errors)
+    for path in candidates:
         try:
-            if not path.resolve().is_relative_to(root):
-                raise ValueError('planning draft escapes project')
+            if path.is_symlink() or not path.resolve().is_relative_to(root):
+                raise ValueError('planning draft escapes project or is a symlink')
+            text = path.read_text(encoding='utf-8')
+            if not text.startswith('---'):
+                continue  # a native narrative has no duplicate lifecycle header
             fm = frontmatter(path)
-            if fm.get('status') not in ('draft','approved','finalized','abandoned'):
-                raise ValueError('unknown planning status; manual inspection required')
-            if fm['status'] not in ('finalized','abandoned'):
-                out['interrupted'].append({'path':str(path),'pipeline':'plan','stage':fm['status'],'action':'ask user; never auto-resume'})
+            if fm.get('status') not in ('interviewing','drafted','approved','finalized','abandoned'):
+                raise ValueError('unknown legacy planning status; manual inspection required')
+            if fm['status'] == 'interviewing':
+                out['interrupted'].append({'path':str(path),'pipeline':'plan','stage':fm['status'],'step':fm.get('step'),'action':'ask user; never auto-resume'})
         except (OSError, ValueError, UnicodeError) as exc:
-            recovery['errors'].append({'path':str(path),'error':str(exc)})
+            out['draft_errors'].append({'path':str(path),'error':str(exc),'scope':'blocks this draft, not unrelated state reads'})
     recovery['blocking'] = bool(recovery['errors'])
     if recovery['blocking']:
         out['interrupted'] = []  # malformed restore point is not a resumable run
     return out
 
 
-def hook_fragments(hook):
-    section = re.search(r'^## High-stakes operations\s*\n(.*?)(?=^## |\Z)', hook, re.M|re.S)
-    if not section:
-        return [], ['missing High-stakes operations section']
-    bullets = re.findall(r'^[-*] (.+)$', section[1], re.M)
-    fragments, errors = [], []
-    for bullet in bullets:
-        spans = re.findall(r'`([^`]+)`', bullet)
-        if not spans:
-            errors.append('unextractable high-stakes bullet: ' + bullet)
-        fragments.extend(spans)
-    if not fragments:
-        errors.append('high-stakes list is unarmed')
-    return fragments, errors
-
-
 def dispatch(packet):
     errors=[]
-    hook=packet.get('hook'); spec=packet.get('spec'); paths=packet.get('scope')
-    if not isinstance(hook,str) or not isinstance(spec,str) or not isinstance(paths,list) or not paths:
-        raise ValueError('dispatch needs hook text, spec text and nonempty scope array')
-    fragments, faults = hook_fragments(hook); errors.extend(faults)
+    spec=packet.get('spec'); paths=packet.get('scope'); root=packet.get('root')
+    if not isinstance(root,str) or not Path(root).is_absolute() or not isinstance(spec,str) or not isinstance(paths,list) or not paths or not all(isinstance(p,str) and p.strip() for p in paths):
+        raise ValueError('dispatch needs absolute root, spec text and nonempty scope array')
+    policy = safety_policy.read(root)
+    from roles import report as role_report
+    role_facts = role_report(Path(root))
+    errors.extend('invalid role/safety metadata: ' + str(e) for e in role_facts['errors'])
+    if role_facts['policy_source']['sha256'] != policy['sha256']:
+        errors.append('safety policy changed during scope screening; retry')
+    fragments, faults = role_facts['escalation_union'], []
     matches = [f for f in fragments if re.search(r'(?<!\w)' + re.escape(f) + r'(?!\w)', spec + '\n' + '\n'.join(paths), re.I)]
-    if matches and not packet.get('authorization'):
+    authorization = packet.get('authorization')
+    if matches and (not isinstance(authorization,str) or not authorization.strip()):
         errors.append('high-stakes operation needs actual user authorization; matching is only a screening fact')
     if packet.get('lane') not in ('goals','work','decide'):
         errors.append('unknown lane')
     lane = packet.get('lane')
     for rel in paths:
         try:
-            inside(Path('/explicit-project-root'),rel)
+            inside(Path(root),rel)
             # Evidence ownership remains lane-owned even with native item state.
             part = next((s for s in Path(rel).parts if s in ('decisions','design','evidence','weekly','handoff','phase','OKR.md')),None)
             owner = {'decisions':'decide','design':'decide','evidence':'work','weekly':'work','handoff':'work','phase':'goals','OKR.md':'goals'}.get(part)
@@ -137,11 +142,12 @@ def dispatch(packet):
                 errors.append('another lane owns ' + rel)
         except ValueError as exc:
             errors.append(str(exc))
-    if not packet.get('actor'):
+    actor = packet.get('actor')
+    if not isinstance(actor,dict) or actor.get('kind') not in ('agent','human') or not actor.get('name') or actor.get('kind')=='agent' and not actor.get('session'):
         errors.append('actual actor/session required')
     if not spec.strip():
         errors.append('missing written scope/criteria')
-    return {'version':1,'armed':bool(fragments) and not faults,'matches':matches,'errors':errors,'blocked':bool(errors),'limit':'Does not judge naming versus doing, adequacy, or authenticity of authorization. Skill must read the spec and instruction source.'}
+    return {'version':1,'armed':bool(fragments) and not faults,'policy_source':{'path':policy['path'],'sha256':policy['sha256']},'matches':matches,'errors':errors,'blocked':bool(errors),'limit':'Does not judge naming versus doing, adequacy, or authenticity of authorization. Skill must read the spec and instruction source.'}
 
 
 def review(packet):

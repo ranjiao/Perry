@@ -5,10 +5,15 @@ It replaces the old `perry-state` recovery/interrupted projections. It is a
 skill procedure; it does not repair, resume or mutate anything automatically.
 Apply the configured document/chat languages and actual project root.
 
-1. Resolve `state_root` from `.perry/config.jsonl`, checking every JSONL record
-   is valid and the setting is unique. Refuse absolute paths, `..` components,
-   missing/non-string settings or symlink escapes. A missing config is reported
-   as setup required; still inspect `.perry` restore points before setup.
+1. Resolve the document root from explicit project instructions and authored
+   preferences (`config.md`). Existing `.perry/config.jsonl` is a frozen fallback
+   for unchanged root/language metadata, not a new state writer. If it is needed,
+   check every JSONL record and unique setting before using it. Refuse absolute
+   roots, escapes, malformed/ambiguous metadata and unresolved contradictions.
+   Still inspect `.perry` restore points before any setup. Then run
+   `python3 tools/document_checks.py startup --root <absolute> --state-root <relative>`
+   and inspect every recovery error, interrupted row and draft warning. The helper
+   never repairs or resumes. Apply the following procedure to its actual facts.
 2. Inspect `<state_root>/.perry-task-transaction.json`. Its mere presence is a
    blocking legacy transaction, including a malformed/unreadable marker. Name
    the path; do not delete it or start another writer. Restore/repair with the
@@ -21,8 +26,10 @@ Apply the configured document/chat languages and actual project root.
    blocks normal state reads and writes; report each path and exact defect.
 4. Inspect plan drafts under `<state_root>/plans/` using the goals draft
    procedure. An unreadable/invalid plan is reported and blocks writes to
-   that plan; it never becomes a valid interrupted card. An interviewing plan
-   joins the interrupted-run list. Do not finalize or re-approve a changed draft.
+   that plan; it never becomes a valid interrupted card. A legacy interviewing plan
+   joins the interrupted-run list; drafted/approved plans wait for their owning
+   procedure. New F narratives have no duplicate lifecycle frontmatter: their
+   native goal/phase drafts remain visible in queries and never auto-resume. Do not finalize or re-approve a changed draft.
 5. A valid nonterminal dossier requires a user choice before setup, dashboard
    or action: Resume at the recorded stage/step; archive and start over; or
    Abandon in place. A plan offers resume/abandon only. Present the stored

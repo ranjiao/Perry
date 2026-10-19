@@ -34,3 +34,40 @@ def section(text: str, heading: str) -> str:
 
 def bullets(text: str) -> list[str]:
     return re.findall(r"^\s*[-*]\s+(.+)$", text, re.M)
+
+
+def owned_markdown(root, directory, recursive=False):
+    """Do not let glob's suppressed directory errors hide a restore point."""
+    root, directory = Path(root).resolve(), Path(directory)
+    paths, errors = [], []
+    try:
+        if not directory.resolve().is_relative_to(root):
+            raise ValueError('safety directory escapes project')
+        for part in [directory, *directory.parents]:
+            if part == root:
+                break
+            if part.is_symlink():
+                raise ValueError('safety directory contains a symlink')
+    except ValueError as exc:
+        return [], [{'path':str(directory),'error':str(exc)}]
+    def walk(folder):
+        try:
+            if folder.is_symlink():
+                raise ValueError('safety directory is a symlink')
+            if not folder.exists():
+                return
+            if not folder.is_dir():
+                raise ValueError('safety directory is not a directory')
+            for path in sorted(folder.iterdir()):
+                if path.is_symlink():
+                    raise ValueError('safety path is a symlink: ' + str(path))
+                if recursive and path.is_dir():
+                    walk(path)
+                elif path.name.endswith('.md'):
+                    paths.append(path)
+        except (OSError, ValueError) as exc:
+            errors.append({'path':str(folder),'error':str(exc)})
+    walk(directory)
+    return paths, errors
+
+

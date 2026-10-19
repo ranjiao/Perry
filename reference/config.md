@@ -19,7 +19,7 @@ never changes which Git common directory owns the store.
 Record new or explicitly changed preferences as ordinary prose in the project's
 `.perry/hook.md`: Document language (default English), Chat language (default
 follow user), Repo layout, document root (default `perry`), Packs, Proactive next
-steps and review-round policy. Preserve unrelated policy text and quote the exact
+steps and review-round policy. The high-stakes list lives separately in `.perry/safety.json` (`safety-policy.md`). Preserve unrelated hook text and quote the exact
 change in the handoff. The root router owns this preference edit; lanes request
 it rather than writing another lane's state. Do not silently convert legacy
 metadata or overwrite a hook merely to obtain these defaults. Conflicting legacy

@@ -26,7 +26,7 @@ on an existing project is a migration gap, not permission to initialize.
 
 ## Ownership and high-stakes decisions
 
-Read the applicable project hook and dispatch preflight. Screen the actual
+Read the actual `.perry/safety.json`, applicable hook, role additions and dispatch preflight. Follow `safety-policy.md`. Screen the actual
 operations, including foreign paths, install/deploy/publish/merge and changes to
 the safety gate itself. Quoted examples and editing a command's source are not
 executing that command. Explain uncertain matches; do not weaken the hook.
@@ -36,9 +36,9 @@ Prepare a dispatch JSON packet and run:
 python3 "$PERRY_HOME/tools/document_checks.py" dispatch --input /absolute/scratch/dispatch.json
 ```
 
-Packet fields are `hook`, `scope` (relative paths), `spec`, `lane`, `actor`, and
+Packet fields are absolute project `root`, `scope` (relative paths), `spec`, `lane`, factual `actor`, and
 `authorization` (actual session instruction/reference or null). Refusal,
-unarmed/unextractable hooks, foreign ownership or unresolved authority stop the
+missing/unreviewed/unarmed structured policies, foreign ownership or unresolved authority stop the
 operation. The helper checks structure; the agent still decides whether the
 recorded authorization actually covers the exact action. Another lane's document
 requires its owning procedure. Existing explicit authority persists; do not ask

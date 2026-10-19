@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "approval_ref": "",
+  "rules": [
+    {"id": "installation", "label": "Host and system installation", "patterns": ["setup", "ln -s", "ln -sf", "ln -snf", "ln -sfn", "brew install", "npm install -g"]},
+    {"id": "external-project", "label": "Writing another project's namespace", "patterns": ["adopt", "diagnose", "relocate", "git mv"]},
+    {"id": "publication", "label": "Remote publication and destructive history", "patterns": ["git push", "gh release", "publish", "push --force", "--force-with-lease", "tag deletion"]},
+    {"id": "filesystem", "label": "Destructive filesystem operations", "patterns": ["rm -rf", "rm -fr", "rm -f", "bulk delete"]},
+    {"id": "database", "label": "Database mutation, migration or replacement", "patterns": ["sqlite3", "DROP TABLE", "DELETE FROM", ".git/perry", "root.db", "perry.db", "migrate --down"]},
+    {"id": "policy", "label": "Changing safety policy or self-update", "patterns": [".perry/safety.json", "git pull"]}
+  ]
+}

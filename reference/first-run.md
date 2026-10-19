@@ -14,7 +14,8 @@ store on a migrated project require reconciliation, never an empty replacement.
    conflicts and choose a different root; do not claim or overwrite them.
 3. Record agreed skill preferences in ordinary `.perry/hook.md` prose through
    the root procedure (`config.md`). Preserve existing policy. Obtain the
-   project's high-stakes boundary agreement; an absent/unarmed gate blocks
+   project's high-stakes boundary agreement and save the reviewed structured
+   `.perry/safety.json` using `safety-policy.md`; an absent/unarmed gate blocks
    automated dispatch until resolved.
 4. With bootstrap agreement, run native `init` with the actual actor and agreed
    `state_root`, then `template apply` using the parsed shipped

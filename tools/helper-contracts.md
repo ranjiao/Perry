@@ -34,7 +34,7 @@ a major append `{version, fields, note}` entries. No implicit `PERRY_PROJECT`,
 {
   "contract": "perry-roles/read/2.0", "semantics": [],
   "project_root": "/absolute/project", "declared": 0, "cards": [],
-  "hook": {"lines": [], "fragments": [], "unextractable": []},
+  "policy_source": {"path": "/absolute/project/.perry/safety.json", "sha256": "<sha256>"},
   "escalation_union": [], "errors": []
 }
 ```
@@ -47,16 +47,13 @@ ASCII or full-width field colons, and strips HTML comments. It reads
 `.perry/roles/*.md`; it does not infer roles from old `.perry/agents.jsonl`.
 An agents-only project needs a deliberate role-card migration before using
 this API. The heading supplies the display name; its `Role ·` prefix is removed.
-Escalation extraction retains backticked ASCII spans longer than 2 characters
-and non-ASCII spans longer than 1, lowercased. Both hook and role bullets that
-yield no fragment are errors, not silently armed rules. `escalation_union`
-preserves all hook fragments and adds every role fragment, in order. It cannot
-judge polarity or whether an operation is doing versus naming. Dispatch still
-reads the actual hook and role text; a missing file is an empty extraction,
-not evidence that dispatch is authorized. Legacy localized heading aliases
-are not inferred for role cards: review noncanonical documents before adopting this reader.
-The hook additionally accepts `High-stakes` and `高风险操作`; a nonempty hook
-with no recognized nonempty high-stakes section is an error.
+Project fragments come from the reviewed structured `.perry/safety.json`, with
+path/hash reported in `policy_source`. Missing/invalid policy is a visible error,
+not a fallback to backticked hook prose. Role escalation extraction retains literal
+backticked additions and reports unextractable role rules. `escalation_union`
+preserves project patterns followed by all role additions. Semantic scope and
+actual authorization remain the skill's judgment. The helper reads no task role
+assignments from frozen registers. See `reference/safety-policy.md`.
 
 `python3 tools/knowledge.py --root PROJECT --state-root DOCUMENTS [--stale-days 90]`
 

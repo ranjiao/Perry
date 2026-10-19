@@ -9,8 +9,9 @@ import json
 from pathlib import Path
 import re
 import sys
+import safety_policy
 
-from host_common import bullets, explicit_directory, field, section, strip_comments
+from host_common import bullets, explicit_directory, field, section, strip_comments, owned_markdown
 
 
 def line_fragments(line: str) -> list[str]:
@@ -47,28 +48,32 @@ def parse_card(path: Path, root: Path) -> dict:
 
 def report(root: Path) -> dict:
     root = root.resolve()
-    cards = [parse_card(p, root) for p in sorted((root / ".perry" / "roles").glob("*.md"))]
-    hook_path = root / ".perry" / "hook.md"
-    hook_text = strip_comments(hook_path.read_text(encoding="utf-8")) if hook_path.is_file() else ""
-    hook_body = "\n".join(section(hook_text, title) for title in
-                          ("High-stakes operations", "High-stakes", "高风险操作"))
-    hook = escalation(bullets(hook_body))
-    fragments = list(dict.fromkeys(hook["fragments"] + [f for c in cards for f in c["must_escalate"]["fragments"]]))
-    errors = []
-    if hook_text.strip() and not hook_body.strip():
-        errors.append({"path": ".perry/hook.md", "code": "high_stakes_section_empty_or_missing"})
+    paths, errors = owned_markdown(root, root/'.perry/roles')
+    cards = []
+    for path in paths:
+        try:
+            cards.append(parse_card(path, root))
+        except (OSError, ValueError, UnicodeError) as exc:
+            errors.append({'path':str(path),'code':'role_unreadable','error':str(exc)})
+    try:
+        policy = safety_policy.read(root)
+        policy_source = {'path':policy['path'],'sha256':policy['sha256']}
+        policy_fragments = policy['patterns']
+    except (OSError, ValueError) as exc:
+        policy_source = {'path':str(root/'.perry/safety.json'),'sha256':None}
+        policy_fragments = []
+        errors.append({'path':'.perry/safety.json','code':'policy_unavailable','error':str(exc)})
+    fragments = list(dict.fromkeys(policy_fragments + [f for c in cards for f in c['must_escalate']['fragments']]))
     for card in cards:
         for key in ("accepted_by", "default_rung"):
             if not card[key] or "{{" in card[key]:
                 errors.append({"path": card["path"], "code": "missing_" + key})
-        if card["default_rung"] and not re.fullmatch(r"V[0-6]", card["default_rung"]):
+        if card["default_rung"] and not re.fullmatch(r"V[1-6]", card["default_rung"]):
             errors.append({"path": card["path"], "code": "invalid_default_rung"})
         for line in card["must_escalate"]["unextractable"]:
             errors.append({"path": card["path"], "code": "unextractable_escalation", "line": line})
-    errors += [{"path": ".perry/hook.md", "code": "unextractable_escalation", "line": line}
-               for line in hook["unextractable"]]
     return {"contract": "perry-roles/read/2.0", "semantics": [], "project_root": str(root),
-            "declared": len(cards), "cards": cards, "hook": hook,
+            "declared": len(cards), "cards": cards, "policy_source": policy_source,
             "escalation_union": fragments, "errors": errors}
 
 

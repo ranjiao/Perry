@@ -42,10 +42,10 @@ class Helpers(unittest.TestCase):
         path.parent.mkdir(parents=True)
         path.write_text("# Role · coding\n- Accepted by: reviewer\n- Default rung: V4\n"
                         "## Must escalate\n- outbound `publish`\n- `下单`\n- manual judgement\n")
-        (self.root / ".perry" / "hook.md").write_text(
-            "## High-stakes operations\n- run `git push`\n")
+        (self.root / ".perry" / "hook.md").write_text("# Human policy rationale\n")
+        (self.root / ".perry" / "safety.json").write_text(json.dumps({"version":1,"approval_ref":"isolated reviewed policy","rules":[{"id":"remote","label":"Remote publication","patterns":["git push"]}]}))
 
-    def test_role_union_preserves_hook_and_reports_unextractable_red(self):
+    def test_role_union_preserves_policy_and_reports_unextractable_red(self):
         self.role()
         result = roles.report(self.root)
         self.assertEqual(result["escalation_union"], ["git push", "publish", "下单"])
@@ -55,14 +55,15 @@ class Helpers(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertEqual(json.loads(proc.stdout)["contract"], "perry-roles/read/2.0")
 
-    def test_hook_alias_and_missing_section_do_not_silently_disarm(self):
-        self.role()
-        hook = self.root / ".perry" / "hook.md"
-        hook.write_text("## 高风险操作\n- `下单`\n")
-        self.assertEqual(roles.report(self.root)["hook"]["fragments"], ["下单"])
-        hook.write_text("## Other heading\n- `git push`\n")
-        codes = {e["code"] for e in roles.report(self.root)["errors"]}
-        self.assertIn("high_stakes_section_empty_or_missing", codes)
+    def test_hook_prose_cannot_disarm_structured_project_policy(self):
+        (self.root/'.perry').mkdir()
+        policy={'version':1,'approval_ref':'isolated reviewed policy','rules':[{'id':'paid','label':'Paid action','patterns':['下单']}]}
+        (self.root/'.perry/safety.json').write_text(json.dumps(policy))
+        (self.root/'.perry/hook.md').write_text('# User rationale without a machine list\n')
+        result=roles.report(self.root)
+        self.assertEqual(result['escalation_union'],['下单']);self.assertEqual(result['errors'],[])
+        (self.root/'.perry/safety.json').unlink()
+        self.assertEqual(roles.report(self.root)['errors'][0]['code'],'policy_unavailable')
 
     def test_knowledge_valid_then_missing_source_claim_tripwire_red(self):
         self.role()
