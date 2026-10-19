@@ -50,8 +50,13 @@ Show project/root and the capture's `store_seq`, then a short table:
 | Decisions | designs by state; active ADRs and attachments |
 
 Historical overall versions retain distinct item identities and lifecycle.
-For the current overall view select the largest explicit `vN` ordinal in
+For the current overall view consider active Objectives and previously approved
+retired Objectives (`approval_ref` present); exclude unapproved drafts, including
+withdrawn drafts with no approval. Select the largest explicit `vN` ordinal in
 `okr_version` (optional colon/date suffix); retain earlier versions for history.
+If that approved version is entirely withdrawn, show it as withdrawn/empty; do
+not resurrect an earlier active version. A merely created future draft never
+hides the approved current version.
 Multiple different labels at the same highest ordinal, missing version scopes,
 or unparseable labels are inconsistencies to report. A phase's `in_phase`
 relations select its own goals independently; do not label an older phase as
