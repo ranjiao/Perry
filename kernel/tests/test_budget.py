@@ -107,7 +107,7 @@ class TestDescribe(unittest.TestCase):
         self.assertEqual(list(described), [
             "surface", "concepts", "budget", "commands", "flags", "env",
             "exit_codes", "errors", "template_format"])
-        self.assertEqual(described["surface"], "1.0")
+        self.assertEqual(described["surface"], "1.1")
         for command in described["commands"]:
             with self.subTest(command=command["name"]):
                 self.assertEqual(sorted(command), [

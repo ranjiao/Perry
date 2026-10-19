@@ -300,3 +300,10 @@ NN-K3 to NN-K8 restate DESIGN-016's argument-contract lessons as rules of this C
   `expect` with `stale_write`, `session` on the actor, required inputs in the versioned
   `describe`, stdout as the whole answer, the thin wrapper, and refusal of both undeclared
   positionals and flags a command does not honour.
+
+## Proposed surface 1.1 — prefix floors
+
+Pending user approval under DESIGN-023 §7: the existing `template apply` input
+may raise declared prefix floors through optional `ceilings`, using existing
+ceiling events. This adds no concept, command group or guard. See §5 contracts.
+No live store is changed by preparing or testing this candidate.

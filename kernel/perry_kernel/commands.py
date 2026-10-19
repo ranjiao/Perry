@@ -448,12 +448,11 @@ def cmd_template_apply(ctx: Ctx) -> Outcome:
                   "previous_version": previous}
         if row is not None:
             if template["version"] == previous:
-                if canonical(template) == canonical(row["template"]):
-                    return unchanged(store, ctx, result)
-                raise KernelError("template_version",
-                                  f"version {previous} is applied with "
-                                  f"different content; raise the version",
-                                  {"applied": previous})
+                if canonical(template) != canonical(row["template"]):
+                    raise KernelError("template_version",
+                                      f"version {previous} is applied with "
+                                      f"different content; raise the version",
+                                      {"applied": previous})
             if template["version"] < previous:
                 raise KernelError("template_version",
                                   f"version {template['version']} is not "
@@ -467,8 +466,24 @@ def cmd_template_apply(ctx: Ctx) -> Outcome:
                                   f"version {template['version']} would strand "
                                   f"stored data: {stranded[0]['message']}",
                                   {"problems": stranded})
-        event = new_event(store, ctx, [], [
-            {"key": "template", "before": previous, "after": template}])
+        changes = []
+        if row is None or previous != template["version"]:
+            changes.append({"key": "template", "before": previous,
+                            "after": template})
+        prefixes = {t["prefix"] for t in new["types"].values()}
+        for prefix, floor in sorted(ctx.input.get("ceilings", {}).items()):
+            if prefix not in prefixes or not 0 <= floor <= INT_LIMIT:
+                raise KernelError("input_invalid",
+                                  "ceilings names declared prefixes and integers "
+                                  f"from 0 to {INT_LIMIT}", {"key": "ceilings",
+                                                          "prefix": prefix})
+            before = store.ceiling(prefix)
+            if floor > (before or 0):
+                changes.append({"key": "ceiling:" + prefix,
+                                "before": before, "after": floor})
+        if not changes:
+            return unchanged(store, ctx, result)
+        event = new_event(store, ctx, [], changes)
         store.apply_changes(event, mismatch="internal")
         return finish(store, ctx, event, lambda: result)
 
@@ -1109,8 +1124,8 @@ def _event_shape(event: dict, n: int) -> None:
                     or isinstance(change["before"], str)):
                 bad(f"{key} is a string, and its before a string or null")
     # One event never mixes a template change with an item's changes
-    # (TASK-489 round 6). `template apply` writes the `template` change
-    # alone, and no other command writes one, so the template in force is
+    # (TASK-489 round 6). `template apply` can pair the `template` change
+    # only with prefix ceilings, so the template in force is
     # the same for every item change of an event, and a value cannot slip
     # past it by sitting before a template change in the same event.
     keys = [c["key"] for c in event["changes"]]
