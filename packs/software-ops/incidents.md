@@ -55,7 +55,7 @@ This is where the feedback loop lives. Refuse the close until all three question
 2. Use `AskUserQuestion` with **three** questions (in one call):
 
    **Q1** — `header: "Knowledge"`, options:
-   - `Yes — write a knowledge card (Recommended if it taught a rule)` — the incident produced a **claim the project can re-check**: "restart the daemon before the migration, never after". Draft the claim and its tripwire from the root cause, then write it with `"$PERRY_HOME/bin/perry-knowledge" promote --source "incidents/<YYYY-MM-DD>-<slug>.md" …` (DESIGN-006 § 5.4; procedure in `$PERRY_HOME/work/reference/promotion.md`). **A sourceless card is refused, not written blank.**
+   - `Yes — write a knowledge card (Recommended if it taught a rule)` — the incident produced a **claim the project can re-check**: "restart the daemon before the migration, never after". Draft the claim and its tripwire from the root cause, then follow the explicit sourced document procedure in `$PERRY_HOME/work/reference/promotion.md`, with that actual incident file as the source. The retained knowledge helper is read-only. **A sourceless card is refused, not written blank.**
    - `Yes — write digest (Recommended if novel)` — calls `/pmo digest --paste` after close to capture the lesson as a knowledge entry.
    - `No — duplicate of existing digest` — prompt for the digest path; record it as the reference.
    - `No — too narrow to generalise` — must include a one-line reason.

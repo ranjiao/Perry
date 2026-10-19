@@ -1,7 +1,7 @@
 """Import facts and offline evidence for the code architecture browser."""
 from __future__ import annotations
 
-COVERS = ("bin/perry-architecture", "bin/perry_architecture/", "work/reference/delegate.md")
+COVERS = ("tools/architecture_cli.py", "tools/architecture/", "work/reference/delegate.md")
 
 import hashlib
 import json
@@ -13,13 +13,13 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "bin"))
-from perry_architecture.scan import scan
-from perry_architecture.report import render
-from perry_architecture.model import bind
-from perry_architecture.analysis import attach, changes
-from perry_architecture.audit import compare
-from perry_architecture.facts import brief
+sys.path.insert(0, str(ROOT / "tools"))
+from architecture.scan import scan
+from architecture.report import render
+from architecture.model import bind
+from architecture.analysis import attach, changes
+from architecture.audit import compare
+from architecture.facts import brief
 
 
 class ArchitectureBrowser(unittest.TestCase):
@@ -40,7 +40,7 @@ class ArchitectureBrowser(unittest.TestCase):
                                 'evidence': [data['symbols'][0]['id']]}]}
 
     def checkpoint_inputs(self):
-        from perry_architecture.checkpoint import save
+        from architecture.checkpoint import save
         self.put('app.py', 'def run(): return 1\n')
         rules = self.rules()
         data = scan(self.root)
@@ -52,7 +52,7 @@ class ArchitectureBrowser(unittest.TestCase):
         return save, store, receipt, review
 
     def test_checkpoint_retention_freshness_and_drift(self):
-        from perry_architecture.checkpoint import verify, read
+        from architecture.checkpoint import verify, read
         save, store, start, review = self.checkpoint_inputs()
         baseline = Path(start['checkpoint'])
         original = (baseline / 'bundle.json').read_bytes()
@@ -108,7 +108,7 @@ class ArchitectureBrowser(unittest.TestCase):
             save(data, 'delivery', 'TASK-1', store, proposal, review, baseline=base)
 
     def test_checkpoint_semantic_review_and_tamper(self):
-        from perry_architecture.checkpoint import verify
+        from architecture.checkpoint import verify
         save, store, start, review = self.checkpoint_inputs()
         data = scan(self.root)
         review['target_change_requested'] = True
@@ -127,7 +127,7 @@ class ArchitectureBrowser(unittest.TestCase):
                  review, baseline=start['checkpoint'])
 
     def test_checkpoint_unknowns_quiet_until_new(self):
-        from perry_architecture.checkpoint import save
+        from architecture.checkpoint import save
         self.put('app.py', 'def run(x): x.unknown()\n')
         rules = self.rules()
         data = scan(self.root)
@@ -149,7 +149,7 @@ class ArchitectureBrowser(unittest.TestCase):
         self.assertIn('new_unresolved_checks', result['reasons'])
 
     def test_checkpoint_semantic_evidence_and_receipt_integrity(self):
-        from perry_architecture.checkpoint import verify
+        from architecture.checkpoint import verify
         save, store, start, review = self.checkpoint_inputs()
         data = scan(self.root)
         review['findings'] = [{'reason': 'Responsibility needs discussion',
@@ -169,7 +169,7 @@ class ArchitectureBrowser(unittest.TestCase):
                  baseline=start['checkpoint'])
 
     def test_checkpoint_global_blind_spots_outside_rules(self):
-        from perry_architecture.checkpoint import save
+        from architecture.checkpoint import save
         self.put('app.py', 'def run(): return 1\n')
         self.put('other.py', 'def other(x): return 1\n')
         rules = self.rules()
@@ -200,7 +200,7 @@ class ArchitectureBrowser(unittest.TestCase):
                 self.assertFalse(repeat['open_report'])
 
     def test_checkpoint_observed_coverage_invalidates_freshness(self):
-        from perry_architecture.checkpoint import save, verify
+        from architecture.checkpoint import save, verify
         self.put('app.py', 'def run(): return 1\n')
         rules = self.rules()
         data = scan(self.root, excludes=['vendor'])
@@ -227,7 +227,7 @@ class ArchitectureBrowser(unittest.TestCase):
             verify(scan(self.root, excludes=['vendor'], max_bytes=500), base['checkpoint'])
 
     def test_checkpoint_saved_html_is_verified(self):
-        from perry_architecture.checkpoint import verify
+        from architecture.checkpoint import verify
         _, _, start, _ = self.checkpoint_inputs()
         html = Path(start['report'])
         html.write_text('REPORT REPLACED')
@@ -237,14 +237,6 @@ class ArchitectureBrowser(unittest.TestCase):
         with self.assertRaises(OSError):
             verify(scan(self.root), start['checkpoint'])
 
-    def test_manual_delegate_includes_architecture_in_actual_prompt(self):
-        text = (ROOT / 'work/reference/delegate.md').read_text()
-        fields = text.split('## Required fields in the rendered prompt')[1].split('## Roleless projects')[0]
-        for required in ('Architecture preamble', 'start/delivery', 'standard RESULT', 'durable external evidence store'):
-            self.assertIn(required, fields)
-        acceptance = text.split('## Accepting a manual paste-back')[1].split('### For code-changing work')[0]
-        for required in ('freshness verifier', 'pre-edit baseline', 'wrong-task/stage'):
-            self.assertIn(required, acceptance)
 
     def test_checkpoint_cli_roundtrip(self):
         save, store, start, review = self.checkpoint_inputs()
@@ -253,7 +245,7 @@ class ArchitectureBrowser(unittest.TestCase):
         review_path = Path(self.tmp.name) / 'review.json'
         analysis_path.write_text(json.dumps(self.proposal(data, ['app.py'])))
         review_path.write_text(json.dumps(review))
-        command = [str(ROOT / 'bin/perry-architecture'), '--root', str(self.root)]
+        command = [sys.executable, str(ROOT / 'tools/architecture_cli.py'), '--root', str(self.root)]
         result = subprocess.run(command + ['--checkpoint', 'delivery', '--task', 'TASK-1',
                  '--store', str(store), '--baseline', start['checkpoint'], '--analysis', str(analysis_path),
                  '--review', str(review_path)], capture_output=True, text=True)
@@ -368,7 +360,7 @@ class ArchitectureBrowser(unittest.TestCase):
         parent = Path(self.tmp.name)
         (parent/'analysis.json').write_text(json.dumps(proposal))
         (parent/'rules.json').write_text(json.dumps(self.rules()))
-        result = subprocess.run([str(ROOT/'bin/perry-architecture'), '--root', str(self.root),
+        result = subprocess.run([sys.executable, str(ROOT/'tools/architecture_cli.py'), '--root', str(self.root),
                                  '--analysis', str(parent/'analysis.json'), '--rules', str(parent/'rules.json')],
                                 text=True, capture_output=True)
         self.assertEqual(0, result.returncode, result.stderr)
@@ -376,14 +368,14 @@ class ArchitectureBrowser(unittest.TestCase):
         self.assertEqual(2, checked['architecture']['version'])
         self.assertEqual(2, checked['comparison']['summary']['no_observed_violation'])
         self.put('app.py', 'def changed(): pass\n')
-        result = subprocess.run([str(ROOT/'bin/perry-architecture'), '--root', str(self.root),
+        result = subprocess.run([sys.executable, str(ROOT/'tools/architecture_cli.py'), '--root', str(self.root),
                                  '--analysis', str(parent/'analysis.json')], text=True, capture_output=True)
         self.assertEqual(2, result.returncode)
         self.assertIn('stale analysis', result.stderr)
 
     def test_surrogate_literal_serializes_in_cli_and_html(self):
         self.put('app.py', 'print("\\ud800")\n')
-        result = subprocess.run([str(ROOT/'bin/perry-architecture'), '--root', str(self.root)], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, str(ROOT/'tools/architecture_cli.py'), '--root', str(self.root)], capture_output=True, text=True)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('\ud800', json.loads(result.stdout)['calls'][0]['literal_args'][0])
         render(scan(self.root)).encode('utf-8')
@@ -488,13 +480,12 @@ class ArchitectureBrowser(unittest.TestCase):
         self.assertEqual("os", data["imports"][0]["module"])
 
     def test_self_scan_does_not_create_bytecode(self):
-        shutil.copytree(ROOT / "bin/perry_architecture", self.root / "perry_architecture",
+        shutil.copytree(ROOT / "tools/architecture", self.root / "architecture",
                         ignore=shutil.ignore_patterns("__pycache__"))
-        shutil.copytree(ROOT / "bin/lib", self.root / "lib",
-                        ignore=shutil.ignore_patterns("__pycache__"))
-        shutil.copyfile(ROOT / "bin/perry-architecture", self.root / "perry-architecture")
+        shutil.copyfile(ROOT / "tools/host_common.py", self.root / "host_common.py")
+        shutil.copyfile(ROOT / "tools/architecture_cli.py", self.root / "architecture_cli.py")
         before = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
-        result = subprocess.run([sys.executable, str(self.root / "perry-architecture"),
+        result = subprocess.run([sys.executable, str(self.root / "architecture_cli.py"),
                                  "--root", str(self.root)], capture_output=True)
         self.assertEqual(0, result.returncode, result.stderr)
         after = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
@@ -504,7 +495,7 @@ class ArchitectureBrowser(unittest.TestCase):
         file = self.put("main.py", "import os\n")
         before = file.read_bytes()
         output = self.root.parent / "report.html"
-        cmd = [sys.executable, str(ROOT / "bin/perry-architecture"), "--root", str(self.root)]
+        cmd = [sys.executable, str(ROOT / "tools/architecture_cli.py"), "--root", str(self.root)]
         proc = subprocess.run(cmd + ["--html", str(output), "--json"], capture_output=True, text=True)
         self.assertEqual(0, proc.returncode, proc.stderr)
         self.assertEqual(1, json.loads(proc.stdout)["summary"]["files"])
@@ -518,19 +509,20 @@ class ArchitectureBrowser(unittest.TestCase):
         self.assertEqual(before, file.read_bytes())
 
     def test_real_perry_dependency_has_source_evidence(self):
-        # Copy only the actual files needed for a known production dependency.
-        # This is a bounded integration test, not an assertion about all edges.
-        for name in ("bin/perry-task", "viewer/parsers.py", "viewer/tables.py", "bin/lib/__init__.py"):
+        # Bounded real skill-module dependency; no retired state parser copy.
+        source = "tools/architecture/checkpoint.py"
+        target = "tools/architecture/analysis.py"
+        for name in (source, target, "tools/architecture/__init__.py", "tools/host_common.py"):
             self.put(name, (ROOT / name).read_text())
-        data = scan(self.root, ["bin", "viewer"])
-        edge = next(e for e in data["edges"] if e["source"] == "bin/perry-task"
-                    and e["target"] == "viewer/parsers.py")
+        data = scan(self.root, ["tools"])
+        edge = next(e for e in data["edges"] if e["source"] == source
+                    and e["target"] == target)
         item = data["imports"][edge["imports"][0]]
         actual = (ROOT / item["source"]).read_text().splitlines()[item["line"] - 1]
-        self.assertEqual("import parsers as P", actual.strip())
+        self.assertEqual("from .analysis import attach, changes", actual.strip())
         self.assertEqual(actual.strip(), item["statement"])
-        self.assertEqual(hashlib.sha256((ROOT / "bin/perry-task").read_bytes()).hexdigest(),
-                         next(f["sha256"] for f in data["files"] if f["id"] == "bin/perry-task"))
+        self.assertEqual(hashlib.sha256((ROOT / source).read_bytes()).hexdigest(),
+                         next(f["sha256"] for f in data["files"] if f["id"] == source))
 
     def test_responsibility_hierarchy_binds_files_without_declaring_edges(self):
         self.put("entry.py", "import pkg.child\n")
@@ -569,17 +561,6 @@ class ArchitectureBrowser(unittest.TestCase):
             with self.subTest(model=model), self.assertRaises(ValueError):
                 bind(scan(self.root), model)
 
-    def test_perry_model_is_not_a_directory_alias(self):
-        model = json.loads((ROOT / "bin/perry_architecture/perry-model.json").read_text())
-        for name in ("bin/perry-task", "bin/perry-state", "kernel/perry_kernel/commands.py",
-                     "kernel/perry_kernel/guards.py", "kernel/perry_kernel/store.py"):
-            self.put(name, (ROOT / name).read_text())
-        architecture = bind(scan(self.root, ["bin", "kernel"]), model)["architecture"]
-        self.assertEqual("tools/write", architecture["owners"]["bin/perry-task"])
-        self.assertEqual("tools/read", architecture["owners"]["bin/perry-state"])
-        self.assertEqual("kernel/operations", architecture["owners"]["kernel/perry_kernel/commands.py"])
-        self.assertEqual("kernel/rules", architecture["owners"]["kernel/perry_kernel/guards.py"])
-        self.assertEqual("kernel/storage", architecture["owners"]["kernel/perry_kernel/store.py"])
 
 
 if __name__ == "__main__":

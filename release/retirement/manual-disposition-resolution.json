@@ -1,0 +1,652 @@
+{
+  "version": 1,
+  "acceptance": "PROPOSAL",
+  "manual_review_sha256": "b8c54be51cd5ca02352fe76b0785690b57f89a1d6360a3c5b528573eb696575a",
+  "summary": {
+    "manual_demonstrated": 23,
+    "exact_check_drop_proposals": 57,
+    "safety_gate_drops": 0
+  },
+  "rows": [
+    {
+      "row_id": "R0049",
+      "key": "missing-field@540",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. Source inspection at immutable base shows this check recursively requires fields in legacy linkage YAML frontmatter. A missing component Purpose example would be a different check. The old YAML declaration set is retired and its exact required-field criterion is not a current skill procedure. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0058",
+      "key": "bad-plan@841",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The former P.parse_plan error set is broader than the retained bounded status/frontmatter safety. No exact finite old plan grammar is carried into current procedures; an interrupted-plan demo would not establish bad-plan parity. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0059",
+      "key": "size-cap@864",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The check depends on an over-cap legacy board containing undischarged Intake rows and its do-not-split remedy. No current board/intake corpus exists; current queue procedure does not reproduce that exact criterion. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0060",
+      "key": "size-cap@874",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0061",
+      "key": "missing-section@925",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0062",
+      "key": "missing-header-field@938",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0064",
+      "key": "bad-format@953",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0075",
+      "key": "current-phase-resolves@1319",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. phase/CURRENT is retired. Current phase selection is native; no legacy pointer-resolution skill demonstration can honestly cover the exact file criterion. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0076",
+      "key": "linkage-kr-exists@1405",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. Legacy project records serving phase-specific KRs are not a native project type. Current exact-ID attribution is retained, but the former project/phase declaration criterion is not represented. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0077",
+      "key": "linkage-kr-exists@1420",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The exact old rule encodes a phase in a legacy KR ID. Native minted identities do not encode that phase; no current procedure claims that old encoding rule. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0078",
+      "key": "linkage-kr-exists@1438",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The exact old rule encodes an objective in a legacy KR ID. Native identity/relation checks replace storage shape, not that obsolete ID grammar. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0079",
+      "key": "linkage-task-exists@1487",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0080",
+      "key": "linkage-unlinked-exists@1529",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. Legacy unlinked records and their comma/single-argument parser shape are retired. Current visible unlinked work does not reproduce that register-level criterion. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0081",
+      "key": "linkage-kr-exists@1552",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This is another old phase-encoded KR-ID grammar check; an ordinary dangling-link case would not demonstrate its exact criterion. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0090",
+      "key": "document-oversized@1978",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0091",
+      "key": "next-action-oversized@2068",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The old fixed Unicode cell-character guide is not declared in current operating rules. Concise next-action review is possible but cannot demonstrate this exact numeric overrun without inventing a cap. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0092",
+      "key": "summary-missing@2091",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0093",
+      "key": "summary-repeats-title@2091",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0098",
+      "key": "glossary-no-implementation@2542",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The current glossary does not require every term to carry an Implemented/prose-only field. A missing field would therefore be no concrete current-procedure failure. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0099",
+      "key": "glossary-path-missing@2551",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0100",
+      "key": "glossary-term-unused@2557",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. No current explicit rule requires every glossary term to appear elsewhere. Complexity review may question an unused term but cannot report this exact unused-term check as executed. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0176",
+      "key": "missing-template@5645",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The old schema-to-template declaration set is retired; no current procedure claims to validate every old declared template. Native process-template validation belongs to its actual suite, not this manual artifact. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0177",
+      "key": "missing-file@5685",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The old schema required-state-file inventory is retired. Current ownership/collision checks cannot demonstrate presence of an unspecified removed required file. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0179",
+      "key": "MODE-01@2340",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The current mode-fit review can question the supplied queue label, but does not compute the former classifier or its clear-margin threshold. The related mode-reconsideration fixture is a PARTIAL_REPRESENTATIVE only; exact MODE-01 criterion remains pending. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0181",
+      "key": "CTX-04@2377",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0182",
+      "key": "CTX-05@2387",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0183",
+      "key": "CTX-01@2395",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. Current diagnosis measures instruction size but explicitly avoids a universal old always-loaded-lines heuristic. No exact current budget is established for the old score; the retained architecture cap has separate demonstrations. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0184",
+      "key": "CTX-02@2409",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0185",
+      "key": "CTX-03@2416",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0186",
+      "key": "DOC-02@2428",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0187",
+      "key": "DOC-01@2442",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0188",
+      "key": "DOC-03@2452",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0189",
+      "key": "DOC-05@2461",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The former THRESHOLDS.single_doc_lines value and oversized-doc classifier are not a current universal rule. The architecture cap case does not establish this exact old single-doc threshold. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0190",
+      "key": "CON-01@2473",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0191",
+      "key": "CON-03@2486",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0192",
+      "key": "CON-02@2495",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. Actual Git churn measurement is a retained helper behavior. A supplied synthetic hot-file number would only restate an input, not demonstrate observed commits/90d; executable checks were excluded from this manual assignment. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0193",
+      "key": "TRK-01@2506",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0194",
+      "key": "TRK-02@2519",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The former month-old mtime threshold is not a current universal goal-staleness rule. A dated hypothetical file alone does not prove its intent is stale, and no current goal/source was inspected. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0195",
+      "key": "TRK-03@2528",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0196",
+      "key": "TRK-04@2538",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0197",
+      "key": "LOAD-01@2551",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The current lookup procedure detects unnamed/unresolvable codes in the supplied fixture, but this does not evaluate the old total-ID threshold and resolver-detection criterion. The unresolvable-user-code fixture is a PARTIAL_REPRESENTATIVE only. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0198",
+      "key": "LOAD-02@2563",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0199",
+      "key": "LOAD-04@2573",
+      "manual_review_status": "MANUAL_DEMONSTRATED",
+      "final_disposition": "skill_procedure",
+      "acceptance": "PROPOSAL",
+      "reason": "Ordinary document or advisory diagnostic judgment becomes explicit skill review, no retained state parser or narrative regex. Row-specific red scenario remains a PROPOSAL until performed/reviewed."
+    },
+    {
+      "row_id": "R0200",
+      "key": "LOAD-03@2582",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. Current user-effort review identifies delegated reversible choices in the fixture, but does not apply the old open-decision score/threshold or enumerate historical ask parsers. The unnecessary-user-queue fixture is a PARTIAL_REPRESENTATIVE only. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0201",
+      "key": "FIT-01@2596",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The supplied duplicate process conflicts with explicit maintenance tolerance, but no current procedure applies the former document-line/source-count FIT score. The related fixture is a PARTIAL_REPRESENTATIVE only; exact old ratio criterion remains pending. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0202",
+      "key": "FIT-02@2605",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. The exact old minimum names AGENTS.md, STATE.md and DECISIONS.md. Current native state and decide documents do not require that three-file legacy spine; no parity is claimed. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0203",
+      "key": "project default",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0204",
+      "key": "--templates",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0210",
+      "key": "--glossary",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0212",
+      "key": "--summaries",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0214",
+      "key": "--json (default)",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0215",
+      "key": "--text",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0216",
+      "key": "--max-files N",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0217",
+      "key": "--describe",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0218",
+      "key": "--help",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row is a legacy CLI presentation/selection/orchestration mode, not a single semantic criterion. The current skill has no corresponding command or exact mode-output contract. Individual fixtures below do not establish all checks or output behavior for this mode; disposition must stay pending or be reviewed as a proposed drop. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0220",
+      "key": "bin/perry-lint:check_file",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0221",
+      "key": "bin/perry-lint:check_cross_file",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0223",
+      "key": "bin/perry-lint:check_document_sizes",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0224",
+      "key": "bin/perry-lint:check_summaries",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0225",
+      "key": "bin/perry-lint:check_role_cards",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0226",
+      "key": "bin/perry-lint:check_glossary",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0238",
+      "key": "bin/perry-lint:kr_revision_findings",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0239",
+      "key": "bin/perry-lint:_linkage_record_findings",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0240",
+      "key": "bin/perry-lint:_linkage_graph_findings",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0241",
+      "key": "bin/perry-lint:check_linkage_store",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0244",
+      "key": "bin/perry-diagnose:open_user_asks",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0245",
+      "key": "bin/perry-diagnose:open_design_decisions",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0246",
+      "key": "bin/perry-diagnose:scan_decision_mentions",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0247",
+      "key": "bin/perry-diagnose:split_dangling",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0248",
+      "key": "bin/perry-diagnose:scan_user_load",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0249",
+      "key": "bin/perry-diagnose:scan_context_load",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0250",
+      "key": "bin/perry-diagnose:broken_refs",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0251",
+      "key": "bin/perry-diagnose:scan_docs",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0252",
+      "key": "bin/perry-diagnose:scan_concurrency",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0253",
+      "key": "bin/perry-diagnose:scan_tracking",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0254",
+      "key": "bin/perry-diagnose:scan_archetype",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0255",
+      "key": "bin/perry-diagnose:scan_namespace",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0256",
+      "key": "bin/perry-diagnose:scan_work_modes",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0257",
+      "key": "bin/perry-diagnose:derive_findings",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    },
+    {
+      "row_id": "R0258",
+      "key": "bin/perry-diagnose:diagnose",
+      "manual_review_status": "PENDING",
+      "final_disposition": "proposed_drop",
+      "acceptance": "PROPOSAL",
+      "reason": "Explicit candidate retirement of the exact old grammar, threshold, classifier, presentation mode or aggregate executable. This row names a whole legacy function/aggregate. No exact complete criterion list for that function is reproduced by current skill procedures. The bounded individual fixtures demonstrate only their named invariants; they cannot honestly certify the whole entrypoint. Underlying recovery, namespace, identity, evidence, review and human boundaries remain separately retained/tested; no safety capability is dropped."
+    }
+  ]
+}

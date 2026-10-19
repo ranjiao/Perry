@@ -20,3 +20,5 @@ Registry declarations retain phase scope and exact IDs/names/aliases. A name
 claimed by multiple Projects requires resolution before a new write. New phase
 carry-over requires approval. Task completion is not a measured KR value, and
 unlinked work never becomes metric progress merely to complete the dashboard.
+
+Read all relevant native query pages before reporting attribution totals.

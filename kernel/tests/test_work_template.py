@@ -1,24 +1,28 @@
 """The work lane's method as data: `templates/process/perry.json` (TASK-488).
 
-DESIGN-023 § 6 row C, round 2. The file holds exactly DESIGN-023 decision
+DESIGN-023 § 6 row C, round 2. The work projection holds exactly DESIGN-023 decision
 13's pruned method — the types `task`, `ask` and `risk` with their fields,
 states and guards — and decision 14's `track` enum. The spec's acceptance
 criteria this module holds:
 
 - 1: the kernel's `template validate` accepts the file, in process and
   through the executable;
-- 7: the file's types, fields, states, transitions, relations and guards are
+- 7: the work types, fields, states, transitions and guards are
   exactly decision 13's list (`TestTheTemplateIsDecisionThirteen`). The list is
   written out below as literals, so the comparison reads the decision, not
   the file;
-- 2: every type is driven through every transition from every state the
-  transition names. The set driven is derived from the file, so a new
-  transition is covered the day it lands;
+- 2: every work type is driven through every transition from every state
+  the transition names. The work projection is derived from the file;
 - 2 and 8: each decision-13 guard is shown refusing where the method refuses
   and standing aside where it does not. A mutant of any of those guards in
   the file turns the refusing test red.
 
 Criterion 3, the Goal 1 grep, is `test_vocabulary.py`.
+
+Additional goals/decide types and relations are outside this work acceptance
+boundary. F MUST supply its separate acceptance suite for those types. The
+kernel validates the complete shipped template here; successful validation does
+not prove the additional lanes' process semantics.
 
 The names here are the template's, which is why this is a test and not kernel
 source: `test_vocabulary` scans `perry_kernel/` and the wrapper, never tests.
@@ -26,9 +30,11 @@ source: `test_vocabulary` scans `perry_kernel/` and the wrapper, never tests.
 
 from __future__ import annotations
 
+import copy
 import json
 import unittest
 from collections import deque
+from unittest import mock
 
 from support import ACTOR, HUMAN, REPO, Sandbox
 
@@ -138,6 +144,11 @@ def shipped() -> dict:
     return json.loads(SHIPPED.read_text(encoding="utf-8"))
 
 
+def work_types(tpl):
+    """Exact decision-13 work names; extra lanes never enter work fixtures."""
+    return {name: tpl["types"][name] for name in DECISION_13}
+
+
 def path_to(tpl: dict, type_name: str, start: str, goal: str) -> list[str]:
     """The shortest run of transitions from `start` to `goal`."""
     decl = tpl["types"][type_name]
@@ -203,7 +214,8 @@ class TestTheKernelAcceptsTheTemplate(unittest.TestCase):
         sb = Sandbox(self)
         r = sb.ok("template validate", data={"template": shipped()},
                   root=False)
-        self.assertEqual(r, {"valid": True, "format": 1, "types": 3})
+        self.assertEqual(r, {"valid": True, "format": 1,
+                             "types": len(shipped()["types"])})
 
     def test_through_the_executable_as_the_skill_calls_it(self):
         sb = Sandbox(self)
@@ -211,34 +223,38 @@ class TestTheKernelAcceptsTheTemplate(unittest.TestCase):
         wrapped.write_text(json.dumps({"template": shipped()}))
         r = sb.cli("template", "validate", data=f"@{wrapped}", root=False)
         self.assertEqual((r.code, r.result),
-                         (0, {"valid": True, "format": 1, "types": 3}), r)
+                         (0, {"valid": True, "format": 1,
+                              "types": len(shipped()["types"])}), r)
 
     def test_apply_writes_it_and_show_returns_it_verbatim(self):
         sb = Sandbox(self).ready(shipped())
         shown = sb.ok("template show")
         self.assertEqual((shown["template"], shown["version"]),
-                         (shipped(), 1))
+                         (shipped(), shipped()["version"]))
 
 
 # ── criterion 7: exactly decision 13 ───────────────────────────────────────
 
 
 class TestTheTemplateIsDecisionThirteen(unittest.TestCase):
-    """Each part of the file against DESIGN-023 decision 13's list. A part
-    the decision does not name — an intake or cadence type, a stage, WIP,
-    `high_stakes`, a review or sign-off field, a `restage_*` move, V0 — fails
-    the comparison it lands in."""
+    """Each work declaration exactly matches DESIGN-023 decision 13.
+
+    Extra fields/states/guards/moves within those work declarations still fail.
+    Other lanes have separate acceptance; this class does not claim to test them.
+    """
 
     def setUp(self):
         self.tpl = shipped()
 
     def test_the_header(self):
-        self.assertEqual({k: v for k, v in self.tpl.items() if k != "types"},
-                         {"format": 1, "name": "perry", "version": 1,
-                          "relations": {}})
+        self.assertEqual(set(self.tpl), {"format", "name", "version", "types", "relations"})
+        self.assertEqual((self.tpl["format"], self.tpl["name"]), (1, "perry"))
+        self.assertIs(type(self.tpl["version"]), int)
+        self.assertGreaterEqual(self.tpl["version"], 1)
+        self.assertIsInstance(self.tpl["relations"], dict)
 
     def test_the_types(self):
-        self.assertEqual(list(self.tpl["types"]), ["task", "ask", "risk"])
+        self.assertEqual(set(work_types(self.tpl)), set(DECISION_13))
 
     def test_each_types_ids_states_and_ends(self):
         for type_name, want in DECISION_13.items():
@@ -291,7 +307,7 @@ class TestTheTemplateIsDecisionThirteen(unittest.TestCase):
                                      t["guards"])
 
     def test_no_guard_reads_the_track(self):
-        for decl in self.tpl["types"].values():
+        for decl in work_types(self.tpl).values():
             guards = list(decl["create_guards"])
             for t in decl["transitions"].values():
                 guards += t["guards"]
@@ -307,13 +323,13 @@ class TestEveryTransitionIsDriven(WorkCase):
 
     def test_every_transition_has_its_passing_input(self):
         declared = {(type_name, name)
-                    for type_name, decl in self.tpl["types"].items()
+                    for type_name, decl in work_types(self.tpl).items()
                     for name in decl["transitions"]}
         self.assertEqual(declared, set(PASS))
 
     def test_every_type_through_every_transition_from_every_state(self):
         declared, driven = set(), set()
-        for type_name, decl in self.tpl["types"].items():
+        for type_name, decl in work_types(self.tpl).items():
             for name, t in decl["transitions"].items():
                 for origin in t["from"]:
                     declared.add((type_name, name, origin))
@@ -331,7 +347,7 @@ class TestEveryTransitionIsDriven(WorkCase):
         self.assertEqual(len(declared), 22)
 
     def test_a_closed_item_moves_no_further(self):
-        for type_name, decl in self.tpl["types"].items():
+        for type_name, decl in work_types(self.tpl).items():
             for terminal in decl["terminal"]:
                 with self.subTest(type=type_name, state=terminal):
                     item = self.new(type_name, terminal)
@@ -553,7 +569,7 @@ class TestAsk(WorkCase):
 
     def test_an_ask_blocks_the_task_until_it_is_answered(self):
         """Decision 13: an ask holds a task up through a `blocks` relation,
-        which the kernel builds in; the template declares no relation."""
+        which the kernel builds in; work needs no custom relation."""
         ask = self.new("ask")
         task = self.sb.create("task", CREATE["task"],
                               relations=[{"kind": "blocks", "from": ask}])
@@ -599,6 +615,42 @@ class TestTheTaskTree(WorkCase):
                       got["relations"])
         self.sb.move(blocker, "drop", set={"reason": "not needed"})
         self.assertTrue(self.sb.get(child)["startable"])
+
+
+class TestAdditionalLanesPreserveWorkAcceptance(unittest.TestCase):
+    def expanded(self):
+        tpl = copy.deepcopy(shipped())
+        tpl["version"] += 1
+        tpl["types"]["extension_note"] = {
+            "prefix": "EXTNOTE", "digits": 3,
+            "states": ["draft", "filed"], "initial": "draft", "terminal": ["filed"],
+            "fields": {"body": {"kind": "text"}},
+            "create_guards": [{"kind": "required", "fields": ["body"]}],
+            "transitions": {"file": {"from": ["draft"], "to": "filed", "guards": []}}}
+        tpl["relations"]["extension_note_links"] = {"from": ["extension_note"], "to": ["task"]}
+        return tpl
+
+    def test_all_work_assertions_run_unchanged_with_an_extra_type_relation_and_version(self):
+        expanded = self.expanded()
+        cases = [TestTheKernelAcceptsTheTemplate, TestTheTemplateIsDecisionThirteen,
+                 TestEveryTransitionIsDriven, TestTaskCreate, TestRungs, TestTrack,
+                 TestBlockAndDrop, TestDone, TestAsk, TestRisk, TestTheTaskTree]
+        suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case)
+                                   for case in cases)
+        count = suite.countTestCases()
+        self.assertGreater(count, 0)
+        result = unittest.TestResult()
+        with mock.patch(__name__ + ".shipped", return_value=expanded):
+            suite.run(result)
+        self.assertEqual(result.testsRun, count)
+        self.assertEqual(result.skipped, [])
+        self.assertEqual(result.errors + result.failures, [])
+
+    def test_invalid_extra_lane_still_fails_whole_template_validation(self):
+        expanded = self.expanded()
+        expanded["types"]["extension_note"]["fields"]["body"]["kind"] = "invalid_kind"
+        result = Sandbox(self).run("template", "validate", data={"template": expanded}, root=False)
+        self.assertEqual(result.code_name, "template_invalid", result)
 
 
 if __name__ == "__main__":

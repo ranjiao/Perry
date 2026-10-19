@@ -1,159 +1,35 @@
-# Glossary — the vocabulary, and the brake on adding to it
+# Glossary
 
-Tier 1. Read when a term in Perry's own prose is unfamiliar, and **before
-coining one**.
+Use a term consistently; do not mint a short code when a familiar phrase works.
+The user sees an ID with its human title at first mention. Native `item get`
+resolves current identities; historical document IDs resolve to the cited file.
 
-## Why this file is a constraint, not a reference
+| Term | Meaning and authority |
+|---|---|
+| kernel | Generic state engine: items, types, fields, transitions, guards, relations, events and attachments. `bin/perry describe` declares its surface. |
+| template | Process data applied through the kernel; `templates/process/perry.json` names Perry's method. |
+| lane | Goals, work or decide: a skill procedure with an ownership boundary, not a separately installed skill. |
+| verification rung | Evidence level V1–V6 declared by the template and interpreted by the work skill. A label does not prove evidence. |
+| V4 | Fresh-context reviewer against written criteria; implementation cannot self-award it. |
+| V5 | Actual named human acceptance of a concrete artifact; implementation authority does not imply signoff. |
+| acceptance criteria | Falsifiable written requirements for the delivered behavior. |
+| verdict block | The independent reviewer's criterion-by-criterion result, references and limits. |
+| instance-shaped guard | A check hardcoded to one discovered example rather than the category; it misses the next case. |
+| green mutation | A deliberate break in protected behavior whose check incorrectly stays green; it reveals a missing or ineffective check. |
+| read contract | Versioned `describe` interface and response envelope; errors are not empty lists. |
+| field path | A field reference declared by the template, never a markdown heading parser. |
+| semantics | What the document or action means, judged against evidence and actual authority. |
+| startable | Native derived dependency result. Unresolved dependencies cannot be guessed satisfied. |
+| drift | A documented mismatch between current artifact and governing target; static limited analysis is not compliance. |
+| intake | Newly received work represented by a task/track under the process template, not a second register. |
+| conformance | Review against applicable written rules, with concrete evidence and unknowns. |
+| hand-off contract | Lanes read freely and write only their owned items/documents. |
+| work mode | A skill interpretation of project, inquiry, queue or pipeline work; no mode parser controls native state. |
+| track | Template field separating streams of work. |
+| knowledge card | A sourced durable claim with an observable invalidation condition; work owns its authored document. |
+| role card | A declared responsibility and its authoritative sources, read on the skill side. |
 
-An agent-run project grows vocabulary faster than it grows code. A single
-working session can invent a dozen terms and start citing them in the same
-breath — each one obvious to the session that coined it and opaque to the next
-session and to the human reading the board. That cost is invisible while it is
-being incurred and unpayable afterwards, because by then the term is in forty
-board cells.
-
-So this file does two jobs, and the second is the important one:
-
-1. **It says what each term means**, once, where `perry-explain` can find it.
-2. **It makes a new concept cost something.** Every entry must name where the
-   term is *implemented* — a tool, a schema field, a test. An entry that names
-   nothing declares `prose-only`, and `perry-lint --glossary` counts those and
-   prints the number. A concept that exists only in prose is this
-   repository's most-found defect (*a rule stated in prose that nothing
-   implements*), and the count is what keeps it from being free.
-
-**The rule for adding a term.** Before inventing one, check whether an entry
-here already covers it — most "new" concepts are a second name for an existing
-one, which is the *other* recurring defect (*N implementations of one rule*)
-wearing vocabulary's clothes. If it is genuinely new, add the entry **in the
-same change that introduces the term**, and name what implements it.
-
-## Format
-
-```
-    ### <term>
-    <one line: what it is>
-    Implemented: <path>[ § <section>]   |   prose-only
-```
-
-(Indented so the parser does not read this example as an entry — which it did,
-and `--glossary` reported the template as a broken path on its first run.)
-
-`Implemented:` is checked — the path must exist. `prose-only` is legal and
-counted, never silently allowed.
-
----
-
-### verification rung
-How much proof a task needs before it counts as finished. `V0`–`V6`; run
-`bin/perry-explain V4` for any single rung.
-Implemented: schema/state-schema.json § verification
-
-### V4
-A fresh-context reviewer scoring against **written** acceptance criteria. Both
-halves are the rung: a reviewer who saw the reasoning, or a review with no
-written bar, is V1 with a different label.
-Implemented: work/reference/review.md
-
-### V5
-A named human signing off, recording **what they actually checked** — and what
-they did not. The one rung no tool can verify.
-Implemented: schema/state-schema.json § verification
-
-### acceptance criteria
-The written bar a V4 is judged against, authored **before** the round. Criteria
-written after a result are a negotiation with the result.
-Implemented: work/reference/review.md
-
-### verdict block
-The fixed `=== VERDICT ===` shape a review returns: one block per row, with
-`result`, `checked`, `not-checked` and, on a FAIL, `proof`.
-Implemented: work/reference/review.md
-
-### instance-shaped guard
-A check written against the case that was found rather than the category it
-belongs to — a hardcoded file list, a single call site. It passes forever and
-catches nothing new. Perry's own row-integrity guard was instance-shaped three
-rounds running.
-Implemented: tests/test_row_integrity.py
-
-### green mutation
-Breaking the code a check claims to protect and watching the check stay green.
-It is a finding either way: either the guard does not work or the test does not
-test it.
-Implemented: work/reference/review.md
-
-### read contract
-A versioned, frozen JSON payload a front-end may code against —
-`perry-task/list`, `perry-goals/list`, `perry-decide/list`. Minor versions add
-keys; a removal or retype is a major.
-Implemented: schema/task-list-contract.md
-
-### field path
-A path to one key inside a contract payload — `conformance.evidence_not_found[].id`.
-**Not** a Key Result id. Called `key path` for one afternoon until a reader
-took it for `KR`, which is what `key` already means here.
-Implemented: tests/test_contract_invariance.py
-
-### semantics
-The array in a read contract's payload naming which fields **changed meaning**
-in which minor version. Exists because "1.x only adds keys" does not cover a
-value that was computed wrongly.
-Implemented: schema/task-list-contract.md
-
-### startable
-An open row that is not itself waiting on a reviewer or a blocker and has
-nothing unfinished under it. Derived, never stored.
-Implemented: schema/task-list-contract.md
-
-### drift
-The board and the event log disagreeing — a state change that happened without
-a tool writing it, usually a hand edit. Reported, never refused. Under ADR-007
-the same word covers the board disagreeing with the task store, which
-`perry-lint` reports as `store-drift` at `warn` and on the same posture.
-Implemented: bin/perry-state
-
-### intake
-Queue mode's inbox: work that has arrived but not yet been routed onto the
-board.
-Implemented: schema/state-schema.json
-
-### conformance
-The block in a read contract naming what the board did **not** parse cleanly.
-It used to be two unrelated things under one word; the other — a file's
-declared shape version under `perry-conform` — is deleted (`TASK-261`), and the
-collision went with it.
-Implemented: schema/task-list-contract.md
-
-### the hand-off contract
-Each lane reads the others' files freely; no lane writes outside its own. The
-one rule that keeps the three lanes composable.
-Implemented: reference/hand-off-contract.md
-
-### lane
-One of `goals`, `work`, `decide` — loaded on demand by the router. Not a
-separately invocable skill.
-Implemented: SKILL.md
-
-### work mode
-Which shape a track has: `project`, `pipeline`, `queue`, `inquiry`. Determines
-the spine, the horizon, the item states and the default rung.
-Implemented: modes/project.md
-
-### track
-A named stream of work inside one project, declared as a track record in
-`.perry/config.jsonl` (`perry-config track`). A blank `Track` cell means the implicit `main` track.
-Implemented: schema/state-schema.json
-
-### knowledge card
-A reusable claim about how to do something correctly, with mandatory
-provenance. Distinguished from a digest by its `Kind:`.
-Implemented: bin/perry-lint
-
-### role card
-A project's own declaration of who it hires — there is no built-in list of
-agent types.
-Implemented: work/state/role_card_TEMPLATE.md
+For safety procedures and manual document checks read `operating-rules.md`.
 
 ## Native goal scope
 

@@ -16,7 +16,7 @@ If a new feature is broadly applicable (touches every standup, every reply), it 
 
 > **`## High-stakes operations` is a safety gate, not configuration.** `/pmo dispatch` refuses any spec whose `Files in scope` / `Deliverable` matches a line in it; `/pmo autopilot` skips matching rows and **refuses to run when the list is empty** (`autopilot.md` pre-flight step 0). A project without the list has an unarmed gate, so bootstrap always writes the conservative default and asks the user to confirm it. Everything below this line is genuinely optional.
 
-Check whether it's armed with `"$PERRY_HOME/bin/perry-state" --section project` (`hook.high_stakes_armed`); `bin/perry-lint` warns when it isn't.
+Read the exact hook section and run the structural dispatch packet through `tools/document_checks.py dispatch`; see `reference/operating-rules.md`. An empty/unextractable list refuses. The agent judges actual operations and authority; a supplied packet authorization is not consent by itself.
 
 ### Block format
 

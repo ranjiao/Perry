@@ -9,7 +9,7 @@ Perry runs on **Claude Code**, **OpenCode**, and **Codex CLI**. It registers **o
 After deriving `$PERRY_HOME`, run:
 
 ```
-bash "$PERRY_HOME/bin/perry-detect-host"
+bash "$PERRY_HOME/tools/detect-host.sh"
 ```
 
 The result is `claude-code`, `opencode`, `codex-cli`, or `unknown`. Remember it as `$HOST`; do not re-run per subcommand or when the router hands to a lane. An explanation needs no detection unless its answer or a choice prompt depends on the host (`reference/startup.md`). If it is `unknown`, retain the original `claude-code` fallback, mention the ambiguity once, and recommend an override:
@@ -62,14 +62,14 @@ The executor enum is `claude-subagent | opencode-subagent | codex | manual`. The
 | `opencode` | `opencode-subagent`, `codex` |
 | `codex-cli` | `codex` |
 
-If a spec pins a native executor for another host, refuse rather than silently reroute. `manual` routes to `/perry work delegate`; it is never registered with `perry-dispatch-limit`. When an auto spec omits `Executor`, offer only executors valid for `$HOST`, plus `manual`.
+If a spec pins a native executor for another host, refuse rather than silently reroute. `manual` routes to `/perry work delegate`; it is never registered with `tools/dispatch_limit.sh`. When an auto spec omits `Executor`, offer only executors valid for `$HOST`, plus `manual`.
 
-`bin/perry-context-budget` binds its optional usage report to that identity, never
+`tools/context_budget.py` binds its optional usage report to that identity, never
 to the newest transcript. Missing identity, ambiguous matches and unsupported hosts
 report `unknown`. Claude Code is always unknown here because its session identity
 is not verified; `--session` is only an explicit caller-asserted reading. Neither
 unknown nor a large token count blocks work or requires a handoff. Session changes
-belong to the agent environment and user. Detail: `bin/README.md § perry-context-budget`.
+belong to the agent environment and user. Detail: `tools/README.md § context budget`.
 
 ## Prompt rendering
 
@@ -93,14 +93,11 @@ Architecture review on OpenCode is another synchronous `Task(subagent_type: gene
 
 ## No-background-shell-tool fallback
 
-OpenCode and Codex do not expose Claude's Bash background parameter. For the asynchronous `codex` executor, use explicit shell backgrounding with logs and a PID where relevant:
-
-```
-codex exec "<prompt>" > "/tmp/perry-dispatch-<task-id>.log" 2>&1 &
-echo $! > "/tmp/perry-dispatch-<task-id>.pid"
-```
-
-Poll the RESULT log/process for dispatch completion. Neither host has a Claude background-task notification.
+OpenCode and Codex do not expose Claude's Bash background parameter. For a host with a native job/completion API, use it and retain the completion
+result. Where no such API exists, follow `work/reference/dispatch.md` for an
+explicit background process, unique project-owned scratch logs/PID, and bounded
+polling. Never put logs in shared task-ID-only `/tmp` paths. A PID or fresh native
+event alone does not prove liveness or successful completion.
 
 ## What Perry does not depend on
 

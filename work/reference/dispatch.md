@@ -184,7 +184,7 @@ output".
 
 - **MANDATORY pre-flight** before the first codex dispatch in any session (or after the 6h smoke cache expires):
   ```
-  bash "$PERRY_HOME/bin/perry-codex-preflight"
+  bash "$PERRY_HOME/tools/codex-preflight.sh"
   ```
   The script: (a) `codex --version` ≥ `PERRY_CODEX_MIN_VERSION` (default `0.100.0`); (b) smoke test (`codex exec "Reply with just: PERRY_OK"`, 60s timeout if `timeout` / `gtimeout` is installed). Cached 6h at `~/.cache/perry/codex-smoke-pass`. Exit non-0 → **refuse + surface stderr verbatim + fall back to delegate**. Catches stuck CLI / broken auth / version-rejected-by-API BEFORE we fire async dispatch that would silently hang.
 - Then: Bash → `cd <code-repo-path> && codex exec "<prompt>"`.

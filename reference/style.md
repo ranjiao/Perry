@@ -11,7 +11,7 @@ router inside its byte budget. The prose is carried over unchanged.
 
 - **Lead with the dashboard, not narration.**
 - **Numbers, IDs, file paths.** Not paragraphs.
-- **An ID never travels alone.** The first time an ID appears in any user-facing output, it carries its human name: `REL-002 ("Flake detector") is blocked on USER-014 ("Confirm staging env default")`, never `REL-002 blocked on USER-014`. Later mentions in the same response may use the bare ID, and a table with a Title column already satisfies this. Perry mints `REL-`, `ADR-`, `DESIGN-`, `P<NNN>-O<n>-KR<n>`, `USER-`, `CAD-`, `SRC-`, `CL-`, `RX-` and phase numbers — that is a private vocabulary issued to someone who never agreed to learn it, and an unresolvable ID is a dead end in the middle of a sentence the user is trying to act on. Use `bin/perry-explain <ID>` to resolve one, `--all` for the glossary. Full rule in `reference/user-load.md`.
+- **An ID never travels alone.** The first time an ID appears in any user-facing output, it carries its human name: `REL-002 ("Flake detector") is blocked on USER-014 ("Confirm staging env default")`, never `REL-002 blocked on USER-014`. Later mentions in the same response may use the bare ID, and a table with a Title column already satisfies this. Perry mints `REL-`, `ADR-`, `DESIGN-`, `P<NNN>-O<n>-KR<n>`, `USER-`, `CAD-`, `SRC-`, `CL-`, `RX-` and phase numbers — that is a private vocabulary issued to someone who never agreed to learn it, and an unresolvable ID is a dead end in the middle of a sentence the user is trying to act on. Use native `item get` for a current item, or open the cited historical document; consult `reference/glossary.md` for terms. Full rule in `reference/user-load.md`.
 - **Never ask a question the user cannot evaluate.** Before offering options, check whether the user can predict what will be different for them under each. If not, reframe in consequences, or decide it yourself and say so, or narrow to two — see `reference/user-load.md § The three exits`. Depth of analysis and usefulness of a question come apart completely once the subject leaves the user's expertise, and this gets *worse* as the agent gets better.
 - **Never mint an example ID that resolves to nothing.** Writing a concrete
   `SRC-<number>` or `TASK-<number>` in prose to illustrate a shape creates a
@@ -95,12 +95,13 @@ Project hook files live at the project root (not in the skill folder), so a sing
 
 ## Auto-update
 
-Every Perry skill invocation runs `bin/perry-update-check` as the first action. The script:
-- Throttles itself to **once per 7 days** via `$PERRY_HOME/.update-check` mtime; most invocations exit immediately with no output.
-- Detects "dev mode" — symlink install, dirty working tree, or non-`main` branch — and in that case **only fetches and reports**; it never auto-pulls (so it can't trample your WIP if you're editing Perry source).
-- For "consumer mode" (real directory, clean tree, on `main`), does an ff-only `git pull` from `origin/main`.
-- Always exits 0 (network failure, unresolved merge, etc. → notify and continue; never block the standup).
-
-Manual trigger: `bash "$PERRY_HOME/bin/perry-update-check" --force` (bypasses throttle).
-
-The script is invoked from the standup ritual of every lane, so any `/perry …` invocation covers it. If the skill source is not a git checkout (e.g., extracted from a tarball), the check exits silently.
+The root startup route controls whether a network check is allowed. Explain and
+network-prohibited work do not run it. When applicable, run
+`bash "$PERRY_HOME/tools/update-check.sh"`; `--force` bypasses the seven-day
+throttle. Relay its actual output. Developers/symlink installs are report-only
+unless an explicit supported release-channel action applies; dirty/feature/local
+work remains protected. Consumers use verified stable releases, never an
+unverified main fallback. With no release or failed validation, the checkout
+stays unchanged. See `tools/helper-contracts.md` and `release/README.md`.
+The helper defaults to nonblocking failure reporting; `--strict` requests a
+nonzero failure. Source installations outside Git exit without an update.

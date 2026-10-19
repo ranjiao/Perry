@@ -23,7 +23,7 @@ from pathlib import Path
 
 KERNEL = Path(__file__).resolve().parents[1]
 REPO = KERNEL.parent
-WRAPPER = REPO / "bin" / "perry-kernel"
+WRAPPER = REPO / "bin" / "perry"
 PACKAGE = KERNEL / "perry_kernel"
 if str(KERNEL) not in sys.path:
     sys.path.insert(0, str(KERNEL))

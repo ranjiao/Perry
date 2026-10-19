@@ -36,8 +36,8 @@ jobs:
           python3 release/manage.py prepare --ref "$RELEASE_SHA" --tag "$RELEASE_TAG"
       - name: Test the exact release commit
         run: |
-          env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME bash tests/run
-          env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME bash tests/run --slow
+          env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME -u PERRY_STORE bash tests/run --tier full
+          env -u PYTHONPATH -u PERRY_PROJECT -u PERRY_HOME -u PERRY_STORE bash tests/run --tier slow
       - name: Create tag and release without overwriting
         env:
           GH_TOKEN: ${{ github.token }}

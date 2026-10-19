@@ -5,7 +5,7 @@ is mocked; no test contacts GitHub or updates the installed Perry checkout.
 """
 from __future__ import annotations
 
-COVERS = ("bin/perry-update-check", "release/update.py")
+COVERS = ("tools/update-check.sh", "release/update.py")
 
 import contextlib
 import importlib.util
@@ -321,7 +321,7 @@ class Boundaries(unittest.TestCase):
                 source = home / host
                 source.mkdir(parents=True)
                 (source / "SKILL.md").write_text("fixture")
-                got = subprocess.run(["bash", str(ROOT / "bin/perry-update-check"), "--force"], env=env, capture_output=True, text=True, timeout=10)
+                got = subprocess.run(["bash", str(ROOT / "tools/update-check.sh"), "--force"], env=env, capture_output=True, text=True, timeout=10)
                 self.assertEqual(got.returncode, 0, got.stderr)
                 self.assertIn(str(source), got.stdout)
                 shutil.rmtree(source)
@@ -331,13 +331,13 @@ class Boundaries(unittest.TestCase):
             (source / "SKILL.md").write_text("fixture")
             (source / ".update-check").touch()
             env["PERRY_HOME"] = str(source)
-            got = subprocess.run(["bash", str(ROOT / "bin/perry-update-check")], env=env, capture_output=True, text=True, timeout=10)
+            got = subprocess.run(["bash", str(ROOT / "tools/update-check.sh")], env=env, capture_output=True, text=True, timeout=10)
             self.assertEqual((got.returncode, got.stdout, got.stderr), (0, "", ""))
             for args in (("--force", "--help"), ("--channel", "release", "--help")):
-                got = subprocess.run(["bash", str(ROOT / "bin/perry-update-check"), *args], env=env, capture_output=True, text=True, timeout=10)
+                got = subprocess.run(["bash", str(ROOT / "tools/update-check.sh"), *args], env=env, capture_output=True, text=True, timeout=10)
                 self.assertEqual(got.returncode, 0)
                 self.assertIn("--channel", got.stdout)
-            got = subprocess.run(["bash", str(ROOT / "bin/perry-update-check"), "--channel", "bad"], env=env, capture_output=True, text=True, timeout=10)
+            got = subprocess.run(["bash", str(ROOT / "tools/update-check.sh"), "--channel", "bad"], env=env, capture_output=True, text=True, timeout=10)
             self.assertEqual(got.returncode, 2)
 
 

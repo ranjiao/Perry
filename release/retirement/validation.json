@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "base": "b9be4d39f52ce1266534215b999c9db408b03bc5",
+  "branch": "codex/task-494-retirement",
+  "acceptance": "PROPOSAL",
+  "tests": {
+    "new_full": {
+      "command": "env -u PERRY_HOME -u PERRY_PROJECT -u PERRY_STORE -u PYTHONPATH PYTHONDONTWRITEBYTECODE=1 PERRY_KERNEL_TESTING=1 bash tests/run --tier full",
+      "kernel": 281,
+      "kernel_skipped": 1,
+      "helpers": 150,
+      "result": "PASS"
+    },
+    "no_markdown": {
+      "command": "python3 <isolated-no-markdown>/kernel/tests/run.py --live-store <temporary-watch.db>",
+      "kernel": 281,
+      "skipped": 1,
+      "result": "PASS",
+      "fixture": "Copied kernel/bin/perry/process JSON, removed all Markdown, temporary Git + .perry anchor only; no live state copy"
+    },
+    "integration_self_tests": {
+      "tests": 7,
+      "result": "PASS",
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p slow_integration.py",
+      "limit": "focused disposable synthetic Git tests, not independent F/G/H combined acceptance"
+    }
+  },
+  "logs": {
+    "new-full.log": {
+      "path": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task494-retirement-rH8ZsP/new-full.log",
+      "sha256": "d725d4bb21dfa9ee0cb6c172148edef66cfed6d7acbb15a249fe58f9b30df91c"
+    },
+    "without-markdown-final.log": {
+      "path": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task494-retirement-rH8ZsP/without-markdown-final.log",
+      "sha256": "ae92650e4e9d1be1dff71c0a894a0a0a6eb2c98d1ccbd22a814c934524c05b1b"
+    },
+    "native-tests.log": {
+      "path": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task494-retirement-rH8ZsP/native-tests.log",
+      "sha256": "46527337149b52dbd0ca26d6d6723e58261ba4f48ee4ea3d0b594322f899024a"
+    },
+    "without-markdown.log": {
+      "path": "/var/folders/6g/dpvy7sgj7918yj3pqwnvy5q00000gn/T/perry-scratch/Perry/task494-retirement-rH8ZsP/without-markdown.log",
+      "sha256": "36f095e8a8dc06ba20b44c1b5e6c7e00a622a6406e66c6b7ff1cecebbe693a41"
+    }
+  },
+  "initial_failures": [
+    "Initial 279-test native run failed 7 old executable-basename assertions; fixed without kernel production edits, then focused and new full passed.",
+    "First Markdown-free fixture failed one anchor-derived live-path assertion because fixture omitted .perry; repaired only the temp fixture metadata; 281-test rerun passed."
+  ],
+  "skip": "APFS rejects a raw non-UTF-8 directory name with EILSEQ; one existing platform capability test skips. Surrogate command-input case still runs.",
+  "architecture": {
+    "checkpoint": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-494-architecture/TASK-494/delivery-20261019T091915Z-530707a229",
+    "baseline": "/Users/bytedance/proj/Perry/perry/evidence/2026-10/TASK-494-architecture/TASK-494/start-20261019T085839Z-c30f3538d2",
+    "snapshot": "4b4bc2822e9ac1b827872249516641ad8f548a00cacd65453e23d52c2a4ec378",
+    "status": "attention",
+    "reasons": [
+      "target_changed",
+      "incomplete_coverage",
+      "target_change_requested"
+    ],
+    "fresh": true,
+    "bundle_sha256": "5c257185320e36076f3518ac30e132c69fe767addc66d5164ce8497323a7505d",
+    "html_sha256": "c4c457616e8e783671c20ed20dab7372b4bcb8f995bb416bc68a822077f5ef0b"
+  },
+  "architecture_limits": "Python static facts only, one dynamic sys.path context; target changes and coverage attention visible. Final analysis assigns two scaffold checkers omitted from start interpretation. Browser open attempted but iab unavailable; no rendered-browser acceptance claimed.",
+  "boundaries": [
+    "No kernel/perry_kernel source change.",
+    "No project perry/ or .perry changes or task state transitions.",
+    "No protected G/F source edits, dependency/network/paid API, push, merge, installation or activation.",
+    "Read-only live-store detector observed no changes; every mutating test uses isolated roots/stores with PERRY_KERNEL_TESTING=1. Intentional missing-store negative tests prove prevention."
+  ],
+  "remaining": [
+    "Independent combined F/G/H full+slow acceptance and source semantic review.",
+    "Required aiMark native/goal/decide/knowledge/roles/churn adapter migration and actual consumer tests.",
+    "F importer must detach retired lib/parsers; F type/transition acceptance separate from exact work-only tests.",
+    "Integrator version allocation and release check; no competing version is allocated here.",
+    "Perry/SkyTonight backup/store/export receipts, rollback limits and explicit activation authority.",
+    "Actual user decision on 420 drop proposals, viewer/preferences/contract/architecture changes, then H/V5."
+  ]
+}

@@ -1,3 +1,5 @@
+> Historical ownership-signature record. Current native ownership is in `SKILL.md`; legacy command/schema names below are context, never executable instructions.
+
 # The hand-off contract — what changed, and why it needed no second signature
 
 Tier 1. Loaded on demand from `SKILL.md § The hand-off contract (the most

@@ -1,7 +1,7 @@
 # Input quality pass (shared across okr / pmo / design)
 
 Perry's three skills each accept user-authored content that lands in tier 1 files
-(`OKR.md`, `phase/<NNN>-<slug>.md`, `design/<ID>-<slug>.md`) or in a task record (`tasks.jsonl`).
+(`OKR.md`, `phase/<NNN>-<slug>.md`, `design/<ID>-<slug>.md`) or in a native task item.
 This file, with `input-quality-rubrics.md` for §1–§3, is the **single source of truth for the input-quality rubric** every
 skill runs before writing that content. SKILL.md files name the pass and link
 here; they do not inline the rubric.
@@ -16,9 +16,9 @@ The pass is **advisory + override**, never silent rewrite, never (on its own) a 
 
 1. **Surface at most 3 issues** — the highest-value ones for this doc. More than 3 reads as nagging; the user tunes out. If the draft is clean, say so in one line and proceed.
 2. **Each issue names the field, says why in one line, and shows a concrete bad→good rewrite.** Never "this is vague" with no fix.
-3. **The user decides**: fix, or write as-is. Writing as-is is an **override** — record a one-line reason in the journal / `## Changes` (whichever the owning skill uses). Never overrule the user.
+3. **The user decides**: fix, or write as-is. Writing as-is is an **override** — record a one-line reason in the owning document / `## Changes` (whichever the owning skill uses). Never overrule the user.
 4. **Layer on top of, don't replace, existing hard gates.** `design lock` (no open User Decisions), `pmo` evidence-for-`done`, and tier-1 size caps stay hard refusals. The quality pass is the softer, earlier coaching step; it runs *before* those gates, at draft/input time.
-5. **User-facing prompt language follows the `Document language` setting in `.perry/config.jsonl`.** This file (Perry source) is English; the rubric labels below are for the agent, the message it renders to the user is in the configured language.
+5. **User-facing prompt language follows the `Document language` preference (`config.md`).** This file (Perry source) is English; the rubric labels below are for the agent, the message it renders to the user is in the configured language.
 
 ### When each skill runs the pass
 
@@ -26,7 +26,7 @@ The pass is **advisory + override**, never silent rewrite, never (on its own) a 
 |---|---|---|
 | `okr` | `init` (before writing `OKR.md`), `plan-phase` (before writing the phase file), `plan-week` (per proposed task) | §1 Overall OKR · §2 Phase OKR · §4 Task |
 | `design` | `new` (Problem/Goals/Non-Goals first pass) and `lock` pre-flight (whole doc) | §3 Design doc |
-| `pmo` | `add-task` (per new BOARD row) | §4 Task |
+| `pmo` | `add-task` (per new native task) | §4 Task |
 
 ### Rendering the pass (Claude Code)
 
@@ -50,9 +50,9 @@ The Overall OKR (§1), Phase OKR (§2) and Design doc (§3) rubrics are `input-q
 | 4.3 | **Single owner from the Owner model** — not "team" / unassigned | "Owner: someone" | "Owner: Coding Agent" |
 | 4.4 | **Priority is justified** — P0 must plausibly block a Must-Have | everything P0 | P0 only if it blocks a DoD Must-Have; else P1/P2 |
 | 4.5 | **Linked to a KR** (from `plan-week`) — orphan tasks are scope creep | no `kr:` tag | `kr:P<NNN>-O1-KR2` |
-| 4.6 | **Summary is written for a stranger** — why the row exists and what is true when it is done, in plain language, for somebody who was not in this conversation. The title is shorthand; this is what `perry-explain` prints. | the title again, or `D009 step 3` | "Perry ships two opposite orderings of the phase-close pipeline. Nothing picks one, so whoever runs it picks by which page they read." |
+| 4.6 | **Summary is written for a stranger** — why the row exists and what is true when it is done, in plain language, for somebody who was not in this conversation. The title is shorthand; native `item get` exposes this field. | the title again, or `D009 step 3` | "Perry ships two opposite orderings of the phase-close pipeline. Nothing picks one, so whoever runs it picks by which page they read." |
 
-> **4.1, 4.2 and 4.6 are also hard refusals in `perry-task add`** (`--verification`, `--deliverable`, `--summary`). They are listed here as well because this pass runs *before* the tool does, and catching them in conversation is cheaper than catching them at the command line. The tool's half of 4.6 is **structural only** — it refuses a summary that folds to the title, has no sentence, or is under five words. Whether the prose is genuinely readable is this pass's job and a human's, not the tool's; do not treat a green `perry-task add` as evidence that 4.6 passed.
+> The skill verifies 4.1, 4.2 and 4.6 before creation. Native required-field guards check presence, not whether evidence is falsifiable or prose is readable. Read the deliverable and summary against the rubric; never present a successful mutation as semantic acceptance. The former word-count/sentence regex refusals are proposed retirements pending H acceptance.
 
 ---
 
